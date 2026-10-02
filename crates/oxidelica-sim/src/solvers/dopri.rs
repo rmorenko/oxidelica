@@ -196,7 +196,7 @@ impl CompiledModel {
                     // *chosen* is likely the choice failing, not the
                     // model: treat the step as rejected and let the step
                     // size fall toward the stall check below.
-                    Err(_) if self.reselectable => {
+                    Err(_) if self.reselectable || super::stage_failure_rejects() => {
                         stage_failed = true;
                         break;
                     }

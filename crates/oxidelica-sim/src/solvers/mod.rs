@@ -118,7 +118,19 @@ pub(crate) fn set_block_tolerance(tolerance: Option<f64>) {
 }
 
 fn block_tolerance() -> f64 {
-    BLOCK_TOLERANCE.with(|cell| cell.get()).unwrap_or(1e-10)
+    // Probe, not adopted: OXIDELICA_BLOCK_TOL sets the tolerance for
+    // the whole run, to ask whether a soft acceptance early on is what
+    // leaves a later block without a direction.
+    static WHOLE_RUN: std::sync::OnceLock<Option<f64>> = std::sync::OnceLock::new();
+    let whole_run = *WHOLE_RUN.get_or_init(|| {
+        std::env::var("OXIDELICA_BLOCK_TOL")
+            .ok()
+            .and_then(|k| k.parse().ok())
+    });
+    BLOCK_TOLERANCE
+        .with(|cell| cell.get())
+        .or(whole_run)
+        .unwrap_or(1e-10)
 }
 
 /// Whether a converged block keeps the reason a walk left behind on a
@@ -2116,4 +2128,12 @@ mod crossing_tests {
         assert_eq!(place_crossing(t, t_new, f64::NAN, 1.2, hi), hair);
         assert_eq!(place_crossing(t, t_new, 0.5, t, t), t + 1e-9);
     }
+}
+
+/// Probe, not adopted: whether a block that dies on a trial stage of a
+/// model with no demoted states rejects the step, as it does on a
+/// reselectable model, instead of ending the run where it stood.
+pub(crate) fn stage_failure_rejects() -> bool {
+    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ON.get_or_init(|| std::env::var_os("OXIDELICA_STAGE_REJECTS").is_some())
 }

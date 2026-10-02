@@ -157,7 +157,7 @@ impl CompiledModel {
                     // The algebraic layer dying on a chosen selection is
                     // the selection failing: reject the step and let the
                     // step size fall toward the stall check.
-                    Err(_) if self.reselectable => {
+                    Err(_) if self.reselectable || super::stage_failure_rejects() => {
                         newton_failed = true;
                         break;
                     }
