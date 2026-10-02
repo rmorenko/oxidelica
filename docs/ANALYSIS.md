@@ -30326,6 +30326,15 @@ m333's timing over the seventy Fluid models said the same (1848 s held
 against 1855 s drifting). The change does not cost time on the desk,
 so the 1.625 is read as the runner's weather until a second print says
 otherwise, and the floors are not moved on it: the counts equal them.
+The second print was asked of run 36997659558 (head 30f6493, the same
+compiler) and was cancelled on the 150 minute ceiling, so there is
+none. The scheduled run 36994781537 on b69198f is green, but it reads
+only the heavy models and prints no main-pass counts. The band is
+left where it stands. Over the runner's last prints the ratio has
+climbed from 1.22 to 1.26 (1 October) through 1.430 and 1.473 to
+1.625, which is a trend rather than one bad day, and whether to
+recentre the band on it is a decision for a reading with more than one
+point on the new side of the line.
 
 ## The row scale over the corpus, and why its four leavers leave (m335, m336)
 
@@ -30405,6 +30414,61 @@ around its blocks. Neither is the row scale. Where
 the floor should go is a question for a series and its own pair; m334's
 loudness form is ruled out on the small models (`1e-20 z^3` at
 `z = 2e7` passes through 8e21 and drowns the residual).
+
+**The pair over the whole corpus** (`/tmp/m335/base.txt` and
+`row.txt`, one binary `/tmp/ox334j`, `--without
+scripts/heavy_models.txt`, run side by side under a ceiling of 24 GB
+each, peak 14.0 GB each; run lists `/tmp/m336/ran_base.txt` and
+`ran_row.txt`):
+
+```text
+                     flatten  run   runnable   points     newton     Jacobians
+as it stands         966      688   849 / 646  25744976   37437872   135
+row scale            966      687   849 / 645   4964892    7497711   198
+```
+
+The base is m333's print name for name (`/tmp/m333/ran_on.txt`), so the
+binary and the tree agree with the floors' last desk pair. The row scale
+loses five and gains four. The four gained are m334's four:
+`ThyristorBridge2mPulse_RLV`, `DryAir1`, `DryAir2`,
+`TestWaterPumpCheckValve`. Of the five lost, four are m334's four
+(AsymmetricalLoad, Rectifier12pulse, TransformerTestbench,
+BranchingPipes17), and the fifth is `ModelicaTest.Media.TestOnly.IdealGasN2Mix`,
+outside the 152 the earlier probe ran over. Its trail
+(`/tmp/m336/n2trail_row.txt` against `n2trail_base.txt`, both with
+`OXIDELICA_NEWTON_TRAIL`) is the same thirteen steps to `medium.T =
+41.23` under both arms. There the base goes on: it takes one more step
+from a residual of 1.0e-7 to 1.3e-11 and then solves further
+one-unknown blocks at 462 and 239 K. The row scale stops at the 1.0e-7 and refuses with `the
+initialization problem is singular`. A residual of 1e-7 on sides of
+1.2e4 is 8e-12 of the side, below the row scale's 1e-10 of it, so the
+row scale accepts the point the base keeps stepping from (the base asks
+for 1e-10 of `1 + |T|`, 4.2e-9), and the initialisation then finds a
+singular step there. Why that point is singular is not measured here.
+
+The points fall by a factor of 5.2 over the whole corpus, and the
+Jacobians rise from 135 to 198, which is outside the band of 137 the
+floors hold and would turn the build red on its own. So the row scale
+is not a change the floors can take as it stands, independently of
+the four names it trades.
+
+**Where the points went** (the same pair repeated over the 152 models
+with `OXIDELICA_WORK_EACH`, `/tmp/m336/pts_base.txt` and `pts_row.txt`,
+diffed per model into `/tmp/m336/pts_diff.txt`; 121 run under both,
+with the same names traded). Of the 20.78 million points the row scale
+saves, 20.61 million are `Dimmer_RL` (23662990 to 3056767), one of
+m334's four running on a residual of a whole side. The next are
+`Polyphase.Examples.Rectifier` (162370 to 382) and
+`ControlledSwitchWithArc` (11807 to 2178); everything else moves by
+fewer than 2100 points either way, the largest rise being
+`Translational.Examples.Friction`, 1290 to 2016. `Polyphase.Rectifier`
+is not among the runaways, so its answer was checked: simulated under
+both arms from one binary (`/tmp/m336/rect_base.csv`, `rect_row.csv`,
+161 output points each), `cDC1.v` differs by at most 8.9e-4 on a
+scale of 121 and the supply current by 3.8e-2 on 194, while the run
+falls from 37.2 s to 1.0 s. So the points went mostly off a victim, and
+the one honest model that gave up most of its points keeps its
+answer. No price to an honest model is visible in this measurement.
 
 **DryAir2 under the row scale** (`/tmp/m335/row_DryAir2.txt:11`):
 accepted with `ambient.port.h` at 8.7510e4 J/kg, growth 1.32, residual
