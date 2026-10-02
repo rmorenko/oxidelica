@@ -31081,14 +31081,18 @@ running. Once the step may shrink, BranchingPipes2 drives it down to
 4e-14 and refuses with `|f| = 7.1e-10`, made of two rows at 2.5e-10:
 `pipe1.H_flows[2]` and `pipe2.H_flows[1]`, whose values at that instant
 are 5.6e-5 and 5.9e-5. The block's absolute test `1e-10 * (1 + |v|)`
-asks an enthalpy flow that has barely left zero to agree to 1e-10 W,
-and the rounding of the terms that make it is larger than that. With
+asks an enthalpy flow that has barely left zero to agree to 1e-10 W.
+It is not the arithmetic's floor: the trail's loudness print gives the
+loudest number those rows met as 5.6e-5 and 5.9e-5 themselves, so
+their floor is near 5e-20 and the 2.5e-10 left is a relative miss of
+4e-6 that the direction cannot close, not rounding. With
 `OXIDELICA_BLOCK_TOL=3e-10` as well, BranchingPipes2 runs (109 s,
 `/tmp/m340/srt_BranchingPipes2.txt`), but the same looser tolerance
 makes SeriesPipes12's initialization singular (`srt_SeriesPipes12.txt`).
-So the second link is a tolerance that is too tight for a flow near
-zero and cannot simply be loosened. The rows' own loudness, which the
-floor arm of the same test already reads, is the likely place for it.
+So the second link cannot be loosened away, and the loudness arm will
+not reach it either: what stands there is a direction that stops short
+of a root a hair away, on rows whose values are near zero, and the
+next probe is the Jacobian of those two rows at that point.
 The inverse case, Rectifier6pulse at 2.46e-10, was named in m334 as
 item 18 of the queue, and it is the same wall.
 
