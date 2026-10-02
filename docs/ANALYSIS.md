@@ -29779,3 +29779,24 @@ desk run and the runner's refusal.
 
 The floors are not moved: 687 and 645 are desk numbers, and the
 floor rises to what the runner prints.
+
+**The census with the series in** (`/tmp/m331/census/census.txt`, raw
+half `/tmp/m331/census/raw.txt`), counted between the section
+markers: 67 models in 39 rows do not flatten, and 279 in 152 rows
+flatten and do not run. Against m330 (280 in 153), four rows moved
+and one emptied. The loop family is 97 in 7 rows, from 99, with
+25 + 20 + 18 + 12 + 9 + 7 + 6:
+
+- `algebraic loop [...]` 10 to 9: `RLV_Characteristic` runs.
+- `the Newton direction of algebraic loop` 26 to 25:
+  `BranchingPipes17` went one wall up. It now refuses with `u_min
+and u_max ... do not bracket the root` at t = 0, so that row went
+  1 to 2.
+- `the event ... does not come to rest` 1 to 0, and `step size
+underflow` 1 to 2: `Rotational.Examples.Friction` changed walls.
+  It now underflows at t = 0.006 where it failed to settle at
+  t = 0.01, and it runs in neither half of the pair.
+
+So the ladder thins the Newton direction row by one model, as
+expected, and the one model that leaves the run half is
+`RLV_Characteristic`.
