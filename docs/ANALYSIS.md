@@ -30512,3 +30512,200 @@ a start that was taken on residuals of 1e-5 to 1e-10 judged against a
 pressure of 1e5 to 7e5. Whether that soft start is what puts the later
 block where its direction fails is not measured here. It is the
 question a series tightening the arm has to answer for these four.
+
+## The hold's fifteen percent, measured as a pair of commits (m337)
+
+The runner's prints on bc8c2e7 and b69198f did the same work to
+0.014 % of the points and differ by 15 % in the time of the run half,
+and the only code between them is the held guess of the
+initialisation's Jacobian (5ac27a0). m336 timed the hold one key
+against the other on seven models and found nothing. This is the
+direct measurement: two binaries, each built from its own clean
+commit in a worktree (`/tmp/ox_bc8`, sha1 fe7439b..., and `/tmp/ox_b69`,
+f43d6fe...), run side by side over the whole corpus, `--without
+scripts/heavy_models.txt`, under a ceiling of 24 GB each (peak 14.0
+GB), files `/tmp/m337/bc8.txt` and `b69.txt`.
+
+```text
+            flatten  run   runnable   points     newton     Jacobians  apart  flatten s  run s
+bc8c2e7     966      687   849 / 645  25740111   37426193   136        600    9360       14139
+b69198f     966      688   849 / 646  25744976   37437872   135        707    9528       18863
+```
+
+Per model that is 9061 ms against 9223 ms flattening (+1.8 %) and
+14637 ms against 19527 ms running (+33.4 %); the ratio of the halves
+goes from 1.615 to 2.117. The run lists differ by one name,
+BranchingPipes17, which is the hold's gain. So the desk reproduces
+the runner and goes further: the hold's binary runs a third slower
+over the same work, and the flatten half, which the hold does not
+touch, moves by less than two percent. The band was right, and m336's
+reading of the runner's 1.625 as weather was wrong.
+
+The subsample says the opposite, and that is a lesson about the
+instrument. The seven models dearest by points, run one binary after
+the other four times (`/tmp/m337/ab_1_bc8.txt` to `ab_4_b69.txt`),
+take 164, 165, 164 and 167 seconds - bc8, b69, bc8, b69 - with the
+same work to the digit inside each pair. m336's key-against-key timing
+on the same seven (`/tmp/m336/dear_hold1.txt`, `dear_drift.txt`,
+`dear_hold2.txt`: 179, 179, 174 s) said the same. So whatever costs
+the third is not in the seven models dearest by points, and a sample
+chosen by points cannot see a cost that does not grow with points.
+
+**Where the third went, by name.** The pair was taken again with
+`--slow 80` on both binaries (`/tmp/m337/sbc8.txt`, `sb69.txt`; per
+name `sbc8_slow.txt`, `sb69_slow.txt`). It repeats: 14100 s against
+18737 s running, 9235 s against 9430 s flattening, and the same counts.
+The eighty dearest runs sum to 13413 s and 18050 s, so they hold the
+whole difference, and the difference sits in a handful of Fluid test
+models:
+
+```text
+model (ModelicaTest.Fluid...)                       bc8 s   b69 s   runs?
+TestPipesAndValves.BranchingPipes18                 120.0  1845.3   no / no
+TestPipesAndValves.SeriesPipes12                     68.1  1236.5   no / no
+TestComponents.Pipes.DynamicPipeEnergyConservation  644.6  1276.4   yes / yes
+TestPipesAndValves.BranchingPipes12                1636.9  2076.1   no / no
+TestComponents.Machines.TestWaterPumpDCMotorHeat    880.0  1306.4   yes / yes
+TestPipesAndValves.BranchingPipes1                  277.3   619.4   no / no
+TestComponents.Pipes.DynamicPipesWithTraceSubst.    850.6  1178.9   no / no
+```
+
+The first two are the larger part. BranchingPipes18 and SeriesPipes12
+run under neither commit. Under
+bc8c2e7 they are refused early: BranchingPipes18 by
+`algebraic loop ["junctionVolume.medium.h"] stepped outside`, and
+SeriesPipes12 by a `pipe3.mediums[1].d` evaluation. Under the hold
+both get past that point and walk on until they meet
+`the Newton direction of algebraic loop ["pipe1.mediums[1].p"`. That
+row of the census grows from 5 to 7, and DynamicPipesWithTraceSubstances
+moves the same way. The work counters sum every model, refused or not
+(`library_check`, `running_work.plus` over all answers). Yet over the
+whole corpus they moved by 4865 points and 11679 Newton iterations
+while BranchingPipes18 alone took 1725 s more. So the extra time goes
+somewhere the counters do not count. Where that is has not been
+measured. The likely candidates are evaluations outside the counted
+Newton (the initialisation's difference columns, the line search) but
+that is a guess, and it is the next instrument's question: one
+`--only` run of BranchingPipes18 under each binary with
+`OXIDELICA_WORK_EACH` and the time per phase. The two models that run
+under both binaries and still slowed (the energy conservation check
+and the DC motor pump) are a second, smaller part of the cost, and
+this pair does not say why either.
+
+This is the third outcome, not the first: the band was right that the
+runs drifted apart, but the price is not paid by the model the hold
+gained. Most of it falls on models the hold moves from one wall to a
+later one, and it falls in time that no work counter sees. Whether
+that is worth paying is not this chapter's call. Until the counters
+see it, the band is the only witness of a cost like this one, and
+that is an argument for keeping it where it stands.
+
+## The floor in the form, and BranchingPipes17's outer start (m337)
+
+**The floor in the form, probed (m337).** m336 asked for a floor that
+counts the ulps of the quantity a transformer row cancelled. The probe
+(`state/accept_probe_m337.patch` over m334's, never merged, binaries
+`/tmp/ox337` to `/tmp/ox337e`) adds a second chance to the row scale's
+test, asked only where it has refused, and only of rows normalised to
+`expr = 0` - one side exactly zero: such a row is taken when
+`|f| <= C * eps * loud`, `loud` being m334's loudness of the row.
+`OXIDELICA_ROW_FLOOR_C` sets `C`, and `OXIDELICA_ROW_FLOOR_VMAX` raises
+`loud` to the block's largest unknown, the other candidate for "the
+quantity cancelled". Files `/tmp/m337/wit_*`, `asym_c*`, `w_*`, `vm_*`,
+`sw_*`, `rel_*`.
+
+A floor in ulps does not carry the transformers, at any count of ulps a
+floor can honestly claim:
+
+```text
+witness                C=8      C=256    C=4096   C=16384  C=65536
+AsymmetricalLoad       refuses  runs     runs     runs     runs
+TransformerTestbench   refuses  refuses  runs     runs     runs
+Rectifier12pulse       refuses  refuses  refuses  refuses  runs
+Rectifier6pulse        refuses  refuses  refuses  refuses  runs
+```
+
+The floor fires - 148 to 820 rows taken per witness at `C = 8`, all of
+them the core-current rows and the leakage voltages m336 named - and the
+models go on to refuse a little later. What stops them is visible in
+the rows the row scale refuses that the arm as it stands would take
+(`/tmp/m337/r12_miss4096.txt`, the `MISS` lines): once the run is off
+`t = 0`, Rectifier12pulse's core-current rows stand at 1.0e-10 to
+1.7e-10 against a loudness of 70 to 760, which is 1e3 to 1.1e4 ulps of
+the loudest number the row met. The large quantity the row cancelled
+at `t = 0` (7.85e5, the unknown paired with it) has gone, and what is
+left is a residual of the order of the absolute 1e-10 on a row whose
+own arithmetic is small. So what the transformers lean on is not a
+floor of the arithmetic, it is the absolute part of the old test, a
+residual of 1e-10 that no measure of the row's own numbers calls noise.
+Raising `loud` to the block's largest unknown changes nothing below
+`C = 1024` and above it lets all four witnesses through the run and
+then refuses all four at the start, `the initialization problem is
+satisfied but not determined`: the block's largest unknown is a
+stranger in the same way the positional pairing is.
+
+At `C = 450360`, which is `1e-10 * loud`, all four run (286, 2047, 310
+and 1380 points against 5, 11, 589 and 8 under the bare row scale).
+That is not a floor any more: it is the relative arm again, scaled by
+the row's loudness instead of the unknown paired with it, and only on
+the rows whose other side is zero. The edge between 16384 and 65536
+ulps is where Rectifier12pulse's stalled rows sit (the largest stalled
+row read 11001 ulps), so the number is set by a model and not by the
+arithmetic.
+
+The small gates hold under every form tried: `state/m333_U4.mo` stays
+refused (`initialization did not converge in 50 Newton iterations`),
+`m333_S2w.mo` converges to the same final point, `z = 19999999.999979`,
+and `m333_S2.mo` refuses as it did under the bare row scale. The floor
+never fired on any of them, which is the guard's doing: their rows have
+no side that is exactly zero.
+
+IdealGasN2Mix (m336's fifth leaver) is not helped by any form: under
+the row scale with or without the floor it is refused at the start as
+singular (`/tmp/m337/n2_*.txt`), and it runs under the arm as it stands.
+
+So the question for the series is not which C. A row normalised to
+`expr = 0` has lost the scale it was written at, and every candidate
+measured so far - the paired unknown, the sides, the loudness, the
+block's largest unknown - is either a stranger or the residual itself.
+The scale belongs to the equation before it was normalised, and the
+place to keep it is where the normalisation is done, so that the
+structure records what the row was rather than a test guessing it from
+the numbers. That is the same lesson as the record table and the
+name's tail, in a third coat.
+
+**BranchingPipes17's outer initialisation under the row scale** (queue
+item 2, `/tmp/m337/init_row_BP17.txt` against `init_base_BP17.txt`,
+`OXIDELICA_INIT_TRAIL` printing the outer residual and its four worst
+rows per iteration; with the block trail beside it in
+`init_trail_*_BP17.txt`). Both arms take the same first three steps,
+`|f|` 2.16e7, 7.54e4, 4.1e-5. The base then lands at 5.8e-11 and stops,
+solved. The row scale lands at 4.07e-10 and stays there for 47
+iterations, bit for bit. The row that will not pass is row 14,
+`junctionVolume.m`'s balance, `f = -4.03e-10` against a row floor of
+`1e-12 * terms = 2.9e-10`; its only column is `junctionVolume.m` at
+-2.47e5, so the step Newton asks for is 1.6e-15 kg, below an ulp of
+the mass, and the point does not move.
+
+The likely cause is in the inner block it reads. In every stalled outer
+iteration under the row scale, the one-unknown block
+`[junctionVolume.medium.T]` is accepted on its first evaluation, 15
+times per iteration, at `T = 293.1499999995968` with `f = -1.14e-11`:
+the absolute 1e-10 takes it, so Newton never steps. The block's slope
+there is about 4e-3 per kelvin (`f` goes from 1.0e-4 to -8.4e-9 over
+0.0247 K), so the held `T` is about 3e-9 K off its root, and the hold
+hands that same `T` back to every column. Under the base the last
+outer iteration finds the same block at `f = -1.1e-15`, and the mass
+row comes out at 1.7e-13. So m336's reading, that the inner blocks
+are solved more tightly under the row scale, is not what this trail
+shows. At the stalled point the inner block is taken by the absolute
+part of its test and then held there. A frozen `T` that reads as
+4.03e-10 in a mass balance whose own floor is 2.9e-10 can't be moved
+by an outer step, which only moves the mass. That the stall is this
+`T` and not something else is inferred from the two trails, not
+shown by taking it away. Why the base's held `T` lands closer is not
+measured. The next instrument re-solves the block from scratch at the
+stalled point and sees whether row 14 drops under its floor. The
+repair this points to is an inner test and an outer test that agree
+on what solved means, not a new tolerance on either. It is not drawn
+here.
