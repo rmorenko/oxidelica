@@ -30060,3 +30060,192 @@ initialisation has produced means reducing twice, once to initialise
 and once again with the weights read at the initialised point, which
 is what the re-selection at a resumed reduction already does in
 mid-run.
+
+## What the block's convergence test accepts, measured over the corpus (m334)
+
+This chapter is a probe and a map, not a change. Queue item 18 says the
+block solver (`solvers/mod.rs`, the `converged` test after the NaN
+guard) accepts an unknown that has run away: a row passes when `|f| <=
+1e-10 * (1 + |v|)` or `|f| <= 1e-12 * (|lhs| + |rhs|)`, and at `v =
+1.26e20` the first arm admits a residual of 1.26e10. The question put
+was which sign tells a runaway from an honestly large unknown, and how
+much of the corpus lives on the present softness.
+
+**The probe.** One record per block and model, written at every
+acceptance and folded (`state/accept_probe_m334.patch`, behind
+`OXIDELICA_ACCEPT_PROBE`, never merged). For each row it asks which arm
+let it through. A row is taken by the _relative arm alone_ when it
+passes neither the absolute 1e-10 nor the sides arm and passes `1e-10 *
+(1 + |v_i|)`. For those rows it prints the growth of the unknown the
+row was judged against, `(1 + |v_i|) / (1 + |v_i at the block's
+start|)` (MG), the residual in ulps of `|lhs| + |rhs|` (MU) and in ulps
+of the loudest intermediate the row met (LU), whether the residual is
+at least half its larger side, so that nothing cancelled (WC), and how
+many of the block's acceptances needed the arm (AC of n).
+
+One thing the probe shows before any number: the relative arm pairs
+row `i` with unknown `v[i]` by position, and a torn block's rows are
+not its unknowns. BranchingPipes17's seven-unknown block has its
+soft row judged against `der(junctionVolume.medium.h)` at 2.36e6; the
+row itself is a sum whose second side is exactly zero and whose
+residual is 3.5e-7. So the arm's scale is a stranger's in general, and
+whatever replaces it has to say which number a row is measured by.
+
+**The small ones.** `state/m333_S2.mo`, `m333_U4.mo` and the control
+`m333_S2w.mo` (`/tmp/m334/S2.csv` and the probe's lines beside them).
+All three have one inner block, `z`, and all three accept it through
+the relative arm: S2 needed the arm alone in 50 of its 150
+acceptances, U4 in 124 of 250, and the control S2w in 2 of 13 during
+the initialisation and none of 134 in the run. The residual left on
+those rows is 1.2e5 to 1.8e5 ulps of `|lhs| + |rhs|` in the two that
+stall and 2.4e4 in the control, and 5e-8 ulps of the loudest
+intermediate, because `1e-20 z^3` at `z = 2e7` passes through 8e21 on
+its way to a term of 80. Growth from the block's start is 5e5 in S2,
+1.01 in U4 and 1e7 in the control, which converges: the start of `z`
+is its declaration's 1, and the answer is 2e7. So on the small ones
+the growth points the wrong way, and the loudness walk drowns any
+residual in a cube nobody asked for. What does separate them is the
+number of acceptances that needed the arm alone, which is the outer
+Newton standing on the inner noise - a consequence, not a sign one
+acceptance can read.
+
+**BranchingPipes17 under the probe** (`/tmp/m334/bp17_held4.txt`,
+`bp17_drift4.txt`, one binary, `OXIDELICA_INIT_DRIFT_GUESS` the only
+difference). Under the drift, m332's runaway is there exactly:
+`junctionVolume.medium.T` accepted at `|v| = 1.26e20` from a start of
+289, growth 4.3e17, `|f| = 1.56e6`, which is the whole side - nothing
+cancelled - and 375 ulps of the loudest intermediate. Under the hold,
+which is what runs now, the same block is accepted 625 times with
+growth at most 1.007, and its soft rows leave 2.7e-9 on sides of 1.3.
+The model's new run does not stand on a runaway `T`. It does stand on
+the arm in its other block: the seven unknowns from `pipe1.mediums[1].T`
+to `der(junctionVolume.medium.h)` needed the arm alone in 558 of 621
+acceptances, and 550 of those had a row whose residual, 3.5e-7, is the
+whole of a side whose other half is exactly zero. That row is judged
+against `der(junctionVolume.medium.h)` at 2.36e6, an unknown it is
+paired with only by position, and against `1e-10` it would have been
+refused. A residual of 3.5e-7 on a balance whose terms are of order
+one is not a runaway, but it is not the arithmetic's floor either: so
+the gain of m333 was not bought with the runaway number m332 found,
+and it was bought on a tolerance that the row's own scale would not
+have given. That is the price of item 18 in one name: tightening the
+arm to the row's own scale has to keep BranchingPipes17, or the hold's
+one model goes back.
+
+**The corpus** (`/tmp/m334/corpus.txt`, one pass of `/tmp/ox334i`,
+`--without scripts/heavy_models.txt`, peak 13.0 GB under a ceiling of
+24): 966 / 688 and runnable 849 / 646, the run list identical name for
+name to m333's `ran_on.txt`, so the probe moved nothing. Read by
+`/tmp/m334/ladder.py` into `/tmp/m334/ladder.txt`,
+`abs_ladder.txt` and `top_growth.txt`:
+
+```text
+blocks accepted at least once                       329 over 297 models
+  ... by the relative arm somewhere beyond 1e-10    186 over 168
+  ... by the relative arm alone on some row         169 over 152
+
+growth of the judging unknown, rows taken alone
+  > 1e2    41 blocks over 39 models   (30 of them run)
+  > 1e3    27 over 27                  (20 run)
+  > 1e6     9 over 9                    (7 run)
+  > 1e10    2 over 2                    (2 run)
+  the same, only where the start was above 1
+  > 1e2    16 over 14                  (12 run)
+  > 1e6     3 over 3                    (3 run)
+
+residual on the representative acceptance, rows taken alone
+  > 1e-6   29 blocks over 25 models   (14 run)
+  > 1e-3    8 over 6                    (4 run)
+  > 1      4 over 4                     (4 run)
+  > 1e3    1 over 1                     (1 run)
+```
+
+The residual and the growth of the lower rows are those of one
+acceptance per block and model, the one the probe kept when it folded
+the rest: the first that needed the relative arm, replaced by any
+later one whose judging unknown grew further. The counts of acceptances and
+the largest growth are taken over all of them. So the residual ladder
+is a lower bound on what the arm admitted, not the largest residual it
+ever let through.
+
+So a hundred and fifty-two models accept a block somewhere on the arm
+alone, and the criterion of growth does not come out clean on any
+threshold: at 1e6 it names nine models of which six began at an
+unknown of exactly zero, where growth is the value itself and says
+nothing - the transformer cores (`der(...core.plug_p2.pin[2].i)` at
+1.57e6 in Rectifier6pulse, Rectifier12pulse and TransformerTestbench,
+2.4e6 in IMC_Transformer, with AsymmetricalLoad just under the line at
+7.9e5), SMPM_VoltageSource, and BranchingPipes17. All six leave
+residuals of 5e-10 to 4e-7, and the unknown they are judged against is
+not the row's own.
+
+What the arm hides at its worst is four models that run, and run on
+residuals the size of a whole side:
+
+- `ComparisonPullInStroke`: `advancedSolenoid.armature.mass.a` at
+  1.74e17 from 7.1e5, `|f| = 1.9e4`, at t = 0.0008, in 4453 of 34394
+  acceptances.
+- `ThyristorBridge2Pulse_DC_Drive`: `rectifier.thyristor_p2.s` at 1e16
+  from 4.7e9, `|f| = 62`, t = 0.0002, 147 of 951.
+- `Dimmer_RL`: `triac.thyristor2.s` at 5.4e12 from 5.8e5, `|f| = 5.1`,
+  t = 8e-5, 12.8 million of 23.7 million.
+- `IMC_DOL`: `imc.inertiaRotor.a` at 7.5e13 from 1.1e3, `|f| = 2`, t =
+  1e-4, 21 of 631.
+
+Those are m332's runaway, four times over, in models the floors count
+as running. An acceleration of 1.7e17 and a switch parameter of 1e16
+are not physics. Two refused models carry the same shape at smaller
+size, `DryAir2` (`ambient.port.h` at 2.3e11, `|f| = 0.73`) and
+`IMC_YDarc` (three closing switches at 1e8, `|f| = 6.6e-3`).
+
+**What the map says for the series.** The sign the queue hoped for,
+growth from the block's start, does not separate: it fires on a zero
+start whatever the answer is, it fires on the control S2w, and it
+cannot see U4. The residual's own size can, in the corpus as measured:
+a row taken by the arm alone with `|f| > 1e-3` is six models, and four
+of them are the four runaways above; with `|f| > 1` it is exactly
+those four - on this reading, which is a lower bound, so the pair has
+the last word. What the series has to decide is the scale a row is judged
+by - the arm pairs row `i` with unknown `i` by position, and in a torn
+block that is a stranger - and the cost is the four running models
+whose run stands on an unphysical number. Losing them is the honest
+outcome, since their counted run is a wrong answer presented as a
+right one; the pair will say whether anything else goes with them,
+and BranchingPipes17 is the one to watch, since its soft row would
+fail an absolute 1e-10 and pass any threshold above 3.5e-7.
+
+**The loop family by name** (queue item 2 of m334, `/tmp/m334/fam_*.txt`,
+the same probe with the Newton trail). Five names from three
+subfamilies, refusing `the Newton direction of algebraic loop`:
+
+- `R134a1` (media): the block `[volume.medium.p, ambient.port.h]`
+  starts at `|f| = 1.4e7` with `h = 1e6` and stalls at `|f| = 14.7`
+  after 44 steps, both unknowns walked to 7.3e5. No softness: nothing
+  was accepted, the direction gives out short of a root.
+- `IdealGases.Air` (media test models): `[volume.medium.T,
+portInDensities[1], [2], ...]` starts at `|f| = 0.29` and climbs to
+  `2.06e4` in eleven steps, `T` held at 202 K. A diverging direction
+  at t = 0.
+- `TestWaterPumpStorage` (hydraulics): `[pump.medium.p,
+pump.V_flow_single]` starts at 11.4 and stands at 16.4 after ten
+  steps while `p` walks from 7e5 to 6.2e5.
+- `BranchingPipes1` (hydraulics): the last trail is at t = 0.0008,
+  where its 19-unknown block stands at `|f| = 2.9e5` with two rows at
+  2.05e5 each.
+  Earlier, at t = 0, the arm alone took a row of the first pipe's
+  block in 34 of 61 acceptances, judged against `pipe1.H_flows[2]` at
+  2.2e5 from zero, residual 6.6e-7.
+- `Rectifier6pulse` (electrical): the refusing block's last trail is
+  at `|f| = 2.46e-10` on row 12 of a block whose rows are otherwise at
+  rounding - 2.5 times the absolute 1e-10, and judged against an
+  unknown of 1.17, so the arm does not save it, and the loudest
+  intermediate of the row is 73.3, which puts the residual at 1.5e4
+  ulps of it. This one is the inverse of item
+  18: the test is too tight for it, not too loose, and the loudness
+  floor of m238 does not reach it.
+
+So of five, three are honest dead ends of the direction at the start
+(R134a1, Air, TestWaterPumpStorage), one stalls in mid-run after a
+start that leaned on the arm (BranchingPipes1), and one is refused for
+a residual a hair above 1e-10 (Rectifier6pulse). None of them is the
+runaway of item 18 at the point of refusal.
