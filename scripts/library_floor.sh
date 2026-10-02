@@ -1017,7 +1017,17 @@ FLATTEN_FLOOR=966
 # lists of models run on the runner and on the desk are 685 each and
 # differ by the swing alone, Dimmer_RL on the runner and SpringWithMass
 # on the desk, so the lower of the two is the same number.
-RUN_FLOOR=685
+#
+# And run 686, a floor catching up with the runner after the series of
+# the `pre` fix, the ladder and the crossing guard (m331). The runner
+# printed 966 / 686 and runnable 849 / 644 on 62ebd6b, in job
+# 110631858208 of run 36940891022 (/tmp/m332/ci_62ebd6b.log:1309-1310);
+# the desk printed 966 / 687 and 849 / 645 with the series in
+# (/tmp/m331/on.txt). The two lists of models run differ by one name,
+# SpringWithMass, run on the desk and not on the runner
+# (/tmp/m332/ran_runner.txt against /tmp/m332/ran_desk_on.txt). Set
+# from the lower: 686 = 685 + RLV_Characteristic.
+RUN_FLOOR=686
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -1171,8 +1181,13 @@ RUN_FLOOR=685
 # And runnable 849 / 643, the three runnable examples of the impure
 # generator, by the runner job of `FLATTEN_FLOOR` on 7ba42fa5961357cefd4efcd27be59702a71dec10; the
 # helper block is not runnable and moves only the flatten count.
+#
+# And runnable run 644 by the same runner job as `RUN_FLOOR` (62ebd6b,
+# job 110631858208): 849 / 644 there against 849 / 645 on the desk, the
+# difference SpringWithMass. Flatten 849 stands, the runner printing no
+# more.
 RUNNABLE_FLATTEN_FLOOR=849
-RUNNABLE_RUN_FLOOR=643
+RUNNABLE_RUN_FLOOR=644
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
@@ -1535,7 +1550,21 @@ WORK_DEAREST=12
 # the union of both run lists): ControlledSwitchWithArc 100 to 32,
 # Dimmer_RL 146 to 13, IMC_Steinmetz 0 to 6 (runs now), SMPM_Braking
 # 7 to 9, and three thyristor bridges 3 to 4, 5 to 6 and 7 to 5.
-WORK_JACOBIANS=130
+#
+# Moved by the series of m331 (the `pre` fix, the ladder, the crossing
+# guard), which was measured at 130 to 136 here and 733 to 600 apart on
+# the desk (/tmp/m331/off.txt, on.txt) and drew the band of points and
+# Newton steps but left this line where it was. The runner then printed
+# 138 here and 600 apart on 62ebd6b (job 110631858208,
+# /tmp/m332/ci_62ebd6b.log:1312) and turned red on this line alone, 1.06
+# of 130. The rise of six on the desk is named model by model
+# (OXIDELICA_WORK_EACH, /tmp/m332/jac_off.txt against jac_on.txt):
+# Dimmer_RL 13 to 19, ThyristorBridge2mPulse_DC_Drive 5 to 9,
+# Rectifier6pulse 4 to 5, Rectifier12pulse 8 to 7, IMC_Steinmetz 6 to 4,
+# SMPM_Braking 9 to 7. The centre is the middle of the two readings of
+# the same code, (136 + 138) / 2 = 137, and five percent around it is
+# 130.15 to 143.85, which holds both.
+WORK_JACOBIANS=137
 # The pair is held on a line of its own and to a band of its own, an
 # order of magnitude wide in either direction rather than five percent:
 # 90% either side of 274 is 27 to 520, so a refusal (0) or the swing to

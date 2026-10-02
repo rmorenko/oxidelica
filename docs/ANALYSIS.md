@@ -29800,3 +29800,146 @@ underflow` 1 to 2: `Rotational.Examples.Friction` changed walls.
 So the ladder thins the Newton direction row by one model, as
 expected, and the one model that leaves the run half is
 `RLV_Characteristic`.
+
+## Where BranchingPipes17's energy goes negative, and the loop family by name (m332)
+
+A shift of maps: no change to the tree. The probes are kept beside the
+shift notes, and the one that found something is parked as
+`init_hold_guess_m332.patch`.
+
+**The tee on the ladder that is now the default.** `TJ2.mo` (the tee of
+m321, its third port straight into the sink) runs to 1 s with the bare
+binary of 7fd775a, `junctionVolume.m = 0.001161` and `der(medium.h) =
+0.005` at the end (`/tmp/m332/tj2.txt`). That is the mass the narrow
+form of m324 gave, so the ladder merged in edb27fb carries the tee the
+way the narrow form did, and there is no difference between the two to
+name.
+
+**The bracket at t = 0 in BranchingPipes17.** `--only` from the root
+refuses with the medium's own bracket, `u_min = 200`, `u_max = 6000`,
+`f(u_min) = f(u_max) = -1.185e87` (`/tmp/m332/bp17.txt`). The victim is
+still `junctionVolume.U`, weighed against `m` at 0.0 and 0.0 on
+reduction 1 (`/tmp/m332/bp17_victim.txt`), and the initial equation
+`medium.T = T_start` takes `m`. The bracket is `T_h`'s, asked for the
+temperature of an enthalpy near -1e87, and the enthalpy is that large
+because the one-unknown block `[junctionVolume.medium.T]` handed it a
+temperature of 1.26e20.
+
+That block was accepted, not refused. The trail with the two sides of
+each row printed (`/tmp/m332/bp17_parts.txt`) reads -1560879.5 on the
+left against 1.204 on the right, and three Newton steps walk `T` from
+289.3 to 1.26e20 with the left side not moving at all. The left side is
+`m / V` - the state over the litre - and the right one is the density
+`p / (R T)`, so the row is `m = V d` solved for `T`, and its left side
+does not depend on `T`. The convergence test is `|f| <= 1e-10 * (1 +
+|v|)`, and at `v = 1.26e20` that tolerance is 1.26e10, so a residual of
+1.56e6 is taken as converged. The state stands at -1560.88
+(`/tmp/m332/bp17_st.txt`), and the block has no root for it. So two
+faults meet here - a test that a runaway unknown can pass, and a mass
+of -1560 kg in a litre of air - and the second is the one to read
+first.
+
+The mass is set by the initialisation's Newton (`compile.rs`, the loop
+after `starts_badly`). Its unknowns are the nine states and six more
+that the probe numbers only, `#9` to `#14`, each starting at 1.0; the
+initialisation probe names six equations of `dp_small` and
+`dp_nominal` of the three pipes that take no state, which are the
+likely six, though the names were not printed against the columns. A
+print of the step and the Jacobian (`/tmp/m332/bp17_is.txt`) shows the
+last row, index 14, with -240274 in the column of `junctionVolume.m`
+and -10.0017 in each of the six columns `#9` to `#14`. The six equal
+entries are one number: the difference quotient divides by `h = 1e-7 *
+(1 + |y|) = 2e-7`, and what it divides is the movement of the implicit
+`T` block, which is solved again at each column from the `alg_guess`
+the previous column left behind. A change of 2e-6 in where that block
+settles, over 2e-7, is the -10. The other rows ask for steps of -1244
+in `#9` to `#11` and -1.25e7 in `#12` to `#14`; 10.0017 times their sum
+is 3.75e8, and over 240274 that is a step of 1560.88 in the mass -
+which is the -1560.88 the run starts from.
+
+Holding the guess, so that every column starts the inner blocks from
+the point the residual was taken at, removes the six entries: the row
+reads -240274 and nothing else, the mass steps by 1.6e-5, three
+iterations settle it at 0.0011884, and BranchingPipes17 **runs**
+(`/tmp/m332/bp17_hold.txt`, one binary `/tmp/m332/ox_hold`, the switch
+`OXIDELICA_INIT_HOLD_GUESS`). That is the same fault as the run's own
+difference quotients met in m321 and the ladder answered: a column
+moved by its inner blocks' rounding rather than by the unknown.
+
+The corpus pair over the switch, one binary and both keys
+(`/tmp/m332/off.txt`, `/tmp/m332/on.txt`, `--without
+scripts/heavy_models.txt`): 966 / 687 and runnable 849 / 645 without
+it, 966 / 688 and 849 / 646 with it. The run lists differ by one name,
+BranchingPipes17 gained, and nothing is lost. Points rise 4865 and
+Newton steps 11679, Jacobians go 136 to 135 and the pair apart 600 to
+707 - the solenoids' swing, which that line is drawn wide for. The run
+half took 14043 s and 19756 s, but the two halves ran side by side on
+one desk with probes beside them, so the times are not a measurement.
+The change is parked, not merged, as the order of the shift said; it
+wants a test of its own, a model small enough that a column the
+equation does not read comes out other than zero without it.
+
+**Three neighbours of `singular Jacobian`.** The weighing probe of m321
+no longer applies (`git apply --check` refuses it in five files; its
+weight half is on main since m322), so the neighbours were asked with
+the victim probe and the switch instead. `TestMixingVolumesPressureStates`
+ties four weights at 0.0 (`mixingVolume1.U`, `.m`, `mixingVolume2.U`,
+`.m`) and demotes `mixingVolume1.U`; `PumpingSystem` ties
+`reservoir.U`, `.V`, `.m` at 0.0 and demotes `reservoir.U`;
+`DynamicPipesAndFittings` has no reduction at all. All three keep their
+refusal to the word under the switch (`/tmp/m332/v_*.txt`,
+`/tmp/m332/h_*.txt`). So the held guess is BranchingPipes17's wall and
+not the row's; the tie at zero is common to two of the three and is
+the next thing to read there.
+
+**The three top rows of the loop family by name**, from
+`/tmp/m331/census/raw.txt`, counted 25, 20 and 18 as in the census
+(`/tmp/m332/family_top3.txt`):
+
+- `the Newton direction of algebraic loop` (25): fourteen hydraulic -
+  `BranchingPipes1`, `2`, `4`, `14`, `SeriesPipes1`,
+  `DynamicPipeInitialization`, `DynamicPipesWithTraceSubstances`,
+  `TestMultiPortTraceSubstances`, `TestTemperature1`, the three pumps
+  `TestWaterPumpCheckValve`, `PowerCharacteristic`, `Storage`, and the
+  media tests `R134a1`, `R134a2`, `DryAir1`; eight `MediaTestModels`
+  (`Air.DryAirNasa`, `IdealGases.Air`, `Nitrogen`, `Essotherm650`,
+  `Glycol47`, `WaterIF97OnePhase_ph`, `WaterIF97_ph`); and three
+  electrical - `Rectifier6pulse`, `IMC_Transformer` (FundamentalWave),
+  `SMPM_Mains` (QuasiStatic). All but two stand at t = 0.
+- `singular Jacobian in algebraic loop` (20): eleven electrical and
+  magnetic - `CCCV_Stack`, `SMEE_LoadDump`, `SMEE_Rectifier` (Machines),
+  `PolyphaseRectifier`, `DiodeBridge2mPulse`, `ThyristorBridge2mPulse_RLV`,
+  QuasiStatic `Rectifier`, `IMC_DOL_Polyphase`,
+  `SMEE_Generator_Polyphase`, `SMPM_Inverter_Polyphase`,
+  `SMR_Inverter_Polyphase`, `SMEE_DOL`, `SMEE_LoadDump`,
+  `SMEE_Rectifier` (FundamentalWave); four fluid - `PumpingSystem`,
+  `RoomCO2`, `DynamicPipesAndFittings`,
+  `TestMixingVolumesPressureStates`; and `RollingWheel`,
+  `LossyGearDemo2`.
+- `the equations of algebraic loop` (18): eleven machines standing on
+  `airGap.gamma` at t = 0 (`IMC_DOL`, `IMC_Inverter`, `IMC_Steinmetz`,
+  `IMC_Transformer` twice, `IMC_YD`, `IMC_YDarc`, `IMS_Start`,
+  `SMEE_DOL`, `SMPM_Braking`, `SMPM_VoltageSource`); two FundamentalWave
+  machines on `idealClosingSwitch`; the friction family
+  `GearType2`, `TestBearingConversion` on `sa`;
+  `Spice3BenchmarkDifferentialPair`, `PointGravityWithPointMasses2` and
+  `ParallelPumpDropOut`.
+
+**Friction's new wall** (`/tmp/m332/friction_trail.txt`). The `t =
+0.006` in the refusal is the last output row the stall is reported at;
+the events stand at 0.0067799 and 0.0067801. At each, the clutch turns
+`startForward = 1, mode = 1` and `startBackward = 1, mode = 0` in
+alternation, seven rounds an event, and after the second burst the step
+collapses. The other model of the row, `Analog.Examples.Rectifier`, is
+not the same mechanism: every diode is `off` throughout and it stalls
+at t = 2e-17 (`/tmp/m332/rect_trail.txt`).
+
+**The runner's verdict on the series.** The library job of 62ebd6b
+(job 110631858208 of run 36940891022) went red on one line: `WORK:
+jacobians is 138 against 130 written here (1.061538x)`. The points and
+Newton steps of the work band drawn in m331 held, and so did the ratio
+(1.430 inside 0.70 to 1.50). It printed 966 / 686 and 849 / 644 where
+the desk printed 687 and 645, the difference SpringWithMass alone. The
+Jacobian line had been left at 130 when the series moved the desk to
+136; it is recentred on 137 and the run floors raised to 686 and 644
+in the same commit.
