@@ -31027,8 +31027,30 @@ machine, neither for merge: #1, the per-thread switch cache alone
 keys and `OXIDELICA_INIT_STALL: 8` in its own library job
 (`probe/switch-cache-stall8-m338`). The base to read them against is
 434c12f, run 37018075088: flattening 6441 s, running 9669 s, ratio
-1.605. Their verdicts, and those of 37063161539 (b1a237d) and
-37063360325 (f2fcca2), were not in when this was written.
+1.605. The verdicts that came in during the shift, each read from its
+own run with its head checked:
+
+```text
+run          head     what                    job      counts               flatten s  run s   ratio
+37068483485  7a58d53  #2, cache + ST8         108 min  966/686, 849/644     8631       10055   1.246
+37063161539  b1a237d  main, docs only         150, cancelled at 936 of 1033 (8845 s)
+37063360325  f2fcca2  main, docs only         150, cancelled at 936 of 1033 (8594 s)
+37042280243  fbb9a98  main, m338's reference  150, cancelled at 936 of 1033 (8966 s)
+37068391659  40b3578  #1, cache alone         still running
+```
+
+The pace, `read N of 1033 models` against the seconds printed beside
+it, read from the same logs: #2 reached 936 at 6394 s against 8845 and
+8594 for the two main runs of the same evening, and 8966 for m338's
+reference. On main the last library job to finish was 434c12f's (red,
+its own failure, 6441 s + 9669 s), and the last green one b69198f's.
+PR #2 is the first in the series to come in under the ceiling with the
+counts on the floors since then. The two main runs are
+docs-only commits, cancelled by the ceiling and nothing else, so their
+verdict is the ceiling's and not the code's. What share of the 108
+minutes is the cache and what the guard is what #1 will say: the cache
+on the runner, a Linux machine where `getenv` takes no process lock of
+the kind measured on the desk, is the half nobody has numbers for.
 
 **Why the six pipes stop at exactly t = 0.0008.** It is not a moment of
 the physics. The adaptive solver starts with `h = 1e-3` on these
