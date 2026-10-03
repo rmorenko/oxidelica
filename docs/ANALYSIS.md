@@ -32238,3 +32238,26 @@ every reduction (`B1`, `R1e4`, `R1e5`, `R3e5`, `G2` and the controls
 `DiodeBridge2mPulse` only. A corpus pair with this one binary, key on
 against key off, is the next measurement (`/tmp/m345/pair/lr.txt`
 and `lr0.txt`).
+
+The corpus pair of the live-row rule, both halves from one binary
+(`/tmp/ox345rs`), key off against key on (`/tmp/m345/pair/lr0.txt`
+and `lr.txt`), printed 966/689 and 849/647 for both halves. The run
+lists diffed by name are not equal, though. `DiodeBridge2mPulse`
+arrives and `Rotational3DEffects.GearConstraint` leaves, refused
+under the key with a residual of a loop over `cyl2.body.frame_a.f[2]`,
+`gearConstraint.actuatedRevolute_b.a` and the bodies' `z_a`, `NaN at
+t = 0, before any Newton step`. The key-off half's run list is
+identical to the main binary's (`k.ran`), so the pair measures the key
+and nothing else. A swap is not a win, and the rule is not taken.
+`GearConstraint` is the model the m323 note names as the one a second
+ladder on a column already took. The live-row growth is that second
+ladder again by another road: it grows a column the zero ladder had
+let stand at its textbook step. Whatever takes the star next has to
+leave a column alone where the textbook step already answered with
+something that moved. The small reproduction for that series is
+`state/mini_m345/S.mo`, thirty lines with no library: a three-phase
+diode bridge whose source star is grounded through `R`. At 1e3 ohm it
+runs. At 1e6 the base binary chatters through 10000 events at the
+commutation at t = 0.045, and under the rule it runs with the load
+current of the 1e3 ohm circuit, 13.4721801090857 A. It is the test the
+series starts from.
