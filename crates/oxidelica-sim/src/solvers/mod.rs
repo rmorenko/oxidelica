@@ -979,6 +979,12 @@ impl CompiledModel {
                 if carry {
                     carried.insert(slot, loud);
                 }
+                if newton_trail() {
+                    eprintln!(
+                        "  inner {} = {value:e} loud {loud:e}",
+                        self.algebraics[*var]
+                    );
+                }
             }
             residuals
                 .iter()
