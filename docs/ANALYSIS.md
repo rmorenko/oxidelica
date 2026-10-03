@@ -31036,7 +31036,7 @@ run          head     what                    job      counts               flat
 37063161539  b1a237d  main, docs only         150, cancelled at 936 of 1033 (8845 s)
 37063360325  f2fcca2  main, docs only         150, cancelled at 936 of 1033 (8594 s)
 37042280243  fbb9a98  main, m338's reference  150, cancelled at 936 of 1033 (8966 s)
-37068391659  40b3578  #1, cache alone         still running
+37068391659  40b3578  #1, cache alone         146 min  966/686, 849/644     10529      13721   1.394
 ```
 
 The pace, `read N of 1033 models` against the seconds printed beside
@@ -31047,10 +31047,17 @@ its own failure, 6441 s + 9669 s), and the last green one b69198f's.
 PR #2 is the first in the series to come in under the ceiling with the
 counts on the floors since then. The two main runs are
 docs-only commits, cancelled by the ceiling and nothing else, so their
-verdict is the ceiling's and not the code's. What share of the 108
-minutes is the cache and what the guard is what #1 will say: the cache
-on the runner, a Linux machine where `getenv` takes no process lock of
-the kind measured on the desk, is the half nobody has numbers for.
+verdict is the ceiling's and not the code's. PR #1, the cache alone,
+came in later and green at 146 minutes, four under the ceiling, and
+reached 936 at 7967 s. The two branches ran side by side on two
+runners, so the weather is not shared and their difference is a
+reading, not a measurement: with the guard the job took 38 minutes
+less, 18686 s against 24250 s of model time, and its ratio fell from
+1.394 to 1.246, which is the run half shrinking as the guard is meant
+to make it. The cache alone, against the base 434c12f (6441 + 9669 s),
+is slower, not faster, which says the runner's weather swamps whatever
+the cache buys on Linux; the desk's 37 % is a macOS number. Of the two,
+the guard is the one the runner can see.
 
 **Why the six pipes stop at exactly t = 0.0008.** It is not a moment of
 the physics. The adaptive solver starts with `h = 1e-3` on these
