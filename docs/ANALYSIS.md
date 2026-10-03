@@ -31987,10 +31987,12 @@ same loop, free along `rectifier.star_p.pin_n.v`. `B2` swaps
 resistance whose default is 1e6 ohm, and that resistance decides the
 outcome: at 1 ohm (`B3`) and 1e3 ohm (`B4`) the model runs, and at
 1e4, 1e5 and 3e5 ohm (`R1e4`, `R1e5`, `R3e5`) it refuses as at 1e6.
-The threshold lies between 1e3 and 1e4 ohm. The ideal diodes' default
-`Goff` is 1e-5 S, an off resistance of 1e5 ohm, so a probable reading
-is that the loop loses the star potential once the insulation path is
-no longer much stiffer than the off diodes. It is a numerical
-determination of a weakly tied node rather than a missing equation.
+The threshold lies between 1e3 and 1e4 ohm. A first reading, that the
+loop loses the star once the insulation path is no stiffer than the
+off diodes (`GoffDiode` 1e-5 S, 1e5 ohm), was tested and does not
+hold: with `GoffDiode` at 1e-8 (`G1`) or 1e-3 (`G2`) and the
+insulation at its default, the model still refuses, now as a
+`singular Jacobian` on the same loop. So the outcome is not the ratio
+of the two paths, and why 1e3 ohm runs while 1e4 does not is open.
 This is a reproduction of eleven lines that refuses in under a second,
 which is what the next shift on this family should start from.
