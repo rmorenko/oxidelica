@@ -31996,3 +31996,17 @@ insulation at its default, the model still refuses, now as a
 of the two paths, and why 1e3 ohm runs while 1e4 does not is open.
 This is a reproduction of eleven lines that refuses in under a second,
 which is what the next shift on this family should start from.
+
+One more look through `OXIDELICA_NEWTON_TRAIL` on the reduced pair
+(`state/shrink_m344/`, trails `/tmp/m344/shrink/B1_trail.txt` and
+`B4_trail.txt`). In both models the iteration sometimes throws the
+star potential far out: in `B1` to -1.1e7 at t = 0 and to -2.4e13 at
+t = 2e-3, in `B4` to around 1e9, four iterations each. The difference
+is what follows. `B4` comes back every time and runs 5295 iterations
+to the end. `B1` refuses at t = 1.8e-3, where the step had been cut
+after the excursion at 2e-3. So the insulation resistance sets how
+stiffly the far-out star is pulled back, and with 1e6 ohm a Newton
+step that reaches 1e13 V cannot be undone inside the loop. It looks
+like a guard on the size of a Newton step through a nearly free
+potential, more than a question of which equation is in the loop.
+That is a lead for the next shift, not a finding.
