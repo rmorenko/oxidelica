@@ -31778,3 +31778,23 @@ prefers, the step would be taken in pressure. On that estimate the
 pumps very probably belong to the same layer, making eleven of the
 fifteen. They are counted as probable, not measured, until a run with
 the preference honoured says so.
+
+What honouring the preference would cost, read from the code rather
+than guessed, so that the next reader does not take it for a parser
+fix. The parser does know `StateSelect` - it is a built-in enumeration
+ordered `never` to `always` (`flatten/mod.rs` lines 236-252) - and
+drops the attribute on a declaration. But dropping it is not where
+the states come from. The states of this compiler are the variables
+written under `der()`, and the volume writes `der(U)` and `der(m)`:
+`U` and `m` are states because the balance equations say so, and `p`
+and `T` never appear under `der()` at all. Index reduction
+(`reduce_index`, `compile.rs` line 1329) only ever demotes, choosing
+among the states a constraint reaches by sensitivity at the start
+(line 1991 onwards), so it has no means of raising an algebraic
+variable to a state. Honouring `prefer` on `p` and `T` is a change of
+variables: `m = V * d(p, T)` and `U = m * u(p, T)` differentiated
+through the medium's functions, so that `der(p)` and `der(T)` are what
+the solver carries. That is the same machinery reduction already uses
+to differentiate a constraint, applied for a different reason. It is a
+series with a corpus pair and the diff of runs by name, and it does
+not fit inside a shift.
