@@ -16,3 +16,6 @@ alow = "alow"
 # call their measuring utilities, so it is a name and not a misspelling
 # of `analyser`.
 Analysator = "Analysator"
+# `commutated` is the power electronics term for a bridge whose current
+# is handed from one switch to the next, not a misspelling of `commuted`.
+commutated = "commutated"
