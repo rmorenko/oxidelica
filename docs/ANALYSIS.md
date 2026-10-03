@@ -32526,6 +32526,16 @@ it is a sum over the phases, not a single equation either side. `W3`
 refuses as well, but differently: its block is singular along
 `der(i)` of the converters, a direction of its own.
 
+A reading not yet checked, and worth checking first: with `i0` a
+state, `m*i0 = sum(i)` and the open star's `sum(i) = 0` have the same
+coefficients on every unknown of the block, so they are parallel rows
+the moment `i0` is known. Structurally they are two equations on five
+currents and the matching is satisfied; numerically they are one. For
+three phases the two magnetic components already pin the currents
+down far enough that the matching itself runs out, and reduction is
+called. If that is the mechanism, the fix belongs to whatever finds
+hidden constraints a matching cannot, not to the solver.
+
 ### The rest of the machines in the row
 
 The five machines left in point 22 as "condition above 1e17, no zero
