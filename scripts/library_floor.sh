@@ -1027,7 +1027,16 @@ FLATTEN_FLOOR=966
 # SpringWithMass, run on the desk and not on the runner
 # (/tmp/m332/ran_runner.txt against /tmp/m332/ran_desk_on.txt). Set
 # from the lower: 686 = 685 + RLV_Characteristic.
-RUN_FLOOR=686
+#
+# And run 687 = 686 + TestJunctionVolume, the merge of 18da348. The
+# runner printed 966 / 687 and runnable 849 / 645 on 0598f2b, in job
+# 111268548956 of run 37145520603 (/tmp/m346/runner.log); the desk
+# printed 966 / 689 and 849 / 647 on the same tree
+# (/tmp/m345/pair/k.txt:1203-1204). The two lists of models run differ
+# by the two known swings and nothing else, SpringWithMass and IMC_DOL,
+# run on the desk and not on the runner (/tmp/m346/runner_ran_0598f2b.txt
+# against /tmp/m346/desk_ran.txt). Set from the lower.
+RUN_FLOOR=687
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -1186,8 +1195,12 @@ RUN_FLOOR=686
 # job 110631858208): 849 / 644 there against 849 / 645 on the desk, the
 # difference SpringWithMass. Flatten 849 stands, the runner printing no
 # more.
+#
+# And runnable run 645 by the same runner job as `RUN_FLOOR` (0598f2b,
+# job 111268548956): 849 / 645 there against 849 / 647 on the desk, the
+# difference the same two swings.
 RUNNABLE_FLATTEN_FLOOR=849
-RUNNABLE_RUN_FLOOR=644
+RUNNABLE_RUN_FLOOR=645
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
