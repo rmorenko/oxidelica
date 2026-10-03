@@ -31875,3 +31875,46 @@ not an equation that reads nothing. An empty row is the cheap thing to
 look for, and it explains three of the ten models of this row probed
 so far. The rest want a rank probe - which columns the null space
 names - before anything is said about them.
+
+The rank probe needs no build: `OXIDELICA_NEWTON_TRAIL` already
+prints the singular Jacobian with its unknowns and the source of each
+row, so its null space can be taken offline
+(`state/nullspace_m344.py`, numpy SVD over the printed matrix). It
+names the unknowns the loop leaves free and the rows that combine to
+nothing. Run on the four "other" models and the two `der()` models
+probed above:
+
+- `CCCV_Stack`: free along `stack.stackBus.cellBus[1,1].lossPower`
+  and `stack.cell[1,1].heatFlowSensor.port_a.Q_flow`, equally and
+  with the same sign. Two names for one heat flow, with no equation
+  telling them apart in the loop.
+- `LossyGearDemo2`: free along `gear.sa`, `bearingFriction.sa`,
+  `gear.quadrant2`, `gear.quadrant4` and `gear.flange_a.tau` with
+  equal weight. The left null space is the gear's and the bearing's
+  acceleration equations with `der(gear.w_a) - Inertia1.a = 0`. That
+  is the stuck/sliding friction of two elements rigidly coupled, where
+  the free `sa` of one is not split from the other's. It is a known
+  hard case of friction modelling, not a fault in the loop's
+  assembly.
+- `TestMixingVolumesPressureStates`: free along
+  `der(mixingVolume1.medium.p)` alone. A pressure-state volume of
+  water at t = 0 whose pressure derivative nothing in the loop reads.
+  That is the incompressible-pressure shape that Glycol47 showed
+  above, now with water.
+- `RollingWheel`: free along
+  `der(wheel1.rollingWheel.der_angles[2])` and `wheel1.body.z_a[2]`
+  together. The wheel's spin acceleration and the body's angular
+  acceleration about the same axis are not separated by the loop.
+- `DynamicPipesAndFittings`: 103 unknowns, smallest singular values
+  2e-14, 5e-13 and 8e-13 against 2.6e8. That is three directions at
+  the floor, spread over the `state_a.h`/`state_b.h` of pipes 5 to 8,
+  a numerical rank loss across IF97 densities rather than one clean
+  null vector.
+- `RoomCO2`: the matrix holds a non-finite entry in the column of
+  `volume.medium.p`, so it is a `NaN` reaching the difference
+  quotient and not a singular matrix at all.
+
+So the four "other" models are four different things, and the
+singular row as a whole is a list of individual models, several of
+them with a named cause now (`/tmp/m344/z_oth_*.txt`,
+`z_der_*.txt`).
