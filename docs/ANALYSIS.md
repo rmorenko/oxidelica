@@ -32261,3 +32261,22 @@ runs. At 1e6 the base binary chatters through 10000 events at the
 commutation at t = 0.045, and under the rule it runs with the load
 current of the 1e3 ohm circuit, 13.4721801090857 A. It is the test the
 series starts from.
+
+Three probes on the victim, each by `--only` on `GearConstraint` with
+the key on. Under the rule, none of the columns the ladder grows in its
+initialization is kept: every grown column fails the agreement test and
+falls back to its textbook step, and none had moved at that step. So
+the matrix the rule hands back is the matrix the base binary builds,
+and the model still refuses. Re-evaluating the residual at the point
+after each growth, so that no slot keeps a grown value
+(`state/live_row_restore_m345.patch`), does not spare it. Draining any
+complaint a walk left behind during an unkept growth
+(`state/live_row_drain_m345.patch`) does not spare it either, and no
+grown evaluation came back as other than a finite number. Without the
+growth by rounding (`state/live_row_nogrow_m345.patch`) the victim is
+safe but `B1`, `R1e4`, `R1e5` and the small `S` refuse again. So the
+growth is the part that takes the star, and how a growth that is
+thrown away still changes the outcome of `GearConstraint` is open.
+The residual counts work and the inner blocks start from the guesses
+the extra evaluations leave, and those are the two places to look
+next.
