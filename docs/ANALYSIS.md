@@ -31698,3 +31698,37 @@ obviously its whole story, and it is left as probed, not mapped.
 So of the fifteen t = 0 members five are now read: four on the
 dropped preference (Air, Nitrogen, R134a1, DynamicPipeInitialization),
 one open.
+
+Five more, read with the same build (`/tmp/m344/z_{Glycol47,
+WaterIF97_ph,TWPPC,TMPTS,IMCT}.txt`):
+
+- `WaterIF97_ph` keeps `volume.U` and `volume.m` where water prefers
+  `p` and `h`. Two small steps, then the third asks for `U` by +6.3e8
+  and `m` by +2250 from a start of 8.4e6 and 99.9, which leaves the
+  volume holding negative mass. The refusal follows at that point: an
+  overshoot, as with Air.
+- `TestMultiPortTraceSubstances` keeps `U`, `m`, `mXi` and
+  `mC_scaled` of three volumes and refuses at its first evaluation,
+  from a start where every `U` is -247887. With `p` and `T` as states
+  (the volume's written start is `medium.T = T_start`,
+  `medium.p = p_start`), that start would be the declared one. The
+  R134a1 shape.
+- `Glycol47` keeps a single state, `volume.m`, and refuses at its
+  first evaluation. Incompressible media prefer `T` only
+  (`Media/Incompressible.mo` line 210). One state for a volume that
+  should have two looks like a different fault, so this one is left
+  open.
+- `TestWaterPumpPowerCharacteristic` is the same pump as
+  `TestWaterPumpStorage`: a step of four percent in `U`, then a
+  refusal. Open, with its sibling.
+- `IMC_Transformer` is a machine, and its initialization refuses
+  before it takes a step. Not a medium and not this layer.
+
+Ten of the fifteen t = 0 members are now read. Six stand on the
+dropped state preference: Air, Nitrogen, R134a1,
+DynamicPipeInitialization, WaterIF97_ph and
+TestMultiPortTraceSubstances. DryAirNasa refuses on Air's loop and
+is very probably a seventh, but it was not run under the trail. Four
+are open: the two pumps, Glycol47 and IMC_Transformer. Five members
+were not probed: the two SMPM and IMC machines, R134a2,
+WaterIF97OnePhase_ph and Essotherm650.
