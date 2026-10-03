@@ -24,17 +24,74 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  # Whether a push touched anything but prose. Of the thirty commits
+  # up to f71f51a, twenty-four changed nothing but notes, and each of
+  # them paid for the tests on three platforms and a library job of
+  # well over an hour that could not have printed a different number. The dear jobs below
+  # wait on this answer; the linters that read the notes do not.
+  #
+  # What counts as prose is named and everything else is code, rather
+  # than the other way round: a file nobody thought to list - an
+  # example, a test model, this workflow itself - is then measured, and
+  # the mistake a list invites is a run too many rather than a check
+  # skipped. Anything the push cannot be compared against - a pull
+  # request, the schedule, a run by hand, a first push or a history
+  # rewritten under it - counts as code too.
+  #
+  # A run that skips the library job says so in its log and its
+  # summary, so that a green run with no library measurement behind it
+  # can be told from one that measured.
+  changes:
+    name: what the push touched
+    runs-on: ubuntu-latest
+    outputs:
+      code: ${{ steps.diff.outputs.code }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Prose or code
+        id: diff
+        env:
+          EVENT: ${{ github.event_name }}
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.sha }}
+        run: |
+          code=true
+          if [ "$EVENT" = push ] && [ -n "$BEFORE" ] \
+            && [ "$BEFORE" != 0000000000000000000000000000000000000000 ] \
+            && git cat-file -e "$BEFORE^{commit}" 2> /dev/null; then
+            changed=$(git diff --name-only "$BEFORE" "$AFTER")
+            echo "changed since $BEFORE:"
+            echo "$changed"
+            if [ -n "$changed" ] \
+              && ! echo "$changed" | grep -Ev '^docs/|\.md$' > /dev/null; then
+              code=false
+            fi
+          fi
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          if [ "$code" = true ]; then
+            echo "library job: runs (code changed)"
+          else
+            echo "library job: skipped (docs only)"
+            echo "library job: skipped (docs only)" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
   # The claim this project is built on is a single native binary on all
   # three desktops, so every commit is built and tested on all three.
   test:
     name: test on ${{ matrix.os }}
+    needs: changes
     runs-on: ${{ matrix.os }}
     # The daily cron exists for the heavy job below, and nothing else
     # here has anything to say about a night on which the code did not
     # move. Left unguarded this job woke a morning with the runner's
     # weather. The weekly cron is the advisory sweep, and a full pass
     # once a week is worth having.
-    if: github.event_name != 'schedule' || github.event.schedule == '0 6 * * 1'
+    if: >-
+      needs.changes.outputs.code == 'true'
+      && (github.event_name != 'schedule' || github.event.schedule == '0 6 * * 1')
     strategy:
       fail-fast: false
       matrix:
@@ -83,13 +140,16 @@ jobs:
   # Once, where the library is cheapest to fetch.
   library:
     name: the standard library still reads
+    needs: changes
     runs-on: ubuntu-latest
     # The daily cron exists for the heavy job below, and nothing else
     # here has anything to say about a night on which the code did not
     # move. Left unguarded this job woke a morning with the runner's
     # weather. The weekly cron is the advisory sweep, and a full pass
     # once a week is worth having.
-    if: github.event_name != 'schedule' || github.event.schedule == '0 6 * * 1'
+    if: >-
+      needs.changes.outputs.code == 'true'
+      && (github.event_name != 'schedule' || github.event.schedule == '0 6 * * 1')
     # A ceiling of our own. Without one the job runs under GitHub's
     # six hours, which is not a limit anybody chose: a model that
     # takes for ever would hold a runner most of a working day before
