@@ -32536,6 +32536,19 @@ down far enough that the matching itself runs out, and reduction is
 called. If that is the mechanism, the fix belongs to whatever finds
 hidden constraints a matching cannot, not to the solver.
 
+One fact already printed points that way. The left null vector of
+`W5` is the single row `w.zeroInductor.plug_p.pin[3].i +
+w.zeroInductor.plug_n.pin[3].i = 0`, and every entry of that row is
+between 1e-5 and 4e-5 - the size a difference step leaves on a
+residual that is exactly zero, not a slope. With the inner equations
+of the block substituted (`OXIDELICA_MODE_PROBE`, `W5m.txt`), the
+phase-three current is `m*i0` less the other four on one side and
+the open star's balance on the other, so the row reads `x - x = 0`.
+It is the same breed as the zero row of `PolyphaseRectifier` below and
+of `DiodeBridge2mPulse` before it (m344): an equation the matching
+placed in a block where, once the block's own definitions are put in,
+it says nothing.
+
 ### The rest of the machines in the row
 
 The five machines left in point 22 as "condition above 1e17, no zero
