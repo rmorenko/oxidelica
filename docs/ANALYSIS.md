@@ -32542,12 +32542,21 @@ w.zeroInductor.plug_n.pin[3].i = 0`, and every entry of that row is
 between 1e-5 and 4e-5 - the size a difference step leaves on a
 residual that is exactly zero, not a slope. With the inner equations
 of the block substituted (`OXIDELICA_MODE_PROBE`, `W5m.txt`), the
-phase-three current is `m*i0` less the other four on one side and
-the open star's balance on the other, so the row reads `x - x = 0`.
-It is the same breed as the zero row of `PolyphaseRectifier` below and
-of `DiodeBridge2mPulse` before it (m344): an equation the matching
-placed in a block where, once the block's own definitions are put in,
-it says nothing.
+row's two currents are `i[3]` and, through the open star's balance
+(`star.pin_n.i = 0`), the sum of the other four. The row is then
+`sum(i) = 0`, and the block has already defined `i[1]` as
+`m*i0 - (i[2] + ... + i[5])`, so it reads `m*i0 = 0`: the current the
+matching assigned it to cancels, and what is left is a constraint on
+the state `i0` alone. That is a hidden constraint index reduction
+should have been handed - `i0` demoted, `der(i0) = 0`, and `v0` then
+determined - and it was not, because the incidence that cancelled was
+counted as a slope. It is the same breed as the zero row of
+`PolyphaseRectifier` below and of `DiodeBridge2mPulse` before it
+(m344): an equation the matching placed in a block where, once the
+block's own definitions are put in, it says nothing about the block.
+The road is a matching that sees an incidence cancel under
+substitution, which is the expensive half of the compiler and touches
+every model's choice of states; so it is mapped here and not taken.
 
 ### The rest of the machines in the row
 
