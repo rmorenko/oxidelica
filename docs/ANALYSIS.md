@@ -31162,8 +31162,19 @@ the regularised square root of the pressure drop did not reach the
 row's loudness. `m_flow` is not among the block's named unknowns, so
 it is an inner value of the torn block or a value outside it, and
 which of the two - and why its loudness was not carried - is the
-question the next probe answers, not this one. The third link is, as
-far as measured, the same breed one storey down. WaterIF97 moving from
+question the next probe answers, not this one. The next probe was
+taken (`trail_SP12_inner.txt`, the trail now naming each inner unknown
+with the loudness it carries, same branch): `simpleGenericOrifice.m_flow`
+is an inner unknown of the torn block, at -5.0e-2, and it carries a
+loudness of 5.0e-2 - its own size - while `dp_fg`, `dp` and `F_p` beside
+it carry 5.0e5 and `m_flow_turbulent` 1e4. So the loudness of the
+pressures reaches the pressure drop and is lost between the pressure
+drop and the mass flow, with the branch walk on; where in that equation
+it is lost - a call the walk treats as as loud as its answer, by the
+rule `Program` and `Outside` follow in `loudest_carrying`, is the
+candidate the equation's text points at - is not yet measured. The
+third link is, as far as measured, the same breed one storey down.
+WaterIF97 moving from
 164 to 124 points with the same refusal says the branch walk reaches
 its initialization too, which a corpus pair would have to account for.
 None of the three keys is adopted; together they are the map of a chain
