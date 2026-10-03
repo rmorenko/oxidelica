@@ -31811,3 +31811,32 @@ last place. So the machines stand at the arithmetic floor of a loud
 row, which is the family of point 18 and of the "floor in the form"
 road m338 closed (Rectifier12pulse sets the threshold), and not at
 anything in this chapter.
+
+## The second row of the run census, split, and one switch probed (m344)
+
+The second row of the same census, 20 models refused with `singular
+Jacobian in algebraic loop [...]`, splits by what the loop holds
+(`/tmp/m342/raw.txt`): 8 hold the `.s` of ideal diodes, thyristors
+or switches (rectifiers, SMEE_DOL, IMC_DOL_Polyphase), 8 hold a
+`der()` inside the loop (SMEE and SMPM machines, PumpingSystem,
+RollingWheel, TestMixingVolumesPressureStates), and 4 are neither
+(CCCV_Stack, RoomCO2, LossyGearDemo2, DynamicPipesAndFittings).
+
+`DiodeBridge2mPulse` was run as the representative of the switch
+group (`/tmp/m344/z_DB2m.txt`, `OXIDELICA_NEWTON_TRAIL`). It runs to
+t = 1.69e-3, where the eight-unknown loop over six diodes' `s` and two
+pin quantities converges in six iterations. At the next point, t =
+1.70e-3, the Jacobian comes out singular, and the row that makes it
+so is row 7, `(-sineVoltage.plug_p.pin[3].i) +
+sineVoltage.sineVoltage[3].p.i = 0`: every entry is exactly zero, and
+its residual is zero or within 2e-15 at every iteration of the run.
+The row is a connection identity. `sineVoltage.plug_p.pin[3].i` is one
+of the loop's own unknowns, and the row reads zero against it, so
+`sineVoltage.sineVoltage[3].p.i` must be computed from that same
+unknown before the row is asked: after substitution the row says
+`x - x = 0`. The loop was given an equation that cannot determine
+anything, and one diode's `s` is left without the equation that ought
+to determine it. This is a matching fault in which equation the loop
+receives, not a numerical one, and it shows only once the diodes have
+commutated. Not taken further this shift. The `der()` group and the
+four others were not probed.
