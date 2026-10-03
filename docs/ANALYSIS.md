@@ -32307,9 +32307,10 @@ own messages. Its text is the next thing to read, by
 `solvers/mod.rs:1195`: a residual that is NaN at iteration 0, before
 any Newton step, at t = 0. Read beside the trail, the order is this:
 the step at t = 2e-4 fails after its first Jacobian, shrinks fivefold
-to 8e-13, and the run then stands where a stall hands it to state
-re-selection. The block of the recompiled model starts on a value that
-is not a number. So the victim is not refused by the grown columns
-themselves but by the road out of a step that failed under them. What
-failed after iteration 0 of the first step is the question that is
-still open.
+to 8e-13, and the refusal then comes at t = 0 on a block that starts
+on a value that is not a number. That the road between is the stall
+handing the run to state re-selection is a reading of the order, not
+a measurement. So the victim is not refused by the grown columns
+themselves but somewhere on the road out of a step that failed under
+them. What failed after iteration 0 of the first step is the question
+that is still open.
