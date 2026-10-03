@@ -31724,11 +31724,23 @@ WaterIF97_ph,TWPPC,TMPTS,IMCT}.txt`):
 - `IMC_Transformer` is a machine, and its initialization refuses
   before it takes a step. Not a medium and not this layer.
 
-Ten of the fifteen t = 0 members are now read. Six stand on the
-dropped state preference: Air, Nitrogen, R134a1,
-DynamicPipeInitialization, WaterIF97_ph and
-TestMultiPortTraceSubstances. DryAirNasa refuses on Air's loop and
-is very probably a seventh, but it was not run under the trail. Four
-are open: the two pumps, Glycol47 and IMC_Transformer. Five members
-were not probed: the two SMPM and IMC machines, R134a2,
-WaterIF97OnePhase_ph and Essotherm650.
+The last five, so that the half is read whole. `DryAirNasa` takes
+Air's step to the digit (`U` by +110342, `m` by +0.833). `R134a2`
+starts both of its volumes at `U = 0` and refuses there, R134a1's
+shape. `WaterIF97OnePhase_ph` repeats WaterIF97_ph step for step,
+ending at negative mass. `Essotherm650` keeps the single state
+`volume.m` and refuses at its first evaluation, Glycol47's shape.
+`SMPM_Mains` is a machine and refuses at its first evaluation, before
+any step.
+
+All fifteen t = 0 members of the row are read
+(`/tmp/m344/z_*.txt`). Nine stand on the dropped state preference:
+Air, Nitrogen, DryAirNasa, WaterIF97_ph, WaterIF97OnePhase_ph and
+DynamicPipeInitialization through an overshooting full step, and
+R134a1, R134a2 and TestMultiPortTraceSubstances through a start in
+the conserved quantities that nothing was given. Six are other
+layers, two members each. The pumps (TestWaterPumpStorage and
+TestWaterPumpPowerCharacteristic) refuse after a small step. The
+incompressible media (Glycol47 and Essotherm650) keep a single
+state. The machines (IMC_Transformer and SMPM_Mains) refuse at their
+first evaluation.
