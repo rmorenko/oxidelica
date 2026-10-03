@@ -31131,8 +31131,13 @@ floor arm says once it carries the pressures.
 The inverse case, Rectifier6pulse at 2.46e-10, was named in m334 as
 item 18 of the queue, and it is the same wall.
 
-BranchingPipes18 under the stall tightening was still integrating when
-this was written, 103 minutes of CPU on its five seconds.
+BranchingPipes18 under the stall tightening was taken down unfinished
+at 145 minutes of CPU on its five seconds, and under the stage
+rejection SeriesPipes2 (85 min), SeriesPipes1 and BranchingPipes4 (78
+min each) and TestTemperature1 (61 min) were taken down unfinished
+too, at the end of the shift. Each of them is a giant under its key,
+whatever it would come to, and that is the price a corpus pair of
+either key has to be ready to pay.
 
 **The loudness that stops at an `if`.** The flows of the second link are
 upwind choices: `pipe1.H_flows[2] = -(if pipe1.port_b.m_flow >= 0 then
