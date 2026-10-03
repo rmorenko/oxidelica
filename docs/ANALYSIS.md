@@ -31840,3 +31840,14 @@ to determine it. This is a matching fault in which equation the loop
 receives, not a numerical one, and it shows only once the diodes have
 commutated. Not taken further this shift. The `der()` group and the
 four others were not probed.
+
+Two more of the switch group under the same trail
+(`/tmp/m344/z_PolyRect.txt`, `z_QSRect.txt`). `PolyphaseRectifier`
+has the same fault: its row 17 is all zeros, and it is
+`(-sineVoltage.plug_p.pin[2].i) + sineVoltage.sineVoltage[2].p.i = 0`,
+the same polyphase source's connection identity on another phase. So
+two of the eight share one shape, and in both the empty row belongs
+to `Modelica.Electrical.Polyphase.Sources.SineVoltage`, between the
+plug's pin and the single-phase source inside it. The QuasiStatic
+`Rectifier` has no all-zero row in its singular Jacobian, so it is
+singular another way and is not counted with them.
