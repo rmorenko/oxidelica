@@ -31664,3 +31664,21 @@ its story. `R134a1` never reaches a step: its states start at `U = 0`,
 `m = 0.1`, and the first evaluation of the start itself refuses. So the
 row's t = 0 half holds at least three layers, and only the
 ideal-gas trio is mapped to the state choice above.
+
+`R134a1` was then followed one layer further, and it lands on the same
+wall from the other side. Its volume is the media package's own
+`PortVolume`, whose initial section writes `medium.p = p_start` and
+`medium.h = h_start`; the R134a medium declares `p` and `h` with
+`StateSelect.prefer` (`Media/R134a.mo` lines 249-252), and the volume
+sets `preferredMediumStates = true`. The states kept are again
+`volume.U` and `volume.m`, and `U` has no start of its own, so the
+initialization begins at `U = 0` - a specific energy of zero in a
+refrigerant whose start enthalpy is 107390 J/kg. The inner loop on
+`["volume.medium.p", "ambient.port.h"]` is asked for a pressure there
+and wanders between 4e5 and 1.2e6 for twenty-one iterations without
+settling (`OXIDELICA_NEWTON_TRAIL`), and the start is refused before
+the initialization has taken a step. With `p` and `h` as states the
+start is the declared one. So Air, Nitrogen and R134a1 are one layer -
+the preference a medium states for its states, dropped by the parser -
+reached once through a Newton step and once through a start, and
+TestWaterPumpStorage remains the one probed member outside it.
