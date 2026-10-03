@@ -31652,3 +31652,15 @@ states reduction keeps across every fluid model - and it is measured
 by the diff of which models run, not by this row. Parked here with
 the map; the other t = 0 members were not probed and are not claimed
 for this layer.
+
+Three more members of the t = 0 half were run under the same local
+trail (`/tmp/m344/z_*.txt`), and they are not all one layer.
+`IdealGases.Nitrogen` is the same layer as Air to the shape of the
+step: `U` by +110199 and `m` by +0.80 from a start of 25305 and 0.116,
+and the inner loop refuses at the full step. `TestWaterPumpStorage`
+also keeps `pump.U` and `pump.m`, but its step is small (`U` by -3613,
+`m` by -3.5e-4) and the refusal comes after it, so an overshoot is not
+its story. `R134a1` never reaches a step: its states start at `U = 0`,
+`m = 0.1`, and the first evaluation of the start itself refuses. So the
+row's t = 0 half holds at least three layers, and only the
+ideal-gas trio is mapped to the state choice above.
