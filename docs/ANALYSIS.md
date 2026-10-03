@@ -32371,3 +32371,43 @@ halves: `TestJunctionVolume` left by its merge, which empties the
 `OvervoltageProtection` moved into the Newton direction row, 26 to 28,
 and the row `algebraic loop [...]`, where the second of them had stood
 with a solution on either side, went 8 to 7.
+
+The rest of the star, probed on the merged binary (`/tmp/ox346b`).
+`PolyphaseRectifier`, `IMC_DOL_Polyphase` and
+`SMEE_Generator_Polyphase` refuse `singular Jacobian` under the
+default solver and under `dopri45` alike, so they are not this
+series' next wall. `ThyristorBridge2mPulse_RLV` is different: run to
+its end with `simulate`, `dopri45` takes it to t = 1 (`inductor.i`
+24.10 A), and the default solver refuses it. The trail
+(`/tmp/m346/rlv/bdf_trail.txt`) says why. The stiffness watch hands
+the run to BDF, whose first step of 1e-3 from rest predicts the
+floating star of the bridge at 1e4 V, and the loop of the six
+thyristor switches, solved from there, walks the star to 1e13 V,
+where nothing in the loop has a slope left. The singular matrix then
+ended the run, because only two kinds of refusal - an unbracketed
+root and a solution on either side - were taken by the implicit
+solver as a step too long. A singular loop is the same thing when a
+step put it there.
+
+So the refusal is given a kind of its own, `Refusal::Singular`, and
+BDF rejects a step on it and shortens it, keeping the refusal so that
+a run where no shorter step mends it still ends in the block's own
+words (`OXIDELICA_NO_SINGULAR_REJECT` turns it off). The explicit
+solver is left as it was: it ran this model without meeting the
+refusal, and nothing here measured it there. On `ThyristorBridge2mPulse_RLV`
+two steps are rejected, at t = 1e-3 and at 2.5e-4, and the run reaches
+t = 1 with `inductor.i` within 2.3e-4 A of the `dopri45` run, against
+a mean of 22.9 A, over the 1401 points the two grids share
+(`/tmp/m346/rlv/rej.csv` against `dopri45.csv`). The small model is
+twelve lines with no library: a state decaying at 1e4 per second and
+a two-unknown loop whose second equation turns into a copy of the
+first only where `x < -0.5`, which only the overlong predictor
+reaches. Under the switch it refuses `singular Jacobian`; without it,
+`a` follows `cbrt((2 + x) / 2)` to 1e-9 at every row.
+
+The corpus pair from one binary (`/tmp/ox346d`), the switch on and
+off (`/tmp/m346/pair/s_off.txt`, `s_on.txt`): 966 / 690 and 849 / 648
+against 966 / 691 and 849 / 649. The lists of models run differ by
+one name, `ThyristorBridge2mPulse_RLV` gained, and none lost; the lists
+flattened are identical, and the half with the switch on runs the same
+list as the merged tree before it (`k.ran` against `s_off.ran`).

@@ -66,6 +66,14 @@ pub(crate) enum Refusal {
     /// An algebraic loop with a solution on either side of an unknown
     /// and nothing to say which was meant.
     EitherSide,
+    /// An algebraic loop whose Newton matrix is singular where a step
+    /// put it. Mended by a shorter step in the implicit solver only: a
+    /// step of 1e-3 from rest walks the floating star of a thyristor
+    /// bridge to 1e13 volts, where its loop has no slope left, and a
+    /// quarter of that step does not go there
+    /// (`ThyristorBridge2mPulse_RLV`). If no shorter step mends it, the
+    /// run ends on this refusal, in its own words.
+    Singular,
 }
 
 impl SimError {
@@ -73,6 +81,14 @@ impl SimError {
     /// rather than the end of the run. See [`Refusal`].
     pub(crate) fn smaller_step_mends(&self) -> bool {
         matches!(self.1, Refusal::Unbracketed | Refusal::EitherSide)
+    }
+
+    /// Whether the implicit solver takes this refusal for a step too
+    /// long rather than the end of the run. See [`Refusal::Singular`].
+    pub(crate) fn implicit_step_mends(&self) -> bool {
+        self.smaller_step_mends()
+            || (self.1 == Refusal::Singular
+                && std::env::var_os("OXIDELICA_NO_SINGULAR_REJECT").is_none())
     }
 
     /// The same refusal saying something else.

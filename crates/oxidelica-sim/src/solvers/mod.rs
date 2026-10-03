@@ -1793,10 +1793,10 @@ impl CompiledModel {
                             eprintln!("row {i} is `{source}`");
                         }
                     }
-                    return err(format!(
-                        "singular Jacobian in algebraic loop {:?}",
-                        block_names()
-                    ));
+                    return err_of(
+                        Refusal::Singular,
+                        format!("singular Jacobian in algebraic loop {:?}", block_names()),
+                    );
                 }
                 return err(format!(
                     "the equations of algebraic loop {:?} do not mention {dead:?} at t = {t}: \

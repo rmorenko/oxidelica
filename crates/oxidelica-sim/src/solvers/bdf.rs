@@ -92,6 +92,9 @@ impl CompiledModel {
             };
         }
 
+        // The singular loop that rejected the steps since the last one
+        // accepted, if one did.
+        let mut singular: Option<SimError> = None;
         while t < stop - 1e-12 {
             h = h.min(stop - t).min(self.delay_step_limit());
             // A scheduled time event is not something to step over: the
@@ -159,6 +162,15 @@ impl CompiledModel {
                     // step size fall toward the stall check. The same for
                     // a refusal a shorter step mends (see `Refusal`).
                     Err(ref error) if self.reselectable || error.smaller_step_mends() => {
+                        newton_failed = true;
+                        break;
+                    }
+                    // A singular loop where the step put it is the step's
+                    // doing until a step too short to matter says
+                    // otherwise; it is kept so that the run, if it ends,
+                    // ends on what the block said.
+                    Err(error) if error.implicit_step_mends() => {
+                        singular = Some(error);
                         newton_failed = true;
                         break;
                     }
@@ -256,12 +268,16 @@ impl CompiledModel {
                 order = 1;
                 jac = None;
                 if h < stop * 1e-14 || h < 1e-300 {
+                    if let Some(error) = singular.take() {
+                        return Err(error);
+                    }
                     return err(format!(
                         "step size underflow at t = {t:.6}: Newton iteration does not converge"
                     ));
                 }
                 continue;
             }
+            singular = None;
 
             // Predictor-corrector difference estimates the local error.
             let mut err_norm = 0.0f64;

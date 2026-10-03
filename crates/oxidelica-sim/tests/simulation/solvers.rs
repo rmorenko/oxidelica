@@ -1277,3 +1277,36 @@ fn a_star_grounded_through_a_megohm_is_read_past_the_rounding_of_its_row() {
         "iload = {iload}"
     );
 }
+
+/// A loop that is singular only where an overlong implicit step
+/// predicts its state. `x` decays at 1e4 per second; the first BDF
+/// step's predictor overshoots it past -0.5, where the second equation
+/// turns into a copy of the first and the loop's matrix loses its
+/// rank. At every point the solution passes through, the loop is
+/// regular and `a = b = cbrt((2 + x) / 2)`. Taking the singular matrix
+/// for the end of the run refused a model that a shorter step solves;
+/// the step is rejected instead, as for any other refusal a shorter
+/// step mends.
+#[test]
+fn a_loop_singular_only_where_an_overlong_step_predicts_rejects_the_step() {
+    let source = "model P Real x(start = 1, fixed = true); Real s; \
+         Real a(start = 1); Real b(start = 1); \
+         equation der(x) = -1e4*x; s = if x < -0.5 then 1 else 0; \
+         a^3 + b^3 = 2 + x; \
+         (1 - s)*(a^3 - b^3) + s*(a^3 + b^3 - 2 - x) = 0; \
+         annotation(experiment(StopTime = 0.01)); end P;";
+    let result = run_on(source, SolverMethod::Bdf).expect("runs");
+    let column = |name: &str| result.columns.iter().position(|c| c == name).expect(name);
+    let (x, a) = (column("x"), column("a"));
+    let last = result.rows.last().expect("a row");
+    assert!((last[0] - 0.01).abs() < 1e-12, "stopped at t = {}", last[0]);
+    for row in &result.rows {
+        let exact = ((2.0 + row[x]) / 2.0).cbrt();
+        assert!(
+            (row[a] - exact).abs() < 1e-9,
+            "a = {} at t = {}, cbrt((2 + x) / 2) = {exact}",
+            row[a],
+            row[0]
+        );
+    }
+}
