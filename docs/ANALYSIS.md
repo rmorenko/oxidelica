@@ -32206,3 +32206,35 @@ the narrower tries (`grow_unsteady_m345.patch`,
 to `singular Jacobian` or leave it where it was, so the rule still
 needs working out. The target is one library model clean
 (`DiodeBridge2mPulse`) and three that move one wall on.
+
+A correction to the two notes above, and the rule that came out of
+them. `library check` runs a model for ten output steps, not to its
+end, so its "runs" says the first ten steps passed. Run to the end
+with `simulate`, `ThyristorBridge2mPulse_RLV` under a global step of
+1e-5 refuses at t = 1.45e-3 (`singular Jacobian`): it passes the
+census window and is not taken. `DiodeBridge2mPulse` does run to the
+end, under the global step of 1e-5 and under the rule below, and the
+two runs agree on the load current within 2.3e-10 A over all 1901
+rows (`/tmp/m345/star/db/full_fd.csv` against `full_lr.csv`). The
+target of the series is one library model, not two.
+
+The rule, without naming any column (`state/live_row_m345.patch`, keys
+`M345_LIVE_ROW` and `M345_LIVE_REVERT`). In the zero ladder of the
+Newton Jacobian, a column is grown not only while it reads exactly
+zero but also while it moved only by the rounding of its rows. The
+grown step is kept when at least one row stands clear of that
+rounding and every row either agrees with itself from twice as far
+or sits within rounding at both distances. Otherwise the column falls
+back to its textbook step and difference, not to zero. Two variants
+failed on the guards and say what the rule must not do. Zeroing the
+rounding rows broke `a_column_small_in_its_own_unit_is_not_a_dead_column`,
+because a row's loudness counts the 290 of an enthalpy and not the
+1e-24 coefficient it is multiplied by, so an honest coefficient reads
+as noise. A growth ceiling of 3e-2 or more broke
+`a_column_an_initial_equation_does_not_read_moves_nothing`. At the
+default ceiling of 1e-3 the rule keeps all 1046 tests green, runs
+every reduction (`B1`, `R1e4`, `R1e5`, `R3e5`, `G2` and the controls
+`B2`, `B3`, `B4`), and of the five library models runs
+`DiodeBridge2mPulse` only. A corpus pair with this one binary, key on
+against key off, is the next measurement (`/tmp/m345/pair/lr.txt`
+and `lr0.txt`).
