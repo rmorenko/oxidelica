@@ -31940,3 +31940,27 @@ derivative, with singular values spanning 3.9e22, a machine scaling
 question. The QuasiStatic `Rectifier` is free along `load2.v`
 against two diodes' `s`, the same open-diode shape on a single-phase
 load.
+
+The remaining six of the `der()` group, the same way
+(`/tmp/m344/z_der2_*.txt`, all at t = 0):
+
+- `SMEE_Generator_Polyphase` is free along `terminalBoxM.star.pin_n.v`
+  against `smeeM.stator.zeroInductor.v0`, the same pair as
+  `IMC_DOL_Polyphase`. That is a fifth floating star point.
+- The Machines `SMEE_LoadDump` is free along
+  `der(smee.airGap.i_sr[1])` alone, one rotor current derivative.
+- `PumpingSystem` is free along `pumps.s` alone, the pump's
+  curve parameter at t = 0 with the check valve closed.
+- The FundamentalWave `SMEE_LoadDump`, `SMPM_Inverter_Polyphase` and
+  `SMR_Inverter_Polyphase` are not singular in this matrix. Their
+  smallest singular values are 34, 95 and 20 against a largest of
+  1e19, so the refusal comes from a condition number past 1e17 rather
+  than from a null direction. That is the scaling of the machine
+  equations, the same as the two `SMEE` models of the switch group.
+
+The whole row, then, measured rather than read off its wording: five
+floating star points (two diode bridges, PolyphaseRectifier,
+IMC_DOL_Polyphase, SMEE_Generator_Polyphase), five machine scalings
+past 1e17 (two SMEE of the switch group, three of the `der()` group),
+and ten single causes named above. The star points are the one family
+worth a series.
