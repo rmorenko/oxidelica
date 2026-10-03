@@ -31863,3 +31863,15 @@ i[3]`. So the empty polyphase-source row is the shape of two models
 out of eight, the space phasor's of one, and five are singular without
 an empty row. The switch group is not one cause, and taking it is
 model by model work.
+
+Two of the `der()` group under the same trail
+(`/tmp/m344/z_der_TMVPS.txt`, `z_der_RW.txt`).
+`TestMixingVolumesPressureStates` (a 24-unknown loop over two IF97
+mixing volumes and their orifices) and `RollingWheel` (27 unknowns
+starting with `wheel1.body.a_0`, singular at t = 0) have no all-zero
+row. Their sparsest rows still hold one nonzero entry each, so the
+singularity there is one of rank among rows that each read something,
+not an equation that reads nothing. An empty row is the cheap thing to
+look for, and it explains three of the ten models of this row probed
+so far. The rest want a rank probe - which columns the null space
+names - before anything is said about them.
