@@ -31851,3 +31851,15 @@ to `Modelica.Electrical.Polyphase.Sources.SineVoltage`, between the
 plug's pin and the single-phase source inside it. The QuasiStatic
 `Rectifier` has no all-zero row in its singular Jacobian, so it is
 singular another way and is not counted with them.
+
+The rest of the switch group, under the same trail and looking for an
+all-zero row (`/tmp/m344/z_sw_*.txt`; the two `SMEE_Rectifier` share a
+file name, so only the second of them is on disk).
+`ThyristorBridge2mPulse_RLV`, the FundamentalWave `SMEE_Rectifier`,
+`SMEE_DOL` and `IMC_DOL_Polyphase` have none. The Machines
+`SMEE_Rectifier` has one, row 14, and it is not a source row but the
+space-phasor zero-sequence identity `-(m * zero.i) = i[1] + i[2] +
+i[3]`. So the empty polyphase-source row is the shape of two models
+out of eight, the space phasor's of one, and five are singular without
+an empty row. The switch group is not one cause, and taking it is
+model by model work.
