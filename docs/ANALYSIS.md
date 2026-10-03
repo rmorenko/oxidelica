@@ -32162,3 +32162,47 @@ noise ladder already does this for a column that moved, but not for
 one whose movement was pure rounding in every row but one), or
 keeping the iteration from standing among megaamp currents in the
 first place. Neither was tried on the corpus, as point 22 asked.
+
+The candidate the map named was then probed directly, still on the
+small models and five library ones, not the corpus. A key gives the
+finite-difference step of one named column a different scale in the
+Newton Jacobian, and leaves every other column at the default of
+1e-8 (`state/coarse_column_m345.patch`, `M345_COARSE_COL`,
+`M345_COARSE_SCALE`, `M345_COARSE_INVERT`). The split is clean:
+
+```text
+                         star column only        every column but the star
+                         at 1e-5   at 1e-4/1e-3  at 1e-5
+B1   (R = 1e6)           singular  runs          refuses
+R1e4, R1e5, R3e5         run       run           refuse
+B2, B3, B4, G2           run       run           (B4 runs, as at base)
+G1   (Goff 1e-8)         10000 events in one stretch
+```
+
+Every reduction that runs gives the load current of `B4`:
+`resistor.i` = 13.4721801090857 at t = 0.01 and 0.1 for `B1` and
+`R1e5`. So the wall is the star column's step and nothing else. With
+the column's step at 1e-4 x (1 + |v|), the insulation's 1/R moves the
+residual by 1e-10 at R = 1e6 and stands clear of the rounding. On the
+library models, with the key named for each one's star column:
+`DiodeBridge2mPulse` runs, and its load current agrees with the run
+under a global step of 1e-5 to twelve digits (13.47218010909 at
+t = 0.05). `ThyristorBridge2mPulse_RLV` and `PolyphaseRectifier` move
+to `did not converge in 50 Newton iterations`. `IMC_DOL_Polyphase`
+does the same at 1e-3, and `SMEE_Generator_Polyphase` does not move.
+The thyristor bridge's trail under the key starts its loop at
+t = 0.001 from a guess with every switch at 1e13 and swings between
+1e4 and 1e10 for the fifty iterations. That is a second link of its
+own: where the guess came from, not how the star is measured.
+
+So the series this points to is narrow and has a known target. A
+column whose only live row is a conductance much smaller than the
+currents it shares a block with needs a step grown until that row
+stands clear of its own rounding. That is the noise ladder, except
+that it refuses this column today, because every other row of it
+answers rounding and `slopes_agree` asks all of them. The patches of
+the narrower tries (`grow_unsteady_m345.patch`,
+`grow_quiet_rows_m345.patch`, `ladder_ceiling_m345.patch`) move `B1`
+to `singular Jacobian` or leave it where it was, so the rule still
+needs working out. The target is one library model clean
+(`DiodeBridge2mPulse`) and three that move one wall on.
