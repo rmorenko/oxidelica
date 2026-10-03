@@ -31198,3 +31198,56 @@ None of the three keys is adopted; together they are the map of a chain
 of at least two links on the six pipes (a stage that ends the run, then
 a floor the loudness under-reads), and the corpus pair with the run
 lists diffed is what decides whether it is taken.
+
+## The switch cache and the stalled initialization merged, with a witness pair (m341)
+
+Two probes from m338 are now the compiler's default. The walk reads
+its switches through `walk::switch_set`, which asks the environment
+once per switch and thread instead of on every element it walks: on
+macOS `getenv` takes a lock the whole process shares, and the lock
+was fifteen percent of a water model's busy time and a queue for
+every other thread. And the outer Newton iteration of the
+initialization refuses a residual that has come back bit for bit the
+same eight times running, with the words the fiftieth iteration would
+have used, instead of paying a Jacobian for each of the iterations
+left. `OXIDELICA_NO_INIT_STALL` keeps the old fifty. The cache has no
+switch of its own: it changes when a switch is read and not what it
+says.
+
+The witness was one binary built from the merged tree, the whole
+corpus twice under a 24 GB ceiling, the old behaviour first
+(`/tmp/m341/base.txt` and `/tmp/m341/new.txt`):
+
+```text
+                     old fifty       stall at eight
+flatten / run        966 / 688       966 / 688
+runnable             849 / 646       849 / 646
+run list, by name    1654 lines      identical
+run census           203 rows, 278   203 rows, 278, identical
+points               25 744 976      25 744 353
+newton               37 437 872      37 436 304
+flattening           4912 s          4700 s
+running              4988 s          4659 s   (-6.6%)
+BranchingPipes18 run 415.5 s         94.1 s
+```
+
+No model changed its verdict and no refusal changed its words, which
+is what the guard promises: it only stops early a run of iterations
+whose ending was already written. The stall saves 623 points over the
+corpus; which models own them was not counted one by one, and the time
+the slow list shows going is BranchingPipes18's. The cache's own
+part is not in the pair, because it has no switch to measure against;
+its numbers are the runner's (the pace to the 936th model, 7967 s on
+the cache branch against 8594 s on f2fcca2) and the desk's from m338.
+
+A test now holds the guard to its price:
+`an_initial_residual_that_repeats_itself_is_refused_early` starts `x`
+just under one in `10 + 1e6*floor(x) = 0`, where the difference column
+steps across the jump and reads a slope of a million, so each step
+moves `x` by a hundred-millionth and the residual never changes. It is
+refused in 18 points with the guard and 100 without, and the bound in
+the test is 40. The gate test `a_column_an_initial_equation_does_not_read_moves_nothing`
+stayed green.
+
+The floors were not moved. Raising them to 688 and 646 waits for the
+runner's print of this commit.

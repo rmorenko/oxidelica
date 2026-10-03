@@ -1519,3 +1519,36 @@ fn a_column_an_initial_equation_does_not_read_moves_nothing() {
     assert!((start("x") - x).abs() < 1e-6 * x, "x(0) = {}", start("x"));
     assert_eq!(start("w1"), 1e7);
 }
+
+/// An initial residual that comes back bit for bit the same has
+/// stopped moving, and the iterations left of the fifty only say so
+/// again at the price of a Jacobian each. Just under one, the column
+/// of `x` steps across the jump of `floor` and reads a slope of a
+/// million, so every Newton step moves `x` by a hundred-millionth and
+/// `floor(x)` - all the residual reads - never changes. The model is
+/// refused as it was, with the same words, after eight repeats instead
+/// of fifty; in BP18 the fifty cost 2192s of a corpus check, and with
+/// the repeats caught 704s.
+#[test]
+fn an_initial_residual_that_repeats_itself_is_refused_early() {
+    let model = parse_model(
+        "model S Real x(start = 0.99999999); equation der(x) = 0; \
+         initial equation 10 + 1e6*floor(x) = 0; end S;",
+    )
+    .unwrap();
+    let before = oxidelica_parser::work::Work::here();
+    let Err(refused) = compile(&model) else {
+        panic!("the step never reaches the jump, so no start is found");
+    };
+    let spent = oxidelica_parser::work::Work::here().since(before);
+    assert!(
+        refused
+            .0
+            .contains("initialization did not converge in 50 Newton iterations"),
+        "{}",
+        refused.0
+    );
+    // Fifty iterations of a residual and one column are a hundred
+    // points; the first residual and eight repeats are eighteen.
+    assert!(spent.points < 40, "{} points", spent.points);
+}

@@ -5929,8 +5929,37 @@ impl CompiledModel {
         // step it asked for put -1560 kg of air in a litre. With the
         // guess held, a column the row does not read is exactly zero.
         let drift_guess = std::env::var_os("OXIDELICA_INIT_DRIFT_GUESS").is_some();
+        // A residual that comes back bit for bit the same eight times
+        // running has stopped moving: the step it asks for changes
+        // nothing the residual reads, and the remaining iterations of
+        // the fifty would each pay a whole Jacobian to say so again.
+        // It is refused at once with the words the fiftieth would use,
+        // so no model's verdict changes, only its price. In BP18 the
+        // initialization spent 2192s of a corpus check on iterations
+        // that repeated each other; with the stall caught, 704s.
+        // `OXIDELICA_NO_INIT_STALL` keeps the old fifty, so that one
+        // binary gives both numbers.
+        const INIT_STALL_REPEATS: usize = 8;
+        let stall_after = std::env::var_os("OXIDELICA_NO_INIT_STALL")
+            .is_none()
+            .then_some(INIT_STALL_REPEATS);
+        let mut last_f: Option<Vec<f64>> = None;
+        let mut same_f = 0usize;
         for _ in 0..50 {
             let f = residual(&y, &mut values, &mut derivatives, &mut alg_guess)?;
+            if let Some(most) = stall_after {
+                if last_f.as_ref() == Some(&f) {
+                    same_f += 1;
+                } else {
+                    same_f = 0;
+                }
+                if same_f >= most {
+                    return err(
+                        "initialization did not converge in 50 Newton iterations".to_string()
+                    );
+                }
+                last_f = Some(f.clone());
+            }
             let held_guess = alg_guess.clone();
             let mut jac = vec![vec![0.0; n]; n];
             for j in 0..n {
