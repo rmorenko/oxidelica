@@ -31272,8 +31272,9 @@ keys on the desk. So a pair of these keys is not a ten-minute
 question - a keyed corpus pass costs more than an hour on the desk
 before any verdict, and the keys would need a ceiling on a run's time
 or a shorter list before they could ever stand in the library job.
-Its counts and the diff of names are the next shift's to read from
-the same file.
+It was stopped at the end of the shift, at 462 minutes of processor
+time and about two hours of wall, with no verdict printed: the pair
+has a base and no keyed half.
 
 The third link was probed. With the branch walk on, SeriesPipes12's
 block loses the pressures' loudness between the pressure drop and the
@@ -31288,9 +31289,9 @@ at a time (`/tmp/m341/l3_*.txt`):
 ```text
                  two keys                       three keys
 BranchingPipes2  runs, 128 s                    runs, 128 s, the same
-SeriesPipes12    refused at 368 s, Newton       past the wall; still
-                 direction of pipe1.mediums     running at 92 min of
-                                                processor time
+SeriesPipes12    refused at 368 s, Newton       past the wall; stopped
+                 direction of pipe1.mediums     at 119 min of processor
+                                                time with no verdict
 ```
 
 So the loudness through the call is the wall SeriesPipes12 stood at:
