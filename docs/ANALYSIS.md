@@ -31393,3 +31393,94 @@ and `Modelica.Mechanics.MultiBody.Examples.Elementary.SpringWithMass`,
 found by subtracting the runner's list from the desk's
 (`/tmp/m342/ci/a.ran` against `/tmp/m342/ci/desk.ran`). The floors
 already stand at the lower of the two, so none of them was raised.
+
+## A ceiling by the count of rejected stages, measured and closed (m343)
+
+The keys of m342 turn four refusals in seconds into runs without end,
+and the obvious bound was a ceiling on how often a run may reject a
+step for a stage the algebraic layer died on. Before setting one, the
+count it would be set against: how many such rejections the models
+that arrive spend, and how many the models that hang have spent by
+the time they are taken down. If the two bands do not meet, a ceiling
+between them is cheap; if they overlap, there is no number to choose.
+
+The probe binary is the m340 branch at 2ad95ee with the loudness
+through a call (`state/loud_args_probe_m341.patch`) and a counter on
+the stage-rejection arm of `dopri.rs` and `bdf.rs`, taken only under
+`OXIDELICA_STAGE_REJECTS` (`state/stage_reject_counter_m343.patch`).
+It prints the count when the run ends either way, and on every power
+of two while it runs, so that a run taken down from outside still
+leaves its last count; later builds of the same patch add the time,
+the step size and the seconds of wall to each print, the accepted
+steps, and the points and Newton iterations on powers of two. Each
+model is one `--only` under `cap.sh`, one thread, the keys
+`OXIDELICA_STAGE_REJECTS=1 OXIDELICA_LOUD_BRANCH=1`, files in
+`/tmp/m343/` (`a_*` for the counter, `g_*` for the full trace). The
+watchdog that takes a model down at its budget was first tried on a
+stand-in binary and seen to kill the binary rather than the wrapper.
+
+```text
+                          outcome            rejected   wall    smallest h   pace at the end
+DryAir1                   runs               1          12 s    2.0e-4
+OvervoltageProtection     runs               1          6 s     5.0e-8
+TestJunctionVolume        runs               1          42 s    4.4e-8
+TestWaterPumpCheckValve   runs               2          67 s    5.4e-5
+BranchingPipes2           runs               2          245 s   4.0e-6
+BranchingPipes14          runs               7          1093 s  8.3e-8       t = 7.3e-5 at 895 s
+BranchingPipes17          runs (control)     0          139 s
+BranchingPipes1           taken down, 25 min 4          1500 s  4.0e-6       t = 3.6e-4 at 1415 s
+TestTemperature1          taken down, 10 min 6          600 s   6.4e-9       t = 1.1e-8 at 514 s
+SeriesPipes1              taken down, 15 min 2          900 s   2.2e-7       t = 2.9e-7 at 852 s
+SeriesPipes2              taken down, 15 min 2          900 s   1.1e-7       t = 1.3e-4 at 771 s
+BranchingPipes4           taken down, 15 min 10         900 s   5.3e-8       t = 1.8e-4 at 816 s
+```
+
+The last three are the dear models of m342, taken with the same trace
+(`/tmp/m343/L_*.txt`). Two of them hang having rejected two stages,
+fewer than five of the six arrivals; the third has rejected ten, more
+than any arrival.
+
+The bands overlap, so the road of a ceiling by count is closed. The
+dearest arrival, BranchingPipes14, rejects seven stages; the five that
+hang have rejected two, two, four, six and ten when they are taken
+down, and none of the first four adds a rejection in its last ten
+minutes. A ceiling below seven loses BranchingPipes14, and a ceiling
+at or above it stops one of the five. Point 2 of the plan, the ceiling itself, was not
+built.
+
+What the hanging models do instead is the same thing the arrivals do,
+more slowly. A sample of TestTemperature1 at four minutes of processor
+time (`/tmp/m343/sample_e_TT1.txt`) has the whole run in
+`dopri::adaptive` → `eval_point` → `solve_implicit_block` and the
+walk of the medium's function bodies under it, not in a loop of
+retries. It takes about half a second for one Newton iteration
+(1024 of them by 508 s), BranchingPipes1 about 0.7 s (2048 by
+1415 s), and BranchingPipes14, which arrives, about 0.26 s. The time
+of a run is the number of iterations times that price, and neither
+factor separates the two groups.
+
+The smallest step size was the second candidate (point 20 of the
+queue: a ceiling on how far h falls rather than on a count), and it
+does not separate them either. The arrivals OvervoltageProtection,
+TestJunctionVolume and BranchingPipes14 all fall to 4e-8 to 8e-8,
+below BranchingPipes1, which never falls under 4e-6 and still hangs,
+and below SeriesPipes1 and SeriesPipes2 at 1e-7 to 2e-7.
+TestTemperature1 falls further, to 6.4e-9 at t = 0, and that is the
+only model of the list that does; one model is not a band. And the
+pace does not separate them: BranchingPipes14 stood at t = 7.3e-5 at
+895 s of wall, behind BranchingPipes1 at t = 3.6e-4 at 1415 s, and
+then covered its remaining five seconds of model time in the
+following two hundred.
+
+`OXIDELICA_LOUD_BRANCH` was ruled out as the source of the price:
+under `OXIDELICA_STAGE_REJECTS` alone TestTemperature1,
+BranchingPipes1 and BranchingPipes14 follow the same path to the
+digit for five minutes of wall (`/tmp/m343/h_*.txt` against `g_*`).
+
+So the four models the keys make dear are dear for the same reason
+the arrivals are slow: each iteration walks the water formulation,
+which is what `MAX_NEWTON_ONE_INTERVAL` already says of BranchingPipes1
+in `lib.rs`. A bound that would keep the arrivals and stop the hangs
+has to see something other than how often or how far the run backed
+off - a price per iteration, or a budget of wall per model, which the
+compiler does not otherwise have. None of the keys is adopted.
