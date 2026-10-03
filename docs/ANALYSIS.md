@@ -32290,3 +32290,15 @@ grow is one the zero ladder already grew and the `steady` check threw
 back, not one it left dead. That is the same column the live-row rule
 reaches, and the victim question above is what stands between it and
 the corpus.
+
+The Newton trails of `GearConstraint` with the key off and on, from the
+one binary (`/tmp/m345/gc_off.txt`, `gc_on.txt`), agree through the
+initialization and part at the first step. Key off, the block at
+t = 2e-4 converges in two iterations (|f| 2.5e-2, then 4.5e-13). Key
+on, the same block's iteration 0 at the same |f| is followed by no
+iteration 1: the step is thrown away and retried at t = 4e-5, 8e-6,
+1.6e-6 and on down to 8e-13, each attempt ending after iteration 0 with
+the same fivefold shrink. The trail prints nothing between, so the
+failure is raised after the Jacobian is built and outside the trail's
+own messages. Its text is the next thing to read, by
+`OXIDELICA_WHERE` on that attempt. Not done this shift.
