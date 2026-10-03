@@ -31173,6 +31173,11 @@ drop and the mass flow, with the branch walk on; where in that equation
 it is lost - a call the walk treats as as loud as its answer, by the
 rule `Program` and `Outside` follow in `loudest_carrying`, is the
 candidate the equation's text points at - is not yet measured. The
+equation's text does point there: with `dp_fg` at -6.6 and
+`dp_turbulent` at 32.1 (both in the same trail), neither turbulent
+branch is taken, and the branch that is calls
+`Modelica.Fluid.Utilities.regRoot2.regRoot2_utility(dp_fg, ...)`, a
+function body the walk measures by its answer alone. The
 third link is, as far as measured, the same breed one storey down.
 WaterIF97 moving from
 164 to 124 points with the same refusal says the branch walk reaches
