@@ -31682,3 +31682,19 @@ start is the declared one. So Air, Nitrogen and R134a1 are one layer -
 the preference a medium states for its states, dropped by the parser -
 reached once through a Newton step and once through a start, and
 TestWaterPumpStorage remains the one probed member outside it.
+
+Two more members, read the same way. `DynamicPipeInitialization`
+(StandardWater, five pipe segments) keeps `pipe.Us[i]` and
+`pipe.ms[i]` where the water medium would prefer `p` and `h` (its
+`ph_explicit` branch, `Media/Water/package.mo` lines 150-156); the
+initialization takes one full step - every segment's energy falls by
+some sixteen percent at once - and the refusal follows at the point
+it lands on, the same shape as Air. `TestWaterPumpStorage` keeps
+`pump.U` and `pump.m` too and takes a step of four percent in `U`;
+its inner loop on the pump's pressure then reaches a `NaN` in its
+first iteration and settles at 617 Pa against 7e5 the step before.
+That is a step small enough that a dropped state preference is not
+obviously its whole story, and it is left as probed, not mapped.
+So of the fifteen t = 0 members five are now read: four on the
+dropped preference (Air, Nitrogen, R134a1, DynamicPipeInitialization),
+one open.
