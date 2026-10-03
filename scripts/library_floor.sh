@@ -1036,7 +1036,16 @@ FLATTEN_FLOOR=966
 # by the two known swings and nothing else, SpringWithMass and IMC_DOL,
 # run on the desk and not on the runner (/tmp/m346/runner_ran_0598f2b.txt
 # against /tmp/m346/desk_ran.txt). Set from the lower.
-RUN_FLOOR=687
+#
+# And run 688 = 687 + DiodeBridge2mPulse, the growth past rounding of
+# 61533d5. The runner printed 966 / 688 and runnable 849 / 646 on that
+# tree, in job 111297535223 of run 37155353522
+# (/tmp/m347/ci/ci_61533d5.log); the desk printed 966 / 690 and 849 / 648
+# on the same tree (/tmp/m346/pair/k.txt). The two lists of models run
+# differ by the same two swings and nothing else, SpringWithMass and
+# IMC_DOL (/tmp/m347/ci/runner.ran against /tmp/m347/ci/desk.ran). Set
+# from the lower.
+RUN_FLOOR=688
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -1199,8 +1208,12 @@ RUN_FLOOR=687
 # And runnable run 645 by the same runner job as `RUN_FLOOR` (0598f2b,
 # job 111268548956): 849 / 645 there against 849 / 647 on the desk, the
 # difference the same two swings.
+#
+# And runnable run 646 by the same runner job as `RUN_FLOOR` (61533d5,
+# job 111297535223): 849 / 646 there against 849 / 648 on the desk, the
+# difference the same two swings.
 RUNNABLE_FLATTEN_FLOOR=849
-RUNNABLE_RUN_FLOOR=645
+RUNNABLE_RUN_FLOOR=646
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
@@ -1584,7 +1597,26 @@ WORK_JACOBIANS=137
 # 2812 fires, and a wander between the steps that both run does not.
 # Around 733 (m328) the same width is 73 to 1393: a refusal still fires,
 # and so does the swing to 2812.
-WORK_JACOBIANS_APART=733
+#
+# Moved by the growth past rounding of 61533d5, which turned the
+# library job for that tree red on this line alone: 1974 against 733,
+# every floor held (job 111297535223, /tmp/m347/ci/ci_61533d5.log). One
+# binary of eb5c473 with the growth switched off and on names the pair
+# one at a time (`--only`, OXIDELICA_NO_GROWTH_PAST_ROUNDING), and the
+# two on sum to the runner's 1974 to the digit:
+#
+#   ComparisonQuasiStatic   28 -> 1841
+#   ComparisonPullInStroke 679 ->  133
+#                          707 -> 1974
+#
+# The answer did not move with it: over the ten seconds of the
+# experiment the armature positions of the two runs agree to 2.5e-14 m
+# and the coil current to 3e-5 A of 1.2 (/tmp/m347/qs/q10_on.csv
+# against q10_off.csv). Which difference step the run took is what
+# this pair has always counted, and the reason it is held apart. The
+# centre moves to the printed 1974, and 90% either side is 197 to
+# 3750: a refusal still fires, and so does a run that doubles.
+WORK_JACOBIANS_APART=1974
 WORK_JACOBIANS_APART_PPM=900000
 WORK_PERCENT=5
 # The names looked up, held to a band of their own in parts per

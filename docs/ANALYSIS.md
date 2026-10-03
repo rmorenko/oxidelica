@@ -32411,3 +32411,99 @@ against 966 / 691 and 849 / 649. The lists of models run differ by
 one name, `ThyristorBridge2mPulse_RLV` gained, and none lost; the lists
 flattened are identical, and the half with the switch on runs the same
 list as the merged tree before it (`k.ran` against `s_off.ran`).
+
+## The rest of the star is two families, and neither is the star (m347)
+
+Point 22 of the queue held five models refusing `singular Jacobian`
+on a floating star: two bridges have since been taken, and the three
+left - `PolyphaseRectifier`, `IMC_DOL_Polyphase` and
+`SMEE_Generator_Polyphase` - refuse under `dopri45` as well, so the
+predictor of the last series never reached them. Probed here on one
+binary of `eb5c473`; files in `/tmp/m347/`.
+
+All three refuse the same way from the corpus (`--only` from the root
+of `.msl`, `/tmp/m347/z/only_*.txt`) and from the one-line models that
+extend them (`/tmp/m347/z/d_*.txt`), so the small files stand in for
+the corpus names. The refusal is raised in the Newton solve of a
+torn block (`solvers/mod.rs:1796`) and not in a crossing or a stage.
+
+### Two machines: the zero sequence of a five-phase winding
+
+`IMC_DOL_Polyphase` and `SMEE_Generator_Polyphase` refuse on the
+first solve of the run, six points in. The null space of the printed
+matrix (`/tmp/m347/ns.py` over `t_*.txt`) is the same in both, and it
+is exact rather than small: the columns of
+`terminalBoxM.star.pin_n.v` and `<machine>M.stator.zeroInductor.v0`
+are equal entry for entry, difference 0.0, so the block reads only
+their sum. The left null vector is one row,
+`zeroInductor.plug_p.pin[k].i + zeroInductor.plug_n.pin[k].i = 0`,
+which answers at the level of the difference step and nothing more.
+
+What is missing is a hidden constraint. The machine's star sits in a
+`TerminalBox` whose star point is connected to nothing, so the
+currents of the phases sum to zero, and the `ZeroInductor` of the
+stator says `m*i0 = sum(i)`, `v0 = Lzero*der(i0)`. With `i0`
+determined twice, index reduction has to differentiate one of the two
+and demote `i0`; then `v0` is fixed by `der(i0) = 0` and the star
+potential by the rest. For the three-phase machine beside it, it
+does exactly that: reduction 37 of `IMC_DOL_Polyphase` is on
+`terminalBox3.starpoint.i = 0` and demotes `aimc3.stator.zeroInductor.i0`
+(`/tmp/m347/z/victim_IMC.txt`). For the five-phase machine there is
+no such reduction, `i0` stays a state, and `v0` and the star float
+together.
+
+Reproduced without the comparison, in small models of one machine
+fed from a sine source through its terminal box
+(`/tmp/m347/mini/`):
+
+| model | phases | star point                    | result            |
+| ----- | ------ | ----------------------------- | ----------------- |
+| `N3`  | 3      | open                          | runs              |
+| `M5n` | 5      | open                          | singular Jacobian |
+| `N6`  | 6      | open                          | singular Jacobian |
+| `N7`  | 7      | open                          | singular Jacobian |
+| `N9`  | 9      | open                          | singular Jacobian |
+| `G5`  | 5      | grounded                      | runs              |
+| `M5`  | 5      | open, behind a closing switch | singular Jacobian |
+
+Closing switches are not part of it: `M5n` has none. Grounding the
+star point removes the constraint and the model runs. The polyphase
+`ZeroInductor` alone between an inductor and an open star (`Z1`,
+`Z3`, `Z5`) runs, so the machine's own structure is what hides the
+sum from the matching at five phases and not at three.
+
+Two more of the queue's "five machines with a condition number above
+1e17" belong here. `SMPM_Inverter_Polyphase` and
+`SMR_Inverter_Polyphase` print matrices whose largest entry is
+8.2e18, from the three-phase twin's `der(airGap.V_msr.im)` row; once
+rows and columns are scaled to unit maximum the smallest singular
+value falls to 1e-16 and the null vector is again
+`terminalBoxM.star.pin_n.v = -zeroInductor.v0`
+(`/tmp/m347/p3/t_*.txt`). The size was the masking, not the cause.
+So the family is four corpus names: `IMC_DOL_Polyphase`,
+`SMEE_Generator_Polyphase`, `SMPM_Inverter_Polyphase`,
+`SMR_Inverter_Polyphase`.
+
+The road is in index reduction: why the open star's `sum(i) = 0`
+is found redundant with `m*i0 = sum(i)` for three phases and not for
+five. That is a matching question and touches which states every
+model keeps, so it is a map and not a fix here; the next step is the
+reduction trace of `N3` against `M5n` (`OXIDELICA_VICTIM_PROBE`), at
+the point where `N3` takes `tb.starpoint.i = 0`.
+
+### The rectifier: a zero row, as in the bridge before it
+
+`PolyphaseRectifier` gets past the start and refuses after 54 points.
+Its matrix has an exactly zero row, the source's own identity
+`(-sineVoltage.plug_p.pin[2].i) + sineVoltage.sineVoltage[2].p.i = 0`,
+and its null vector runs through `multiStar.star.pin_n.v` and four
+potentials of the delta analysator; the iteration stands at
+6.1e7 V. That is the shape `DiodeBridge2mPulse` had before the growth
+past rounding took it: the one live entry of the row, through the star
+resistance of 1e5 ohm (`data.RGnd`), is below the rounding of the
+residuals the iteration stands among. Neither a difference step of
+1e-5 (`OXIDELICA_FD_STEP`) nor the growth switched off moves the
+refusal on this tree, and `RGnd` of 1e3 and 1e4 refuse too
+(`/tmp/m347/r/`), so the cause is not the size of the one resistance.
+The earlier reading that a larger step changed this model's wall
+(m345) does not repeat on `eb5c473`. Left as a single in the row.
