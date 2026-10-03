@@ -109,7 +109,7 @@ pub(crate) fn walk(
     }
     let class = programs
         .get(name)
-        .ok_or_else(|| SimError(format!("`{name}` is not a body this run carries")))?;
+        .ok_or_else(|| SimError::from(format!("`{name}` is not a body this run carries")))?;
     let inputs: Vec<&Component> = class
         .components
         .iter()
@@ -291,7 +291,7 @@ pub(crate) fn walk(
         return Ok(answer);
     }
     run(&class.algorithm, &mut frame, programs, time, depth)
-        .map_err(|SimError(why)| SimError(inside_body(why, name)))?;
+        .map_err(|SimError(why, kind)| SimError(inside_body(why, name), claimed(kind, name)))?;
     // The answer, in the order the flat model asks for it: one number
     // for a plain output, and the elements in turn for an array. What
     // a body may answer with at all was settled before the run began.
@@ -375,7 +375,7 @@ fn outside_answer(
         _ => None,
     };
     answer.map(Some).ok_or_else(|| {
-        SimError(format!(
+        SimError::from(format!(
             "`{}` is written here, and a walk cannot hand it {} argument(s) of {} number(s) \
              in all",
             call.called,
@@ -515,7 +515,7 @@ fn number_of(
             depth,
         },
     )
-    .map_err(|SimError(why)| SimError(standing_in(why, expr)))
+    .map_err(|SimError(why, kind)| SimError(standing_in(why, expr), kind))
 }
 
 /// The wording the evaluator refuses a whole array with. Only that
@@ -547,6 +547,26 @@ fn inside_body(why: String, name: &str) -> String {
         return why;
     }
     format!("{why} of the walked body `{name}`")
+}
+
+/// What a refusal a body raised itself is, decided by the innermost
+/// body, whose statement it was. The kind is read off the body's
+/// resolved name, never off the wording: the library's one-dimensional
+/// root finder is `Modelica.Math.Nonlinear.solveOneNonlinearEquation`,
+/// and a copy of it specialized for the function it was handed carries
+/// that name with `$` and the function after it. A body further out,
+/// which only called the one that refused, leaves the kind alone.
+fn claimed(kind: Refusal, name: &str) -> Refusal {
+    if kind != Refusal::Raised {
+        return kind;
+    }
+    const ROOT_FINDER: &str = "Modelica.Math.Nonlinear.solveOneNonlinearEquation";
+    let body = name.split_once('$').map_or(name, |(body, _)| body);
+    if body == ROOT_FINDER {
+        Refusal::Unbracketed
+    } else {
+        Refusal::Plain
+    }
 }
 
 /// What an expression written over arrays comes to as one number.
@@ -594,7 +614,7 @@ fn to_scalar(
                     .flatten(),
             }
             .ok_or_else(|| {
-                SimError(format!(
+                SimError::from(format!(
                     "`{of}` has no dimension {axis} this walk was given"
                 ))
             })?;
@@ -1219,7 +1239,7 @@ fn fold(name: &str, items: Vec<Expr>) -> Result<Expr, SimError> {
         _ => items
             .into_iter()
             .reduce(|a, b| Expr::Call(name.to_string(), vec![a, b]))
-            .ok_or_else(|| SimError(format!("`{name}` of an array with nothing in it")))?,
+            .ok_or_else(|| SimError::from(format!("`{name}` of an array with nothing in it")))?,
     };
     Ok(joined)
 }
@@ -1299,7 +1319,7 @@ fn run(
                         let to = index_of(to, frame, programs, time, depth)?;
                         let items =
                             elements_of(value, frame, programs, time, depth)?.ok_or_else(|| {
-                                SimError(format!(
+                                SimError::from(format!(
                                     "`{target}[{from}:{to}]` is given something that is not \
                                      a list: {value:?}"
                                 ))
@@ -1359,7 +1379,10 @@ fn run(
             }
             Statement::Assert(condition, message) => {
                 if number_of(condition, frame, programs, time, depth)? == 0.0 {
-                    return err(prose(message, frame, programs, time, depth));
+                    return err_of(
+                        Refusal::Raised,
+                        prose(message, frame, programs, time, depth),
+                    );
                 }
             }
             // `Streams.error(text)` is how the standard library
@@ -1374,7 +1397,10 @@ fn run(
             Statement::Call(name, args)
                 if name == "Modelica.Utilities.Streams.error" && args.len() == 1 =>
             {
-                return err(prose(&args[0], frame, programs, time, depth));
+                return err_of(
+                    Refusal::Raised,
+                    prose(&args[0], frame, programs, time, depth),
+                );
             }
             // `Streams.print(text)` writes a line on a terminal, and
             // there is none here and no value to miss: inlining and the

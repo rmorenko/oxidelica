@@ -39,7 +39,53 @@ use symbolic::*;
 
 /// A compilation or simulation error.
 #[derive(Debug)]
-pub struct SimError(pub String);
+pub struct SimError(pub String, pub(crate) Refusal);
+
+/// What kind of refusal an error is, where the run needs to tell kinds
+/// apart without reading the wording of the message.
+///
+/// Most refusals are only ever reported, and are `Plain`. Two are known
+/// to be the point a stage of a step was taken at rather than the model:
+/// a stage too long for a stiff state puts a state where the run never
+/// goes, and asked about there the library or the block refuses. A
+/// shorter step does not go there, and measured on the bracket the
+/// accepted points of the shorter steps agree with a run at a hundred
+/// times tighter tolerance to seven digits (`TestJunctionVolume`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Refusal {
+    /// Anything not named below.
+    Plain,
+    /// Raised by an `assert` or `Streams.error` of a walked body and not
+    /// yet claimed by the body whose statement it was. Claimed, it
+    /// becomes one of the kinds below or `Plain`; it never reaches a
+    /// solver unclaimed.
+    Raised,
+    /// `Modelica.Math.Nonlinear.solveOneNonlinearEquation` refused a
+    /// bracket that does not hold a root.
+    Unbracketed,
+    /// An algebraic loop with a solution on either side of an unknown
+    /// and nothing to say which was meant.
+    EitherSide,
+}
+
+impl SimError {
+    /// Whether a shorter step is the answer to this refusal of a stage,
+    /// rather than the end of the run. See [`Refusal`].
+    pub(crate) fn smaller_step_mends(&self) -> bool {
+        matches!(self.1, Refusal::Unbracketed | Refusal::EitherSide)
+    }
+
+    /// The same refusal saying something else.
+    pub(crate) fn reworded(self, message: String) -> Self {
+        SimError(message, self.1)
+    }
+}
+
+impl From<String> for SimError {
+    fn from(message: String) -> Self {
+        SimError(message, Refusal::Plain)
+    }
+}
 
 impl fmt::Display for SimError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -60,6 +106,12 @@ impl std::error::Error for SimError {}
 /// on every platform and without one.
 #[track_caller]
 fn err<T>(message: impl Into<String>) -> Result<T, SimError> {
+    err_of(Refusal::Plain, message)
+}
+
+/// A refusal of a kind the run tells apart; see [`Refusal`].
+#[track_caller]
+fn err_of<T>(kind: Refusal, message: impl Into<String>) -> Result<T, SimError> {
     let message = message.into();
     let message = match std::env::var_os("OXIDELICA_WHERE").is_some() {
         true => {
@@ -68,7 +120,7 @@ fn err<T>(message: impl Into<String>) -> Result<T, SimError> {
         }
         false => message,
     };
-    Err(SimError(message))
+    Err(SimError(message, kind))
 }
 
 /// Integration method used by [`CompiledModel::simulate`].
@@ -757,12 +809,12 @@ enum Code {
 #[derive(Debug)]
 pub(crate) struct Walked {
     pub(crate) programs: HashMap<String, ClassDef>,
-    pub(crate) trouble: std::sync::Mutex<Option<String>>,
+    pub(crate) trouble: std::sync::Mutex<Option<SimError>>,
 }
 
 impl Walked {
     /// Take the reason a walk failed, if one did.
-    pub(crate) fn complaint(&self) -> Option<String> {
+    pub(crate) fn complaint(&self) -> Option<SimError> {
         self.trouble.lock().ok().and_then(|mut held| held.take())
     }
 

@@ -195,8 +195,10 @@ impl CompiledModel {
                     // A dying algebraic loop on a model whose states were
                     // *chosen* is likely the choice failing, not the
                     // model: treat the step as rejected and let the step
-                    // size fall toward the stall check below.
-                    Err(_) if self.reselectable => {
+                    // size fall toward the stall check below. So is a
+                    // refusal of the kind a stage too long provokes and a
+                    // shorter step does not (see `Refusal`), on any model.
+                    Err(ref error) if self.reselectable || error.smaller_step_mends() => {
                         stage_failed = true;
                         break;
                     }

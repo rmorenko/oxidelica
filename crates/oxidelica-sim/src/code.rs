@@ -278,7 +278,7 @@ pub(crate) fn eval(expr: &Expr, ctx: &EvalCtx) -> Result<f64, SimError> {
                     let answer = oxidelica_parser::outside::answer(called, &given)
                         .and_then(|answer| answer.get(place.checked_sub(1)?).copied());
                     return answer.ok_or_else(|| {
-                        SimError(format!(
+                        SimError::from(format!(
                             "`{called}` was handed {} number(s) and asked for place {place}",
                             given.len()
                         ))
@@ -355,7 +355,7 @@ pub(crate) fn eval(expr: &Expr, ctx: &EvalCtx) -> Result<f64, SimError> {
                             .and_then(|at| answer.get(at))
                             .copied()
                             .ok_or_else(|| {
-                                SimError(format!(
+                                SimError::from(format!(
                                     "`{called}` answered with {} number(s) and place \
                                      {place} was asked for",
                                     answer.len()
@@ -421,7 +421,7 @@ pub(crate) fn eval(expr: &Expr, ctx: &EvalCtx) -> Result<f64, SimError> {
                         answer
                             .first()
                             .copied()
-                            .ok_or_else(|| SimError(format!("`{name}` gave nothing back")))
+                            .ok_or_else(|| SimError::from(format!("`{name}` gave nothing back")))
                     });
                 }
             }
@@ -617,7 +617,7 @@ impl Code {
                     .map(|answer| answer[*which])
                 {
                     Ok(worth) => worth,
-                    Err(SimError(why)) => {
+                    Err(why) => {
                         if let Ok(mut held) = walked.trouble.lock() {
                             held.get_or_insert(why);
                         }

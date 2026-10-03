@@ -1243,3 +1243,87 @@ fn a_subset_with_no_member_to_differentiate_is_still_refused() {
     assert!(message.contains("constrains no state"), "{message}");
     assert!(message.contains("singular subset"), "{message}");
 }
+
+/// A stage that leaves the bracket of the library's root finder is a
+/// step too long, not a model that cannot run.
+///
+/// `TestJunctionVolume` was refused at t = 8e-6: the sixth stage of the
+/// first step put the junction's internal energy at -2.49 from 24.87,
+/// below every temperature the bracket of `T_h` holds, and the
+/// library's `solveOneNonlinearEquation` said the bracket held no root.
+/// A step of 4.4e-7 never goes there, and the run it gives agrees with
+/// one at a hundred times tighter tolerance to seven digits. Here the
+/// same: `der(x) = -50 x` from one, first tried with a step of half a
+/// second, puts its second stage at x = -4, where the root finder
+/// refuses; the answer is `exp(-50 t)`, positive everywhere.
+#[test]
+fn a_stage_outside_the_root_finders_bracket_is_a_step_too_long() {
+    let library = "package Modelica package Math package Nonlinear \
+           function solveOneNonlinearEquation \
+             input Real u; output Real y; \
+             protected Real a; \
+             algorithm \
+               assert(u > 0, \"The arguments do not bracket the root\"); \
+               a := u; \
+               while a < 10.0 loop a := a + 1.0; end while; \
+               y := u; \
+           end solveOneNonlinearEquation; \
+         end Nonlinear; end Math; end Modelica;"
+        .to_string();
+    let model = oxidelica_parser::parse_model_with_libraries(
+        &[library],
+        "model J Real x(start = 1, fixed = true); \
+         equation der(x) = -50 * Modelica.Math.Nonlinear.solveOneNonlinearEquation(x); \
+         annotation(experiment(StopTime = 1, Interval = 0.5)); end J;",
+    )
+    .unwrap();
+    let result = compile(&model)
+        .expect("the model compiles")
+        .simulate()
+        .expect("a shorter step stays inside the bracket");
+    let at = result.columns.iter().position(|c| c == "x").unwrap();
+    for row in &result.rows {
+        let exact = (-50.0 * row[0]).exp();
+        assert!(
+            (row[at] - exact).abs() < 1e-5,
+            "x = {} at t = {}, against {exact}",
+            row[at],
+            row[0]
+        );
+    }
+}
+
+/// And a function of the same last name written by somebody else is
+/// not the library's root finder: its refusal still ends the run. The
+/// kind is taken from the resolved name of the body, so `My.Math` is
+/// not mistaken for `Modelica.Math` by its tail.
+#[test]
+fn a_namesake_of_the_root_finder_still_refuses() {
+    let library = "package My package Nonlinear \
+           function solveOneNonlinearEquation \
+             input Real u; output Real y; \
+             protected Real a; \
+             algorithm \
+               assert(u > 0, \"u must be positive\"); \
+               a := u; \
+               while a < 10.0 loop a := a + 1.0; end while; \
+               y := u; \
+           end solveOneNonlinearEquation; \
+         end Nonlinear; end My;"
+        .to_string();
+    let model = oxidelica_parser::parse_model_with_libraries(
+        &[library],
+        "model J Real x(start = 1, fixed = true); \
+         equation der(x) = -50 * My.Nonlinear.solveOneNonlinearEquation(x); \
+         annotation(experiment(StopTime = 1, Interval = 0.5)); end J;",
+    )
+    .unwrap();
+    let refused = compile(&model)
+        .expect("the model compiles")
+        .simulate()
+        .expect_err("an assert of the model's own function is the model's");
+    assert!(
+        refused.to_string().contains("u must be positive"),
+        "{refused}"
+    );
+}

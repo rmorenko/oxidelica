@@ -649,7 +649,7 @@ impl CompiledModel {
                 // out, every branch that could fire has, and the only thing
                 // that can still set `acted` is a definition that moved.
                 // Whatever the loop gave up on, it gave up on with a name.
-                return Err(SimError(format!(
+                return Err(SimError::from(format!(
                     "the event at t = {t} does not come to rest after {rounds} round(s): \
                  what changes on every round is among {names:?}"
                 )));
@@ -669,7 +669,7 @@ impl CompiledModel {
                         .iter()
                         .filter_map(|&at| self.pre_names.get(at).cloned())
                         .collect();
-                    return Err(SimError(format!(
+                    return Err(SimError::from(format!(
                         "the event at t = {t} does not come to rest after {passes} pass(es): \
                      a discrete value still differs from its `pre` among {names:?}"
                     )));

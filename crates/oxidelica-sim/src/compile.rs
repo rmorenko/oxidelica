@@ -1912,7 +1912,7 @@ fn reduce_index(
                 Ok(false) | Err(_) => {
                     if attempt == 0 {
                         let (lhs, rhs) = &algebraic_eqs[eq];
-                        refusal = Some(SimError(format!(
+                        refusal = Some(SimError::from(format!(
                             "structurally singular model: equation {lhs:?} = {rhs:?} constrains no state, so index reduction cannot help"
                         )));
                     }
@@ -4062,7 +4062,9 @@ pub(crate) fn compile_at(
             .find(|c| &c.name == s)
             .expect("states come from declared components");
         let value = match &comp.start {
-            Some(expr) => eval(expr, &ctx0).map_err(|e| SimError(format!("start of {s}: {e}")))?,
+            Some(expr) => {
+                eval(expr, &ctx0).map_err(|e| SimError::from(format!("start of {s}: {e}")))?
+            }
             None => 0.0,
         };
         initial.push(value);
@@ -4741,7 +4743,7 @@ pub(crate) fn compile_at(
                     params: &params,
                 },
             )
-            .map_err(SimError)?;
+            .map_err(SimError::from)?;
             table.compile(&simplify(&derivative)).map(Weigh::Slope)
         };
         let own = sensitivity_of(victim)?;

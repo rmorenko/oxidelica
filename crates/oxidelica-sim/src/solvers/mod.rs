@@ -737,7 +737,10 @@ impl CompiledModel {
         // failed left its reason behind rather than raising one. This is
         // where it is read back out.
         match self.walked.complaint() {
-            Some(why) => Err(SimError(format!("at t = {t:.6}: {why}"))),
+            Some(why) => {
+                let said = format!("at t = {t:.6}: {why}");
+                Err(why.reworded(said))
+            }
             None => Ok(()),
         }
     }
@@ -1178,12 +1181,16 @@ impl CompiledModel {
                     // block returns and the reader is sent to the
                     // solver for a fault in a function body.
                     if let Some(why) = self.walked.complaint() {
-                        return err(format!(
-                            "{which} of algebraic loop {:?} is {bad} at t = {t}, \
+                        let kind = why.1;
+                        return err_of(
+                            kind,
+                            format!(
+                                "{which} of algebraic loop {:?} is {bad} at t = {t}, \
                              before any Newton step, because a function it calls \
                              could not be walked: {why}",
-                            block_names()
-                        ));
+                                block_names()
+                            ),
+                        );
                     }
                     return err(format!(
                         "{which} of algebraic loop {:?} is {bad} at t = {t}, \
@@ -1691,12 +1698,15 @@ impl CompiledModel {
                         .map(|j| block_names()[j])
                         .collect();
                     if !split.is_empty() {
-                        return err(format!(
+                        return err_of(
+                            Refusal::EitherSide,
+                            format!(
                             "algebraic loop {:?} has a solution on either side of {split:?} at \
                              t = {t}: the equations are answered both ways and do not say \
                              which was meant",
                             block_names()
-                        ));
+                        ),
+                        );
                     }
                     if newton_trail() {
                         for (i, row) in jac.iter().enumerate() {
