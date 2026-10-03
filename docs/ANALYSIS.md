@@ -31918,3 +31918,25 @@ So the four "other" models are four different things, and the
 singular row as a whole is a list of individual models, several of
 them with a named cause now (`/tmp/m344/z_oth_*.txt`,
 `z_der_*.txt`).
+
+The same offline null space on the switch group (`/tmp/m344/z_DB2m.txt`,
+`z_PolyRect.txt`, `z_QSRect.txt`, `z_sw_*.txt`) puts several of them
+into one shape after all. It is not the empty row.
+`DiodeBridge2mPulse` and `ThyristorBridge2mPulse_RLV` are free along
+`rectifier.star_p.pin_n.v` alone. `PolyphaseRectifier` is free along
+`multiStar.star.pin_n.v` and the delta pins hanging off it.
+`IMC_DOL_Polyphase` is free along `terminalBoxM.star.pin_n.v` against
+the zero-sequence voltage. Each is the potential of a star point. Once
+the diodes or switches that touch it are all off, nothing but their
+`Goff` leakage ties that point to the rest of the circuit, and the
+loop has no equation to fix the potential. The empty source row of
+the two bridges is the other face of the same fact, a current balance
+that has stopped carrying information. So four of the eight switch
+models are probably one family: a star point left floating when its
+switches open. The fix belongs where the potential of an isolated
+node is chosen, not in the solver. The two `SMEE` models are free
+along `der(smee.airGap.V_mss.im)` against a stator current
+derivative, with singular values spanning 3.9e22, a machine scaling
+question. The QuasiStatic `Rectifier` is free along `load2.v`
+against two diodes' `s`, the same open-diode shape on a single-phase
+load.
