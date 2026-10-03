@@ -31484,3 +31484,11 @@ in `lib.rs`. A bound that would keep the arrivals and stop the hangs
 has to see something other than how often or how far the run backed
 off - a price per iteration, or a budget of wall per model, which the
 compiler does not otherwise have. None of the keys is adopted.
+
+TestTemperature1 was then given an hour of wall on its own under the
+same trace (`/tmp/m343/L_TestTemperature1.txt`). It was taken down at
+that budget with 128 accepted steps, at t = 3.7e-5 of a stop time of
+15 s, the step size settled at 3.1e-7 and still six stages rejected.
+That is no verdict, and it is an answer about the price: at that step
+size the run would need some fifty million steps, so it does not end
+in any budget a library job has.
