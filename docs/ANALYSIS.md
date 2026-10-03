@@ -31744,3 +31744,18 @@ TestWaterPumpPowerCharacteristic) refuse after a small step. The
 incompressible media (Glycol47 and Essotherm650) keep a single
 state. The machines (IMC_Transformer and SMPM_Mains) refuse at their
 first evaluation.
+
+One of the open pairs was taken a layer further. In `Glycol47` the
+density depends on temperature alone, so `volume.m = V * d(T)` and
+`volume.U = m * u(T)` tie both conserved quantities to `T`. Reduction
+keeps one state, `volume.m`, and the pressure of the volume is left
+to an inner loop on `["volume.ports[2].m_flow", "volume.medium.p",
+"volume.vessel_ps_static[2]", "shortPipe.port_a.p"]`. Under
+`OXIDELICA_NEWTON_TRAIL` that loop alternates for fourteen iterations
+between `m_flow = -1`, `p = 1.1e6` and `m_flow = 185`, `p = -1.85e8`,
+with the first row standing at 1.8e4 whatever the pressure does; the
+line search then walks back to the start and the refusal is raised.
+The pressure of a rigid volume of incompressible fluid is fixed only
+through the differentiated mass balance, so whether that equation
+reaches this loop is a question for index reduction, not for the state
+preference above. Left open with the map.
