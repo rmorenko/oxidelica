@@ -32507,3 +32507,57 @@ refusal on this tree, and `RGnd` of 1e3 and 1e4 refuse too
 (`/tmp/m347/r/`), so the cause is not the size of the one resistance.
 The earlier reading that a larger step changed this model's wall
 (m345) does not repeat on `eb5c473`. Left as a single in the row.
+
+### Smaller still: one winding
+
+The machine is not needed either. A `SymmetricPolyphaseWinding` of
+five phases between a grounded sine source and an open `Star`, closed
+magnetically by one reluctance (`/tmp/m347/mini/W5.mo`, twenty lines),
+refuses with the same exact null vector, `zeroInductor.v0 = -star.pin_n.v`
+(smallest singular value 2e-17 after scaling, `W5t.txt`). The reduction
+trace says where five phases part from three. For `W3` the sixth
+reduction is on the open star's current, `w.plug_n.pin[3].i =
+w.zeroInductor.plug_n.pin[3].i` differentiated, and it demotes
+`w.zeroInductor.i0`. For `W5` the nine reductions are all on the
+fluxes of the converters, none reaches the star, and `i0` stays a
+state. The sum of the five currents is then known twice - through the
+open star and through `m*i0` - and the matching cannot see it because
+it is a sum over the phases, not a single equation either side. `W3`
+refuses as well, but differently: its block is singular along
+`der(i)` of the converters, a direction of its own.
+
+### The rest of the machines in the row
+
+The five machines left in point 22 as "condition above 1e17, no zero
+direction" were probed the same way, rows and columns scaled to a
+unit maximum before the decomposition (`/tmp/m347/eq.py`, matrices in
+`/tmp/m347/p4/`). The size of the entries had hidden exact
+dependencies in all of them:
+
+- `FundamentalWave` `SMEE_DOL`, `SMEE_Rectifier` and `SMEE_LoadDump`:
+  two rows exactly parallel. In the first two, the rotor cage's
+  `V_m.im` of its first phase and the air gap's
+  `1.5708*(der(V_mrr.im) + der(V_msr.im)) - der(Phi_rr.im)*R_m.q`
+  mention only `airGap.Phi_ss.re` and the cage current, with the
+  ratio -394.784 in both entries (entries of 1e19 and 1e22, at a
+  point where every unknown is below 1e-21). In `SMEE_LoadDump` the
+  pair is the cage's `V_m.im` and the excitation's
+  `der(V_m.im)`. That is a cage winding read twice, not a star.
+- `Electrical.Machines` `SMEE_LoadDump`: two pairs of parallel rows
+  between the air gap's space phasor and the stator's
+  `spacePhasorS.spacePhasor.i_`, and `terminalBox.star.pin_n.v` in
+  both.
+- `Electrical.Machines` `SMEE_Rectifier`: the left null vector is the
+  stator's zero sequence, `-m*spacePhasorS.zero.i = sum(i)`. Its
+  three-phase open star is demoted (`terminalBox.starpoint.i = 0`,
+  reduction 11), so it is not the five-phase family either.
+
+So the singular row of the census, 18 models on `eb5c473`
+(`/tmp/m347/census.txt`), holds three families that can be named
+from matrices already printed: the five-phase open star (four
+names), the excited synchronous machine's cage read twice (three
+`FundamentalWave` names) and the `Electrical.Machines` space phasor
+(two names). None of them is a column below rounding, so none is the
+road of the growth past rounding; each is a question for index
+reduction or the matching, which a corpus pair would have to answer
+model by model.
