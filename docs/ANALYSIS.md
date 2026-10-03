@@ -31964,3 +31964,14 @@ IMC_DOL_Polyphase, SMEE_Generator_Polyphase), five machine scalings
 past 1e17 (two SMEE of the switch group, three of the `der()` group),
 and ten single causes named above. The star points are the one family
 worth a series.
+
+A small model does not reproduce it, which is worth writing down before
+anyone builds on the family. Two ideal diodes from two antiphase
+sources feeding a resistor at a common node (`/tmp/m344/star/Star.mo`),
+and the same with the return through a third diode so that the node
+can float (`Star2.mo`), both run their 0.04 s on the main binary at
+50880a2. A star point behind open switches is therefore not enough by
+itself. The four library models also pass a polyphase plug and a
+`MultiStar` or terminal box between the switches and the point, and
+the next probe is to shrink `DiodeBridge2mPulse` itself while the
+refusal survives, not to grow the synthetic one.
