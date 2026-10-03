@@ -31798,3 +31798,16 @@ the solver carries. That is the same machinery reduction already uses
 to differentiate a constraint, applied for a different reason. It is a
 series with a corpus pair and the diff of runs by name, and it does
 not fit inside a shift.
+
+The machine pair, one layer further, on `IMC_Transformer`
+(`/tmp/m344/z_IMCT_nt.txt`). Its inner loop at t = 0 does converge:
+in the last of its three solves the residual falls to 1.3e-9 by the
+fourth iteration and then repeats that value to the last digit for
+five iterations, and the refusal is raised on that standstill. The
+rows still standing are five of thirty-five (rows 13, 30, 31, 32 and
+34), each between 6e-11 and 9e-10 against a loudness of 4.6e5 to
+3.3e6. That is 1.3e-16 to 3.7e-16 of the row: one to two units in the
+last place. So the machines stand at the arithmetic floor of a loud
+row, which is the family of point 18 and of the "floor in the form"
+road m338 closed (Rectifier12pulse sets the threshold), and not at
+anything in this chapter.
