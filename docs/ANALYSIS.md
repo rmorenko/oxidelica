@@ -32302,3 +32302,14 @@ the same fivefold shrink. The trail prints nothing between, so the
 failure is raised after the Jacobian is built and outside the trail's
 own messages. Its text is the next thing to read, by
 `OXIDELICA_WHERE` on that attempt. Not done this shift.
+
+`OXIDELICA_WHERE` on the victim under the key names the refusal
+`solvers/mod.rs:1195`: a residual that is NaN at iteration 0, before
+any Newton step, at t = 0. Read beside the trail, the order is this:
+the step at t = 2e-4 fails after its first Jacobian, shrinks fivefold
+to 8e-13, and the run then stands where a stall hands it to state
+re-selection. The block of the recompiled model starts on a value that
+is not a number. So the victim is not refused by the grown columns
+themselves but by the road out of a step that failed under them. What
+failed after iteration 0 of the first step is the question that is
+still open.
