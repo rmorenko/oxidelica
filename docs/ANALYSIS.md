@@ -31299,3 +31299,97 @@ with it, the model is no longer refused there. Whether it then runs
 or meets a fourth wall is not known yet, and the price is already the
 price of its siblings under the stage keys. None of the three keys is
 adopted.
+
+## The stage-reject pair on a short list, and what each key costs a model (m342)
+
+The whole-corpus pair of m341 never finished its keyed half, so the
+keys were taken on the models they were meant for: the sixteen that
+m340 found refused at a time past zero, less the four known to be
+dear (SeriesPipes1, SeriesPipes2, BranchingPipes4 and SeriesPipes12),
+with BranchingPipes1, BranchingPipes2, BranchingPipes17 and WaterIF97
+kept as controls. Fourteen names (`/tmp/m342/short.txt`), the m340
+probe binary at 2ad95ee (`/tmp/oxp341`), one model per process under
+`--only` with one thread, four processes side by side, thirty minutes
+of wall each. The keyed half is `OXIDELICA_STAGE_REJECTS=1
+OXIDELICA_LOUD_BRANCH=1` (`/tmp/m342/k_*.txt`), the base half the same
+binary without them (`/tmp/m342/b_*.txt`); the seconds are the run
+half's own, as each file prints it.
+
+```text
+                                 keys              no keys
+BranchingPipes14                 runs, 740 s       refused, 24 s
+BranchingPipes2                  runs, 123 s       refused, 77 s
+DryAir1                          runs, 6 s         refused, 2 s
+OvervoltageProtection            runs, 0 s         refused, 0 s
+TestJunctionVolume               runs, 2 s         refused, 1 s
+TestWaterPumpCheckValve          runs, 35 s        refused, 8 s
+BranchingPipes17                 runs, 32 s        runs, 33 s
+BranchingPipes1                  refused, 1169 s   refused, 77 s
+DynamicPipesWithTraceSubstances  refused, 516 s    refused, 392 s
+WaterIF97                        refused, 45 s     refused, 46 s
+Friction                         refused, 0 s      refused, 0 s
+ParallelPumpDropOut              refused, 0 s      refused, 0 s
+Rectifier6pulse                  refused, 0 s      refused, 0 s
+TestTemperature1                 over 30 min wall  refused, 25 s
+```
+
+The six that arrive are exactly the six m340 and m341 named, and no
+control leaves: BranchingPipes17 runs in both halves in the same time,
+WaterIF97 is refused in both with the same words about `medium.h`.
+BranchingPipes1 keeps its refusal, the Newton direction of
+`pipe1.mediums[1].p`, and pays fifteen times as much to reach it.
+DynamicPipesWithTraceSubstances changes the wall it stops at, from a
+table's `u_min`/`u_max` at t = 0.000178 to the Newton direction of
+`pipe2.mediums[1].T`.
+
+So the price of the keys is not spread over the corpus. It sits on
+the water pipes: of the six won, BranchingPipes14 alone costs 740 s
+of run, and among the losers TestTemperature1 goes from a refusal in
+25 s to more than thirty minutes of wall without a verdict (taken
+down at 31 min of processor time). The three dear models taken on
+their own under the same two keys - SeriesPipes1, SeriesPipes2 and
+BranchingPipes4, one thread each - were all taken down at 37 minutes
+of wall and of processor time with no verdict (`/tmp/m342/d_*.txt`,
+`/tmp/m342/dear_kill.txt`): dearer than thirty minutes of wall, which
+is what m340 saw above forty.
+
+That is the measurement the decision about a series lacked. Six models
+are won, and four models (TestTemperature1, SeriesPipes1, SeriesPipes2,
+BranchingPipes4) go from a refusal in seconds to a run that does not
+end within half an hour, which in the library job is more than its
+ceiling allows for a handful of them together. The keys cannot be
+merged as they stand: they need a bound on the time a refused stage
+may be retried, or the four would turn a refusal into a cancelled run.
+None of the keys is adopted.
+
+The whole-list keyed half was tried first as one process under
+`--only-from`, and stood at twelve of fourteen from its 819th second
+for an hour, at 119 minutes of processor time; it was taken down
+without a verdict (`/tmp/m342/pair.log`), and is why the list was
+then taken one model at a time.
+
+SeriesPipes12 under all three keys, `OXIDELICA_LOUD_ARGS` with the
+two above, was given a budget of two hours of wall on its own
+(`/tmp/oxp341b`, one thread, `/tmp/m342/sp12.txt`). It was taken down
+at that budget, at 120 minutes of processor time and 0.3 GB, with no
+verdict. Without the keys it is refused in six minutes; with them it
+is past its wall and dearer than two hours, which is an answer about
+the price whether or not it would ever run.
+
+A fresh census of both halves on 63b4c9e (`/tmp/m342/census.txt`,
+raw half `/tmp/m342/raw.txt`) agrees with the pair of m341 to the
+name: 966 flatten and 688 run on the desk, and the 278 models that
+flatten and do not run are the same 278 names as in
+`/tmp/m341/base.txt`, over the same 203 kinds by raw wording. With
+the census's own grouping that is 152 rows over 278 for the run half
+and 39 rows over 67 for the flatten half. Nothing moved between the
+two, which is what a tree that changed only notes should show.
+
+The runner printed 966 / 686 and 849 / 644 on 2461c89 and on db1e43b
+alike (job 111149234173 of run 37104125094, and run 37104164367), the
+same 686 names on both. The desk's two more are
+`Modelica.Magnetic.QuasiStatic.FundamentalWave.Examples.BasicMachines.InductionMachines.IMC_DOL`
+and `Modelica.Mechanics.MultiBody.Examples.Elementary.SpringWithMass`,
+found by subtracting the runner's list from the desk's
+(`/tmp/m342/ci/a.ran` against `/tmp/m342/ci/desk.ran`). The floors
+already stand at the lower of the two, so none of them was raised.
