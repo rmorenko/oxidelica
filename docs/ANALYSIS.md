@@ -31584,3 +31584,71 @@ handed the bracket, is the question to settle before the condition is
 adopted. The probe matches by text, which is the shape these notes
 forbid in the compiler: an adoption needs the kind recorded in the
 error, not read off its wording.
+
+## The top of the run census probed: a Newton step the initialization takes whole (m344)
+
+The largest row of the run half of the m342 census
+(`/tmp/m342/census.txt`, raw `/tmp/m342/raw.txt`) is 26 models
+refused with `the Newton direction of algebraic loop [...] does not
+reduce the residual`. Split by the time the refusal names, it is two
+rows wearing one wording: 11 at t > 0, which are the stage-reject
+family of point 20 (BranchingPipes, SeriesPipes, DryAir1,
+TestTemperature1, TestWaterPumpCheckValve, Rectifier6pulse), and 15 at
+t = 0. The fifteen are two machines, three R134a and water-pump models,
+DynamicPipeInitialization, TestMultiPortTraceSubstances and seven of
+the `MediaTestModels`, three of which (IdealGases.Air,
+IdealGases.Nitrogen, Air.DryAirNasa) refuse on the same loop
+`["volume.medium.T", "volume.portInDensities[1]",
+"volume.portInDensities[2]", "shortPipe.flowModel.m_flows[1]"]`.
+
+`IdealGases.Air` was taken as the representative, one `--only` on the
+main binary at 50880a2 with `OXIDELICA_NEWTON_TRAIL`, then a local
+build printing the initialization's own Newton iterate
+(`state/init_trail_m344.patch`, not committed; files
+`/tmp/m344/z_Air_*.txt`). The model is a closed volume between a
+mass-flow source and a laminar short pipe, with
+`energyDynamics = SteadyStateInitial`, so the initial section is
+`der(volume.medium.T) = 0` and `der(volume.medium.p) = 0`. The road
+probe says the section is written and both equations reach a state:
+the states chosen are `volume.U` and `volume.m`.
+
+The layers, in order:
+
+1. The initialization starts at `U = 25218`, `m = 0.1204` (the
+   declared start: 293.15 K, 1 bar, 0.1 m3), and the inner loop
+   solves there in two iterations. Its residual is 696 and 1.08e6.
+2. The difference Jacobian is well formed and the Newton step it asks
+   for is `U` by +110342 and `m` by +0.833: the full step puts eight
+   times the air into the volume.
+3. At that point the inner loop above cannot be solved: its first
+   iteration reaches `|f| = NaN`, the line search walks the
+   temperature down to 202 K and stops, and the refusal is raised.
+   `solve_initialization` evaluates the point with `?`, so the first
+   failing evaluation ends the run - there is no shorter step.
+4. A key in the same local build halved the step while the point
+   failed. It does not reach a solution: half the step fails on the
+   `u_min/u_max` bracket assert of the medium's temperature solve,
+   later steps fail on the pipe's `dps_fg` equation, and the
+   accepted fractions fall to 1e-7 with the residual still at 9e5
+   after ten iterations. Not adopted; reverted.
+
+What the model says it wants is elsewhere. The ideal-gas medium
+writes `T(stateSelect = if preferredMediumStates then
+StateSelect.prefer ...)` and `p(...)` the same
+(`Media/IdealGases/Common/package.mo` lines 76-77), and the volume
+sets `preferredMediumStates = true`. With `p` and `T` as states the
+two initial equations are equations about states, and the start is
+the declared start, already steady. The parser reads `stateSelect`
+and drops it (`parser/declarations.rs`, the comment beside
+`quantity`), so index reduction keeps `U` and `m`, and the
+initialization is asked to find a steady point through the
+conserved quantities from a start that only the medium's variables
+were given.
+
+So the row's t = 0 half is a wall at state selection rather than in
+the Newton layer the message names. That is a definition-adding
+change in the sense of AGENTS.md - honouring `prefer` changes which
+states reduction keeps across every fluid model - and it is measured
+by the diff of which models run, not by this row. Parked here with
+the map; the other t = 0 members were not probed and are not claimed
+for this layer.
