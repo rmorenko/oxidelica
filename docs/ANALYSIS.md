@@ -31759,3 +31759,22 @@ The pressure of a rigid volume of incompressible fluid is fixed only
 through the differentiated mass balance, so whether that equation
 reaches this loop is a question for index reduction, not for the state
 preference above. Left open with the map.
+
+The pumps, one layer further. `TestWaterPumpStorage` holds
+StandardWater in a pump volume of one litre with
+`SteadyStateInitial` mass and energy, and keeps `pump.U` and `pump.m`.
+The step the initialization takes is small in relative terms, `m` by
+-3.5e-4 kg out of 0.998, but the Jacobian column for `m` reads
+-2.6e13 against 1.9 for `U`. Water is nearly incompressible: removing
+3.5e-4 kg from a litre removes 0.35 kg/m3 of density, which at a
+compressibility near 4.5e-10 per pascal (a textbook figure, not one
+measured here) is some 8 bar - against a pump pressure of 7 bar
+at the start. The inner loop on `["pump.medium.p",
+"pump.V_flow_single"]` takes its first step to -4.6e5 Pa, meets a
+`NaN`, and settles nowhere. So the "small step" is not small where it
+lands. The mass of a nearly rigid volume is the worst coordinate to
+take a step in, and with `p` and `h` as states, which StandardWater
+prefers, the step would be taken in pressure. On that estimate the
+pumps very probably belong to the same layer, making eleven of the
+fifteen. They are counted as probable, not measured, until a run with
+the preference honoured says so.
