@@ -31975,3 +31975,22 @@ itself. The four library models also pass a polyphase plug and a
 `MultiStar` or terminal box between the switches and the point, and
 the next probe is to shrink `DiodeBridge2mPulse` itself while the
 refusal survives, not to grow the synthetic one.
+
+Shrinking the library model instead found it in a minute
+(`/tmp/m344/shrink/`, copied to `state/shrink_m344/`). `B1` is
+DiodeBridge2mPulse with the sensors and blocks taken out: the
+polyphase sine source, the bridge, a 20 ohm load,
+`MultiStarResistance` and ground. It refuses at t = 1.8e-3 on the
+same loop, free along `rectifier.star_p.pin_n.v`. `B2` swaps
+`MultiStarResistance` for a plain `Polyphase.Basic.Star` and runs.
+`MultiStarResistance` grounds the source's star through an insulation
+resistance whose default is 1e6 ohm, and that resistance decides the
+outcome: at 1 ohm (`B3`) and 1e3 ohm (`B4`) the model runs, and at
+1e4, 1e5 and 3e5 ohm (`R1e4`, `R1e5`, `R3e5`) it refuses as at 1e6.
+The threshold lies between 1e3 and 1e4 ohm. The ideal diodes' default
+`Goff` is 1e-5 S, an off resistance of 1e5 ohm, so a probable reading
+is that the loop loses the star potential once the insulation path is
+no longer much stiffer than the off diodes. It is a numerical
+determination of a weakly tied node rather than a missing equation.
+This is a reproduction of eleven lines that refuses in under a second,
+which is what the next shift on this family should start from.
