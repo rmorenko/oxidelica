@@ -32010,3 +32010,155 @@ step that reaches 1e13 V cannot be undone inside the loop. It looks
 like a guard on the size of a Newton step through a nearly free
 potential, more than a question of which equation is in the loop.
 That is a lead for the next shift, not a finding.
+
+## A refused stage taken as a step too long, by its kind (m345)
+
+The question point 20 left before adopting the bracket kind was whether
+a shorter step is the honest answer to the root finder's refusal, or
+whether the stage had handed the bracket a start that a smaller step
+merely hides. It was settled by printing what the stage handed over
+(probe `state/oxp345_honesty.patch`, written by hand on main because
+`oxp344b.patch` was cut from the m340 branch and no longer applies).
+On `TestJunctionVolume` the refusal comes from the sixth stage of the
+very first step, h = 8e-6: the stage puts `junction.U` at -2.49 from
+24.87 and `junction.m` at 3.7e-5 from 1.19e-4, a negative internal
+energy, below every temperature the bracket of `T_h` (200 to 6000 K)
+can hold. The shorter step the rejection leads to is accepted at
+h = 4.4e-7 with an error norm of 0.085 and `junction.U` at 24.87, and
+the next two accepted steps keep it there. The run then goes to BDF on
+its own. As the control on the trajectory, the same probe binary ran
+the model at rtol 1e-6, 1e-7 and 1e-8 (the key reaches both solvers),
+files `/tmp/m345/{a2,b,c}.csv`. At t = 0, 0.001, 0.01, 0.1, 0.25, 0.5,
+0.75, 1 and 1.01 the internal energy, mass, pressure, temperature and
+the flow through `pipe2` agree to seven or eight digits across the
+three, ending at `junction.U` = 12.745833 and p = 256108.52 Pa in all
+of them. The stage handed the bracket a point the run never visits,
+and the smaller step is the answer, not a cover for the assert.
+
+So it was taken, with the kind as a field of the error rather than a
+reading of its wording. `SimError` carries a `Refusal`: `Plain` for
+almost everything; `EitherSide` from the dead-column refusal of an
+algebraic loop; and `Unbracketed`, which is decided where the refusal
+is raised, by name and never by spelling. An `assert` or
+`Streams.error` in a walked body raises `Raised`, and the innermost
+body claims it by its resolved name. The library's
+`Modelica.Math.Nonlinear.solveOneNonlinearEquation`, or a copy of it
+specialized for the function it was handed (which carries that name
+with `$` and the function after it), makes it `Unbracketed`. Anything
+else, a namesake in another package included, makes it `Plain`. The
+walk's complaint channel now carries the whole error, not its text,
+so the kind survives the trip through a call the run walks. The
+condition is on the two arms `oxp344b` measured, the dopri stage and
+the BDF Newton. The stall, FSAL and event arms keep their bare
+`reselectable`. Two tests come with it: a decaying state whose first
+stage leaves the root finder's bracket runs to `exp(-50 t)` (red with
+the condition off), and the same body under `My.Nonlinear` still
+refuses.
+
+Measured with one binary per half (`/tmp/ox345base` at 54705c3 and
+`/tmp/ox345k` at the change, the main pass without the heavy models).
+On the short list, one model at a time under `--only` (files
+`/tmp/m345/short/`): `TestJunctionVolume` refuses in the base and runs
+under the change, run half 2 s. `BranchingPipes17` runs in both.
+`TestTemperature1`, `BranchingPipes1` and `OvervoltageProtection`
+refuse in both. Their run halves are 82 s against 52 s and 105 s
+against 90 s, so nothing went dear. The base half of the corpus pair
+printed 966/688 and 849/646 (`/tmp/m345/pair/base.txt`), the same
+numbers as the m341 base. The change half printed 966/689 and 849/647
+(`/tmp/m345/pair/k.txt`), and the run lists diffed by name
+(`/tmp/m345/pair/base.ran` against `k.ran`) differ by exactly one
+model: `TestJunctionVolume` arrives and none leaves. The flattened
+lists are identical. The floors are not moved here; they rise to the
+first finished print of the library job on this commit.
+
+## The floating star of the reduced bridge: a column below rounding (m345)
+
+`state/shrink_m344/B1.mo` was probed with `B4` beside it, as point 22
+asked, and the lead the last shift left (Newton throws the star far
+out, B4 comes back, B1 does not) turns out to be the visible half of a
+smaller fact. Files in `/tmp/m345/star/`.
+
+First, where the refusal comes from. `B1` has no states, and the
+`either side` refusal is raised inside `first_crossing` of
+`walk_without_states`, the bisection that places a diode's switching
+between two output points. It is not raised in a stage of a step, so
+the kind taken above does not reach it, and both binaries refuse `B1`
+at the same t = 1.833e-3.
+
+Second, what the column is. At the refusal the star potential's column
+was probed by moving it from -1000 to +1000. Every row but the last
+answers zero or rounding (1e-17 to 1e-11). The last row,
+`(-sineVoltage.plug_p.pin[3].i) + sineVoltage.sineVoltage[3].p.i = 0`,
+answers 1.0e-6 per volt in both directions and at every distance. That
+is 1/R of the insulation resistance at its default of 1e6 ohm. So the
+column is alive and the same whichever way it is walked. It is called
+`either side` only because `secant_column` asks every row for
+agreement within a quarter, and rows of rounding noise at 1e-17 do not
+agree with each other. The equations do say which was meant.
+
+Third, why 1e3 ohm runs and 1e4 does not. In both models the iteration
+stands at this point with diode currents near 1.4e6 (the excursion the
+last shift saw). At those values the finite-difference step of
+1e-8 x (1 + |v|), about 8e-7 V, moves the last residual by
+1/R x 8e-7. With R = 1e3 that is 8e-10, and with R = 1e6 it is 8e-13.
+The ulp of a current of 1.4e6 is 2.3e-10. So at 1e3 ohm the
+coefficient stands just clear of the rounding, and at 1e4 and up it
+falls under it. The threshold between 1e3 and 1e4 is where 1/R x h
+crosses the ulp of the currents the iteration is standing among. It
+is not a question of which path is stiffer, which is why the
+`GoffDiode` reading failed.
+
+The test of that reading is the finite-difference step itself, through
+the existing `OXIDELICA_FD_STEP`, on the base binary:
+
+```text
+B1, step scale   1e-8 (default)  either side
+                 1e-7            singular Jacobian
+                 1e-6            either side
+                 1e-5            runs; resistor.i 13.472180109056 at t = 0.1,
+                                 B4 13.472180109086 (the same circuit at 1e3 ohm)
+```
+
+On the five library models the m344 kernel put on the floating star,
+one at a time (`fd1e-8_*` against `fd1e-5_*`): `DiodeBridge2mPulse`
+and `ThyristorBridge2mPulse_RLV` refuse at the default step and run at
+1e-5. `PolyphaseRectifier` moves from `singular Jacobian` to `did not
+converge in 50 Newton iterations`. `IMC_DOL_Polyphase` and
+`SMEE_Generator_Polyphase` refuse as before. So two of the five are
+this wall and nothing else. A global step scale is not a fix, because
+it moves every model's Jacobian. It shows that the wall is the
+resolution of one column.
+
+Five narrower candidates were tried on `B1` and `B4` alone, each
+behind its own key, four of them saved as patches in `state/`. None
+takes `B1`:
+
+- `secant_noise_m345.patch`: rows whose two secants both sit under the
+  rounding of the residual are let through the agreement test. `B1`
+  moves from `either side` to `singular Jacobian` at the same instant.
+  The kernel there is the star column again, with the last row read as
+  all zeros, so the Newton Jacobian lost it before the refusal ever
+  asked.
+- The same allowance in the `steady` check of the zero ladder: same
+  outcome.
+- `ladder_noise_m345.patch`, the same allowance in the noise ladder:
+  `B1` still `either side`, `B4` runs.
+- `zero_ladder_noise_m345.patch`, the zero ladder grown also when the
+  column moved only by rounding: `B1` still refuses, and `B4` now
+  refuses too. Not to be taken.
+- `crossing_footing_m345.patch`, the crossing bisection started from
+  the near side's algebraic guess instead of the far side's, at the
+  far point and at each midpoint: `B1` refuses (`either side`, or
+  `singular Jacobian` with the midpoints alone), and `B4` runs.
+
+The map, for whoever takes the series. Link 1 is the either-side test
+reading rounding rows as disagreement. Link 2 is the Newton
+Jacobian's star column falling below the rounding of the currents it
+stands among, which is what the threshold in R is. The excursion to
+1e6 A is what puts it there. Both links fall together only with a
+coarser step, so the honest candidates are a step for that column
+grown until its one live row stands clear of that row's rounding (the
+noise ladder already does this for a column that moved, but not for
+one whose movement was pure rounding in every row but one), or
+keeping the iteration from standing among megaamp currents in the
+first place. Neither was tried on the corpus, as point 22 asked.
