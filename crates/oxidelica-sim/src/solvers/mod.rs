@@ -27,6 +27,15 @@ fn fd_growth_off() -> bool {
     *OFF.get_or_init(|| std::env::var_os("OXIDELICA_NO_FD_GROWTH").is_some())
 }
 
+/// Whether the zero ladder stops at the first step that moves a row
+/// at all, as it did before it learned to read a move inside the
+/// rounding of the row as no move. Off by default; the switch exists so
+/// that the two halves of a measurement come from one binary.
+fn fd_growth_past_rounding_off() -> bool {
+    static OFF: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *OFF.get_or_init(|| std::env::var_os("OXIDELICA_NO_GROWTH_PAST_ROUNDING").is_some())
+}
+
 /// Whether a step either adaptive solver rejects may leave the
 /// algebraic blocks warm-started from the roots its trial found. Off by
 /// default; the switch exists so that the two halves of a measurement
@@ -1401,12 +1410,40 @@ impl CompiledModel {
                     residual(values, &perturbed)
                 };
                 if !fd_growth_off() {
+                    // A column that moves its rows only by their rounding has
+                    // not answered either, and is asked from further away the
+                    // same as one that did not move. The star of a diode
+                    // bridge grounded through a megohm is the case
+                    // (`state/mini_m345/S.mo`): the star's current moves the
+                    // last row by 1/R of the step, under the ulp of the diode
+                    // currents it is summed with, and the base chattered
+                    // through ten thousand events on the slope it read.
+                    //
+                    // The first step at which a row moved at all is kept,
+                    // because it is what this ladder answered before it read
+                    // past the rounding, and it is what a column that fails
+                    // further out falls back to. Falling back past it to the
+                    // textbook step sets a column the base held to exactly
+                    // zero: `GearConstraint` has six columns that move by
+                    // -1.4e-20 at 1e-4 and by nothing at 1e-2, and set to
+                    // zero they make its first step singular
+                    // (`/tmp/m346/gc/on.txt`).
+                    let past_rounding = !fd_growth_past_rounding_off();
+                    let moved = |fp: &[f64]| fp.iter().zip(&f).any(|(a, b)| a != b);
+                    let mut first_moved: Option<(f64, Vec<f64>)> =
+                        moved(&fp).then(|| (h, fp.clone()));
                     let ceiling = 1e-3 * (1.0 + v[j].abs());
-                    while h < ceiling && fp.iter().zip(&f).all(|(a, b)| a == b) {
+                    while h < ceiling
+                        && (!moved(&fp)
+                            || (past_rounding && moved_only_by_rounding(&fp, &f, &loud_rows)))
+                    {
                         h *= 100.0;
                         let mut perturbed = v.clone();
                         perturbed[j] += h;
                         fp = residual(values, &perturbed);
+                        if first_moved.is_none() && moved(&fp) {
+                            first_moved = Some((h, fp.clone()));
+                        }
                     }
                     // What a grown step answers has to be checked before it
                     // is believed, because two different things read the
@@ -1426,13 +1463,49 @@ impl CompiledModel {
                         let mut farther = v.clone();
                         farther[j] += h * 2.0;
                         let ff = residual(values, &farther);
-                        let steady = fp.iter().zip(&ff).zip(&f).all(|((near, far), base)| {
-                            let a = (near - base) / h;
-                            let b = (far - base) / (h * 2.0);
-                            (a - b).abs() <= 0.25 * a.abs().max(b.abs())
-                        });
+                        // Read past the rounding, a row the column moves only
+                        // by its rounding has no slope to agree about, and is
+                        // let through; the column still has to move some row
+                        // clear of it.
+                        let rounding = |moved: f64, base: f64, loud: f64| {
+                            (moved - base).abs()
+                                <= FD_NOISE_ULPS * f64::EPSILON * loud.abs().max(base.abs())
+                        };
+                        let steady = if past_rounding {
+                            let clear = fp
+                                .iter()
+                                .zip(&f)
+                                .zip(&loud_rows)
+                                .any(|((near, base), loud)| !rounding(*near, *base, *loud));
+                            clear
+                                && fp.iter().zip(&ff).zip(&f).zip(&loud_rows).all(
+                                    |(((near, far), base), loud)| {
+                                        let a = (near - base) / h;
+                                        let b = (far - base) / (h * 2.0);
+                                        (rounding(*near, *base, *loud)
+                                            && rounding(*far, *base, *loud))
+                                            || (a - b).abs() <= 0.25 * a.abs().max(b.abs())
+                                    },
+                                )
+                        } else {
+                            slopes_agree(&fp, &ff, &f, h)
+                        };
                         if !steady {
                             fp = f.clone();
+                            if past_rounding {
+                                if let Some((h1, fp1)) = first_moved {
+                                    let kept = h1 <= fd_step_scale() * (1.0 + v[j].abs()) || {
+                                        let mut farther = v.clone();
+                                        farther[j] += h1 * 2.0;
+                                        let ff1 = residual(values, &farther);
+                                        slopes_agree(&fp1, &ff1, &f, h1)
+                                    };
+                                    if kept {
+                                        h = h1;
+                                        fp = fp1;
+                                    }
+                                }
+                            }
                         }
                     }
                 }

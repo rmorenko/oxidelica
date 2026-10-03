@@ -1236,3 +1236,44 @@ fn a_slope_lost_in_the_rounding_of_an_energy_balance_is_read_from_further_away()
         "m = {m}, p V / (R T) = {expected}"
     );
 }
+
+/// A three-phase diode bridge whose source star is grounded through a
+/// megohm. The star's current moves the last row by a millionth of the
+/// step, under the rounding of the diode currents it is summed with, so
+/// the textbook step reads that rounding for a slope and the base
+/// chattered through ten thousand events at the commutation near
+/// t = 0.045. The zero ladder now reads a move inside a row's rounding
+/// as no move and asks from further away. The load current is the one
+/// the same bridge carries at a thousand ohms, where the column stood
+/// clear of the rounding all along: 13.4721801090857 A.
+#[test]
+fn a_star_grounded_through_a_megohm_is_read_past_the_rounding_of_its_row() {
+    let source = "model S parameter Real R = 1e6; parameter Real Ron = 1e-5; \
+         parameter Real Goff = 1e-5; parameter Real V = sqrt(2)*110; \
+         parameter Real pi = 3.141592653589793; \
+         Real va[3]; Real vs; Real vp; Real vn; \
+         Real sp[3](each start = 0); Real sn[3](each start = 0); \
+         Real ip[3]; Real in_[3]; Real ia[3]; Real iload; \
+         equation for k in 1:3 loop \
+         va[k] - vs = V*sin(2*pi*50*time - (k - 1)*2*pi/3); \
+         va[k] - vp = sp[k]*(if sp[k] < 0 then 1 else Ron); \
+         ip[k] = sp[k]*(if sp[k] < 0 then Goff else 1); \
+         vn - va[k] = sn[k]*(if sn[k] < 0 then 1 else Ron); \
+         in_[k] = sn[k]*(if sn[k] < 0 then Goff else 1); \
+         ia[k] = ip[k] - in_[k]; end for; \
+         vp - vn = 20*iload; sum(ip) = iload; sum(in_) = iload; sum(ia) = vs/R; \
+         annotation(experiment(StopTime = 0.1, Interval = 0.0002)); end S;";
+    let result = run(source);
+    let column = result
+        .columns
+        .iter()
+        .position(|c| c == "iload")
+        .expect("iload");
+    let last = result.rows.last().expect("a row");
+    assert!((last[0] - 0.1).abs() < 1e-9, "stopped at t = {}", last[0]);
+    let iload = last[column];
+    assert!(
+        (iload - 13.4721801090857).abs() < 1e-9 * 13.5,
+        "iload = {iload}"
+    );
+}

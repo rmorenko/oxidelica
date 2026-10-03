@@ -32314,3 +32314,60 @@ a measurement. So the victim is not refused by the grown columns
 themselves but somewhere on the road out of a step that failed under
 them. What failed after iteration 0 of the first step is the question
 that is still open.
+
+The trail with the rule's own print (`M345_LIVE_TRACE`, both halves
+from `/tmp/ox345rs`, `/tmp/m346/gc/off.txt` and `on.txt`) answers the
+question above, and the answer corrects the reading of the last shift:
+the matrix the rule hands back is not the base matrix. The first line
+the two trails differ on is the rule's first column at t = 2e-4.
+Key off, columns 6, 7, 8, 11, 12 and 13 grow from the textbook step to
+1e-4, where each moves its own row by -1.36e-20, and the agreement
+test keeps that: a coefficient of -1.4e-16, which is rounding and
+nothing else, but not zero. Key on, the rule reads -1.36e-20 against a
+row as loud as 10 as rounding (which it is), grows on to 1e-2, finds
+every row unmoved there, fails the agreement test, and falls back to
+its textbook step - which had not moved, so the column is set to
+exactly zero. Six zero columns make the step's matrix singular, the
+step at t = 2e-4 is thrown away and shrunk to 8e-13, and the NaN at
+t = 0 follows. So nothing is soiled by the trial evaluations. What
+the revert threw away was the base ladder's own answer, the first
+step at which the column moved, and it fell back past it to the
+textbook step. Thirty-two such columns in the whole run, all six of
+the same, all `steady=false`.
+
+The shape of the cure follows from that. Where the rule's growth
+fails, the column takes what the base ladder would have kept: the
+first step at which it moved, if that step was the textbook one or
+its slope agrees from twice as far, and otherwise zero, as at base
+(`M346_FIRST` on top of the live-row keys,
+`state/first_moved_m346.patch`). On one binary (`/tmp/ox346a`):
+`GearConstraint` runs; `state/mini_m345/S.mo` runs to
+the end with `iload` 13.472180 at t = 0.1, where the base chatters
+through 10000 events at t = 0.045; `B1` runs with `resistor.i`
+13.472180 where the base refuses `either side`; `B4` runs under both,
+its `resistor.i` within 2.8e-12 of the base at every shared point.
+On the five star models and the victim together
+(`/tmp/m346/st_base.txt`, `st_first.txt`) the only change is
+`DiodeBridge2mPulse`, which runs. `GearConstraint` running on a
+coefficient that is rounding is a property of the base and is kept
+as it was; the cure does no worse than the base on a column the rule
+cannot improve, and is no proof that such a column is sound.
+
+Merged without keys, behind `OXIDELICA_NO_GROWTH_PAST_ROUNDING`, with
+the small bridge as its test (red under the switch: 10000 events at
+t = 0.045). The corpus pair from one binary (`/tmp/ox346b`), the
+switch on and off (`/tmp/m346/pair/base.txt`, `k.txt`): 966 / 689 and
+849 / 647 against 966 / 690 and 849 / 648. The lists of models run
+differ by one name, `DiodeBridge2mPulse` gained, and none lost; the
+lists flattened are identical (`base.ran` against `k.ran`).
+`GearConstraint` runs in both halves.
+
+The census of this shift (`/tmp/m346/census.txt`, the tree of
+0598f2b) against m342: the flatten half 67 models in 39 rows on both;
+the run half 277 in 151 rows against 278 in 152. Named from the raw
+halves: `TestJunctionVolume` left by its merge, which empties the
+`solveOneNonlinearEquation` row it shared with
+`DynamicPipesWithTraceSubstances`; that model and
+`OvervoltageProtection` moved into the Newton direction row, 26 to 28,
+and the row `algebraic loop [...]`, where the second of them had stood
+with a solution on either side, went 8 to 7.
