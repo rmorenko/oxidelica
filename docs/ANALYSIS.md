@@ -31492,3 +31492,95 @@ that budget with 128 accepted steps, at t = 3.7e-5 of a stop time of
 That is no verdict, and it is an answer about the price: at that step
 size the run would need some fifty million steps, so it does not end
 in any budget a library job has.
+
+## The kinds of a rejected stage, read for the first time (m344)
+
+Three probes in a row measured how often a run under
+`OXIDELICA_STAGE_REJECTS` rejects a stage and how far its step falls,
+and none of them asked what the stage failed on: the arm that takes
+the rejection matches `Err(_)` and throws the error away unread. This
+one reads it. The probe binary is the m340 branch at 2ad95ee with the
+loudness through a call (`state/loud_args_probe_m341.patch`), and each
+of the five arms that match `Err(_) if self.reselectable` (three in
+`dopri.rs`, two in `bdf.rs`) now prints its site, whether the model is
+reselectable, the whole text of the error, and the time and step it
+was taken at (`state/oxp344.patch`). Each model is one `--only` under
+`cap.sh`, one thread, both keys, files in `/tmp/m344/`. The seconds
+below were taken on battery with power saving on and are comparable
+only with each other.
+
+```text
+                          outcome under keys   rejects   kinds, with count
+DryAir1                   runs, 15 s           1         Newton direction 1
+OvervoltageProtection     runs, 10 s           1         either side 1
+TestJunctionVolume        runs, 35 s           1         u_min/u_max bracket 1
+TestWaterPumpCheckValve   runs, 55 s           2         Newton direction 1, IF97 tsat 1
+BranchingPipes2           runs, 161 s          2         Newton direction 1, IF97 tsat 1
+BranchingPipes14          runs, 749 s          7         Newton direction 4, IF97 tsat 3
+BranchingPipes1           refused, 1146 s      4         Newton direction 2, IF97 tsat 2
+TestTemperature1          taken down, 33 min   6         Newton direction 3, IF97 tsat 3
+SeriesPipes1              refused, 2092 s      2         Newton direction 1, IF97 tsat 1
+SeriesPipes2              taken down, 10 min   2         Newton direction 1, IF97 tsat 1
+BranchingPipes4           taken down, 10 min   10        Newton direction 5, IF97 tsat 5
+BranchingPipes17          runs, 96 s           0         (control, runs either way)
+```
+
+"Newton direction" is `the Newton direction of algebraic loop [...]
+does not reduce the residual`; "IF97 tsat" is the assert `IF97 medium
+function tsat called with too low pressure`; "either side" is
+`algebraic loop ["zDiode.v"] has a solution on either side of
+["zDiode.v"]`; and the bracket is the assert of
+`Modelica.Math.Nonlinear.solveOneNonlinearEquation` that `u_min = 200`
+and `u_max = 6000` do not bracket the root. Every rejection of every
+model came from the stage arm of the adaptive solver
+(`dopri-stage`), except three of BranchingPipes14's, which came from
+the Newton arm of BDF. No model on the list is reselectable. The first
+rejection of nearly every model is at t = 0 with h = 1e-3; for
+TestJunctionVolume it is at h = 8e-6, and for TestWaterPumpCheckValve
+at t = 4.7e-4.
+
+So the kinds divide the list only in part. Four of the six arrivals,
+DryAir1, TestWaterPumpCheckValve, BranchingPipes2 and
+BranchingPipes14, fail on exactly the two kinds every model the keys
+make dear fails on, in the same order and in comparable numbers. No
+condition on the kind can take those four without taking the five
+dear ones with them. Two arrivals fail on kinds no dear model shows:
+OvervoltageProtection and TestJunctionVolume.
+
+A second binary was built from the same tree with that narrower
+condition (`state/oxp344b.patch`): the stage arms reject the step
+when the model is reselectable, or under the key, or when the error
+is one of the two kinds, matched by its text. Run without
+`OXIDELICA_STAGE_REJECTS`, all twelve models (files `b_*`, with
+`OXIDELICA_LOUD_BRANCH` as in the first run): the five dear models
+are back at their base cost and their base refusal (BranchingPipes1
+110 s, TestTemperature1 46 s, SeriesPipes1 65 s, SeriesPipes2 35 s,
+BranchingPipes4 71 s), DryAir1, TestWaterPumpCheckValve,
+BranchingPipes2 and BranchingPipes14 refuse as they do in the base,
+BranchingPipes17 runs, and OvervoltageProtection and
+TestJunctionVolume run.
+
+Then the two without `OXIDELICA_LOUD_BRANCH` (files `q_*`), since
+the series would adopt neither key: TestJunctionVolume still runs, in
+about 2 s of run half, and OvervoltageProtection refuses. After its
+"either side" rejection the smaller step meets a "Newton direction"
+on the same `zDiode.v`, which the narrow condition does not reject;
+under the full key the same model takes three rejections, the last
+two of that kind, and runs (`s_OvervoltageProtection.txt`). So it
+belongs with the four, not with TestJunctionVolume. With the two
+kinds switched off again by `OXIDELICA_M344_KINDS_OFF` in the same
+binary (files `o_*`), both refuse as in the base, which is the pair
+that shows the condition and nothing else moved them.
+
+What this leaves: a condition by the kind of the error takes one model
+of the six, TestJunctionVolume, and loses none of the twelve. The
+other five arrivals cannot be separated from the dear models by
+anything the three probes measured - the count of rejections, how far
+h falls, the pace, and now the kind of the error. The one model is a
+bracket the medium's own solver asserts against, which is a different
+thing from a dying Newton step, and whether a smaller step is the
+honest answer to it, rather than a refusal of the start the stage
+handed the bracket, is the question to settle before the condition is
+adopted. The probe matches by text, which is the shape these notes
+forbid in the compiler: an adoption needs the kind recorded in the
+error, not read off its wording.
