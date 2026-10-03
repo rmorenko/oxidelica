@@ -32280,3 +32280,13 @@ thrown away still changes the outcome of `GearConstraint` is open.
 The residual counts work and the inner blocks start from the guesses
 the extra evaluations leave, and those are the two places to look
 next.
+
+A last variant grew only columns the existing zero ladder left dead,
+kept the first step at which a row stood clear, and restored the slots
+after (`state/dead_only_m345.patch`, `M345_DEAD_ONLY`). It takes none
+of the star reductions: `B1`, `R1e4` and `R1e5` move to `singular
+Jacobian`, `R3e5` and `S` refuse as at base. So the column that has to
+grow is one the zero ladder already grew and the `steady` check threw
+back, not one it left dead. That is the same column the live-row rule
+reaches, and the victim question above is what stands between it and
+the corpus.
