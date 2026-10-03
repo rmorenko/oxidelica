@@ -31251,3 +31251,50 @@ stayed green.
 
 The floors were not moved. Raising them to 688 and 646 waits for the
 runner's print of this commit.
+
+## The stage-reject pair, begun, and the loudness carried through a call (m341)
+
+The m340 probe branch (`probe/stall-tighten-m340`, at 2ad95ee) was
+built once into a binary of its own and the whole corpus taken twice
+with it: `OXIDELICA_STAGE_REJECTS=1 OXIDELICA_LOUD_BRANCH=1` into
+`/tmp/m341/p2/keys.txt`, and without the keys into
+`/tmp/m341/p2/basepar.txt`. The base half ran beside the keyed one in
+the same hour, so its times say nothing; its counts do. Without the
+keys the probe binary is the main tree it branched from: 966 flatten
+and 688 run, 849 and 646 of the runnable, the 688 names identical to
+the merged tree's witness list, and the run census 203 rows over 278.
+
+The keyed half had flattened all 1033 and was still in its run half
+an hour and a half in, at 408 minutes of processor time, when this
+was written. That is the price m340 named and not a hang: SeriesPipes2,
+SeriesPipes1 and BranchingPipes4 each ran past forty minutes under the
+keys on the desk. So a pair of these keys is not a ten-minute
+question - a keyed corpus pass costs more than an hour on the desk
+before any verdict, and the keys would need a ceiling on a run's time
+or a shorter list before they could ever stand in the library job.
+Its counts and the diff of names are the next shift's to read from
+the same file.
+
+The third link was probed. With the branch walk on, SeriesPipes12's
+block loses the pressures' loudness between the pressure drop and the
+mass flow, and the equation between them calls
+`regRoot2_utility(dp_fg, ...)`, which `loudest_carrying` treats as
+only as loud as its answer. `OXIDELICA_LOUD_ARGS` (on the probe tree,
+not committed) lets a walked or written-out call be as loud as the
+arguments it was handed - all of which are evaluated, so nothing is
+reached that the run did not compute. Under all three keys, one model
+at a time (`/tmp/m341/l3_*.txt`):
+
+```text
+                 two keys                       three keys
+BranchingPipes2  runs, 128 s                    runs, 128 s, the same
+SeriesPipes12    refused at 368 s, Newton       past the wall; still
+                 direction of pipe1.mediums     running at 92 min of
+                                                processor time
+```
+
+So the loudness through the call is the wall SeriesPipes12 stood at:
+with it, the model is no longer refused there. Whether it then runs
+or meets a fourth wall is not known yet, and the price is already the
+price of its siblings under the stage keys. None of the three keys is
+adopted.
