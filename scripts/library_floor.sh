@@ -1590,7 +1590,24 @@ WORK_DEAREST=12
 # SMPM_Braking 9 to 7. The centre is the middle of the two readings of
 # the same code, (136 + 138) / 2 = 137, and five percent around it is
 # 130.15 to 143.85, which holds both.
-WORK_JACOBIANS=137
+#
+# Moved by the two series of m346 and turned the desk's preflight red
+# on this line alone, 145 against 137 (/tmp/m347/preflight.txt). The
+# desk printed 137 on 0598f2b, 141 on 61533d5 and 145 on eb5c473
+# (/tmp/m346/pair/base.txt, k.txt, s_on.txt), and the rise of the last
+# four is ThyristorBridge2mPulse_RLV alone, 2 Jacobians refused and 6
+# run, one binary under OXIDELICA_NO_SINGULAR_REJECT and without it
+# (`--only`). The runner printed 136 on 61533d5 (job 111297535223,
+# /tmp/m347/ci/ci_61533d5.log), five under the desk's 141. Three of
+# the five are IMC_DOL, which builds 3 and runs on the desk only
+# (`--only`); the other two were not traced and are most likely
+# Dimmer_RL, refused on the runner. So the runner's eb5c473 should
+# print 140 if RLV runs there. The centre
+# is the middle of that and the desk's 145, (140 + 145) / 2 = 142, and
+# five percent around it is 134.9 to 149.1, which holds both and the
+# runner's printed 136 besides. The next runner log is what confirms
+# the 140.
+WORK_JACOBIANS=142
 # The pair is held on a line of its own and to a band of its own, an
 # order of magnitude wide in either direction rather than five percent:
 # 90% either side of 274 is 27 to 520, so a refusal (0) or the swing to
