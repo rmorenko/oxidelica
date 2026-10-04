@@ -33493,3 +33493,20 @@ of dead names and are expected to share the answer. `RobotR3`
 GearType2, `PointGravityWithPointMasses2`, the differential pair,
 `ParallelPumpDropOut` and `TestBearingConversion` each name one
 unrelated dead column and are not part of this family.
+
+## The count of names was a hash's luck (m354)
+
+The `names` figure in the line of work moved between passes of one
+binary on one tree: five passes, five values within 1914105482 to
+1914105709, while expansions and bodies matched byte for byte. On one
+thread, forty corpus models gave 31008678 and then 31008669, so the
+order of threads was not the cause. Run three times each, one model
+of those forty moved: `TestControlledPump`, 14012620, 14012620,
+14012617. The cause was the question whether a model has streams at
+all. It was an `any` over the values of the connector table, which
+stops at the first class with a stream, in the hash's random order,
+and each class asked before that looks names up. Asked in order of
+name, the model gives 14012617 six runs out of six, the forty give
+31001935 three times on one thread and seven, and the corpus prints
+1913925546 (`/tmp/m354/preflight2.txt`). The verdict does not depend
+on the order, so no model moved: 966 / 702 and 849 / 660 as before.
