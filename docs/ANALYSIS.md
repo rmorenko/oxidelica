@@ -33569,6 +33569,45 @@ takes the machine. The witness is therefore the ladder above and the
 states kept, as the notes on paths that switch on only at complexity
 say.
 
+## The two rows of ten beneath it (m355, a map)
+
+The run half of `/tmp/m353/census.txt`, read between its section
+marks, holds 264 models in 151 rows. Under the three rows of 18 stand
+two rows of ten, and neither is one family.
+
+`algebraic loop [...]` with ten models is two kinds of refusal under
+one wording. Seven say `has a solution on either side of`, and six of
+those name `airGap.gamma` of a machine: `SMPM_Inverter`, `SMR_DOL`,
+`SMR_Inverter`, their two `FundamentalWave` namesakes and
+`IMC_DOL_CommonLeakage`. That is the machines' angle again. Probed
+with the switch of the chapter above off and on, `SMR_DOL`,
+`SMPM_Inverter` and `SMR_Inverter` all leave `either side` for
+`singular Jacobian`, so they are the same spent mechanics, standing
+outside the row of 18 and invisible to its count. The seventh,
+`TestSuddenExpansion`, is the square at zero flow
+(`suddenExpansion1.m_flow`, flat here only). The other three say
+`stepped outside the domain`: `DynamicPipeInitialization`,
+`SeriesPipes12` and `SeriesPipes13`, all water stepping out of IF97,
+which the queue's map of the dynamic pipe already holds.
+
+`` `X` of algebraic loop [...] `` with ten models is one refusal
+wearing ten equations: a residual that is not a number before any
+Newton step. Eight say the residual's arithmetic is at fault and that
+every value it reads is finite (`HeatingNPN_NORGate`,
+`HeatingPNP_NORGate`, `DoublePendulum`, `DoublePendulumInitTip`,
+`RollingWheelSetDriving`, `RollingWheelSetPulling`, `ThreeSprings`
+at `-inf`, `TestSharpEdgedOrifice`). The other two name a function
+that could not be walked (`RoomCO2WithControls`, `u_min`;
+`IdealMixing1`, an unknown variable). The trails at t = 0 show where
+the NaN starts. The NOR gates start their block at zero for every
+derivative and read NaN in three rows. `DoublePendulum` starts at
+zero everywhere and reads NaN in rows 3 to 5. `TestSharpEdgedOrifice`
+starts `orifice2.m_flow` at zero, inside an `if` of a viscosity
+correlation. A block started at zero where a division or a root
+needs a value other than zero is the common shape. Whether it is one
+cause is the next probe, one model at a time with `why` on the first
+NaN row.
+
 ## The count of names was a hash's luck (m354)
 
 The `names` figure in the line of work moved between passes of one
