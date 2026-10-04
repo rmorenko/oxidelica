@@ -32653,8 +32653,10 @@ began, so the descending retreat above would not change it - and the
 Newton direction from there does not lead down (`bt2.txt`).
 
 Two links mapped, both a full step taken through a medium that cannot
-answer on the other side of it. Which of the two pressures the
-initialization should settle at is not checked here and should be
-before anything is built on the halving: 7.0e5 Pa is what the
-undamped step reached on the way to its refusal, 1.426e5 Pa is what
-the halved one converged to.
+answer on the other side of it. The pressure the halved
+initialization settles at, 1.426e5 Pa, is the physical one: source
+and sink both stand at 1e5 Pa before the ramp starts at t = 1, the
+flow settles at 1.46 kg/s, and the valve's `dp_nominal` of 2e4 Pa at
+1 kg/s gives 2e4 * 1.46^2 = 4.3e4 Pa across it, so the pump's outlet
+stands near 1.43e5 Pa. The 7.0e5 Pa the undamped run sat at is the
+start value it never left.
