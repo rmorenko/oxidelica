@@ -32951,3 +32951,28 @@ more on the "on" side, which is the pump's run. The run half took 6543
 against 6217 ms per model and the flatten half 7452 against 8330, so
 the ratio of the two halves is 0.878 against 0.746, inside the band;
 the run half of m348's unconditional halving had been 1.64.
+
+### The census after the halving (m349)
+
+Taken on the binary of `cee1e83` (`/tmp/m349/c/census.txt`, raw half
+`/tmp/m349/c/raw.txt`) and counted between the section markers against
+m347 (`/tmp/m347/census.txt`): the refused half is 67 over 39 rows on
+both, and the run half goes from 275 to 274 over 151 rows on both. The
+one model fewer is `TestWaterPumpStorage`, which runs. Six more models
+moved inside the run half, each one storey further on, and the row
+"the Newton direction of algebraic loop" went from 28 to 21 by these
+seven:
+
+- `IdealGases.Air`, `IdealGases.Nitrogen` and `Air.DryAirNasa` now
+  stop at the pipe's `dps_fg` (the root finder's bracket) after
+  halving, where the whole step had stopped them at the Newton
+  direction of the medium's loop: the "`X` of algebraic loop" row,
+  11 to 14.
+- `WaterIF97_ph` and `WaterIF97OnePhase_ph` now stop at the same loop
+  not converging in 50 iterations: that row, 7 to 9.
+- `DynamicPipeInitialization` now says its pipe's pressures stepped
+  outside the domain: the "algebraic loop" row, 7 to 8.
+
+The rows that mean the same thing were added before reading: the three
+rows that grew took six, the Newton direction row gave seven, and the
+seventh is the pump.
