@@ -32660,3 +32660,21 @@ flow settles at 1.46 kg/s, and the valve's `dp_nominal` of 2e4 Pa at
 1 kg/s gives 2e4 * 1.46^2 = 4.3e4 Pa across it, so the pump's outlet
 stands near 1.43e5 Pa. The 7.0e5 Pa the undamped run sat at is the
 start value it never left.
+
+The halving was then measured as a pair, one binary (`/tmp/ox347c`,
+the probe patch of m344 built on `eb5c473`, never in the tree) with
+`OXIDELICA_M344_INIT_BACKTRACK` off and on, the heavy set left out
+(`/tmp/m347/bt/off.txt`, `on.txt`): 966 / 691 and 849 / 649 against
+966 / 693 and 849 / 651. The lists of models run differ by two names,
+`SMPM_CurrentSource` and `IdealSteam` gained, and none lost
+(`off.ran` against `on.ran`). Neither pump is among them - they reach
+the second link. But the run half went from 6212 to 11126 seconds of
+processor time, and the ratio of the two halves from 0.76 to 1.64,
+outside the band of 0.70 to 1.50: the two halves ran side by side
+under the same weather, so the difference is the halving, not the
+machine. The probe halves on any failure of the inner blocks and
+evaluates every trial in full, which is where the time goes and which
+model pays it was not measured (`--slow` was not asked for). Two
+models for a doubling of the run half is not a change to take as it
+stands; the next step is `--slow 20` on both halves, to name the
+models that pay.
