@@ -1808,7 +1808,19 @@ WORK_PERCENT=5
 # The new reference is 1105 per million above the old one, inside the
 # band, and is moved so the band is spent on what comes next rather
 # than on this.
-WORK_NAMES=1916826359
+#
+# Moved to 1915365239, the build machine's own print for c6d3883 (job
+# 111522625639 of run 37231702970, /tmp/m355/ci_c6d3883.log), the first
+# library job with the order of streams fixed by 9dde68e. The desk
+# printed 1913925546 on the same code (/tmp/m354/preflight2.txt), 752
+# per million below, and the difference is not the hash's luck again:
+# expansions (105445026 against 105442309) and bodies (1543779 against
+# 1543697) differ too, which is the two swinging models, SpringWithMass
+# and the quasi-static IMC_DOL, running on the desk and not on the
+# runner. So the centre is the runner's, as every floor is, and the
+# band stays at 2000 per million: narrowed to 200 it would be red on
+# the desk for that difference alone.
+WORK_NAMES=1915365239
 WORK_NAMES_PPM=2000
 
 # The band, as a function, so that it can be seen red without a library
