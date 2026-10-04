@@ -68,7 +68,7 @@ pub(super) fn instantiate(
     } = settle_naming(registry, class, prefix, env, acc, &outers)?;
 
     if class.components.iter().any(|c| c.scope == Scope::Inner) {
-        settle_the_inner_instances(registry, &inners, acc, &imports, &shadow);
+        settle_the_inner_instances(registry, &inners, acc, &imports, &shadow, env.overrides);
     }
 
     settle_parameters_early(
@@ -461,7 +461,12 @@ fn settle_the_inner_instances(
     acc: &mut Flat,
     imports: &[(String, String)],
     shadow: &[&str],
+    overrides: &[(String, Expr)],
 ) {
+    // Kept for measuring the layer against its absence: with the switch
+    // set to 1 a modifier written from above through an `extends` is not
+    // read, which is how the compiler stood before.
+    let ignore_above = std::env::var("OXIDELICA_NO_EXTENDS_INNER").is_ok_and(|value| value == "1");
     let mut named: Vec<(&String, &InnerInstance)> = inners.iter().collect();
     named.sort_by(|a, b| a.1.path.cmp(&b.1.path));
     for (_, instance) in named {
@@ -519,10 +524,27 @@ fn settle_the_inner_instances(
             {
                 continue;
             }
-            let written = instance
-                .modifiers
-                .iter()
-                .find(|(name, _)| name == &component.name)
+            // A modifier the class above wrote through an `extends` -
+            // `extends PartialTestModel(system(energyDynamics = ...))` -
+            // arrives here among the overrides under the instance's
+            // declared name, and it is what the instance holds: it
+            // outranks the modifier on the `inner` declaration exactly
+            // as an outer modification outranks an inner one anywhere
+            // else. Read only from the declaration, the shared instance
+            // kept the base's value, and every `outer` reading it
+            // settled an `if` the model had turned off.
+            let declared_name = instance.path.rsplit('.').next().unwrap_or(&instance.path);
+            let from_above = format!("{declared_name}.{}", component.name);
+            let above = (!ignore_above)
+                .then(|| overrides.iter().find(|(name, _)| *name == from_above))
+                .flatten();
+            let written = above
+                .or_else(|| {
+                    instance
+                        .modifiers
+                        .iter()
+                        .find(|(name, _)| name == &component.name)
+                })
                 .map(|(_, value)| value.clone())
                 .or_else(|| component.binding.clone())
                 .or_else(|| component.start.clone());

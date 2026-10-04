@@ -1620,3 +1620,36 @@ fn a_steady_start_on_a_volume_s_pressure_is_solved_on_its_balances() {
         last[column("p")]
     );
 }
+
+/// A modifier an `extends` writes on a shared instance of its base is
+/// what that instance holds, before anything else reads it. The test
+/// models of water write `extends PartialTestModel(system(energyDynamics
+/// = DynamicFreeInitial))` over a base whose `inner System` says
+/// `SteadyStateInitial`, and the volume's initial `if` was settled from
+/// the declaration rather than from what the class above wrote: the run
+/// was asked for a steady start the model had turned off, and refused.
+/// Here the outer modifier asks for a free start, so `x` begins at its
+/// declared 1 and is still near it at 0.01, not at the steady 2.
+#[test]
+fn a_modifier_an_extends_writes_on_an_inner_reaches_its_parameters() {
+    let source = "model M \
+           type Dynamics = enumeration(Free, Fixed, Steady); \
+           model Sys parameter Dynamics energyDynamics = Dynamics.Free; end Sys; \
+           model Vol outer Sys system; \
+             parameter Dynamics energyDynamics = system.energyDynamics; \
+             Real x(start = 1); \
+           initial equation \
+             if energyDynamics == Dynamics.Steady then der(x) = 0; end if; \
+           equation der(x) = 2 - x; end Vol; \
+           model Partial Vol vol; inner Sys system(energyDynamics = Dynamics.Steady); end Partial; \
+           extends Partial(system(energyDynamics = Dynamics.Free)); \
+           annotation(experiment(StopTime = 0.01, Interval = 0.01)); \
+         end M;";
+    let result = run(source);
+    let at = result.columns.iter().position(|c| c == "vol.x").unwrap();
+    let first = result.rows[0][at];
+    assert!(
+        (first - 1.0).abs() < 1e-9,
+        "vol.x(0) = {first}, not the free start 1"
+    );
+}

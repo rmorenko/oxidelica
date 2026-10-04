@@ -33232,3 +33232,66 @@ pair 849 / 650 to 849 / 655. The run lists differ by exactly the five
 models above, and nothing runs with the switch that does not run
 without it. The run half took 6491 s against 6473 s, the flatten half
 8548 s against 8559 s, so the ratio sits at 0.81 on both.
+
+## A modifier an `extends` writes on a shared instance is what it holds (m352)
+
+The lost modifier of m350 is taken. `settle_the_inner_instances`
+(`flatten/instantiate.rs`) settles a shared instance's parameters
+before anything reads them, and it read them from the modifiers of the
+`inner` declaration alone. A class that writes
+`extends PartialTestModel(system(energyDynamics = DynamicFreeInitial))`
+hands that modifier down among the overrides, under the instance's
+declared name, and there it now outranks the declaration's own
+modifier, as an outer modification outranks an inner one everywhere
+else. `OXIDELICA_NO_EXTENDS_INNER=1` gives the old reading from the
+same binary. The small model of m350 is the test
+(`a_modifier_an_extends_writes_on_an_inner_reaches_its_parameters`):
+it starts at the free value 1 without the switch and at the steady 2
+with it.
+
+Under `--only`, one binary, both ways of the switch: `WaterIF97_ph`,
+`WaterIF97OnePhase_ph` and `WaterIF97_pT` of
+`TestsWithFluid.MediaTestModels.Water` run, where they refuse with the
+switch. `SeriesPipes12` and `SeriesPipes13` refuse either way. The two
+models of `ModelicaTestOverdetermined.ConsistentInitialization.Fluid`,
+`TwoVolumesFullInitial` and
+`TwoVolumesFullSteadyStatePressureAndTemperature`, run with the switch
+and refuse without it, as m350 measured. That is a loss taken knowingly:
+what runs today is not the run they ask for. The steady one starts at
+1.0e5 Pa and 623.15 K and is at 99396 Pa and 613.97 K a second later,
+because its declared steady start never reached the volume. Given the
+start it declares, the initialization holds four equations for three
+unknowns, consistent with one another, and this compiler does not yet
+drop a redundant consistent equation, so it refuses. Three right runs
+for two wrong ones; the two wait in the queue for that lesson.
+
+Over the corpus, one binary, both ways of the switch
+(`/tmp/m352/off.txt`, `on.txt`): flatten and run go 966 / 697 to
+966 / 700, the runnable pair 849 / 655 to 849 / 658. The run lists
+differ by exactly the three water models, and nothing runs with the
+switch that does not run without it. The two models lost are not in
+that count at all: `ModelicaTestOverdetermined` holds no example the
+corpus pass reads, on the desk or on the runner, so their loss is
+seen only under `--only` and the floors cannot show it - which is why
+it is written here by name. The work the pass counts is the same to
+the digit outside the three (105442305 expansions against 105442309,
+37489734 Newton steps against 37488229); the times of the second half
+are not comparable with the first, which shared the machine with a
+preflight.
+
+### The census after the steady start on balances
+
+Taken before this change, on 8f8af8c (`/tmp/m352/census.txt`, read
+between the section marks, against `/tmp/m347/census.txt`): the
+refusal half is unchanged at 67 models in 39 rows, the run half goes
+from 275 models in 151 rows to 269 in 152. The six are
+`TestWaterPumpStorage` and the five gases and steam of m351, and the
+rows they left are the expected ones: `the Newton direction of
+algebraic loop` 28 to 21, `initialization did not converge` 4 to 3,
+`X of algebraic loop` 11 to 10. Behind them two models changed wall
+rather than leaving: `WaterIF97_ph` and `WaterIF97OnePhase_ph` moved
+from a Newton direction that does not reduce to a new row of two, a
+singular initialization - the wall this chapter takes down - and
+`DynamicPipeInitialization` from the Newton direction to a loop that
+steps outside its domain, which is what moved `algebraic loop [...]`
+from 7 to 8.
