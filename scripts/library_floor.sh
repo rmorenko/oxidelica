@@ -1064,7 +1064,17 @@ FLATTEN_FLOOR=966
 # differ by the same two swings and nothing else, SpringWithMass and
 # IMC_DOL (/tmp/m350/runner_ran_cee1e83.txt against
 # /tmp/m350/desk_ran_on.txt). Set from the lower.
-RUN_FLOOR=690
+#
+# And run 695 = 690 + DryAirNasa, IdealGases.Air, IdealGases.Nitrogen,
+# IdealSteam and SimpleAir, whose steady start is now solved on the
+# balances it stands on (8f8af8c). The runner printed 966 / 695 and
+# runnable 849 / 653 on that tree, in job 111411398184 of run
+# 37193805518 (/tmp/m352/runner.log); the desk printed 966 / 697 and
+# 849 / 655 on the same compiler (/tmp/m351/on.txt). The two lists of
+# models run differ by the same two swings and nothing else,
+# SpringWithMass and IMC_DOL (/tmp/m352/runner_ran.txt against
+# /tmp/m352/desk_ran.txt). Set from the lower.
+RUN_FLOOR=695
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -1240,8 +1250,13 @@ RUN_FLOOR=690
 # job 111370703396): 849 / 648 there against 849 / 650 on the desk, the
 # difference the same two swings; TestWaterPumpStorage is a runnable
 # example.
+#
+# And runnable run 653 by the same runner job as `RUN_FLOOR` (8f8af8c,
+# job 111411398184): 849 / 653 there against 849 / 655 on the desk, the
+# difference the same two swings; all five gas and steam test models are
+# runnable examples.
 RUNNABLE_FLATTEN_FLOOR=849
-RUNNABLE_RUN_FLOOR=648
+RUNNABLE_RUN_FLOOR=653
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
