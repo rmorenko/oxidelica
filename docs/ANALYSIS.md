@@ -32996,3 +32996,23 @@ the answer, and halving it more finely only crawls the same way. That
 is the family of point 21 again - the states are the volume's `U` and
 `m`, while the medium asks for `p` and `T` - and not something a
 shorter step reaches.
+
+### `DynamicPipeInitialization` after the halving: where it stands
+
+Now refused as "stepped outside the domain" instead of the Newton
+direction (`OXIDELICA_NEWTON_TRAIL` on `/tmp/ox349f`,
+`/tmp/m349/dpi_trail.txt`). The model is water at 100 bar and
+2000 kJ/kg, in the two-phase region, through a five-node pipe into a
+valve and a sink at 95 bar, initialized in steady state. At the start
+point the pressure block `[pipe.mediums[1..5].p, valve.dp_turbulent]`
+solves at once from 1.0e7 down to 9.9e6 Pa. At a later trial point of
+the initialization it starts with `|f| = 1169` and pressures from
+6.36e6 down to 3.05e6 Pa at the last node, the full Newton step goes to
+-2.8e7 Pa, where IF97 has no answer, the retreat brings the first four
+nodes back near 4.6e6 to 5.3e6 Pa, and the last node's pressure crawls
+from 1.1e6 to 581 Pa, where it is NaN again and the retreat is out. So
+the outer step had already moved the pipe's states far from the
+boundaries' 95 to 100 bar before this block was asked, and why it did
+that is the next question: the outer iterate was not printed, because
+the probe that prints it lives only on the binary of the unconditional
+halving, where this model takes half an hour.
