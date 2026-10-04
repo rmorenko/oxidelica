@@ -1084,7 +1084,16 @@ FLATTEN_FLOOR=966
 # models run differ by the same two swings and nothing else,
 # SpringWithMass and IMC_DOL (/tmp/m353/runner_ran.txt against
 # /tmp/m353/desk352.txt). Set from the lower.
-RUN_FLOOR=698
+#
+# And run 700 = 698 + Glycol47 and Essotherm650, which run once an
+# equation grounding a name defines nothing else (d85eeb5). The runner printed
+# 966 / 700 and runnable 849 / 658 on that tree, in job 111477558821 of
+# run 37216348928 (/tmp/m354/runner.log); the desk printed 966 / 702 and
+# 849 / 660 on the same compiler (/tmp/m353/r_on.txt). The two lists of
+# models run differ by the same two swings and nothing else,
+# SpringWithMass and IMC_DOL (/tmp/m354/runner_ran.txt against
+# /tmp/m354/desk_ran.txt). Set from the lower.
+RUN_FLOOR=700
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -1270,8 +1279,13 @@ RUN_FLOOR=698
 # job 111444668699): 849 / 656 there against 849 / 658 on the desk, the
 # difference the same two swings; the three water test models are
 # runnable examples.
+#
+# And runnable run 658 = 656 + Glycol47 and Essotherm650 by the same
+# runner job as `RUN_FLOOR` (d85eeb5, job 111477558821): 849 / 658
+# there against 849 / 660 on the desk, the difference the same two
+# swings; both media test models are runnable examples.
 RUNNABLE_FLATTEN_FLOOR=849
-RUNNABLE_RUN_FLOOR=656
+RUNNABLE_RUN_FLOOR=658
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
