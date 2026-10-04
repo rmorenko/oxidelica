@@ -1633,8 +1633,18 @@ fn join_the_connections(registry: &HashMap<&str, &ClassDef>, acc: &mut Flat) -> 
 
     // `inStream` and `actualStream` are functions of the connection
     // set, so only now, with the sets known, do they have a value.
-    let any_streams = acc.connectors.values().any(|class_name| {
-        connector_members(registry, registry[class_name.as_str()])
+    //
+    // The connector classes are asked in the order of their names and
+    // each once. Asked in the order of the table they stopped wherever
+    // the table's random order put the first class with a stream, and
+    // each class asked before it looks names up: the count of names a
+    // flattening asked for came out different from one run of the same
+    // model to the next (`TestControlledPump`, 14012620 and 14012617),
+    // and the line of work is a promise that it does not.
+    let connector_classes: std::collections::BTreeSet<&str> =
+        acc.connectors.values().map(String::as_str).collect();
+    let any_streams = connector_classes.iter().any(|class_name| {
+        connector_members(registry, registry[*class_name])
             .iter()
             .any(|c| c.stream)
     });
