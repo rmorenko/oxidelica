@@ -1008,6 +1008,7 @@ impl CompiledModel {
 
         let mut seen: Vec<Vec<f64>> = Vec::new();
         let mut damped = false;
+        let mut over_edge = false;
         // How many steps in a row the line search could not make
         // descend. One such step is ordinary - `PumpAndValve` takes
         // one on its way and converges afterwards - so what the guard
@@ -1044,6 +1045,7 @@ impl CompiledModel {
                     if lambda > 1e-6 {
                         v = (0..n).map(|j| from[j] - lambda * dv[j]).collect();
                         footing = Some((from, dv, lambda));
+                        over_edge = true;
                         // A block that has once been over the edge
                         // keeps the shortened step for the rest of
                         // this solve. Without that it walks back to
@@ -1201,12 +1203,15 @@ impl CompiledModel {
                             ),
                         );
                     }
-                    return err(format!(
-                        "{which} of algebraic loop {:?} is {bad} at t = {t}, \
-                         before any Newton step: the equations cannot be evaluated \
-                         at the values the block starts from{entered}",
-                        block_names()
-                    ));
+                    return err_of(
+                        Refusal::Outside,
+                        format!(
+                            "{which} of algebraic loop {:?} is {bad} at t = {t}, \
+                             before any Newton step: the equations cannot be evaluated \
+                             at the values the block starts from{entered}",
+                            block_names()
+                        ),
+                    );
                 }
             }
             // An equation is solved when its two sides agree, and
@@ -1918,13 +1923,27 @@ impl CompiledModel {
                             }
                             return Ok(());
                         }
-                        return err(format!(
-                            "the Newton direction of algebraic loop {:?} does not reduce the \
-                             residual at t = {t}: from |f| = {before:e}, {stuck} steps running \
-                             bought a smaller residual only below {lambda:e} of the step or not \
-                             at all, so the block has no step to take from here",
-                            block_names()
-                        ));
+                        // A block that went over the edge of its domain
+                        // on this solve and then found no way down has
+                        // been stopped by the edge rather than by the
+                        // model: the pump's block, asked at the whole
+                        // initialization step, steps to -4.6e5 Pa, comes
+                        // back to 1.2e5 and crawls into a corner.
+                        let kind = if over_edge {
+                            Refusal::Outside
+                        } else {
+                            Refusal::Plain
+                        };
+                        return err_of(
+                            kind,
+                            format!(
+                                "the Newton direction of algebraic loop {:?} does not reduce the \
+                                 residual at t = {t}: from |f| = {before:e}, {stuck} steps running \
+                                 bought a smaller residual only below {lambda:e} of the step or not \
+                                 at all, so the block has no step to take from here",
+                                block_names()
+                            ),
+                        );
                     }
                 } else {
                     stuck = 0;

@@ -32902,3 +32902,52 @@ reduction that should differentiate `sum(i) = 0` never gets a failed
 match to start from. The road this points at is to find the hidden
 constraint where the run sees it, as the zero row of the singular
 block, rather than in the matching; nothing was changed here.
+
+## The pump's half step was refused with the whole step's words (m349)
+
+The narrow rule left one question open: in `TestWaterPumpStorage` the
+whole initialization step is refused by the inner block's Newton
+direction, and the old halving went on to a half step that was refused
+for a pressure "too low" for `tsat`. The inner Newton trail of both
+trials (`OXIDELICA_NEWTON_TRAIL` on `/tmp/ox347c`,
+`/tmp/m349/pump_nt.txt`) says what the two refusals really were.
+
+- The whole step: the block `[pump.medium.p, pump.V_flow_single]`
+  steps from 7.0e5 Pa to -4.6e5, where IF97 answers NaN, retreats to
+  1.2e5, and crawls from there to a corner at 616 Pa, where it refuses
+  for the Newton direction. It went over the edge of its domain first,
+  and the refusal it ends on is the crawl after the retreat, not
+  anything about the model.
+- The half step: the block converges, in four iterations, at
+  1.17e5 Pa. The `tsat` refusal printed with it says
+  `p = -459967.8 Pa`, which is the whole step's excursion. The walked
+  body left its reason behind at the first trial, nobody read it, and
+  the second trial - which had converged - handed it on as its own.
+
+So two changes, both about what a refusal is rather than about how far
+to halve. A trial of the initialization starts by dropping whatever a
+discarded trial left behind, and an inner block that went over the edge
+of its domain on this solve and then found no way down is refused as
+`Outside` rather than `Plain`. With those the pump settles at
+1.4261e5 Pa, 1.4597 kg/s, the valve's drop 4.2613e4 Pa, which is
+2e4 * 1.4597^2 to four digits (`/tmp/m349/pump.csv`), and the library
+check's ten steps run. The full run still stops at t = 0.031, which is
+the second link of m347, in the run rather than the start.
+
+On the ladder (`/tmp/m349/ladder2.txt`) the three that paid stay cheap,
+18 to 39 seconds and refused as before; `SMPM_CurrentSource`,
+`IdealSteam`, `IdealGases.Air` and `Nitrogen` still refuse; and
+`TestWaterPumpPowerCharacteristic` gets past the start to t = 1.8e-3.
+
+The corpus pair, one binary built from the final tree (`/tmp/ox349f`),
+both halves side by side under a 22 GB ceiling and peaking at 13.0 GB,
+the switch read by value: `/tmp/m349/q/off.txt` with
+`OXIDELICA_NO_INIT_DOMAIN_HALVING=1`, `/tmp/m349/q/on.txt` without the
+variable. Off is 966 / 691 and 849 / 649, and its run list is the
+m348 "off" list name for name. On is 966 / 692 and 849 / 650. The run
+lists differ by exactly `TestWaterPumpStorage`, gained; nothing left.
+The work counts agree except for 622 points and 2091 Newton iterations
+more on the "on" side, which is the pump's run. The run half took 6543
+against 6217 ms per model and the flatten half 7452 against 8330, so
+the ratio of the two halves is 0.878 against 0.746, inside the band;
+the run half of m348's unconditional halving had been 1.64.

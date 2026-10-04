@@ -1552,3 +1552,18 @@ fn an_initial_residual_that_repeats_itself_is_refused_early() {
     // points; the first residual and eight repeats are eighteen.
     assert!(spent.points < 40, "{} points", spent.points);
 }
+
+#[test]
+fn an_initialization_step_past_the_domain_is_halved_rather_than_taken() {
+    // From x = 9 the Newton step for 1 - sqrt(x) = 0 is 12, which puts
+    // x at -3, where the square root has no answer. Taken whole, the
+    // initialization diverged; halved once, it lands at 3 and goes on
+    // to the root at 1.
+    let result = run("model H Real x(start = 9, fixed = false); \
+         initial equation der(x) = 0; equation der(x) = 1 - sqrt(x); \
+         annotation(experiment(StopTime = 1, Interval = 0.1)); end H;");
+    let first = &result.rows[0];
+    assert!((first[1] - 1.0).abs() < 1e-9, "x(0) = {}", first[1]);
+    let last = result.rows.last().unwrap();
+    assert!((last[1] - 1.0).abs() < 1e-9, "x(1) = {}", last[1]);
+}

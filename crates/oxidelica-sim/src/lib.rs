@@ -74,6 +74,14 @@ pub(crate) enum Refusal {
     /// (`ThyristorBridge2mPulse_RLV`). If no shorter step mends it, the
     /// run ends on this refusal, in its own words.
     Singular,
+    /// The point asked about is outside what the equations can answer:
+    /// a function body refused its arguments in its own words (`IF97
+    /// medium function tsat called with too low pressure`), or a block
+    /// came out NaN before its first Newton step. Nothing is said about
+    /// the model, only about where it was asked; the initialization
+    /// takes it as a step too long (see `initialize`), and everywhere
+    /// else it is reported as `Plain` would be.
+    Outside,
 }
 
 impl SimError {
@@ -89,6 +97,12 @@ impl SimError {
         self.smaller_step_mends()
             || (self.1 == Refusal::Singular
                 && std::env::var_os("OXIDELICA_NO_SINGULAR_REJECT").is_none())
+    }
+
+    /// Whether the refusal is about the point rather than the model:
+    /// see [`Refusal::Outside`].
+    pub(crate) fn outside_the_domain(&self) -> bool {
+        self.1 == Refusal::Outside
     }
 
     /// The same refusal saying something else.

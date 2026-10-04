@@ -565,7 +565,10 @@ fn claimed(kind: Refusal, name: &str) -> Refusal {
     if body == ROOT_FINDER {
         Refusal::Unbracketed
     } else {
-        Refusal::Plain
+        // An `assert` or `Streams.error` of any other body is the body
+        // refusing its arguments, which is a statement about where it
+        // was asked rather than about the model.
+        Refusal::Outside
     }
 }
 

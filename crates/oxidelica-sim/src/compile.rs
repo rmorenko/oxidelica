@@ -767,6 +767,19 @@ fn probe_mode_conditions(ordered_algs: &[String], stages: &[PlanStage]) {
     }
 }
 
+/// How many times the initialization halves a step whose point is
+/// outside what the equations can answer before taking it anyway and
+/// letting the refusal stand.
+const INIT_DOMAIN_HALVINGS: usize = 30;
+
+/// Whether `OXIDELICA_NO_INIT_DOMAIN_HALVING` asks for the step whole.
+/// Read by its value: `1` switches the halving off and anything else,
+/// `0` included, leaves it on - a switch that `0` turns on is a pair
+/// of two "on" halves (m348).
+fn init_domain_halving_off() -> bool {
+    std::env::var("OXIDELICA_NO_INIT_DOMAIN_HALVING").is_ok_and(|said| said == "1")
+}
+
 /// How many times a constraint may be differentiated before the model
 /// is called singular rather than merely of high index.
 ///
@@ -6035,8 +6048,47 @@ impl CompiledModel {
                     self.unpinned_names(&mut jac, unsettled).join(", "),
                 ));
             };
+            // A full step whose point is outside what the equations can
+            // answer is halved until it is inside. A litre of water is
+            // stiff enough that the step on its mass is 2.6e13 Pa per
+            // kilogram, and `TestWaterPumpStorage` takes it whole onto a
+            // pressure IF97 answers NaN for; halved, the initialization
+            // settles at 1.426e5 Pa, which is the pump's physical outlet
+            // pressure, where the whole step had left it at its start
+            // value of 7.0e5. Only a refusal of the domain is halved:
+            // an inner block that was evaluated and did not converge has
+            // said something about the model, and halving on that too
+            // cost three water models half an hour each for nothing
+            // (m348). `OXIDELICA_NO_INIT_DOMAIN_HALVING=1` takes the
+            // step whole, so that one binary gives both numbers.
+            let mut lambda = 1.0;
+            if !init_domain_halving_off() {
+                for _ in 0..INIT_DOMAIN_HALVINGS {
+                    let trial: Vec<f64> =
+                        y.iter().zip(&step).map(|(at, s)| at - lambda * s).collect();
+                    let held = alg_guess.clone();
+                    // A trial that was refused can leave a walked body's
+                    // reason behind, and a block that then converges at
+                    // the next, shorter trial hands that reason on as
+                    // its own: in the pump the half step converged at
+                    // 1.17e5 Pa and was refused with the `tsat` of the
+                    // whole step's -4.6e5. What a discarded trial left
+                    // is about a point nobody goes to.
+                    let _ = self.walked.complaint();
+                    let outside =
+                        match residual(&trial, &mut values, &mut derivatives, &mut alg_guess) {
+                            Ok(f) => f.iter().any(|r| !r.is_finite()),
+                            Err(refusal) => refusal.outside_the_domain(),
+                        };
+                    alg_guess = held;
+                    if !outside {
+                        break;
+                    }
+                    lambda *= 0.5;
+                }
+            }
             for j in 0..n {
-                y[j] -= step[j];
+                y[j] -= lambda * step[j];
             }
             if y.iter().any(|value| !value.is_finite()) {
                 return err("initialization diverged".to_string());
