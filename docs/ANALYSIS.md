@@ -33446,7 +33446,7 @@ shows it as one row swapped for another, the number of rows unchanged.
 ## The machines' dead columns are not zero currents (m354, a map)
 
 The census row `the equations of algebraic loop [...] do not mention
-[...]` holds 19 models (`/tmp/m353/raw.txt`), 13 of them machines with
+[...]` holds 18 models (`/tmp/m353/raw.txt`), 13 of them machines with
 an air gap. Their dead columns are not `airGap.gamma`, as the list of
 the loop suggested: in 9 of the 13 they are exactly
 `airGap.i_sr[1]` with `squirrelCageR.spacePhasor_r.v_[1]` (7) or
@@ -33493,6 +33493,81 @@ of dead names and are expected to share the answer. `RobotR3`
 GearType2, `PointGravityWithPointMasses2`, the differential pair,
 `ParallelPumpDropOut` and `TestBearingConversion` each name one
 unrelated dead column and are not part of this family.
+
+## The machines' dead columns were spent mechanics (m355)
+
+The map above asked which slot the step of the dead column writes and
+which slots rows 1 and 4 read. A probe answered it on `IMC_DOL`
+(`/tmp/m355/dol.txt`): the pairing is right. Column `i_sr[1]` writes
+its own slot, row 1 reads `i_sr[1]` from that slot, and the only name
+it reads from outside the block is `i_ss[1]`. Of the three questions
+the map left, the answers are these. The far probes move `i_sr[1]`
+and `spacePhasor_r.v_[1]` nowhere, a whole unit either way. Rows 1
+and 4 are bilinear: `RotationMatrix[1,1] * i_sr[1]` with the matrix
+entry an unknown of the block started at zero rather than at
+`cos(0) = 1` (its row reads -1 at the start), so both slopes vanish
+together. Seeded at one, the two columns come alive and the refusal
+turns into a singular Jacobian with four empty rows left over. Rows
+11, 15 and 17 are a different kind: `wMechanical - inertiaRotor.w`,
+`der(inertiaRotor.w) - loadInertia.a` and its derivative, each made
+zero by the block's own inner assignments, because every name in
+them is an alias of every other. Two diseases, then, and the second
+is the cause.
+
+What made them was index reduction. Asked which states it kept,
+`IMC_DOL` kept five, and none of them mechanical: not the rotor's
+angle, not its speed (`/tmp/m355/states18.txt`). The chain of the
+fourteen reductions (`/tmp/m355/dol_chain.txt`) shows how. Once the
+stator fluxes are demoted, the matching hands the equation for the
+rotor flux `psi_mr[1]` the rotation matrix entry, the matrix entry
+takes the angle `gamma`, and `gamma` takes the support's angle. The
+fixed support `fixed.flange.phi = airGap.support.phi` is left with no
+unknown, and it is the equation the matching stumbles on at
+reductions 4, 5, 6 and 7 running. Each time it is differentiated and
+each time a different angle is demoted: the stator, the friction, the
+load and the rotor. `psi_mr[1]`, the one state the subset was really
+over by, stays. The speeds follow at reductions 11 to 13, and the
+fourteenth demotes a stator current. Nine machines of the row keep no
+mechanical state at all (`IMC_Steinmetz`'s two `.v` are capacitor
+voltages), where
+`DCPM_Start`, which runs, keeps `phiMechanical` and `inertiaRotor.w`.
+
+The repair is in the order of the singular subset's members, and it
+reads no names. An equation the matching stumbles on twice running is
+one whose first differentiation did not reach the fault, so on a
+repeat the members that name a state and are not a bare alias `a = b`
+are tried before it. On `IMC_DOL` the fifth reduction then
+differentiates the `psi_mr[1]` equation and demotes `psi_mr[1]`, and
+seven states are kept: `phiMechanical`, `inertiaRotor.w`, four
+currents and `lszero.i`. `OXIDELICA_NO_REPEAT_MEMBER=1` gives the old
+order back. Seven models with reduction and no machine in them keep
+exactly the states they kept before: `Pendulum`, `DoublePendulum`,
+`Fourbar1`, `Backlash`, `CoupledClutches`, `DCPM_Start` and
+`ThreeSprings`.
+
+A pair from one binary (`/tmp/m355/r_off.txt`, `/tmp/m355/r_on.txt`)
+printed 966 / 702 and 849 / 660 both ways, and the lists of models
+that flatten and that run are the same name for name: nothing came
+and nothing left. The run count did not move because the machines
+stand at a next wall, and the ladder of the row's 18 models, each run
+with the switch off and on (`/tmp/m355/ladder18.txt`), shows where.
+Eleven left the dead-column refusal: `IMC_DOL`, `IMC_Steinmetz`,
+`IMC_YD`, `IMS_Start` and the two `FundamentalWave` machines now say
+`underdetermined algebraic loop`, `IMC_Inverter` and `SMEE_DOL` say
+`singular Jacobian`, the two `IMC_Transformer` say `the Newton
+direction`, and `IMC_YDarc` reaches `step size underflow`. The two
+`SMPM` machines did not move, and neither did the five that were
+never of this family. On `IMC_DOL` the underdetermined block
+converges to a residual of 1.7e-9 and is refused afterwards by the
+test of uniqueness, which is the next probe.
+
+No small model shows the repeat. Two were written, a support pinned
+through a cosine beside a flux that reads it (`/tmp/m355/s2.mo`,
+`s3.mo`), and neither makes the matching stumble twice on one
+equation: the chain needs the stator fluxes demoted first, which
+takes the machine. The witness is therefore the ladder above and the
+states kept, as the notes on paths that switch on only at complexity
+say.
 
 ## The count of names was a hash's luck (m354)
 

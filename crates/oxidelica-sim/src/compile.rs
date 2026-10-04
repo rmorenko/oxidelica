@@ -1104,6 +1104,15 @@ fn singular_set_enabled() -> bool {
     std::env::var_os("OXIDELICA_NO_SINGULAR_SET").is_none()
 }
 
+/// Whether an equation the matching stumbles on twice running gives
+/// way to the other members of its singular subset.
+///
+/// Behind a switch so that one binary can produce both numbers.
+/// On by default; `OXIDELICA_NO_REPEAT_MEMBER=1` reduces as before.
+fn repeat_member_enabled() -> bool {
+    std::env::var("OXIDELICA_NO_REPEAT_MEMBER").as_deref() != Ok("1")
+}
+
 /// The equations a reduction may differentiate, in the order it tries
 /// them: the one the matching stumbled on, then the equations holding
 /// the unknowns its failed search walked through - together they are
@@ -1432,6 +1441,7 @@ fn reduce_index(
     // reductions, so that half is asked afresh each time and only the
     // shape is remembered.
     let mut solve_shapes: HashMap<(usize, String), SolveShape> = HashMap::new();
+    let mut last_failed: Option<usize> = None;
     let (matched_eq, eq_vars, n_alg) = loop {
         let var_index: HashMap<&str, usize> = unknowns
             .iter()
@@ -1504,7 +1514,51 @@ fn reduce_index(
         // orientation, `world.frame_b.R.T[3,2] = rod3.frame_a.R.T[3,2]`,
         // stops the matching and pins nothing, while the equation that
         // reaches the joint's angle stands in the same subset.
-        let order = attempt_order(failed_eq, &visited, &matched_eq);
+        let mut order = attempt_order(failed_eq, &visited, &matched_eq);
+        // An equation the matching stumbles on twice running is one
+        // whose first differentiation did not reach what kept it from
+        // being matched, and differentiating it again demotes another
+        // state for the same fault. The machines with an air gap show
+        // it: once the stator fluxes are demoted, the equation for the
+        // rotor flux `psi_mr[1]` takes the rotation matrix, the matrix
+        // takes the angle `gamma`, and the angle takes the support's
+        // angle, so the fixed support `fixed.flange.phi =
+        // support.phi` is left with no unknown. Differentiated four
+        // times running it demoted the angle of the stator, of the
+        // friction, of the load and of the rotor - every mechanical
+        // state the machine had - while `psi_mr[1]`, which is what
+        // the subset was over by, stayed a state. The block that came
+        // out read zero in `i_sr[1]` and was refused as not
+        // mentioning it (`IMC_DOL`, /tmp/m355/dol_chain.txt).
+        //
+        // So on a repeat the members of the subset that name a state
+        // and are not a bare alias between two names are tried first.
+        // A connection `a = b` is excluded because differentiating it
+        // is exactly the repeat being avoided. Only the repeat is
+        // touched: a model whose reductions never stumble twice on
+        // one equation reduces as it always did.
+        if repeat_member_enabled() && last_failed == Some(failed_eq) && order.len() > 1 {
+            let carries_state = |e: usize| {
+                let (l, r) = &algebraic_eqs[e];
+                if matches!((l, r), (Expr::Ref(_), Expr::Ref(_))) {
+                    return false;
+                }
+                let mut named = Vec::new();
+                l.collect_refs(&mut named);
+                r.collect_refs(&mut named);
+                named.iter().any(|n| states.iter().any(|s| s == n))
+            };
+            let (first, rest): (Vec<usize>, Vec<usize>) =
+                order.iter().skip(1).partition(|&&e| carries_state(e));
+            if !first.is_empty() {
+                let mut again = first;
+                again.push(failed_eq);
+                again.extend(rest);
+                order = again;
+            }
+        }
+        last_failed = Some(failed_eq);
+        let order = order;
         let saved_unknowns = unknowns.len();
         let saved_eqs = algebraic_eqs.len();
         let saved_minted = minted_defs.clone();
