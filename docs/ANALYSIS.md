@@ -33155,3 +33155,30 @@ for: the steady one starts at 1.0e5 Pa and 623.15 K and is at
 99396 Pa and 613.97 K one second later, because the steady start it
 declares never reached it. So the fix costs two models that run on
 the wrong initialization, and its pair has to say so by name.
+
+### The consultation's form, measured on the same models
+
+The form the consultation gave for a series - swap the steady rows,
+halve on any inner refusal only where a row was swapped, and refuse
+below 2^-10 - was put behind one more probe switch and run over nine
+models under `--only` (`/tmp/m350/lad/gated.txt`). `DryAirNasa`,
+`IdealGases.Air`, `IdealSteam` and `SimpleAir` run; `Nitrogen` does
+not. The halvings each of the first steps needed, counted with the
+floor taken away:
+
+| model                          | halvings per iteration until the full step is taken |
+| ------------------------------ | --------------------------------------------------- |
+| `IdealGases.Air`, `DryAirNasa` | 9, 8, 6, 6, 3, then none                            |
+| `IdealSteam`                   | 7, 5, 3, then none                                  |
+| `Nitrogen`                     | 11, 10, 8, 7, 5, then none, converged in 12         |
+
+So the floor of 2^-10 sits one halving short of Nitrogen's first step,
+which is a step that works: the iterate climbs out of the corner in
+five iterations and then converges at once. The floor is the right
+idea and the wrong number, or the wrong measure - what tells a step
+that is working from one that is crawling is the residual over the
+following iterations, which is the consultation's other half, and a
+floor that refuses at 2^-10 refuses before that half has anything to
+read. The pump and the two IF97 models keep the singular refusal of
+the swap under this form, as they did without it, and
+`DynamicPipeInitialization` keeps its Newton direction.
