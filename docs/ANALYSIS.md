@@ -32801,3 +32801,56 @@ a refusal of the domain), not on every refusal of an inner block,
 and stop sooner than 2^-30. Whether that keeps `SMPM_CurrentSource` and
 `IdealSteam`, the two models the unconditional halving gained, is the
 measurement for the series that takes it; nothing is changed here.
+
+## The halving narrowed to the domain keeps nothing it won (m349)
+
+The cheaper rule the last chapter proposed was built and measured on
+the ladder of `--only` runs before any corpus pair: the initialization
+halves a step only when the full step's point is outside what the
+equations can answer. Which refusals those are was made a field of the
+error rather than a test on its wording: a new kind, `Outside`, given
+to an `assert` or `Streams.error` of any walked body other than the
+root finder, and to a block that is NaN before its first Newton step.
+The switch was read by value, `OXIDELICA_NO_INIT_DOMAIN_HALVING=1`
+for off, so that `=0` could not turn it on (one binary, `/tmp/ox349`,
+the patch parked in `state/init_domain_m349.patch`, the tree
+untouched; `/tmp/m349/ladder.txt`).
+
+The three models that paid for the unconditional halving are back to
+their price: `DynamicPipeInitialization` 24 s off against 28 s on,
+`WaterIF97_ph` 13 against 13, `WaterIF97OnePhase_ph` 12 against 14,
+each refused as before. But neither model the unconditional halving
+won is won by the narrow one, and the pump is not moved either:
+
+| model                  | narrow rule                           | what the old halving cut on                        |
+| ---------------------- | ------------------------------------- | -------------------------------------------------- |
+| `TestWaterPumpStorage` | refused, step taken whole             | `Newton direction` at 1, `too low pressure` at 1/2 |
+| `SMPM_CurrentSource`   | refused, never halves                 | 182 trials, every one `did not converge`           |
+| `IdealSteam`           | refused, root finder at the full step | the root finder's bracket, then `Newton direction` |
+
+The trails are the probe of m344 on `/tmp/ox347c`
+(`/tmp/m349/trail_pump.txt`, `trail_smpm.txt`, `trail_steam.txt`).
+In the pump the full step is refused by the inner block's Newton
+direction - an evaluated block, not the domain - and only the half
+step reaches the formulation's edge; the quarter step is the one that
+settles at 1.426e5 Pa. So the pump's rescue passed through a refusal
+the narrow rule does not halve on, and taking the domain alone the
+rule never sees the first trial. `SMPM_CurrentSource` has no medium at
+all: its gain was an air gap's block not converging at steps of
+2^-3 to 2^-13, cut until it did - halving on any refusal, which is
+exactly the rule that cost the half hours. `IdealSteam` is cut first
+on the root finder's empty bracket (`Unbracketed`), and adding that
+kind to the domain under a probe switch takes its halving to 2^-6,
+where the inner block's Newton direction refuses again and the run
+ends there.
+
+So the two models won and the three that paid are won and paid by the
+same thing: halving on refusals that are not the domain. The narrow
+rule is cheap because it does nothing for the models of this library,
+and was not taken to a corpus pair - the ladder answered the question
+the pair was for. What the trails suggest instead is that the
+`Newton direction` refusal of a block inside the initialization's
+trial is sometimes the edge of the domain seen from inside, as in the
+pump, where the next half step hits it outright; telling those apart
+is a question about the inner block's own retreat, not about the
+outer step.
