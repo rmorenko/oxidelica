@@ -33016,3 +33016,106 @@ boundaries' 95 to 100 bar before this block was asked, and why it did
 that is the next question: the outer iterate was not printed, because
 the probe that prints it lives only on the binary of the unconditional
 halving, where this model takes half an hour.
+
+## The gases' steady start is a pole in the rows, not a wrong choice of states (m350)
+
+The four models of the `dps_fg` row (`Air.DryAirNasa`,
+`IdealGases.Air`, `IdealGases.Nitrogen`, `Water.IdealSteam`) were put
+down in m344 to m349 as the family that needs `p, T` raised as states
+in place of the volume's `U, m`. A small model says otherwise, and the
+probes that say so live in a patch kept out of the tree
+(`steady_swap_probe_m350.patch` beside the shift's notes, every switch
+named `OX_PROBE_*`).
+
+The small model is the test model's volume written out in twenty
+lines: a `DryAirNasa` medium, `m = V*d`, `U = m*u`, a linear pipe
+`p - p_amb = k*m_flow_out`, the two balances, and the library's
+steady start `der(medium.p) = 0, der(medium.T) = 0`. It refuses in
+0.8 s where the test model takes 17, and its answer is known: the
+outflow equals the inflow, `p = 1101325`, `T = 293.15`,
+`m = 1.308773`. Then the same model in five shapes, the
+initialization's iterate printed at every Newton step:
+
+| shape | states       | initial equations                  | result                                                                 |
+| ----- | ------------ | ---------------------------------- | ---------------------------------------------------------------------- |
+| Gas1  | U, m         | `der(p) = 0, der(T) = 0`           | m goes 0.12, 0.95, -5.98; U doubles to 2.6e10; "do not pin down [U]"   |
+| Gas1b | U, m         | `p = 101325, T = 293.15`           | runs                                                                   |
+| Gas2c | p, T by hand | `der(p) = 0, der(T) = 0`           | T goes to 45.6 K on the first step, settles on p = 0; "free along [p]" |
+| Gas2b | p, T by hand | `p = 101325, T = 293.15`           | runs, agrees with Gas1b to seven digits                                |
+| Gas1d | U, m         | `der(m) = 0, der(U) = 0`           | converges in 15 steps, m = 1.308773                                    |
+| Gas1e | U, m         | `V/(R*T)*der(p) = 0, m*der(T) = 0` | converges in 3 steps                                                   |
+
+So raising `p, T` by hand does not cure it, and keeping `U, m` with
+the steady rows written on the balances does. The row `der(p) = 0`
+reaches the solver as the derivative of `p`'s definition with the
+states' right-hand sides put in, which is `J(y)*F(y)` where `F` is the
+balances; the plan solves `U = m*u` for `u`, so `J` carries `1/m`, and
+Newton on those rows steps across the pole to a negative mass. Written
+by hand on `p, T` the same pole is in `der(T)`'s divisor `m*cv` with
+`m = V*p/(R*T)`. Multiplying the rows by the capacity they were
+divided by is what Gas1e does, and three steps is the price.
+
+On the real test model the swap alone is not enough: the first trial
+point of a step from `U = 25e3, m = 0.12` toward the answer breaks the
+pipe's density loop with "do not bracket", which is a Plain refusal
+and is not halved. With the halving also taken on any inner refusal,
+and only then, `Air0` converges in about ten steps to `m = 1.308773`,
+`U = 274105.667`, and all four models of the row run under `--only`.
+Either switch alone moves none of them.
+
+Measured beside them, the same four modes over ten neighbours of the
+family (`/tmp/m350/lad/`): the swap also wins `Air.SimpleAir`, and
+loses `TestWaterPumpStorage` and changes `WaterIF97_ph`'s words, both
+to "do not pin down [U]". That one is not the swap's: the column of
+`U` in the initialization's difference Jacobian is exactly zero
+there, because the step of `1e-7*(1 + |U|)` is finer than the
+tolerance of the inner blocks the swapped rows pass through; at
+`1e-3` the column is `-0.09` and `WaterIF97_ph`'s initialization
+converges, to stop on a fixed start's conflict further on. The pump
+under the coarse step reaches a different inner refusal. The halving
+on any refusal without the swap won nothing among the ten and gave
+back m348's price at once: `WaterIF97_ph` took 1254 s to refuse, where
+it takes 45 s with neither switch and 12 s with both.
+
+A consultation (shift 287) read the same and corrected one word: the
+right form is not "the derivatives of the states" but the residuals
+of the accumulating balances, which are the same thing today only
+because index reduction never raises a state. Its prediction that
+`Gas2c` does not move under the swap was checked: the iterate is the
+same to the bit. Its form for a series: swap row by row where the
+initial conditions' matching already pairs each steady row with a
+state, halve on any inner refusal only where a row was swapped, stop
+the halving at 2^-10 and refuse there, and judge progress over
+several iterations rather than by a residual repeated to the bit. The
+change of variables to `p, T` is then for the run alone (the pumps'
+`[p, V_flow]` block, the stiffness of a litre of water), and not for
+the start.
+
+### `DynamicPipeInitialization`: the pipe starts six times too heavy
+
+The question m349 left open, why the outer step puts the last node
+near 30 bar, has an answer one layer earlier. The initialization
+begins at `ms[i] = 56.6086 kg` in 0.0785 m3, a density of 720.76,
+where water at 100 bar and 2000 kJ/kg is two-phase at 112.31. A small
+model asking IF97 directly gives `rho_ph(1e7, 2e6, phase)` as 112.31
+for phase 0 and 2 and 720.7636 for phase 1, the start's number to
+seven digits. The states' starts are read from `m = V*d` with
+`d = waterBaseProp_ph(p, h, phase, 0)[9]`, and `phase` is an
+`Integer` whose `start = 1` is taken as a stated value, while its own
+equation says 2.
+
+Read from its equation instead (probe `OX_PROBE_INTEGER_READ`), the
+start becomes `ms = 8.82`, the physical mass. Then the pressure block
+refuses at once, because the run's template still holds `phase = 1`;
+with the read value written into the template as well, the block
+solves at the first point to `1e-13` and the initialization goes on
+to a Plain "did not converge in 50" of the same block 110 s later,
+which is where the steady-start reading above takes over. The start
+of a discrete-valued variable taken over the equation that defines it
+is a fault in its own right, and its fix is small; whether it wins
+the model depends on the series above. With every probe of this
+chapter on at once (the phase read, the swap, the halving on any
+refusal, a difference step of `1e-5`) the model still refuses, now
+as a singular initialization free along `pipe.Us[2]` after the last
+node's mass has gone to 1112 kg, so the two-phase pipe has a link of
+its own past the start.
