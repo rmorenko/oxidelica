@@ -32625,3 +32625,36 @@ question is the jump: what moves the density residual from 1e-10 to
 0.53 between the initialization and the first solve of the run while
 the block's own unknowns stay where they were - which is something the
 states `U` and `m` carry across, and the next probe.
+
+The jump was then followed into the initialization with the probe of
+m344 (`state/init_trail_m344.patch`, applied to a pinned binary
+`/tmp/ox347c` only, the tree untouched). It happens inside the
+initialization's own Newton step: with the states `pump.U` and
+`pump.m` as unknowns, the Jacobian of the two conditions
+`der(medium.h) = 0` and `der(medium.p) = 0` has entries of 2.6e10 and
+2.6e13 along `m` - a litre of water is that stiff - and the full step
+moves `U` by -3612 J and `m` by -3.5e-4 kg. Inside that step the
+block `[pump.medium.p, V_flow_single]` is asked for the pressure of
+the new mass and energy, starts from the old pressure at a residual of
+0.53 and walks off the formulation (`/tmp/m347/pump/it.txt`). So the
+first link is the initialization taking its step whole, exactly as in
+`Air` and `Nitrogen`.
+
+With the probe's halving of that step switched on
+(`OXIDELICA_M344_INIT_BACKTRACK`), both pumps pass the start: the
+initialization settles at 1.426e5 Pa rather than 7.0e5, and the run
+goes on to t = 2.5e-3 (`TestWaterPumpStorage`) and t = 1.5e-3
+(`TestWaterPumpPowerCharacteristic`) before refusing
+(`bt_p.txt`, `bt_q.txt`). The second link is the same shape one level
+down: the run's step moves the pressure from 1.421e5 to 1.514e5, the
+block starts at a residual of 1.10, its full Newton step leaves the
+formulation, the retreat comes back to 1.08 - already below where it
+began, so the descending retreat above would not change it - and the
+Newton direction from there does not lead down (`bt2.txt`).
+
+Two links mapped, both a full step taken through a medium that cannot
+answer on the other side of it. Which of the two pressures the
+initialization should settle at is not checked here and should be
+before anything is built on the halving: 7.0e5 Pa is what the
+undamped step reached on the way to its refusal, 1.426e5 Pa is what
+the halved one converged to.
