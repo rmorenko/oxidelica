@@ -780,6 +780,36 @@ fn init_domain_halving_off() -> bool {
     std::env::var("OXIDELICA_NO_INIT_DOMAIN_HALVING").is_ok_and(|said| said == "1")
 }
 
+/// How many times a step is halved on an inner refusal that is not
+/// about the domain, where a steady row was taken on the balance it
+/// claimed. `IdealGases.Nitrogen` needs eleven on its first step and
+/// none from the sixth on (m350), so a floor of 2^-10 refuses a step
+/// that works; 2^-16 leaves room for it and still stops a crawl.
+const INIT_STEADY_HALVINGS: usize = 16;
+
+/// Whether `OXIDELICA_NO_STEADY_ON_BALANCES` keeps a steady start on
+/// a computed variable as the derivative of its definition. Read by
+/// its value, `1`, for the reason [`init_domain_halving_off`] gives.
+fn steady_on_balances_off() -> bool {
+    std::env::var("OXIDELICA_NO_STEADY_ON_BALANCES").is_ok_and(|said| said == "1")
+}
+
+/// Whether an initial equation reads `der(v) = 0` (either way round)
+/// with `v` something other than a state: a steady start written on a
+/// variable the plan computes.
+fn steady_on_computed(equation: &EquationItem, states: &[String]) -> bool {
+    use oxidelica_parser::ast::Expr as E;
+    let on_computed = |side: &E| match side {
+        E::Call(name, args) if name == "der" && args.len() == 1 => {
+            matches!(&args[0], E::Ref(v) if !states.iter().any(|state| state == v))
+        }
+        _ => false,
+    };
+    let zero = |side: &E| matches!(side, E::Number(value) if *value == 0.0);
+    (on_computed(&equation.lhs) && zero(&equation.rhs))
+        || (zero(&equation.lhs) && on_computed(&equation.rhs))
+}
+
 /// How many times a constraint may be differentiated before the model
 /// is called singular rather than merely of high index.
 ///
@@ -5105,6 +5135,147 @@ struct InitialConditionMatch {
 }
 
 impl CompiledModel {
+    /// Which written steady rows are solved as the balance of the state
+    /// they were paired with, per row: the state, or `None` for a row
+    /// that stays as written.
+    ///
+    /// A row qualifies when it reads `der(v) = 0` with `v` computed by
+    /// the plan, the matching paired it with a state, and `v` - through
+    /// every stage of the plan, blocks included and read coarsely -
+    /// reaches only states that qualifying rows were paired with and
+    /// never `time`. Then `der(v)` is a sum of those balances times
+    /// slopes, and balances standing still put every such row at zero.
+    /// The set is narrowed until it holds of itself: a row dropped can
+    /// take with it the state another row was leaning on.
+    fn steady_rows_on_balances(
+        &self,
+        initial_equations: &[EquationItem],
+        matched: Option<&InitialConditionMatch>,
+        plan: &[PlanStage],
+    ) -> Vec<Option<usize>> {
+        let none = vec![None; initial_equations.len()];
+        if steady_on_balances_off() {
+            return none;
+        }
+        let Some(matched) = matched else {
+            return none;
+        };
+        let paired = |row: usize| matched.state_taken.iter().position(|t| *t == Some(row));
+        let mut swapped: Vec<Option<usize>> = initial_equations
+            .iter()
+            .enumerate()
+            .map(|(row, equation)| {
+                steady_on_computed(equation, &self.states)
+                    .then(|| paired(row))
+                    .flatten()
+            })
+            .collect();
+        if swapped.iter().all(Option::is_none) {
+            return none;
+        }
+        let reach = states_behind_algebraics(&self.states, &self.algebraics, plan);
+        // Which algebraics read `time`, through the plan as coarsely as
+        // the reach above: a definition that moves with the clock has a
+        // derivative the balances do not account for.
+        let index_of_algebraic: HashMap<&str, usize> = self
+            .algebraics
+            .iter()
+            .map(|a| a.as_str())
+            .zip(0..)
+            .collect();
+        let mut clocked = vec![false; self.algebraics.len()];
+        let reads_clock = |expr: &Expr, clocked: &[bool]| {
+            if names_time(expr) {
+                return true;
+            }
+            let mut refs = Vec::new();
+            expr.collect_refs(&mut refs);
+            refs.iter().any(|name| {
+                index_of_algebraic
+                    .get(name)
+                    .is_some_and(|index| clocked[*index])
+            })
+        };
+        for stage in plan {
+            match stage {
+                PlanStage::Explicit { var, expr } => {
+                    clocked[*var] = reads_clock(expr, &clocked);
+                }
+                PlanStage::Implicit {
+                    vars,
+                    inner,
+                    residuals,
+                    ..
+                } => {
+                    let any = inner.iter().any(|(_, expr)| reads_clock(expr, &clocked))
+                        || residuals.iter().any(|(lhs, rhs)| {
+                            reads_clock(lhs, &clocked) || reads_clock(rhs, &clocked)
+                        });
+                    for var in vars {
+                        clocked[*var] = any;
+                    }
+                }
+            }
+        }
+        let subject = |equation: &EquationItem| -> Option<usize> {
+            let side = match (&equation.lhs, &equation.rhs) {
+                (Expr::Call(name, args), _) if name == "der" => args.first(),
+                (_, Expr::Call(name, args)) if name == "der" => args.first(),
+                _ => None,
+            };
+            match side {
+                Some(Expr::Ref(v)) => index_of_algebraic.get(v.as_str()).copied(),
+                _ => None,
+            }
+        };
+        loop {
+            let held: Vec<bool> = {
+                let mut held = vec![false; self.states.len()];
+                for state in swapped.iter().flatten() {
+                    held[*state] = true;
+                }
+                held
+            };
+            let mut changed = false;
+            for (row, swap) in swapped.iter_mut().enumerate() {
+                if swap.is_none() {
+                    continue;
+                }
+                let keeps = subject(&initial_equations[row]).is_some_and(|index| {
+                    !clocked[index]
+                        && reach
+                            .get(index)
+                            .and_then(Option::as_ref)
+                            .is_some_and(|reaches| {
+                                reaches
+                                    .iter()
+                                    .zip(&held)
+                                    .all(|(reached, held)| !reached || *held)
+                            })
+                });
+                if !keeps {
+                    *swap = None;
+                    changed = true;
+                }
+            }
+            if !changed {
+                break;
+            }
+        }
+        if std::env::var_os("OXIDELICA_INIT_PROBE").is_some() {
+            for (row, swap) in swapped.iter().enumerate() {
+                if let Some(state) = swap {
+                    eprintln!(
+                        "init: steady row {} solved as der({}) = 0",
+                        initial_equations[row].lhs.describe(),
+                        self.states[*state]
+                    );
+                }
+            }
+        }
+        swapped
+    }
+
     /// Which unknown each initial condition determines.
     ///
     /// The conditions are the written `initial equation` section
@@ -5816,6 +5987,25 @@ impl CompiledModel {
         }
         let fixed = &filled[..];
 
+        // A steady start written on what the plan computes - a medium's
+        // `der(p) = 0, der(T) = 0` over a volume that holds `U, m` -
+        // reaches the solver as the derivative of the definition with the
+        // balances put in, `J(x)*F(x)`. The plan solves `U = m*u` for `u`,
+        // so `J` carries `1/m`, and Newton on those rows steps across the
+        // pole to a negative mass: `Gas1` (m350) goes 0.12, 0.95, -5.98
+        // and is refused, while the same model with the rows written on
+        // the balances, `der(m) = 0, der(U) = 0`, converges.
+        //
+        // Where every such row was paired with a state, and what the rows
+        // speak of is computed from paired states alone, the row is a
+        // sum of those states' balances, each times a slope: a start on
+        // which the balances stand still satisfies the written rows
+        // exactly, whatever the slopes are. So it is the balances that
+        // are solved, and the answer is an answer to what was written.
+        let swapped: Vec<Option<usize>> =
+            self.steady_rows_on_balances(initial_equations, condition_match.as_ref(), plan.stages);
+        let any_swapped = swapped.iter().any(Option::is_some);
+
         // `der(x)` in an initial equation is the right-hand side the
         // model gives that state, so a steady start reads `der(x) = 0`.
         //
@@ -5873,8 +6063,11 @@ impl CompiledModel {
             }
             self.eval_point(0.0, &y[..states], values, derivatives, alg_guess)?;
             let mut out = Vec::with_capacity(n);
-            for (lhs, rhs) in &substituted {
-                out.push(lhs.run(values, 0.0) - rhs.run(values, 0.0));
+            for ((lhs, rhs), swap) in substituted.iter().zip(&swapped) {
+                match swap {
+                    Some(state) => out.push(derivatives[*state]),
+                    None => out.push(lhs.run(values, 0.0) - rhs.run(values, 0.0)),
+                }
             }
             // The declared value of a demoted variable against what the
             // plan just computed for it at this point.
@@ -5978,13 +6171,66 @@ impl CompiledModel {
             let held_guess = alg_guess.clone();
             let mut jac = vec![vec![0.0; n]; n];
             for j in 0..n {
-                let h = 1e-7 * (1.0 + y[j].abs());
+                let mut h = 1e-7 * (1.0 + y[j].abs());
                 let mut probe = y.clone();
                 probe[j] += h;
                 if !drift_guess {
                     alg_guess.clone_from(&held_guess);
                 }
-                let fp = residual(&probe, &mut values, &mut derivatives, &mut alg_guess)?;
+                let mut fp = residual(&probe, &mut values, &mut derivatives, &mut alg_guess)?;
+                // A swapped row reads a balance through the inner blocks,
+                // and a step of 1e-7 relative is finer than what those
+                // blocks are solved to: in `TestWaterPumpStorage` the
+                // column of the volume's `U` came back exactly zero and
+                // the start was refused as not pinning `U` down, where at
+                // 1e-3 the column reads -0.09 (m350). The same cure the
+                // inner blocks take for a column below what the residual
+                // resolves: move further, up to 1e-3, and keep what the
+                // longer step answers only if twice the distance gives
+                // the same slope - a coefficient that is a fact, not a
+                // fact about the step.
+                if any_swapped {
+                    let base = h;
+                    let ceiling = 1e-3 * (1.0 + y[j].abs());
+                    // A longer step the equations cannot answer leaves
+                    // the column as the base step read it.
+                    let mut answered = true;
+                    while answered && h < ceiling && fp.iter().zip(&f).all(|(a, b)| a == b) {
+                        let mut probe = y.clone();
+                        probe[j] += h * 100.0;
+                        if !drift_guess {
+                            alg_guess.clone_from(&held_guess);
+                        }
+                        match residual(&probe, &mut values, &mut derivatives, &mut alg_guess) {
+                            Ok(longer) => {
+                                h *= 100.0;
+                                fp = longer;
+                            }
+                            Err(_) => answered = false,
+                        }
+                    }
+                    if h > base {
+                        let mut farther = y.clone();
+                        farther[j] += 2.0 * h;
+                        if !drift_guess {
+                            alg_guess.clone_from(&held_guess);
+                        }
+                        let steady =
+                            match residual(&farther, &mut values, &mut derivatives, &mut alg_guess)
+                            {
+                                Ok(ff) => fp.iter().zip(&ff).zip(&f).all(|((near, far), at)| {
+                                    let a = (near - at) / h;
+                                    let b = (far - at) / (2.0 * h);
+                                    (a - b).abs() <= 0.25 * a.abs().max(b.abs())
+                                }),
+                                Err(_) => false,
+                            };
+                        if !steady {
+                            fp.clone_from(&f);
+                        }
+                    }
+                    let _ = self.walked.complaint();
+                }
                 for (i, row) in jac.iter_mut().enumerate() {
                     row[j] = (fp[i] - f[i]) / h;
                 }
@@ -6063,6 +6309,16 @@ impl CompiledModel {
             // step whole, so that one binary gives both numbers.
             let mut lambda = 1.0;
             if !init_domain_halving_off() {
+                // Where a steady row was swapped, an inner block that
+                // did not converge at the trial is halved on as well: the
+                // first step from a start far off the steady point breaks
+                // the pipe's density loop of `Air0` with "do not bracket"
+                // while a shorter one does not, and the iterate climbs out
+                // of the corner in a handful of steps (m350). Only there,
+                // because anywhere else it cost three water models half an
+                // hour each for nothing, and only to 2^-16, below which
+                // the step is taken and its refusal stands.
+                let mut steady_halvings = 0;
                 for _ in 0..INIT_DOMAIN_HALVINGS {
                     let trial: Vec<f64> =
                         y.iter().zip(&step).map(|(at, s)| at - lambda * s).collect();
@@ -6078,7 +6334,12 @@ impl CompiledModel {
                     let outside =
                         match residual(&trial, &mut values, &mut derivatives, &mut alg_guess) {
                             Ok(f) => f.iter().any(|r| !r.is_finite()),
-                            Err(refusal) => refusal.outside_the_domain(),
+                            Err(refusal) if refusal.outside_the_domain() => true,
+                            Err(_) if any_swapped && steady_halvings < INIT_STEADY_HALVINGS => {
+                                steady_halvings += 1;
+                                true
+                            }
+                            Err(_) => false,
                         };
                     alg_guess = held;
                     if !outside {

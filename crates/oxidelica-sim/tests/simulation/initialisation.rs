@@ -1567,3 +1567,56 @@ fn an_initialization_step_past_the_domain_is_halved_rather_than_taken() {
     let last = result.rows.last().unwrap();
     assert!((last[1] - 1.0).abs() < 1e-9, "x(1) = {}", last[1]);
 }
+
+/// A steady start written on what the plan computes is solved as the
+/// balances it stands on. The volume holds `U, m`, the start says
+/// `der(p) = 0, der(T) = 0`, and those rows reach the solver as the
+/// derivative of `p`'s and `T`'s definitions with the balances put in,
+/// which carries `1/m` from `U = m*u`: from `m = 0.12` Newton on them
+/// steps across the pole and the start was refused as not pinning
+/// `m, U` down. The matching pairs each row with a state of the
+/// volume, so the balances standing still are what is solved, and the
+/// answer is the one the rows ask for: the outflow equals the inflow,
+/// `p = p_amb + k`, and `m = V*p/(R*T)`. `OXIDELICA_NO_STEADY_ON_BALANCES=1`
+/// gives the refusal back from the same binary.
+#[test]
+fn a_steady_start_on_a_volume_s_pressure_is_solved_on_its_balances() {
+    let result = run("model G \
+           parameter Real V = 0.1; parameter Real R = 287; \
+           parameter Real cv = 718; parameter Real cp = 1005; \
+           parameter Real p_amb = 101325; parameter Real k = 1e6; \
+           parameter Real T_in = 293.15; \
+           Real m(start = 0.12); Real U(start = 25e3); \
+           Real p(start = 101325); Real T(start = 293.15); \
+           Real u; Real d; Real m_flow_out; \
+         equation \
+           m = V*d; U = m*u; u = cv*T; d = p/(R*T); \
+           p - p_amb = k*m_flow_out; \
+           der(m) = 1 - m_flow_out; \
+           der(U) = cp*T_in - m_flow_out*cp*T; \
+         initial equation \
+           der(p) = 0; der(T) = 0; \
+         annotation(experiment(StopTime = 1, Interval = 0.1)); end G;");
+    let column = |name: &str| {
+        result
+            .columns
+            .iter()
+            .position(|had| had == name)
+            .unwrap_or_else(|| panic!("{name} among {:?}", result.columns))
+    };
+    let first = &result.rows[0];
+    let p = first[column("p")];
+    let t = first[column("T")];
+    let m = first[column("m")];
+    assert!((p - 1_101_325.0).abs() < 1e-6 * p, "p(0) = {p}");
+    assert!((t - 293.15).abs() < 1e-9 * t, "T(0) = {t}");
+    let mass = 0.1 * 1_101_325.0 / (287.0 * 293.15);
+    assert!((m - mass).abs() < 1e-9 * mass, "m(0) = {m}");
+    // Standing still, the run stays where it began.
+    let last = result.rows.last().unwrap();
+    assert!(
+        (last[column("p")] - p).abs() < 1e-4 * p,
+        "p(1) = {}",
+        last[column("p")]
+    );
+}

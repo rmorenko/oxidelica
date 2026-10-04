@@ -33182,3 +33182,53 @@ floor that refuses at 2^-10 refuses before that half has anything to
 read. The pump and the two IF97 models keep the singular refusal of
 the swap under this form, as they did without it, and
 `DynamicPipeInitialization` keeps its Newton direction.
+
+## A steady start on what the plan computes is solved on the balances (m351)
+
+The form of the chapter above, taken as a change rather than a probe,
+under one switch, `OXIDELICA_NO_STEADY_ON_BALANCES=1`. Three parts, and
+each is the measured half of m350 rather than a new idea.
+
+The swap is made row by row. A written row `der(v) = 0` with `v`
+computed by the plan, which the initial conditions' matching paired
+with a state, is solved as that state's balance standing still - but
+only where `v`, read through every stage of the plan with blocks taken
+coarsely, reaches nothing but states that such rows were paired with,
+and never `time`. Then `der(v)` is a sum of those balances times
+slopes, and a start on which they stand still satisfies the written
+rows exactly; the answer is an answer to what was written, not a
+different start. The set is narrowed until it holds of itself. A row
+written on a state, or reaching a state no swapped row holds, stays
+as it was.
+
+Where a row was swapped, and only there, an inner refusal at a trial
+point halves the step as a domain refusal does, to a floor of 2^-16
+rather than the consultation's 2^-10, which sits one halving short of
+`Nitrogen`'s first step. And the initialization's difference column
+grows from `1e-7` to at most `1e-3` relative when it comes back
+exactly zero, kept only if twice the distance reads the same slope -
+the rule the inner blocks already take - which is what keeps
+`TestWaterPumpStorage` running under the swap.
+
+A small model of the volume written out on an ideal gas
+(`a_steady_start_on_a_volume_s_pressure_is_solved_on_its_balances`)
+is refused with the switch as not pinning `m, U` down and starts
+without it at `p = 1101325`, `m = V*p/(R*T)`.
+
+Under `--only`, one binary, both halves (`/tmp/m351/lad/off.txt`,
+`on.txt`): `DryAirNasa`, `IdealGases.Air`, `Nitrogen`, `IdealSteam`
+and `SimpleAir` run, where they refuse with the switch;
+`TestWaterPumpStorage` runs in both; `TestWaterPumpPowerCharacteristic`,
+`R134a1` and `DynamicPipeInitialization` refuse in both with the same
+words and the same time (29 s, 124 s, 38 s). `WaterIF97_ph` and
+`WaterIF97OnePhase_ph` refuse in both, and change their words from a
+loop that does not converge to a singular initialization, at 17 s in
+place of 40 - which is the wall of the lost modifier on the `inner`
+above, not of this change.
+
+Over the corpus, one binary, both halves (`/tmp/m351/off.txt`,
+`on.txt`): flatten and run go 966 / 692 to 966 / 697, the runnable
+pair 849 / 650 to 849 / 655. The run lists differ by exactly the five
+models above, and nothing runs with the switch that does not run
+without it. The run half took 6491 s against 6473 s, the flatten half
+8548 s against 8559 s, so the ratio sits at 0.81 on both.
