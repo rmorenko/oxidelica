@@ -32741,3 +32741,63 @@ the instrument for the series that takes it is the victim diff of
 `W3` is a separate, smaller question - a weight read as zero at a
 start from rest letting the monitor overrule an order choice that was
 right - and has not been looked for in the corpus.
+
+## Who pays for the halved initialization step (m348)
+
+The halving of the initialization step (`OXIDELICA_M344_INIT_BACKTRACK`,
+the probe patch of m344 in `/tmp/ox347c`, never in the tree) doubled
+the run half of the corpus, 6212 against 11126 seconds, for two models
+gained. Both halves were taken again with `--slow 20`, one binary, the
+heavy set left out. One slip first, so that nobody repeats it: the
+patch reads the switch with `var_os(...).is_some()`, so a half started
+with the switch set to `0` runs with it on. The first pair was two
+"on" halves (`/tmp/m348/off.txt` and `on.txt`, both 966 / 693, run half
+11827 and 11608 s, the two within 2%), and the true "off" half was
+taken again with the variable unset (`/tmp/m348/b/off.txt`: 966 / 691,
+849 / 649).
+
+The cost sits in three models, not across the corpus. Under the switch
+the three slowest to run are
+
+| model                                | run, on | run, off |
+| ------------------------------------ | ------- | -------- |
+| `DynamicPipeInitialization`          | 1877 s  | 9 s      |
+| `MediaTestModels.Water.WaterIF97_ph` | 1675 s  | 2 s      |
+| `Water.WaterIF97OnePhase_ph`         | 1469 s  | 2 s      |
+
+with the "off" column from `--only` one at a time
+(`/tmp/m348/only3_off.txt`); none of the three is in the twenty
+slowest without the switch. Together that is about 5000 seconds, the
+whole of the 4914 the pair of m347 measured between its halves (the
+true "off" half here ran alone, so its own total is not comparable) -
+the rest of the top of both lists runs 1.3 to
+1.5 times slower under the switch, which is the weather of two passes
+side by side and not the switch: `R134a1`, the fourth name with a
+large step on the list, takes 112 against 115 s and 174 Newton
+iterations both ways under `--only` (`/tmp/m348/r134_*.txt`).
+
+All three refuse with the switch and without it; the switch only makes
+the refusal dear. `--only` with it on: `WaterIF97_ph` 1355 s and
+11123 Newton iterations against 2 s and 40, ending in "initialization
+did not converge in 50 Newton iterations" instead of the inner block's
+Newton direction; `DynamicPipeInitialization` 1624 s and 5393
+iterations against 9 s and 22, the same refusal as without
+(`/tmp/m348/on_ph.txt`, `on_dpi.txt`). The trail of `WaterIF97OnePhase_ph`
+(`OXIDELICA_M344_INIT_TRAIL`, `/tmp/m348/trail_onephase.txt`) says
+where the time goes: in the first 23 outer iterations, before the
+trail was stopped at nine minutes, the halving made 168 trials, of
+which 106 refused for the Newton direction of the inner `IF97` block,
+50 for its not converging in 50 iterations, 10 for a pressure below
+the medium's range and 2 for a NaN. Each trial is a full inner solve
+through the medium. Of the 22 steps taken, 12 were whole and 10 were
+cut to 2^-16 or 2^-17, a step that changes nothing the next iteration
+can use.
+
+So the answer to the question the queue asked is "few pay, and they
+pay for nothing": the halving is dear exactly where it does not help.
+The shape of a cheaper rule follows from the trail: halve only when
+the full step's point is outside what the medium can answer (a NaN or
+a refusal of the domain), not on every refusal of an inner block,
+and stop sooner than 2^-30. Whether that keeps `SMPM_CurrentSource` and
+`IdealSteam`, the two models the unconditional halving gained, is the
+measurement for the series that takes it; nothing is changed here.
