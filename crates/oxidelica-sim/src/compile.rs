@@ -1313,6 +1313,14 @@ fn implicit_enabled() -> bool {
     std::env::var_os("OXIDELICA_NO_IMPLICIT_DIFF").is_none()
 }
 
+/// Whether `OXIDELICA_NO_IMPLICIT_RING` lets the second settling take
+/// a definition out of the very equation an implicit name was taken
+/// from. Read by its value, `1`, so that an empty or stray setting
+/// does not turn it on.
+fn implicit_ring_kept() -> bool {
+    std::env::var("OXIDELICA_NO_IMPLICIT_RING").is_ok_and(|said| said == "1")
+}
+
 /// The reduction's door to the linear solver, with the parameters in
 /// view unless the switch takes them away.
 ///
@@ -1524,7 +1532,7 @@ fn reduce_index(
                 let (lhs, rhs) = algebraic_eqs[eq].clone();
                 let matched_eq = &base_match;
 
-                let mut candidates: Vec<(String, Expr)> = Vec::new();
+                let mut candidates: Vec<(String, Expr, usize)> = Vec::new();
                 for (index, (l, r)) in algebraic_eqs.iter().enumerate() {
                     // The equation under reduction cannot define its own
                     // way out: `u = 3` must be read through `u = 2*x`.
@@ -1533,7 +1541,7 @@ fn reduce_index(
                     }
                     if let (Expr::Ref(name), other) | (other, Expr::Ref(name)) = (l, r) {
                         if unknowns.contains(name) {
-                            candidates.push((name.clone(), simplify(other)));
+                            candidates.push((name.clone(), simplify(other), index));
                         }
                     }
                     let mut named = Vec::new();
@@ -1561,7 +1569,7 @@ fn reduce_index(
                                         .map(|solved| simplify(&solved))
                                 });
                         if let Some(solved) = answer {
-                            candidates.push((name.to_string(), solved.clone()));
+                            candidates.push((name.to_string(), solved.clone(), index));
                         }
                     }
                 }
@@ -1571,39 +1579,47 @@ fn reduce_index(
                 // and whatever is already grounded. A definition is accepted
                 // only once everything it references is itself grounded, which
                 // is what keeps `a := b` and `b := a` from chasing each other.
-                let settle = |grounded: &HashMap<String, (Expr, Expr)>| {
-                    let mut accepted: HashMap<String, Expr> = HashMap::new();
-                    loop {
-                        let mut progress = false;
-                        for (name, expr) in &candidates {
-                            // A name the implicit rule already grounds keeps
-                            // that grounding. Taking a definition for it as
-                            // well is how a two-name cycle gets built: `i = p.i`
-                            // and `p.i = i` are both candidates, and with `i`
-                            // grounded implicitly both would be accepted and
-                            // chase each other until the depth guard fired.
-                            if accepted.contains_key(name) || grounded.contains_key(name) {
-                                continue;
+                //
+                // `barred` names equations the second settling may not take
+                // a definition from, for the reason given where it is built.
+                let settle =
+                    |grounded: &HashMap<String, (Expr, Expr)>,
+                     barred: &std::collections::HashSet<usize>| {
+                        let mut accepted: HashMap<String, Expr> = HashMap::new();
+                        loop {
+                            let mut progress = false;
+                            for (name, expr, source) in &candidates {
+                                if barred.contains(source) {
+                                    continue;
+                                }
+                                // A name the implicit rule already grounds keeps
+                                // that grounding. Taking a definition for it as
+                                // well is how a two-name cycle gets built: `i = p.i`
+                                // and `p.i = i` are both candidates, and with `i`
+                                // grounded implicitly both would be accepted and
+                                // chase each other until the depth guard fired.
+                                if accepted.contains_key(name) || grounded.contains_key(name) {
+                                    continue;
+                                }
+                                let mut refs = Vec::new();
+                                expr.collect_refs(&mut refs);
+                                let ok = refs.iter().all(|r| {
+                                    *r != name
+                                        && (!unknowns.iter().any(|u| u == *r)
+                                            || accepted.contains_key(*r)
+                                            || grounded.contains_key(*r))
+                                });
+                                if ok {
+                                    accepted.insert(name.clone(), expr.clone());
+                                    progress = true;
+                                }
                             }
-                            let mut refs = Vec::new();
-                            expr.collect_refs(&mut refs);
-                            let ok = refs.iter().all(|r| {
-                                *r != name
-                                    && (!unknowns.iter().any(|u| u == *r)
-                                        || accepted.contains_key(*r)
-                                        || grounded.contains_key(*r))
-                            });
-                            if ok {
-                                accepted.insert(name.clone(), expr.clone());
-                                progress = true;
+                            if !progress {
+                                break;
                             }
                         }
-                        if !progress {
-                            break;
-                        }
-                    }
-                    accepted
-                };
+                        accepted
+                    };
 
                 // The unknowns nothing above grounds. `Psi = Linf*i +
                 // c*atan(i/Ipar)` determines the current and cannot be solved
@@ -1630,7 +1646,11 @@ fn reduce_index(
                 // this rule is for is the equation that *cannot* be rearranged,
                 // which is the one carrying the physics.
                 let empty = HashMap::new();
-                let settled = settle(&empty);
+                let none_barred = std::collections::HashSet::new();
+                let settled = settle(&empty, &none_barred);
+                // The equation each implicit definition was taken from.
+                let mut implicit_sources: std::collections::HashSet<usize> =
+                    std::collections::HashSet::new();
                 let implicit_defs: HashMap<String, (Expr, Expr)> = if implicit_enabled() {
                     let mut found: HashMap<String, (Expr, Expr)> = HashMap::new();
                     for (index, (l, r)) in algebraic_eqs.iter().enumerate() {
@@ -1653,9 +1673,12 @@ fn reduce_index(
                             .collect();
                         if let [only] = unsettled[..] {
                             if reduction_solve(l, r, only, params).is_none() {
-                                found
-                                    .entry(only.to_string())
-                                    .or_insert_with(|| (l.clone(), r.clone()));
+                                if let std::collections::hash_map::Entry::Vacant(slot) =
+                                    found.entry(only.to_string())
+                                {
+                                    slot.insert((l.clone(), r.clone()));
+                                    implicit_sources.insert(index);
+                                }
                             }
                         }
                     }
@@ -1666,10 +1689,27 @@ fn reduce_index(
 
                 // Settled again, now that the implicit names count as ground:
                 // `p.i = i` is a definition once `i` has one.
+                //
+                // But not out of the equation the implicit name was taken
+                // from. `d = 1054 - 0.5*T - 0.001*T^2` grounds `T` implicitly
+                // and, with `T` ground, is also a candidate defining `d`. Took
+                // both, the theorem's slope `-(dg/dt at T)/(dg/dT)` is
+                // differentiated with `d` read through its own equation, the
+                // numerator cancels to zero and `der(T)` comes out as 0 - a
+                // ring through one equation, and a wrong number where the
+                // energy balance of a liquid volume loses `m*der(u)`. One
+                // equation determines one unknown, so the equation that
+                // grounds `T` has no definition left to give.
+                // `OXIDELICA_NO_IMPLICIT_RING=1` gives the old reading back.
+                let barred = if implicit_ring_kept() {
+                    none_barred.clone()
+                } else {
+                    implicit_sources
+                };
                 let mut alg_defs = if implicit_defs.is_empty() {
                     settled
                 } else {
-                    settle(&implicit_defs)
+                    settle(&implicit_defs, &barred)
                 };
                 for (minted, value) in &minted_defs {
                     alg_defs
@@ -1688,7 +1728,7 @@ fn reduce_index(
                     let mut ds: Vec<&String> = dummies.keys().collect();
                     ds.sort();
                     eprintln!("defs-probe:   dummies: {ds:?}");
-                    for (name, expr) in &candidates {
+                    for (name, expr, _) in &candidates {
                         if !alg_defs.contains_key(name) {
                             eprintln!("defs-probe:   candidate not settled: {name} := {expr:?}");
                         }

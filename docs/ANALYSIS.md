@@ -33295,3 +33295,78 @@ singular initialization - the wall this chapter takes down - and
 `DynamicPipeInitialization` from the Newton direction to a loop that
 steps outside its domain, which is what moved `algebraic loop [...]`
 from 7 to 8.
+
+## An equation that grounds a name implicitly defines nothing else (m353)
+
+The top row of the m352 census, `the Newton direction of algebraic
+loop`, held two incompressible media at t = 0,
+`TestsWithFluid.MediaTestModels.Incompressible.Glycol47` and
+`Essotherm650`: row 0 of the block stood at 18061 whatever the mass
+flow did. It shrinks to eleven lines (`/tmp/m352/g/G4.mo`): a volume
+with `m = V*d`, a density `d = 1054 - 0.5*T - 0.001*T^2` that is not
+linear in `T`, `u = 3600*T`, `U = m*u`, and the two balances
+`der(m) = 1 + mout`, `der(U) = hin + mout*u`. Differentiating `U = m*u`
+gave `hin + mout*u - (1 + mout)*u`: the term `m*der(u)` was gone, and
+the block was NaN before its first Newton step.
+
+The cause was a ring through one equation in `reduce_index`
+(`compile.rs`). The density equation cannot be solved for `T`, so the
+implicit rule takes `T` from it whole, for the implicit function
+theorem to answer `der(T) = -(dg/dt at T)/(dg/dT)`. The second
+settling then ran with `T` counted as ground, and found the same
+equation a perfectly good definition of `d := poly(T)`. With both
+taken, the theorem's numerator was differentiated with `d` read
+through its own equation, cancelled to zero, and `der(T)` came out as
+0 without a word - a wrong number where nothing at all was refused.
+`OXIDELICA_NO_IMPLICIT_DIFF=1` made the media run, and so did keeping
+the first settling's definitions over the second's (the m352 probe
+`OX_PROBE_KEEP_FIRST`), which said where the fault was without saying
+what it was.
+
+What is taken is the narrow statement of it: one equation determines
+one unknown, so an equation the implicit rule has taken a name from
+offers the second settling no definition. The candidates now carry
+the index of the equation that gave them, the implicit rule records
+which equations it drew on, and the second settling skips those.
+`OXIDELICA_NO_IMPLICIT_RING=1` gives the old reading from the same
+binary. The small model is the test
+(`an_equation_that_grounds_a_name_implicitly_defines_nothing_else`):
+it runs to `T(1) = 24.952194107` without the switch, which is the
+value of the same model with the density substituted by hand
+(`G6.mo`) to ten digits, and is NaN at t = 0 with it. The linear
+density (`G5.mo`) and the substituted one run either way, the same to
+the digit.
+
+Under `--only`, one binary (`/tmp/ox353a`), both ways of the switch:
+`Glycol47` and `Essotherm650` run, and refuse with the switch on the
+old Newton direction.
+
+Which models the narrow form touches was printed rather than guessed
+(a probe build comparing the second settling with and without the
+bar, over the 44 models in which the implicit rule fires,
+`/tmp/m353/probe.txt`): 26 of the 44 have a definition changed, where
+keeping the first settling changed 17. Ten of the 44 run with the
+change, and six of those ten have a definition changed: the two media
+and the four named below. The other four
+(`TestSaturatingInductor`, `TestTemperature2` and the two
+`TestFrictionPosition`) keep every definition they had. The values were compared on
+the last row of the CSV by column name, never by position - the two
+ways of the switch can write the columns in a different order - with
+a control of the old reading against itself in the same script
+(`/tmp/m353/values.txt`). A column is called a victim when it moves by
+more than 1e-6, or by more than 1e-6 relative on a value above 1e-3.
+`DCPM_Drive`, the quasi-static `QuadraticCoreAirgap` and
+`GeneralLeakage` are identical to the digit. `GearConstraint`, where
+the m352 positional comparison had shown a difference of order one,
+has no victim: the largest difference over 1854 columns is 3.7e-11,
+on `inertia1.phi`, and the control gives zero. The difference of order
+one was a column of another name standing at the same position.
+
+Over the corpus, one binary, both ways of the switch
+(`/tmp/m353/r_off.txt`, `r_on.txt`): flatten and run go 966 / 700 to
+966 / 702, the runnable pair 849 / 658 to 849 / 660. The run lists
+differ by exactly the two media, nothing that ran stops running, and
+the lists of models that flatten are identical. The work the run half
+counts moves by the two models alone: 25767657 points against
+25767748, 37488229 Newton steps against 37488444. The floors are left
+where they stand, for the runner to print.

@@ -1653,3 +1653,39 @@ fn a_modifier_an_extends_writes_on_an_inner_reaches_its_parameters() {
         "vol.x(0) = {first}, not the free start 1"
     );
 }
+
+/// An equation that grounds a name implicitly has no definition left
+/// to give. `d = 1054 - 0.5*T - 0.001*T^2` cannot be solved for `T`,
+/// so the reduction of `U = m*u` takes `T` from it by the implicit
+/// function theorem - and, with `T` ground, the second settling also
+/// took `d := poly(T)` out of the same equation. The theorem's slope
+/// was then differentiated with `d` read through its own equation, its
+/// numerator cancelled, `der(T)` came out 0, and `der(U)` lost the
+/// term `m*der(u)`: the energy balance of a liquid volume, and the
+/// block at t = 0 was NaN. The same model with `d` substituted by hand
+/// runs to `T(1) = 24.952194107`, and this one now runs to it as well.
+/// `OXIDELICA_NO_IMPLICIT_RING=1` gives the old reading back.
+#[test]
+fn an_equation_that_grounds_a_name_implicitly_defines_nothing_else() {
+    let result = run("model G4 \
+           parameter Real V = 0.1; parameter Real hin = 3600*20; \
+           Real T(start = 25); Real m; Real U; Real d; Real u; Real mout; \
+         equation \
+           d = 1054 - 0.5*T - 0.001*T*T; \
+           u = 3600*T; \
+           m = V*d; \
+           U = m*u; \
+           der(m) = 1 + mout; \
+           der(U) = hin + mout*u; \
+         annotation(experiment(StopTime = 1, Interval = 0.25)); end G4;");
+    let column = |name: &str| {
+        result
+            .columns
+            .iter()
+            .position(|had| had == name)
+            .unwrap_or_else(|| panic!("{name} among {:?}", result.columns))
+    };
+    let last = result.rows.last().unwrap();
+    let t = last[column("T")];
+    assert!((t - 24.952194107).abs() < 1e-6, "T(1) = {t}");
+}
