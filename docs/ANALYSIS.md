@@ -33442,3 +33442,54 @@ attempts now get as far as the derivatives in its section, and it
 refuses on `der(aimc.idq_sr[1])`, which is not a state - the same wall
 its two FundamentalWave namesakes already stand at. The register
 shows it as one row swapped for another, the number of rows unchanged.
+
+## The machines' dead columns are not zero currents (m354, a map)
+
+The census row `the equations of algebraic loop [...] do not mention
+[...]` holds 19 models (`/tmp/m353/raw.txt`), 13 of them machines with
+an air gap. Their dead columns are not `airGap.gamma`, as the list of
+the loop suggested: in 9 of the 13 they are exactly
+`airGap.i_sr[1]` with `squirrelCageR.spacePhasor_r.v_[1]` (7) or
+`lrsigma.v_[1]` (2), and in the rest the same `i_sr[1]` with a
+neighbour.
+
+One model probed, `Machines.Examples.InductionMachines.IMC_DOL`, with
+a probe build printing the rows of the dead-column refusal too
+(`OXIDELICA_NEWTON_TRAIL=1`, `/tmp/m354/p3_dol2.txt`; the print was
+not kept). The block is 18 by 18 at t = 0, with every unknown at zero.
+The `gamma` column is alive (rows 8 and 16, -2.2e5 in the latter), so
+the guess that the rotation terms vanish at zero current is wrong.
+What the matrix shows instead is two dead columns, `i_sr[1]` and
+`spacePhasor_r.v_[1]`, and five dead rows:
+
+```text
+row 1   aimc.airGap.i_ss[1] = RotationMatrix[1,1]*i_sr[1] + RotationMatrix[1,2]*i_sr[2]
+row 4   aimc.airGap.psi_mr[1] = RotationMatrix[1,1]*psi_ms[1] + RotationMatrix[2,1]*psi_ms[2]
+row 11  -(-(aimc.wMechanical - aimc.inertiaRotor.w)) = 0
+row 15  der(aimc.inertiaRotor.w) - loadInertia.a = 0
+row 17  der(der(aimc.inertiaRotor.w)) - der(loadInertia.a) = 0
+```
+
+Row 1 names three of the block's own unknowns: `i_sr[1]`, `i_sr[2]`
+and `RotationMatrix[1,1]`. At `gamma = 0` the slope in `i_sr[1]` is
+`RotationMatrix[1,1]`, which is one. Yet the whole row reads zero,
+including the `RotationMatrix[1,1]` column, which row 0 shows alive.
+A row that names live unknowns and reads zero in every one of them is
+not a fact about the equations. It points at the pairing of block
+columns with the slots the residual reads, or at a row that reads
+something other than the unknowns its text names, such as a copy or
+an alias. The trail also prints far probes in which rows 1, 4, 5 and 7
+follow the step size (1e-6, 1e-3, 1, 1000). It does not say which
+column those probes moved, so they are recorded here and not read
+further. Rows 11, 15 and 17 read `inertiaRotor.w` and its
+derivatives, which the block does not solve for in those rows - three
+rows that index reduction added, empty of the block's unknowns.
+
+The next step is a probe, not a fix: for the dead column, print which
+slot the column step writes and which slots rows 1 and 4 read, on
+`IMC_DOL`. It is one model in under a second (`library check .msl
+--only ...IMC_DOL --refused`). The other 12 machines share the pair
+of dead names and are expected to share the answer. `RobotR3`
+GearType2, `PointGravityWithPointMasses2`, the differential pair,
+`ParallelPumpDropOut` and `TestBearingConversion` each name one
+unrelated dead column and are not part of this family.
