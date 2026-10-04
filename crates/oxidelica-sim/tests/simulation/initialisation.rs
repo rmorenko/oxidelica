@@ -1689,3 +1689,45 @@ fn an_equation_that_grounds_a_name_implicitly_defines_nothing_else() {
     let t = last[column("T")];
     assert!((t - 24.952194107).abs() < 1e-6, "T(1) = {t}");
 }
+
+/// A section one condition over is solved where the extra condition
+/// holds at the answer, and refused with its name and how far off it
+/// is where it does not.
+#[test]
+fn a_section_one_condition_over_is_solved_if_it_agrees_and_named_if_not() {
+    // `x = y` makes the two one state, and the section gives a start
+    // to each: two conditions for one unknown. The two agree, so the
+    // start is x = y = 1 and the run is the decay of 2*der(x) = -x.
+    let agreeing = "model S Real x(start = 1); Real y; \
+         equation der(x) + der(y) = -x; x = y; \
+         initial equation x = 1; y = 1; \
+         annotation(experiment(StopTime = 1, Interval = 0.5)); end S;";
+    let result = run(agreeing);
+    let column = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+    let last = result.rows.last().unwrap();
+    let expected = (-0.5f64).exp();
+    assert!(
+        (last[column("x")] - expected).abs() < 1e-6,
+        "x(1) = {}",
+        last[column("x")]
+    );
+    assert!(
+        (last[column("y")] - expected).abs() < 1e-6,
+        "y(1) = {}",
+        last[column("y")]
+    );
+
+    // The same section with starts that disagree has no start, and the
+    // refusal says which condition is the one that cannot hold and by
+    // how much - not merely that the count is lopsided.
+    let model = parse_model(
+        "model S Real x(start = 1); Real y; \
+         equation der(x) + der(y) = -x; x = y; \
+         initial equation x = 1; y = 2; end S;",
+    )
+    .unwrap();
+    let error = compile(&model).unwrap_err().to_string();
+    assert!(error.contains("not square"), "{error}");
+    assert!(error.contains("initial equation 2 `y = 2`"), "{error}");
+    assert!(error.contains("off by -1e0"), "{error}");
+}

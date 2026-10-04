@@ -33370,3 +33370,75 @@ the lists of models that flatten are identical. The work the run half
 counts moves by the two models alone: 25767657 points against
 25767748, 37488229 Newton steps against 37488444. The floors are left
 where they stand, for the runner to print.
+
+## A section one condition over is solved where the extra condition agrees (m354)
+
+`ModelicaTestOverdetermined.ConsistentInitialization.Fluid.TwoVolumesFullInitial`
+and `TwoVolumesFullSteadyStatePressureAndTemperature` give a start to
+the pressure and temperature of both volumes, and the volumes are
+joined without a pressure drop, so index reduction leaves three states
+for four conditions. Since fdafa44 they had refused as `initialization
+is not square: 4 initial equation(s) ... for 3 unknown(s)`, which is
+the right count and the wrong verdict: the library says outright that
+the section is consistent, and a sibling package,
+`InconsistentInitialization`, holds the same models with starts that
+disagree and says "An error should be reported".
+
+Where the count is exactly one over, the start is now solved with each
+condition left out in turn, lowest first, and the first square system
+whose answer satisfies the one left out is kept. "Satisfies" is the
+test Newton already accepts a row by - absolute 1e-10, or 1e-12 of the
+row's terms (the Jacobian row times the point) - and no new tolerance
+was invented for it. Where none is satisfied, the refusal names the
+condition that came closest and how far off it was:
+
+```text
+... the nearest is initial equation 4 `V2.medium.p = V2.p_start`,
+off by -9.999999999999959e4 against terms of 9.999999604552294e4,
+where a relative 1e-12 holds
+```
+
+That is `TwoVolumesFullInitialInconsistent`, whose `V2.p_start` is 2e5
+against 1e5. Where no square system solves at all, the refusal carries
+each attempt's own reason. Two or more over is refused as before:
+leaving out pairs is a search, and no model has been seen to want it.
+`OXIDELICA_NO_REDUNDANT_INIT=1` keeps the old refusal.
+
+The smallest model that refuses the same way is two lines: `der(x) +
+der(y) = -x; x = y;` with `initial equation x = 1; y = 1;`. With the
+change it runs and `x(1) = exp(-0.5)`; with `y = 2` it refuses naming
+`y = 2`, off by one. It is the test, red under the switch.
+
+The numbers, not just the run. `TwoVolumesFullSteadyStatePressureAndTemperature`
+stands still: 101000 Pa (the sink's 1000 Pa plus the valve's nominal
+1e5 drop at nominal flow) and 293.15 K in both volumes at t = 0 and
+at t = 1, to the digit. `TwoVolumesFullInitial` starts exactly on
+what it wrote, p = 1e5, T1 = 300, T2 = 623.15, and moves: 99396 Pa and
+T2 613.97 at t = 1. That is not a drift of a steady state. The model
+is `FixedInitial` and its start is not an equilibrium - the valve
+passes 0.0099 kg/s against 0.01 in, and the hot second volume is fed
+air at 300 K - so a transient is what it owes.
+
+Over the 23 models of `ModelicaTestOverdetermined`, one at a time on
+both binaries (`/tmp/m354_lad_off.txt`, `/tmp/m354_lad_on.txt`): the two
+above go from refused to run and nothing else changes. All four
+`Inconsistent` models still refuse. The equation-based variants
+(`TwoVolumesEquationsFullInitial` and its steady siblings) are one
+over as well, and now say why each square attempt failed: without a
+pressure the algebraic loop on `T1` has no Newton direction, and
+without a temperature the step does not pin down `M1` or `M2`. Those
+are about which variables are states - the `stateSelect = avoid` on
+`M` is not honoured - and belong to the state selection series, not
+to this one.
+
+Over the corpus, one binary (`/tmp/ox354b`), both ways of the switch
+(`/tmp/m354/r_off.txt`, `r_on.txt`): 966 / 702 and 849 / 660 both
+ways, the lists of models run and models flattened identical (702 and
+1668 lines, `ran_*.txt`, `flat_*.txt`). Neither model above is in the
+corpus set, so the corpus was not expected to move. The one corpus
+model the count sent here, the electrical `IMC_Initialize` (six
+conditions for five states, one over), moves one storey: the
+attempts now get as far as the derivatives in its section, and it
+refuses on `der(aimc.idq_sr[1])`, which is not a state - the same wall
+its two FundamentalWave namesakes already stand at. The register
+shows it as one row swapped for another, the number of rows unchanged.

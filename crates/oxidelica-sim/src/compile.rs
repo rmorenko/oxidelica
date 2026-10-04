@@ -5992,6 +5992,11 @@ impl CompiledModel {
         // declaration is not where its value comes from.
         filled.resize(n, false);
         let pinned = filled.iter().filter(|f| **f).count();
+        // The refusal a lopsided count would have given, kept where the
+        // count is one over: such a section may still be one a start
+        // satisfies, and whether it is, is a question for the solver
+        // below rather than for the arithmetic here.
+        let mut one_over: Option<String> = None;
         if conditions + pinned != n {
             // A count without names says a problem is lopsided and
             // leaves the reader to guess which statement is the extra
@@ -6014,7 +6019,7 @@ impl CompiledModel {
                 .filter(|(index, _)| filled.get(*index).copied().unwrap_or(false))
                 .map(|(_, state)| state.as_str())
                 .collect();
-            return err(format!(
+            let refusal = format!(
                 "initialization is not square: {conditions} initial equation(s) and {pinned} \
                  fixed start(s) for {n} unknown(s) ({states} state(s) and {} parameter(s) left \
                  to it); the conditions are {} written equation(s) and the demoted start(s) [{}], \
@@ -6023,7 +6028,22 @@ impl CompiledModel {
                 initial_equations.len(),
                 demoted_names.join(", "),
                 pinned_names.join(", "),
-            ));
+            );
+            // One condition over is what a model writes when it gives a
+            // start to every variable index reduction made dynamic and
+            // the reduction then tied two of them together: two volumes
+            // joined without a pressure drop, both given `p_start`. The
+            // section is right if the two starts agree and wrong if they
+            // do not, and which it is, is a fact about the numbers, not
+            // about the count. So the start is solved with each
+            // condition left out in turn and kept where the one left out
+            // holds at the answer. Two or more over would be a search
+            // over pairs, and is refused as before.
+            if conditions + pinned == n + 1 && !redundant_init_off() {
+                one_over = Some(refusal);
+            } else {
+                return err(refusal);
+            }
         }
         let fixed = &filled[..];
 
@@ -6191,188 +6211,199 @@ impl CompiledModel {
         let stall_after = std::env::var_os("OXIDELICA_NO_INIT_STALL")
             .is_none()
             .then_some(INIT_STALL_REPEATS);
-        let mut last_f: Option<Vec<f64>> = None;
-        let mut same_f = 0usize;
-        for _ in 0..50 {
-            let f = residual(&y, &mut values, &mut derivatives, &mut alg_guess)?;
-            if let Some(most) = stall_after {
-                if last_f.as_ref() == Some(&f) {
-                    same_f += 1;
-                } else {
-                    same_f = 0;
-                }
-                if same_f >= most {
-                    return err(
-                        "initialization did not converge in 50 Newton iterations".to_string()
-                    );
-                }
-                last_f = Some(f.clone());
+        // Solved means zero to within what the row can be computed
+        // to, not to within a fixed number. A drum's mass balance
+        // sums terms of 3.6e5 kg, and the rounding of that sum is
+        // near 1e-7 however exact the point is: Newton reached it
+        // in seven steps and then stood there for forty-three with
+        // the residual wandering between -1.3e-7 and -6.7e-8, and
+        // the model was refused as not converging. The size of a
+        // row's terms is what the Jacobian row times the point
+        // says it is, and a residual a trillionth of that is the
+        // arithmetic's floor rather than the equations' answer.
+        //
+        // The same test judges a condition left out of a section one
+        // over: it holds at the answer exactly when Newton would have
+        // accepted it as solved, and no second tolerance is invented
+        // for it.
+        let row_scaled = std::env::var_os("OXIDELICA_INIT_ABSOLUTE_ONLY").is_none();
+        let holds = |r: f64, row: &[f64], y: &[f64]| -> bool {
+            if r.abs() < 1e-10 {
+                return true;
             }
-            let held_guess = alg_guess.clone();
-            let mut jac = vec![vec![0.0; n]; n];
-            for j in 0..n {
-                let mut h = 1e-7 * (1.0 + y[j].abs());
-                let mut probe = y.clone();
-                probe[j] += h;
-                if !drift_guess {
-                    alg_guess.clone_from(&held_guess);
-                }
-                let mut fp = residual(&probe, &mut values, &mut derivatives, &mut alg_guess)?;
-                // A swapped row reads a balance through the inner blocks,
-                // and a step of 1e-7 relative is finer than what those
-                // blocks are solved to: in `TestWaterPumpStorage` the
-                // column of the volume's `U` came back exactly zero and
-                // the start was refused as not pinning `U` down, where at
-                // 1e-3 the column reads -0.09 (m350). The same cure the
-                // inner blocks take for a column below what the residual
-                // resolves: move further, up to 1e-3, and keep what the
-                // longer step answers only if twice the distance gives
-                // the same slope - a coefficient that is a fact, not a
-                // fact about the step.
-                if any_swapped {
-                    let base = h;
-                    let ceiling = 1e-3 * (1.0 + y[j].abs());
-                    // A longer step the equations cannot answer leaves
-                    // the column as the base step read it.
-                    let mut answered = true;
-                    while answered && h < ceiling && fp.iter().zip(&f).all(|(a, b)| a == b) {
-                        let mut probe = y.clone();
-                        probe[j] += h * 100.0;
-                        if !drift_guess {
-                            alg_guess.clone_from(&held_guess);
-                        }
-                        match residual(&probe, &mut values, &mut derivatives, &mut alg_guess) {
-                            Ok(longer) => {
-                                h *= 100.0;
-                                fp = longer;
-                            }
-                            Err(_) => answered = false,
-                        }
+            if !row_scaled {
+                return false;
+            }
+            let terms: f64 = row
+                .iter()
+                .zip(y)
+                .map(|(slope, at)| (slope * at).abs())
+                .sum();
+            terms.is_finite() && r.abs() <= 1e-12 * terms
+        };
+        // Newton on the conditions, with `skip` naming the one left out
+        // where the section is one over. What comes back is the answer,
+        // with the residual of every condition and its row of the
+        // Jacobian there - the left-out one included, so that the
+        // caller can ask whether it holds.
+        let newton = |mut y: Vec<f64>,
+                      skip: Option<usize>,
+                      values: &mut Vec<f64>,
+                      derivatives: &mut Vec<f64>,
+                      alg_guess: &mut Vec<f64>|
+         -> Result<NewtonAnswer, SimError> {
+            let mut last_f: Option<Vec<f64>> = None;
+            let mut same_f = 0usize;
+            for _ in 0..50 {
+                let full = residual(&y, values, derivatives, alg_guess)?;
+                let f = without_row(&full, skip);
+                if let Some(most) = stall_after {
+                    if last_f.as_ref() == Some(&f) {
+                        same_f += 1;
+                    } else {
+                        same_f = 0;
                     }
-                    if h > base {
-                        let mut farther = y.clone();
-                        farther[j] += 2.0 * h;
-                        if !drift_guess {
-                            alg_guess.clone_from(&held_guess);
+                    if same_f >= most {
+                        return err(
+                            "initialization did not converge in 50 Newton iterations".to_string()
+                        );
+                    }
+                    last_f = Some(f.clone());
+                }
+                let held_guess = alg_guess.clone();
+                let mut jac = vec![vec![0.0; n]; full.len()];
+                for j in 0..n {
+                    let mut h = 1e-7 * (1.0 + y[j].abs());
+                    let mut probe = y.clone();
+                    probe[j] += h;
+                    if !drift_guess {
+                        alg_guess.clone_from(&held_guess);
+                    }
+                    let mut fp = residual(&probe, values, derivatives, alg_guess)?;
+                    // A swapped row reads a balance through the inner blocks,
+                    // and a step of 1e-7 relative is finer than what those
+                    // blocks are solved to: in `TestWaterPumpStorage` the
+                    // column of the volume's `U` came back exactly zero and
+                    // the start was refused as not pinning `U` down, where at
+                    // 1e-3 the column reads -0.09 (m350). The same cure the
+                    // inner blocks take for a column below what the residual
+                    // resolves: move further, up to 1e-3, and keep what the
+                    // longer step answers only if twice the distance gives
+                    // the same slope - a coefficient that is a fact, not a
+                    // fact about the step.
+                    if any_swapped {
+                        let base = h;
+                        let ceiling = 1e-3 * (1.0 + y[j].abs());
+                        // A longer step the equations cannot answer leaves
+                        // the column as the base step read it.
+                        let mut answered = true;
+                        while answered && h < ceiling && fp.iter().zip(&full).all(|(a, b)| a == b) {
+                            let mut probe = y.clone();
+                            probe[j] += h * 100.0;
+                            if !drift_guess {
+                                alg_guess.clone_from(&held_guess);
+                            }
+                            match residual(&probe, values, derivatives, alg_guess) {
+                                Ok(longer) => {
+                                    h *= 100.0;
+                                    fp = longer;
+                                }
+                                Err(_) => answered = false,
+                            }
                         }
-                        let steady =
-                            match residual(&farther, &mut values, &mut derivatives, &mut alg_guess)
-                            {
-                                Ok(ff) => fp.iter().zip(&ff).zip(&f).all(|((near, far), at)| {
+                        if h > base {
+                            let mut farther = y.clone();
+                            farther[j] += 2.0 * h;
+                            if !drift_guess {
+                                alg_guess.clone_from(&held_guess);
+                            }
+                            let steady = match residual(&farther, values, derivatives, alg_guess) {
+                                Ok(ff) => fp.iter().zip(&ff).zip(&full).all(|((near, far), at)| {
                                     let a = (near - at) / h;
                                     let b = (far - at) / (2.0 * h);
                                     (a - b).abs() <= 0.25 * a.abs().max(b.abs())
                                 }),
                                 Err(_) => false,
                             };
-                        if !steady {
-                            fp.clone_from(&f);
+                            if !steady {
+                                fp.clone_from(&full);
+                            }
                         }
+                        let _ = self.walked.complaint();
                     }
-                    let _ = self.walked.complaint();
+                    for (i, row) in jac.iter_mut().enumerate() {
+                        row[j] = (fp[i] - full[i]) / h;
+                    }
                 }
-                for (i, row) in jac.iter_mut().enumerate() {
-                    row[j] = (fp[i] - f[i]) / h;
-                }
-            }
-            // Solved means zero to within what the row can be computed
-            // to, not to within a fixed number. A drum's mass balance
-            // sums terms of 3.6e5 kg, and the rounding of that sum is
-            // near 1e-7 however exact the point is: Newton reached it
-            // in seven steps and then stood there for forty-three with
-            // the residual wandering between -1.3e-7 and -6.7e-8, and
-            // the model was refused as not converging. The size of a
-            // row's terms is what the Jacobian row times the point
-            // says it is, and a residual a trillionth of that is the
-            // arithmetic's floor rather than the equations' answer.
-            let row_scaled = std::env::var_os("OXIDELICA_INIT_ABSOLUTE_ONLY").is_none();
-            let solved = f.iter().zip(&jac).all(|(r, row)| {
-                if r.abs() < 1e-10 {
-                    return true;
-                }
-                if !row_scaled {
-                    return false;
-                }
-                let terms: f64 = row
-                    .iter()
-                    .zip(&y)
-                    .map(|(slope, at)| (slope * at).abs())
-                    .sum();
-                terms.is_finite() && r.abs() <= 1e-12 * terms
-            });
-            if solved {
-                // Satisfied is not the same as determined: a singular
-                // Jacobian means the equations leave a whole family of
-                // starting points and this one is just the guess.
-                let probe = vec![1.0; n];
-                if solve_linear(&mut jac.clone(), &probe).is_none() {
-                    return err(format!(
-                        "the initialization problem is satisfied but not determined: the \
+                // The rows Newton works on: every condition but the one left
+                // out, which is carried beside them so that whoever left it
+                // out can ask whether it holds at the answer.
+                let mut used = without_row(&jac, skip);
+                let solved = f.iter().zip(&used).all(|(r, row)| holds(*r, row, &y));
+                if solved {
+                    // Satisfied is not the same as determined: a singular
+                    // Jacobian means the equations leave a whole family of
+                    // starting points and this one is just the guess.
+                    let probe = vec![1.0; n];
+                    if solve_linear(&mut used.clone(), &probe).is_none() {
+                        return err(format!(
+                            "the initialization problem is satisfied but not determined: the \
                          equations leave a family of starting points, free along [{}], and \
                          this one is only the guess",
-                        self.unpinned_names(&mut jac.clone(), unsettled).join(", "),
-                    ));
-                }
-                // The states go back as the point the run begins from;
-                // a parameter solved for is a parameter from here on,
-                // so its slot holds the answer for the whole run and
-                // the reported value is the one that was solved.
-                for ((name, slot), value) in unsettled.iter().zip(&y[states..]) {
-                    self.values_template[*slot] = *value;
-                    if let Some(entry) = self.parameters.iter_mut().find(|(had, _)| had == name) {
-                        entry.1 = *value;
+                            self.unpinned_names(&mut used, unsettled).join(", "),
+                        ));
                     }
+                    return Ok(NewtonAnswer {
+                        y,
+                        residual: full,
+                        jacobian: jac,
+                    });
                 }
-                y.truncate(states);
-                self.initial = y;
-                return Ok(());
-            }
-            let Some(step) = solve_linear(&mut jac.clone(), &f) else {
-                return err(format!(
-                    "the initialization problem is singular: the Newton step does not solve, \
+                let Some(step) = solve_linear(&mut used.clone(), &f) else {
+                    return err(format!(
+                        "the initialization problem is singular: the Newton step does not solve, \
                      because its equations do not pin down [{}]",
-                    self.unpinned_names(&mut jac, unsettled).join(", "),
-                ));
-            };
-            // A full step whose point is outside what the equations can
-            // answer is halved until it is inside. A litre of water is
-            // stiff enough that the step on its mass is 2.6e13 Pa per
-            // kilogram, and `TestWaterPumpStorage` takes it whole onto a
-            // pressure IF97 answers NaN for; halved, the initialization
-            // settles at 1.426e5 Pa, which is the pump's physical outlet
-            // pressure, where the whole step had left it at its start
-            // value of 7.0e5. Only a refusal of the domain is halved:
-            // an inner block that was evaluated and did not converge has
-            // said something about the model, and halving on that too
-            // cost three water models half an hour each for nothing
-            // (m348). `OXIDELICA_NO_INIT_DOMAIN_HALVING=1` takes the
-            // step whole, so that one binary gives both numbers.
-            let mut lambda = 1.0;
-            if !init_domain_halving_off() {
-                // Where a steady row was swapped, an inner block that
-                // did not converge at the trial is halved on as well: the
-                // first step from a start far off the steady point breaks
-                // the pipe's density loop of `Air0` with "do not bracket"
-                // while a shorter one does not, and the iterate climbs out
-                // of the corner in a handful of steps (m350). Only there,
-                // because anywhere else it cost three water models half an
-                // hour each for nothing, and only to 2^-16, below which
-                // the step is taken and its refusal stands.
-                let mut steady_halvings = 0;
-                for _ in 0..INIT_DOMAIN_HALVINGS {
-                    let trial: Vec<f64> =
-                        y.iter().zip(&step).map(|(at, s)| at - lambda * s).collect();
-                    let held = alg_guess.clone();
-                    // A trial that was refused can leave a walked body's
-                    // reason behind, and a block that then converges at
-                    // the next, shorter trial hands that reason on as
-                    // its own: in the pump the half step converged at
-                    // 1.17e5 Pa and was refused with the `tsat` of the
-                    // whole step's -4.6e5. What a discarded trial left
-                    // is about a point nobody goes to.
-                    let _ = self.walked.complaint();
-                    let outside =
-                        match residual(&trial, &mut values, &mut derivatives, &mut alg_guess) {
+                        self.unpinned_names(&mut used, unsettled).join(", "),
+                    ));
+                };
+                // A full step whose point is outside what the equations can
+                // answer is halved until it is inside. A litre of water is
+                // stiff enough that the step on its mass is 2.6e13 Pa per
+                // kilogram, and `TestWaterPumpStorage` takes it whole onto a
+                // pressure IF97 answers NaN for; halved, the initialization
+                // settles at 1.426e5 Pa, which is the pump's physical outlet
+                // pressure, where the whole step had left it at its start
+                // value of 7.0e5. Only a refusal of the domain is halved:
+                // an inner block that was evaluated and did not converge has
+                // said something about the model, and halving on that too
+                // cost three water models half an hour each for nothing
+                // (m348). `OXIDELICA_NO_INIT_DOMAIN_HALVING=1` takes the
+                // step whole, so that one binary gives both numbers.
+                let mut lambda = 1.0;
+                if !init_domain_halving_off() {
+                    // Where a steady row was swapped, an inner block that
+                    // did not converge at the trial is halved on as well: the
+                    // first step from a start far off the steady point breaks
+                    // the pipe's density loop of `Air0` with "do not bracket"
+                    // while a shorter one does not, and the iterate climbs out
+                    // of the corner in a handful of steps (m350). Only there,
+                    // because anywhere else it cost three water models half an
+                    // hour each for nothing, and only to 2^-16, below which
+                    // the step is taken and its refusal stands.
+                    let mut steady_halvings = 0;
+                    for _ in 0..INIT_DOMAIN_HALVINGS {
+                        let trial: Vec<f64> =
+                            y.iter().zip(&step).map(|(at, s)| at - lambda * s).collect();
+                        let held = alg_guess.clone();
+                        // A trial that was refused can leave a walked body's
+                        // reason behind, and a block that then converges at
+                        // the next, shorter trial hands that reason on as
+                        // its own: in the pump the half step converged at
+                        // 1.17e5 Pa and was refused with the `tsat` of the
+                        // whole step's -4.6e5. What a discarded trial left
+                        // is about a point nobody goes to.
+                        let _ = self.walked.complaint();
+                        let outside = match residual(&trial, values, derivatives, alg_guess) {
                             Ok(f) => f.iter().any(|r| !r.is_finite()),
                             Err(refusal) if refusal.outside_the_domain() => true,
                             Err(_) if any_swapped && steady_halvings < INIT_STEADY_HALVINGS => {
@@ -6381,21 +6412,196 @@ impl CompiledModel {
                             }
                             Err(_) => false,
                         };
-                    alg_guess = held;
-                    if !outside {
-                        break;
+                        *alg_guess = held;
+                        if !outside {
+                            break;
+                        }
+                        lambda *= 0.5;
                     }
-                    lambda *= 0.5;
+                }
+                for j in 0..n {
+                    y[j] -= lambda * step[j];
+                }
+                if y.iter().any(|value| !value.is_finite()) {
+                    return err("initialization diverged".to_string());
                 }
             }
-            for j in 0..n {
-                y[j] -= lambda * step[j];
+            err("initialization did not converge in 50 Newton iterations".to_string())
+        };
+
+        let answer = match one_over {
+            None => newton(y, None, &mut values, &mut derivatives, &mut alg_guess)?,
+            Some(refusal) => {
+                // Each condition is left out in turn, the lowest first,
+                // and the first square system whose answer satisfies the
+                // one left out is the start: the order is fixed so that
+                // two runs of one model leave out the same condition.
+                // Where none does, the refusal names the condition whose
+                // absence came closest and what it was left at, so a
+                // section that is wrong says where it is wrong.
+                let rows = conditions + pinned;
+                let mut closest: Option<(usize, f64, f64)> = None;
+                let mut failed: Vec<String> = Vec::new();
+                let mut kept = None;
+                for skip in 0..rows {
+                    let mut tried_values = values.clone();
+                    let mut tried_alg = alg_guess.clone();
+                    let _ = self.walked.complaint();
+                    let found = match newton(
+                        y.clone(),
+                        Some(skip),
+                        &mut tried_values,
+                        &mut derivatives,
+                        &mut tried_alg,
+                    ) {
+                        Ok(found) => found,
+                        Err(refusal) => {
+                            failed.push(format!(
+                                "without {}: {}",
+                                self.condition_name(initial_equations, &demoted_fixed, fixed, skip),
+                                refusal.0
+                            ));
+                            continue;
+                        }
+                    };
+                    let left = found.residual[skip];
+                    let row = &found.jacobian[skip];
+                    if holds(left, row, &found.y) {
+                        kept = Some((skip, found));
+                        break;
+                    }
+                    let scale: f64 = row
+                        .iter()
+                        .zip(&found.y)
+                        .map(|(slope, at)| (slope * at).abs())
+                        .sum();
+                    if closest.is_none_or(|(_, _, had)| left.abs() < had) {
+                        closest = Some((skip, left, scale));
+                    }
+                }
+                match kept {
+                    Some((_, found)) => found,
+                    None => {
+                        let _ = self.walked.complaint();
+                        return err(match closest {
+                            Some((skip, left, scale)) => format!(
+                                "{refusal}; with any one condition left out the rest have a \
+                                 start the one left out does not hold at - the nearest is \
+                                 {}, off by {left:e} against terms of {scale:e}, where a \
+                                 relative 1e-12 holds",
+                                self.condition_name(initial_equations, &demoted_fixed, fixed, skip),
+                            ),
+                            None => format!(
+                                "{refusal}; with any one condition left out the rest have no \
+                                 start either ({})",
+                                failed.join("; ")
+                            ),
+                        });
+                    }
+                }
             }
-            if y.iter().any(|value| !value.is_finite()) {
-                return err("initialization diverged".to_string());
+        };
+        let mut y = answer.y;
+        // The states go back as the point the run begins from; a
+        // parameter solved for is a parameter from here on, so its slot
+        // holds the answer for the whole run and the reported value is
+        // the one that was solved.
+        for ((name, slot), value) in unsettled.iter().zip(&y[states..]) {
+            self.values_template[*slot] = *value;
+            if let Some(entry) = self.parameters.iter_mut().find(|(had, _)| had == name) {
+                entry.1 = *value;
             }
         }
-        err("initialization did not converge in 50 Newton iterations".to_string())
+        y.truncate(states);
+        self.initial = y;
+        Ok(())
+    }
+
+    /// The condition at `row` of the residual an initialisation solves,
+    /// in the words a reader can find it by: the written equation, the
+    /// declaration demoted beside them, or the pinned start.
+    fn condition_name(
+        &self,
+        written: &[EquationItem],
+        demoted: &[(usize, f64)],
+        fixed: &[bool],
+        row: usize,
+    ) -> String {
+        if let Some(equation) = written.get(row) {
+            return format!(
+                "initial equation {} `{} = {}`",
+                row + 1,
+                expression_text(&equation.lhs),
+                expression_text(&equation.rhs)
+            );
+        }
+        let row = row - written.len();
+        if let Some((index, value)) = demoted.get(row) {
+            let name = self.algebraics.get(*index).map_or("?", String::as_str);
+            return format!("the fixed start `{name} = {value}`");
+        }
+        let row = row - demoted.len();
+        let state = fixed
+            .iter()
+            .enumerate()
+            .filter(|(_, pinned)| **pinned)
+            .nth(row)
+            .and_then(|(index, _)| self.states.get(index));
+        match state {
+            Some(name) => format!("the fixed start of `{name}`"),
+            None => format!("condition {}", row + 1),
+        }
+    }
+}
+
+/// What a Newton solve of an initialisation settled on: the point, and
+/// the residual of every condition there with its row of the Jacobian,
+/// a condition left out of the solve included.
+struct NewtonAnswer {
+    y: Vec<f64>,
+    residual: Vec<f64>,
+    jacobian: Vec<Vec<f64>>,
+}
+
+/// A list with the entry at `skip` left out, or the whole of it.
+fn without_row<T: Clone>(all: &[T], skip: Option<usize>) -> Vec<T> {
+    all.iter()
+        .enumerate()
+        .filter(|(index, _)| Some(*index) != skip)
+        .map(|(_, item)| item.clone())
+        .collect()
+}
+
+/// Whether `OXIDELICA_NO_REDUNDANT_INIT` keeps the old refusal of a
+/// section one condition over. Read by its value: `1` refuses as
+/// before, anything else leaves the leaving out on.
+fn redundant_init_off() -> bool {
+    std::env::var("OXIDELICA_NO_REDUNDANT_INIT").is_ok_and(|said| said == "1")
+}
+
+/// An expression as source text, for a refusal that names a written
+/// equation. What it cannot spell it shows as the tree, which is
+/// longer but still the expression rather than a guess at it.
+fn expression_text(expr: &Expr) -> String {
+    match expr {
+        Expr::Number(value) => format!("{value}"),
+        Expr::Ref(name) => name.clone(),
+        Expr::Time => "time".to_string(),
+        Expr::Neg(inner) => format!("-{}", expression_text(inner)),
+        Expr::Bin(op, left, right) => format!(
+            "({} {} {})",
+            expression_text(left),
+            op.text(),
+            expression_text(right)
+        ),
+        Expr::Call(name, args) => format!(
+            "{name}({})",
+            args.iter()
+                .map(expression_text)
+                .collect::<Vec<_>>()
+                .join(", ")
+        ),
+        other => format!("{other:?}"),
     }
 }
 
