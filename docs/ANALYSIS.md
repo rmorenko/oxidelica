@@ -32678,3 +32678,66 @@ model pays it was not measured (`--slow` was not asked for). Two
 models for a doubling of the run half is not a change to take as it
 stands; the next step is `--slow 20` on both halves, to name the
 models that pay.
+
+## The five-phase winding against the three: two reductions short (m348)
+
+The reduction traces of the one-winding models were taken again with
+one binary (`/tmp/ox347c`, `OXIDELICA_VICTIM_PROBE`, files in
+`/tmp/m348/vp/`), counting only the first build, before any
+re-selection:
+
+| model | phases | first-build reductions | flux victims | `i0` demoted |
+| ----- | ------ | ---------------------- | ------------ | ------------ |
+| `W3`  | 3      | 6                      | 5            | yes, at 6    |
+| `W5`  | 5      | 9                      | 9            | no           |
+| `N3`  | 3      | 16                     | 8            | yes          |
+| `N6`  | 6      | 27                     | 20           | no           |
+
+The fluxes go the same way in all four: one reduction for each of the
+two components of the core's flux, then one per joint between
+neighbouring converters, `conv[k].port_n.Phi = conv[k+1].port_p.Phi`
+differentiated, each demoting a converter's own flux. For three phases
+that is five reductions and the sixth is the open star's
+`w.plug_n.pin[3].i = w.zeroInductor.plug_n.pin[3].i`, which demotes
+`w.zeroInductor.i0`. For five phases it is nine, all on the fluxes,
+and then the matching is satisfied: no equation is left unmatched, so
+no tenth reduction is called and the constraint on `i0` is never
+reached. The difference between the two is not what reduction does
+at the star but that at five phases it never gets there. The reading,
+not yet checked by a matching printed whole: the extra fluxes of the
+converters absorb the deficiency the open star leaves, structurally -
+and numerically they cannot, which is the exact null
+vector `zeroInductor.v0 = -star.pin_n.v` the chapter above found.
+The same holds with the machine around it: `N3` demotes
+`aimc.stator.zeroInductor.i0`, `N6` does not, in 27 reductions of
+which 20 are fluxes.
+
+`W3` refuses as well, and for a reason of its own that the trace
+names. At reduction 6 every reachable candidate weighs zero at the
+start - `conv[3].Phi.re`, `conv[3].Phi.im` and `i0` all 0.0, the
+model starting from rest - and `i0` is taken by order. At t = 6e-4
+the monitor weighs the same constraint through the definitions and
+finds `conv[3].Phi.re` at 2.0e4 against `i0` at 3.4e-15, asks for a
+re-selection, and the rebuild demotes `conv[3].Phi.re` instead: the
+open star's constraint now left without its natural victim, the run
+refuses at t = 1e-3 along `der(i)` of the converters. With the
+monitor's weighing switched to the old slope
+(`OXIDELICA_PARTIAL_SENSITIVITY`), `W3` runs to 0.01 with `i0` and
+`v0` at zero and the star at 5e-13 V, which is the physical answer;
+`W5` refuses under the same switch exactly as before, so the second
+breed does not hide the first.
+
+So the five-phase family is a matching that is satisfied too early:
+the hidden constraint `sum(i) = 0` against `m*i0 = sum(i)` is a
+numerical dependency, not a structural one, and the reduction loop
+only ever runs while something is structurally unmatched. A fix would
+have to find it before the matching declares itself done - by the
+cancellation under substitution that the chapter above already
+describes, or by recognising the zero inductor's pair of equations
+when the plug it sits on ends in an open star. Either touches the
+choice of states for every model with a winding, so it stays a map;
+the instrument for the series that takes it is the victim diff of
+`N3` against `N6`, already printed. The monitor's re-selection of
+`W3` is a separate, smaller question - a weight read as zero at a
+start from rest letting the monitor overrule an order choice that was
+right - and has not been looked for in the corpus.
