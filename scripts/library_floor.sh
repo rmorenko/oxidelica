@@ -1589,9 +1589,19 @@ WORK_BODIES=1546158
 #           x0.992 .. x1.008
 #   newton  3064022 +- 5%  =  2910821 .. 3217223
 #           x0.993 .. x1.007
+#
+# Moved by letting an equation that stumbles twice give way to its
+# subset (m355), which turned the desk's preflight red on this line:
+# 3236503 against 3064022 (/tmp/m355/preflight.txt). The rise is named
+# model by model, one binary under OXIDELICA_NO_REPEAT_MEMBER=1 and
+# without it (`--only`, /tmp/m355/work18.txt): IMC_YDarc 30 -> 88830
+# Newton steps, now reaching the integrator before it refuses, and the
+# other machines of the row +10 to +35 each, 88936 in all. The centre
+# moves by exactly that, 3064022 + 88936 = 3152958, and five percent
+# around it is 2995310 .. 3310606.
 WORK_POINTS=2060155
 WORK_POINTS_PPM=50000
-WORK_NEWTON=3064022
+WORK_NEWTON=3152958
 WORK_NEWTON_PPM=50000
 # And Dimmer_RL, whichever way it falls, centred between the desk's run
 # under the series and the machine's printed refusal:
@@ -1679,7 +1689,13 @@ WORK_DEAREST=12
 # five percent around it is 134.9 to 149.1, which holds both and the
 # runner's printed 136 besides. The next runner log is what confirms
 # the 140.
-WORK_JACOBIANS=142
+#
+# Moved by the same series of m355: 167 against 142 on the desk, and
+# the rise is IMC_YDarc alone, 0 -> 22 Jacobians (/tmp/m355/work18.txt).
+# The centre moves by that, 142 + 22 = 164, and five percent around it
+# is 155.8 to 172.2, which holds the desk's 167 and the runner's
+# expected 158 to 162.
+WORK_JACOBIANS=164
 # The pair is held on a line of its own and to a band of its own, an
 # order of magnitude wide in either direction rather than five percent:
 # 90% either side of 274 is 27 to 520, so a refusal (0) or the swing to
