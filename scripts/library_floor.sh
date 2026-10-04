@@ -1045,7 +1045,16 @@ FLATTEN_FLOOR=966
 # differ by the same two swings and nothing else, SpringWithMass and
 # IMC_DOL (/tmp/m347/ci/runner.ran against /tmp/m347/ci/desk.ran). Set
 # from the lower.
-RUN_FLOOR=688
+#
+# And run 689 = 688 + ThyristorBridge2mPulse_RLV, the singular step
+# rejected by BDF of eb5c473. The runner printed 966 / 689 and runnable
+# 849 / 647 on 0a5dc21, in job 111323897143 of run 37164271055
+# (/tmp/m348/ci_0a5dc21.log); the desk printed 966 / 691 and 849 / 649
+# on the same compiler (/tmp/m348/b/off.txt). The two lists of models
+# run differ by the same two swings and nothing else, SpringWithMass and
+# IMC_DOL (/tmp/m348/runner.ran against /tmp/m348/desk_off.ran). Set
+# from the lower.
+RUN_FLOOR=689
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -1212,8 +1221,12 @@ RUN_FLOOR=688
 # And runnable run 646 by the same runner job as `RUN_FLOOR` (61533d5,
 # job 111297535223): 849 / 646 there against 849 / 648 on the desk, the
 # difference the same two swings.
+#
+# And runnable run 647 by the same runner job as `RUN_FLOOR` (0a5dc21,
+# job 111323897143): 849 / 647 there against 849 / 649 on the desk, the
+# difference the same two swings.
 RUNNABLE_FLATTEN_FLOOR=849
-RUNNABLE_RUN_FLOOR=646
+RUNNABLE_RUN_FLOOR=647
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
