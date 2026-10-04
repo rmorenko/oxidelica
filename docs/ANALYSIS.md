@@ -32976,3 +32976,23 @@ seven:
 The rows that mean the same thing were added before reading: the three
 rows that grew took six, the Newton direction row gave seven, and the
 seventh is the pump.
+
+### The gases at their pipe's bracket: the iterate cools toward 200 K
+
+`IdealGases.Air`, `Nitrogen` and `DryAirNasa` now stop at the short
+pipe's `dps_fg`, whose density is the medium's temperature solve, and
+the bracket refused is 200 K to 6000 K with both ends of one sign. The
+initialization's iterate says why (`OXIDELICA_M344_INIT_TRAIL` on
+`/tmp/ox347c` with the old halving, the narrow rule halving the same
+way here). In `Air` the specific energy `U / m` goes from 209439 J/kg at
+the declared start, 293.15 K, to 160650, 154348 and 150610 over the
+first three iterations, while the mass grows from 0.120 to 0.361 kg in
+0.1 m3: each Newton step on `U` and `m` asks for more mass and less
+energy per kilogram, so the gas is driven three times denser and some
+eighty kelvin colder, down to the root finder's lower edge, and every
+trial past the first quarter is refused there. The steady state the
+model asks for is the source's 293 K, so the direction is not toward
+the answer, and halving it more finely only crawls the same way. That
+is the family of point 21 again - the states are the volume's `U` and
+`m`, while the medium asks for `p` and `T` - and not something a
+shorter step reaches.
