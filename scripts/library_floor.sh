@@ -1054,7 +1054,17 @@ FLATTEN_FLOOR=966
 # run differ by the same two swings and nothing else, SpringWithMass and
 # IMC_DOL (/tmp/m348/runner.ran against /tmp/m348/desk_off.ran). Set
 # from the lower.
-RUN_FLOOR=689
+#
+# And run 690 = 689 + TestWaterPumpStorage, whose half step of the
+# initialization had been refused with the whole step's complaint
+# (cee1e83). The runner printed 966 / 690 and runnable 849 / 648 on that
+# tree, in job 111370703396 of run 37180073086
+# (/tmp/m350/ci_cee1e83.txt); the desk printed 966 / 692 and 849 / 650
+# on the same compiler (/tmp/m349/q/on.txt). The two lists of models run
+# differ by the same two swings and nothing else, SpringWithMass and
+# IMC_DOL (/tmp/m350/runner_ran_cee1e83.txt against
+# /tmp/m350/desk_ran_on.txt). Set from the lower.
+RUN_FLOOR=690
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -1225,8 +1235,13 @@ RUN_FLOOR=689
 # And runnable run 647 by the same runner job as `RUN_FLOOR` (0a5dc21,
 # job 111323897143): 849 / 647 there against 849 / 649 on the desk, the
 # difference the same two swings.
+#
+# And runnable run 648 by the same runner job as `RUN_FLOOR` (cee1e83,
+# job 111370703396): 849 / 648 there against 849 / 650 on the desk, the
+# difference the same two swings; TestWaterPumpStorage is a runnable
+# example.
 RUNNABLE_FLATTEN_FLOOR=849
-RUNNABLE_RUN_FLOOR=647
+RUNNABLE_RUN_FLOOR=648
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
