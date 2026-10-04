@@ -33501,8 +33501,7 @@ binary on one tree: five passes, five values within 1914105482 to
 1914105709, while expansions and bodies matched byte for byte. On one
 thread, forty corpus models gave 31008678 and then 31008669, so the
 order of threads was not the cause. Run three times each, one model
-of those forty moved: `TestControlledPump`, 14012620, 14012620,
-14012617. The cause was the question whether a model has streams at
+of those forty moved: `TestControlledPump`, 14012620, 14012620, 14012617. The cause was the question whether a model has streams at
 all. It was an `any` over the values of the connector table, which
 stops at the first class with a stream, in the hash's random order,
 and each class asked before that looks names up. Asked in order of
