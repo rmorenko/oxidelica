@@ -1074,7 +1074,17 @@ FLATTEN_FLOOR=966
 # models run differ by the same two swings and nothing else,
 # SpringWithMass and IMC_DOL (/tmp/m352/runner_ran.txt against
 # /tmp/m352/desk_ran.txt). Set from the lower.
-RUN_FLOOR=695
+#
+# And run 698 = 695 + WaterIF97_ph, WaterIF97OnePhase_ph and
+# WaterIF97_pT, whose free start is now read from the modifier an
+# `extends` writes on the shared `system` (fdafa44). The runner printed
+# 966 / 698 and runnable 849 / 656 on that tree, in job 111444668699 of
+# run 37205135184 (/tmp/m353/runner.log); the desk printed 966 / 700 and
+# 849 / 658 on the same compiler (/tmp/m352/on.txt). The two lists of
+# models run differ by the same two swings and nothing else,
+# SpringWithMass and IMC_DOL (/tmp/m353/runner_ran.txt against
+# /tmp/m353/desk352.txt). Set from the lower.
+RUN_FLOOR=698
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -1255,8 +1265,13 @@ RUN_FLOOR=695
 # job 111411398184): 849 / 653 there against 849 / 655 on the desk, the
 # difference the same two swings; all five gas and steam test models are
 # runnable examples.
+#
+# And runnable run 656 by the same runner job as `RUN_FLOOR` (fdafa44,
+# job 111444668699): 849 / 656 there against 849 / 658 on the desk, the
+# difference the same two swings; the three water test models are
+# runnable examples.
 RUNNABLE_FLATTEN_FLOOR=849
-RUNNABLE_RUN_FLOOR=653
+RUNNABLE_RUN_FLOOR=656
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
