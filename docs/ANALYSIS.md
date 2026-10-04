@@ -33119,3 +33119,39 @@ refusal, a difference step of `1e-5`) the model still refuses, now
 as a singular initialization free along `pipe.Us[2]` after the last
 node's mass has gone to 1112 kg, so the two-phase pipe has a link of
 its own past the start.
+
+### A modifier an `extends` writes on a shared instance is lost
+
+Measuring the probes above on `WaterIF97_ph` turned up something
+that has nothing to do with them. That model writes
+`extends PartialTestModel(..., system(energyDynamics =
+DynamicFreeInitial), volume(medium(h(fixed = true), p(fixed =
+true))))`, and the run was given `der(h) = 0, der(p) = 0`, the steady
+start of the base's `inner System`. The smallest model that does the
+same is twenty lines (`Dyn1.mo` in the shift's notes): a base with
+`inner Sys system(energyDynamics = Steady)`, a volume whose
+`initial equation` asks `if energyDynamics == Steady`, and
+`extends Partial(system(energyDynamics = Free))` on top. Every
+reading of the parameter in the run says `Free`, and `x` still starts
+at the steady value. The branch is settled during flattening from
+`settle_the_inner_instances` (`flatten/instantiate.rs`), which writes
+a shared instance's parameters from the modifiers of its declaration
+and never sees the ones the class above handed down. Without the
+`extends` the same modifier works.
+
+Under a probe that lets the modifier from above win
+(`extends_inner_m350.patch` in the shift's notes, the switch
+`OX_PROBE_EXTENDS_INNER`), with a test that is red without it
+(`a_modifier_an_extends_writes_on_an_inner_reaches_its_parameters`):
+`WaterIF97_ph`, `WaterIF97OnePhase_ph` and `WaterIF97_pT` run, where
+all three refuse today. The library holds eight such `extends`; the
+other five were run both ways. `SeriesPipes12` and `SeriesPipes13`
+refuse either way, in different words. The two consistent-initialization
+models `TwoVolumesFullInitial` and
+`TwoVolumesFullSteadyStatePressureAndTemperature` run today and refuse
+under the probe with "initialization is not square: 4 initial
+equation(s) ... for 3 unknown(s)". Today's run is not the run they ask
+for: the steady one starts at 1.0e5 Pa and 623.15 K and is at
+99396 Pa and 613.97 K one second later, because the steady start it
+declares never reached it. So the fix costs two models that run on
+the wrong initialization, and its pair has to say so by name.
