@@ -32593,3 +32593,35 @@ names), the excited synchronous machine's cage read twice (three
 road of the growth past rounding; each is a question for index
 reduction or the matching, which a corpus pair would have to answer
 model by model.
+
+### The two pumps of point 21, measured
+
+Point 21 of the queue held `TestWaterPumpStorage` and
+`TestWaterPumpPowerCharacteristic` as "probably the discarded
+`stateSelect`", from an estimate. Measured on `/tmp/ox347`
+(`/tmp/m347/pump/`), both refuse the same way and for a reason that
+neither proves nor disproves that reading. The initialization
+converges: `der(pump.medium.h) = 0` takes `pump.U`,
+`der(pump.medium.p) = 0` takes `pump.m`, and the pressure settles at
+7.004e5 Pa. The block `[pump.medium.p, pump.V_flow_single]` is then
+solved again at t = 0 and starts from a residual of 0.53 - the density
+equation `d = f(p, h)` of the water formulation - at the very unknowns
+it had just converged on with a residual of 1e-10. Its full Newton
+step takes the pressure to -4.4e5 Pa, where IF97 answers NaN; the
+retreat from the edge stops at half the step, the first point that can
+be evaluated, with a residual of 20.7; and the line search crawls from
+there to a corner at 600 Pa and refuses. It is the overshoot by a full
+step through a medium that `Air` and `Nitrogen` showed (m344), on a
+block of two unknowns.
+
+One change was tried and taken back. With the retreat from a NaN
+continued until the residual is below the footing's (behind a switch,
+`/tmp/ox347b`), the trail comes back down from 20.7 to 0.52 in four
+halvings - and the block then crawls at a sixty-fourth of the Newton
+step for eleven iterations and refuses the same way (`t2.txt`). The
+direction itself does not lead to the solution from there. Both pumps
+refuse under the switch either way, so it was not kept. The open
+question is the jump: what moves the density residual from 1e-10 to
+0.53 between the initialization and the first solve of the run while
+the block's own unknowns stay where they were - which is something the
+states `U` and `m` carry across, and the next probe.
