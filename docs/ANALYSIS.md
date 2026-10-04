@@ -32854,3 +32854,51 @@ trial is sometimes the edge of the domain seen from inside, as in the
 pump, where the next half step hits it outright; telling those apart
 is a question about the inner block's own retreat, not about the
 outer step.
+
+## Where the five-phase star goes: the currents the flux leaves free (m349)
+
+The reading left open by m348 - that in the five-phase winding the
+fluxes absorb the deficit of the open star - was checked by printing
+the whole matching at the point the reduction loop stops, on the small
+models `/tmp/m347/mini/W3.mo` and `W5.mo` (a temporary print behind a
+switch on a pinned binary, `/tmp/ox349m`, not in the tree; output
+`/tmp/m349/w/W3.txt` and `W5.txt`). W3 stops after 6 reductions with
+381 equations matched, W5 after 9 with 462.
+
+The difference is in which equations take the phase currents. The
+magnetic side of the winding has two degrees of freedom whatever `m`
+is, the real and imaginary parts of the core's flux, and after the
+flux reductions those two take two phase currents through the
+converters' `V_m` equations (W3: `C[2].i` and `C[3].i`; W5: `C[4].i`
+and `C[5].i`). What is left for the electric side is `m - 2` phase
+currents: one in W3, three in W5. The electric side has two equations
+over the phase currents that a state does not settle, the star's
+`sum(i) = 0` (with `star.pin_n.i = 0`) and the zero inductor's
+`m * i0 = sum(i)` with `i0` a state.
+
+- In W3 one free current cannot carry two equations. The matching
+  fails on a connection current (`w.plug_n.pin[3].i`), the sixth
+  reduction differentiates there, `i0` is its victim, and the
+  zero-sequence voltage is then taken by the differentiated equation
+  `m * v0 / Lzero = sum(der(i))` (eq 316): `v0` is pinned and the star
+  is not floating.
+- In W5 three free currents carry both. The star's sum takes
+  `star.plug_p.pin[3].i` (eq 321), `m * i0 = sum(i)` takes
+  `w.zeroInductor.i[1]` (eq 162) with `i0` read as a known state, and
+  the matching is complete, so the tenth reduction is never asked for.
+  `v0` is then taken by the plain `v[4] = v0` (eq 166), which only
+  says it equals one phase's drop, and nothing else in the model fixes
+  the potential of the open star: the columns `star.pin_n.v` and
+  `w.zeroInductor.v0` of the block that refuses are the two names of
+  that one free potential.
+
+So the structural deficit is not absorbed by the fluxes but by the
+currents the fluxes leave free. The two electric equations together
+say `m * i0 = 0`, a constraint on a state, and that is visible only
+numerically: structurally each of them has a current of its own to
+take. It is the case Pantelides is blind to by construction - a
+constraint that appears only when two equations are added - and a
+reduction that should differentiate `sum(i) = 0` never gets a failed
+match to start from. The road this points at is to find the hidden
+constraint where the run sees it, as the zero row of the singular
+block, rather than in the matching; nothing was changed here.
