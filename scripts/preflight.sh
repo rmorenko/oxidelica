@@ -14,12 +14,19 @@
 # else is the same command CI runs, so a pass here means a pass there
 # unless the difference is the platform itself.
 #
-# Usage: scripts/preflight.sh [--quick] [<library directory>]
+# Usage: scripts/preflight.sh [--quick] [--heavy] [<library directory>]
 #
 #   --quick  the fast checks only - formatting, clippy, tests, examples.
 #            Coverage and the linters are the slow ones, and while a
 #            change is still moving they are noise; run the whole thing
 #            before the push.
+#   --heavy  after the library step, the heavy models as well, against
+#            their own floors in scripts/heavy_floor.sh. Twenty minutes
+#            more, and wanted by a change to the solver: the main pass
+#            does not see the heavy models, push CI does not run them,
+#            and a regression in `Spice3.Examples.Oscillator` went
+#            twenty hours and three pushes before the nightly run
+#            caught it. Without the flag the step is named as skipped.
 #
 # The library directory defaults to `.msl` at the root of the tree,
 # which is where every honest measurement of this project was taken,
@@ -32,10 +39,12 @@ set -uo pipefail
 cd "$(dirname "$0")/.."
 
 quick=0
+heavy=0
 library=""
 for argument in "$@"; do
   case "$argument" in
     --quick) quick=1 ;;
+    --heavy) heavy=1 ;;
     -*) echo "unknown option: $argument" >&2; exit 2 ;;
     *) library="$argument" ;;
   esac
@@ -155,6 +164,21 @@ else
   skipped+=("The standard library still reads")
 fi
 
+heavy_name="The heavy models hold their floors"
+if [ "$heavy" -eq 1 ] && [ -d "$library" ]; then
+  step "$heavy_name" ./scripts/heavy_floor.sh "$library"
+else
+  printf '\n\033[1m== %s\033[0m\n' "$heavy_name"
+  if [ "$heavy" -eq 1 ]; then
+    printf '\033[33mskipped\033[0m: no library at %s\n' "$library"
+    skipped+=("$heavy_name")
+  else
+    # Not run is not unchecked: push CI does not run these either, so
+    # the step is named in the summary without changing its verdict.
+    printf '\033[33mnot run\033[0m: wanted by solver changes, run with --heavy\n'
+  fi
+fi
+
 if [ "$quick" -eq 0 ]; then
   optional_step "Coverage, the floor is 92.5% of lines" cargo-llvm-cov \
     ./scripts/coverage.sh --summary-only
@@ -189,6 +213,11 @@ if [ "$quick" -eq 0 ]; then
 fi
 
 printf '\n\033[1m== summary ==\033[0m\n'
+if [ "$heavy" -eq 0 ]; then
+  printf '\033[33mnot run\033[0m: %s (--heavy)\n' "$heavy_name"
+elif [ -d "$library" ] && [[ ! " ${failures[*]:-} " == *"$heavy_name"* ]]; then
+  printf '\033[32mpassed\033[0m: %s\n' "$heavy_name"
+fi
 unchecked=0
 for name in "${skipped[@]:-}"; do
   if [ -n "$name" ]; then
