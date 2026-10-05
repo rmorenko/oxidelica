@@ -33977,3 +33977,32 @@ Solver changes are measured against `scripts/heavy_models.txt` on the
 desk before the push, on Roman's word of 2026-10-05: the carved-out
 giants are where the corpus is blind, and this shift's culprit was
 found by their floor a day after it was pushed.
+
+### `NAND` and `ONEBIT` are the outer base's capacitance at zero (m358)
+
+The two that m357 left open were probed the same way, the unscaled block
+printed at the pivot test (`/tmp/m358/probe_NAND.txt`,
+`probe_ONEBIT.txt`, a local probe not committed):
+
+- `NAND` (FourBitBinaryAdder): a block of 15 of rank 11. One column is
+  zero outright, `der(Q2.vbx)`, read only by
+  `Q2.icapbx = Q2.cc.capbx * der(Q2.vbx)`. The four directions of the
+  kernel are all in the `vbx` derivatives of `Q2` to `Q5` and the
+  clamp diodes' nodes beside them.
+- `ONEBIT`: a block of 117 of rank 41. Twelve columns are zero
+  outright, every one a `der(X*.Q*.vbx)` read only by its own
+  `icapbx`. Four more rows read zero: they tie derivatives of `vcs` and
+  of the clamp nodes that the block does not hold as unknowns, so the
+  block is not only rank-deficient but also takes in equations it does
+  not solve for. That second half was not followed.
+
+So both are the `RtlInverter` case and not a new one. The card `QMOD`
+writes `CJE` and `CJC` and no `XCJC`, whose default is 1, so
+`capbx = m_tBCcap * (1 - XCJC)` is zero and the outer base's
+derivative is read by nothing. The pivot test is right to refuse. The
+`CJE` and `CJC` that m357 took as evidence against the zero are the
+other two junctions and do not reach `capbx`. Of the five Spice3 models
+of that list, four are now read from the sources as a capacitance the
+card makes zero, and the fifth, `MPmos` with `MNmos`, as `CBD=0, CBS=0`.
+The fix is where the derivative is chosen as an unknown, and it was not
+built.
