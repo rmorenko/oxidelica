@@ -34231,3 +34231,65 @@ not of the choice of victim. The tie is not closed by any measure
 taken on the choice alone, and the next cut is the singular diode
 block itself: both sets leave the secondary's line currents of an
 open-delta winding free with the diodes off.
+
+### `TestSharpEdgedOrifice` is a block solved before `when initial()` has fired (m359, a map)
+
+The m356 map of the NaNs before any Newton step left the orifice
+unnamed. It is named now, and it is not a divisor in the orifice.
+Every divisor of the residual is a parameter that is not zero
+(`diameter` 0.1, `leastDiameter` 0.02, `zeta1`, `zeta2`) or a density
+`state.p/(R*state.T)`. The pressure is the one that is zero.
+
+Shrunk from the real model, smallest last (`/tmp/m359/orif/`, one
+binary built from c387931):
+
+| model          | the orifice's inlet                             | result       |
+| -------------- | ----------------------------------------------- | ------------ |
+| `OrifSmall`    | `Boundary_pT` at a fixed 1.2e5                  | runs         |
+| `OrifPinConst` | the same through `p_in`, from a `Constant`      | runs         |
+| `OrifRamp`     | through `p_in`, from a `Ramp`                   | runs         |
+| `OrifPin`      | through `p_in`, from the model's `TimeTable`    | NaN at t = 0 |
+| `OrifPinFlat`  | the same `TimeTable`, flat at 1.2e5             | NaN at t = 0 |
+| `TTDiv`        | twelve lines, `x^3 + x - 1/p_table.y` in a loop | inf at t = 0 |
+
+`TimeTable` computes `y = a*timeScaled + b`, and `a` and `b` are
+discrete values written by `when initial()`. Until that clause fires
+they stand at zero, and so does `y`. Read by an explicit equation the
+zero is overwritten before anything sees it (`TTInit` prints 120000 at
+t = 0). Read by an implicit block it is divided by, and a backtrace
+through a local probe panic names the two places the block is solved
+before the clause fires:
+
+1. `check_block_regularity`, called at the end of `compile_at`
+   (`compile.rs:5078`), solves every implicit block at the template
+   values, where no `when` has run.
+2. The initial event's first `eval_point` (`events.rs:535`), which
+   settles the discrete definitions before any `when` may fire, and
+   propagates the block's refusal with `?`.
+
+With both lifted under probe switches (`OXIDELICA_PROBE_NO_REGULARITY`,
+and `OXIDELICA_PROBE_INIT_HALF` tolerating a failure on the first pass
+of the initial event only, `/tmp/m359/oxpanic`, not committed) `TTDiv`,
+`OrifPin` and `TestSharpEdgedOrifice` run. Of the ten models of the row,
+only the orifice stood at this wall (`/tmp/m359/nanfam_on.txt`); the
+other nine are the divisions m356 named.
+
+The refusal sent the reader the wrong way: "every value the residual
+reads is a finite number" is true, and the finite zero it reads is
+the fault, which a check for numbers cannot see. A probe that names
+the discrete values a block reads which a `when initial()` has not yet
+written would have pointed here in one line.
+
+What a fix has to be: not a skip. The regularity check is a real
+check, and the first pass of the initial event is where a definition
+reads its inputs. The order is what is wrong. The `when initial()`
+assignments that a block reads belong before the block is first
+solved, in both places, and a block whose refusal comes before them
+is refused for the compiler's order, not the model's equations.
+
+The pair was started at the end of the shift, one binary
+(`/tmp/m359/oxpanic`), the main pass with both switches off and then
+on, into `/tmp/m359/pair_off.txt` and `/tmp/m359/pair_on.txt`. It had
+not finished when the shift closed, and no number from it is quoted
+here. The next shift reads the two files: totals, the run lists diffed
+by name, and the ratio of the halves, before anything is built.
