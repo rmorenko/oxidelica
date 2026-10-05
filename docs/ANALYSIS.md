@@ -34308,3 +34308,138 @@ and whether the Spice3 waveforms are right rather than merely finite,
 were not checked before the shift closed. Both switches are skips, and
 the fix is the order, not either skip, so nothing was built and the
 floors are untouched.
+
+### The order of `when initial()` before a block's first solve (m360)
+
+The m359 pair put seven models on two probe switches at once. Asked
+one switch at a time with `--only` from the root, the same binary
+(`/tmp/m359/oxpanic`, files `/tmp/m360/a_<model>_<mode>.txt`):
+
+| model                   | neither | no regularity | initial half | both |
+| ----------------------- | ------- | ------------- | ------------ | ---- |
+| `MNmos`                 | refused | runs          | refused      | runs |
+| `MPmos`                 | refused | runs          | refused      | runs |
+| `NAND`                  | refused | runs          | refused      | runs |
+| `ONEBIT`                | refused | runs          | refused      | runs |
+| `WaterIF97`             | refused | runs          | refused      | runs |
+| `GearType2`             | refused | refused       | refused      | runs |
+| `TestSharpEdgedOrifice` | refused | refused       | refused      | runs |
+
+Five of the seven are won by lifting the regularity check alone, and
+none of the five is an order fault. The m359 reading that the Spice3
+four stood behind `if m_bInit then 0 else C*der(v)` was wrong:
+`m_bInit` is `constant Boolean m_bInit = false` in every Spice3
+device (`Spice3.mo:4508` and its siblings), so no `when` writes it.
+What the four refuse is the check's own finding, `underdetermined
+algebraic loop ["der(Dinternal)", "der(B.v)", "der(G.v)",
+"der(Sinternal)", "icBS"]` on `MNmos`: the card sets `CBD = CBS = 0`,
+and the block holding the junction derivatives is singular in fact.
+Simulated without the check, `NAND` and `MNmos` (both are open
+subcircuits with no source) write every voltage and current as zero.
+That happens to be the physical answer for a circuit nothing drives,
+but it is the root Newton started from, not one the block determined,
+so lifting the check would have given a number that only looks right.
+This is link 3 of the zero coefficient map above, untouched by order.
+
+`WaterIF97` refuses at `initial value of medium.h is fixed at 100000
+but the constraints require 99999.999998813`, a difference of
+1.2e-6 against the check's absolute 1e-6 at a magnitude of 1e5. That
+is the tolerance of the fixed-start comparison
+(`check_block_regularity`), a separate question and also not order.
+
+That leaves the orifice and `GearType2` behind both switches.
+`GearType2` is not a `when initial()` either: it refuses on
+`bearingFriction.sa`, which the block cannot see because `locked`,
+`startForward` and `mode` stand at their templates before the
+discrete definitions settle. Under both switches it runs with
+`locked = 1` and every torque zero, which is right for two free
+flanges and nothing driving them, but it got there by skipping two
+checks. Its wall is the order of discrete _definitions_ against the
+block, which is one storey further than this fix goes.
+
+The fix taken is the order, and only for what a `when initial()`
+writes. Both places that solve a block before the initial event's
+clauses now ask again after them, rather than skipping:
+`check_block_regularity` solves the plan once, and if a block refuses
+it fires the initial event's pure-assignment branches into the
+values and solves again; the initial event's first `eval_point` does
+the same, marking the branches it fired so that the event does not
+fire them a second time. An early branch fires on the same edge the
+event fires it on: true now, not true before the event, not yet
+fired. A model that passed before goes the old way
+step for step, since the clauses only come forward on the refusal
+path, and a block that refuses with the clauses fired refuses for
+the model's own reasons. A branch that also asserts, terminates or
+reinits is left to the event. `OXIDELICA_NO_INITIAL_ORDER` restores
+the old order. The witness is
+`a_block_reads_what_when_initial_writes`, a discrete `b` set by
+`when initial()` divided into a loop, red under the switch and right
+to 1e-15 without it (`x(0) = 8.333416666920152e-6`, Brent's root of
+`x^3 + x - 1/1.2e5 = 1e-5*x`). The small models of m359 go the same
+way: `TTDiv`, `OrifPin` and `OrifPinFlat` refused under the switch
+and run without it, while `TTInit` and `OrifSmall` run under both.
+Of the seven, `--only` on the built binary (`/tmp/m360/ox1`,
+`/tmp/m360/only7.txt`) runs `TestSharpEdgedOrifice` and refuses the
+other six exactly as before.
+
+The orifice's numbers, judged rather than counted
+(`/tmp/m360/w/orif.csv`): the table drives the inlet from 1e4 to
+2.9e4 Pa against an ambient of 1e5, so `dp` runs from -9e4 to -7.1e4
+and the flow is reversed throughout, -2.108 to -1.872 kg/s. The ratio
+of the two flows is 1.126, and so is the square root of the ratio of
+the two pressure drops, which is the turbulent law a sharp-edged
+orifice is. Both orifices carry the same flow, as their identical
+parameters say they should.
+
+The pair, one binary built from the final tree (`/tmp/m360/ox2`),
+the main pass with the switch on and then off
+(`/tmp/m360/pair_off.txt`, `/tmp/m360/pair_on.txt`): with the old
+order 966 flatten / 709 run, runnable 849 / 667, 192 jacobians,
+37596671 Newton steps, equal to the m359 off half to the digit; with
+the new order 966 / 710, runnable 849 / 668, 192 jacobians, 37596780
+Newton steps. One arrives, `TestSharpEdgedOrifice`, and none leave.
+That is the m359 expectation of seven less the six the attribution
+above took away from the order, and each of the six is accounted for
+by name: four behind a singular block, one behind a fixed-start
+tolerance, one behind discrete definitions. The floors stay where
+they are and the runner's number sets them.
+
+### The NOR gates' zero transit time: a division hides the zero (m360, a map)
+
+`HeatingNPN_NORGate` and `HeatingPNP_NORGate` are two rows of `X of
+algebraic loop`, both on `der(T1.vbc) = (...)/T1.cbc is NaN at t = 0`.
+The example sets `tauVal = 0` and `CapVal = 0`, and `HeatingNPN`
+writes `cbc = smooth(1, Taur*is_t/(NR*vt_t)*exlin2(...) + Capcjc)`
+with `Capcjc = smooth(1, Cjc*powlin(vbc/Phic, Mc))` (`NPN.mo:81,83`).
+Both terms are zero in every run of the model, so `cbc` is zero and
+the solved-for derivative divides by it.
+
+Ladder, smallest first (`/tmp/m360/zt/`, binary `/tmp/m360/ox1`):
+
+| model      | the coefficient on `der(vbc)`             | result                       |
+| ---------- | ----------------------------------------- | ---------------------------- |
+| `ZTPlain`  | `Taur * der(vbc)`                         | runs                         |
+| `ZTMove`   | `Taur * exp(vbc/vt) * der(vbc)`           | runs                         |
+| `ZTDiv`    | `Taur * Is / vt * der(vbc)`               | step size underflow at t = 0 |
+| `ZTInline` | `Taur * Is / vt * exp(vbc/vt) * der`      | step size underflow at t = 0 |
+| `ZTConst`  | `cbc = Taur*Is/vt`, then `cbc * der`      | step size underflow at t = 0 |
+| `ZeroTau`  | `cbc = Taur*Is/vt*exp(vbc/vt)`, `cbc*der` | step size underflow at t = 0 |
+
+So the first link is narrower than m359's link 1 and has nothing to
+do with evaluating: `Taur * Is / vt` parses as `(Taur * Is) / vt`, a
+division at the top, and `zero_parameter` (`compile.rs:2426`) walks
+only products and negations. A zero numerator under a division by a
+parameter is still zero, and the walk stops one node short of it.
+`ZTMove` against `ZTDiv` is the whole of the evidence: the moving
+factor costs nothing, the division costs the model. The second link
+is the NOR gates' real shape, the zero carried by a variable (`cbc`,
+`Capcjc`), which is m359's link 2 and is not reached by the quench at
+all.
+
+Nothing was built. Quenching a derivative changes which equation
+defines what, so it is measured by the list of victims and the diff
+of which models run under a switch, as the note on definitions says,
+and that is a shift of its own. The first link (a `Div` whose
+numerator is a named zero) is one arm of `zero_parameter` and the
+witness is `ZTDiv`. It would not by itself move the NOR gates, which
+stand behind the second.
