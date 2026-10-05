@@ -34443,3 +34443,28 @@ and that is a shift of its own. The first link (a `Div` whose
 numerator is a named zero) is one arm of `zero_parameter` and the
 witness is `ZTDiv`. It would not by itself move the NOR gates, which
 stand behind the second.
+
+### `GearType2` stands at a loop through a discrete definition (m360, a map)
+
+Of the seven, `GearType2` was the one left needing both probes.
+`why` on its friction (`/tmp/m360/ox2`) shows the shape. The block's
+only unknown is `bearingFriction.sa`, and the torque equation mentions
+it only in the locked branch, `tau = if locked then sa*unitTorque
+else table_signs[2]*(...)`. The non-locked branch does not hold `sa`.
+`locked` is a discrete definition, `(not free) and not (pre(mode) ==
+Forward or startForward or ...)`, and `startForward` reads `sa` in
+turn (`pre(mode) == Stuck and sa > tau0_max/unitTorque`). On the
+template `locked` is false, so the block is handed the branch without
+`sa` and refuses with `do not mention ["bearingFriction.sa"]`. Once
+the definitions settle, `locked` is true, which is what the probes'
+run shows (`locked = 1`, every torque zero, two free flanges).
+
+So this is not an order the compiler can fix by putting one thing
+first. The block needs `locked` to see `sa`, and `locked` needs `sa`.
+That is the mixed discrete and continuous loop the language resolves
+by iterating the event, with the block asked under each candidate
+mode. A fix would solve the block under the mode the definitions
+settle to, not under the template's, and it belongs with the
+`Friction` family (`BearingFriction`, `Clutch`, `Brake` share these
+equations) rather than with `when initial()`. It is mapped here and
+nothing was built.
