@@ -33669,8 +33669,12 @@ ways (`/tmp/m356/ladder.txt`), moves exactly the six from
 `underdetermined` to running and leaves the twelve others where they
 were: `IMC_Inverter` and `SMEE_DOL` at `singular Jacobian`, the two
 `IMC_Transformer` at `the Newton direction`, `IMC_YDarc` at `step size
-underflow`, the two `SMPM` machines, the five that were never of the
-family and `TestBearingConversion`, which ran before and runs.
+underflow`, the two `SMPM` machines, and the five that were never of
+the family. The ladder's file prints `RUNS` for `TestBearingConversion`
+both ways, and that is wrong: the script put `Modelica.` before every
+name, `ModelicaTest` became a class that does not exist, and the empty
+answer was read as a run. Asked by its own name it stands at `the
+equations of algebraic loop` both ways, as it did in m355.
 
 A pair of one binary over the corpus (`/tmp/m356/r_off.txt`,
 `r_on.txt`) printed 966 / 702 and 849 / 660 the old way and 966 / 709
@@ -33692,3 +33696,53 @@ checked against another tool. At 0.1 the switches close, and the run
 is then refused as structurally singular (`compile.rs:2078`): the next
 wall, not one this change made, since before it the model did not
 reach t = 0.
+
+## Eight NaNs before any Newton step are three divisions by zero (m356, a map)
+
+The row `` `X` of algebraic loop [...] `` that the map of m355 left
+for a probe was taken one model at a time (`--only`, `OXIDELICA_WHERE`
+and `OXIDELICA_NEWTON_TRAIL`, `/tmp/m356/nan_*.txt`). All of it is
+raised at `solvers/mod.rs:1215`, the residual not a number at the
+block's starting values while every value it reads is finite. The
+operation in each case is a division, and the divisor is zero at the
+start for one of three reasons.
+
+A divisor that the model sets to zero. `HeatingNPN_NORGate` and
+`HeatingPNP_NORGate` declare `CapVal = 0` and `tauVal = 0` and pass
+them to every transistor, so `T1.cbc = Taur * ... + Capcjc` is zero
+by its parameters, `Capcjc = Cjc * ...` with `Cjc = 0`. The residual
+the compiler built is `der(T1.vbc) = (...) / T1.cbc`: it solved for
+the derivative by dividing through by a capacitance that is zero.
+The trail shows rows 2 to 4 at NaN with the block at zero and at
+plus or minus infinity for every start tried, up to 1000, so no
+starting value would help. With a capacitance that is zero, the
+derivative is not something that equation can be solved for.
+
+A divisor that is a guarded length started at zero. `ThreeSprings`
+reads `spring2.lineForce.e_rel_0[1] = r_rel_0[1] / s` with `s = if
+length > s_small then length else s_small`, and the guard is there so
+that `s` is never zero. At the block's start the unknown `s` stands at
+zero rather than at what its own assignment gives, and the residual
+is minus infinity.
+
+A divisor that is a coefficient zero at the joint's start.
+`DoublePendulum` (and `DoublePendulumInitTip`, the same 1482
+characters) divides by `(-revolute2.R_rel.T[2,1]) ^ 2`, where
+`R_rel.T[2,1] = e[2]e[1](1 - cos phi) - e[3] sin phi`, which is zero
+at `phi = 0` for the joint's axis. This is the form a quotient's
+derivative takes, so a reduction differentiated a quotient whose
+denominator vanishes at the pendulum's start. The two
+`RollingWheelSet` models fail on a residual of 326407 characters
+of the same joint terms, and were not taken further than its shape.
+
+`TestSharpEdgedOrifice` is a block of one, `orifice2.dp_fg` over
+`orifice2.m_flow`: NaN at a flow of 0, 1e-6 and 1e-3, minus infinity
+at 1 and 1000. Its residual divides four times by a density
+`state.p / (R * state.T)`, and which of those is zero at the start
+was not settled.
+
+Of the eight, then, the gates are a solve for a derivative through a
+coefficient that the model fixes at zero (a matter of which variable
+the matching chose, not of the starting values), the springs and
+pendulums are starting values that make a divisor zero, and the
+orifice is not yet named. No change was made.
