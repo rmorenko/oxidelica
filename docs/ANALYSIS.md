@@ -34287,9 +34287,24 @@ assignments that a block reads belong before the block is first
 solved, in both places, and a block whose refusal comes before them
 is refused for the compiler's order, not the model's equations.
 
-The pair was started at the end of the shift, one binary
-(`/tmp/m359/oxpanic`), the main pass with both switches off and then
-on, into `/tmp/m359/pair_off.txt` and `/tmp/m359/pair_on.txt`. It had
-not finished when the shift closed, and no number from it is quoted
-here. The next shift reads the two files: totals, the run lists diffed
-by name, and the ratio of the halves, before anything is built.
+The pair, one binary (`/tmp/m359/oxpanic`), the main pass with both
+switches off and then on (`/tmp/m359/pair_off.txt`,
+`/tmp/m359/pair_on.txt`): off 966 flatten / 709 run, runnable 849 /
+667, 192 jacobians, 37596671 Newton steps, equal to the preflight of
+the same tree to the digit; on 966 / 716, runnable 849 / 669, 192
+jacobians, 37596195 Newton steps. Seven arrive and none leave:
+`TestSharpEdgedOrifice`, `WaterIF97`, `RobotR3.Utilities.GearType2`,
+and four Spice3 models, `MNmos`, `MPmos`, `NAND` and `ONEBIT`.
+
+The four Spice3 arrivals are the zero junction capacitances of the map
+above, and they were not expected here. Every one of their capacitor
+currents is written `if m_bInit then 0 else C*der(v)`, and `m_bInit`
+is a discrete value a `when initial()` writes, so before the clause
+fires the guard reads the template and the block holds the dead
+derivative. That is the same order fault from the other side, and it
+says link 3 of that map may be partly this one. It is a reading and not
+yet a measurement: which of the two switches wins which of the seven,
+and whether the Spice3 waveforms are right rather than merely finite,
+were not checked before the shift closed. Both switches are skips, and
+the fix is the order, not either skip, so nothing was built and the
+floors are untouched.
