@@ -33928,3 +33928,52 @@ gets a next pass. The fix is in
 the order of the initial event, or in letting a block that is NaN on
 the first pass of the initial event wait for the next, and it was
 not built in this shift.
+
+## The oscillator was refused for the other order of two divisions (m358)
+
+The scheduled run of the heavy models on d1b9a27 printed 1 of 10
+against a floor of 2: `Spice3.Examples.Oscillator`, which ran on
+8f8af8c, was refused as an `underdetermined algebraic loop` over
+`der(T1.vbc)`, `der(T2.vbc)`, `der(T2.vcs)`, `der(T1.vcs)` and
+`c1.p.i`. The corpus could not see it, the model being carved out
+into `scripts/heavy_models.txt`; the floor of the heavy run did, as
+it was built to.
+
+Three switches named the culprit on one binary without a build, one
+`--only` each from the root `.msl` with `--with-heavy`
+(`/tmp/m358/osc_*.txt`). Under `OXIDELICA_NO_REPEAT_MEMBER` (cc38da1)
+and `OXIDELICA_NO_REDUNDANT_INIT` (1e3ad34) the refusal stood word for
+word. Under `OXIDELICA_COLUMNS_FIRST` (dc8ef8d) the model ran: 288 s,
+744723 Newton steps, 46 Jacobians.
+
+The block at t = 0, unscaled, printed by a local probe at the pivot
+test:
+
+```text
+[-1e-9,  1e-9,  1e-9,  0,   -1  ]   T1.icapbc = capbc * der(T1.vbc)
+[ 0,    -1e-9,  0,     0,   -1  ]   T2.icapbc = capbc * der(T2.vbc)
+[ 1,     0,    -1,     1,   -1e7]   c1's voltage, der(T2.vcs)
+[ 0,    -1.01, -1.01,  1,    1e7]   c's voltage, der(T2.vbc)
+[ 1e-9,  1e-9,  1e-9,  1e-9, 0  ]   (T1.B.i + c1.p.i) + r2.p.i = 0
+```
+
+Divided by its rows first, as dc8ef8d made the rule, the two rows
+that carry 1e7 fall to 1e-7 in every other column, and the smallest
+pivot is 3e-9 against a floor of 1e-7. Divided by its columns first,
+the 1e7 column is taken by its own unit and the condition is 210. So
+the order that saved the machines lost the transistors: each is right
+for one shape and wrong for the other, and neither is a fact about
+whether the block determines a solution.
+
+The fix asks both. A converged block is called underdetermined only
+where it reads singular with its units taken out in either order;
+`OXIDELICA_ONE_ORDER=1` gives the old single reading back. The same
+equation written twice reads singular under any scaling, so nothing
+truly singular is let through, and the test of the machine at rest
+from m356 stands unchanged beside a new one that takes the block
+above and fails with one order alone.
+
+Solver changes are measured against `scripts/heavy_models.txt` on the
+desk before the push, on Roman's word of 2026-10-05: the carved-out
+giants are where the corpus is blind, and this shift's culprit was
+found by their floor a day after it was pushed.

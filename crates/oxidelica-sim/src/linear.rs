@@ -197,6 +197,48 @@ pub(crate) fn equilibrate_both(a: &mut [Vec<f64>], columns_first: bool) {
     }
 }
 
+/// Whether a scaled Jacobian reads as singular: it will not solve, or
+/// its smallest pivot is under 1e-7 of its own largest entry.
+pub(crate) fn reads_singular(m: &[Vec<f64>]) -> bool {
+    let scale = m
+        .iter()
+        .flat_map(|row| row.iter())
+        .fold(0.0f64, |a, x| a.max(x.abs()));
+    solve_linear(&mut m.to_vec(), &vec![1.0; m.len()]).is_none()
+        || smallest_pivot(&mut m.to_vec()) <= 1e-7 * scale.max(1.0)
+}
+
+/// Whether an unscaled converged block is underdetermined: it reads
+/// singular with its units taken out in the order `columns_first`
+/// names, and - unless `one_order` - in the other order too.
+///
+/// Each order is right for one shape and wrong for another. An
+/// induction machine at rest needs its rows divided first, or a row
+/// of 3e3 takes two voltage columns and crushes the row that tells
+/// them apart. A Spice3 transistor at t = 0 needs its columns first:
+/// its capacitor rows stand at 1e-9 beside a node equation's 1e7, and
+/// divided by rows first the pivot is 3e-9 where by columns first the
+/// condition is 210. The same equation twice reads singular under any
+/// scaling at all, so a block one honest scaling shows determined is
+/// determined.
+pub(crate) fn reads_underdetermined(
+    raw: &[Vec<f64>],
+    columns_first: bool,
+    one_order: bool,
+) -> bool {
+    let mut first = raw.to_vec();
+    equilibrate_both(&mut first, columns_first);
+    if !reads_singular(&first) {
+        return false;
+    }
+    if one_order {
+        return true;
+    }
+    let mut other = raw.to_vec();
+    equilibrate_both(&mut other, !columns_first);
+    reads_singular(&other)
+}
+
 /// The smallest pivot Gaussian elimination with partial pivoting meets
 /// on this matrix.
 ///

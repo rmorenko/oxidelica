@@ -397,6 +397,34 @@ fn the_smallest_pivot_sees_what_an_absolute_floor_misses() {
 }
 
 #[test]
+fn a_transistor_at_rest_is_not_underdetermined_for_the_order_its_units_are_taken_out() {
+    // The block `Spice3.Examples.Oscillator` presents at t = 0, unscaled:
+    // der(T1.vbc), der(T2.vbc), der(T2.vcs), der(T1.vcs) and c1.p.i. Rows
+    // 0, 1 and 4 are a capacitor's current at 1e-9 and a node's sum;
+    // rows 2 and 3 a capacitor's voltage at 1 beside a current at 1e7.
+    // Divided by rows first the pivot falls to 3e-9 and the block was
+    // called underdetermined; divided by columns first its condition is
+    // 210. The machine of the test above needs the other order, so the
+    // block is underdetermined only where both orders read it so.
+    let block = vec![
+        vec![-1e-9, 1e-9, 1e-9, 0.0, -1.0],
+        vec![0.0, -1e-9, 0.0, 0.0, -1.0],
+        vec![1.0, 0.0, -1.0, 1.0, -1e7],
+        vec![0.0, -1.01, -1.01, 1.0, 1e7],
+        vec![1e-9, 1e-9, 1e-9, 1e-9, 0.0],
+    ];
+    assert!(crate::linear::reads_underdetermined(&block, false, true));
+    assert!(!crate::linear::reads_underdetermined(&block, false, false));
+    assert!(!crate::linear::reads_underdetermined(&block, true, false));
+
+    // And the same equation twice is underdetermined in both orders.
+    let duplicate = vec![vec![1.0, -1.0], vec![1.0 + 6e-9, -1.0]];
+    assert!(crate::linear::reads_underdetermined(
+        &duplicate, false, false
+    ));
+}
+
+#[test]
 fn a_machine_at_rest_is_not_underdetermined_for_the_order_its_units_are_taken_out() {
     // The Jacobian `IMC_DOL` presents at t = 0, the converged block
     // over the air gap's currents, the closing switches and the two

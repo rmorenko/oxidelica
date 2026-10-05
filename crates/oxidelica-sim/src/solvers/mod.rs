@@ -154,6 +154,15 @@ fn columns_first() -> bool {
     *ON.get_or_init(|| std::env::var("OXIDELICA_COLUMNS_FIRST").as_deref() == Ok("1"))
 }
 
+/// Whether a converged block is called underdetermined on the one
+/// order of scaling alone, as it was before the second order was asked.
+/// Off by default; `OXIDELICA_ONE_ORDER=1` keeps both halves of a
+/// measurement in one binary.
+fn one_order_only() -> bool {
+    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ON.get_or_init(|| std::env::var("OXIDELICA_ONE_ORDER").as_deref() == Ok("1"))
+}
+
 /// Whether to say, of a column the Jacobian reads as dead, which of
 /// the two kinds it is: an unknown the equations never carry, or one
 /// they carry at a point where the slope happens to vanish. Off by
@@ -1330,6 +1339,7 @@ impl CompiledModel {
                     // in one block by construction, and read unscaled
                     // every such block is called underdetermined
                     // while being plainly invertible.
+                    let raw = jac.clone();
                     if std::env::var_os("OXIDELICA_NO_ROW_SCALING").is_none() {
                         // Columns as well as rows, and for the same
                         // reason read along the other axis: a row's
@@ -1362,7 +1372,6 @@ impl CompiledModel {
                             equilibrate_rows(&mut jac);
                         }
                     }
-                    let probe = vec![1.0; n];
                     // Judged against the Jacobian's own scale, not
                     // against zero. The matrix here is built by finite
                     // differences, and a column that cancels exactly in
@@ -1373,12 +1382,22 @@ impl CompiledModel {
                     // makes a block underdetermined is a direction the
                     // residual barely moves along *compared with the
                     // rest of the block*, which is what this asks.
-                    let scale = jac
-                        .iter()
-                        .flat_map(|row| row.iter())
-                        .fold(0.0f64, |m, x| m.max(x.abs()));
-                    let singular = solve_linear(&mut jac.clone(), &probe).is_none()
-                        || smallest_pivot(&mut jac.clone()) <= 1e-7 * scale.max(1.0);
+                    let mut singular = crate::linear::reads_singular(&jac);
+                    // And the other order of taking the units out
+                    // before the block is called underdetermined
+                    // (`reads_underdetermined` says why). Only where
+                    // both halves of the scaling ran: the switches that
+                    // take one away ask their own question.
+                    if singular
+                        && std::env::var_os("OXIDELICA_NO_ROW_SCALING").is_none()
+                        && std::env::var_os("OXIDELICA_DIVISOR_BY_MENTION").is_none()
+                    {
+                        singular = crate::linear::reads_underdetermined(
+                            &raw,
+                            columns_first(),
+                            one_order_only(),
+                        );
+                    }
                     if singular {
                         return err(format!(
                             "underdetermined algebraic loop {:?}: the equations do not determine a unique solution",
