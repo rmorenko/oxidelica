@@ -34006,3 +34006,52 @@ of that list, four are now read from the sources as a capacitance the
 card makes zero, and the fifth, `MPmos` with `MNmos`, as `CBD=0, CBS=0`.
 The fix is where the derivative is chosen as an unknown, and it was not
 built.
+
+### What tells the star's right victim from the wrong one: not weight, not depth (m358, a map)
+
+The parked rule of m357 (`~/oxideflow/state/tie_through_m357.patch`)
+was probed again on its two losses and on `IMC_Inverter` as control,
+one binary under `OXIDELICA_NO_TIE_THROUGH` and without it, with
+`OXIDELICA_VICTIM_PROBE` (`/tmp/m358/tie_on_*.txt`, `tie_off_*.txt`).
+The victims that move are few: seven in `Rectifier12pulse`, every one
+an `l2sigma` current given up for an `l1sigma` one; two flux tubes and
+one angle in the quasi-static `SMEE_Generator`; one in `IMC_Inverter`,
+`lssigma.i_[1]` given up for `lszero.i`.
+
+The weights that broke the ties are the gains of the definitions, not
+anything the constraint determines. In `Rectifier12pulse` they are
+3.46 and 2.0 against 1.0, which is `2*sqrt(3)` and 2, the turns ratios
+of the two transformers' vector groups. In `SMEE_Generator` the tie of
+reduction 26 weighs `constantSpeedQS.phi` 2.0 against two reference
+angles at 1.0, and 2 is the machine's pole pairs, `p = 2`: the
+electrical angle is twice the shaft's. A rule that reads a gear ratio
+as evidence takes whichever side of the gear is written with the larger
+number.
+
+The depth of the reach was tried next (a local probe counting the
+definitions between each candidate and the residual,
+`/tmp/m358/depth_*.txt`). It does not separate them either. In
+`Rectifier12pulse` the right victim, `l2sigma`, is the near one, 2
+definitions against 13. In `SMEE_Generator` the right victim,
+`short.port_p.reference.gamma`, is at 6, between the core's 1 and the
+shaft's 14. In `IMC_Inverter` all three candidates sit at 9, and the
+right one, `lszero.i`, has the longest chain, 19 against 14 and 9.
+
+Where each loss ends, the kernel of the refused block
+(`state/nullspace_m344.py` over `OXIDELICA_NEWTON_TRAIL`,
+`/tmp/m358/trail_*.txt`): in `Rectifier12pulse` the diodes' block has
+no Newton direction, smallest singular value 5e-12 of 6e4, and the
+kernel is `der(transformer2.core.plug_p2.pin[1].i)` against `pin[3]`,
+-0.71 and 0.71, the secondary's line currents of the second
+transformer moving in opposite directions. So with `l1sigma` demoted,
+the secondary's currents are left for the diodes to fix, and the
+diodes in their off state fix nothing. In `SMEE_Generator` the stator's
+block is singular along `airGap.V_mss.im` and the third phase's `V_m`,
+the magnetic potential the demoted flux tubes no longer pin.
+
+The question for the next probe is therefore narrower than "which
+weighs more". The star determines the variable its sum of currents
+reads with every other candidate held fixed, and the walk now moves
+the candidates together: `starpoint.i = 0` reads `3*lszero.i` alone
+only when `lssigma.i_` stand still. The weight with the other
+candidates held fixed is the measure still open, and none was built.
