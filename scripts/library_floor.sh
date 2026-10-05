@@ -1735,7 +1735,16 @@ WORK_DEAREST=12
 # So IMC_YDarc is counted apart (m356), and the line goes back to what
 # both machines print without it, desk 145 and runner 140, centred at
 # 142 as before: 134.9 to 149.1.
-WORK_JACOBIANS=142
+#
+# Moved by dividing a converged block by its rows before its columns
+# (m356), which let six machines run: one binary both ways under
+# OXIDELICA_COLUMNS_FIRST (/tmp/m356/r_off.txt, r_on.txt) printed 145
+# and 192, and the 47 are those six by name (/tmp/m356/wdiff.txt):
+# IMC_DOL 11, IMC_Steinmetz 15, IMC_YD 3, IMS_Start 7 and the two
+# FundamentalWave machines 6 and 5. The centre moves by that, 142 + 47
+# = 189, and five percent around it is 179.55 to 198.45, which holds
+# the desk's 192. The runner's own count for the six is not yet known.
+WORK_JACOBIANS=189
 # The pair is held on a line of its own and to a band of its own, an
 # order of magnitude wide in either direction rather than five percent:
 # 90% either side of 274 is 27 to 520, so a refusal (0) or the swing to

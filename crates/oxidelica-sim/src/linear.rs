@@ -175,6 +175,28 @@ pub(crate) fn equilibrate_columns(a: &mut [Vec<f64>]) {
     }
 }
 
+/// Divide the rows through by their own largest entry, then the
+/// columns, so that neither the units of the equations nor those of the
+/// unknowns is what a pivot is judged on.
+///
+/// The order is not a matter of taste. A column's largest entry read
+/// before the rows are is the unit of whichever equation shouts loudest
+/// in it rather than the unit of its unknown: in an induction machine
+/// at rest one row ties two voltages together with coefficients near
+/// 3e3, and dividing their columns by that crushed every other row that
+/// told the two apart, leaving a pivot of 7e-9 on a block whose pivot
+/// is 7e-6 unscaled. `columns_first` keeps the old order for the
+/// measurement of the change.
+pub(crate) fn equilibrate_both(a: &mut [Vec<f64>], columns_first: bool) {
+    if columns_first {
+        equilibrate_columns(a);
+        equilibrate_rows(a);
+    } else {
+        equilibrate_rows(a);
+        equilibrate_columns(a);
+    }
+}
+
 /// The smallest pivot Gaussian elimination with partial pivoting meets
 /// on this matrix.
 ///

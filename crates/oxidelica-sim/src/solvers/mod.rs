@@ -145,6 +145,15 @@ fn slivers_count() -> bool {
     *ON.get_or_init(|| std::env::var_os("OXIDELICA_SLIVER_STEPS").is_some())
 }
 
+/// Whether a converged block's Jacobian is divided through by its
+/// columns before its rows, as it was before the order was turned
+/// round. Off by default; `OXIDELICA_COLUMNS_FIRST=1` keeps both halves
+/// of a measurement in one binary.
+fn columns_first() -> bool {
+    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ON.get_or_init(|| std::env::var("OXIDELICA_COLUMNS_FIRST").as_deref() == Ok("1"))
+}
+
 /// Whether to say, of a column the Jacobian reads as dead, which of
 /// the two kinds it is: an unknown the equations never carry, or one
 /// they carry at a point where the slope happens to vanish. Off by
@@ -1333,10 +1342,25 @@ impl CompiledModel {
                         // column half bites - a reluctance near 1e6
                         // beside a flux near 1e-5 - and unscaled the
                         // flux's column read as dead.
+                        //
+                        // Rows first, and only then the columns. A
+                        // column's largest entry, read before the rows
+                        // are, is the unit of whichever equation shouts
+                        // loudest in it, not the unit of the unknown.
+                        // An induction machine at rest is the case: one
+                        // row ties the air gap's voltage to the leakage
+                        // inductance's with coefficients near 3e3, the
+                        // two columns were divided by those, and every
+                        // other row that told the two voltages apart was
+                        // crushed to 3e-4 - a pivot of 7e-9 on a block
+                        // whose own pivot, unscaled or by rows, is 7e-6.
+                        // Six machines were refused as underdetermined
+                        // for the order of two divisions.
                         if std::env::var_os("OXIDELICA_DIVISOR_BY_MENTION").is_none() {
-                            crate::linear::equilibrate_columns(&mut jac);
+                            crate::linear::equilibrate_both(&mut jac, columns_first());
+                        } else {
+                            equilibrate_rows(&mut jac);
                         }
-                        equilibrate_rows(&mut jac);
                     }
                     let probe = vec![1.0; n];
                     // Judged against the Jacobian's own scale, not

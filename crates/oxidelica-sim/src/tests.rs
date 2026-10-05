@@ -397,6 +397,106 @@ fn the_smallest_pivot_sees_what_an_absolute_floor_misses() {
 }
 
 #[test]
+fn a_machine_at_rest_is_not_underdetermined_for_the_order_its_units_are_taken_out() {
+    // The Jacobian `IMC_DOL` presents at t = 0, the converged block
+    // over the air gap's currents, the closing switches and the two
+    // stator voltages (OXIDELICA_NEWTON_TRAIL, unscaled). Row 10 ties
+    // the air gap's voltage to the leakage inductance's with
+    // coefficients near 3e3, and row 7 is what tells the two apart.
+    // The block is determined: unscaled its smallest pivot is 2e-9 of
+    // its largest entry, by rows alone 7e-6. Divided by columns first,
+    // the two voltage columns are taken by row 10's 3e3, row 7 falls to
+    // 3e-4, and the pivot to 7e-9 - under the floor, and six machines
+    // were refused as underdetermined for it.
+    let block = vec![
+        vec![0.0, -1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+        vec![-1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+        vec![0.0, 0.0, -1e-5, 0.0, 0.0, -1.0, -2.0, 0.0, 0.0, 0.0, 0.0],
+        vec![0.0, 0.0, 0.0, -1e-5, 0.0, 2.0, 1.0, 0.0, 0.0, 0.0, 0.0],
+        vec![0.0, 0.0, 0.0, 0.0, -1e-5, -1.0, 1.0, 0.0, 0.0, 0.0, 0.0],
+        vec![
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            -0.5773502691896257,
+            0.5773502691896255,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+        ],
+        vec![0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 0.0, 0.0],
+        vec![
+            0.0,
+            0.0,
+            -0.5773500788563979,
+            -0.5773486577709264,
+            1.1546987366273243,
+            -0.017320189726888202,
+            0.017321610812359722,
+            -0.9999999966274336,
+            0.0,
+            0.0,
+            -1.0000000050243851,
+        ],
+        vec![
+            0.0,
+            0.0,
+            -1.0000007932831068,
+            0.9999979511121637,
+            0.0,
+            0.02999911430379143,
+            0.02999911430379143,
+            0.0,
+            -2.0351168097797188,
+            0.0,
+            0.0,
+        ],
+        vec![0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -2.0, 0.0],
+        vec![
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            3195.156415961349,
+            0.0,
+            0.0,
+            -3086.759282325559,
+        ],
+    ];
+    let floor = |m: &[Vec<f64>]| {
+        1e-7 * m
+            .iter()
+            .flat_map(|row| row.iter())
+            .fold(0.0f64, |a, x| a.max(x.abs()))
+            .max(1.0)
+    };
+    let mut old = block.clone();
+    crate::linear::equilibrate_both(&mut old, true);
+    let pivot = smallest_pivot(&mut old.clone());
+    assert!(
+        pivot <= floor(&old),
+        "columns first, the pivot was {pivot:e}"
+    );
+    let mut new = block.clone();
+    crate::linear::equilibrate_both(&mut new, false);
+    let pivot = smallest_pivot(&mut new.clone());
+    assert!(pivot > 1e-6, "rows first, the pivot was {pivot:e}");
+
+    // And a duplicated equation is as singular in the new order as in
+    // the old: what the order changes is whose unit a column is
+    // divided by, not whether two columns are one.
+    let mut duplicate = vec![vec![1.0, -1.0], vec![1.0 + 6e-9, -1.0]];
+    crate::linear::equilibrate_both(&mut duplicate, false);
+    assert!(smallest_pivot(&mut duplicate.clone()) <= floor(&duplicate));
+}
+
+#[test]
 fn a_block_is_not_underdetermined_for_being_written_in_small_units() {
     // The Jacobian `QuadraticCoreAirgap` actually presents, taken from
     // the block over `leakage.Phi` and the coils' voltages. A magnetic

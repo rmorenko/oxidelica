@@ -33623,3 +33623,72 @@ name, the model gives 14012617 six runs out of six, the forty give
 31001935 three times on one thread and seven, and the corpus prints
 1913925546 (`/tmp/m354/preflight2.txt`). The verdict does not depend
 on the order, so no model moved: 966 / 702 and 849 / 660 as before.
+
+## The machines were refused for the order of two divisions (m356)
+
+The six machines the chapter above left at `underdetermined algebraic
+loop` were not underdetermined. A probe printed the validation of the
+converged block on `IMC_DOL` at t = 0 (`/tmp/m356/p_IMC_DOL.txt`): the
+block passed the test of convergence by its first arm, `|f| <=
+1e-10(1+|v|)`, on all eleven rows, the largest residual 1.75e-9. It was
+the pivot that fired, not the solve: `solve_linear` answered, and the
+smallest pivot was 7.35e-9 against a floor of 1e-7, the scale of the
+equilibrated matrix being 1 and so `scale.max(1.0)` too.
+
+The null vector of the scaled matrix
+(`state/nullspace_m344.py`) lies on two columns at 0.707 each,
+`aimc.airGap.spacePhasor_s.v_[2]` and `aimc.lssigma.v_[2]`. It is not
+the star of m347, where two columns are equal element by element: here
+row 10 ties the two voltages with coefficients 3195 and -3087, and
+row 7 is the one that tells them apart, at about 1. The same matrix,
+unscaled (`OXIDELICA_NO_ROW_SCALING`, `/tmp/m356/p_dol_raw.txt`), has
+a pivot of 6.6e-6, and divided by rows alone 6.8e-6. Divided by its
+columns first, the two voltage columns are divided by row 10's 3e3,
+row 7 falls to 3e-4, and the following division by rows cannot bring
+it back. The order of the two divisions made the singularity.
+
+The six are one disease, named one by one (`/tmp/m356/raw_*.txt`,
+smallest pivot over scale for the five ways of dividing):
+
+```text
+model                         raw      rows     cols>rows  rows>cols
+Electrical IMC_DOL            2.05e-9  6.78e-6  7.35e-9    6.78e-6
+Electrical IMC_Steinmetz      3.08e-9  1.70e-5  5.52e-9    1.70e-5
+Electrical IMC_YD             3.13e-9  1.00e-5  2.21e-8    1.00e-5
+Electrical IMS_Start          2.05e-9  6.78e-6  7.35e-9    6.78e-6
+FundamentalWave IMC_DOL       1.96e-9  2.71e-6  2.43e-9    2.81e-6
+FundamentalWave IMS_Start     1.96e-9  2.71e-6  2.43e-9    2.81e-6
+```
+
+The repair divides by the rows first and the columns after, so that a
+column is divided by the unit of its unknown rather than by the loudest
+equation it appears in. The threshold of 1e-7 and the test of
+convergence are untouched. `OXIDELICA_COLUMNS_FIRST=1` gives the old
+order back. The ladder of the eighteen machines of m355, each run both
+ways (`/tmp/m356/ladder.txt`), moves exactly the six from
+`underdetermined` to running and leaves the twelve others where they
+were: `IMC_Inverter` and `SMEE_DOL` at `singular Jacobian`, the two
+`IMC_Transformer` at `the Newton direction`, `IMC_YDarc` at `step size
+underflow`, the two `SMPM` machines, the five that were never of the
+family and `TestBearingConversion`, which ran before and runs.
+
+A pair of one binary over the corpus (`/tmp/m356/r_off.txt`,
+`r_on.txt`) printed 966 / 702 and 849 / 660 the old way and 966 / 709
+and 849 / 667 the new. Seven came and none left: the six, and
+`FluxTubes.BasicExamples.QuadraticCoreAirgap`, refused before as
+underdetermined over `leakage.Phi`, the magnetic circuit whose matrix
+`a_block_is_not_underdetermined_for_being_written_in_small_units`
+already holds. Simulated to its stop time it ends with 750 A of
+magnetomotive force from 1.5 A through 500 turns, a static inductance
+of 0.025 H and a tenth of the flux in the leakage. The Jacobians rose
+from 145 to 192, and the 47 are the six machines by name
+(`/tmp/m356/wdiff.txt`).
+
+The run of the check is ten steps. Simulated further, `IMC_DOL` runs
+to t = 0.1 with the rotor at rest and the space phasor of the stator
+current near 4.7e-4 A, the leak through switches open with a
+conductance of 1e-5; whether that magnitude is the right one was not
+checked against another tool. At 0.1 the switches close, and the run
+is then refused as structurally singular (`compile.rs:2078`): the next
+wall, not one this change made, since before it the model did not
+reach t = 0.
