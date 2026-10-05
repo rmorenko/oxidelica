@@ -34055,3 +34055,156 @@ reads with every other candidate held fixed, and the walk now moves
 the candidates together: `starpoint.i = 0` reads `3*lszero.i` alone
 only when `lssigma.i_` stand still. The weight with the other
 candidates held fixed is the measure still open, and none was built.
+
+### The weight with the other candidates held fixed: not a sign either (m359, a map)
+
+The chapter above left one measure open: the weight of each candidate
+with every other candidate held fixed, as a single comparison rather
+than a whole new choice. Two things were found, one by reading and one
+by measuring.
+
+By reading: that is already the weight the parked rule reads.
+`weigh_at_start` (`sensitivity.rs:193`) moves one state, works out
+again only the definitions `downstream` of it, and holds every other
+state where the start put it. So the 3.46, 2.0 and 9.0 of m358 are
+already weights with the others held. What moved the candidates
+together was not the weighing but the cascade: a tie decided one way at
+one reduction changed the ties of every later one.
+
+By measuring: the parked patch with a probe switch,
+`OXIDELICA_TIE_ONLY_AT=k`, that lets the rule decide at reduction `k`
+alone while every other reduction keeps the old choice. One binary
+(`/tmp/m359/oxtie`, b36c06c with the patch and the switch, not
+committed), `--only` from `.msl`, `OXIDELICA_VICTIM_PROBE`, files
+`/tmp/m359/single_*.txt`, the rule switched off in `single_*_off.txt`.
+Each row is one comparison, every other victim as before:
+
+| model              | k   | weights through the definitions       | taken by the rule | runs |
+| ------------------ | --- | ------------------------------------- | ----------------- | ---- |
+| `Rectifier12pulse` | 2   | `l1sigma[1]` 3.46, `l2sigma[2]` 1.0   | `l1sigma[1]`      | no   |
+| `Rectifier12pulse` | 3   | `l1sigma[2]` 3.46, `l2sigma[3]` 1.0   | `l1sigma[2]`      | no   |
+| `Rectifier12pulse` | 5   | `l1sigma[1]` 2.0, `l2sigma[1]` 1.0    | `l1sigma[1]`      | yes  |
+| `Rectifier12pulse` | 6   | `l1sigma[2]` 2.0, `l2sigma[2]` 1.0    | `l1sigma[2]`      | yes  |
+| `Rectifier12pulse` | 7   | `l1sigma[3]` 2.0, `l2sigma[3]` 1.0    | `l1sigma[3]`      | yes  |
+| `SMEE_Generator`   | 17  | stator `Phi.im` 1.0, two others 0.0   | stator `Phi.im`   | no   |
+| `SMEE_Generator`   | 26  | `constantSpeedQS.phi` 2.0, two at 1.0 | `constantSpeedQS` | yes  |
+| `IMC_Inverter`     | 10  | `lszero.i` 9.0, `lssigma.i_[1]` 3.0   | `lszero.i`        | yes  |
+
+With the rule off, `Rectifier12pulse` and `SMEE_Generator` run and
+`IMC_Inverter` does not. So each loss of the parked rule is one
+comparison, not the cascade: the rectifier is lost at reductions 2 and
+3 alone, the generator at 17 alone, and the inverter is won at 10
+alone. The comparisons at 1, 4 and 19 change nothing.
+
+And the weight does not tell the losing comparisons from the others.
+In one model and one kind of tie, `l1sigma` heavier than `l2sigma`,
+the rule loses at 3.46 against 1 and is harmless at 2 against 1. At
+reduction 17 the heaviest candidate is the only one the constraint
+reaches at all, 1.0 against two zeros, and taking it loses the model;
+at reduction 10 the same shape, 9 against 3 and 0, wins one. No
+threshold on the weight or on its ratio separates the rows.
+
+The rectifier also says the choice is not about the kind of
+inductance. With the rule off, `transformer1` gives up `l1sigma[3]`
+and the three `l2sigma`, and runs. At `k = 2` it gives up `l1sigma[1]`
+and the three `l2sigma`, and the diodes' block has no Newton
+direction. The two sets are alike up to which phase gives up its
+primary leakage, and the phases are not alike once the diodes are in
+the circuit.
+
+So the weight is closed negatively, in the whole choice and in the
+single comparison both, and the tie needs another cut. The obvious
+next one is downstream: build the blocks for each tied candidate and
+keep one whose blocks are regular, which `check_block_regularity`
+(`compile.rs:5602`) already asks at the start. It would not be
+enough, and the rows say why. `SMEE_Generator` at `k = 17` is refused
+with no time in the message, the singular Jacobian of the stator's
+block. But `Rectifier12pulse` at `k = 2` passes the start and is
+refused at `t = 5.8e-8`, when the diodes have moved, so a test at the
+start passes the losing choice. A tie broken by regularity has to ask
+in every mode the switches can take, or it is a test of the first
+mode dressed as a test of the choice. That is the measure for the
+next shift: whether the rectifier's losing set is singular in some
+mode of the diodes that the winning set is not, and the witnesses are
+the rows above. The parked patch stays parked, as Roman asked.
+
+### Where a derivative with a zero coefficient is taken as an unknown (m359, a map)
+
+The NAND and ONEBIT chapter above ended at "the fix is where the
+derivative is chosen as an unknown". The road was walked to the code
+and nothing was built. The small models are in `/tmp/m359/small`,
+one binary built from b36c06c (`/tmp/m359/ox`), and each is twenty
+lines.
+
+Where the derivative is taken. `split_equations` (`compile.rs:2589`)
+takes `der(x)` standing alone or isolated by `isolate_der` as the
+state's right-hand side. What is left that still holds a derivative
+is given a name (`compile.rs:2655`, `implicit`) and becomes an
+unknown of the algebraic layer. Nothing on that road asks whether the
+equation's coefficient on the derivative can be other than zero. The
+one guard sits before it: `quench_zero_der` (`compile.rs:2493`, called
+at `:4102`), which turns `p * der(x)` into zero where `p` is a
+parameter worth exactly zero. It reads `zero_parameter`
+(`compile.rs:2426`), and that one takes a number, a name and a product
+of them, and nothing else.
+
+The ladder, smallest first, each a model with one zero capacitor on
+`der(vbx)` beside a live one:
+
+| model           | the coefficient on `der(vbx)`              | result                        |
+| --------------- | ------------------------------------------ | ----------------------------- |
+| `ZeroCapExpr`   | parameter `C = Cbc*(1-XCJC)`               | runs                          |
+| `ZeroJunction9` | parameter `Cbx = Cbc*(1-XCJC)`             | runs                          |
+| `ZeroJunction8` | `Cbc*(1-XCJC)` written in the equation     | step size underflow at t = 0  |
+| `ZeroJunction6` | the same, under `if init then 0 else`      | `do not mention ["der(vbx)"]` |
+| `ZeroJunction5` | a variable `capbx = Cbc*(1-XCJC)`          | `do not mention ["der(vbx)"]` |
+| `ZeroJunction3` | `capbx = f(Cbc*(1-XCJC), vbx)`, a function | `do not mention ["der(vbx)"]` |
+
+So the quench is three links short of Spice3, and each link is a
+separate shape:
+
+1. `zero_parameter` does not evaluate. `Cbc*(1-XCJC)` is zero in every
+   run of the model and is not a name or a product of names, so it
+   is not quenched (`ZeroJunction8` against `ZeroJunction9`). The
+   repair is to ask the parameter table for the value of a
+   parameter-only expression rather than to spell it.
+2. A zero that reaches the equation through a variable. A variable
+   defined by parameters alone (`ZeroJunction5`) is a parameter in
+   all but name, and the quench runs before anything has said so.
+3. A zero that reaches it through a function body.
+   `Q2.cc.capbx = bjtNoBypassCode(...)[8]`, and in the body
+   `aux2 := m_tBCcap*(1 - m_baseFractionBCcap)` with
+   `m_baseFractionBCcap = XCJC = 1` is handed to `junctionCapRevised`,
+   which returns `capin * sarg`. The zero is a property of the body
+   at every point of the run and of no expression the compiler sees.
+   `MPmos` is the same breed: `icBS = cc.cBS*(der(B.v) - der(Sinternal))`,
+   with `cc.cBS` the body's `m_capbsb + m_capbss`, the first being
+   `junctionCapRevised` over a `CBS` the card sets to 0.
+
+The `if m_bInit then 0 else` guard Spice3 writes around every one of
+these does not change which link a model stands at; it changes only
+the wording of the refusal, from an underflow to a dead column
+(`ZeroJunction8` against `ZeroJunction6`).
+
+The rule Roman's list names, "a derivative with a zero coefficient is
+not taken as an unknown", is therefore not one rule but three
+reaches, and only the third reaches the five Spice3 models of the
+census (`NAND`, `ONEBIT`, `RtlInverter`, `MPmos` with `MNmos`, plus
+`TWOBIT` among the heavy ones). Links 1 and 2 can be built at the
+quench and win nothing in the corpus that was found: no corpus model
+was shown to stand at them. Link 3 needs the zero proved through a
+body, which is either a symbolic walk of the body under the card's
+parameters, or a test at run time that the column is dead at every
+point it is read, and the second is a guess that holds until the
+first junction that is not dead.
+
+What it would cost, by the rule for changes that add a definition:
+taking a derivative out of the unknowns gives the equation that held
+it a different job (`0 = icapbx` instead of a definition of
+`der(vbx)`), and so changes what index reduction and the matching see.
+It is measured by the list of victims and the diff of which models
+run, from one binary under a switch, not by the census. The control
+set is every model with a capacitance on a derivative, the Analog
+library's capacitors among them, and the floors only catch a total.
+Nothing of this was built; the next shift starts from link 3 and the
+witness is `ZeroJunction3`.
