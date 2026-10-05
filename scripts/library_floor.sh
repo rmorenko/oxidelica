@@ -1599,9 +1599,23 @@ WORK_BODIES=1546158
 # other machines of the row +10 to +35 each, 88936 in all. The centre
 # moves by exactly that, 3064022 + 88936 = 3152958, and five percent
 # around it is 2995310 .. 3310606.
+#
+# Moved again on 2026-10-05 (m356), when IMC_YDarc was taken apart
+# with Dimmer_RL (below). What the rest is without both, from the
+# desk's preflight on cc38da1 and the runner's job for 604e210 (run
+# 37244006659, /tmp/m355/preflight3.txt, /tmp/m356/ci_604e210.log):
+#
+#   desk    37577395 - 34340892 - 88830 = 3147673 newton
+#   runner  45914579 - 42669790 - 97685 = 3147104 newton
+#
+# The centre is the middle of the two, 3147388, and five percent around
+# it is 2990019 .. 3304757. The points are left where they were: the
+# desk's rest without IMC_YDarc is 25785863 - 23662990 - 18081 =
+# 2104792, x1.022 of the centre, and the runner did not print
+# IMC_YDarc's points, which its next log will.
 WORK_POINTS=2060155
 WORK_POINTS_PPM=50000
-WORK_NEWTON=3152958
+WORK_NEWTON=3147388
 WORK_NEWTON_PPM=50000
 # And Dimmer_RL, whichever way it falls, centred between the desk's run
 # under the series and the machine's printed refusal:
@@ -1614,9 +1628,30 @@ WORK_NEWTON_PPM=50000
 #           machine 44524678 x1.129
 #
 # A refusal early in the run, or a run that doubles its work, fires.
-WORK_APART_MODEL=Modelica.Electrical.PowerConverters.Examples.ACAC.Dimmer_RL
-WORK_POINTS_APART=27371282
-WORK_NEWTON_APART=39432785
+# The runner printed 29718304 and 42669790 for 604e210, x1.086 and
+# x1.082, running there now as on the desk.
+#
+# And IMC_YDarc beside it since 2026-10-05 (m356). Letting an equation
+# that stumbles twice give way to its subset (cc38da1) took it to the
+# integrator, where it is refused for a step underflow at t = 0, and
+# what it spends before the refusal depends on the platform: 22
+# Jacobians and 88830 Newton steps on the desk, 11 and 97685 on the
+# runner. The runner then printed 151 Jacobians against the 164 the
+# desk's rise had drawn (run 37244006659), and 167 / 151 = 1.106 is
+# wider than any centre with five percent can hold. Without it the
+# two machines print 145 and 140, which 142 holds. Its Jacobians are
+# counted with the solenoids' in `scripts/loose_jacobians.txt`, and
+# its points and Newton steps here:
+#
+#   points  18081 +- 20%  =  14465 .. 21697
+#           the desk's print (/tmp/m355/work18.txt); the runner's
+#           newton runs x1.100 of the desk's, so ~19900 is expected
+#   newton  97685 +- 20%  =  78148 .. 117222
+#           the runner's print, the desk's 88830 x0.909
+#
+# One line per model held apart: the name, its points, its Newton steps.
+WORK_APART="Modelica.Electrical.PowerConverters.Examples.ACAC.Dimmer_RL 27371282 39432785
+Modelica.Electrical.Machines.Examples.InductionMachines.IMC_YDarc 18081 97685"
 WORK_APART_PPM=200000
 # How many of the dearest models the log names on each count.
 WORK_DEAREST=12
@@ -1695,7 +1730,12 @@ WORK_DEAREST=12
 # The centre moves by that, 142 + 22 = 164, and five percent around it
 # is 155.8 to 172.2, which holds the desk's 167 and the runner's
 # expected 158 to 162.
-WORK_JACOBIANS=164
+#
+# The runner printed 151 (run 37244006659): IMC_YDarc builds 11 there.
+# So IMC_YDarc is counted apart (m356), and the line goes back to what
+# both machines print without it, desk 145 and runner 140, centred at
+# 142 as before: 134.9 to 149.1.
+WORK_JACOBIANS=142
 # The pair is held on a line of its own and to a band of its own, an
 # order of magnitude wide in either direction rather than five percent:
 # 90% either side of 274 is 27 to 520, so a refusal (0) or the swing to
@@ -1721,6 +1761,9 @@ WORK_JACOBIANS=164
 # this pair has always counted, and the reason it is held apart. The
 # centre moves to the printed 1974, and 90% either side is 197 to
 # 3750: a refusal still fires, and so does a run that doubles.
+#
+# IMC_YDarc joined the pair on 2026-10-05 (m356) and adds 22 on the
+# desk and 11 on the runner, 1996 and 1985, inside the band unmoved.
 WORK_JACOBIANS_APART=1974
 WORK_JACOBIANS_APART_PPM=900000
 WORK_PERCENT=5
@@ -1954,21 +1997,34 @@ echo "dearest by points:"
 echo "$each_work" | awk '{ print $3, $2 }' | sort -nr | awk -v n="$WORK_DEAREST" 'NR <= n { print "  " $0 }'
 echo "dearest by newton:"
 echo "$each_work" | awk '{ print $5, $2 }' | sort -nr | awk -v n="$WORK_DEAREST" 'NR <= n { print "  " $0 }'
-# The model held apart, and the rest of the corpus without it.
-apart_line="$(echo "$each_work" | awk -v m="$WORK_APART_MODEL" '$2 == m' || true)"
-apart_points="$(echo "$apart_line" | awk '{ print $3 }')"
-apart_newton="$(echo "$apart_line" | awk '{ print $5 }')"
-if [ -z "$apart_points" ] || [ -z "$apart_newton" ]; then
-  echo "WORK: the report did not say what $WORK_APART_MODEL cost"
-  status=1
-else
-  echo "work apart: $WORK_APART_MODEL $apart_points points, $apart_newton newton"
-  held "points evaluated apart" "$apart_points" "$WORK_POINTS_APART" "$WORK_APART_PPM"
-  held "newton iterations apart" "$apart_newton" "$WORK_NEWTON_APART" "$WORK_APART_PPM"
+# The models held apart, each on lines of its own, and the rest of the
+# corpus without them. A model the report does not name is a failure,
+# not a zero subtracted.
+apart_points_sum=0
+apart_newton_sum=0
+apart_named=1
+while read -r apart_model apart_points_written apart_newton_written; do
+  [ -n "$apart_model" ] || continue
+  apart_line="$(echo "$each_work" | awk -v m="$apart_model" '$2 == m' || true)"
+  apart_points="$(echo "$apart_line" | awk '{ print $3 }')"
+  apart_newton="$(echo "$apart_line" | awk '{ print $5 }')"
+  if [ -z "$apart_points" ] || [ -z "$apart_newton" ]; then
+    echo "WORK: the report did not say what $apart_model cost"
+    status=1
+    apart_named=0
+    continue
+  fi
+  echo "work apart: $apart_model $apart_points points, $apart_newton newton"
+  held "points evaluated apart by ${apart_model##*.}" "$apart_points" "$apart_points_written" "$WORK_APART_PPM"
+  held "newton iterations apart by ${apart_model##*.}" "$apart_newton" "$apart_newton_written" "$WORK_APART_PPM"
+  apart_points_sum=$((apart_points_sum + apart_points))
+  apart_newton_sum=$((apart_newton_sum + apart_newton))
+done <<< "$WORK_APART"
+if [ "$apart_named" -eq 1 ]; then
   points_all="$(work_of points)"
   newton_all="$(work_of newton)"
-  held "points evaluated" "${points_all:+$((points_all - apart_points))}" "$WORK_POINTS" "$WORK_POINTS_PPM"
-  held "newton iterations" "${newton_all:+$((newton_all - apart_newton))}" "$WORK_NEWTON" "$WORK_NEWTON_PPM"
+  held "points evaluated" "${points_all:+$((points_all - apart_points_sum))}" "$WORK_POINTS" "$WORK_POINTS_PPM"
+  held "newton iterations" "${newton_all:+$((newton_all - apart_newton_sum))}" "$WORK_NEWTON" "$WORK_NEWTON_PPM"
 fi
 held "jacobians" "$(work_of jacobians)" "$WORK_JACOBIANS"
 held "jacobians counted apart" "$(work_of "jacobians apart")" "$WORK_JACOBIANS_APART" "$WORK_JACOBIANS_APART_PPM"
