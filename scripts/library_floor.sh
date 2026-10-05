@@ -1627,10 +1627,18 @@ WORK_BODIES=1546158
 # desk's rest without IMC_YDarc is 25785863 - 23662990 - 18081 =
 # 2104792, x1.022 of the centre, and the runner did not print
 # IMC_YDarc's points, which its next log will.
+#
+# Widened to ten percent on Roman's word, 2026-10-05: the two platforms
+# count Newton steps and Jacobians apart by up to a fifth on one machine
+# model, and a five-percent band calibrated on one of them turns red on
+# the other. The centres stay, both machines inside: points without
+# the apart set, desk 2113351 and runner 2103352 against 2060155
+# (x1.026, x1.021); Newton steps, desk 3147673 and runner 3147104
+# against 3147388.
 WORK_POINTS=2060155
-WORK_POINTS_PPM=50000
+WORK_POINTS_PPM=100000
 WORK_NEWTON=3147388
-WORK_NEWTON_PPM=50000
+WORK_NEWTON_PPM=100000
 # And Dimmer_RL, whichever way it falls, centred between the desk's run
 # under the series and the machine's printed refusal:
 #
@@ -1758,7 +1766,18 @@ WORK_DEAREST=12
 # FundamentalWave machines 6 and 5. The centre moves by that, 142 + 47
 # = 189, and five percent around it is 179.55 to 198.45, which holds
 # the desk's 192. The runner's own count for the six is not yet known.
-WORK_JACOBIANS=189
+#
+# The runner then printed 178 for dc8ef8d (run 37289471517, job
+# 111696260269) and turned red on this line alone, 0.942 of 189. The
+# desk printed 192 for the same code (/tmp/m356/r_on.txt). The six
+# machines stand +47 on the desk and +38 on the runner, so the two
+# platforms differ by more than any one centre with five percent can
+# hold: 192 / 178 = 1.079. Widened to ten percent on Roman's word,
+# 2026-10-05: the machines count differently on the two platforms and
+# no five-percent centre holds both. The centre is 185, between the
+# two prints, and ten percent around it is 166.5 to 203.5.
+WORK_JACOBIANS=185
+WORK_JACOBIANS_PPM=100000
 # The pair is held on a line of its own and to a band of its own, an
 # order of magnitude wide in either direction rather than five percent:
 # 90% either side of 274 is 27 to 520, so a refusal (0) or the swing to
@@ -2049,7 +2068,7 @@ if [ "$apart_named" -eq 1 ]; then
   held "points evaluated" "${points_all:+$((points_all - apart_points_sum))}" "$WORK_POINTS" "$WORK_POINTS_PPM"
   held "newton iterations" "${newton_all:+$((newton_all - apart_newton_sum))}" "$WORK_NEWTON" "$WORK_NEWTON_PPM"
 fi
-held "jacobians" "$(work_of jacobians)" "$WORK_JACOBIANS"
+held "jacobians" "$(work_of jacobians)" "$WORK_JACOBIANS" "$WORK_JACOBIANS_PPM"
 held "jacobians counted apart" "$(work_of "jacobians apart")" "$WORK_JACOBIANS_APART" "$WORK_JACOBIANS_APART_PPM"
 
 if [ "$status" -eq 0 ]; then
