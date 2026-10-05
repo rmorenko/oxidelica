@@ -33746,3 +33746,37 @@ coefficient that the model fixes at zero (a matter of which variable
 the matching chose, not of the starting values), the springs and
 pendulums are starting values that make a divisor zero, and the
 orifice is not yet named. No change was made.
+
+## The machines' new singular Jacobians read a row of zeros (m356, a map)
+
+The census after the change (`/tmp/m356/census.txt`) has `singular
+Jacobian in algebraic loop` at 27 where m353 had 18. By name
+(`/tmp/m356/byname.txt`) the nine arrivals are all machines:
+`IMC_Inverter` and `SMEE_DOL` from the row the repeat moved in m355,
+`SMPM_Inverter`, `SMR_DOL`, `SMR_Inverter` and their two
+`FundamentalWave` namesakes from `has a solution on either side`, and
+`IMC_Conveyor` and `IMC_DCBraking` from two singles. All are raised
+at `solvers/mod.rs:1825`.
+
+Six were probed under `OXIDELICA_NEWTON_TRAIL` (`/tmp/m356/sj_*.txt`),
+reading only the last matrix each prints, and in every one a row of
+the Jacobian is zero in every column. In five it is the stator's zero
+sequence, `-(spacePhasorS.m * spacePhasorS.zero.i) = i[1] + i[2] +
+i[3]`. In `IMC_Inverter` neither `zero.i` nor `i[1]` is an unknown of
+the block, while `i[2]` and `i[3]` are, and the row still reads zero
+in both their columns. In `IMC_DCBraking`
+it is the neighbouring row of the same component,
+`-spacePhasor.i_[2] = TransformationMatrix[2,.] * i`. The null vectors
+differ (the stator's current derivatives in `IMC_Inverter` and
+`IMC_Conveyor`, `gamma` beside `RotationMatrix[2,1]` in `SMR_DOL` and
+`SMPM_Inverter`), which is what a dead row leaves free rather than a
+cause of its own.
+
+A row that names live unknowns and reads zero in all of them is the
+shape the m347 chapter on the star found, and the queue's map of
+singular Jacobians already names the zero sequence of
+`SMEE_Rectifier`. So this is that family, grown by the machines that
+now reach it, and not a new one. Which of the block's currents the
+row should read, and why the difference quotient sees none of them,
+is the next probe. It belongs to the series on the star, which this
+shift was told to leave.
