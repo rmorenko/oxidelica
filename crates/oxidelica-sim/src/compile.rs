@@ -5596,6 +5596,23 @@ impl CompiledModel {
         })
     }
 
+    /// Run the plan once at time zero, every implicit block validated,
+    /// from the algebraic starts.
+    fn solve_plan_once(&self, values: &mut [f64]) -> Result<(), SimError> {
+        let mut alg_guess = self.algebraic_start.clone();
+        for stage in &self.stages {
+            match stage {
+                AlgStage::Explicit { var, code } => {
+                    values[self.algebraic_slots[*var]] = code.run(values, 0.0);
+                }
+                stage @ AlgStage::Implicit { .. } => {
+                    self.solve_implicit_block(0.0, values, stage, &mut alg_guess, true)?;
+                }
+            }
+        }
+        Ok(())
+    }
+
     /// Evaluate the plan once at the initial point, verifying that every
     /// implicit block is regular there. Catches models that are
     /// structurally fine but numerically underdetermined.
@@ -5612,16 +5629,29 @@ impl CompiledModel {
         for (&slot, value) in self.state_slots.iter().zip(&self.initial) {
             values[slot] = *value;
         }
-        let mut alg_guess = self.algebraic_start.clone();
-        for stage in &self.stages {
-            match stage {
-                AlgStage::Explicit { var, code } => {
-                    values[self.algebraic_slots[*var]] = code.run(&values, 0.0);
-                }
-                stage @ AlgStage::Implicit { .. } => {
-                    self.solve_implicit_block(0.0, &mut values, stage, &mut alg_guess, true)?;
-                }
+        let first = self.solve_plan_once(&mut values);
+        // The check runs before any event, so a block here reads the
+        // discrete values at their template. Where it refuses, the
+        // initial event's clauses are fired and the plan asked again:
+        // what a `when initial()` writes is what the run's first solve
+        // will see, and a block regular there is regular where it is
+        // first solved for real. Refused again, the refusal stands.
+        if let Err(why) = first {
+            // Before the start every condition is false, the same as
+            // the run's own initial event takes it.
+            let before: Vec<Vec<bool>> = self
+                .when_clauses
+                .iter()
+                .map(|clause| vec![false; clause.branches.len()])
+                .collect();
+            let mut fired = before.clone();
+            values[self.initial_slot] = 1.0;
+            let wrote = self.fire_initial_assignments(0.0, &mut values, &before, &mut fired);
+            values[self.initial_slot] = 0.0;
+            if crate::events::initial_order_off() || !wrote {
+                return Err(why);
             }
+            self.solve_plan_once(&mut values)?;
         }
         // A variable demoted by index reduction is solved from the
         // constraints; if it was declared `fixed = true`, that solution

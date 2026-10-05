@@ -100,6 +100,25 @@ fn a_discrete_defined_by_initial_finds_the_slot_the_events_supply() {
     assert_eq!(result.rows.last().unwrap()[index("atStart")], 0.0);
 }
 
+/// A block that divides by what `when initial()` writes is solved
+/// after the clause, not before it. `Blocks.Sources.TimeTable` gives
+/// its line `y = a*time + b` that way, and before the clause fired
+/// the table answered zero: the regularity check and the initial
+/// event's first point both solved the block on the template, met
+/// `1/0` and refused a model whose equations are fine - which is how
+/// `TestSharpEdgedOrifice` was refused. The root is the one of
+/// `x^3 + x - 1/b = 1e-5*x` at `b = 1.2e5`.
+#[test]
+fn a_block_reads_what_when_initial_writes() {
+    let result = run("model M discrete Real b; Real x(start = 1); Real y; \
+         equation y = x * x * x + x - 1 / b; y = 1e-5 * x; \
+         when initial() then b = 1.2e5; end when; \
+         annotation(experiment(StopTime = 0.2, Interval = 0.1)); end M;");
+    let index = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+    let x = result.rows[0][index("x")];
+    assert!((x - 8.333416666920152e-6).abs() < 1e-15, "x(0) = {x}");
+}
+
 #[test]
 fn event_iteration_chains_the_clauses_of_one_event() {
     // `initial()` fires before the first output point; the edge of a

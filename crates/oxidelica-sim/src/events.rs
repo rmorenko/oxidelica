@@ -67,6 +67,68 @@ impl CompiledModel {
         state.raise_samples(t, &self.samples, &self.sample_slots, values);
         state.turn_clocks(t, &self.clocks, values)
     }
+
+    /// What the initial event's `when` clauses assign, written into
+    /// `values` ahead of the block that reads it: every branch that
+    /// holds now and has not fired gives its discrete values their
+    /// first numbers, and is marked in `fired` so that the event does
+    /// not fire it a second time. The caller raises `initial()`. Says
+    /// whether any branch fired.
+    ///
+    /// A block solved before the clauses reads the discrete values at
+    /// their template. A `TimeTable` holds `y = a*time + b` with `a`
+    /// and `b` written by `when initial()`, so before the clause the
+    /// table answers zero, and an orifice dividing by the pressure it
+    /// reads refused a model whose equations are fine. The refusal was
+    /// about the compiler's order rather than the model, so a block
+    /// that refuses there is asked again once the clauses have fired.
+    pub(crate) fn fire_initial_assignments(
+        &self,
+        t: f64,
+        values: &mut [f64],
+        before: &[Vec<bool>],
+        fired: &mut [Vec<bool>],
+    ) -> bool {
+        let now = self.when_conditions(t, values);
+        let mut any = false;
+        for (index, clause) in self.when_clauses.iter().enumerate() {
+            // The same edge the event fires on: true now, not true
+            // before, and not fired already.
+            let Some(branch) = (0..clause.branches.len())
+                .find(|&b| now[index][b] && !before[index][b] && !fired[index][b])
+            else {
+                continue;
+            };
+            // A branch that also checks, stops or restarts something
+            // is left to the event, where those are done in their
+            // place: fired early, the assignments would go and the
+            // rest be lost with the mark.
+            let actions = &clause.branches[branch].actions;
+            if !actions
+                .iter()
+                .all(|action| matches!(action, CompiledAction::Assign(..)))
+            {
+                continue;
+            }
+            fired[index][branch] = true;
+            any = true;
+            for action in actions {
+                if let CompiledAction::Assign(discrete_index, code) = action {
+                    values[self.discrete_slots[*discrete_index]] = code.run(values, t);
+                }
+            }
+        }
+        any
+    }
+}
+
+/// Whether a block refused before the initial event's `when` clauses
+/// have fired is refused outright, the order before the clauses were
+/// put first. `OXIDELICA_NO_INITIAL_ORDER` keeps the old one, so that
+/// one binary gives both numbers.
+pub(crate) fn initial_order_off() -> bool {
+    static OFF: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *OFF.get_or_init(|| std::env::var_os("OXIDELICA_NO_INITIAL_ORDER").is_some())
 }
 
 impl EventRewrite<'_> {
@@ -532,7 +594,24 @@ impl CompiledModel {
                 // reports a change on every pass for ever and the event
                 // never comes to rest.
                 for _ in 0..=self.discrete_definitions.len() {
-                    self.eval_point(t, y, values, &mut scratch, alg_guess)?;
+                    // A block refused before the initial event's clauses
+                    // have fired may be refused for what they had not yet
+                    // written - a table answering zero until `when
+                    // initial()` gives it its line. Those clauses are
+                    // fired then, and the point is asked once more; a
+                    // block that refuses with them fired refuses for
+                    // the model's own reasons.
+                    if let Err(why) = self.eval_point(t, y, values, &mut scratch, alg_guess) {
+                        if initial_order_off()
+                            || values[self.initial_slot] == 0.0
+                            || !self.fire_initial_assignments(t, values, &before_event, &mut fired)
+                        {
+                            return Err(why);
+                        }
+                        acted = true;
+                        outcome.changed = true;
+                        self.eval_point(t, y, values, &mut scratch, alg_guess)?;
+                    }
                     let mut again = false;
                     for (at, (slot, code)) in self.discrete_definitions.iter().enumerate() {
                         let new = code.run(values, t);
