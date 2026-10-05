@@ -1093,7 +1093,17 @@ FLATTEN_FLOOR=966
 # models run differ by the same two swings and nothing else,
 # SpringWithMass and IMC_DOL (/tmp/m354/runner_ran.txt against
 # /tmp/m354/desk_ran.txt). Set from the lower.
-RUN_FLOOR=700
+#
+# And run 707 = 700 + IMC_DOL, IMC_Steinmetz, IMC_YD and IMS_Start of
+# Machines, IMC_DOL and IMS_Start of FundamentalWave and the FluxTubes
+# QuadraticCoreAirgap, which run once a converged block is divided by
+# its rows before its columns (dc8ef8d). The runner printed 966 / 707
+# and runnable 849 / 665 on that tree, in job 111696260269 of run
+# 37289471517 (/tmp/m357/ci/runner.log); the desk printed 966 / 709 and
+# 849 / 667 on the same compiler (/tmp/m357/r_off.txt). The difference
+# is the same two swings, SpringWithMass and IMC_DOL of QuasiStatic.
+# Set from the lower.
+RUN_FLOOR=707
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -1284,8 +1294,12 @@ RUN_FLOOR=700
 # runner job as `RUN_FLOOR` (d85eeb5, job 111477558821): 849 / 658
 # there against 849 / 660 on the desk, the difference the same two
 # swings; both media test models are runnable examples.
+#
+# And runnable run 665 = 658 + the seven of `RUN_FLOOR` above, by the
+# same runner job (dc8ef8d, job 111696260269): 849 / 665 there against
+# 849 / 667 on the desk, the difference the same two swings.
 RUNNABLE_FLATTEN_FLOOR=849
-RUNNABLE_RUN_FLOOR=658
+RUNNABLE_RUN_FLOOR=665
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and

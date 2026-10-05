@@ -33780,3 +33780,151 @@ now reach it, and not a new one. Which of the block's currents the
 row should read, and why the difference quotient sees none of them,
 is the next probe. It belongs to the series on the star, which this
 shift was told to leave.
+
+## The zero row was a tie the pivot broke by the order of its walk (m357)
+
+The row of zeros the m356 map left open is not a row the difference
+quotient misreads. It is the star's constraint held twice. Probed
+on `IMC_Inverter` with the torn block's inner assignments printed
+beside the matrix (`OXIDELICA_NEWTON_TRAIL` with a local probe kept
+as `~/oxideflow/state/trail_inner_reads_m357.patch`,
+`/tmp/m357/inv.txt`),
+the dead row `-(m * zero.i) = i[1] + i[2] + i[3]` reads nothing because
+everything in it is recovered from something else: `i[1]` from
+`plug_n.pin[1].i`, which goes back through the terminal box to the
+open star's own sum, `star.plug_p.pin[1].i = -(pin_n.i + pin[2].i +
+pin[3].i)` with `pin_n.i = starpoint.i = 0`. Once substituted, the row
+is `-m*zero.i = 0`, and `zero.i` is `-lszero.i`, a state. So the row
+is an identity in the block's unknowns, and its residual lives only
+on a state the block cannot move.
+
+That state should not have been one. The reduction trace
+(`OXIDELICA_VICTIM_PROBE`, `/tmp/m357/inv_victim.txt`) has reduction
+10 on `terminalBox.starpoint.i = 0`, reaching `lssigma.i_[1]`,
+`lssigma.i_[2]` and `lszero.i`, all three weighed at 0.0, and it
+demoted `lssigma.i_[1]`. The constraint names no state, so its own
+slope is zero in every one of them, and the weight through the
+definitions is read only when the monitor asks for a re-selection.
+With every weight at zero, `max_by` returns the last candidate of the
+walk. That is a choice made by order, not by the pivot. The star
+determines the zero sequence and nothing of the space phasor, which
+is what m347 found for `IMC_DOL_Polyphase`'s three-phase twin, where
+the same reduction demotes `i0`.
+
+A change was tried and is parked, not committed
+(`~/oxideflow/state/tie_through_m357.patch`, with its test). Where
+every candidate weighs zero, it broke the tie by the weight through
+the definitions (`weigh_at_start`, the monitor's own measure), and
+left a choice the slope already made alone. `OXIDELICA_NO_TIE_THROUGH=1`
+gave the old order. With it on, reduction 10 weighs `lszero.i` 9.0,
+`lssigma.i_[1]` 3.0 and `lssigma.i_[2]` 2e-15, demotes `lszero.i`,
+and the model runs. The small model is an open star in eighteen lines
+(`/tmp/m357/mini/T1.mo`): two phasor states, a zero sequence `z`,
+three currents built from them and `i1 + i2 + i3 = 0`. The old order
+demotes `a` and is refused as underdetermined. The new one demotes
+`z`, which the star holds at zero, and `a(1)` agrees with the closed
+form `(sin 1 - cos 1 + e^-1)/2` to six figures.
+
+The ladder, one binary off and on (`/tmp/m357/ladder.txt`,
+`ladder_rest.txt`):
+
+| model                                       | off      | on                        |
+| ------------------------------------------- | -------- | ------------------------- |
+| Machines `IMC_Inverter`                     | singular | runs                      |
+| Machines `IMC_Conveyor`                     | singular | runs                      |
+| Machines `IMC_DCBraking`                    | singular | runs                      |
+| Machines `SMPM_Inverter`                    | singular | runs                      |
+| Machines `SMR_DOL`                          | singular | runs                      |
+| Machines `SMR_Inverter`                     | singular | runs                      |
+| Machines `SMEE_Rectifier`                   | singular | runs                      |
+| Machines `SMEE_DOL`                         | singular | states re-selected at t=0 |
+| FundamentalWave `SMPM_Inverter`             | singular | singular                  |
+| FundamentalWave `SMR_Inverter`              | singular | singular                  |
+| Machines `IMC_DOL` (control)                | runs     | runs                      |
+| the four `ComparisonPolyphase` stars (m347) | singular | singular                  |
+| `PolyphaseRectifier`, both `SMEE_LoadDump`  | singular | singular                  |
+| FundamentalWave `SMEE_Rectifier`            | singular | singular                  |
+
+Seven of the eleven arrived. `SMEE_DOL` moved to another wall:
+the monitor asks for a re-selection at the start and three
+derivatives of the stator's current leave. In the FundamentalWave `SMPM_Inverter` the
+star is already demoted correctly with the rule on: reductions 23 and
+24 take `smpmE.lszero.i` and `smpmM.stator.zeroInductor.i0`. So its
+singular block, on `V_mss.im`, is another wall and was not taken
+further.
+The five-phase stars of m347 are a matching question (no reduction
+at all on the star), so this rule does not reach them, as expected.
+
+The corpus pair, one binary (`/tmp/m357/ox2`, `--without
+scripts/heavy_models.txt`), printed 966 / 709 and 849 / 667 off
+(`/tmp/m357/r_off.txt`) and 966 / 716 and 849 / 674 on
+(`/tmp/m357/r_on.txt`). Nine came: the seven above,
+`SMPM_VoltageSource` and MultiBody `DoublePendulum`. Two left, and
+that is why it is parked. In `Rectifier12pulse` the ties are between
+`l1sigma` and `l2sigma` currents of the two transformers. The old
+order took `l2sigma`, and the weight takes `l1sigma` (3.46 or 2.0
+against 1.0), after which the diodes' block has no Newton direction.
+In the quasi-static `SMEE_Generator` one tie weighs
+`constantSpeedQS.phi` 2.0 against two reference angles at 1.0, and
+the weight takes the shaft. The run then ends in a singular block of
+the stator. In both the old victim was not weightless, so a heavier
+weight through the definitions is not the same thing as the variable
+the constraint determines. In `IMC_Inverter` the old victim weighed
+3.0, and only the order of the numbers happened to be right. The
+measure that separates them is still open. One candidate is the
+weight with every other candidate held fixed, not only the rest of
+the state. `starpoint.i = 0` reads `3*lszero.i` with the phasor
+currents held still, and reads `lssigma.i_[1]` only because the walk
+moves `lszero.i` along with it. The Jacobians the pair built went
+from 192 to 253, by the arrivals.
+
+## Five Spice3 models underdetermined, three over a capacitance that is zero (m357)
+
+`MNmos`, `MPmos`, `NAND`, `ONEBIT` and `RtlInverter` are not
+the machines' disease. Each block is a set of derivatives of junction
+voltages, and in three of them each derivative is multiplied by a
+capacitance that the model's card makes zero. In `RtlInverter` the block is the one unknown
+`der(Q1.vbx)`, read only by `icapbx = cc.capbx * der(vbx)`, and
+`capbx` is the share `m_tBCcap * (1 - XCJC)` of the base-collector
+capacitance on the outer base, with `XCJC = 1` by default. In
+`MNmos` and `MPmos` the card is written `CBD=0, CBS=0`, and
+`icBS = cc.cBS * (der(B.v) - der(Sinternal))`. Those three are read
+from the sources. `NAND` and `ONEBIT` were not settled: their card
+has `CJE=1e-12, CJC=3e-12`, so `capbe` is not zero by the card, and
+yet `der(Q4.vbe)` is in the block. Which of their coefficients is
+zero at the start is open. The trail of `NAND` prints the block at
+zero and a residual of zero, with no matrix: the refusal is the pivot
+test at `solvers/mod.rs:1383` on a block that converged. For the
+three that were read, the pivot is right. With the coefficient zero,
+nothing in the block determines the derivative. It is the same family as
+the `HeatingNPN` gates in the NaN map above, a zero that comes out of
+a function rather than from a parameter, so the quench on zero
+parameters cannot see it. `dc8ef8d` did not take them because there
+is nothing for scaling to recover. A fix belongs where the derivative
+is chosen as an unknown and not in the solver, and it was not built.
+
+## The orifice divides by a pressure the block reads before `when initial()` (m357)
+
+The last unnamed divisor of the NaN map is `orifice2.state_a.p`. With
+every value the residual reads printed (the same local probe,
+`/tmp/m357/orif.txt`), it is
+0 and `state_b.p` is 100000. The density `state_a.p / (R * T)` is
+zero, and the residual divides by it. The pressure comes from
+`p_table`, a `TimeTable` whose `y = a * timeScaled + b`, and `a` and
+`b` are set by `when initial()`. The table starts at 0.1e5, not 0.
+
+A model of thirteen lines (`/tmp/m357/mini/O1.mo`) does the same:
+a discrete `b` set by `when initial()`, `p = b`, and an implicit
+block dividing by `p`. It is refused with `p = 0`. The same `b` read by
+an explicit assignment (`O2.mo`) is 10000 at the first row. The
+implicit block is solved twice before the `when` fires, and both
+times it reads `b` at its template value of 0: once in
+`check_block_regularity`, and with that skipped, once more in the
+first `eval_point` of the initial event (`events.rs:535`), which
+runs before any `when` is allowed to fire. The explicit assignment
+is evaluated at the same point and is simply asked again on the next
+pass. The implicit block refuses at its first evaluation, so it never
+gets a next pass. The fix is in
+the order of the initial event, or in letting a block that is NaN on
+the first pass of the initial event wait for the next, and it was
+not built in this shift.
