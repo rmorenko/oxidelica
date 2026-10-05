@@ -34208,3 +34208,26 @@ set is every model with a capacitance on a derivative, the Analog
 library's capacitors among them, and the floors only catch a total.
 Nothing of this was built; the next shift starts from link 3 and the
 witness is `ZeroJunction3`.
+
+The regularity cut was then measured on the rectifier, with a local
+probe that prints the block's Jacobian where the Newton direction is
+refused and once at the first solve of a block of forty or more
+unknowns past a given time (`/tmp/m359/oxtie3`, not committed; files
+`/tmp/m359/stuck_rect_2.txt`, `at_rect_off.txt`, `at_rect_k2.txt`).
+It does not separate them either. Snapshotted at the same moment,
+`t = 2e-5`, the winning set's diode block has 62 unknowns and rank 58,
+the losing set's 60 and rank 56, both with every diode off and both
+free along the derivatives of `transformer1`'s secondary line
+currents: the winner along `pin[3]` against `pin[1]` and `pin[2]`
+(-0.82, 0.41, 0.41), the loser along `pin[3]` against `pin[2]`
+(-0.71, 0.71). Both blocks are singular in the same mode, and the
+winner runs through it. The loser is refused at `t = 5.8e-8` from
+`|f| = 3.1e-10`, three steps without descent at a residual already
+near the floor, with the same kernel. So a test of regularity, at the
+start or in every mode, would reject the winning choice as well. What
+differs is whether Newton, standing on a singular block, still finds
+a descending step, which is a property of the solver at the floor and
+not of the choice of victim. The tie is not closed by any measure
+taken on the choice alone, and the next cut is the singular diode
+block itself: both sets leave the secondary's line currents of an
+open-delta winding free with the diodes off.
