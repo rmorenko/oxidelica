@@ -359,6 +359,12 @@ pub(super) fn collect_records(
             }
             collect_records(registry, base, prefix, &base.name, &below, out, depth + 1);
         }
+        // What this `extends` redeclares in the base, the same way the
+        // instantiation of the base hears it: a stack's data record
+        // extends the interface's with `redeclare TransientData.
+        // CellData cellData`, and filed under the interface the table
+        // of six cells came apart into fields one short.
+        file_redeclared_records(registry, &extend.redeclares, prefix, scope, imports, out);
     }
     for component in &class.components {
         // A type may be a name for a record - `connector ComplexOutput
@@ -507,4 +513,47 @@ pub(super) fn outers_with_no_inner(
 /// both ways from one binary.
 fn prefix_twice() -> bool {
     std::env::var_os("OXIDELICA_PREFIX_FILLED_TWICE").is_some()
+}
+
+/// Whether a redeclared record is filed under the class it was
+/// redeclared to. `OXIDELICA_NO_REDECLARED_RECORDS=1` leaves it under
+/// the class the base declared, as before.
+pub(super) fn redeclared_records_open() -> bool {
+    std::env::var("OXIDELICA_NO_REDECLARED_RECORDS").as_deref() != Ok("1")
+}
+
+/// File every component of this class that a redeclaration reaching
+/// it replaces by a record under that record, members and all, over
+/// what the walk filed under the class the declaration itself names.
+///
+/// Only a name the walk already filed as a record is refiled: a
+/// redeclaration of something that is not a record here, or of a
+/// component this class does not hold, is not one this may invent.
+pub(super) fn file_redeclared_records(
+    registry: &HashMap<&str, &ClassDef>,
+    redeclares: &[Redeclare],
+    prefix: &str,
+    scope: &str,
+    imports: &[(String, String)],
+    out: &mut HashMap<String, String>,
+) {
+    if !redeclared_records_open() {
+        return;
+    }
+    for held in redeclares.iter().filter(|r| !r.class_level) {
+        let name = format!("{prefix}{}", held.name);
+        let Some(filed) = out.get(&name) else {
+            continue;
+        };
+        let Some(of) = lookup(registry, &held.type_name, scope, imports) else {
+            continue;
+        };
+        if of.kind != ClassKind::Record || *filed == of.name {
+            continue;
+        }
+        let below = format!("{name}.");
+        out.retain(|path, _| !path.starts_with(&below));
+        out.insert(name, of.name.clone());
+        collect_records(registry, of, &below, &of.name, &of.imports, out, 1);
+    }
 }

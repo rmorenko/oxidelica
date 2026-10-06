@@ -30,7 +30,19 @@ pub(super) fn record_components(
             false => lookup(registry, &extend.base, &class.name, &class.imports),
         };
         if let Some(base) = base {
-            let inherited = record_components(registry, base, depth + 1);
+            let mut inherited = record_components(registry, base, depth + 1);
+            // A field two bases both bring is one field (7.1.3): a
+            // transient cell record extends the cell record and an icon
+            // record, and both declare `constant String CellType`.
+            // Counted twice, the record looked one field longer than
+            // any value of it, a stack's table of six cells matched no
+            // reading and was dropped, and its RC data fell back to the
+            // record's zeros. The first one keeps its place: a value
+            // written out is matched to the fields by position, and the
+            // order the first base gave is the order it was written in.
+            if super::scoping::redeclared_records_open() {
+                inherited.retain(|field| !out.iter().any(|kept| kept.name == field.name));
+            }
             // What the `extends` said about the base's fields is part
             // of what this record declares them as: `record M350_50A
             // extends BaseData(mu_i = 1210, n = 14)` is a record whose

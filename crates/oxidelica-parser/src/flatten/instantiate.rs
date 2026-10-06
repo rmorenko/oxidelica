@@ -150,6 +150,22 @@ pub(super) fn instantiate(
         &mut records_here,
         0,
     );
+    // A record the class declares and something above redeclared is
+    // the record it was redeclared to: `extends BaseStack(redeclare
+    // CellData cellData)` means the fields of `CellData` while the
+    // base is built. Read through the base's own declaration alone,
+    // the table said `BaseData`, a record handed whole - `battery(
+    // cellData = cellData)` - came apart into the one field that
+    // record has, and every field `CellData` adds kept its default:
+    // a length of one where the model gave two.
+    file_redeclared_records(
+        registry,
+        &redeclares,
+        prefix,
+        scope,
+        &imports,
+        &mut records_here,
+    );
     // A modifier arrives written in the terms of the class that
     // supplied it - `Shape s(R = mine)` names a record of the class
     // holding `s`, not of `Shape` - so what that class knows to be a

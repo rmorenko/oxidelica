@@ -1416,3 +1416,46 @@ fn a_zero_carried_by_a_variable_quenches_the_derivative_it_scales() {
     assert!((vbc - 10.0 * 1f64.sin()).abs() < 1e-6, "vbc = {vbc}");
     assert_eq!(last_of(&result, "cbc"), 0.0);
 }
+
+#[test]
+fn a_record_redeclared_by_an_extends_comes_apart_into_its_own_fields() {
+    // A stack declares its data as the interface record and narrows it
+    // in an `extends`: `extends BaseStack(redeclare CellData
+    // cellData)`. The example hands it a record whole, `battery(
+    // cellData = cellData)`, and the record carries a length and an
+    // array the interface does not have. The table of which names are
+    // records said `BaseData` there, so the value came apart into the
+    // one field `BaseData` has, `n` kept its default of 1 and the
+    // array its one element of zero, and a name for the array's whole
+    // field reached the run. The batteries of the library refused for
+    // it. The numbers are the check: the two leaves decay with the two
+    // resistances the example wrote, doubled.
+    let result = run("model M \
+           record Elem parameter Real R = 1; end Elem; \
+           record BaseData parameter Real Ri = 1; end BaseData; \
+           record CellData extends BaseData; parameter Integer n = 1; \
+             parameter Elem a[n] = {Elem(R = 0)}; end CellData; \
+           record ExampleData extends CellData(n = 2, \
+             a = {Elem(R = 3), Elem(R = 4)}); end ExampleData; \
+           model Leaf parameter Real R; Real x(start = 1); \
+             equation der(x) = -R*x; end Leaf; \
+           partial model BaseStack replaceable parameter BaseData cellData; end BaseStack; \
+           model Stack extends BaseStack(redeclare CellData cellData); \
+             Leaf leaf[cellData.n](final R = 2 * cellData.a.R); end Stack; \
+           parameter ExampleData cellData; \
+           Stack battery(cellData = cellData); \
+           annotation(experiment(StopTime = 0.1, Interval = 0.1)); \
+         end M;");
+    let last = result.rows.len() - 1;
+    let at = |name: &str| result.rows[last][result.columns.iter().position(|c| c == name).unwrap()];
+    let first = at("battery.leaf[1].x");
+    let second = at("battery.leaf[2].x");
+    assert!(
+        (first - (-0.6f64).exp()).abs() < 1e-4,
+        "leaf[1].x = {first}"
+    );
+    assert!(
+        (second - (-0.8f64).exp()).abs() < 1e-4,
+        "leaf[2].x = {second}"
+    );
+}

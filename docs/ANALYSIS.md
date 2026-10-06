@@ -35413,3 +35413,108 @@ b6c8ee2^:scripts/heavy_models.txt`), so that every model the old
 censuses checked is checked again. If it reads 179, the cause is in the
 difference of the lists; if 170, the 179 died with the environment of
 those days and the thread is closed.
+
+## The five that could not evaluate their parameters, read again (m369)
+
+The top of the queue by name in m366 was five models refused with
+`cannot evaluate parameters`: `Batteries.Examples.BatteryDischargeCharge`
+and `CCCVcharging`, and `MultiBody.Examples.Loops.Engine1b_analytic`,
+`EngineV6_analytic` and `PlanarLoops_analytic`. Both maps of them were
+old - the rcData chain of m168 and the rod of m269 - so each model was
+asked again under `--only` from `.msl` on the tree of `338f799`, under
+a memory ceiling (`/tmp/m369/only_*.txt`), before any of the maps was
+believed.
+
+They are two families, as the maps said, and one of the maps had moved.
+
+### The engines: the m269 rod stands as it was mapped
+
+The three engines name what they did in m269: `jointRRP.e_ia[1] =
+jointRRP.jointUSP.e2_ia`, an element bound to a whole array, and five
+names per assembly nothing gives a value to (`e2_ia`, `prismatic.e`,
+`rod1.e2_ia`, `rod1.eRod_ia`, `rod1.rodLength`; `PlanarLoops_analytic`
+adds its `n_b`). The sixteen-line model of m269 refuses today in the
+same words (`a.e1[1] = a.rod1.e`), and the same model with `rod1`
+declared above `e1` runs. Peaks were 0.5 to 1.3 GB and 9 to 35 seconds,
+so the engines are no longer the 3.7 GB probe the brief warned of -
+but the parked patch that measures the member (m270) is still what
+sends `Engine1b_analytic` past a hundred gigabytes, and nothing about
+the ceiling for differentiation (m271) has changed. Confirmed and left;
+the patch no longer applies to the tree and would want rewriting.
+
+### The batteries: the map had moved, and the wall was a table
+
+The rcData map said a length settled at the base's default of 1 and,
+past it, a value that came apart into four numbers where two records
+were wanted. A thirty-line model built from the map refused in the
+words of the library, and bisecting it said the length was not the
+first wall any more: with the record handed in by a plain declaration
+instead of a redeclaring `extends`, the same model ran and gave the
+right numbers. `why` said where the fields came from:
+
+```text
+battery.cellData.Ri        bound to: cellData.Ri
+battery.cellData.n         bound to: 1
+battery.cellData.a[1].R    bound to: 0
+```
+
+The field the interface declares was handed down, and every field the
+redeclared record adds was left at its default. The record handed
+whole, `battery(cellData = cellData)`, is taken apart field by field against
+the table of which names are records and of what, and that table is
+filled by `collect_records` from the declarations as written. A
+redeclaration reaching the class - `extends BaseStack(redeclare
+CellData cellData)` - was heard by instantiation and not by the table,
+which still said `BaseData`, a record of one field.
+
+So the table now hears it, in two places: where a class is instantiated,
+under the redeclarations that reach it, and inside the walk itself,
+where an `extends` redeclares a member of the base - which is how
+`TransientData.StackData` narrows the table of cells it holds. Only a
+name the walk already filed as a record is refiled. With that, a third
+link showed itself on `CCCV_StackRC`: `TransientData.CellData` extends
+the cell record and an icon record, and both declare `constant String
+CellType`. A field two bases bring is one field (7.1.3), but it was
+counted twice, so the table of six cells was eighteen fields a record
+against seventeen in the value, matched no reading, and was refused as
+`cellData has 6 element(s) but its value has 774`. The first of two
+like-named inherited fields now keeps its place, because a value written
+out is matched to the fields by position. Keeping the last instead
+moved `OCV_SOC` one place and took every battery to a refusal about
+`SOCmin`; that is how the order was learned rather than guessed.
+
+Before this, `CCCV_StackRC` flattened and was refused by the library's
+own `assert(cellData.rcData[1].R > 0, "Parameters of RC-elements
+undefined!")`: the RC data had silently become the record's zeros. It
+now flattens with the data the model wrote, and stops at a singular
+Jacobian - the row of 26 that is left lying.
+
+`OXIDELICA_NO_REDECLARED_RECORDS=1` switches all three off. The test
+(`a_record_redeclared_by_an_extends_comes_apart_into_its_own_fields`)
+is the shrunk model with two leaves decaying by the two resistances the
+example wrote, doubled: `exp(-0.6)` and `exp(-0.8)` at 0.1 s. Under the
+switch it is refused with `nothing gives a value to
+battery.cellData.a.R`.
+
+On the library, under `--only`, one binary (`/tmp/ox369g`):
+`BatteryDischargeCharge`, `CCCVcharging` and `CCCV_CellRC` run, and did
+not; the resistances come out `0.0035` for `Ns = 10`, `Np = 2` and
+`Ri = 4.2/1200`, which is `0.2*Ri*Ns/Np`, the example's own. The
+controls `CCCV_Cell`, `SuperCapDischargeCharge`, `CCCV_Stack`,
+`ShowImpedance`, `SMPM_Inverter`, `HeatingSystem` and `DoublePendulum`
+end as they did with the switch.
+
+The pair on the final tree, one binary built from it (`/tmp/ox369g`),
+switch on against off, `--without scripts/heavy_models.txt`
+(`/tmp/m369/pair_off.txt`, `/tmp/m369/pair_on.txt`): 961 flatten both
+ways, and run **715 against 718**; runnable 844 flatten both ways and
+run **673 against 676**. The flatten lists are identical by name. The
+run lists differ by exactly three arrivals, `BatteryDischargeCharge`,
+`CCCV_CellRC` and `CCCVcharging`, and no withdrawals. The floors are
+left for the runner's number.
+
+A change that gives a name a definition is measured by the victims of
+index reduction rather than by the models. This one gives none: it
+changes which record class a table names, and the values that follow
+are parameters, which reduction never weighs. The run lists, diffed
+name by name, are the witness that nothing scattered.
