@@ -35124,3 +35124,59 @@ so it is no victim, but the arrival is given back, and it says that
 some defined variables are where a loop's iteration begins after all.
 Which ones, and whether a rule can tell that case from the drum's, is
 the next question.
+
+## The census after the carve-out, against m356 (m367)
+
+The census of m366 (`/tmp/m366/census.txt`, names in
+`/tmp/m366/raw.txt`) was taken on `94be068` with the heavy list held
+out, so it reads 1028 models where m356 (`/tmp/m356/census.txt`) read 1033. Counted between the section marks, the flatten half holds 67
+models in 39 rows in both, and the two lists are identical by name and
+by text. The run half went from 257 models in 149 rows to 248 in 149
+rows. Nine names left it and none arrived; three more stayed and
+changed their words.
+
+Five of the nine left because they were carved out on 2026-10-06
+(`b6c8ee2`), and they are what moves the big rows:
+
+| row                          | m356 | m366 | who left                                              |
+| ---------------------------- | ---- | ---- | ----------------------------------------------------- |
+| the Newton direction         | 20   | 17   | `R134a1`, `R134a2`, `DynamicPipesWithTraceSubstances` |
+| did not converge in N Newton | 7    | 6    | `BranchingPipes12`                                    |
+| singular Jacobian            | 27   | 26   | `DynamicPipesAndFittings`                             |
+
+The other four run now, and each has its commit. `HeatingNPN_NORGate`
+and `HeatingPNP_NORGate` left `` `X` of algebraic loop `` with the
+quench of a derivative whose coefficient is zero (`b705c60`), and
+`TestSharpEdgedOrifice` left the same row when a block was solved after
+the `when initial()` clauses it reads (`1203fe8`); that row goes 10 to 7. `WaterIF97` left the single row `initial value of X is fixed at N`
+with the fixed start weighed against its size (`69b4a17`), and the row
+is gone.
+
+`algebraic loop [...]` went 5 to 4 without a model running:
+`IMC_DOL_CommonLeakage` gave up `has a solution on either side of
+aimc0.airGap.gamma` for a new single row, `structurally singular model:
+equation aimc0.wMechanical - der(aimc0.flange.phi) = 0 constrains no
+state`. Probed under `--only` with each switch of the commits in
+between, only `OXIDELICA_NO_ZERO_VAR=1` gives the old refusal back, so
+the quench of `b705c60` moved it one wall along. `SoftStarter` stays
+in its row with the same 1142 equations for 1141 unknowns, but names a
+different equation as the one left over, and the same switch gives
+back the old wording. Both are the quench changing what a zero
+coefficient leaves standing, which is what it was for; neither is a
+victim, since neither ran.
+
+One name has no cause, and is recorded as found rather than
+explained. `TestJunctionIdeal` read `179 algebraic equation(s) for 182
+unknown(s)` in every census from m339 to m356, and reads 170 for 173
+in m366, naming other unknowns (`pipe1.flowModel.vs[2]` where it named
+`pipe1.flowModel.Res[2]`). Under `--only` it prints 170 for 173 on
+today's binary, on every switch of the commits in between, and on the
+three binaries m356 left in `/tmp/m356` (`ox`, `ox2`, `oxp`). With its
+twelve uncarved neighbours of `Fittings` and `Pipes` it still prints
+170, and with the carved `DynamicPipesAndFittings` beside it the same.
+So the 179 was something the whole pass did to it and a single model
+does not, and the carve-out took away whatever did it. Both counts
+leave three unknowns undetermined, so the census row is unmoved; but a
+model whose equation count depends on what was checked before it is a
+fault of state left between models, and that is the thread to pull
+when somebody next has the full pass to spare.
