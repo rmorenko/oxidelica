@@ -1103,7 +1103,15 @@ FLATTEN_FLOOR=966
 # 849 / 667 on the same compiler (/tmp/m357/r_off.txt). The difference
 # is the same two swings, SpringWithMass and IMC_DOL of QuasiStatic.
 # Set from the lower.
-RUN_FLOOR=707
+#
+# And run 708 = 707 + TestSharpEdgedOrifice, which runs once a block
+# is solved after the when initial() clauses it reads (1203fe8). The
+# runner printed 966 / 708 and runnable 849 / 666 on cabd2b5, in job
+# 112028686165 of run 37388781374 (/tmp/m361/runner_names.txt); the desk
+# printed 966 / 710 and 849 / 668 on the same compiler
+# (/tmp/m360/pair_on.txt). The difference is the same two swings,
+# SpringWithMass and IMC_DOL of QuasiStatic. Set from the lower.
+RUN_FLOOR=708
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -1298,8 +1306,13 @@ RUN_FLOOR=707
 # And runnable run 665 = 658 + the seven of `RUN_FLOOR` above, by the
 # same runner job (dc8ef8d, job 111696260269): 849 / 665 there against
 # 849 / 667 on the desk, the difference the same two swings.
+#
+# And runnable run 666 = 665 + TestSharpEdgedOrifice, a runnable
+# example, by the same runner job as `RUN_FLOOR` (cabd2b5, job
+# 112028686165): 849 / 666 there against 849 / 668 on the desk, the
+# difference the same two swings.
 RUNNABLE_FLATTEN_FLOOR=849
-RUNNABLE_RUN_FLOOR=665
+RUNNABLE_RUN_FLOOR=666
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
