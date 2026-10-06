@@ -1111,7 +1111,18 @@ FLATTEN_FLOOR=966
 # printed 966 / 710 and 849 / 668 on the same compiler
 # (/tmp/m360/pair_on.txt). The difference is the same two swings,
 # SpringWithMass and IMC_DOL of QuasiStatic. Set from the lower.
-RUN_FLOOR=708
+#
+# And run 710 = 708 + HeatingNPN_NORGate and HeatingPNP_NORGate, which
+# run once a derivative whose coefficient is zero is quenched through a
+# quotient or a variable (b705c60). The runner printed 966 / 710 and
+# runnable 849 / 668 on 06d5a34, in job 112066341819 of run 37400464807
+# (/tmp/m362/ci/runner.log), names 1915365239 as before. Against the
+# runner's own list on cabd2b5 (/tmp/m361/runner_ran.txt) the two gates
+# came, IMC_DOL of QuasiStatic came, and SMPM_VoltageSource of
+# FundamentalWave went: the runner's swings traded one model for
+# another without the total noticing. The desk runs all three swings
+# (/tmp/m362/pair_off.txt, 966 / 712). Set from the runner.
+RUN_FLOOR=710
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -1311,8 +1322,12 @@ RUN_FLOOR=708
 # example, by the same runner job as `RUN_FLOOR` (cabd2b5, job
 # 112028686165): 849 / 666 there against 849 / 668 on the desk, the
 # difference the same two swings.
+#
+# And runnable run 668 = 666 + the two NOR gates of `RUN_FLOOR` above,
+# both runnable examples, by the same runner job (06d5a34, job
+# 112066341819): 849 / 668 there against 849 / 670 on the desk.
 RUNNABLE_FLATTEN_FLOOR=849
-RUNNABLE_RUN_FLOOR=666
+RUNNABLE_RUN_FLOOR=668
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
