@@ -34757,9 +34757,17 @@ block's unknowns are `volume.medium.p` and `ambient.port.h`, and the
 first point of the trail is `[3e5, 1e6]`. `oxidelica why` gives
 `ambient.port.h` no binding and no start, while the ambient it belongs
 to is set to `h_start = 107390`, so the guess for the enthalpy is nine
-times what the model names. Where the `1e6` comes from was not traced.
-`R134a2` and `DryAir1` refuse with residuals of the same order (`20.6`
-and `98`), but their trails were not taken.
+times what the model names. The `1e6` is traced in the next section.
+`R134a2` (`/tmp/m363/tr_R134a2.txt`) is the same start, `[3e5, 1e6,
+3e5]`, and the same crawl at `|f| = 20.4`, with pressure going back and
+forth between `6.9e5` and `7.4e5`. `DryAir1` (`/tmp/m363/tr_DryAir1.txt`)
+is different. Its block converges at `t = 0`, and at `t = 2e-4` row 0
+reads `97.96` and stays there to four digits while Newton moves the
+unknowns: `97.96039`, `97.96030`, `97.96021`. Newton moves the fifth
+unknown from `-3.8e5` to `3.4e9` and back, and the other four by less
+than `1e-3`. A row that does not answer to the block's own unknowns is
+not one a step can reduce. That points at what the block reads from
+outside, not at the step, and it was not traced further.
 
 What this leaves as the next work, in order of what it would reach:
 the first kind is a single question about the acceptance test against
