@@ -35371,3 +35371,45 @@ run lists differ by exactly two arrivals, `DryAir1` and `DryAir2`, and
 no withdrawals. The floors are left for the runner's number. Work moved
 by 385 points and 765 Newton steps of 37592843, and the names looked up
 not at all, since the rewrite is a pass over equations already flat.
+
+## The 179 of `TestJunctionIdeal` is not reproduced by any binary (m368)
+
+The note above left a thread: `TestJunctionIdeal` read `179 algebraic
+equation(s) for 182 unknown(s)` in every census from m339 to m356 and
+`170 for 173` since. Shift m368 pulled it, and what came back is a map
+of where the 179 is not, which is worth keeping because an instrument
+that changes its answer with its company is an instrument that lies
+about somebody else too.
+
+The numbers are the count of the flattening, the text of the refusal
+(`unbalanced model: 170 algebraic equation(s) for 173 unknown(s)`),
+and not Newton steps. A summary without `--refused` folds that text
+into "and N more kinds", so every probe below was read with it.
+
+Every probe printed 170 for 173:
+
+- three binaries: the binary of the tree at the time (`/tmp/m368/ox1`),
+  the one m356 left (`/tmp/m356/ox`), and a fresh build of `dc8ef8d`,
+  from the stretch of censuses that read 179;
+- its package neighbours (`Fluid.Examples.Fittings` and `Pipes`) beside
+  it, in the order of the files;
+- the twenty-five models that shared its thread in the old pass, run
+  in that order on one thread (`OXIDELICA_THREADS=1`);
+- the first 279 models of the old order, on the ten threads the pass
+  uses.
+
+How the pass hands out the work bounds what is left to suspect. Models
+are taken in the order of the files, model `i` on thread `i % 10`, and
+apart from `thread_local` tables, which are cleared per registry, the
+only state models share is the environment of the process. The version
+"a `thread_local` fills up along a thread" was put to the twenty-five
+on one thread and did not hold.
+
+What differs between the censuses that read 179 and the ones that read
+170 is the list itself: the carve-out of `scripts/heavy_models.txt` at
+`b6c8ee2` took giants out of the main pass. The next probe is therefore
+one full pass with the old list of giants (`git show
+b6c8ee2^:scripts/heavy_models.txt`), so that every model the old
+censuses checked is checked again. If it reads 179, the cause is in the
+difference of the lists; if 170, the 179 died with the environment of
+those days and the thread is closed.
