@@ -794,6 +794,24 @@ fn steady_on_balances_off() -> bool {
     std::env::var("OXIDELICA_NO_STEADY_ON_BALANCES").is_ok_and(|said| said == "1")
 }
 
+/// How far a demoted variable declared `fixed` may sit from its start
+/// once the constraints have solved it, before the two are called a
+/// contradiction. Weighed against the size of the value: a specific
+/// enthalpy of `1e5` J/kg solved through a medium's functions lands
+/// a few ulps of its own magnitude away (`WaterIF97`, 1.2e-11
+/// relative), which an absolute `1e-6` called a conflict. A conflict
+/// of the order of the value itself is still refused.
+/// `OXIDELICA_NO_FIXED_START_RELATIVE=1` brings back the absolute
+/// `1e-6`, read by its value for the reason [`init_domain_halving_off`]
+/// gives.
+fn fixed_start_tolerance(expected: f64) -> f64 {
+    if std::env::var("OXIDELICA_NO_FIXED_START_RELATIVE").is_ok_and(|said| said == "1") {
+        1e-6
+    } else {
+        1e-6 * (1.0 + expected.abs())
+    }
+}
+
 /// Whether an initial equation reads `der(v) = 0` (either way round)
 /// with `v` something other than a state: a steady start written on a
 /// variable the plan computes.
@@ -5791,7 +5809,7 @@ impl CompiledModel {
         // has to agree with the declared initial condition.
         for (name, index, expected) in &self.fixed_starts {
             let actual = values[self.algebraic_slots[*index]];
-            if (actual - expected).abs() > 1e-6 {
+            if (actual - expected).abs() > fixed_start_tolerance(*expected) {
                 return err(format!(
                     "initial value of `{name}` is fixed at {expected} but the constraints require {actual}"
                 ));

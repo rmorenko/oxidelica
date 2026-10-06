@@ -57,6 +57,47 @@ fn a_plain_start_is_a_guess_but_fixed_is_an_initial_condition() {
 }
 
 #[test]
+fn a_fixed_start_is_weighed_against_the_size_of_the_value() {
+    // `WaterIF97` fixes a specific enthalpy at 1e5 J/kg and solves it
+    // back through the medium a dozen ulps away: 1.2e-11 relative,
+    // 1.2e-6 absolute. An absolute 1e-6 called that a contradiction;
+    // weighed against the value it is the same number.
+    let result = run("model H Real z; Real h(start = 100000, fixed = true); \
+         equation der(h) = z; h = 100000.0000012 + time ^ 2; \
+         annotation(experiment(StopTime=1.0, Interval=0.1)); end H;");
+    let at = result.columns.iter().position(|c| c == "h").unwrap();
+    assert!(
+        (result.rows[0][at] - 100000.0000012).abs() < 1e-9,
+        "h(0) = {}",
+        result.rows[0][at]
+    );
+}
+
+#[test]
+fn a_fixed_start_that_disagrees_by_a_joule_in_a_hundred_thousand_is_refused() {
+    // The tolerance at 1e5 is 1e-6 * (1 + 1e5), a tenth of a unit. One
+    // whole unit away is a contradiction and stays one: the check is
+    // the guard against a quietly wrong start, and loosening it to the
+    // size of the value would have taken the guard away.
+    let refused = parse_model(
+        "model H Real z; Real h(start = 100000, fixed = true); \
+         equation der(h) = z; h = 100001 + time ^ 2; \
+         annotation(experiment(StopTime=1.0, Interval=0.1)); end H;",
+    )
+    .unwrap();
+    let error = compile(&refused).unwrap_err();
+    assert!(error.0.contains("is fixed at 100000"), "{}", error.0);
+    // A twentieth of a unit sits inside the tolerance and is taken.
+    let taken = parse_model(
+        "model H Real z; Real h(start = 100000, fixed = true); \
+         equation der(h) = z; h = 100000.05 + time ^ 2; \
+         annotation(experiment(StopTime=1.0, Interval=0.1)); end H;",
+    )
+    .unwrap();
+    assert!(compile(&taken).is_ok());
+}
+
+#[test]
 fn a_discrete_start_pins_what_it_was_and_not_what_it_is() {
     // A wired logic node declares `auxiliary(start = 'Z', fixed = true)`
     // and in the same breath says `auxiliary[1] = x[1]`. The two are
