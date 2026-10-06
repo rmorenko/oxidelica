@@ -4411,6 +4411,57 @@ pub(crate) fn compile_at(
     let type_starts_stated = std::env::var_os("OXIDELICA_TYPE_START_STATED").is_some();
     let taken_as_stated =
         |component: &oxidelica_parser::Component| type_starts_stated || !component.start_from_type;
+    // A discrete-valued variable its own equation defines - `phase =
+    // if p > p_crit or h < h_bubble or h > h_dew then 1 else 2` - is
+    // not stated by its declaration's start: the start is a guess
+    // about a value the equation settles. Taken as stated, `phase = 1`
+    // said the pipe's water was liquid where its own equation said it
+    // was two-phase, every mass read from `m = V*d` came out six times
+    // too heavy (`DynamicPipeInitialization`, 56.6 kg against 8.82),
+    // and the run began from the wrong side of the dome. So such a
+    // name's definition is asked first in every round below, and what
+    // it says, once everything it reads has a value, is what the name
+    // stands at from then on. The declared start stays stated until
+    // then: held out instead, it took away the one value the reading
+    // of a medium's other starts leans on, and a mixing volume whose
+    // phase only became readable in the fifth round - and read the
+    // same 1 its start said - lost its densities in the four before
+    // and stopped running. A `fixed = true` start is left alone: it pins what
+    // the variable was before the first event, which is a different
+    // statement. `OXIDELICA_DISCRETE_START_AS_DECLARED=1` keeps the
+    // old reading, so one binary shows both.
+    let defined_discretes: Vec<(&str, &Expr)> =
+        match std::env::var("OXIDELICA_DISCRETE_START_AS_DECLARED").as_deref() {
+            Ok("1") => Vec::new(),
+            _ => discrete_defs
+                .iter()
+                .filter_map(|equation| {
+                    fn named<'e>(side: &'e Expr, discretes: &[String]) -> Option<&'e str> {
+                        match side {
+                            Expr::Ref(name) if discretes.contains(name) => Some(name.as_str()),
+                            _ => None,
+                        }
+                    }
+                    match (
+                        named(&equation.lhs, &discretes),
+                        named(&equation.rhs, &discretes),
+                    ) {
+                        (Some(name), _) => Some((name, &equation.rhs)),
+                        (None, Some(name)) => Some((name, &equation.lhs)),
+                        _ => None,
+                    }
+                })
+                .filter(|(name, _)| {
+                    resumed(name).is_none()
+                        && model
+                            .components
+                            .iter()
+                            .find(|c| c.name == *name)
+                            .is_some_and(|c| c.fixed != Some(true))
+                })
+                .collect(),
+        };
+    let mut read_discretes: HashMap<&str, f64> = HashMap::new();
     let mut stated: HashMap<String, f64> = params.clone();
     for component in &model.components {
         if !taken_as_stated(component) {
@@ -4517,116 +4568,191 @@ pub(crate) fn compile_at(
         // start it always was. A resistor's `T_heatPort` has only its
         // type's 288.15 to go on, and the resistance read from it is
         // what keeps `v = R_actual * i` from being blind to `i`.
-        let mut round = 0;
-        while round < 8 {
-            if round == 4 {
-                for component in &model.components {
-                    if taken_as_stated(component) || stated.contains_key(&component.name) {
+        // Twice where a definition disagreed with its declaration. The
+        // first pass reads with the declared start standing, because
+        // the reading of a medium's other starts leans on it; but what
+        // it read before the definition could be asked was read with
+        // the wrong phase - the pipe's masses in round 0, its phase in
+        // round 1. So when a definition said something else, the
+        // reading starts over from the declarations with the
+        // definitions' word in place of the starts they overruled.
+        // A model whose definitions all agree pays nothing.
+        let stated_before = match defined_discretes.is_empty() {
+            true => HashMap::new(),
+            false => stated.clone(),
+        };
+        for pass in 0..2 {
+            let mut round = 0;
+            while round < 8 {
+                let discretes_before = read_discretes.len();
+                for (name, definition) in &defined_discretes {
+                    if read_discretes.contains_key(name) {
                         continue;
                     }
-                    if let Some(Ok(value)) = component.start.as_ref().map(|expr| eval(expr, &ctx)) {
-                        stated.insert(component.name.clone(), value);
-                    }
-                }
-            }
-            let learned_before = read_starts.len();
-            for (lhs, rhs) in &algebraic_eqs {
-                named.clear();
-                lhs.collect_refs(&mut named);
-                rhs.collect_refs(&mut named);
-                let mut wanted: Option<&str> = None;
-                let mut alone = true;
-                for other in &named {
-                    if stated.contains_key(*other) {
+                    // A relation that stands exactly on its knee does not
+                    // say which side the variable is on: an ideal diode's
+                    // `off = s < 0` with `s` starting at zero reads false,
+                    // and the declaration's `off(start = true)` is the very
+                    // thing written to break that tie. Read from there, the
+                    // two rectifier bridges began conducting and stopped
+                    // running. So the declared start stands where the
+                    // definition is undecided.
+                    let mut relations = Vec::new();
+                    collect_relations(definition, &mut relations);
+                    let on_a_knee = relations.iter().any(|relation| {
+                        let at = eval(
+                            relation,
+                            &EvalCtx {
+                                vars: &stated,
+                                time: 0.0,
+                                programs: Some(&programs),
+                                depth: 0,
+                            },
+                        );
+                        matches!(at, Ok(value) if value == 0.0)
+                    });
+                    if on_a_knee {
                         continue;
                     }
-                    match wanted {
-                        Some(first) if first == *other => {}
-                        Some(_) => {
-                            alone = false;
-                            break;
+                    let value = eval(
+                        definition,
+                        &EvalCtx {
+                            vars: &stated,
+                            time: 0.0,
+                            programs: Some(&programs),
+                            depth: 0,
+                        },
+                    );
+                    if let Ok(value) = value {
+                        if value.is_finite() {
+                            read_discretes.insert(name, value);
+                            stated.insert(name.to_string(), value);
                         }
-                        None => wanted = Some(other),
                     }
                 }
-                let (true, Some(name)) = (alone, wanted) else {
+                if round == 4 {
+                    for component in &model.components {
+                        if taken_as_stated(component) || stated.contains_key(&component.name) {
+                            continue;
+                        }
+                        if let Some(Ok(value)) =
+                            component.start.as_ref().map(|expr| eval(expr, &ctx))
+                        {
+                            stated.insert(component.name.clone(), value);
+                        }
+                    }
+                }
+                let learned_before = read_starts.len();
+                for (lhs, rhs) in &algebraic_eqs {
+                    named.clear();
+                    lhs.collect_refs(&mut named);
+                    rhs.collect_refs(&mut named);
+                    let mut wanted: Option<&str> = None;
+                    let mut alone = true;
+                    for other in &named {
+                        if stated.contains_key(*other) {
+                            continue;
+                        }
+                        match wanted {
+                            Some(first) if first == *other => {}
+                            Some(_) => {
+                                alone = false;
+                                break;
+                            }
+                            None => wanted = Some(other),
+                        }
+                    }
+                    let (true, Some(name)) = (alone, wanted) else {
+                        continue;
+                    };
+                    // Whether the name is one whose start is *used* is a
+                    // separate question from whether reading it is worth
+                    // the pass: a temperature nothing iterates on is what
+                    // makes the enthalpy readable, and the enthalpy is
+                    // what makes the total readable. So the question
+                    // asked is the wider one - is this name within reach
+                    // of something that wants a start - and the answer is
+                    // a lookup in a set worked out once above, which is
+                    // what keeps the solving off every name in the model.
+                    if !wanted_names.contains(name) || read_starts.contains_key(name) {
+                        continue;
+                    }
+                    // An equation that already stands the name alone on
+                    // one side needs no slope taken: `d = waterBaseProp_pT
+                    // (p, T, 0)[9]` says what `d` is outright, and the
+                    // other side, which mentions nothing unvalued, is a
+                    // number. Asked through the linear solver it is
+                    // refused, because taking a slope means
+                    // differentiating a medium call nothing has a rule
+                    // for - and the refusal is about the function rather
+                    // than about the unknown, which stands by itself and
+                    // linearly by inspection.
+                    //
+                    // This is the shape the water tank is built out of:
+                    // a mass `m = V*d` on a density read from a table, so
+                    // the mass began at zero, and a start of zero for a
+                    // mass asks the tables for a density no water has.
+                    let isolated = |side: &Expr, other: &Expr| -> Option<Expr> {
+                        if std::env::var_os("OXIDELICA_NO_READ_ISOLATED").is_some() {
+                            return None;
+                        }
+                        let Expr::Ref(alone) = side else { return None };
+                        if alone != name {
+                            return None;
+                        }
+                        let mut over = Vec::new();
+                        other.collect_refs(&mut over);
+                        if over.contains(&name) {
+                            return None;
+                        }
+                        Some(other.clone())
+                    };
+                    let solved = match crate::symbolic::solve_linear_known(lhs, rhs, name, &stated)
+                    {
+                        Some(solved) => solved,
+                        None => match isolated(lhs, rhs).or_else(|| isolated(rhs, lhs)) {
+                            Some(alone) => alone,
+                            None => continue,
+                        },
+                    };
+                    let value = eval(
+                        &solved,
+                        &EvalCtx {
+                            vars: &stated,
+                            time: 0.0,
+                            programs: Some(&programs),
+                            depth: 0,
+                        },
+                    );
+                    if let Ok(value) = value {
+                        if value.is_finite() {
+                            read_starts.insert(name, value);
+                            stated.insert(name.to_string(), value);
+                        }
+                    }
+                }
+                if read_starts.len() == learned_before && read_discretes.len() == discretes_before {
+                    // A first half that has learned all it can goes on to
+                    // the second rather than spending its rounds idle.
+                    match round < 4 {
+                        true => round = 4,
+                        false => break,
+                    }
                     continue;
-                };
-                // Whether the name is one whose start is *used* is a
-                // separate question from whether reading it is worth
-                // the pass: a temperature nothing iterates on is what
-                // makes the enthalpy readable, and the enthalpy is
-                // what makes the total readable. So the question
-                // asked is the wider one - is this name within reach
-                // of something that wants a start - and the answer is
-                // a lookup in a set worked out once above, which is
-                // what keeps the solving off every name in the model.
-                if !wanted_names.contains(name) || read_starts.contains_key(name) {
-                    continue;
                 }
-                // An equation that already stands the name alone on
-                // one side needs no slope taken: `d = waterBaseProp_pT
-                // (p, T, 0)[9]` says what `d` is outright, and the
-                // other side, which mentions nothing unvalued, is a
-                // number. Asked through the linear solver it is
-                // refused, because taking a slope means
-                // differentiating a medium call nothing has a rule
-                // for - and the refusal is about the function rather
-                // than about the unknown, which stands by itself and
-                // linearly by inspection.
-                //
-                // This is the shape the water tank is built out of:
-                // a mass `m = V*d` on a density read from a table, so
-                // the mass began at zero, and a start of zero for a
-                // mass asks the tables for a density no water has.
-                let isolated = |side: &Expr, other: &Expr| -> Option<Expr> {
-                    if std::env::var_os("OXIDELICA_NO_READ_ISOLATED").is_some() {
-                        return None;
-                    }
-                    let Expr::Ref(alone) = side else { return None };
-                    if alone != name {
-                        return None;
-                    }
-                    let mut over = Vec::new();
-                    other.collect_refs(&mut over);
-                    if over.contains(&name) {
-                        return None;
-                    }
-                    Some(other.clone())
-                };
-                let solved = match crate::symbolic::solve_linear_known(lhs, rhs, name, &stated) {
-                    Some(solved) => solved,
-                    None => match isolated(lhs, rhs).or_else(|| isolated(rhs, lhs)) {
-                        Some(alone) => alone,
-                        None => continue,
-                    },
-                };
-                let value = eval(
-                    &solved,
-                    &EvalCtx {
-                        vars: &stated,
-                        time: 0.0,
-                        programs: Some(&programs),
-                        depth: 0,
-                    },
-                );
-                if let Ok(value) = value {
-                    if value.is_finite() {
-                        read_starts.insert(name, value);
-                        stated.insert(name.to_string(), value);
-                    }
-                }
+                round += 1;
             }
-            if read_starts.len() == learned_before {
-                // A first half that has learned all it can goes on to
-                // the second rather than spending its rounds idle.
-                match round < 4 {
-                    true => round = 4,
-                    false => break,
-                }
-                continue;
+            let overruled = read_discretes
+                .iter()
+                .any(|(name, value)| stated_before.get(*name).is_some_and(|start| start != value));
+            if pass > 0 || !overruled {
+                break;
             }
-            round += 1;
+            read_starts.clear();
+            stated = stated_before.clone();
+            for (name, value) in &read_discretes {
+                stated.insert(name.to_string(), *value);
+            }
         }
     }
     let algebraic_start: Vec<f64> = ordered_algs
@@ -4845,6 +4971,11 @@ pub(crate) fn compile_at(
         })
         .collect::<Result<Vec<_>, SimError>>()?;
     for (name, value) in discretes.iter().zip(&discrete_start) {
+        // What a definition said where it could say it, and the
+        // declaration where it could not: the run has to begin where
+        // the starts above were read, or the first block solves for a
+        // phase the masses were not read with.
+        let value = read_discretes.get(name.as_str()).unwrap_or(value);
         let slot = table.slot(name);
         table.template[slot] = *value;
         let pre = table.slot(&format!("$pre.{name}"));

@@ -1553,3 +1553,44 @@ fn a_type_start_is_not_given_to_a_variable_its_own_equation_defines() {
     assert!(wide.status.success(), "{}", stderr(&wide));
     assert!((first_row(&stdout(&wide), "h_v") - 420e3).abs() < 1e-3);
 }
+
+/// An Integer its own equation defines starts where the equation says.
+///
+/// The dynamic pipe's `phase` is declared `start = 1` and defined as 2
+/// by its own equation at 100 bar and 2000 kJ/kg. Taken as stated, the
+/// start said liquid where the water is two-phase, the silent mass
+/// `m = V*d` was read with a liquid's density and began six times too
+/// heavy. Here the density is IF97's at that point for either phase,
+/// and the pressure is read back from the mass: with the phase read
+/// from its equation the mass starts at the two-phase 112.31 and the
+/// pressure stays at its own start. `OXIDELICA_DISCRETE_START_AS_DECLARED=1`
+/// takes the declared start again, so the same binary shows both.
+#[test]
+fn a_discrete_start_is_read_from_the_equation_that_defines_it() {
+    let file = TempFile::new(
+        "discrete_start_defined.mo",
+        "model Phase2 function rho input Real p; input Integer phase; output Real d; \
+         algorithm d := p * (if phase == 2 then 1.1231e-5 else 7.2076e-5); end rho; \
+         parameter Real V = 1; Integer phase(start = 1); Real p(start = 1e7); Real m; \
+         equation phase = if p > 5e6 then 2 else 1; m = V * rho(p, phase); \
+         der(m) = -1e-3 * m; end Phase2;",
+    );
+    let run = |declared: bool| {
+        let mut command = bin();
+        if declared {
+            command.env("OXIDELICA_DISCRETE_START_AS_DECLARED", "1");
+        }
+        command
+            .args(["simulate", file.path(), "--stop", "0"])
+            .output()
+            .unwrap()
+    };
+    let out = run(false);
+    assert!(out.status.success(), "{}", stderr(&out));
+    let csv = stdout(&out);
+    assert!((first_row(&csv, "m") - 112.31).abs() < 1e-6);
+    assert!((first_row(&csv, "p") - 1e7).abs() < 1e-3);
+    let old = run(true);
+    assert!(old.status.success(), "{}", stderr(&old));
+    assert!((first_row(&stdout(&old), "m") - 720.76).abs() < 1e-6);
+}

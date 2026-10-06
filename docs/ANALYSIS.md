@@ -35180,3 +35180,83 @@ leave three unknowns undetermined, so the census row is unmoved; but a
 model whose equation count depends on what was checked before it is a
 fault of state left between models, and that is the thread to pull
 when somebody next has the full pass to spare.
+
+## A discrete start is read from the equation that defines it (m367)
+
+The pipe of m350 started six times too heavy because its `phase` was
+taken at its word. `phase` is an `Integer` declared `start = 1` and
+defined by its own equation, which at 100 bar and 2000 kJ/kg says 2.
+The starts were read with the declared 1 standing as a stated value,
+so every silent mass `m = V*d` was read with IF97's liquid density,
+720.76, where the water is two-phase at 112.31.
+
+A start on a discrete-valued variable that an equation defines is a
+guess about a value the equation settles. So in every round of the
+start reading such a name's definition is asked first, and what it
+says, once everything it reads has a value, is what the name stands
+at. The value goes into the run's template too, in the slot and in
+its `pre`, because a block solved at the first point with the old
+phase is solved for a density the masses were not read with: that
+half is what made the pressure block refuse outright under the m350
+probe that read the start alone. A `fixed = true` start is left
+alone, since it pins what the variable was before the first event,
+and a continuation reads the run as before.
+`OXIDELICA_DISCRETE_START_AS_DECLARED=1` gives back the old reading.
+
+The form was found by its victims, in three steps, each measured
+under `--only` on the names the first pair lost
+(`/tmp/m367/victims.txt`).
+
+The first form held the declared start out of what was stated until
+the definition could be read. The pair (`/tmp/m367/pair_off.txt`,
+`/tmp/m367/pair_on.txt`, one binary) gave 961 / 713 against 961 /
+710: four models stopped running and one arrived. Two of the four,
+`TestWaterPumpDefaultLV` and `TestTemperature2`, were lost to the
+holding out, not to the value: their phases became readable only in
+the fifth round and then read the very 1 their starts said, while
+the four rounds before had no phase to read the densities with. So
+the declared start stays stated, and the definition overrides it
+when it can be read.
+
+The other two, `DiodeBridge2mPulse` and `HalfControlledBridge2mPulse`,
+were the ideal diode: `off = s < 0` with `s` starting at zero reads
+`false`, and the declaration's `off(start = true)` is exactly what is
+written to break that tie. A definition whose relation stands on its
+knee at the start says nothing about the side, so there the declared
+start stands. The arrival of the first pair,
+`QuasiStatic.SinglePhase.Examples.Rectifier`, went with this rule:
+it ran because its diodes began conducting, which is a choice the
+model's own starts did not make.
+
+And keeping the start stated cost the pipe its correction: its masses
+were read in round 0 with the declared phase and the phase only in
+round 1, so they stayed six times too heavy. So where a definition
+said something other than the start, the whole reading is done once
+more from the declarations with the definition's word in place. A
+model whose definitions all agree with their starts pays nothing.
+
+The test (`a_discrete_start_is_read_from_the_equation_that_defines_it`)
+is the shape of the pipe in twelve lines: a mass with no start read
+through a density that depends on the phase, and a pressure read back
+from the mass. With the phase read from its equation the mass starts
+at 112.31 and the pressure stays at its own start of `1e7`; under the
+switch the mass starts at 720.76 and the pressure is pulled to
+`6.4e7`. Seen to go the other way under the switch.
+
+On the library, under `--only`: `DynamicPipeInitialization` still
+refuses, as expected - the start is right and the model is won only
+by the homotopy series of the queue. Its refusal moves from `stepped
+outside the domain` after 21 s of run to `did not converge in 50
+Newton iterations` of the same pressure block after 117 s, the wall
+m350 reached with both probes on. `WaterIF97_ph`,
+`WaterIF97OnePhase_ph` and `TestWaterPumpStorage` run both ways, and
+the small `Gas1` and `Gas2c` of m350 print the same either way.
+
+The pair on the final tree (`/tmp/m367/pair6_off.txt`,
+`/tmp/m367/pair6_on.txt`, one binary `/tmp/m367/ox6` built from it)
+gives 961 / 713 and runnable 844 / 671 both ways, with the flatten
+and run lists identical by name. The work moved by 62 points and 279
+Newton steps of 37592564, and the names looked up not at all. So the
+change is a correction of starts and not a change of counts: what it
+buys is that a two-phase pipe begins at its own mass, which the
+homotopy series has to stand on.
