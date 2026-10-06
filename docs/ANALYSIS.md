@@ -34820,3 +34820,163 @@ relative, and the instance prefix then turns them into names nobody
 declared. A real change has to qualify what it cannot settle. The run
 half of that pair took 751 s against 1377 s. That is because the
 moved model stops before it runs, not because the rest got faster.
+
+### The type-start change written clean, and parked (m364)
+
+The probe of m363 is now a change, kept as
+`~/oxideflow/state/shift364-type-start.patch` and not merged, because
+it adds starts to running Water, Air and ideal-gas models and is
+measured by the list of victims, which wants a corpus pair this shift
+could not spend. The switch is `OXIDELICA_NO_TYPE_START_MOD=1`.
+
+It differs from the probe in one rule. The probe settled what the
+type's package could answer and left the rest relative, and the
+instance prefix then turned `Functions.referenceChoice` into
+`pipe2.port_a.Functions.referenceChoice`. The change takes the start
+only when it settles to a number in the package that holds the type,
+and otherwise leaves the reading that stood before. A start that is
+still an expression in the medium - the choice between reference
+enthalpies of the ideal gases - names things only that package can
+read, so carrying it out with its names qualified would hand the run
+an expression that the old reading did not hand it either. That
+reading stays the honest default until a model shows it needs more.
+
+The ladder, one binary (`/tmp/ox364t`), switch off and on:
+
+```text
+VA, VC  start 420000          (why: no start under the switch)
+VB      unchanged
+VD, VE  run, h = 420000       refused `unknown variable h_default` under the switch
+VG      h = +420000           h = -420000 under the switch
+```
+
+`VG` is the test (`a_start_a_package_gives_its_type_reaches_the_variable`
+in `crates/oxidelica-cli/tests/cli.rs`): both links in one model, with
+a negative nominal so that the start, and nothing else, chooses the
+root. It checks the number, not that the model flattened, and it was
+seen to go the other way under the switch.
+
+On the corpus, by `--only` from the root: `R134a1` starts its block at
+`[300000, 420000]` and refuses on the same row as before, the Newton
+direction of `volume.medium.p` (`/tmp/m364/r134.txt`), so the change
+gives no model there, as the map of m363 said. `DynamicPipesWithTraceSubstances`
+gave no verdict in the time it had, and the reason is measured rather
+than guessed. `read 1 of 1 models` counts a model that has finished
+both halves, not one that has flattened. The probe of m363 printed it
+at 151 s because it refused at the start, before running
+(`/tmp/m363/dpts_t.txt`). Without the probe's fault the model goes on
+into its run, and the clean corpus pass below spends 161 s flattening
+it and 495 s running it to a refusal. Run under one binary
+(`/tmp/ox364t`) with the switch on and off side by side, the two
+halves had spent 9:07 and 9:07 of processor time when they were
+stopped (`/tmp/m364/dpts_sw0.txt`, `/tmp/m364/dpts_sw1.txt`). So the
+change does not make this model dearer, and the probe's refusal is
+gone. What the model ends at under the change is for the pair.
+
+The pair for the next shift: one binary built from the patch, the
+corpus twice under `--list` with and without the switch, the flatten
+and the run lists diffed by name. The models to watch are the running
+media examples that take an enthalpy or a pressure start from their
+type, since the change gives them a definition they did not have.
+
+### What the corpus costs, model by model, measured in quiet (m364)
+
+The library job of 5fe7065 ran 149.0 of its 150 minutes (run
+37412993597, `Read it` 04:17:52Z to 06:46:28Z, 8916 s). The cut that
+would give it room was measured on 28.09 with two to six neighbours on
+the desk, and the run half has grown from 668 to 711 models since. So
+the price was taken again, in quiet: `library check --list --slow 50
+.msl` under `cap.sh`, one binary built from 1eee49a (`/tmp/ox364c`),
+nothing else running from start to end (`/tmp/m364/slow.txt`). Exit
+code 0, 1405 s of wall, a peak of 12.0 GB. Without `--without` the
+check leaves out `scripts/heavy_models.txt` of its own accord, so this
+is the main pass of CI and nothing more.
+
+```text
+time: flattening 4679s over 1033 models; running 4523s over 966
+counts: 966 flatten, 713 run (the floors are 711; the two above them
+        are SMPM_VoltageSource and SpringWithMass, two of the three
+        known swings)
+```
+
+The ten dearest in the run half, with what the same model cost to
+flatten, and whether it runs. A refused model is not under the run
+floors, so carving it out moves the flatten floor alone.
+
+```text
+  run s   flat s  model
+  495.1   161.0   DynamicPipesWithTraceSubstances       REFUSED
+  324.8    39.4   BranchingPipes12                      REFUSED
+  193.0    91.7   R134a2                                REFUSED
+  189.7   189.2   DynamicPipeEnergyConservationCheck    RUNS
+  168.9     -     TestWaterPumpDCMotorHeatTransfer      RUNS
+  122.7    35.5   SeriesPipes13                         REFUSED
+  114.7    79.3   R134a1                                REFUSED
+  109.0    35.6   SeriesPipes12                         REFUSED
+  108.4    45.0   Engine1b                              REFUSED
+   99.0    52.5   BranchingPipes18                      REFUSED
+```
+
+A dash is a model outside the fifty dearest to flatten. The ten hold
+1925 s of the 4523 s run half (43%), and the fifty hold 3705 s (82%).
+Of the fifty, 38 are refused. The money in the run half goes mostly
+on models that end in a refusal: the run that is dear is the run that
+fails slowly, against a Newton budget or a stalled step.
+
+Against 28.09, by names only (those seconds were taken under
+neighbours): `BranchingPipes12` fell from first to second, and
+`DynamicPipesWithTraceSubstances` is first. Of the old top ten,
+`BranchingPipes2`, `BranchingPipes1` and `DynamicPipeClosingValve`
+are now 80, 83 and 52 s. `WaterIF97` runs now, at 71 s. `SeriesPipes2`
+is not among the fifty at all.
+
+The desk to the runner. The runner's step took 8916 s of wall for
+22692 s of model time (10526 + 12166), so it ran about 2.5 models at a
+time. The desk spent 9202 s of model time in 1405 s of wall, 6.5 at a
+time. The model time differs by 2.47 between the two machines, and
+the runner's wall is 0.97 of the desk's model time. That is the
+coefficient used below: a model that costs X desk seconds, flatten
+and run together, takes about 0.97 X seconds off the runner's wall.
+It holds only on the average. A giant that is still running when the
+rest have finished sets the tail on its own, and on the runner
+`DynamicPipesWithTraceSubstances` alone is about 27 minutes of one
+thread.
+
+```text
+cut                                          desk s  runner min  job left
+refused top 2 to heavy_models.txt            1020    16.5        ~133
+  (DynamicPipesWithTraceSubstances, BranchingPipes12)
+refused top 5 to heavy_models.txt            1697    27.4        ~122
+  (+ R134a2, DynamicPipesAndFittings, R134a1)
+the ten dearest by run, as a second job      2654    42.9        ~106
+  (--only-from / --without, as heavy_floor.sh does; that job is
+   about 43 minutes of wall on the same weather)
+nothing                                         0     0          149
+```
+
+The first five by flatten and run together are all refused, which is
+why the refused cut costs no run floor. The second job takes two
+models that run (the energy check and the DC motor pump), and those
+need their floor in the job that holds them, as the heavy models have
+theirs. What is decided here is not the cut. The numbers go to Roman,
+and `heavy_models.txt` and the floors are untouched. On Roman's word
+the ceiling of the library job went from 150 to 180 minutes in the
+same commit. That is not a cut: it gives back the verdicts that the
+ceiling was taking, while the cut is decided from the table above.
+Against 180, the job of 5fe7065 has 31 minutes of room, and each
+cut adds the minutes in its row.
+
+One warning about the desk, learned in this shift. The quick
+preflight run after the measurement went red on the time band: the
+ratio of running to flattening came out at 0.888 against a band of
+0.97 to 2.10, while the counts held at 966 and 713
+(`/tmp/m364/pf_quick.txt`). Its flattening took 5509 s against the
+4679 s of the quiet pass, because a pair of `--only` runs was going at
+the same time and took cores in the flatten half alone. The band is
+there to catch exactly that kind of shift between the halves, and it
+did. A neighbour that takes only one half moves the ratio, and the
+band cannot tell that from a regression. So the preflight is run with
+nothing else on the desk, the same rule as the measurement. Run again
+that way on the same tree, the library step passed: 966 flatten, 713
+run, runnable 849 and 671, and 4499 ms against 4611 ms a model, a
+ratio of 1.02 (`/tmp/m364/floor2.txt`).

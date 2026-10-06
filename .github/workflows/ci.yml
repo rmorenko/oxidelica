@@ -185,7 +185,13 @@ jobs:
     # sit on two runners at once - and not to raise the ceiling again.
     # Raising it twice would be a habit; the second raise is where a
     # ceiling stops being a measurement and becomes a formality.
-    timeout-minutes: 150
+    #
+    # 5fe7065 ran 149.0 of 150 minutes on identical work (31.85M
+    # points); the runner weather ranges 92-149 min on the same corpus;
+    # raised to 180 on Roman's word, 2026-10-06. This is not the split:
+    # it gives the verdicts back while the price of the corpus, model by
+    # model, is put in front of the decision on how to cut it.
+    timeout-minutes: 180
     steps:
       - uses: actions/checkout@v5
 
