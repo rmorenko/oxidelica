@@ -35518,3 +35518,33 @@ index reduction rather than by the models. This one gives none: it
 changes which record class a table names, and the values that follow
 are parameters, which reduction never weighs. The run lists, diffed
 name by name, are the witness that nothing scattered.
+
+## The 179 of `TestJunctionIdeal` is reproduced (m369 pass, m370 chapter)
+
+The probe the note above asked for was run in shift m369: one full pass
+with the old list of giants (`git show b6c8ee2^:scripts/heavy_models.txt`)
+passed to `--without`, so that the five carved out at `b6c8ee2` were
+checked again with everything else - 1033 models, under a memory
+ceiling, `--refused --list` (`/tmp/m369/full1033.txt`). It printed
+`1033, of which 966 flatten and 718 run; runnable 904, of which 849
+flatten and 676 run`, and among the built refusals:
+
+```text
+TestJunctionIdeal  unbalanced model: 179 algebraic equation(s) for 182
+                   unknown(s); nothing determines pipe1.flowModel.Res[2],
+                   pipe2.flowModel.m_flows_turbulent[1], ...
+```
+
+So the 179 did not die with the environment of those days. It lives in
+the binary of today and needs only the old company to show. The run
+list of that pass, taken name by name, is the run list of the main pass
+on the same tree (718 against 718, `/tmp/m369/ran_on.lst`): the five
+giants run nowhere, and the only thing that moved is one model's count
+of equations.
+
+The difference of the lists is the five: `R134a1`, `R134a2`,
+`DynamicPipesAndFittings`, `DynamicPipesWithTraceSubstances` and
+`BranchingPipes12`. That is the lever, and it is not yet the culprit:
+a model's count of equations that depends on what was checked before
+it means some table outlives one model on a thread, and the next
+section is about which.
