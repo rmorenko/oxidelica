@@ -34546,6 +34546,24 @@ which now hold algebraic junction relations where they held
 derivatives. The floors stay where they are, and the runner's number
 sets them.
 
+The runner's number, read in m362 (`/tmp/m362/ci/runner.log`, job
+112066341819 of run 37400464807 on 06d5a34), is 966 / 710 and runnable
+849 / 668, the expected total. Its list is not the expected list,
+though. Against its own list on cabd2b5 (`/tmp/m361/runner_ran.txt`),
+the two gates and `IMC_DOL` of QuasiStatic arrive, and
+`Modelica.Magnetic.FundamentalWave.Examples.BasicMachines.SynchronousMachines.SMPM_VoltageSource`
+leaves. Between those two trees stands b705c60. On the desk the model
+runs in both halves of the m361 pair and in both halves of the m362
+pair. The runner's log does not show why it was refused, because it
+is not the first model named under its refusal. So the kind of
+refusal is unknown, and this is an open question. It is either a third
+swing between platforms or a victim of the quench that appears only on
+x86. One run of that model on the runner would tell the two apart:
+`ci.yml` takes `workflow_dispatch` with a `model` input. That run is
+for Roman to start. The same job took 138 minutes (01:42 to 04:00
+UTC) against its ceiling of 150, so the next push that changes code
+could be stopped by the ceiling rather than by a result.
+
 ### `WaterIF97` and the tolerance of a fixed start (m361, a probe)
 
 `check_block_regularity` compares a fixed start that index reduction
@@ -34574,3 +34592,16 @@ model and no other. Merging is a shift of its own, with the pair, and
 with the question of which scale is right: the absolute `1e-6` is what
 the run's own convergence criterion stands beside, and that criterion
 is not touched here.
+
+Merged in m362: the tolerance `1e-6 * (1 + |v|)` is now the default,
+and `OXIDELICA_NO_FIXED_START_RELATIVE=1` brings back the absolute
+`1e-6`. The run's convergence criterion is unchanged. The pair was
+taken with one binary (`/tmp/ox362a`), with the main pass excluding
+the heavy models. It went from `966 / 712` and `849 / 670`
+(`/tmp/m362/pair_off.txt`) to `966 / 713` and `849 / 671`
+(`/tmp/m362/pair_on.txt`). The only model gained is
+`Modelica.Media.Examples.WaterIF97`, no model was lost, the 966
+flattened names are the same in both lists, and `names` is
+`1913925546` in both. The check still catches a real conflict, and a
+test now covers that: at `1e5` the tolerance is `0.1`, so a fixed
+start one unit away is refused and one `0.05` away is accepted.
