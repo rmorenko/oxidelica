@@ -1327,3 +1327,63 @@ fn a_namesake_of_the_root_finder_still_refuses() {
         "{refused}"
     );
 }
+
+/// The value of `name` in the last row of a result.
+fn last_of(result: &oxidelica_sim::SimResult, name: &str) -> f64 {
+    let at = result.columns.iter().position(|c| c == name).unwrap();
+    result.rows.last().unwrap()[at]
+}
+
+#[test]
+fn a_zero_numerator_quenches_the_quotient_it_stands_over() {
+    // `Taur * Is / vt` parses as `(Taur * Is) / vt`: a division at the
+    // top, and the quench walked only products, so it stopped one node
+    // short of the zero transit time and the solved form divided by
+    // the coefficient. Quenched, the relation is the algebraic one the
+    // card meant, `vbc / R = i`, and the answer says so: at t = 1
+    // `vbc` is `R * sin(1)`.
+    let result = run(
+        "model ZTDiv parameter Real Taur = 0; parameter Real Is = 1e-14; \
+         parameter Real vt = 0.025; parameter Real R = 10; Real vbc(start = 0); Real i; \
+         equation i = sin(time); Taur * Is / vt * der(vbc) + vbc / R = i; \
+         annotation(experiment(StopTime = 1, Interval = 0.1)); end ZTDiv;",
+    );
+    let vbc = last_of(&result, "vbc");
+    assert!((vbc - 10.0 * 1f64.sin()).abs() < 1e-6, "vbc = {vbc}");
+}
+
+#[test]
+fn a_zero_over_a_zero_is_not_quenched() {
+    // The walk through a quotient stops at a denominator that is itself
+    // a known zero: `0/0` is no number, and answering it with zero
+    // would be a guess dressed as a quench. The model goes on being
+    // refused at the run.
+    let stopped = run_err(
+        "model ZZ parameter Real Taur = 0; parameter Real Z = 0; parameter Real R = 10; \
+         Real vbc(start = 0); Real i; \
+         equation i = sin(time); Taur / Z * der(vbc) + vbc / R = i; \
+         annotation(experiment(StopTime = 1, Interval = 0.1)); end ZZ;",
+    );
+    assert!(!stopped.is_empty());
+}
+
+#[test]
+fn a_zero_carried_by_a_variable_quenches_the_derivative_it_scales() {
+    // The NOR gates' shape: the coefficient on `der(vbc)` is not a
+    // parameter but `cbc`, defined from a transit time and a junction
+    // capacitance the card leaves at zero, and the second through a
+    // variable of its own. `cbc` is zero over the whole run, so the
+    // equation is the algebraic `vbc / R = i` and not `der(vbc) = .../0`.
+    let result = run(
+        "model ZTSmooth parameter Real Taur = 0; parameter Real Cjc = 0; \
+         parameter Real Is = 1e-14; parameter Real NR = 1; parameter Real vt = 0.025; \
+         parameter Real R = 10; Real vbc(start = 0); Real i; Real cbc; Real Capcjc; \
+         equation i = sin(time); Capcjc = smooth(1, Cjc * (1 + vbc)); \
+         cbc = smooth(1, Taur * Is / (NR * vt) * exp(vbc / vt) + Capcjc); \
+         cbc * der(vbc) + vbc / R = i; \
+         annotation(experiment(StopTime = 1, Interval = 0.1)); end ZTSmooth;",
+    );
+    let vbc = last_of(&result, "vbc");
+    assert!((vbc - 10.0 * 1f64.sin()).abs() < 1e-6, "vbc = {vbc}");
+    assert_eq!(last_of(&result, "cbc"), 0.0);
+}

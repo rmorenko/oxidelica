@@ -2420,17 +2420,122 @@ fn spare_no_elements() -> bool {
     std::env::var_os("OXIDELICA_QUENCH_ELEMENTS").is_some()
 }
 
+/// Whether a zero numerator quenches a quotient. On by default;
+/// `OXIDELICA_NO_ZERO_DIV=1` stops the walk at the division, as before.
+fn quench_through_division() -> bool {
+    std::env::var_os("OXIDELICA_NO_ZERO_DIV").is_none()
+}
+
+/// Whether a variable an equation sets to zero for the whole run
+/// quenches a derivative it scales. On by default;
+/// `OXIDELICA_NO_ZERO_VAR=1` reads only parameters, as before.
+fn quench_zero_variables() -> bool {
+    std::env::var_os("OXIDELICA_NO_ZERO_VAR").is_none()
+}
+
+/// A denominator that cannot be read as a zero: anything but a
+/// parameter worth zero or a literal zero. `0/0` is not zero, it is no
+/// number at all, and the quench must not answer it with one.
+fn not_a_known_zero(expr: &Expr, params: &HashMap<String, f64>) -> bool {
+    !zero_parameter(expr, params)
+}
+
 /// Is this expression a parameter, or a product of them, worth exactly
 /// zero? Only a parameter counts: a variable that happens to be zero
 /// now is not zero over the step.
+///
+/// A quotient counts when its numerator does and its denominator is
+/// not itself a known zero. `Taur * Is / vt` parses as `(Taur * Is) /
+/// vt`, a division at the top, and the walk stopped one node short of
+/// the zero it was looking for: a transistor whose transit time the
+/// card leaves at zero kept `0 * der(vbc)` and the solved form divided
+/// by it. A denominator that is a variable may in principle reach
+/// zero, but there the model's own term is no number either, so
+/// quenching it answers nothing the model would have answered.
 fn zero_parameter(expr: &Expr, params: &HashMap<String, f64>) -> bool {
     match expr {
         Expr::Number(n) => *n == 0.0,
         Expr::Ref(name) => params.get(name.as_str()) == Some(&0.0),
         Expr::Neg(inner) => zero_parameter(inner, params),
         Expr::Bin(BinOp::Mul, a, b) => zero_parameter(a, params) || zero_parameter(b, params),
+        Expr::Bin(BinOp::Div, a, b) => {
+            quench_through_division() && zero_parameter(a, params) && not_a_known_zero(b, params)
+        }
         _ => false,
     }
+}
+
+/// Is this expression zero for the whole run, given the variables
+/// already known to be? A sum counts when every term does, which is
+/// what `cbc = 0 + Capcjc` with `Capcjc = 0` is once the parameter
+/// terms have been quenched.
+fn zero_throughout(
+    expr: &Expr,
+    params: &HashMap<String, f64>,
+    zeros: &std::collections::HashSet<String>,
+) -> bool {
+    match expr {
+        Expr::Ref(name) if zeros.contains(name.as_str()) => true,
+        Expr::Neg(inner) => zero_throughout(inner, params, zeros),
+        Expr::Bin(BinOp::Add | BinOp::Sub, a, b) => {
+            zero_throughout(a, params, zeros) && zero_throughout(b, params, zeros)
+        }
+        Expr::Bin(BinOp::Mul, a, b) => {
+            zero_throughout(a, params, zeros) || zero_throughout(b, params, zeros)
+        }
+        Expr::Bin(BinOp::Div, a, b) => {
+            zero_throughout(a, params, zeros)
+                && not_a_known_zero(b, params)
+                && !matches!(&**b, Expr::Ref(name) if zeros.contains(name.as_str()))
+        }
+        _ => zero_parameter(expr, params),
+    }
+}
+
+/// The variables an equation holds at zero for the whole run: `v = e`
+/// where `e` is zero throughout, taken to a fixpoint so a zero can
+/// travel through a chain of definitions. An equation holds at every
+/// instant whichever unknown the matching later gives it to, so the
+/// variable is zero over the run and not only at the point it was read
+/// - which is what lets it quench like a parameter.
+fn zero_variables(
+    equations: &[EquationItem],
+    params: &HashMap<String, f64>,
+) -> std::collections::HashSet<String> {
+    let mut zeros = std::collections::HashSet::new();
+    loop {
+        let before = zeros.len();
+        for item in equations {
+            for (side, other) in [(&item.lhs, &item.rhs), (&item.rhs, &item.lhs)] {
+                if let Expr::Ref(name) = side {
+                    if !params.contains_key(name.as_str())
+                        && !zeros.contains(name.as_str())
+                        && zero_throughout(other, params, &zeros)
+                    {
+                        zeros.insert(name.clone());
+                    }
+                }
+            }
+        }
+        if zeros.len() == before {
+            return zeros;
+        }
+    }
+}
+
+/// Replace `v * der(x)` by zero where `v` is a variable held at zero
+/// for the whole run. Only a derivative is quenched this way: the
+/// equation that sets `v` still stands, and a variable is no
+/// structural symbol the way a parameter's name is, so a product with
+/// an ordinary unknown is left for the solver.
+fn quench_zero_var_der(expr: &Expr, zeros: &std::collections::HashSet<String>) -> Expr {
+    if let Expr::Bin(BinOp::Mul, a, b) = expr {
+        let zero = |e: &Expr| zero_throughout(e, &HashMap::new(), zeros);
+        if (zero(a) && b.contains_der()) || (zero(b) && a.contains_der()) {
+            return Expr::Number(0.0);
+        }
+    }
+    expr.map_children(&mut |child| quench_zero_var_der(child, zeros))
 }
 
 /// Does the expression name anything that is not a parameter? A
@@ -2473,6 +2578,11 @@ fn named_zero(
         Expr::Neg(inner) => named_zero(inner, params, elements),
         Expr::Bin(BinOp::Mul, a, b) => {
             named_zero(a, params, elements) || named_zero(b, params, elements)
+        }
+        Expr::Bin(BinOp::Div, a, b) => {
+            quench_through_division()
+                && named_zero(a, params, elements)
+                && not_a_known_zero(b, params)
         }
         _ => false,
     }
@@ -4108,14 +4218,37 @@ pub(crate) fn compile_at(
             .filter(|c| c.element_of_an_array && !spare_no_elements())
             .map(|c| c.name.as_str())
             .collect();
-        equations
+        let quenched = equations
             .iter()
             .map(|item| EquationItem {
                 lhs: quench_zero_der(&item.lhs, &params, &elements),
                 rhs: quench_zero_der(&item.rhs, &params, &elements),
                 origin: item.origin.clone(),
             })
-            .collect::<Vec<_>>()
+            .collect::<Vec<_>>();
+        // A zero can also arrive through a variable: a transistor's
+        // `cbc` is defined from its transit time and its junction
+        // capacitance, both zero on the NOR gates' card, and the
+        // equations that scale `der(vbc)` by it name `cbc` and not the
+        // parameters. Quenched, the relation is the algebraic one the
+        // card meant, `0 = rhs`, and not a derivative of zero.
+        let zeros = if quench_zero_variables() {
+            zero_variables(&quenched, &params)
+        } else {
+            Default::default()
+        };
+        if zeros.is_empty() {
+            quenched
+        } else {
+            quenched
+                .iter()
+                .map(|item| EquationItem {
+                    lhs: quench_zero_var_der(&item.lhs, &zeros),
+                    rhs: quench_zero_var_der(&item.rhs, &zeros),
+                    origin: item.origin.clone(),
+                })
+                .collect::<Vec<_>>()
+        }
     } else {
         equations
     };
