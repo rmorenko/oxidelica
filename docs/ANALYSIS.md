@@ -34545,3 +34545,32 @@ are identical. The five extra jacobians are the gates' own blocks,
 which now hold algebraic junction relations where they held
 derivatives. The floors stay where they are, and the runner's number
 sets them.
+
+### `WaterIF97` and the tolerance of a fixed start (m361, a probe)
+
+`check_block_regularity` compares a fixed start that index reduction
+demoted against what the constraints require, with an absolute `1e-6`.
+`WaterIF97` fixes `medium.h` at `1e5` and the constraints give
+`99999.999998813`, which is `1.2e-6` away, or `1.2e-11` of the value.
+So the model is refused for a difference far below the rounding of the
+medium's own property functions.
+
+Probed under a switch weighing the tolerance against the value,
+`1e-6 * (1 + |v|)` (`OXIDELICA_FIXED_START_RELATIVE`, kept as
+`~/oxideflow/state/fixed_start_relative_m361.patch`, not merged).
+`--only` from `.msl` (`/tmp/m361/ox3`) runs `WaterIF97` with the
+switch and refuses it without. Judged over a 0.02 s window
+(`/tmp/m361/w.csv`, the full second costs more than eight minutes):
+`V` and `m` hold still as `dV = 0` and `m_flow_ext = 0` say, `dU/dt`
+is `10000` (the `H_flow_ext` of the card), and `dh/dt = 113.42` equals
+`du/dt + (dp/dt)/d = 100.27 + 13.15` at constant density. The model is
+right where it runs.
+
+What else lives on the present strictness: in the main pass with this
+shift's change (`/tmp/m361/pair_on.txt`) the refusal `initial value of
+... is fixed at` is one row of one model, `WaterIF97`. A looser check
+can only turn that refusal into a run, so the pair would move this one
+model and no other. Merging is a shift of its own, with the pair, and
+with the question of which scale is right: the absolute `1e-6` is what
+the run's own convergence criterion stands beside, and that criterion
+is not touched here.
