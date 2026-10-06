@@ -35260,3 +35260,47 @@ Newton steps of 37592564, and the names looked up not at all. So the
 change is a correction of starts and not a change of counts: what it
 buys is that a two-phase pipe begins at its own mass, which the
 homotopy series has to stand on.
+
+## Two Newton refusals read to the column (m367 probe, m368 chapter)
+
+Two models of the `the Newton direction of algebraic loop` row (17 in
+the m366 census) were read one at a time under `--only` with the
+Jacobian and the step printed. The traces are
+`/tmp/m367/tr3_DryAir1.txt` and `/tmp/m367/tr_MPTS.txt`. They are two
+different mechanisms.
+
+`Modelica.Media.Examples.ReferenceAir.DryAir1` fails on the block
+`[volume.medium.p, volume.medium.T, fixedMassFlowRate.medium.h,
+fixedMassFlowRate.medium.d, ambient.port.h]` at t = 2e-4, after a clean
+start. The Jacobian printed there has `ambient.port.h` in row 4 only,
+and its coefficient is the flow through the ambient's port, -3.16e-12,
+while the pressure in the same row stands at 3.26. Rows 0 and 1 are the
+volume's state, with `det(p, T) = -8.55e-3`, and want a pressure step
+of about 280 Pa for a residual of 97.96. Row 4 then has to cancel that
+through a column of 3e-12, and the printed step on `ambient.port.h` is
+1.7e10. The line search holds one lambda for the whole step and cuts
+it to 9.5e-7 without a descent. That is the exact Newton step of an
+equation that has stopped saying anything about its unknown, not a
+badly scaled one: scaling the column would give the same step in the
+original coordinates, and the block's rows and columns are already
+equilibrated. At t = 0 the same block had settled `ambient.port.h` at
+-12359.9, a negative enthalpy of air, which is the unknown floating
+where the residual left it. `DryAir2` refuses for the same name going
+above its maximum of 1e10.
+
+The equation in row 4 is the ambient's `port.H_flow =
+semiLinear(port.m_flow, port.h, medium.h)`. With nothing flowing into
+the ambient it says nothing about `port.h`, and the pipe on the other
+side of the connection, `shortPipe.port_a.H_flow =
+semiLinear(port_a.m_flow, port_a.h, port_b.h)`, says nothing about it
+either for the same reason. The fix belongs to the compiler and not to
+the line search; it is the next chapter.
+
+`ModelicaTest.Fluid.TestComponents.Fittings.TestMultiPortTraceSubstances`
+is a different kind. Its block at t = 0 holds the pressures and
+temperatures of two moist-air volumes and their port densities, and
+the first full Newton step from the start of 101325 Pa lands at -14833
+Pa and a temperature of 5.3 K. The iteration walks on from there with
+the line search shrinking to 1.5e-5. Nothing on the first step keeps
+the unknowns inside the domain the medium is defined on, so this is a
+domain guard on the first step and not a column that has gone dead.
