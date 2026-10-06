@@ -1140,7 +1140,16 @@ FLATTEN_FLOOR=961
 # run 37412993597 (/tmp/m363/ci_lib.txt). Against the runner's own
 # list on 06d5a34 (/tmp/m362/ci/runner_ran.txt) WaterIF97 came and
 # nothing went. Set from the runner.
-RUN_FLOOR=711
+#
+# And run 713 = 711 + DryAir1 and DryAir2, which run once two streams
+# joined end to end are rewritten as the language says (9d8a4dd, with
+# the chapter of 50efbcd). The runner printed 961 / 713 and runnable
+# 844 / 671 on 9d8a4dd, in job 112461453652 of run 37519619270
+# (/tmp/m369/ci_9d8a4dd.log). The desk pair read 961 / 715 and 844 /
+# 673 (/tmp/m368/pair_on.txt); the difference is the two swings
+# SpringWithMass and SMPM_VoltageSource, which run on the desk and not
+# on the runner. Set from the runner.
+RUN_FLOOR=713
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -1348,10 +1357,15 @@ RUN_FLOOR=711
 # And runnable run 669 = 668 + WaterIF97, a runnable example, by the
 # same runner job as `RUN_FLOOR` (5fe7065, job 112105401006).
 #
+# And runnable run 671 = 669 + DryAir1 and DryAir2, both runnable
+# examples, by the same runner job as `RUN_FLOOR` (9d8a4dd, job
+# 112461453652): 844 / 671 there against 844 / 673 on the desk, the
+# difference the same two swings.
+#
 # And runnable flatten 844 = 849 less the five refused giants carved
 # into the scheduled run; see `FLATTEN_FLOOR`.
 RUNNABLE_FLATTEN_FLOOR=844
-RUNNABLE_RUN_FLOOR=669
+RUNNABLE_RUN_FLOOR=671
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
