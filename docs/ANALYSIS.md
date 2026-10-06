@@ -34605,3 +34605,166 @@ flattened names are the same in both lists, and `names` is
 `1913925546` in both. The check still catches a real conflict, and a
 test now covers that: at `1e5` the tolerance is `0.1`, so a fixed
 start one unit away is refused and one `0.05` away is accepted.
+
+### `BranchingPipes12` past its Newton budget: the next wall (m363, a probe)
+
+The m362 trail of `BranchingPipes12` (`/tmp/m362/trail_bp12.txt`)
+refused at `t = 0` with `did not converge in 50 Newton iterations`
+while its residual was falling quadratically: `3.4e3`, `31.6`,
+`2.5e-3` on iterations 47 to 49. Probed with the budget at 60 under a
+switch (`OX_PROBE_NEWTON_BUDGET`, binary `/tmp/ox362probe`, trail in
+`/tmp/m363/bp12_60.txt`), the block converges on iteration 50 with
+`|f| = 2.3e-9`, and the second solve at `t = 0` on iteration 50 with
+`|f| = 1.1e-9`. Fifty iterations are indices 0 to 49, so the block
+needed one more than it was given.
+
+The model still does not run. Three steps later, at `t = 8e-4`, the
+first Newton step takes `pipe1.mediums[1].p` from `7.17e5` to
+`-1.87e7`, the residual is NaN, the retreat halves back to a finite
+point at `-4.99e5`, and from there the line search buys a smaller
+residual only below `1.5e-5` of the step, three times running. The
+refusal is `the Newton direction of algebraic loop
+["pipe1.mediums[1].p", ...] does not reduce the residual`, of the kind
+`Outside` because the block went over the edge on that solve. So the
+budget alone moves no model: it carries `BranchingPipes12` from one
+row of the census (`did not converge in 50`) to the next (`the Newton
+direction of`), where five of its siblings already stand.
+
+A second link was probed: an `Outside` refusal taken by the
+integrators as a step too long, as `Unbracketed` and `EitherSide`
+already are (`OX_PROBE_OUTSIDE_MENDS`, `/tmp/ox363p`). With both
+switches `BranchingPipes12` gets past `t = 8e-4`, takes 814 points and
+1976 Newton iterations, and refuses again on the same row after 1107 s
+of running (`/tmp/m363/bp12_mend.txt`). The chain has not been walked
+to its end, and the budget change is not taken: by itself it buys
+nothing, and 1107 s for a model that still refuses is a price the
+library job cannot carry (it ran 138 of 150 minutes on `06d5a34`).
+
+### Telling a swing from a slow zigzag: no threshold (m363, a measurement)
+
+The question was whether a guard on an approximate return, `d_k =
+||v_k - v_{k-2}|| / (1 + ||v_k||)`, could refuse the swinging blocks
+of the `did not converge in 50` row early without touching
+`BranchingPipes12`, which zigzags between two branches for 46
+iterations and then converges. Measured on the m362 trails of the last
+long solve of each model (`/tmp/m363/dk.py`):
+
+```text
+model                  d_k over k = 5..46               |f| at 46 / |f| at 0
+BranchingPipes12       5.8e-3 .. 3.5e-2, median 1.6e-2  0.070 (converges)
+TankWithEmptyingPipe2  2.8e-3 .. 6.4e-1, median 6.1e-3  0.72
+TanksWithEmptyingPipe1 2.0e-3 .. 5.3e-1, median 3.4e-3  0.68
+TanksWithEmptyingPipe2 4.0e-3 .. 7.0e-1, median 8.2e-3  0.72
+PressureLoss.Bend      6.9e-6 .. 7.4e-6                 0.996
+TestDensity            1.4e-4 .. 3.1e-4                 0.0024
+SMPM_CurrentSource     6.7e-1 .. 2.2e1                  2.6e3
+```
+
+The three tank models alternate: every even `k` has `d_k` near
+`3e-3` to `5e-3`, every odd `k` a value falling from `0.6` to `5e-3`.
+`BranchingPipes12` falls to `5.8e-3` at `k = 41` and lies between
+`6e-3` and `8e-3` from 37 to 45. The even-step minimum of
+`TanksWithEmptyingPipe2` is `4.0e-3` to `5.0e-3`. The gap between a
+model that must not be touched and one that should be caught is a
+factor of 1.16, on a quantity the zigzag is still shrinking, so any
+threshold set there is set on noise. And the tanks are not standing
+still either: their `d_k` falls on both parities, and their residual
+falls by 28 to 32 percent over the 46 iterations. Their trail is a
+slow drift, not a return to the same point.
+
+The two that do stand still are `Bend` (`d_k` flat at `7e-6`, residual
+flat at `5.7e-5`) and `TestDensity` (`d_k` falling slowly, residual
+down by a factor of 400 but not to the floor). A guard of the form
+measured would catch `Bend` and `TestDensity` and none of the tanks,
+and the tanks are what the row was for. So the guard on an approximate
+return would kill honest zigzags before it caught the swings, and the
+idea is closed until there is a new one. A per-window ratio of the
+residual does not separate them either: over any ten iterations
+`BranchingPipes12` gains at most 0.77 and the tanks 0.99, but
+`TestDensity` reaches 0.96 and still lands three orders below its
+start.
+
+### The twenty of `the Newton direction of`, by kind (m363, a map)
+
+The row counts 20 models in the m362 census (`/tmp/m362/census/raw.txt`;
+names in `/tmp/m363/nd.txt`), 21 with `BranchingPipes12` once its
+budget is raised. Read off the refusal text, which carries the time,
+the residual the block started the stuck steps from and the largest
+step fraction that still descended, they fall into three kinds:
+
+```text
+kind                         |f| at refusal     models
+at the solution, not taken   2e-10 .. 2e-9      IMC_Transformer (x3), Rectifier6pulse,
+                                                DynamicPipesWithTraceSubstances
+                             1.8e-4             SMPM_Mains
+over the edge, crawling      1.8e-1 .. 3.1e6    BranchingPipes1/2/4/14, SeriesPipes1/2,
+                                                TestWaterPumpCheckValve,
+                                                TestWaterPumpPowerCharacteristic,
+                                                OvervoltageProtection, TestTemperature1
+far from it, no edge         1.5e1 .. 1.2e5     R134a1, R134a2, DryAir1,
+                                                TestMultiPortTraceSubstances
+```
+
+The first kind is a block that is solved and is not accepted. The trail
+of `Machines...Transformers.IMC_Transformer` (`/tmp/m363/imc_trail.txt`)
+stops at `t = 0` with `|f| = 9.6e-10`. Every one of its 45 rows
+passes one of the two acceptance tests on its own, but neither test
+passes all of them. Row 13 is `-2.3e-10` against an unknown of
+`5.8e-3`, so it fails `1e-10 * (1 + |v|)` and passes the arithmetic
+floor (loudness `1.4e6`). Rows 15, 28 and 30 are `1e-33` against a
+loudness of `1e-33`, so they fail the floor and pass `1e-10`. Probed
+with the floor test taking either test row by row (`OX_PROBE_FLOOR_ROWS`,
+`/tmp/ox363q`), the model gets past `t = 0` and stops at
+`t = 7.4e-7`, again at `|f| = 5.6e-10`. The row that fails there is
+row 18: `-5.6e-10` against an unknown of `-3.13`, so a tolerance of
+`4.1e-10`, and a loudness of `70.7`, so a floor of `6e-14`. That is
+the convergence test being stricter than the arithmetic of the block,
+by a small factor, and not a disagreement between two tests. Taken
+over the row with one binary, the change runs nothing: 0 of 20 run in
+both halves (`/tmp/m363/nd_base_q.txt`, `/tmp/m363/nd_rows.txt`).
+The only model that moves is
+`FundamentalWave...InductionMachines.IMC_Transformer`, which goes from
+this row to `step size underflow at t = 0.000000`. The probe is not
+taken (`~/oxideflow/state/shift363-probes.patch`).
+
+The second kind is the water family together with the pump and two
+electrical models. In `SeriesPipes2` (`/tmp/m363/tr_SeriesPipes2.txt`)
+and `TestWaterPumpCheckValve` (`/tmp/m363/tr_PumpCheckValve.txt`), the
+first Newton step of a solve takes a pressure negative (`-8.7e6` for
+the pump). The residual is NaN there, the retreat halves back to a
+finite point, and from that point the line search descends only by
+slivers: `|f|` goes from `3168` to `3138` over six steps, and the
+first unknown crawls from `1.7e5` towards zero. The retreat left the
+block at a point from which no full step descends, and the trail does
+not say whether the root lies on the other side of the edge.
+`BranchingPipes12` belongs here too once its budget is raised (see
+above). Taking such a refusal as a step too long
+(`OX_PROBE_OUTSIDE_MENDS`) carried `BranchingPipes12` 1107 s further
+to the same refusal at `t = 7.5e-5` and `|f| = 3.5e-10`. That is the
+first kind again, now on a block that has been to the edge. Over the
+row, the same switch kept one model grinding for more than 55 minutes
+(`/tmp/m363/nd_mend.txt` stops at `read 16 of 20`) where the base half
+took 1029 s over all twenty. So the switch is not a fix either: it
+turns a quick refusal into a slow one.
+
+The third kind never meets an edge. `R134a1`
+(`/tmp/m363/tr_R134a1.txt`) starts at `t = 0` from `|f| = 1.4e7`,
+oscillates in pressure between `7e5` and `1.4e6` for twenty steps,
+and stops at `|f| = 14.6` with both unknowns moving together (`p` and
+`h` differ by 10 throughout). That is a poor start rather than a poor
+step, and it is a question for the initial values of the medium. The
+block's unknowns are `volume.medium.p` and `ambient.port.h`, and the
+first point of the trail is `[3e5, 1e6]`. `oxidelica why` gives
+`ambient.port.h` no binding and no start, while the ambient it belongs
+to is set to `h_start = 107390`, so the guess for the enthalpy is nine
+times what the model names. Where the `1e6` comes from was not traced.
+`R134a2` and `DryAir1` refuse with residuals of the same order (`20.6`
+and `98`), but their trails were not taken.
+
+What this leaves as the next work, in order of what it would reach:
+the first kind is a single question about the acceptance test against
+the floor of the arithmetic, and it touches six models, but the probe
+shows that solving it at one point only moves the refusal to the next
+point. The second kind is the domain edge of the water formulation
+again, which is the open question of how far a retreat may take a
+block from where it began.
