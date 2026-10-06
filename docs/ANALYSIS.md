@@ -34768,3 +34768,47 @@ shows that solving it at one point only moves the refusal to the next
 point. The second kind is the domain edge of the water formulation
 again, which is the open question of how far a retreat may take a
 block from where it began.
+
+### A start written on a medium's type does not reach the variable (m363, a probe)
+
+`R134a1`'s enthalpy starts its block at `1e6`. The medium writes
+`extends PartialTwoPhaseMedium(SpecificEnthalpy(start = h_default,
+nominal = 5.0e5), h_default = 420e3)`, and the guess `1e6` is the
+`nominal` of the interface's own `type SpecificEnthalpy`, which the
+compiler takes when a variable has no start (`compile.rs`, the
+nominal fallback of `algebraic_start`). Two small models in
+`/tmp/m363/small` show two links:
+
+```text
+VA, VC  extends Base(H(start = 420e3)), variable typed Med.H   guess 1e6
+VB      type H = Real(start = 420e3, nominal = 1e6)            guess 4.2e5
+VD      extends Base(h_default = 420e3), type start = h_default refused
+VE      type H = Real(start = h_default), constant beside it   refused
+```
+
+So a modifier on a type given where its package is extended is not
+read at all, and a type's own `start` that names a constant of its
+package is carried out unqualified and refused as `unknown variable
+h_default`. The second link is a refusal, which is honest. The first
+link is a silent default, and the variable falls back to a nominal.
+
+Both links were closed under a switch (`OX_PROBE_TYPE_MOD`, kept as
+`~/oxideflow/state/shift363-type-start-probe.patch`). It reads the
+modifier from the extends clauses of the package that holds the type,
+and settles the names in it in that package. All five small models
+then start at `4.2e5`. `R134a1` starts at `[3e5, 4.2e5]` instead of
+`[3e5, 1e6]` and still refuses on the same row (`/tmp/m363/r134_t.txt`).
+The first full step sends `volume.medium.p` to `-2.5e6`, and the block
+then crawls at `|f| = 11.6`. So the start was one link, and the step
+into negative pressure stands behind it, which is the second kind of
+the map above. Over the twenty models of the row, one binary
+(`/tmp/ox363t`) ran 0 in both halves (`/tmp/m363/nd_base_q.txt`,
+`/tmp/m363/nd_t_on.txt`). One model moved:
+`DynamicPipesWithTraceSubstances` now refuses with `the start of
+pipe2.port_a.h_outflow is ... unknown variable
+pipe2.port_a.Functions.referenceChoice`. That is the probe's own fault.
+It settles only the names the package can answer and leaves the rest
+relative, and the instance prefix then turns them into names nobody
+declared. A real change has to qualify what it cannot settle. The run
+half of that pair took 751 s against 1377 s. That is because the
+moved model stops before it runs, not because the rest got faster.
