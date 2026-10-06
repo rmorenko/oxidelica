@@ -1122,7 +1122,14 @@ FLATTEN_FLOOR=966
 # FundamentalWave went: the runner's swings traded one model for
 # another without the total noticing. The desk runs all three swings
 # (/tmp/m362/pair_off.txt, 966 / 712). Set from the runner.
-RUN_FLOOR=710
+#
+# And run 711 = 710 + WaterIF97, which runs once a fixed start is
+# weighed against the size of its value (69b4a17). The runner printed
+# 966 / 711 and runnable 849 / 669 on 5fe7065, in job 112105401006 of
+# run 37412993597 (/tmp/m363/ci_lib.txt). Against the runner's own
+# list on 06d5a34 (/tmp/m362/ci/runner_ran.txt) WaterIF97 came and
+# nothing went. Set from the runner.
+RUN_FLOOR=711
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -1326,8 +1333,11 @@ RUN_FLOOR=710
 # And runnable run 668 = 666 + the two NOR gates of `RUN_FLOOR` above,
 # both runnable examples, by the same runner job (06d5a34, job
 # 112066341819): 849 / 668 there against 849 / 670 on the desk.
+#
+# And runnable run 669 = 668 + WaterIF97, a runnable example, by the
+# same runner job as `RUN_FLOOR` (5fe7065, job 112105401006).
 RUNNABLE_FLATTEN_FLOOR=849
-RUNNABLE_RUN_FLOOR=668
+RUNNABLE_RUN_FLOOR=669
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
