@@ -419,7 +419,18 @@ FILES_FLOOR=2671
 # (/tmp/m325/ci_7ba42fa.log), the desk the same four numbers with the
 # binary of m324 (/tmp/m324/corpus_new.txt:140-141). Set from the
 # runner, which is not above the desk on any of them.
-FLATTEN_FLOOR=966
+#
+# And flatten 961 = 966 less the five refused giants carved into the
+# scheduled run on 2026-10-06 on Roman's word: DynamicPipesWithTrace-
+# Substances, BranchingPipes12, R134a2, DynamicPipesAndFittings and
+# R134a1. All five flatten, none runs, and all five are runnable
+# examples (/tmp/m365/five_only.txt, `--only-from` the five: 5 / 0 and
+# 5 / 0). This is a carving, not a loss:
+#
+#   flatten          966 = 961 here + 5 in the scheduled run
+#   runnable flatten 849 = 844 here + 5 in the scheduled run
+#   run 711 and runnable run 669 are unmoved: none of the five ran.
+FLATTEN_FLOOR=961
 # The two run floors came down by one, and the one is named: giving a
 # record constructor called with no arguments the values its `extends`
 # stated took `Modelica.Thermal.FluidHeatFlow.Examples.WaterPump` out
@@ -1336,7 +1347,10 @@ RUN_FLOOR=711
 #
 # And runnable run 669 = 668 + WaterIF97, a runnable example, by the
 # same runner job as `RUN_FLOOR` (5fe7065, job 112105401006).
-RUNNABLE_FLATTEN_FLOOR=849
+#
+# And runnable flatten 844 = 849 less the five refused giants carved
+# into the scheduled run; see `FLATTEN_FLOOR`.
+RUNNABLE_FLATTEN_FLOOR=844
 RUNNABLE_RUN_FLOOR=669
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
@@ -1378,7 +1392,10 @@ UNREAD_CEILING=0
 # three. The environment may therefore move the edges, and the
 # preflight does, to 0.97 and 2.10 - the same room of about 17% on
 # either side that the runner's band leaves round the runner's spread.
-# CI sets nothing and keeps 0.70..1.50.
+# CI sets nothing and keeps 0.70..1.50. Since the five refused giants
+# were carved out on 2026-10-06 the desk's edges are 0.80 and 1.73,
+# moved by the factor the carving put on the ratio; the arithmetic is
+# in `scripts/preflight.sh`.
 RATIO_LOW="${RATIO_LOW:-0.70}"
 RATIO_HIGH="${RATIO_HIGH:-1.50}"
 
@@ -1573,9 +1590,24 @@ fi
 # (/tmp/m292/bp_on.txt, bp_off.txt), 10011714 of the 10276799 and
 # 136046 of the 139883. The four that now run add 252 points and 1350
 # Newton steps.
-WORK_CLASSES=287278
-WORK_EXPANSIONS=105355315
-WORK_BODIES=1546158
+#
+# Moved on 2026-10-06 by the five refused giants carved into the
+# scheduled run (see `FLATTEN_FLOOR`), by exactly what the five count
+# on their own: one binary, `--only-from` the five
+# (/tmp/m365/five_only.txt), 3585 classes, 9603982 expansions, 124116
+# bodies, 169510771 names, 585 points, 1999 Newton steps, no Jacobians.
+# The pass without them from the same binary (/tmp/m365/main_new.txt)
+# printed 284406 / 95838100 / 1419572 / 1744716049, against which the
+# moved centres stand at x1.003, x1.001, x0.998 and x0.99935: the
+# desk's old prints less the five come to within 227 expansions and
+# 301274 names of it, the swinging models and the names' own wander.
+#
+#   classes     287278 - 3585      = 283693
+#   expansions  105355315 - 9603982 = 95751333
+#   bodies      1546158 - 124116    = 1422042
+WORK_CLASSES=283693
+WORK_EXPANSIONS=95751333
+WORK_BODIES=1422042
 #
 # Refreshed from /tmp/m328/new.txt, the warm start restored on a
 # rejected step; its off side, /tmp/m328/old.txt
@@ -1673,9 +1705,16 @@ WORK_BODIES=1546158
 # the apart set, desk 2113351 and runner 2103352 against 2060155
 # (x1.026, x1.021); Newton steps, desk 3147673 and runner 3147104
 # against 3147388.
-WORK_POINTS=2060155
+#
+# And moved by the five refused giants carved out on 2026-10-06, by
+# what they count on their own (/tmp/m365/five_only.txt): 585 points,
+# 1999 Newton steps.
+#
+#   points  2060155 - 585  = 2059570
+#   newton  3147388 - 1999 = 3145389
+WORK_POINTS=2059570
 WORK_POINTS_PPM=100000
-WORK_NEWTON=3147388
+WORK_NEWTON=3145389
 WORK_NEWTON_PPM=100000
 # And Dimmer_RL, whichever way it falls, centred between the desk's run
 # under the series and the machine's printed refusal:
@@ -1943,7 +1982,12 @@ WORK_PERCENT=5
 # runner. So the centre is the runner's, as every floor is, and the
 # band stays at 2000 per million: narrowed to 200 it would be red on
 # the desk for that difference alone.
-WORK_NAMES=1915365239
+#
+# And moved by the five refused giants carved out on 2026-10-06, by the
+# 169510771 names they look up on their own (/tmp/m365/five_only.txt):
+# 1915365239 - 169510771 = 1745854468. The desk printed 1744716049
+# without them (/tmp/m365/main_new.txt), 652 per million below.
+WORK_NAMES=1745854468
 WORK_NAMES_PPM=2000
 
 # The band, as a function, so that it can be seen red without a library

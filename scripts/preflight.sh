@@ -110,7 +110,18 @@ library_floor() {
   cargo build --release -p oxidelica-cli || return 1
   # The desk's own band on the ratio of the two halves; the numbers and
   # the arithmetic behind them are at the band in library_floor.sh.
-  RATIO_LOW=0.97 RATIO_HIGH=2.10 ./scripts/library_floor.sh "$library"
+  #
+  # Moved on 2026-10-06 from 0.97..2.10 by the factor the carving of
+  # five refused giants put on the ratio, the same width kept. All five
+  # were dearer to run than to flatten (run / flatten s, quiet desk,
+  # /tmp/m364/slow.txt): DynamicPipesWithTraceSubstances 495.1 / 161.0,
+  # BranchingPipes12 324.8 / 39.4, R134a2 193.0 / 91.7,
+  # DynamicPipesAndFittings 47.1 / 151.0, R134a1 114.7 / 79.3. Quiet
+  # desk passes with them gave 1.034 and 1.025 (/tmp/m364/slow.txt,
+  # floor2.txt), the pass without them 0.848 (/tmp/m365/main_new.txt):
+  # 0.848 / 1.030 = 0.823, and 0.97 and 2.10 times that are 0.80 and
+  # 1.73. The runner's band in library_floor.sh is not moved.
+  RATIO_LOW=0.80 RATIO_HIGH=1.73 ./scripts/library_floor.sh "$library"
 }
 
 # The band on the ratio of the two halves' times, seen to fire on
@@ -123,11 +134,13 @@ time_band_judges() {
   ./scripts/library_floor.sh --ratio-check 1000 1045 || return 1
   # And the desk's band, at the two ends of what the desk has measured
   # and past either end of it.
-  local desk="env RATIO_LOW=0.97 RATIO_HIGH=2.10 ./scripts/library_floor.sh --ratio-check"
-  $desk 1000 1139 > /dev/null || return 1
-  $desk 1000 1795 > /dev/null || return 1
-  $desk 1000 900 > /dev/null && return 1
-  $desk 1000 2200 > /dev/null && return 1
+  # The four points are the old ones times 0.823, the factor the
+  # carving of 2026-10-06 put on the desk's ratio.
+  local desk="env RATIO_LOW=0.80 RATIO_HIGH=1.73 ./scripts/library_floor.sh --ratio-check"
+  $desk 1000 937 > /dev/null || return 1
+  $desk 1000 1477 > /dev/null || return 1
+  $desk 1000 740 > /dev/null && return 1
+  $desk 1000 1810 > /dev/null && return 1
   return 0
 }
 

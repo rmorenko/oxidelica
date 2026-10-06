@@ -34980,3 +34980,43 @@ nothing else on the desk, the same rule as the measurement. Run again
 that way on the same tree, the library step passed: 966 flatten, 713
 run, runnable 849 and 671, and 4499 ms against 4611 ms a model, a
 ratio of 1.02 (`/tmp/m364/floor2.txt`).
+
+## Five refused giants carved out of the library job (m365)
+
+On Roman's word the second row of the table above was taken: the five
+models that cost the most of the library job, all of them refused,
+went to `scripts/heavy_models.txt` and are held by the scheduled run.
+Before the cut, the last library job under the old ceiling of 150
+minutes (43fc77a, run 37428669721) took 143 minutes and printed 966 /
+711 and 849 / 669, the floors exactly (`/tmp/m365/ci_43fc77a.log`).
+
+What the five do on their own, from one binary with `--only-from` the
+five (`/tmp/m365/five_only.txt`): all five flatten, none runs, and all
+five are runnable examples. So the run floors do not move, and the
+flatten floors move by five on both lines:
+
+```text
+flatten          966 = 961 here + 5 in the scheduled run
+runnable flatten 849 = 844 here + 5 in the scheduled run
+heavy flatten     15 = 10 + 5, runnable 13 = 8 + 5, runs 2 and 2
+```
+
+The same binary over the main pass without them
+(`/tmp/m365/main_new.txt`) printed 961 / 713 and 844 / 671, the two
+swinging models over the floors as before. The five ran 1999 Newton
+steps between them before refusing, which is 0.06% of the Newton
+centre. What they owned was flattening: 9.1% of the expansions, 8.0%
+of the bodies and 8.9% of the names. Those centres were moved by
+exactly what the five count alone, and the pass without them lands
+within 0.25% of each.
+
+The time band moved too, because the five were dearer to run than to
+flatten. On a quiet desk the ratio of running to flattening was 1.034
+and 1.025 with them and 0.848 without. That is outside the desk's
+band of 0.97 to 2.10, and the cause is a change in which models are
+measured, not a regression. So the desk's edges were multiplied by
+0.823, the factor the cut put on the ratio. That gives 0.80 and 1.73,
+the same width as before. The runner's band of 0.70 to 1.50 stays: the
+runner printed 1.22 under the old list, and the same factor puts it
+near 1.0, still inside. Whether the job really comes down to about 122
+minutes will be shown by the runner's job for this commit.

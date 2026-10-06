@@ -67,3 +67,21 @@ Modelica.Media.Examples.ReferenceAir.MoistAir
 # half it would add about 242ms to every model, against a ceiling the
 # weather already reaches.
 Modelica.Electrical.Spice3.Examples.Oscillator
+
+# Five refused models carved out on 2026-10-06, the dearest of the
+# library job by the quiet desk's `--slow 50` (/tmp/m364/slow.txt).
+# None of them runs: each burns its Newton steps up to a refusal, so
+# what they measure is how long the solver takes to give up, not how
+# much of the library reads. Together about 1697s of a desk pass and
+# some 27 minutes of the runner's, against a job that had walked to
+# 149 minutes. Prices are run / flatten, measured that day.
+# 495.1s / 161.0s, 2026-10-06, refused
+ModelicaTest.Fluid.TestComponents.Pipes.DynamicPipesWithTraceSubstances
+# 324.8s / 39.4s, 2026-10-06, refused
+ModelicaTest.Fluid.TestPipesAndValves.BranchingPipes12
+# 193.0s / 91.7s, 2026-10-06, refused
+Modelica.Media.Examples.R134a.R134a2
+# 47.1s / 151.0s, 2026-10-06, refused
+ModelicaTest.Fluid.TestComponents.Pipes.DynamicPipesAndFittings
+# 114.7s / 79.3s, 2026-10-06, refused
+Modelica.Media.Examples.R134a.R134a1

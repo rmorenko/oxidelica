@@ -45,9 +45,21 @@ set -euo pipefail
 #   runnable run      2 = 1 + 1
 #
 # Measured from one binary built from e45a2aa (/tmp/m318/heavy.txt).
-FLATTEN_FLOOR=10
+#
+# On 2026-10-06 five refused giants joined on Roman's word, the
+# dearest of the library job by the quiet desk: DynamicPipesWith-
+# TraceSubstances, BranchingPipes12, R134a2, DynamicPipesAndFittings
+# and R134a1. All five flatten, none runs, all five are runnable
+# examples (/tmp/m365/five_only.txt), so they left the main flatten
+# floors and are held here:
+#
+#   flatten          15 = 10 + 5
+#   run               2 =  2 + 0
+#   runnable flatten 13 =  8 + 5
+#   runnable run      2 =  2 + 0
+FLATTEN_FLOOR=15
 RUN_FLOOR=2
-RUNNABLE_FLATTEN_FLOOR=8
+RUNNABLE_FLATTEN_FLOOR=13
 RUNNABLE_RUN_FLOOR=2
 
 directory="${1:?usage: heavy_floor.sh <library directory>}"
