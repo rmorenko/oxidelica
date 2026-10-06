@@ -34468,3 +34468,80 @@ settle to, not under the template's, and it belongs with the
 `Friction` family (`BearingFriction`, `Clutch`, `Brake` share these
 equations) rather than with `when initial()`. It is mapped here and
 nothing was built.
+
+### The nine of `X of algebraic loop`, by link (m361, a map)
+
+The row held ten names in the m356 census (`/tmp/m356/raw.txt`), and
+`TestSharpEdgedOrifice` left it in m360. The nine left were each asked
+with `--only` from the root `.msl` on the tree before this shift's
+change (`/tmp/m361/ox0`, `/tmp/m361/p1.txt`). The word after `is` is
+not always `NaN`: `ThreeSprings` says `-inf`.
+
+| model                    | what cannot be evaluated                                                  | link               |
+| ------------------------ | ------------------------------------------------------------------------- | ------------------ |
+| `HeatingNPN_NORGate`     | `der(T1.vbc) = (...) / T1.cbc`, `cbc` zero by its definition              | (a) and (b)        |
+| `HeatingPNP_NORGate`     | `der(T1.vcb) = (...) / T1.ccb`, the same with the signs turned            | (a) and (b)        |
+| `ThreeSprings`           | `e_rel_0[1] = r_rel_0[1] / s` with the spring's length at zero            | (c) a length       |
+| `DoublePendulum`         | a residual divided by `(-revolute2.R_rel.T[2,1]) ^ 2`                     | (c) an orientation |
+| `DoublePendulumInitTip`  | the same residual as `DoublePendulum`                                     | (c) an orientation |
+| `RollingWheelSetDriving` | divisions by `sqrt(rolling1.aux[...])`                                    | (c) a contact      |
+| `RollingWheelSetPulling` | the same as `RollingWheelSetDriving`                                      | (c) a contact      |
+| `IdealMixing1`           | a function the block calls could not be walked: `unknown variable X`      | (c) a body         |
+| `RoomCO2WithControls`    | `solveOneNonlinearEquation` given 190..647, which do not bracket the root | (c) a medium       |
+
+Only the NOR gates stand behind the zero coefficient. The other seven
+are divisions by something that is a variable and starts at zero, or a
+function that refuses, and no quench reaches them: a length, an
+orientation, a contact and a medium are four separate stories.
+
+### The zero coefficient, quenched through a quotient and a variable (m361)
+
+Both links of the m360 map were taken in one change, each behind its
+own switch. `zero_parameter` and `named_zero` now go through a `Div`
+whose numerator is a named zero, unless the denominator is a known zero
+too, because `0/0` is no number (`OXIDELICA_NO_ZERO_DIV`). And a
+variable that an equation sets to something zero for the whole run,
+collected to a fixpoint through sums, products and quotients, quenches
+a derivative it scales (`OXIDELICA_NO_ZERO_VAR`). It quenches only a
+derivative: the defining equation still stands, and a variable is not
+a structural symbol the way a parameter's name is.
+
+The ladder (`~/oxideflow/state/zt_m361/`, binary `/tmp/m361/ox1`):
+`ZTDiv` and `ZTInline` run, and go red under `NO_ZERO_DIV`. `ZTConst`,
+`ZeroTau` and `ZTSmooth` (the NPN shape with `smooth` and a second
+variable) run, and go red under `NO_ZERO_VAR`. `ZTDivZeroDen` (`Taur *
+Is / Z` with `Z = 0`) is refused under every setting. Each runs to
+`vbc = 8.414710 = R * sin(1)`, which is the algebraic `vbc / R = i`
+and not a derivative of zero.
+
+The victim list for the gates (`OXIDELICA_VICTIM_PROBE=1`): with the
+switches off, one reduction demoted `T2.vbe` on `T2.E.v = Gnd4.p.v`.
+With them on there is no reduction at all. The junction voltages are
+no longer states whose derivatives the constraint reaches, because
+the derivatives are gone from the equations, so there is nothing to
+demote.
+
+The gates judged by physics, not by running: `--only` runs ten steps,
+and the full 200 s run (`/tmp/m361/nrk.csv`, `prk.csv`, rk4 at 1 ms)
+is a NOR. With both inputs low the output sits at the 6 V supply.
+With either input or both at 6 V it is 0.09 to 0.13 V. During the
+2.4 V ramp it is 2.3 V. The PNP gate is the same with every sign
+turned. The heat capacitor rises from 293.15 K to 332.08 K over the
+on-intervals and holds still through the off ones. One wall stands
+behind it, and it is not this change's: on the default solver and on
+`bdf` the run stops at 57 s, where T1 switches on, with `algebraic loop
+did not converge in 50 Newton iterations`. rk4 at 1 ms goes through.
+The library check runs ten steps and does not reach it.
+
+The pair, one binary (`/tmp/m361/ox2`) over the main pass, both
+switches on and then off (`/tmp/m361/pair_off.txt`,
+`/tmp/m361/pair_on.txt`). Off: 966 flatten / 710 run, runnable 849 /
+668, 192 jacobians, 37596780 Newton steps, which is the m360 on half
+to the digit. On: 966 / 712, runnable 849 / 670, 197 jacobians,
+37594500 Newton steps. The diff of the run lists (`ran_off.txt`
+against `ran_on.txt`) is two lines, `HeatingNPN_NORGate` and
+`HeatingPNP_NORGate` arriving, and nothing leaves. The flatten lists
+are identical. The five extra jacobians are the gates' own blocks,
+which now hold algebraic junction relations where they held
+derivatives. The floors stay where they are, and the runner's number
+sets them.
