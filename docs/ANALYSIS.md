@@ -35020,3 +35020,107 @@ the same width as before. The runner's band of 0.70 to 1.50 stays: the
 runner printed 1.22 under the old list, and the same factor puts it
 near 1.0, still inside. Whether the job really comes down to about 122
 minutes will be shown by the runner's job for this commit.
+
+## The type start narrowed to the unknowns nothing defines (m366)
+
+The pair of m365 found one victim of the parked type-start change:
+`DrumBoiler` stopped running because `evaporator.h_v`, bound in its
+declaration as `Medium.dewEnthalpy(sat)` (`DrumBoiler.mo:222`), was
+handed the medium's liquid start `1e5` for a vapour enthalpy near
+`2.7e6`, and the initialization went to another root. A medium's type
+start says where to look for an unknown nothing else places: a state,
+or what a loop iterates on. A variable whose own equation says what it
+is was never the case it was written for.
+
+So the start a package gives its type is now held apart, in
+`Component::start_given_by_package`, while the model is built, and
+handed out once the flat model is whole and it can be said who is
+defined. Defined means an equation `x = expr` with `x` on the left and
+nowhere on the right; a declaration's binding on a variable has become
+exactly such an equation by then, so the binding of `h_v` and an
+equation in the `equation` section are one case. The fact is read from
+the equations and recorded on the component, not guessed from any
+spelling of the name. `OXIDELICA_TYPE_START_TO_DEFINED=1` hands the
+start to the defined variables too, as the parked patch did, and
+`OXIDELICA_NO_TYPE_START_MOD=1` still gives the reading before either.
+
+The first pair of the narrowed change (`/tmp/ox366c`, quiet, one half
+after the other, `--without scripts/heavy_models.txt`) printed 961 /
+713 off and 961 / 712 on (`/tmp/m366/pair_off.txt`,
+`/tmp/m366/pair_on.txt`). Flattening did not move by name. One model
+left the run list and none came:
+`Modelica.Fluid.Examples.Explanatory.MomentumBalanceFittings`, which
+ran off and under the wide reading and refused narrowed with `the
+Newton direction of algebraic loop ["suddenExpansion2.V_...`
+(`/tmp/m366/mbf_*.txt`). Printing what each component was handed
+(`/tmp/m366/mbf_pkg.txt`) named the cause. The medium there says
+`p_default = 5e6`, but its type also writes a number of its own,
+`1e5`. The narrowed rule let the package's `5e6` overrule that number
+on the adaptors' port pressures, which nothing defines, and left `1e5`
+on the fittings' port pressures, which are defined. One loop then
+started on two pressures thirty times apart. The wide reading gave
+every pressure `5e6`, the old reading every one `1e5`, and both ran.
+
+So the rule took one more narrowing. The package's word now replaces
+a type's own start only where that start was not a number - a name
+the package had to settle, such as `h_default` - or where there was
+none, and never on a parameter, whose start is no place a run begins
+from. A type that wrote a number keeps it everywhere, so a loop's
+starts all come from one writer. Under that rule both models run
+(`/tmp/m366/d_*.txt`).
+
+The ladder, one binary (`/tmp/ox366e`), the small models kept now in
+`~/oxideflow/state/type_start_m366`:
+
+```text
+VA..VG   h = 420000 under the change, as in m364
+VH       h_v bound, its loop has two roots: h_v = -420000 narrowed,
+         +420000 with the start handed to everybody; h_l, which
+         nothing defines, 420000 either way
+DrumBoiler               runs (/tmp/m366/db_on.txt, 1 of 1, 38 s)
+MomentumBalanceFittings  runs
+TestDensity              refuses, as without the change; runs with the
+                         start handed to everybody (/tmp/m366/TestDensity_*.txt)
+```
+
+The pair of the final tree (`/tmp/ox366e`, the same way) printed 961
+/ 713 off and 961 / 713 on, runnable 844 / 671 in both
+(`/tmp/m366/pair2_off.txt`, `/tmp/m366/pair2_on.txt`). The lists of
+what flattens and what runs are identical by name, so the change wins
+nothing on the corpus and costs nothing. Flattening took 4260 s off
+and 4114 s on, running 3333 s and 3281 s, a ratio of 0.782 and 0.798.
+What it buys is the start a medium writes, read where it was written,
+in place of a type's nominal, and the refusal `unknown variable
+h_default` gone from a start that names a medium's constant. The
+floors do not move.
+
+That pair also printed what the change cost, and the preflight held
+it to account: names looked up went from 1744716049 to 1781132296,
+2.09%, against a band of 2000 per million. The search for a package's
+start ran for every variable declared with a type alias, and walked
+the bases of the medium every time. Two cheap answers now come first,
+in the order the notes ask for: a type that writes a number for its
+own start keeps it, so there is nothing to look for; and a
+`Type.start` that no extends clause of the library writes, on a type
+that wrote no start of its own, cannot be found by walking. What is
+left is remembered by the type as written, the scope and the imports
+there, while the registry stands. On `DrumBoiler` alone the names went
+from 5845158 off to 5948667 with the plain search and to 5845431 with
+the cheap answers first. Over the corpus, the preflight's library step
+on the final tree printed 1744781939 names, 38 per million above the
+1744716049 of the pair's half without the change, and 961 / 713,
+runnable 844 / 671, with the run list identical by name to that half
+(`/tmp/m366/preflight2.txt`).
+
+`VH` is the test
+(`a_type_start_is_not_given_to_a_variable_its_own_equation_defines`),
+checking the root the start picks, and seen to go the other way under
+the switch.
+
+The narrowing has a price, and it is one model: `TestDensity`, which
+arrived with the wide change, refuses again with `algebraic loop did
+not converge in 50 Newton iterations`. It did not run before either,
+so it is no victim, but the arrival is given back, and it says that
+some defined variables are where a loop's iteration begins after all.
+Which ones, and whether a rule can tell that case from the drum's, is
+the next question.

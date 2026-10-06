@@ -640,6 +640,8 @@ impl StandingNames {
         super::constants::CONSTANT_ARRAYS.with(|held| held.borrow_mut().clear());
         super::arrays::MISREAD.with(|held| held.borrow_mut().clear());
         super::arrays::READS_MEDIUM.with(|held| held.borrow_mut().clear());
+        super::inheritance::STARTS_WRITTEN.with(|held| *held.borrow_mut() = None);
+        super::inheritance::PACKAGE_STARTS.with(|held| held.borrow_mut().clear());
         super::carried::forget_pairs();
         REGISTRY_STANDS.with(|stands| stands.set(true));
         StandingNames
@@ -654,6 +656,8 @@ impl Drop for StandingNames {
         super::constants::CONSTANT_ARRAYS.with(|held| held.borrow_mut().clear());
         super::arrays::MISREAD.with(|held| held.borrow_mut().clear());
         super::arrays::READS_MEDIUM.with(|held| held.borrow_mut().clear());
+        super::inheritance::STARTS_WRITTEN.with(|held| *held.borrow_mut() = None);
+        super::inheritance::PACKAGE_STARTS.with(|held| held.borrow_mut().clear());
     }
 }
 

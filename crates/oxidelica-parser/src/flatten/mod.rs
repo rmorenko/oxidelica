@@ -528,6 +528,7 @@ pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
     // model, so the run can walk them for itself.
     carried::put_named_arguments_in_place(&mut model, &registry);
     model.functions = carried::programs_used(&model, &registry)?;
+    hand_out_package_starts(&mut model);
     report_the_size(&model);
     Ok(model)
 }
@@ -585,6 +586,64 @@ fn hold_the_size(acc: &mut Flat, class: &str) -> Result<(), String> {
 /// grows during flattening, so its final size is also its peak, and
 /// counting once at the end says the same thing as an accumulator
 /// threaded through twenty-one places that push to it.
+/// The starts the packages gave their types, handed out now that the
+/// whole model is in and it can be said who has an equation of its own.
+///
+/// A medium's type start says where an unknown of that type is to be
+/// looked for when nothing else says so - which is the case of a state
+/// and of the unknown a loop iterates on. A variable the model defines
+/// outright, `x = expr` with `x` on the left and nowhere on the right,
+/// is a different case: its equation says what it is, and a start
+/// written for the whole type may stand on another branch of the
+/// properties entirely. `h_v = dewEnthalpy(sat)` in the drum boiler is
+/// a vapour enthalpy near 2.7e6, the type's start is the liquid
+/// `1e5`, and handed that start the initialization went to another
+/// root and never left the first instant. A declaration's own binding
+/// on a variable is the same equation and has become one by now.
+fn hand_out_package_starts(model: &mut Model) {
+    if !model
+        .components
+        .iter()
+        .any(|component| component.start_given_by_package.is_some())
+    {
+        return;
+    }
+    let defined: HashSet<&str> = model
+        .equations
+        .iter()
+        .filter_map(|equation| match &equation.lhs {
+            Expr::Ref(name) if !mentions_ref(&equation.rhs, name) => Some(name.as_str()),
+            _ => None,
+        })
+        .collect();
+    let defined: HashSet<String> = match std::env::var("OXIDELICA_TYPE_START_TO_DEFINED").as_deref()
+    {
+        Ok("1") => HashSet::new(),
+        _ => defined.into_iter().map(str::to_string).collect(),
+    };
+    for component in &mut model.components {
+        let Some(value) = component.start_given_by_package.take() else {
+            continue;
+        };
+        // What the type said for itself, where it said a number,
+        // stands: the package's word is taken only where the type's
+        // own start was a name it could not settle, or where there was
+        // none. `MomentumBalanceFittings` showed why - its ports keep
+        // the `1e5` of the type, and handing `5e6` to the unknowns
+        // beside them that nothing defines put one loop's starts on
+        // two different pressures, and the Newton direction stalled.
+        // A start the model wrote outranks both, and a parameter's
+        // start is no place a run begins from.
+        let open = (component.start.is_none()
+            || (component.start_from_type && !matches!(component.start, Some(Expr::Number(_)))))
+            && component.variability == Variability::Continuous;
+        if open && !defined.contains(&component.name) {
+            component.start = Some(value);
+            component.start_from_type = true;
+        }
+    }
+}
+
 fn report_the_size(model: &Model) {
     if std::env::var_os("OXIDELICA_SIZE_PROBE").is_none() {
         return;

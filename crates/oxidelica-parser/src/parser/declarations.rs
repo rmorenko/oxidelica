@@ -202,6 +202,7 @@ impl Parser {
                 variability,
                 start,
                 start_from_type: false,
+                start_given_by_package: None,
                 fixed,
                 fixed_expr,
                 unit,

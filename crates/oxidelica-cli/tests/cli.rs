@@ -1472,3 +1472,84 @@ fn a_register_left_early_keeps_what_it_held() {
     assert_eq!(at_time(&csv, "held[2]", 2.5), 0.0);
     assert_eq!(at_time(&csv, "held[3]", 2.5), 0.0);
 }
+
+/// A start a medium gives its type where it extends the interface.
+///
+/// `extends Base(H(start = h_default), h_default = 420e3)` is how
+/// every medium says where its enthalpy starts, and the name in it is
+/// the medium's own constant. Neither half was read: the variable fell
+/// to the nominal of the interface's type, and with two roots on offer
+/// the nominal's sign chose the wrong one. Read in the medium, the
+/// start is `4.2e5` and the root found is the positive one.
+/// `OXIDELICA_NO_TYPE_START_MOD=1` gives back the old reading, so the
+/// same binary shows both sides.
+#[test]
+fn a_start_a_package_gives_its_type_reaches_the_variable() {
+    let file = TempFile::new(
+        "type_start.mo",
+        "package VG partial package Base constant Real h_default = -1; \
+         type H = Real(nominal = -1e6); end Base; \
+         package Med extends Base(H(start = h_default), h_default = 420e3); end Med; \
+         model Test Med.H h; Real x(start = 1); \
+         equation h * h = 420e3 * 420e3 + x * 0; der(x) = -x; end Test; end VG;",
+    );
+    let run = |off: bool| {
+        let mut command = bin();
+        if off {
+            command.env("OXIDELICA_NO_TYPE_START_MOD", "1");
+        }
+        command
+            .args(["simulate", file.path(), "--stop", "0.1", "--dt", "0.05"])
+            .output()
+            .unwrap()
+    };
+    let out = run(false);
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert!((first_row(&stdout(&out), "h") - 420e3).abs() < 1e-3);
+    let old = run(true);
+    assert!(old.status.success(), "{}", stderr(&old));
+    assert!((first_row(&stdout(&old), "h") + 420e3).abs() < 1e-3);
+}
+
+/// The start a medium gives its type goes to the unknowns nothing else
+/// places, and not to a variable whose own equation says what it is.
+///
+/// `h_v = dewEnthalpy(sat)` in the drum boiler is a vapour's enthalpy,
+/// and the medium's type start is a liquid's. Handed that start, the
+/// initialization went to another root and never left the first
+/// instant. Here `h_v` is bound by its declaration and the start of
+/// the type chooses between the two roots of the loop it stands in:
+/// it keeps the reading it had before the type start was read, while
+/// `h_l`, which nothing defines, takes the medium's word.
+/// `OXIDELICA_TYPE_START_TO_DEFINED=1` hands the start to everybody,
+/// so the same binary shows both sides.
+#[test]
+fn a_type_start_is_not_given_to_a_variable_its_own_equation_defines() {
+    let file = TempFile::new(
+        "type_start_defined.mo",
+        "package VH partial package Base constant Real h_default = -1; \
+         type H = Real(nominal = -1e6); end Base; \
+         package Med extends Base(H(start = h_default), h_default = 420e3); end Med; \
+         model Test Med.H h_l; Med.H h_v = 420e3 * y; Real y; Real x(start = 1); \
+         equation h_l * h_l = 420e3 * 420e3 + x * 0; y * h_v = 420e3 + x * 0; \
+         der(x) = -x; end Test; end VH;",
+    );
+    let run = |to_defined: bool| {
+        let mut command = bin();
+        if to_defined {
+            command.env("OXIDELICA_TYPE_START_TO_DEFINED", "1");
+        }
+        command
+            .args(["simulate", file.path(), "--stop", "0.1", "--dt", "0.05"])
+            .output()
+            .unwrap()
+    };
+    let out = run(false);
+    assert!(out.status.success(), "{}", stderr(&out));
+    let csv = stdout(&out);
+    assert!((first_row(&csv, "h_l") - 420e3).abs() < 1e-3);
+    assert!((first_row(&csv, "h_v") + 420e3).abs() < 1e-3);
+    let wide = run(true);
+    assert!(wide.status.success(), "{}", stderr(&wide));
+    assert!((first_row(&stdout(&wide), "h_v") - 420e3).abs() < 1e-3);
+}

@@ -146,6 +146,15 @@ pub struct Component {
     /// true of the value, and only its writer tells them apart, so
     /// the writer is recorded here rather than guessed at later.
     pub start_from_type: bool,
+    /// The start the package a type was reached through gives that
+    /// type: `extends PartialTwoPhaseMedium(SpecificEnthalpy(start =
+    /// h_default), h_default = 420e3)`. Held apart from `start`
+    /// until the whole model is in, because it is the type's word
+    /// and not the variable's: a variable whose own equation says
+    /// what it is - `h_v = dewEnthalpy(sat)`, a vapour's enthalpy on
+    /// a branch the liquid start of the type knows nothing of - is
+    /// not handed it, and only the flat model knows which those are.
+    pub start_given_by_package: Option<Expr>,
     /// The `fixed` attribute, where the declaration wrote a literal.
     pub fixed: Option<bool>,
     /// The `fixed` attribute where what was written is an expression

@@ -318,7 +318,14 @@ pub(super) fn resolve_type(
             return;
         };
         followed = true;
-        component.type_name = base;
+        let written = std::mem::replace(&mut component.type_name, base);
+        if component.start.is_none()
+            && component.start_given_by_package.is_none()
+            && type_starts_open()
+        {
+            component.start_given_by_package =
+                start_given_to_type(registry, &written, &scope, &imports, &attributes);
+        }
         // A type that is an array gives its dimensions to whatever is
         // declared with it, after that declaration's own: `Orientation
         // o[2]` with `type Orientation = Real[4]` is `[2, 4]`.
@@ -354,6 +361,157 @@ pub(super) fn resolve_type(
         scope = class.name.clone();
         imports = class.imports.clone();
     }
+}
+
+/// Whether a type's start is read where its package gives it.
+/// `OXIDELICA_NO_TYPE_START_MOD=1` leaves the old reading, so that one
+/// binary gives both numbers.
+fn type_starts_open() -> bool {
+    std::env::var("OXIDELICA_NO_TYPE_START_MOD").as_deref() != Ok("1")
+}
+
+/// The start a type declared in a package is given, read in that
+/// package: `extends PartialTwoPhaseMedium(SpecificEnthalpy(start =
+/// h_default), h_default = 420e3)` is how every medium says where its
+/// enthalpy starts, and the type's own `start = h_default` names a
+/// constant of whichever package the type was reached through.
+///
+/// Neither was read. The modifier on the extends clause was dropped,
+/// and the variable fell to the nominal of the interface's type - `1e6`
+/// for an enthalpy whose medium says `4.2e5`, a silent default. The
+/// type's own start was carried out with its names relative, and then
+/// refused as `unknown variable h_default` or, prefixed with an
+/// instance path, named something nobody declared.
+///
+/// Taken only when it settles to a number in the package. A start that
+/// is still an expression there - a choice between reference
+/// enthalpies, a call - is left to the reading that stood before,
+/// rather than carried out with names that mean something only in the
+/// package that wrote them.
+fn start_given_to_type(
+    registry: &HashMap<&str, &ClassDef>,
+    written: &str,
+    scope: &str,
+    imports: &[(String, String)],
+    attributes: &[(String, Expr)],
+) -> Option<Expr> {
+    // The cheap answers first, since this is asked of every variable
+    // declared with a type alias. A type that writes a number for its
+    // own start keeps it, and the package's word is never taken over
+    // it, so there is nothing to look for.
+    let own = attributes.iter().find(|(name, _)| name == "start");
+    if matches!(own, Some((_, Expr::Number(_)))) {
+        return None;
+    }
+    let (head, tail) = written.rsplit_once('.')?;
+    // The same type is declared with from the same scope thousands of
+    // times over one model, and the answer depends on nothing else
+    // while the registry stands: the type as written, where it was
+    // written with the imports in view there, and the type's own
+    // start, which those decide.
+    let standing = lookup::REGISTRY_STANDS.with(|stands| stands.get());
+    let key = (written.to_string(), scope.to_string(), imports.to_vec());
+    if standing {
+        if let Some(known) = PACKAGE_STARTS.with(|held| held.borrow().get(&key).cloned()) {
+            return known;
+        }
+    }
+    let answer = package_start(registry, head, tail, scope, imports, own);
+    if standing {
+        PACKAGE_STARTS.with(|held| held.borrow_mut().insert(key, answer.clone()));
+    }
+    answer
+}
+
+/// The search behind [`start_given_to_type`], once its cheap answers
+/// have said nothing.
+fn package_start(
+    registry: &HashMap<&str, &ClassDef>,
+    head: &str,
+    tail: &str,
+    scope: &str,
+    imports: &[(String, String)],
+    own: Option<&(String, Expr)>,
+) -> Option<Expr> {
+    let wanted = format!("{tail}.start");
+    // And where no extends clause in the whole library says a word
+    // about this type's start, and the type said nothing either, the
+    // walk through the bases would only come back empty.
+    if own.is_none() && !some_extends_says(registry, &wanted) {
+        return None;
+    }
+    let package = lookup(registry, head, scope, imports)?;
+    // The nearest extends clause that says it, breadth first, so that a
+    // medium's own word outranks what its bases say.
+    let mut queue: std::collections::VecDeque<(&ClassDef, usize)> =
+        std::collections::VecDeque::from([(package, 0)]);
+    let mut found = None;
+    while let Some((at, depth)) = queue.pop_front() {
+        if depth > MAX_DEPTH {
+            break;
+        }
+        if let Some((_, value)) = at
+            .extends
+            .iter()
+            .flat_map(|extend| extend.modifiers.iter())
+            .find(|(name, _)| *name == wanted)
+        {
+            found = Some(value.clone());
+            break;
+        }
+        for extend in &at.extends {
+            if let Some(base) = lookup(registry, &extend.base, &at.name, &at.imports) {
+                queue.push_back((base, depth + 1));
+            }
+        }
+    }
+    let value = match found {
+        Some(value) => value,
+        None => own?.1.clone(),
+    };
+    match substitute_class_constants(&value, registry, &package.name, &package.imports, &[]) {
+        settled @ Expr::Number(_) => Some(settled),
+        _ => None,
+    }
+}
+
+thread_local! {
+    /// Every `Type.start` some extends clause of the registry writes,
+    /// gathered once while the registry stands.
+    pub(super) static STARTS_WRITTEN: std::cell::RefCell<Option<HashSet<String>>> =
+        const { std::cell::RefCell::new(None) };
+    /// What [`start_given_to_type`] answered, by the type as written
+    /// the scope it was written in and the imports in view there, while
+    /// the registry stands.
+    #[allow(clippy::type_complexity)]
+    pub(super) static PACKAGE_STARTS: std::cell::RefCell<
+        HashMap<(String, String, Vec<(String, String)>), Option<Expr>>,
+    > =
+        std::cell::RefCell::new(HashMap::new());
+}
+
+/// Whether any extends clause of the registry modifies `wanted`, which
+/// is a `Type.start`. Gathered once per standing registry: the set is
+/// bounded by what the library writes, and a registry that does not
+/// stand is asked afresh.
+fn some_extends_says(registry: &HashMap<&str, &ClassDef>, wanted: &str) -> bool {
+    let gather = || -> HashSet<String> {
+        registry
+            .values()
+            .flat_map(|class| class.extends.iter())
+            .flat_map(|extend| extend.modifiers.iter())
+            .filter(|(name, _)| name.ends_with(".start"))
+            .map(|(name, _)| name.clone())
+            .collect()
+    };
+    if !lookup::REGISTRY_STANDS.with(|stands| stands.get()) {
+        return gather().contains(wanted);
+    }
+    STARTS_WRITTEN.with(|held| {
+        held.borrow_mut()
+            .get_or_insert_with(gather)
+            .contains(wanted)
+    })
 }
 
 /// Whether a class is a handle to something outside Modelica: itself
