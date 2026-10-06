@@ -35304,3 +35304,70 @@ Pa and a temperature of 5.3 K. The iteration walks on from there with
 the line search shrinking to 1.5e-5. Nothing on the first step keeps
 the unknowns inside the domain the medium is defined on, so this is a
 domain guard on the first step and not a column that has gone dead.
+
+## Two streams joined end to end are rewritten as the language says (m368)
+
+The enthalpy that `DryAir1` lost (previous chapter) sits between two
+transport equations joined by a connection: the pipe's
+`shortPipe.port_a.H_flow = semiLinear(port_a.m_flow, port_a.h,
+port_b.h)` and the ambient's `ambient.port.H_flow =
+semiLinear(port.m_flow, port.h, medium.h)`, with `port_b.h =
+ambient.port.h` and the flows and the energy flows joined as a
+connection joins them. Each equation on its own names the middle
+enthalpy only multiplied by the flow. The rule written earlier for
+one equation at zero flow (`semilinear_at_zero`) does not reach it
+either: it fires only at a flow of exactly zero, and the flow here was
+3e-12.
+
+The language has a rule for exactly this shape (3.7.2.5): the pair
+
+```text
+y = semiLinear(x, sa, s1);
+y = semiLinear(x, s1, sb);
+```
+
+may be replaced by `y = semiLinear(x, sa, sb)` and `s1 = if x >= 0 then
+sa else sb`. That is now done after flattening, before the single
+equation rule, by `semilinear_chains`. The equations are found through
+the connections: names joined by `a = b`, `a = -b` and `a + b = 0` are
+put in classes with a sign, and a pair is two transport equations whose
+transported quantities share a class with the same sign, whose flows do
+the same, and where the second slot of one is the first slot of the
+other. Where a class holds three or more transport equations the
+junction mixes streams, and which two to pair would be a guess, so
+none is. The switch is `OXIDELICA_NO_SEMILINEAR_PAIR=1`.
+
+The two kinds of fix the queue proposed for the line search were
+weighed and not built. A scale on the dead column is a change of
+variable, and Newton's step is the same in the original coordinates
+whatever the scale, so it cannot change the length of the step the line
+search sees; and the block is equilibrated already. A separate step
+length for the thin column would break the Newton direction to treat
+the symptom of an equation that no longer determines its unknown.
+
+The test (`two_streams_joined_end_to_end_carry_nothing_where_nothing_flows`)
+is the pair at a flow of exactly zero. Read one equation at a time, the
+single rule pins the middle enthalpy to a different neighbour in each
+equation, and the run splits the difference: `hport = 200` and an
+energy flow of 100 through a pipe with no mass in it. With the pair
+rewritten, `hport = 300`, the upstream enthalpy, and the energy flow is
+zero. Seen red under the switch with `hport = 200.00000000000017`.
+
+On the library, under `--only` from `.msl`, one binary
+(`/tmp/m368/ox1`), switch on against off (`/tmp/m368/ladder1.txt`):
+`DryAir1` and `DryAir2` run with the rewrite and do not without it.
+None of the controls moved: `TestMultiPortTraceSubstances` and
+`DynamicPipeInitialization` refuse both ways, and `WaterIF97_ph`,
+`WaterIF97OnePhase_ph`, `DryAirNasa` of the fluid tests, and seven
+`FluidHeatFlow` examples - the family the single rule was written for -
+run both ways.
+
+The pair on the final tree, one binary built from it (`/tmp/m368/ox1`),
+switch on against off, `--without scripts/heavy_models.txt`
+(`/tmp/m368/pair_off.txt`, `/tmp/m368/pair_on.txt`): 961 flatten both
+ways, and run **713 against 715**; runnable 844 flatten both ways and
+run **671 against 673**. The flatten lists are identical by name. The
+run lists differ by exactly two arrivals, `DryAir1` and `DryAir2`, and
+no withdrawals. The floors are left for the runner's number. Work moved
+by 385 points and 765 Newton steps of 37592843, and the names looked up
+not at all, since the rewrite is a pass over equations already flat.

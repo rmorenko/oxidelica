@@ -886,6 +886,35 @@ fn a_stream_carrying_nothing_still_says_which_enthalpies_are_equal() {
 }
 
 #[test]
+fn two_streams_joined_end_to_end_carry_nothing_where_nothing_flows() {
+    // A pipe hands its outlet enthalpy to an ambient through a
+    // connection: `Hp = semiLinear(m, h, hport)` on one side and
+    // `Ha = semiLinear(ma, hport, hamb)` on the other, with the flows
+    // and the energy flows joined as a connection joins them. Read one
+    // equation at a time, zero flow pins `hport` to whichever neighbour
+    // each equation names, and the two answers are split between them
+    // - which carries an energy flow of 100 through a pipe with no
+    // mass in it. The language rewrites the pair (3.7.2.5): the middle
+    // enthalpy is the upstream one where the flow is not negative, and
+    // the energy flow is the flow times it, which here is zero.
+    let result = run(
+        "model S Real m; Real mb; Real ma; Real h; Real hamb; Real hport; \
+         Real Hp; Real Hpb; Real Ha; \
+         equation m = 0; m + mb = 0; ma + mb = 0; h = 300; hamb = 100; \
+         Hp = semiLinear(m, h, hport); Hp + Hpb = 0; Ha + Hpb = 0; \
+         Ha = semiLinear(ma, hport, hamb); \
+         annotation(experiment(StopTime=0.01, Interval=0.01)); end S;",
+    );
+    let at = |name: &str| result.rows[0][result.columns.iter().position(|c| c == name).unwrap()];
+    assert!(
+        (at("hport") - 300.0).abs() < 1e-9,
+        "hport = {}",
+        at("hport")
+    );
+    assert!(at("Hp").abs() < 1e-9, "Hp = {}", at("Hp"));
+}
+
+#[test]
 fn a_block_that_starts_where_it_cannot_be_evaluated_is_tried_from_elsewhere() {
     // `R_m = 1/G_m` names a block whose unknown starts at the zero its
     // declaration left it, and a reciprocal has nothing to say there.

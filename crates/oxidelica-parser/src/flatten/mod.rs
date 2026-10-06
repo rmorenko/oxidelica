@@ -498,7 +498,11 @@ pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
     // which enthalpy is which where the flow through it is zero. The
     // language says what the missing equation is, and it is put in
     // here, once the model as written has been checked as written.
-    for equation in &mut model.equations {
+    let chained = semilinear_chains(&mut model.equations);
+    for (index, equation) in model.equations.iter_mut().enumerate() {
+        if chained.contains(&index) {
+            continue;
+        }
         if let Some(rewritten) = semilinear_at_zero(equation) {
             *equation = rewritten;
         }
@@ -2952,4 +2956,235 @@ fn semilinear_at_zero(equation: &EquationItem) -> Option<EquationItem> {
         ),
         origin: equation.origin.clone(),
     })
+}
+
+/// Two `semiLinear` equations carrying one flow through one junction,
+/// joined end to end, rewritten as the language says they may be
+/// (3.7.2.5): from
+///
+/// ```text
+/// y = semiLinear(x, sa, s1);
+/// y = semiLinear(x, s1, sb);
+/// ```
+///
+/// to `y = semiLinear(x, sa, sb)` and `s1 = if x >= 0 then sa else sb`.
+///
+/// The quantity in the middle is what one component hands to the
+/// next, and as written it appears only multiplied by the flow, so
+/// its column in the Jacobian is the flow itself. A fixed ambient at
+/// the end of a pipe with nothing running through it is exactly that:
+/// Newton answers a residual of a hundred with a step of 1e14 on the
+/// middle enthalpy, which is the exact step of an equation that has
+/// stopped saying anything about the unknown it is asked for. The pair
+/// as rewritten says what the middle quantity is at every flow, zero
+/// included, and says the same as the written pair wherever the flow
+/// is not zero.
+///
+/// The two equations are found through the connections between them.
+/// A connection writes `a = b` and `a + b = 0`, so names are put in
+/// classes with a sign, and a pair is two transport equations whose
+/// transported quantities share a class with the same sign, whose
+/// flows share a class with the same sign, and where the second slot
+/// of one is the first slot of the other. Where a class holds three or
+/// more transport equations the junction mixes streams, and which two
+/// to pair would be a guess, so none is.
+///
+/// Returns the indices of the equations taken, which the rule for a
+/// single equation at zero flow then leaves alone: the merged equation
+/// is right at zero flow as it stands, and the middle one is not a
+/// transport equation at all.
+fn semilinear_chains(equations: &mut [EquationItem]) -> HashSet<usize> {
+    let mut taken = HashSet::new();
+    if std::env::var("OXIDELICA_NO_SEMILINEAR_PAIR").as_deref() == Ok("1") {
+        return taken;
+    }
+    let mut classes = SignedClasses::default();
+    for equation in equations.iter() {
+        if let Some((a, b, opposite)) = signed_alias(&equation.lhs, &equation.rhs) {
+            classes.join(&a, &b, opposite);
+        }
+    }
+    let mut by_class: HashMap<String, Vec<(bool, Transport)>> = HashMap::new();
+    for (index, equation) in equations.iter().enumerate() {
+        if let Some(transport) = Transport::of(index, equation) {
+            let (root, sign) = classes.find(&transport.carried);
+            by_class.entry(root).or_default().push((sign, transport));
+        }
+    }
+    let mut pairs: Vec<(Transport, Transport)> = Vec::new();
+    for (_, mut members) in by_class {
+        // A transported quantity met with both signs is a different
+        // shape from the one the language describes, and is left.
+        if members.len() != 2 || members[0].0 != members[1].0 {
+            continue;
+        }
+        let (_, second) = members.pop().expect("two");
+        let (_, first) = members.pop().expect("two");
+        pairs.push((first, second));
+    }
+    pairs.sort_unstable_by_key(|(first, _)| first.index);
+    for (one, two) in pairs {
+        if classes.find(&one.flow) != classes.find(&two.flow) {
+            continue;
+        }
+        let same = |a: &str, b: &str| classes.find(a) == classes.find(b);
+        let (up, down) = if same(&one.negative, &two.positive) {
+            (one, two)
+        } else if same(&two.negative, &one.positive) {
+            (two, one)
+        } else {
+            continue;
+        };
+        // `sa` and `sb` are the outer two and must be told apart from
+        // the middle, or the rewrite says `s1 = s1`.
+        if same(&up.positive, &down.negative) {
+            continue;
+        }
+        let flow = Expr::Ref(up.flow.clone());
+        let condition = Box::new(Expr::Rel(
+            RelOp::Ge,
+            Box::new(flow.clone()),
+            Box::new(Expr::Number(0.0)),
+        ));
+        let carry = |h: &str| {
+            Box::new(Expr::Bin(
+                BinOp::Mul,
+                Box::new(Expr::Ref(h.to_string())),
+                Box::new(flow.clone()),
+            ))
+        };
+        let merged = Expr::If(
+            condition.clone(),
+            carry(&up.positive),
+            carry(&down.negative),
+        );
+        let equation = &mut equations[up.index];
+        if matches!(equation.lhs, Expr::If(..)) {
+            equation.lhs = merged;
+        } else {
+            equation.rhs = merged;
+        }
+        let origin = equations[down.index].origin.clone();
+        equations[down.index] = EquationItem {
+            lhs: Expr::Ref(up.negative.clone()),
+            rhs: Expr::If(
+                condition,
+                Box::new(Expr::Ref(up.positive.clone())),
+                Box::new(Expr::Ref(down.negative.clone())),
+            ),
+            origin,
+        };
+        taken.insert(up.index);
+        taken.insert(down.index);
+    }
+    taken
+}
+
+/// Names joined by `a = b` (same sign) and `a + b = 0` or `a = -b`
+/// (opposite sign), each class remembering every member's sign
+/// against its root.
+#[derive(Default)]
+struct SignedClasses {
+    parent: HashMap<String, (String, bool)>,
+}
+
+impl SignedClasses {
+    fn find(&self, name: &str) -> (String, bool) {
+        let mut at = name;
+        let mut flipped = false;
+        while let Some((up, sign)) = self.parent.get(at) {
+            flipped ^= *sign;
+            at = up;
+        }
+        (at.to_string(), flipped)
+    }
+
+    fn join(&mut self, a: &str, b: &str, opposite: bool) {
+        let (root_a, sign_a) = self.find(a);
+        let (root_b, sign_b) = self.find(b);
+        if root_a != root_b {
+            self.parent
+                .insert(root_a, (root_b, sign_a ^ sign_b ^ opposite));
+        }
+    }
+}
+
+/// `a = b`, `a = -b`, `a + b = 0` and `a - b = 0` as two names and
+/// whether they are of opposite sign.
+fn signed_alias(lhs: &Expr, rhs: &Expr) -> Option<(String, String, bool)> {
+    fn name(e: &Expr) -> Option<&String> {
+        match e {
+            Expr::Ref(n) => Some(n),
+            _ => None,
+        }
+    }
+    fn negated(e: &Expr) -> Option<&String> {
+        match e {
+            Expr::Neg(inner) => name(inner),
+            _ => None,
+        }
+    }
+    let zero = |e: &Expr| *e == Expr::Number(0.0);
+    match (lhs, rhs) {
+        (Expr::Ref(a), Expr::Ref(b)) => Some((a.clone(), b.clone(), false)),
+        (Expr::Ref(a), other) | (other, Expr::Ref(a)) if negated(other).is_some() => {
+            Some((a.clone(), negated(other)?.clone(), true))
+        }
+        (Expr::Bin(op @ (BinOp::Add | BinOp::Sub), a, b), other)
+        | (other, Expr::Bin(op @ (BinOp::Add | BinOp::Sub), a, b))
+            if zero(other) =>
+        {
+            Some((name(a)?.clone(), name(b)?.clone(), *op == BinOp::Add))
+        }
+        _ => None,
+    }
+}
+
+/// `y = if x >= 0 then sa * x else sb * x`, the shape `semiLinear`
+/// is written out as, with every part a plain name.
+struct Transport {
+    index: usize,
+    carried: String,
+    flow: String,
+    positive: String,
+    negative: String,
+}
+
+impl Transport {
+    fn of(index: usize, equation: &EquationItem) -> Option<Transport> {
+        let (carried, side) = match (&equation.lhs, &equation.rhs) {
+            (Expr::Ref(y), side @ Expr::If(..)) | (side @ Expr::If(..), Expr::Ref(y)) => (y, side),
+            _ => return None,
+        };
+        let Expr::If(condition, positive, negative) = side else {
+            return None;
+        };
+        let Expr::Rel(RelOp::Ge, flow, zero) = condition.as_ref() else {
+            return None;
+        };
+        if **zero != Expr::Number(0.0) {
+            return None;
+        }
+        let Expr::Ref(flow_name) = flow.as_ref() else {
+            return None;
+        };
+        let factor = |branch: &Expr| match branch {
+            Expr::Bin(BinOp::Mul, h, rate) if rate.as_ref() == flow.as_ref() => match h.as_ref() {
+                Expr::Ref(h) => Some(h.clone()),
+                _ => None,
+            },
+            _ => None,
+        };
+        let (positive, negative) = (factor(positive)?, factor(negative)?);
+        if positive == negative || positive == *flow_name || negative == *flow_name {
+            return None;
+        }
+        Some(Transport {
+            index,
+            carried: carried.clone(),
+            flow: flow_name.clone(),
+            positive,
+            negative,
+        })
+    }
 }
