@@ -124,6 +124,15 @@ fn reach_floor_off() -> bool {
     *OFF.get_or_init(|| std::env::var_os("OXIDELICA_NO_REACH_FLOOR").is_some())
 }
 
+/// The floor as it stood before a row could be judged by the rounding
+/// the rest of its block carries into it through the solve. Off by
+/// default, for the two halves of a measurement to come from one
+/// binary.
+fn carried_floor_off() -> bool {
+    static OFF: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *OFF.get_or_init(|| std::env::var_os("OXIDELICA_NO_CARRIED_FLOOR").is_some())
+}
+
 /// The loudness floor as it stood before the inner unknowns of a torn
 /// block carried theirs into the rows that read them.
 fn inner_loudness_off() -> bool {
@@ -1060,9 +1069,10 @@ impl CompiledModel {
                         _ => 0.0,
                     }
                 };
-                f.iter().zip(&loud).enumerate().all(|(i, (fi, li))| {
-                    fi.abs() <= 4.0 * f64::EPSILON * li.abs() || fi.abs() <= f64::EPSILON * reach(i)
-                })
+                let n = v.len();
+                let reach: Vec<f64> = (0..n).map(reach).collect();
+                let carried = jac.filter(|j| !carried_floor_off() && j.len() == n);
+                crate::linear::rows_on_floor(&f, &loud, &reach, carried)
             };
         let block_names =
             || -> Vec<&str> { block.iter().map(|&i| self.algebraics[i].as_str()).collect() };

@@ -36553,3 +36553,89 @@ refuses at `t = 0.0219` and `OvervoltageProtection` at `t = 0.22`
 the m373 reference run (`/tmp/m373/num/ov5.csv`) to 6.1e-7 V over
 1001 points. `Rectifier6pulse` runs to its end. The floors are left
 for the runner to raise.
+
+## A row of rounding noise stands on the floor its block hands it (m376)
+
+What held the three `IMC_Transformer` models at `t = 0` after m375 was
+read row by row with a probe that prints, at the third step running
+that bought no descent, every row the floor test refuses, its residual,
+its loudness, its reach and its Jacobian row (`/tmp/m376/num/`, binary
+`/tmp/m376/ox376p`, file `trail.txt`). In the Machines
+`InductionMachines.IMC_Transformer` the block has 45 unknowns and stands
+at |f| = 9.6e-10. The loud rows are already on the floor: row 13,
+`transformer.l1sigma.inductor[1].v`, at 2.3e-10 against a loudness of
+1.37e6, and row 22 at 9.3e-10 against 2.38e6. What the floor refuses is
+three rows of the open secondary, rows 15, 28 and 30:
+`idealCommutingSwitch[3].n1.i`, `transformer.r2.plug_p.pin[3].i` and
+`pin[1].i`. Each reads `i_a - i_b = 0` between currents of 1e-33 A, so
+its loudness and its reach are both 1e-33 and its residual of 1e-33 is
+a whole ulp of nothing, which no arm of the floor forgives. Taking the
+whole Newton step instead of the line search's sliver does not help:
+the step lands the same rows on new values of 1e-33
+(`full.trail`). The currents are not converging badly, they are the
+rounding of the loud rows, handed to the open secondary by the solve.
+
+So the floor got a third arm, asked only where the first two say no:
+each row k brings one ulp of its loudness and its reach, the solve
+hands that to every unknown through the inverse of the Jacobian and
+back to each row through its coefficients, and a row whose residual is
+within what reaches it that way is on the floor
+(`linear::carried_rounding`, `linear::rows_on_floor`). On the trail
+above the three noise rows read a carried floor of 1e-32. The second
+block solved at `t = 0` then stood on a spatial-phasor row at 1.42e-13
+against a loudness of 141, five ulps where the first arm allows four;
+bringing the loudness into the source of the carried rounding, and not
+only the reach, puts it under as well (`cl.trail`). Behind
+`OXIDELICA_NO_CARRIED_FLOOR`. A first form that widened the loudness
+arm to 8 and 64 ulps (forbidden as a direction, and measured only to
+see the chain) moved nothing at that row, which is what said the
+answer lay in the coupling and not in the count of ulps. The unit test
+`a_row_of_rounding_noise_beside_a_loud_block_stands_on_the_floor_the_block_hands_it`
+takes the shape from the trail; it fails with the arm cut out and
+passes with it. Five small models written to show the shape through
+`simulate` all ran on the base already: the residual of a small row
+only stalls where the line search is judged on a norm the loud rows
+own, and a nine-line model does not reach that.
+
+What it does to the witnesses, run with `simulate`. A wrapper
+`model M extends ...` does not carry the annotation, so the ladder
+ran to the default of 1 s, and the two that matter were run again
+with their own `--stop`. From one
+binary (`/tmp/m376/ox376v` and the final `/tmp/m376/ox376x`, files in
+`/tmp/m376/lad2/`, `lad3/`):
+
+- `FundamentalWave` `IMC_Transformer` runs from `t = 0` to
+  `t = 2.0`, where the bypass of `tStart2 = 2.0` closes and a block
+  refuses a Newton direction from |f| = 3.3e4. That residual is nowhere
+  near a floor, and m374 met the same instant as a step size underflow.
+  Up to 1 s its rotor speed and load torque agree with the m374 run
+  under the widened floor (`/tmp/m374/w/fw4.on.csv`) to 3.7e-5 rad/s
+  and 2.7e-5 N m over all 1003 common points.
+- The two `Machines` `IMC_Transformer` run from `t = 0` to
+  `t = 0.1045`, where the closing switch of `tStart1 = 0.1` acts and a
+  re-selection refuses as structurally singular on
+  `der(aimc.airGap.spacePhasor_r.i_[1])`. That is the fourth link of the
+  m373 chain, and it is the wall now.
+- `Analog.Examples.Rectifier` runs to its stop time of 0.1 s, where
+  it refused at `t = 0.0219` before. Its `uDC` agrees with the m374
+  reference (`/tmp/m374/w/ar.on.csv`) to 8.8e-5 V over the 163 points
+  the two files share. Asked to go on, it refuses at `t = 0.79`.
+- `Rectifier12pulse` has a stop time of 0.1 s and runs to it either
+  way. Taken on to 1 s, the base refuses at `t = 0.145`, a Newton
+  direction at |f| = 2.1e-10, and the arm runs it to the end. Up to
+  0.14 s the two files are identical byte for byte, so on its own
+  stretch the control does not move.
+- Controls: `TransformerTestbench`, `CauerLowPassAnalog` and
+  `Rectifier6pulse` give files identical byte for byte with the switch
+  set and unset. `IMC_DOL` refuses with the same text.
+
+The corpus pair, one binary with the switch set and unset
+(`/tmp/m376/pair/off.txt`, `on.txt`, binary `/tmp/m376/ox376x`): 961 /
+723 and runnable 844 / 681 without the arm, 961 / 726 and 844 / 684
+with it. The three that arrive are the three `IMC_Transformer`; none
+leave, and every other refusal keeps its text byte for byte. The work
+the run does rises by 6,835 points and 71,970 Newton iterations, 0.03%
+and 0.2%, which is the three machines now taking their ten steps. Of
+the three, only the `FundamentalWave` one runs past its first switch on
+a full run; the two `Machines` ones stop at the fourth link, which is
+where the road goes next. The floors are left for the runner to raise.

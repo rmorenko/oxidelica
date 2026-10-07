@@ -455,6 +455,45 @@ fn a_transistor_at_rest_is_not_underdetermined_for_the_order_its_units_are_taken
 }
 
 #[test]
+fn a_row_of_rounding_noise_beside_a_loud_block_stands_on_the_floor_the_block_hands_it() {
+    // The shape `IMC_Transformer` stalls in at t = 0 (OXIDELICA_NEWTON_TRAIL,
+    // /tmp/m376/num/trail.txt): a loud row that has converged to what a
+    // double says about it, and a row of the open secondary whose own
+    // current is rounding noise. Row 0 reads a voltage of 70.7 V through
+    // a coefficient of 1.4e6 and stands at 2.3e-10, inside the ulp its
+    // coefficients carry. Row 1 is `i_a - i_b = 0` with `i_a` at
+    // 1.37e-33 A and `i_b` at zero - its loudness and its reach are
+    // both 1.37e-33, so it is 1e15 ulps over either of them. Row 2 ties
+    // the noise to the loud row, which is where it came from.
+    let jac: Vec<Vec<f64>> = vec![
+        vec![1.374396e6, 0.0, 1.0],
+        vec![0.0, -1.0, 1.0],
+        vec![1e-6, 0.0, -1.0],
+    ];
+    let v: [f64; 3] = [70.71067811865473, 1.366974817131702e-33, 0.0];
+    let f = [-2.3283064365386963e-10, -1.366974817131702e-33, 0.0];
+    let loud = [1.374396e6, 1.366974817131702e-33, 7.0710678e-5];
+    let reach: Vec<f64> = jac
+        .iter()
+        .map(|row| row.iter().zip(&v).map(|(a, x)| (a * x).abs()).sum())
+        .collect();
+    // Without the matrix the noise row is refused, as it was.
+    assert!(!crate::linear::rows_on_floor(&f, &loud, &reach, None));
+    // With it the noise row reads the rounding the loud row hands the
+    // block, and the block stands on the floor.
+    assert!(crate::linear::rows_on_floor(&f, &loud, &reach, Some(&jac)));
+    // And the arm is not a licence: a residual of the loud row's own
+    // size in the noise row stays refused.
+    let far = [-2.3283064365386963e-10, 1e-3, 0.0];
+    assert!(!crate::linear::rows_on_floor(
+        &far,
+        &loud,
+        &reach,
+        Some(&jac)
+    ));
+}
+
+#[test]
 fn a_machine_at_rest_is_not_underdetermined_for_the_order_its_units_are_taken_out() {
     // The Jacobian `IMC_DOL` presents at t = 0, the converged block
     // over the air gap's currents, the closing switches and the two

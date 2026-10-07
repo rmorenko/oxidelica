@@ -328,6 +328,113 @@ pub(crate) fn null_direction(a: &mut [Vec<f64>]) -> Option<Vec<f64>> {
     None
 }
 
+/// The inverse of a square matrix by Gauss-Jordan elimination with
+/// partial pivoting, or `None` where a pivot falls under the same
+/// `1e-14` that `solve_linear` refuses on. One elimination for all the
+/// columns, so the price is that of one solve and not of `n`.
+pub(crate) fn inverse(a: &[Vec<f64>]) -> Option<Vec<Vec<f64>>> {
+    let n = a.len();
+    let mut m: Vec<Vec<f64>> = a.to_vec();
+    let mut inv: Vec<Vec<f64>> = (0..n)
+        .map(|i| (0..n).map(|j| if i == j { 1.0 } else { 0.0 }).collect())
+        .collect();
+    for col in 0..n {
+        let pivot_row = (col..n).max_by(|&r1, &r2| {
+            m[r1][col]
+                .abs()
+                .partial_cmp(&m[r2][col].abs())
+                .unwrap_or(std::cmp::Ordering::Equal)
+        })?;
+        let pivot = m[pivot_row][col].abs();
+        if pivot.is_nan() || pivot < 1e-14 {
+            return None;
+        }
+        m.swap(col, pivot_row);
+        inv.swap(col, pivot_row);
+        let p = m[col][col];
+        for k in 0..n {
+            m[col][k] /= p;
+            inv[col][k] /= p;
+        }
+        for row in 0..n {
+            if row == col {
+                continue;
+            }
+            let factor = m[row][col];
+            if factor == 0.0 {
+                continue;
+            }
+            for k in 0..n {
+                m[row][k] -= factor * m[col][k];
+                inv[row][k] -= factor * inv[col][k];
+            }
+        }
+    }
+    Some(inv)
+}
+
+/// The rounding a block's solve carries into each of its rows. Each
+/// row k brings `source[k]` of its own - an ulp of what it adds up and
+/// of what its coefficients carry - and the solve hands that to every
+/// unknown through the inverse and back into every row through its
+/// coefficients: row i receives the sum over j of |J_ij| times the sum
+/// over k of |Jinv_jk| times `source[k]`. `None` where the matrix
+/// cannot be inverted, which is a block too singular to say anything
+/// about.
+pub(crate) fn carried_rounding(jac: &[Vec<f64>], source: &[f64]) -> Option<Vec<f64>> {
+    let inv = inverse(jac)?;
+    let n = jac.len();
+    let noise: Vec<f64> = (0..n)
+        .map(|j| (0..n).map(|k| inv[j][k].abs() * source[k]).sum())
+        .collect();
+    Some(
+        (0..n)
+            .map(|i| (0..n).map(|j| jac[i][j].abs() * noise[j]).sum())
+            .collect(),
+    )
+}
+
+/// Whether every row of a stalled block stands on the floor of the
+/// arithmetic: within four ulps of the loudest number it adds up, or
+/// within one ulp of the reach its coefficients carry from its unknowns
+/// (`reach[i]`, the sum over j of |J_ij * v_j|), or - where `jac` is
+/// given - under the rounding the rest of the block hands it through
+/// the solve.
+///
+/// The last arm is for a row that is small beside its block. The open
+/// secondary of `IMC_Transformer` at t = 0 leaves rows whose own
+/// currents are 1e-33 A, so their reach is 1e-33 and neither of the
+/// first two arms forgives a residual of 1e-33, in a block whose other
+/// rows add up 1.4e6 and stand at 2e-10. Whatever the block's rounding
+/// is, the solve hands it to every unknown through the inverse and back
+/// into each row through its coefficients (`carried_rounding`), and
+/// measured there the 1e-33 rows read a carried floor of 1e-32
+/// (`/tmp/m376/num/cl.trail`). Asked only where the two cheaper arms
+/// said no, so the inverse is paid once, at a refusal.
+pub(crate) fn rows_on_floor(
+    f: &[f64],
+    loud: &[f64],
+    reach: &[f64],
+    jac: Option<&[Vec<f64>]>,
+) -> bool {
+    let own = |i: usize| -> bool {
+        f[i].abs() <= 4.0 * f64::EPSILON * loud[i].abs() || f[i].abs() <= f64::EPSILON * reach[i]
+    };
+    if (0..f.len()).all(own) {
+        return true;
+    }
+    let Some(jac) = jac else {
+        return false;
+    };
+    let source: Vec<f64> = (0..f.len())
+        .map(|k| f64::EPSILON * (loud[k].abs() + reach[k]))
+        .collect();
+    let Some(carried) = carried_rounding(jac, &source) else {
+        return false;
+    };
+    (0..f.len()).all(|i| own(i) || f[i].abs() <= carried[i])
+}
+
 pub(crate) fn solve_linear(a: &mut [Vec<f64>], b: &[f64]) -> Option<Vec<f64>> {
     let n = b.len();
     let mut x = b.to_vec();
