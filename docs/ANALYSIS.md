@@ -35948,3 +35948,14 @@ read as the zero it is, or the solve has to prefer the row where the
 coefficient is not of that size. Not taken here: it changes which row
 solves which unknown wherever a winding is set at a right angle, and
 wants its victims measured.
+
+The construction reproduces in nine lines (`/tmp/m371/small/cos.mo`):
+`nre = cos(pi/2)`, `nim = sin(pi/2)`, `vre = nre*i`, `vim = nim*i`,
+`vre + vim = time + 1`. The block's inner assignment is `i := -vre /
+-nre` - the current solved from the row whose coefficient is `6.1e-17`
+
+- with the sum torn as the residual. There it runs and gives `i = 2`,
+  because a three-unknown block forgives a column of `1.6e16`; in the
+  machine's 22-unknown block, beside the air gap's rotation, it does
+  not. This model is the test a fix would have to turn: the
+  assignment should read `i := vim / nim`.
