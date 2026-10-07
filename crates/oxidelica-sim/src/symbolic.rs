@@ -225,7 +225,27 @@ pub(crate) fn solve_linear_known(
     } else {
         simplify(&substitute_all(&slope, &wanted))
     };
-    if matches!(judged, Expr::Number(x) if x == 0.0) {
+    // A slope that folds to a number of the size of rounding is the
+    // same refusal as one that folds to zero. `cos(pi/2)` is not zero in
+    // floating point, it is 6.1e-17, and a machine's cage writes its
+    // turns as `effectiveTurns*cos(orientation)` with the orientation at
+    // a right angle: the equation means to say nothing about the
+    // current, and divided through it hands back the current times
+    // 1e16, which the block's Jacobian then reports as singular against
+    // the solver. The threshold is absolute and bare on purpose. A
+    // refusal here is not a number but a choice of which row solves the
+    // unknown - the equation goes to the tearing set instead - so a
+    // coefficient legitimately smaller than this costs a model visibly,
+    // as a moved refusal, and never quietly as a wrong value; a scale
+    // taken from the other terms is not bought until a model shows the
+    // bare form wrong. `OXIDELICA_TINY_SLOPE_PIVOT` takes the old rule
+    // back, so one binary can measure both.
+    let tiny = if crate::walk::switch_set("OXIDELICA_TINY_SLOPE_PIVOT") {
+        0.0
+    } else {
+        1e-14
+    };
+    if matches!(judged, Expr::Number(x) if x == 0.0 || x.abs() < tiny) {
         return None;
     }
     // The same refusal for a coefficient the model itself writes as

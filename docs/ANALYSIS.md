@@ -36008,3 +36008,164 @@ storey and not a loss, and it is the next link: the electrically
 excited machine has the same `cos(pi/2)` and something else behind
 it. The rest of the corpus is not measured, and the pair over it is
 still owed before the change is taken.
+
+## A slope of the size of rounding is not a divisor (m372)
+
+The probe of the shift before is taken into the tree. `solve_linear_known`
+(`symbolic.rs`) refused to solve an equation for an unknown only when
+the slope, with the parameters folded in, was `Number(0.0)` exactly;
+it now refuses as well when the folded slope is below `1e-14` in size.
+`cos(pi/2)` folds to `6.1e-17`, so a winding at a right angle no longer
+solves its current by dividing by the rounding error, and the row goes
+to the tearing set. The threshold is absolute and bare: a refusal here
+is not a value but a choice of which row solves which unknown, so a
+coefficient legitimately below it moves a refusal and cannot give a
+wrong number quietly. `OXIDELICA_TINY_SLOPE_PIVOT=1` gives the old rule
+back from the same binary.
+
+The test is at the level the change is made. The nine lines of
+`cos.mo` run under both rules and give `i = 2` either way, because a
+three-unknown block forgives a column of `1.6e16`; what differs is
+which row solves `i`, so the test asks `solve_linear_known` directly:
+the cosine row is refused, the sine row is accepted. Seen red under the
+switch.
+
+`--only` from `.msl`, one binary (`/tmp/ox372a`), the switch off and on
+(`/tmp/m372/l_*_{0,1}.txt`, `0` is the new rule):
+
+| model                                      | old rule              | new rule              |
+| ------------------------------------------ | --------------------- | --------------------- |
+| `QuasiStatic...SMPM_Mains`                 | Newton direction      | runs                  |
+| `FundamentalWave...SMEE_DOL`               | singular Jacobian     | underdetermined       |
+| `FundamentalWave...SMEE_Generator`         | structurally singular | structurally singular |
+| `FundamentalWave...SMEE_LoadDump`          | singular Jacobian     | singular Jacobian     |
+| `Machines...Transformers.Rectifier12pulse` | runs                  | runs                  |
+| `Spice3.Examples.CoupledInductors`         | runs                  | runs                  |
+
+`SMPM_Mains` at `t = 1` (`/tmp/m372/smpm.csv`): the transient machine
+gives `181.4016` N m and `157.0788` rad/s, its quasi-static twin
+`181.3980` and `157.0796`, which is `50*pi`. The same numbers the probe
+gave.
+
+The corpus pair, one binary built from the final tree (`/tmp/ox372a`),
+`--list --refused`, the carved-out giants left out by default:
+`/tmp/m372/on.txt` (new rule) and `/tmp/m372/off.txt`
+(`OXIDELICA_TINY_SLOPE_PIVOT=1`). New: 961 flatten and 719 run,
+runnable 844 and 677. Old: 961 and 718, runnable 844 and 676. The
+flatten lists are identical name for name; the run list gains exactly
+`QuasiStatic...SynchronousMachines.SMPM_Mains` and loses nothing. Of
+the refusals, 309 against 310 - the one is `SMPM_Mains` - and seven
+change their text, all synchronous machines of `FundamentalWave`:
+`SMEE_DOL` and `SMEE_Rectifier` go from `singular Jacobian` to
+`underdetermined`, and `SMEE_LoadDump`, `SMPM_Inverter`,
+`SMR_Inverter`, `SMPM_Inverter_Polyphase` and
+`SMR_Inverter_Polyphase` stay singular. In every one of the seven the
+block gains one unknown per machine and loses none: the second cage
+current, `rotorCage...singlePhaseElectroMagneticConverter[2].i`, which
+the cosine row solved before and the block solves now. That is the
+rule doing what it says in seven more places, and the family moving
+inside its wall rather than through it.
+
+The heavy models, the same binary (`scripts/heavy_floor.sh .msl`,
+`/tmp/m372/heavy.txt`): 15 flatten and 2 run, runnable 13 and 2, the
+floors as they stand. The Spice3 models carry saturation currents of
+`1e-14` and `1e-16`, at the threshold and below it, which is why they
+were measured: a slope through such a current is not folded to a bare
+number unless every name in it is a parameter, and neither the
+`Oscillator` among the heavy models nor `CoupledInductors` in the
+ladder moved.
+
+### `SMEE_DOL` one storey up: the open switch
+
+Under the new rule the block of `SMEE_DOL` has 26 unknowns, one more
+than before - the second cage current, which the cosine row used to
+solve, is now an unknown of the block - and it is refused at `t = 0`
+after Newton has converged, by the rank test on the scaled Jacobian
+(`reads_underdetermined`). The matrix was printed by a probe that
+dumps it on that path as the singular path already does
+(`state/underdet_dump_probe_m372.patch`, not in the tree, binary
+`/tmp/ox372probe`, `/tmp/m372/smee_dump.txt` and `smee_dump_off.txt`).
+
+Scaled to unit row and column maxima, the new block has two singular
+values far below the rest: `5.2e-13` and `2.0e-9`, against `3.1e-6`
+next and `3.1` at the top. The block before the change has the same
+two directions under the same scaling, `5.2e-13` and `4.3e-17`; the
+second was the column of `1e16`. So the change took away the
+rounding-error divisor and left both directions standing, and the
+`2.0e-9` direction is now the honest form of what the `4.3e-17` was.
+
+The structural rank is full, with the entries of the size of rounding
+(eight of them, below `1e-10` of their row's largest) dropped or kept,
+so this is not a matching question. Both directions run through the
+derivatives of the stator currents and the air gap voltages, and the
+rows that carry them are those of the three switches,
+`switch.idealClosingSwitch[k].i = s*unitVoltage*(if off then Goff else
+1)`, whose entries on `s` are `-1e-5`: the example opens its
+`IdealClosingSwitch` with `Goff = 1e-5*m/3`. An open switch at a
+conductance of `1e-5` is, beside the other entries of the block, very
+nearly a current fixed at zero, and the three phases then very nearly
+float.
+
+Checked by moving that one number in a model that extends the example
+(`/tmp/m372/small/G*.mo`, `switch(Goff = fill(g, 3))`):
+
+| `Goff` | old rule          | new rule         |
+| ------ | ----------------- | ---------------- |
+| `1e-5` | singular Jacobian | underdetermined  |
+| `3e-5` | -                 | underdetermined  |
+| `1e-4` | -                 | underdetermined  |
+| `1e-3` | singular Jacobian | runs, to `t = 3` |
+| `1e-2` | singular Jacobian | runs             |
+| `1`    | -                 | runs             |
+
+At `Goff = 1e-3` the whole three seconds of the example run under the
+new rule and the rotor ends at `157.0825` rad/s, the synchronous speed
+(`/tmp/m372/small/g3.csv`); under the old rule no conductance helps,
+because the divisor of `6.1e-17` is still there. So the chain behind
+`SMEE_DOL` is two links: the right-angle divisor, which this change
+removes, and then a rank test that reads an open switch of `1e-5` as
+no equation at all. The second link is in the rank test's threshold
+against the scale of a switch's off conductance, not in the machine;
+it touches every model with an open ideal switch, which is a family of
+its own, and it is mapped here and not taken.
+
+### The function road of the filled inputs: which writer the reader sees
+
+`fn2.mo` of the shift before (`/tmp/m371/small/fn2.mo`): `P p(redeclare
+function f = g(a = 2)); P q;`, where `P` calls `f(2)` and `g` is `a*x`
+with `a = 1` by default. `q.y` comes out `4`, and `2` is right. Two
+variants, one binary (`/tmp/ox372a`, `/tmp/m372/small/fn2r.mo`,
+`fn2b.mo`), say how the leak works:
+
+| variant                                | `p.y` | `q.y` | right |
+| -------------------------------------- | ----- | ----- | ----- |
+| `p` declared first, `q` plain          | 4     | 4     | 4, 2  |
+| `q` declared first, `q` plain          | 4     | 2     | 4, 2  |
+| `p` first, `q` redeclared with `a = 3` | 4     | 6     | 4, 6  |
+
+So the value `q` reads is whatever the last writer under the class name
+left, at the moment `q`'s call is inlined. The links, by the code:
+
+1. `scoping.rs:142` files what an alias filled, under the instance
+   (`FILLED_AT`, `FILLED_BY_ALIAS`) and under the bare target class
+   (`FILLED_INPUTS`). An alias with no modifiers files nothing, so
+   `q`'s plain `f = g` does not clear what `p` wrote.
+2. The order matters, so `q`'s call is worked out while the tables
+   are still being filled rather than after: with `q` declared first
+   it is inlined before `p` has written anything, and reads the
+   default. That is read off the table above, not off a trace.
+3. `inlining.rs:1666` asks `filled_inputs(&class.name)` - the bare
+   class. By then the call head is already `L.g`: the alias `f` was
+   resolved to its target where the names were resolved
+   (`names.rs:837`), so neither the alias nor the instance is in view.
+   The tables keyed by instance exist; the reader has no key to ask
+   them with.
+
+The structure that should carry it is the call head, not the table: a
+redeclared function alias with modifiers is a different function at
+that instance, and `SPECIALIZED` (`statements.rs:1679`) already makes
+per-model copies of functions for another reason. Resolving `f` at
+`p` to a copy whose defaults are the filled values would make the
+reader need no key at all, and `q`'s `f` would resolve to `g` as it
+stands. Three links, so no second reader is needed; the change is a
+silent-wrong-number fix and wants its own pair, so it is not built here.

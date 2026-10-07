@@ -265,6 +265,36 @@ fn an_equation_whose_slope_is_zero_is_not_solved_for_that_unknown() {
 }
 
 #[test]
+fn an_equation_whose_slope_is_cos_of_a_right_angle_is_not_solved_for_that_unknown() {
+    // `cos(pi/2)` is 6.1e-17 in floating point and not zero. A machine's
+    // cage writes its turns that way, with a winding at a right angle,
+    // and the nine lines that show it are
+    //
+    //     parameter Real o = 3.141592653589793/2;
+    //     parameter Real nre = cos(o);
+    //     parameter Real nim = sin(o);
+    //     Real i; Real vre; Real vim;
+    //   equation
+    //     vre = nre*i;
+    //     vim = nim*i;
+    //     vre + vim = time + 1;
+    //
+    // Solved from the cosine row, `i := vre / nre` divides by the
+    // rounding error and every error of the block comes back
+    // multiplied by 1e16, which in `SMPM_Mains` is a singular
+    // Jacobian. The cosine row is refused as the zero it is meant to
+    // be, and the sine row still solves `i`.
+    let o = std::f64::consts::PI / 2.0;
+    let mut known = HashMap::new();
+    known.insert("nre".to_string(), o.cos());
+    known.insert("nim".to_string(), o.sin());
+    let cosine_row = expr_of("nre * a");
+    let sine_row = expr_of("nim * a");
+    assert!(solve_linear_known(&expr_of("b"), &cosine_row, "a", &known).is_none());
+    assert!(solve_linear_known(&expr_of("b"), &sine_row, "a", &known).is_some());
+}
+
+#[test]
 fn an_equation_whose_slope_is_zero_on_a_branch_is_not_solved_for_that_unknown() {
     // `semiLinear(m, h_port, h)` is `if m >= 0 then h_port*m else h*m`,
     // so the equation for the port's enthalpy has the slope `if m >= 0
