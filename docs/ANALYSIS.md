@@ -35687,6 +35687,23 @@ checks `h.p.f.k = 2` and `h.q.f.k = 1` and fails under the switch. On
 the second binary (`/tmp/ox371b`) the exchanger's refusal is the old
 text again, both ways (`/tmp/m371/hex_b0.txt`, `hex_b1.txt`).
 
+The pair taken again with one binary built from the final tree
+(`/tmp/ox371c`, 1b7b1a1), `--list`, the switch on and off
+(`/tmp/m371/on3.txt`, `/tmp/m371/off3.txt`): 961 flatten and 718 run
+both ways, runnable 844 and 676, the flatten and run lists identical
+by name, and all 310 refusal lines in 227 rows identical as text,
+`HeatExchangerSimulation` included. That pair stands in for the
+library step of the preflight, which was run without it
+(`/tmp/m371/preflight2.txt`, every other step green). The ladder
+under `--only` from `.msl` - the two rooms, the junction test,
+`BranchingDynamicPipes`, `HeatingSystem` and the exchanger - ends on
+the same refusal both ways (`/tmp/m371/l2_*`). The ratio of the run
+half to the flatten half read 0.75 on and 0.83 off, below the desk's
+band of 0.80: the on half ran beside the preflight and the ladder,
+which load the flatten half, and the off half of the first pair, with
+neither change in force, read 0.75 as well. The runner's band is 0.70
+to 1.50. Floors not moved, and nothing here asks them to.
+
 Not closed, and named here so that it is not found a second time: the
 same table read for a _function_. `redeclare function f = g(a = 2)` on
 one component, a neighbour of the same class leaving `f = g` with
