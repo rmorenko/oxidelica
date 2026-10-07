@@ -35922,3 +35922,24 @@ candidates: beside the row itself, `V_m.im` is read by `abs_V_m =
 sqrt(V_m.re^2 + V_m.im^2)` and `arg_V_m = atan2(V_m.im, V_m.re)`, and
 the slope of either is a quotient by the phasor's magnitude, which is
 near zero for a cage carrying no current at `t = 0`.
+
+Asked further, neither of those is it, and the divisor is named. The
+block's inner assignments (`OXIDELICA_MODE_PROBE`,
+`/tmp/m371/smpm_mode.txt`) solve the second cage phase's current as
+`i[2] := -V_m.re / -(0.6366 * N.re)`, and `N.re` of that phase is
+bound to `effectiveTurns * cos(orientation)` with `orientation =
+pi/2` - the cage's second winding sits at right angles to the first.
+`cos(pi/2)` is `6.1e-17` in floating point, not zero, so the matching
+took a coefficient that is zero in the model's arithmetic and nonzero
+in the machine's as the pivot to solve for the current, and the slope
+of that assignment is `1/(0.6366 * 6.1e-17) = 2.6e16` - the `1e16`
+column of row 8 exactly. So the wall in front of `SMPM_Mains` is not
+the air gap and not the Newton step: it is a symbolic solve that
+divides by a rounding error of `cos(pi/2)`. The right
+assignment for `i[2]` comes from the imaginary row, where `N.im =
+sin(pi/2) = 1`. The fix is where the matching weighs a coefficient
+that folds to a parameter value: a `cos` of a right angle has to be
+read as the zero it is, or the solve has to prefer the row where the
+coefficient is not of that size. Not taken here: it changes which row
+solves which unknown wherever a winding is set at a right angle, and
+wants its victims measured.
