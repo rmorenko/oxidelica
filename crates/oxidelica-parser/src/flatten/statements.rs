@@ -1715,6 +1715,15 @@ thread_local! {
     static FILLED_AT: RefCell<HashMap<(String, String), Vec<(String, Expr)>>> =
         RefCell::new(HashMap::new());
 
+    /// The same again, by the name of the alias rather than by the
+    /// class it resolved to. A redeclaration handed down names the
+    /// alias - `Pipe p(redeclare model FlowModel = F2)` inside a class
+    /// that was given `redeclare model F2 = Flow(k = 2)` - and what F2
+    /// filled in has to travel with it into `p`, where the table above
+    /// is asked under `p`'s own prefix.
+    static FILLED_BY_ALIAS: RefCell<HashMap<(String, String), Vec<(String, Expr)>>> =
+        RefCell::new(HashMap::new());
+
     /// What a package alias wrote on the package it names.
     ///
     /// `package Medium = MoistAir(extraPropertiesNames = {"CO2"})`
@@ -1753,6 +1762,7 @@ pub(super) fn forget_what_one_model_wrote() {
     SPECIALIZED.with(|held| held.borrow_mut().clear());
     FILLED_INPUTS.with(|held| held.borrow_mut().clear());
     FILLED_AT.with(|held| held.borrow_mut().clear());
+    FILLED_BY_ALIAS.with(|held| held.borrow_mut().clear());
     ALIAS_MODIFIERS.with(|held| held.borrow_mut().clear());
 }
 
@@ -1764,7 +1774,16 @@ pub(super) fn model_tables_forgotten() -> bool {
 
 /// Remember what a redeclaration filled in on a class, gathered for
 /// the instance at `prefix`.
-pub(super) fn remember_filled_inputs(named: &str, prefix: &str, filled: Vec<(String, Expr)>) {
+pub(super) fn remember_filled_inputs(
+    named: &str,
+    alias: &str,
+    prefix: &str,
+    filled: Vec<(String, Expr)>,
+) {
+    FILLED_BY_ALIAS.with(|held| {
+        held.borrow_mut()
+            .insert((prefix.to_string(), alias.to_string()), filled.clone())
+    });
     FILLED_AT.with(|held| {
         held.borrow_mut()
             .insert((prefix.to_string(), named.to_string()), filled.clone())
@@ -1778,7 +1797,7 @@ pub(super) fn remember_filled_inputs(named: &str, prefix: &str, filled: Vec<(Str
 /// `OXIDELICA_FILLED_BY_CLASS=1` answers by the class alone, as before,
 /// so that one binary can be measured both ways.
 pub(super) fn filled_inputs_at(named: &str, prefix: &str) -> Option<Vec<(String, Expr)>> {
-    if std::env::var("OXIDELICA_FILLED_BY_CLASS").as_deref() == Ok("1") {
+    if filled_by_class() {
         return filled_inputs(named);
     }
     FILLED_AT.with(|held| {
@@ -1786,6 +1805,26 @@ pub(super) fn filled_inputs_at(named: &str, prefix: &str) -> Option<Vec<(String,
             .get(&(prefix.to_string(), named.to_string()))
             .cloned()
     })
+}
+
+/// What a redeclaration filled in through the alias `alias` of the
+/// instance at `prefix`, if anything. Nothing under
+/// `OXIDELICA_FILLED_BY_CLASS=1`, where the class alone answers.
+pub(super) fn filled_by_alias_at(alias: &str, prefix: &str) -> Option<Vec<(String, Expr)>> {
+    if filled_by_class() {
+        return None;
+    }
+    FILLED_BY_ALIAS.with(|held| {
+        held.borrow()
+            .get(&(prefix.to_string(), alias.to_string()))
+            .cloned()
+    })
+}
+
+/// Whether filled inputs are answered by the class alone, as before
+/// they were filed under the instance that wrote them.
+fn filled_by_class() -> bool {
+    std::env::var("OXIDELICA_FILLED_BY_CLASS").as_deref() == Ok("1")
 }
 
 /// What a redeclaration filled in on this function, if anything.

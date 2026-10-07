@@ -321,9 +321,27 @@ pub(super) fn instantiate_components(
             }
         }
         for redeclare in &component.redeclares {
-            child_redeclares.push(qualify_redeclare(
-                redeclare, registry, class, prefix, outers, imports,
-            )?);
+            let mut qualified =
+                qualify_redeclare(redeclare, registry, class, prefix, outers, imports)?;
+            // A redeclaration that names an alias of this instance
+            // hands on what that alias filled in: `Pipe p(redeclare
+            // model FlowModel = F2)` where this instance was given
+            // `redeclare model F2 = Flow(k = 2)` means `Flow(k = 2)`
+            // inside `p` too. Those values already wear the flat names
+            // and are taken as they stand; what the redeclaration
+            // writes itself says it more locally and wins.
+            if redeclare.class_level {
+                if let Some(filled) =
+                    super::statements::filled_by_alias_at(&redeclare.type_name, prefix)
+                {
+                    for (name, value) in filled {
+                        if !qualified.modifiers.iter().any(|(known, _)| known == &name) {
+                            qualified.modifiers.push((name, value));
+                        }
+                    }
+                }
+            }
+            child_redeclares.push(qualified);
         }
 
         // A connector may be one value rather than a set of members:

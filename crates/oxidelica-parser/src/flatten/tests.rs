@@ -1167,3 +1167,35 @@ fn what_one_component_redeclared_is_not_handed_to_its_neighbour() {
     assert_eq!(k("p.f.k"), Some(2.0), "the redeclared pipe");
     assert_eq!(k("q.f.k"), Some(1.0), "its neighbour");
 }
+
+#[test]
+fn what_an_alias_filled_in_travels_with_the_redeclaration_that_names_it() {
+    // The heat exchanger of the fluid library: the model gives the
+    // exchanger `redeclare model F2 = Flow(k = 2)`, and the exchanger
+    // hands that alias on to one of its pipes, `Pipe p(redeclare model
+    // FlowModel = F2)`, leaving the other alone. Filed only under the
+    // instance that gathered it, the `k` stayed with the exchanger and
+    // `p.f.k` fell back to 1; filed under the class, it reached `q` as
+    // well.
+    let classes = crate::parser::parse_file(
+        "package L \
+           model Flow parameter Real k = 1; end Flow; \
+           model Pipe replaceable model FlowModel = Flow; FlowModel f; end Pipe; \
+           model H replaceable model F2 = Flow; \
+             Pipe p(redeclare model FlowModel = F2); Pipe q; end H; \
+           model C H h(redeclare model F2 = Flow(k = 2)); end C; \
+         end L;",
+    )
+    .unwrap();
+    let model = super::flatten(&classes, "L.C").unwrap();
+    let k = |name: &str| {
+        model
+            .components
+            .iter()
+            .find(|c| c.name == name)
+            .and_then(|c| c.binding.clone())
+            .and_then(|b| super::const_eval(&b, &std::collections::HashMap::new()))
+    };
+    assert_eq!(k("h.p.f.k"), Some(2.0), "the pipe handed the alias");
+    assert_eq!(k("h.q.f.k"), Some(1.0), "the pipe left alone");
+}

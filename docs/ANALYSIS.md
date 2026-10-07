@@ -35622,3 +35622,191 @@ test, the room, `InverseParameterization`, `HeatingSystem`,
 (`/tmp/m370/ladder.txt`). The pass's own clock read 4625 s of building
 off and 4008 s on, which is the weather of two passes run back to back
 and not a cost: four `HashMap::clear` calls a model.
+
+### What a redeclaration fills in, filed under the instance that wrote it (m371)
+
+The chapter above closed the leak between models and left the leak
+inside one: the modifiers of a class-level redeclaration were filed
+under the name of the class the alias resolved to, and every
+component typed by that class read them back. So in
+
+```modelica
+model C
+  Pipe p(redeclare model FlowModel = Flow(k = 2));
+  Pipe q;
+end C;
+```
+
+`q.f.k` came out 2 where the language says 1. The writer is
+`effective_imports` (`scoping.rs`), called by `instantiate` with the
+prefix of the instance whose aliases it gathers; the reader is the
+component loop (`components.rs`), which instantiates the components
+of that same class under that same prefix. So the instance and the
+class together are the whole of what the reader has to match, and the
+table now records both (`FILLED_AT` in `statements.rs`). The test
+`what_one_component_redeclared_is_not_handed_to_its_neighbour` checks
+both numbers, `p.f.k = 2` and `q.f.k = 1`, and fails under
+`OXIDELICA_FILLED_BY_CLASS=1`, which answers by the class alone as
+before. Small models in `/tmp/m371/small`: the same leak through a
+base (`PipeK extends Pipe(redeclare model FlowModel = Flow(k = 5))`
+beside a plain `Pipe` gave the plain one 5) and through an array of
+instances are closed by the same key (`ext.mo`, `d.b.f.v` 5 before
+and 1 after).
+
+The corpus pair of that change found one victim, and it was the key's
+own fault. One binary (`/tmp/ox371a`), `--list`, the switch on and
+off (`/tmp/m371/on.txt`, `/tmp/m371/off.txt`): 961 flatten and 718
+run both ways, runnable 844 and 676, the two lists identical by name,
+and one refusal changed its text.
+`Modelica.Fluid.Examples.HeatExchanger.HeatExchangerSimulation` went
+from `unbalanced model: 3627 algebraic equation(s) for 3631` to
+`parameter HEX.pipe_2.heatTransfer.alpha0 has no value`. The model
+gives its exchanger `redeclare model HeatTransfer_2 =
+ConstantFlowHeatTransfer(alpha0 = 2000)`, and the exchanger hands the
+alias on: `pipe_2(redeclare model HeatTransfer = HeatTransfer_2)`.
+The `alpha0` was filed under `HEX.`, where the alias was gathered, and
+asked for under `HEX.pipe_2.`, where the pipe's own alias resolves to
+the same class. Under the class-name key the pipe found it by
+accident - and so would every other pipe of the exchanger with a heat
+transfer of that class.
+
+Searching the prefixes above the reader, nearest first, would have
+found it, and would have given back the leak inside a subtree: a class
+holding `Pipe p(redeclare model FlowModel = F2); Pipe q;` with `F2`
+redeclared from above would hand `q.f` the modifier as well, since `q`
+sits under the writer too. What the language says is narrower: the
+modifier travels with the redeclaration that names the alias. So a
+second table files what a redeclaration filled in under the alias's
+name and the instance (`FILLED_BY_ALIAS`), and a redeclaration handed
+down to a component that names that alias - `redeclare model
+HeatTransfer = HeatTransfer_2` - carries the alias's filled inputs
+with it, below whatever it writes itself. The small model is
+`/tmp/m371/small/chain.mo`, and the test
+`what_an_alias_filled_in_travels_with_the_redeclaration_that_names_it`
+checks `h.p.f.k = 2` and `h.q.f.k = 1` and fails under the switch. On
+the second binary (`/tmp/ox371b`) the exchanger's refusal is the old
+text again, both ways (`/tmp/m371/hex_b0.txt`, `hex_b1.txt`).
+
+Not closed, and named here so that it is not found a second time: the
+same table read for a *function*. `redeclare function f = g(a = 2)` on
+one component, a neighbour of the same class leaving `f = g` with
+`g`'s default `a = 1`, and both calls come out with 2
+(`/tmp/m371/small/fn2.mo`, `q.y = 4` where 2 is owed). The function
+road reads `filled_inputs(&class.name)` in `inlining.rs`, where the
+body is being inlined and the instance whose alias named it is no
+longer in hand: the call head has already been resolved from `f` to
+`L.g`. Closing it means carrying the instance to the inlining, or
+resolving the head to a name of its own per instance - a change to how
+calls are named, and a series of its own. In the library the shape
+needs two components of one class in one model, one redeclaring a
+function with modifiers and one not; the eight function
+redeclarations with modifiers found by grep are in `Rectangle`,
+`VoluminousWheel` and three `CombiTable2Ds` tests. One model holds the
+shape: `ModelicaTest.MultiBody.Visualizers.Planes` declares two
+`Rectangle`s, each filling `rectangle(lu = length_u, lv = length_v)`
+with its own lengths, so under the class-name key the second's
+`surfaceSolid.length_u` would be read by the first's call as well. The
+two are given the same lengths (3 and 2), and the surfaces stand under
+`if world.enableAnimation and animation`, so no number of today's
+corpus is known to stand on it - which is luck, not a guard.
+
+The neighbouring tables were asked the same question with small
+models. `SPECIALIZED` does not leak: a copy is named after the
+function it was handed (`apply$L_g`) and what was filled in travels
+as arguments of the call, so two calls with `a = 2` and `a = 3` give
+4 and 6 (`spec3.mo`). `ALIAS_MODIFIERS` does not leak: it is read only
+at the top of a package's own gathering, `package Medium = M(n = 3)`
+in one component left another's `M.n` at 1 (`alias.mo`).
+
+### The losing tie in every mode of the diodes: no mode tells it either (m371, a map)
+
+The m359 map ended on one question: whether `Rectifier12pulse`'s
+losing set of victims (`OXIDELICA_TIE_ONLY_AT=2`, which gives up
+`l1sigma[1]`) is singular in some mode of the diodes where the
+winning set (`=5`) is not. If it were, a tie broken by regularity
+could be asked in every mode the switches can take. Measured with the
+probe binaries m359 left (`/tmp/m359/oxtie` for the switch,
+`/tmp/m359/oxtie3` which also dumps the stuck block's Jacobian), from
+`.msl` with `--only`, files in `/tmp/m371`.
+
+The modes are the same. `OXIDELICA_EVENT_TRAIL` on both
+(`ev_k2.txt`, `ev_k5.txt`) gives the same sequence of conducting
+diodes, at the same instants to eight digits: none, then `diode1[3]`
+at 2.09e-9, `diode4[2]` at 1.168e-8, `diode3[3]` at 1.198e-8. Both
+sets reach the mode {`diode1[3]`, `diode3[3]`, `diode4[2]`} and in that
+mode both get stuck: the Newton direction of the 60-unknown (k=2) or
+57-unknown (k=5) diode block stops reducing the residual. Then the
+run starts again from zero, both sets go through the same four modes,
+and from there they part: the winning set takes the next event at
+1.23e-4 and runs, the losing one is stuck again and refused at
+t = 5.8e-8.
+
+The blocks are equally singular. With rows and columns scaled to
+unit maximum, the stuck Jacobian of each set (`jac_k2.txt`,
+`jac_k5.txt`, `svd.py`) has three singular values near 1e-10 below a
+gap to 5e-5 - k=2: 3.9e-10, 3.5e-10, 2.6e-10; k=5: 1.1e-9, 3.4e-10,
+2.4e-10. The vector of the smallest one sits on
+`der(transformer1.core.plug_p2.pin[i].i)` in both. And at a fixed
+time past the start (`OXIDELICA_JAC_AT=5e-8`, which the probe took
+at its first evaluation after it, t = 2e-5; the mode there was not
+printed) the two spectra agree to the third digit: four singular values
+of 2e-10 to 5e-10 under 2.7e-6 in each (`jacat_k2.txt`,
+`jacat_k5.txt`).
+
+So a test of regularity, asked in every mode the run reaches, passes
+both sets or fails both: the diode block is near-singular in the
+winner exactly as in the loser, three to four directions deep, and
+what the winner has is not a regular block but a Newton that happens
+to find a step on its second start. That closes the regularity cut
+negatively, on the same witness that closed the weight. What the two
+sets differ in is the path of the iteration, not the structure of the
+system, which puts the tie out of reach of any rule read off the
+system at the time of the choice. The parked patch stays parked.
+
+What it does say is where the wall is for both: a block with three
+near-null directions on the derivative of the secondary currents of
+`transformer1`'s core. That is a block that should not be singular -
+a transformer with three primary and three secondary leakages is a
+regular system - and the near-null vectors name the coupled
+derivatives of one core. The next measure is the block's structure
+rather than the tie: which equations of the core and the leakages the
+block holds, and whether the three near-null directions are the three
+`der(i)` that index reduction left as algebraic unknowns where it
+demoted the leakage currents as states.
+
+### `TestMultiPortTraceSubstances`: the third kind is an initialization (m371, a probe)
+
+The m363 map put this model in the third kind of `the Newton
+direction of`, "far from it, no edge", and did not trace it. Traced
+with `OXIDELICA_NEWTON_TRAIL` and `OXIDELICA_INIT_PROBE` from `.msl`
+(`/tmp/m371/mpts_trail.txt`, `/tmp/m371/mpts_init.txt`): the stuck
+solve is the initialization at `t = 0`, and the block is the three
+volumes' media together with the multiport's mixing - 21 unknowns,
+`medium.p`, `medium.T`, `medium.phi` and three port densities per
+volume, then `multiPort.port_a.h_outflow`, `Xi_outflow[1]` and
+`C_outflow[1]`.
+
+The initial equations `volume1.medium.T = volume1.T_start` and
+`volume1.medium.p = volume1.p_start` reach nothing through the
+definitions (`reaches []`) and are matched to the states `volume1.U`
+and `volume1.mC_scaled[1]`. So the pressure and the temperature,
+which the model states outright, become unknowns of an algebraic
+loop and are solved for through `h = h_pTX(p, T, X)` and the mixing.
+The loop starts from the declared values for `p` and `T` and from the
+nominal `1e6` for the multiport's enthalpy, where the arithmetic of
+moist air at 20 degrees gives about `4.5e4`. The first full Newton
+step takes every volume's pressure to `-14834` and its temperature to
+`5.3 K`; from there `phi` overflows to `-1.2e64` on the fourth step
+and the block is refused from `|f| = 1.2e5`. Three switches of the
+initialization were asked (`OXIDELICA_NO_INITIAL_ORDER`,
+`OXIDELICA_NO_INIT_REACH`, `OXIDELICA_NO_READ_STATE_START`, files
+`/tmp/m371/mpts_OXIDELICA_*.txt`): the first two leave the refusal
+word for word, the third refuses earlier, at the starting values.
+
+So it is not a poor start of a medium, which is what the third kind
+was read as, and not a step over the edge either: the step is taken
+because the block holds two unknowns whose values the model wrote as
+initial equations. The next measure is the matching of the initial
+system - why an equation that fixes `medium.T` outright is spent on
+`U` rather than solved for `medium.T` and the rest computed forward -
+and it is a question for the initial matching, not for Newton.

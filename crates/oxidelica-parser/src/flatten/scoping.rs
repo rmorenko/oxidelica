@@ -139,7 +139,7 @@ pub(super) fn effective_imports(
             _ => None,
         };
         if let Some(filled) = filled {
-            super::statements::remember_filled_inputs(&target, prefix, filled);
+            super::statements::remember_filled_inputs(&target, &alias.name, prefix, filled);
         }
         // What the alias itself wrote, kept apart from what a
         // redeclaration wrote: `package Medium = MoistAir(
