@@ -1139,3 +1139,31 @@ fn what_one_model_redeclared_is_not_handed_to_the_next() {
     assert_eq!(k("L.A"), Some(2.0), "A's own redeclaration");
     assert_eq!(k("L.B"), Some(1.0), "B after A");
 }
+
+#[test]
+fn what_one_component_redeclared_is_not_handed_to_its_neighbour() {
+    // Within one model this time: `p` redeclares its flow model with
+    // `k = 2` and `q`, a pipe of the same class beside it, does not.
+    // The modifier was filed under the flow model's class name alone,
+    // so every component typed by that class read it - `q.f.k` came
+    // out 2 where nothing had asked for anything but the default 1.
+    let classes = crate::parser::parse_file(
+        "package L \
+           model Flow parameter Real k = 1; end Flow; \
+           model Pipe replaceable model FlowModel = Flow; FlowModel f; end Pipe; \
+           model C Pipe p(redeclare model FlowModel = Flow(k = 2)); Pipe q; end C; \
+         end L;",
+    )
+    .unwrap();
+    let model = super::flatten(&classes, "L.C").unwrap();
+    let k = |name: &str| {
+        model
+            .components
+            .iter()
+            .find(|c| c.name == name)
+            .and_then(|c| c.binding.clone())
+            .and_then(|b| super::const_eval(&b, &std::collections::HashMap::new()))
+    };
+    assert_eq!(k("p.f.k"), Some(2.0), "the redeclared pipe");
+    assert_eq!(k("q.f.k"), Some(1.0), "its neighbour");
+}

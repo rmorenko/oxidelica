@@ -364,7 +364,7 @@ pub(super) fn instantiate_components(
         // function.
         if let Some(resolved) = lookup(registry, &component.type_name, scope, imports) {
             if resolved.kind != ClassKind::Function {
-                if let Some(filled) = super::statements::filled_inputs(&resolved.name) {
+                if let Some(filled) = super::statements::filled_inputs_at(&resolved.name, prefix) {
                     for (name, value) in filled {
                         let already = extra_modifiers.iter().any(|(known, _)| known == &name)
                             || component.modifiers.iter().any(|(known, _)| known == &name);

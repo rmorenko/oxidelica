@@ -1701,6 +1701,20 @@ thread_local! {
     static FILLED_INPUTS: RefCell<HashMap<String, Vec<(String, Expr)>>> =
         RefCell::new(HashMap::new());
 
+    /// The same, filed under where it was written as well as what it
+    /// names: the instance whose aliases were being gathered, and the
+    /// class the alias resolved to.
+    ///
+    /// A model's parameters belong to one component, not to every
+    /// component of the class. `Pipe p(redeclare model FlowModel =
+    /// Flow(k = 2)); Pipe q;` gives `p.f` its `k` and says nothing
+    /// about `q.f`; filed under `Flow` alone, the `k` reached both.
+    /// The aliases of a class are gathered at the very prefix its
+    /// components are then instantiated under, so the pair is the
+    /// whole of what the reader has to match.
+    static FILLED_AT: RefCell<HashMap<(String, String), Vec<(String, Expr)>>> =
+        RefCell::new(HashMap::new());
+
     /// What a package alias wrote on the package it names.
     ///
     /// `package Medium = MoistAir(extraPropertiesNames = {"CO2"})`
@@ -1738,6 +1752,7 @@ pub(super) fn forget_what_one_model_wrote() {
     }
     SPECIALIZED.with(|held| held.borrow_mut().clear());
     FILLED_INPUTS.with(|held| held.borrow_mut().clear());
+    FILLED_AT.with(|held| held.borrow_mut().clear());
     ALIAS_MODIFIERS.with(|held| held.borrow_mut().clear());
 }
 
@@ -1747,9 +1762,30 @@ pub(super) fn model_tables_forgotten() -> bool {
     std::env::var("OXIDELICA_KEEP_MODEL_TABLES").as_deref() != Ok("1")
 }
 
-/// Remember what a redeclaration filled in on a function.
-pub(super) fn remember_filled_inputs(named: &str, filled: Vec<(String, Expr)>) {
+/// Remember what a redeclaration filled in on a class, gathered for
+/// the instance at `prefix`.
+pub(super) fn remember_filled_inputs(named: &str, prefix: &str, filled: Vec<(String, Expr)>) {
+    FILLED_AT.with(|held| {
+        held.borrow_mut()
+            .insert((prefix.to_string(), named.to_string()), filled.clone())
+    });
     FILLED_INPUTS.with(|held| held.borrow_mut().insert(named.to_string(), filled));
+}
+
+/// What a redeclaration filled in on this class for the components of
+/// the instance at `prefix`, if anything.
+///
+/// `OXIDELICA_FILLED_BY_CLASS=1` answers by the class alone, as before,
+/// so that one binary can be measured both ways.
+pub(super) fn filled_inputs_at(named: &str, prefix: &str) -> Option<Vec<(String, Expr)>> {
+    if std::env::var("OXIDELICA_FILLED_BY_CLASS").as_deref() == Ok("1") {
+        return filled_inputs(named);
+    }
+    FILLED_AT.with(|held| {
+        held.borrow()
+            .get(&(prefix.to_string(), named.to_string()))
+            .cloned()
+    })
 }
 
 /// What a redeclaration filled in on this function, if anything.
