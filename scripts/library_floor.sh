@@ -1177,7 +1177,18 @@ FLATTEN_FLOOR=961
 # gained ParallelPumpDropOut and lost nothing. The 719 holds
 # SpringWithMass, the swing named above, which is left out as there.
 # Set from the runner, less the swing.
-RUN_FLOOR=718
+#
+# And run 721 = 718 + Rectifier6pulse, Analog.Examples.Rectifier and
+# OvervoltageProtection, which the floor reading how far a row's
+# coefficients carry the rounding of its unknowns lets past their ten
+# steps (e259916). The runner printed 961 / 722 and runnable 844 / 680
+# on e259916, in job 112849644622 of run 37638105372
+# (/tmp/m376/ci_e259916.log); against 4a9082d its run list gained
+# exactly those three and lost nothing. The 722 holds SpringWithMass,
+# the swing named above, which is left out as there:
+#
+#   722 printed - 1 SpringWithMass = 721
+RUN_FLOOR=721
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -1402,7 +1413,11 @@ RUNNABLE_FLATTEN_FLOOR=844
 # And runnable run 676 = 675 + ParallelPumpDropOut, a runnable example,
 # by the same runner job as `RUN_FLOOR` (4a9082d, job 112761438351),
 # which printed 677; the one left out is SpringWithMass, as there.
-RUNNABLE_RUN_FLOOR=676
+#
+# And runnable run 679 = 676 + the same three, all runnable examples,
+# by the same runner job as `RUN_FLOOR` (e259916, job 112849644622),
+# which printed 680; the one left out is SpringWithMass, as there.
+RUNNABLE_RUN_FLOOR=679
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
@@ -1792,9 +1807,25 @@ WORK_BODIES=1422042
 #   newton  652647 + 18850 = 671496    desk x0.987
 #
 # The runner's next print settles it.
-WORK_POINTS=373916
+#
+# It did, and not as drawn (e259916, job 112849644622 of run
+# 37638105372, /tmp/m376/ci_e259916.log): 431695 points and 947756
+# Newton iterations, x1.155 and x1.411, red. The whole of the miss is
+# IMC_YDarc. The runner printed it among the dearest at 61614 points and
+# 296547 Newton iterations, where the centre had taken it at the desk's
+# 2360 and 12635 carried by 4a9082d's ratio, 3527 and 18850. Without it
+# the runner's rest is 370081 and 651209, x0.999 and x0.998 of what
+# was written. The model refuses on both machines; what it spends
+# before the refusal is the platform's, here x26 and x23 of the desk.
+# So the centres go to the runner's print as it stands, and the model
+# that owns the difference is named for the word on whether it is
+# counted at all:
+#
+#   points  370081 + 61614  = 431695
+#   newton  651209 + 296547 = 947756
+WORK_POINTS=431695
 WORK_POINTS_PPM=100000
-WORK_NEWTON=671496
+WORK_NEWTON=947756
 WORK_NEWTON_PPM=100000
 # And Dimmer_RL, whichever way it falls, centred between the desk's run
 # under the series and the machine's printed refusal:
