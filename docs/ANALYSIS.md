@@ -35952,10 +35952,21 @@ wants its victims measured.
 The construction reproduces in nine lines (`/tmp/m371/small/cos.mo`):
 `nre = cos(pi/2)`, `nim = sin(pi/2)`, `vre = nre*i`, `vim = nim*i`,
 `vre + vim = time + 1`. The block's inner assignment is `i := -vre /
--nre` - the current solved from the row whose coefficient is `6.1e-17`
+-nre`, the current solved from the row whose coefficient is `6.1e-17`,
+with the sum torn as the residual. There it runs and gives `i = 2`,
+because a three-unknown block forgives a column of `1.6e16`; in the
+machine's 22-unknown block, beside the air gap's rotation, it does
+not. This model is the test a fix would have to turn: the assignment
+should read `i := vim / nim`.
 
-- with the sum torn as the residual. There it runs and gives `i = 2`,
-  because a three-unknown block forgives a column of `1.6e16`; in the
-  machine's 22-unknown block, beside the air gap's rotation, it does
-  not. This model is the test a fix would have to turn: the
-  assignment should read `i := vim / nim`.
+Where it is decided: `solve_linear_known` (`symbolic.rs:166`) refuses
+to divide by a slope only when the slope, with the parameters folded
+in, is `Number(0.0)` exactly. `cos(pi/2)` folds to `6.1e-17`, which is
+not, so the cosine row is accepted as the solve for `i` and the sine
+row is left to the tearing. The two ways to take it differ in reach: a
+slope judged zero when it is within a few ulps of the parameters that
+built it is local to that function, while preferring the row with the
+larger folded slope when two rows can solve one unknown is a change to
+the matching. Either moves which row solves which unknown in every
+model with a winding at a right angle, so either is a series measured
+by its victims, not a shift's end.
