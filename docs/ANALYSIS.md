@@ -35932,10 +35932,15 @@ pi/2` - the cage's second winding sits at right angles to the first.
 `cos(pi/2)` is `6.1e-17` in floating point, not zero, so the matching
 took a coefficient that is zero in the model's arithmetic and nonzero
 in the machine's as the pivot to solve for the current, and the slope
-of that assignment is `1/(0.6366 * 6.1e-17) = 2.6e16` - the `1e16`
-column of row 8 exactly. So the wall in front of `SMPM_Mains` is not
-the air gap and not the Newton step: it is a symbolic solve that
-divides by a rounding error of `cos(pi/2)`. The right
+of that assignment is `1/(0.6366 * effectiveTurns * 6.1e-17)`, of the
+order `1e16` for turns of order one - the order of the `3.27e16` and
+`1.27e16` of row 8. The orientation is confirmed (`oxidelica why`:
+`orientation[2]` bound to `3.141592653589793 / 2`); the cage's
+`effectiveTurns[2]` was not settled to a number here, so the two
+slopes are matched in order and not to the digit. So the wall in
+front of `SMPM_Mains` is, by every measure taken, not the air gap
+and not the Newton step but a symbolic solve that divides by a
+rounding error of `cos(pi/2)`. The right
 assignment for `i[2]` comes from the imaginary row, where `N.im =
 sin(pi/2) = 1`. The fix is where the matching weighs a coefficient
 that folds to a parameter value: a `cos` of a right angle has to be
