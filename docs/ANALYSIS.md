@@ -36464,3 +36464,92 @@ to 368,508, and from 3,165,453 Newton iterations to 642,319. That is
 where most of the corpus's run work went, because each ran on to its
 own stop time. The bands' centres are set from the runner's print,
 and are not moved here from the desk's.
+
+## A row stands on the rounding its coefficients carry, not only on what it adds up (m375)
+
+The transformer rows that m373 and m374 found stuck near 1e4 ulp of
+their loudness were taken one at a time with a probe that prints, at
+the third step running that bought no descent, each row's residual,
+its two sides, its loudness, its Jacobian row and the spread of the
+residual over 64 points one ulp away from the iterate in every
+unknown (`/tmp/m375/r6.stall`, binary `/tmp/m375/ox375p`).
+
+In `Rectifier6pulse` at `t = 2.1548e-4` the block has 32 unknowns and
+one row over the floor: row 11,
+`der(transformer1.core.i2[2]) - der(transformer1.core.plug_p2.pin[2].i) = 0`,
+at 2.44e-10. Its Jacobian row is -2 on the derivative and 4.44e4 on
+`transformer1.l1sigma.plug_n.pin[2].v`, which stands at -73.3 V: the
+row reads a primary voltage through the reciprocal of the leakage
+inductance. The loudest number it meets is 73, so the loudness floor
+forgives 6.5e-14. But an ulp of 73 V times 4.44e4 is 6.3e-10, and the
+spread measured by moving every unknown one ulp is 6.31e-10 on that
+row and nowhere near it on any other. The residual sits under the
+noise of its own evaluation, and the line search along the Newton
+direction finds the same 2.4e-10 at every fraction from 1 down to
+2.4e-7. The iteration is not failing to converge; it has converged to
+what a double can say about that row, and the floor did not know.
+
+So the question m374 left open - why these rows do not fall below
+~1e4 ulp of their loudness - has an answer that is not a tolerance:
+loudness counts the size of the terms a row adds and is blind to the
+size of the coefficients it multiplies its unknowns by. The rounding a
+row carries from its unknowns is the sum over them of `|J_ij * v_j|`,
+and for row 11 that is 3.26e6, against which 2.44e-10 is a third of
+an ulp.
+
+That is the change: where a solve is about to be refused, a row is
+also on the floor when its residual is within one ulp of that reach,
+taken from the matrix the iteration last stood on. One ulp and not
+four, because the rule is new and its first arm already has the
+slack. Behind `OXIDELICA_NO_REACH_FLOOR`. The smallest model is ten
+lines: `(u - V*cos(time))/L + 1e-9*u^2 = w` with `L = 1e-9`, where an
+ulp of a thousand volts over a nanohenry is 1e-4. The base refuses it
+for a Newton direction that does not descend; with the change `u`
+comes out at 999.950000418665, the fixed point to every digit. The
+test
+`a_row_reading_a_voltage_through_a_nanohenry_stops_at_the_rounding_it_carries`
+fails under the switch and passes without it.
+
+What it does to the witnesses, each run to its own stop time from one
+binary (`/tmp/m375/ox375x`, files in `/tmp/m375/w/`):
+
+- `Rectifier6pulse` runs to 1.0 s with `--dt 1e-5`. The load voltage
+  has a mean of 127.7002 V over 0.06 to 0.1 s, the same to four
+  decimals as m374 measured under the widened floor, and its spectrum
+  holds the 6th, 12th and 18th harmonics at 13.6, 0.681 and 0.143 V
+  with every non-multiple of six below 3e-3 V.
+- `Analog.Examples.Rectifier` gets further and still refuses: at
+  `t = 0.0219` instead of `t = 0`. The row it stops on is a diode's
+  `v = s*(if off then 1 else Ron) + Vknee` at 7.96e-13 against a reach
+  of 5.4e2, about seven ulp. That one is the loudness kind, and four
+  ulp of its loudness does not cover it either. A probe at sixteen ulp
+  of reach runs it, which is a widening and is not taken.
+- The two `Machines` `IMC_Transformer` and the `FundamentalWave` one
+  refuse at `t = 0` exactly as without the change. Under the m373
+  floor of 1e5 ulp they had got past `t = 0`; what holds them now is
+  a different row of the same block (|f| = 9.6e-10 and 1.8e-9), which
+  this rule does not reach.
+- Controls: `Rectifier12pulse` to 0.22 s, `TransformerTestbench` and
+  `CauerLowPassAnalog` give files identical byte for byte with the
+  switch on and off. `IMC_DOL` refuses with the same text.
+
+A first form of the rule also forgave any row inside the ordinary
+`1e-10 * (1 + |v|)` arm, so that the Machines `IMC_Transformer` would
+not be held by rows of 1e-33 amperes. It moved `Rectifier12pulse` from
+`t = 1e-4` on, and was dropped. Four ulp of reach moved it as well;
+one and two did not. The rule stands at one.
+
+The corpus pair, one binary with the switch set and unset
+(`/tmp/m375/pair/off.txt`, `on.txt`, binary `/tmp/m375/ox375x`):
+961 / 720 and runnable 844 / 678 without the rule, 961 / 723 and
+844 / 681 with it. The three that arrive are `Rectifier6pulse`,
+`Analog.Examples.Rectifier` and `OvervoltageProtection`; none leave.
+Of the refusals that stay, one changes its words: `IMC_YDarc` is
+refused for the same Newton direction later, at `t = 6.25e-6` instead
+of `t = 2.7e-8`. Two of the three are gains over the corpus's ten
+steps only: run to their own stop times, `Analog.Examples.Rectifier`
+refuses at `t = 0.0219` and `OvervoltageProtection` at `t = 0.22`
+(a dead column on `zDiode.v`), while to 0.1 s its `CL.v` agrees with
+the m373 reference run (`/tmp/m373/num/ov5.csv`) to 6.1e-7 V over
+1001 points. `Rectifier6pulse` runs to its end. The floors are left
+for the runner to raise.

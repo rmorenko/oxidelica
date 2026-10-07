@@ -1776,9 +1776,25 @@ WORK_BODIES=1422042
 #
 #   points  368995 + 61285  = 430280
 #   newton  644528 + 293486 = 938014
-WORK_POINTS=430280
+#
+# And moved the same day by the floor that reads how far a row's
+# coefficients carry the rounding of its unknowns, which takes three
+# models over their ten steps and sends IMC_YDarc to its refusal far
+# sooner. One binary with the switch set and unset
+# (/tmp/m375/pair/off.txt, on.txt), the rest without Dimmer_RL:
+#
+#   desk    409520 -> 372261 points, 839044 -> 663045 newton
+#
+# Taken to the runner the way 4a9082d's print stood against the desk,
+# the rest at x1.001 and x1.003 and IMC_YDarc at x1.494 and x1.492:
+#
+#   points  370390 + 3527  = 373916    desk x0.996
+#   newton  652647 + 18850 = 671496    desk x0.987
+#
+# The runner's next print settles it.
+WORK_POINTS=373916
 WORK_POINTS_PPM=100000
-WORK_NEWTON=938014
+WORK_NEWTON=671496
 WORK_NEWTON_PPM=100000
 # And Dimmer_RL, whichever way it falls, centred between the desk's run
 # under the series and the machine's printed refusal:

@@ -1348,3 +1348,28 @@ fn a_loop_singular_only_where_an_overlong_step_predicts_rejects_the_step() {
         );
     }
 }
+
+/// A voltage read through the reciprocal of a nanohenry. The loop's
+/// one row carries the rounding of `u` - an ulp of a thousand volts -
+/// times 1e9, so the residual cannot fall below some 1e-4 however the
+/// iteration steps, while the loudest number the row meets is 1e6 and
+/// the loudness floor sits at 1e-9. The base refused it for a Newton
+/// direction that does not descend. The floor now also asks how far
+/// the row's coefficients carry the rounding of its unknowns, and the
+/// block is solved: `u` to the last digits a double holds, and `w` to
+/// what an ulp of `u` over a nanohenry leaves of it.
+#[test]
+fn a_row_reading_a_voltage_through_a_nanohenry_stops_at_the_rounding_it_carries() {
+    let source = "model D3 parameter Real L = 1e-9; parameter Real V = 1000; \
+         Real u(start = 1000); Real w; \
+         equation w = 2 + 1e-3*sin(u); (u - V*cos(time))/L + 1e-9*u^2 = w; \
+         annotation(experiment(StopTime = 0.01, Interval = 0.001)); end D3;";
+    let result = run(source);
+    let column = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+    let last = result.rows.last().expect("a row");
+    assert!((last[0] - 0.01).abs() < 1e-12, "stopped at t = {}", last[0]);
+    let u = last[column("u")];
+    assert!((u - 999.950000418665).abs() < 1e-9, "u = {u}");
+    let w = last[column("w")];
+    assert!((w - 2.0007977391698297).abs() < 1e-4, "w = {w}");
+}

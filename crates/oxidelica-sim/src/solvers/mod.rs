@@ -115,6 +115,15 @@ fn loudness_off() -> bool {
     *OFF.get_or_init(|| std::env::var_os("OXIDELICA_NO_LOUDNESS_FLOOR").is_some())
 }
 
+/// The floor of the arithmetic as it stood before a row could be
+/// judged by how far its coefficients carry the rounding of its
+/// unknowns, beside how loud its terms got. Off by default, for the
+/// two halves of a measurement to come from one binary.
+fn reach_floor_off() -> bool {
+    static OFF: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *OFF.get_or_init(|| std::env::var_os("OXIDELICA_NO_REACH_FLOOR").is_some())
+}
+
 /// The loudness floor as it stood before the inner unknowns of a torn
 /// block carried theirs into the rows that read them.
 fn inner_loudness_off() -> bool {
@@ -1017,19 +1026,44 @@ impl CompiledModel {
         // of 2^22 - one ulp, so a C of 1 would do and 4 is taken as
         // slack. This is asked once, where the solve is about to be
         // refused, and never on the hot path.
-        let on_arithmetic_floor = |values: &mut [f64], v: &[f64]| -> bool {
-            if loudness_off() {
-                return false;
-            }
-            let f = residual(values, v);
-            let loud = loudness(values, v);
-            if newton_trail() {
-                eprintln!("  floor? f={f:?}\n         loud={loud:?}");
-            }
-            f.iter()
-                .zip(&loud)
-                .all(|(fi, li)| fi.abs() <= 4.0 * f64::EPSILON * li.abs())
-        };
+        //
+        // Loudness is one floor and not the only one. A row can carry
+        // the rounding of its unknowns further than any number it
+        // adds up: a transformer core's `der(i2[k]) - der(pin[k].i)`
+        // in `Rectifier6pulse` reads a primary voltage of 73 V
+        // through a reciprocal inductance of 4.4e4, so one ulp of the
+        // voltage moves the row by 6.3e-10 while the loudest term it
+        // meets is 73 and the loudness floor is 6.5e-14. The
+        // iteration stood at 2.44e-10 for three steps running, under
+        // the noise measured by moving every unknown one ulp
+        // (`/tmp/m375/r6.stall`). What a row carries from that
+        // rounding is the sum over its unknowns of each coefficient
+        // times each unknown, and a residual within one ulp of that
+        // reach is as far as any step can bring it. It is asked of
+        // the matrix the iteration last stood on, and only where the
+        // loudness floor said no.
+        let on_arithmetic_floor =
+            |values: &mut [f64], v: &[f64], jac: Option<&[Vec<f64>]>| -> bool {
+                if loudness_off() {
+                    return false;
+                }
+                let f = residual(values, v);
+                let loud = loudness(values, v);
+                if newton_trail() {
+                    eprintln!("  floor? f={f:?}\n         loud={loud:?}");
+                }
+                let reach = |i: usize| -> f64 {
+                    match jac {
+                        Some(jac) if !reach_floor_off() && jac.len() == v.len() => {
+                            jac[i].iter().zip(v).map(|(a, x)| (a * x).abs()).sum()
+                        }
+                        _ => 0.0,
+                    }
+                };
+                f.iter().zip(&loud).enumerate().all(|(i, (fi, li))| {
+                    fi.abs() <= 4.0 * f64::EPSILON * li.abs() || fi.abs() <= f64::EPSILON * reach(i)
+                })
+            };
         let block_names =
             || -> Vec<&str> { block.iter().map(|&i| self.algebraics[i].as_str()).collect() };
 
@@ -1046,6 +1080,9 @@ impl CompiledModel {
         // way it took. Kept so that a step over the edge of a domain
         // can be taken again, shorter, from the footing it left.
         let mut footing: Option<(Vec<f64>, Vec<f64>, f64)> = None;
+        // The matrix the last step was taken on, for the floor a block
+        // that runs out of iterations is judged against.
+        let mut last_jac: Option<Vec<Vec<f64>>> = None;
         for iteration in 0..50 {
             oxidelica_parser::work::tick(oxidelica_parser::work::Step::Newton);
             self.count_newton(t)?;
@@ -1969,7 +2006,7 @@ impl CompiledModel {
                     // Three in a row is a block that is not going
                     // anywhere - `BranchingPipes2` has twelve.
                     if stuck >= 3 {
-                        if on_arithmetic_floor(values, &v) {
+                        if on_arithmetic_floor(values, &v, Some(&jac)) {
                             for (j, &index) in block.iter().enumerate() {
                                 alg_guess[index] = v[j];
                             }
@@ -2007,11 +2044,14 @@ impl CompiledModel {
             }
             footing = Some((v.clone(), dv, taken));
             v = next;
+            if !reach_floor_off() {
+                last_jac = Some(jac);
+            }
             if v.iter().any(|value| !value.is_finite()) {
                 return err(format!("algebraic loop diverged: {:?}", block_names()));
             }
         }
-        if on_arithmetic_floor(values, &v) {
+        if on_arithmetic_floor(values, &v, last_jac.as_deref()) {
             for (j, &index) in block.iter().enumerate() {
                 alg_guess[index] = v[j];
             }
