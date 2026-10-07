@@ -36784,3 +36784,58 @@ problem would start from a problem this initialization does not solve
 either, and the pass was not built. The probes are kept as a patch
 (`state/homotopy_probes_m377.patch`, `M377_SIMPLIFIED`, `M377_PARAMS`,
 `M377_ARMIJO`, `M377_OUTER`), not in the tree.
+
+### The cyclic remainder is one block, and split it trades six for six (m377, a map)
+
+`ThreeSprings` was taken one link further than the m377 note on it.
+The block it refuses in has 34 unknowns, and printed whole
+(`/tmp/m377/ts2/blk.txt`) it holds two different problems: the
+accelerations and quaternion derivatives of `body1`, and the position
+of the massless node where the three springs meet (their `r_rel_0`,
+`length`, `s`, `e_rel_0`). The node does not need the body's
+accelerations, and the body needs the node only through the force it
+hands on. They share a block because `build_plan` sorts the explicit
+assignments in Kahn's order and then puts everything that is left -
+every cycle, and everything downstream of a cycle - into one torn
+block. Nothing splits that remainder into its strongly connected
+components.
+
+A probe split it (`state/scc_split_m377.patch`, Tarjan over the
+remainder, each component planned as the remainder was, a single
+equation planned as an explicit stage, switch `M377_SCC`). On
+`ThreeSprings` the body leaves the block and the node block of 15
+remains, refused the same way: its unknowns start at zero and
+`e_rel_0 = r_rel_0 / s` is `-inf` before the first step. Given starts
+from the geometry in a wrapper (`/tmp/m377/ts3/TS1.mo`), the
+`-inf` goes and Newton crawls instead, 9.7 to 10.5 over fifty
+iterations, with or without the split. Its tear recovers
+`spring1.lineForce.e_rel_0[1]` by dividing by `R.T[1,1] * fb`, the
+spring's own force, which is the tear's choice and a second wall.
+
+The corpus pair, one binary (`/tmp/m377/oxscc2`, `--without
+scripts/heavy_models.txt`, `/tmp/m377/scc/off.txt` and `on.txt`):
+961 / 726 and 844 / 684 both ways, and the lists differ by six and
+six. Arrived: both `CCCV_Stack` (singular before), `RoomCO2`
+(singular), `TankWithEmptyingPipe2` (did not converge), the
+FundamentalWave `SMEE_DOL` and `SMEE_Rectifier` (underdetermined).
+Left: both `ThyristorBridge2mPulse_RLV` (Newton direction on the
+thyristors), `WaterIF97` (initialization singular in `m, U`),
+`TestWaterPumpStorage` (the pump's pressure block diverges),
+`CurvedBend` (underdetermined on `fitting2.dp`) and `IdealSteam`
+(Newton direction on the temperature). The work grew from 35 to 361
+million Newton steps and from 225 to 1671 Jacobians, and the payer is
+not named, since the pair did not print the work by model. Under
+`--only`, `Dimmer_RL` spends 34340892 Newton steps with the switch,
+the same as the desk's print without it, so it is not the payer;
+`IMC_YDarc` spends 562905 against 12694 and 1373 Jacobians against 2,
+so it pays a part. One unit test
+reads one tap of the resistor ladder at 8.0000000006 against 8, so a
+block once solved whole is now solved in parts to a looser end.
+
+So the split is real, and it is a different compiler rather than a
+fix: half the arrivals are the singular and underdetermined machines
+and batteries this census has been reading as families, and the
+losses are the water models that the single block had been carrying
+through their media. Not committed. What would come next is the
+pair's work printed by model to find the payer, and the six losses
+one at a time, before any of it is taken.
