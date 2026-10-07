@@ -35846,9 +35846,19 @@ either spelling - and in a small model that costs nothing, because the
 initial loop it builds is two unknowns that Newton solves at once.
 What it costs in the trace-substance test is the same construction at
 21 unknowns started from the nominal `1e6` of the multiport's enthalpy.
-Two roads lie open and neither was taken: honour `prefer` in state
+Two roads lie open: honour `prefer` in state
 selection, which changes which states index reduction keeps across
 every fluid model and is to be measured by the list of victims; or
 give the initial loop a better start for what flows out of the
-multiport. The second is narrower and does not change the compiler's
-states.
+multiport. The second was asked at once and closes negatively. A
+model extending the test with `multiPort(port_a(h_outflow(start =
+4.5e4), Xi_outflow(each start = 0.02), C_outflow(each start = 1e-4)))`
+(`/tmp/m371/small/mpts_w.mo`, trail `/tmp/m371/mpts_w.txt`) starts the
+loop from `[..., 45000, 0.02, 1e-4]`, and the first Newton step is the
+same to five digits: every pressure to `-14834`, every temperature to
+`5.3 K`, the same refusal from `|f| = 1.2e5`. What drives the step is
+not the multiport but the first row of each volume, `medium.h =
+h_pTX(p, T, X)`, which reads `-2.08e5` at the start: the volume's
+`h` comes from its states `U` and `m`, which the initial equations
+were spent on, and the loop has to move `p` and `T` to meet it. So
+the road that remains is the first one - which states a volume keeps.
