@@ -636,12 +636,27 @@ fn the_jacobians_of_a_named_set_are_counted_on_a_line_of_their_own() {
         .unwrap();
     let text = stdout(&out);
     for model in ["Lib.Examples.Loop", "Lib.Examples.Other"] {
-        assert!(
-            text.lines()
-                .any(|line| line.starts_with(&format!("  work  {model} "))
-                    && line.ends_with(" jacobians")),
-            "{text}"
+        let line = text
+            .lines()
+            .find(|line| line.starts_with(&format!("  work  {model} ")))
+            .unwrap_or_else(|| panic!("{text}"));
+        // The fields the floor script reads by position: points, newton
+        // and jacobians, then the two halves' milliseconds.
+        let fields: Vec<&str> = line.split_whitespace().collect();
+        assert_eq!(fields.len(), 14, "{line}");
+        assert_eq!(
+            (fields[3], fields[5], fields[7]),
+            ("points", "newton", "jacobians"),
+            "{line}"
         );
+        assert_eq!(
+            (fields[9], fields[10], fields[12], fields[13]),
+            ("ms", "flattening", "ms", "running"),
+            "{line}"
+        );
+        let flattening: f64 = fields[8].parse().expect("milliseconds");
+        let running: f64 = fields[11].parse().expect("milliseconds");
+        assert!(flattening > 0.0 && running > 0.0, "{line}");
     }
 }
 

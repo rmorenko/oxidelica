@@ -2271,7 +2271,43 @@ if [ -z "${flatten_ms_now:-}" ] || [ -z "${run_ms_now:-}" ]; then
   status=1
 else
   echo "time per model: ${flatten_ms_now}ms flattening, ${run_ms_now}ms running"
-  ratio_verdict "$flatten_ms_now" "$run_ms_now" || status=1
+  # The models no band counts (`WORK_UNCOUNTED`, below) are left out of
+  # the ratio too, on Roman's word of 2026-10-08: their seconds and the
+  # place each held in the count of either half. IMC_YDarc's road to its
+  # refusal takes 9083514 Newton steps on the runner against 12694 on a
+  # desk, and with it the runner's ratio went from 1.037 (e259916) to
+  # 1.494 (2c67c3d) and 1.603 (973ae82) on work that agreed to the digit
+  # between the last two. A model the report does not name is a failure
+  # here as everywhere else below.
+  flatten_s_now="$(echo "$report" | sed -n 's/^time: flattening \([0-9.]*\)s over \([0-9]*\) models.*/\1 \2/p')"
+  run_s_now="$(echo "$report" | sed -n 's/^time:.*running \([0-9.]*\)s over \([0-9]*\) (.*/\1 \2/p')"
+  ratio_flatten_ms="$flatten_ms_now"
+  ratio_run_ms="$run_ms_now"
+  ratio_named=1
+  uncounted_ms=""
+  for uncounted_model in $WORK_UNCOUNTED; do
+    timed="$(echo "$each_work" | awk -v m="$uncounted_model" '$2 == m && $10 == "ms" && $13 == "ms" { print $9, $12 }' || true)"
+    if [ -z "$timed" ]; then
+      echo "CEILING: the report did not say how long $uncounted_model took"
+      status=1
+      ratio_named=0
+      continue
+    fi
+    echo "time not counted: $uncounted_model $(echo "$timed" | awk '{ printf "%.0fms flattening, %.0fms running", $1, $2 }')"
+    uncounted_ms="$uncounted_ms$timed"$'\n'
+  done
+  if [ "$ratio_named" -eq 1 ] && [ -n "$uncounted_ms" ]; then
+    read -r ratio_flatten_ms ratio_run_ms <<< "$(printf '%s' "$uncounted_ms" | awk \
+      -v fs="${flatten_s_now% *}" -v fn="${flatten_s_now#* }" \
+      -v rs="${run_s_now% *}" -v rn="${run_s_now#* }" '
+      NF == 2 { f += $1; n_f += 1; r += $2; if ($2 > 0) n_r += 1 }
+      END {
+        ff = fn - n_f; rr = rn - n_r
+        printf "%d %d\n", (ff > 0 ? (fs * 1000 - f) / ff : 0), (rr > 0 ? (rs * 1000 - r) / rr : 0)
+      }')"
+    echo "time per model without them: ${ratio_flatten_ms}ms flattening, ${ratio_run_ms}ms running"
+  fi
+  ratio_verdict "$ratio_flatten_ms" "$ratio_run_ms" || status=1
 fi
 
 # The work. Each count is read off the `work:` line by the word that

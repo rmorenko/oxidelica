@@ -932,11 +932,20 @@ fn library_check(args: &[String]) -> Result<(), String> {
         // something did and not who: a pair whose points fell by a sixth
         // with the lists one model apart wanted exactly this, and the
         // diff of two such lists names the model.
+        // And what each half took on the clock, beside the count of
+        // steps: a model whose work is held to no band still spends
+        // its seconds in the ratio of the two halves, and the ratio can
+        // only leave it out if the report says how many they were.
         if work_each {
             let w = spent.running_work;
             println!(
-                "  work  {} {} points {} newton {} jacobians",
-                models[*at], w.points, w.newton, w.jacobians
+                "  work  {} {} points {} newton {} jacobians {:.3} ms flattening {:.3} ms running",
+                models[*at],
+                w.points,
+                w.newton,
+                w.jacobians,
+                spent.flattening.as_secs_f64() * 1000.0,
+                spent.running.as_secs_f64() * 1000.0
             );
         }
         let mut run_work = spent.running_work;
