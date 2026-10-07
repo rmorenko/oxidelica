@@ -35903,3 +35903,18 @@ differently, and which of the two is not known. The next
 measure is that substitution, the row written out as the block
 evaluates it, against the slope the finite difference gives it at the
 stuck point. Nothing was changed.
+
+One more line of the same dump narrows it. Row 8 of that block, the
+rotor cage's `singlePhaseElectroMagneticConverter[1].V_m.im`, has
+entries of `3.27e16` on `smpm.airGap.V_mss.re` and `1.27e16` on the
+cage current, where every other entry of the block is between `1e-4`
+and `5e3`. As written the row is linear: `V_m.im = (2/pi) * N.im * i`,
+with a zero on the real part, so its slope on the cage current is
+`(2/pi) * N.im` and on `V_mss.re` it has none. A slope of `1e16` on
+both says the block evaluates `V_m.im` through what defines it, and
+that definition divides by something near zero at the stuck point,
+where `V_mss.im` is `2.1e-4` and `V_mss.re` is `151.7` - the angle of
+a space phasor taken from a component of `2e-4` would do it. A column
+that wide drowns the `-3.33` of row 7 in the same direction. That
+puts the next measure one row over: what the definition of the cage's
+`V_m.im` divides by, at `V_mss.im = 2.1e-4`.
