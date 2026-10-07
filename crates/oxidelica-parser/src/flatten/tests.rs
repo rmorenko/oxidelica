@@ -1109,3 +1109,33 @@ fn a_carried_parameter_note_shows_the_head_of_a_long_binding() {
     assert!(note.ends_with(&format!("...` ({whole} characters in all)")));
     assert!(note.chars().count() < 200, "{note}");
 }
+
+#[test]
+fn what_one_model_redeclared_is_not_handed_to_the_next() {
+    // `A` redeclares its flow model with `k = 2`; `B` uses the pipe as
+    // it was written, with `k = 1`. Flattened after `A` on the same
+    // thread, `B` used to find `A`'s modifier still filed under the
+    // flow model's name and read `k = 2` - the count of a library
+    // pass then depended on which model had gone before.
+    let classes = crate::parser::parse_file(
+        "package L \
+           model Flow parameter Real k = 1; end Flow; \
+           model Pipe replaceable model FlowModel = Flow; FlowModel f; end Pipe; \
+           model A Pipe p(redeclare model FlowModel = Flow(k = 2)); end A; \
+           model B Pipe p; end B; \
+         end L;",
+    )
+    .unwrap();
+    let k = |top: &str| {
+        let model = super::flatten(&classes, top).unwrap();
+        model
+            .components
+            .iter()
+            .find(|c| c.name == "p.f.k")
+            .and_then(|c| c.binding.clone())
+            .and_then(|b| super::const_eval(&b, &std::collections::HashMap::new()))
+    };
+    assert_eq!(k("L.B"), Some(1.0), "B on its own");
+    assert_eq!(k("L.A"), Some(2.0), "A's own redeclaration");
+    assert_eq!(k("L.B"), Some(1.0), "B after A");
+}

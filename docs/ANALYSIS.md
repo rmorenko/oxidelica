@@ -35548,3 +35548,77 @@ The difference of the lists is the five: `R134a1`, `R134a2`,
 a model's count of equations that depends on what was checked before
 it means some table outlives one model on a thread, and the next
 section is about which.
+
+## Whose table it was: `RoomCO2WithControls` and the inputs a redeclaration filled (m370)
+
+The lever of the five turned out to be a lever and not a culprit. The
+pass hands model `i` to thread `i % hands`, and the only state that
+outlives a model lives in `thread_local` tables, so it flows forward
+along one thread and nowhere else. Printing the index the pass gives
+each model (a probe, not kept) put `TestJunctionIdeal` at index 763 of
+the 1033-model pass, thread 3 of ten, and at 760 of the main pass of
+1028, thread 0: the five giants moved it from one thread's company to
+another's. The two of them that stand before it, `R134a1` and
+`R134a2`, were each put on one thread in front of it and changed
+nothing (170 both, `/tmp/m370/pair1.out`, `pair2.out`).
+
+The seventy-six models that stood before it on thread 3, run on one
+thread in that order with it at the end, gave 179
+(`/tmp/m370/th3.out`). Halving that list, then quartering the half
+that kept the 179, came down in five runs to one name: run alone in
+front of it, `Modelica.Fluid.Examples.TraceSubstances.RoomCO2WithControls`
+makes it 179 (`/tmp/m370/s5.out`), and its neighbours do not.
+
+What flows was found by forgetting the tables one at a time on the
+entry to a flattening. Of the four that nothing ever cleared -
+`SPECIALIZED`, `FILLED_INPUTS` and `ALIAS_MODIFIERS` in
+`statements.rs`, `STANDING` in `names.rs` - only `FILLED_INPUTS` took
+the pair back to 170. A trace of what is written into it showed the
+writer: the room's pipes say `redeclare model FlowModel =
+DetailedPipeFlow(show_Res = true)`, which is filed under
+`Modelica.Fluid.Pipes.BaseClasses.FlowModels.DetailedPipeFlow`. The
+junction test's three `StaticPipe`s use that same flow model as
+written, read the table by the class's name, and took `show_Res =
+true` - which switches on the Reynolds numbers and the start of
+turbulent flow, nine equations and nine unknowns, exactly the
+difference between 170 and 179.
+
+The table is keyed by the name of the class and not by where the
+redeclaration was written, so the fault is larger than a pass over a
+library. Inside one model, two pipes - one redeclaring its flow model
+with a modifier, one leaving it alone - share the modifier as well:
+
+```modelica
+model C
+  Pipe p(redeclare model FlowModel = Flow(k = 2));
+  Pipe q;
+end C;
+```
+
+reads `q.f.k = 2` where the language says 1. That is a wrong number,
+not a refusal, and it is not fixed here: making the key say who wrote
+the modifier is a change to how class-level redeclarations reach their
+components, and it wants its own series with the victims measured.
+What is fixed is the part that made the instrument lie: every table
+filled by one flattening is emptied on the entry to the next. The test
+(`what_one_model_redeclared_is_not_handed_to_the_next`) flattens `B`,
+then `A` with its modifier, then `B` again, and fails under
+`OXIDELICA_KEEP_MODEL_TABLES=1` with `k = 2` for the second `B`.
+
+On the library, one binary built from the final tree
+(`/tmp/m370/ox370h`), `OXIDELICA_KEEP_MODEL_TABLES=1` against the
+default, `--without scripts/heavy_models.txt` (`/tmp/m370/pair_off.txt`,
+`/tmp/m370/pair_on.txt`): 961 flatten and 718 run both ways, runnable
+844 and 676 both ways, the flatten and run lists identical by name and
+all 310 refusal lines identical as text. That is what was expected: in
+the layout of today's main pass `TestJunctionIdeal` already stands in
+company that leaves it at 170, so the fix moves no number there. What
+it buys is that no layout can move it again - a different count of
+threads on the runner, a model added before it, a giant carved out or
+put back - and that `RoomCO2WithControls`'s redeclaration no longer
+reaches any model after it. The ladder under `--only` (the junction
+test, the room, `InverseParameterization`, `HeatingSystem`,
+`CoupledClutches`) ends the same with the switch and without
+(`/tmp/m370/ladder.txt`). The pass's own clock read 4625 s of building
+off and 4008 s on, which is the weather of two passes run back to back
+and not a cost: four `HashMap::clear` calls a model.

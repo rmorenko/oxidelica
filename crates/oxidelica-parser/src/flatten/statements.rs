@@ -1726,6 +1726,27 @@ pub(super) fn alias_modifiers(named: &str) -> Option<Vec<(String, Expr)>> {
     ALIAS_MODIFIERS.with(|held| held.borrow().get(named).cloned())
 }
 
+/// Forget what the flattening before wrote: the specialized copies,
+/// the inputs its redeclarations filled in and what its aliases wrote
+/// on their packages all belong to that model.
+///
+/// `OXIDELICA_KEEP_MODEL_TABLES=1` keeps them across models, as before,
+/// so that one binary can be measured both ways.
+pub(super) fn forget_what_one_model_wrote() {
+    if !model_tables_forgotten() {
+        return;
+    }
+    SPECIALIZED.with(|held| held.borrow_mut().clear());
+    FILLED_INPUTS.with(|held| held.borrow_mut().clear());
+    ALIAS_MODIFIERS.with(|held| held.borrow_mut().clear());
+}
+
+/// Whether a flattening starts from empty tables. See
+/// [`forget_what_one_model_wrote`].
+pub(super) fn model_tables_forgotten() -> bool {
+    std::env::var("OXIDELICA_KEEP_MODEL_TABLES").as_deref() != Ok("1")
+}
+
 /// Remember what a redeclaration filled in on a function.
 pub(super) fn remember_filled_inputs(named: &str, filled: Vec<(String, Expr)>) {
     FILLED_INPUTS.with(|held| held.borrow_mut().insert(named.to_string(), filled));

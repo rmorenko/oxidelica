@@ -510,6 +510,14 @@ thread_local! {
         RefCell::new(HashSet::new());
 }
 
+/// Forget the calls the flattening before left standing; they were
+/// that model's.
+pub(super) fn forget_standing() {
+    if super::statements::model_tables_forgotten() {
+        STANDING.with(|held| held.borrow_mut().clear());
+    }
+}
+
 /// Say that a call is one the run will walk, so that what it was
 /// handed travels whole.
 pub(super) fn stands_for_the_run(name: &str, scope: &str) {

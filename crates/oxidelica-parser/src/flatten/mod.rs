@@ -284,6 +284,17 @@ pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
     // thousands of times over.
     let _standing = lookup::StandingNames::open();
     impure::forget();
+    // What one model's redeclarations wrote is that model's alone.
+    // These tables are filled by the walk of one flattening and were
+    // never emptied, so a pass over a library handed the next model on
+    // the same thread whatever the last one left: `RoomCO2WithControls`
+    // writes `DetailedPipeFlow(show_Res = true)`, and the
+    // `TestJunctionIdeal` read after it on that thread grew nine
+    // equations of Reynolds numbers it never asked for - 179 where it
+    // counts 170 on its own. A count that depends on the company is
+    // an instrument that lies about somebody.
+    statements::forget_what_one_model_wrote();
+    names::forget_standing();
     let top_class = registry
         .get(top)
         .ok_or_else(|| format!("unknown class `{top}`"))?;
