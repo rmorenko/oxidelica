@@ -18,6 +18,9 @@ pub(super) fn instantiate(
     // being instantiated: the parameter values a body folds with are
     // this class's, and they do not move while it is built.
     let _remembering = inlining::Inlined::open();
+    // And on whose behalf a body is inlined: what an alias filled in
+    // belongs to the instance that wrote it.
+    let _building = super::statements::BuildingInstance::at(prefix);
     if depth > MAX_DEPTH {
         return Err(format!(
             "instantiation deeper than {MAX_DEPTH} levels at `{}` (recursive classes?)",

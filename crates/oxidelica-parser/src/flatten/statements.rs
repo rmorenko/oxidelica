@@ -1765,6 +1765,7 @@ pub(super) fn forget_what_one_model_wrote() {
     FILLED_INPUTS.with(|held| held.borrow_mut().clear());
     FILLED_AT.with(|held| held.borrow_mut().clear());
     FILLED_BY_ALIAS.with(|held| held.borrow_mut().clear());
+    FILLED_DISAGREE.with(|held| held.borrow_mut().clear());
     ALIAS_MODIFIERS.with(|held| held.borrow_mut().clear());
 }
 
@@ -1790,7 +1791,11 @@ pub(super) fn remember_filled_inputs(
         held.borrow_mut()
             .insert((prefix.to_string(), named.to_string()), filled.clone())
     });
-    FILLED_INPUTS.with(|held| held.borrow_mut().insert(named.to_string(), filled));
+    let before =
+        FILLED_INPUTS.with(|held| held.borrow_mut().insert(named.to_string(), filled.clone()));
+    if before.is_some_and(|before| before != filled) {
+        FILLED_DISAGREE.with(|seen| seen.borrow_mut().insert(named.to_string()));
+    }
 }
 
 /// What a redeclaration filled in on this class for the components of
@@ -1832,6 +1837,100 @@ fn filled_by_class() -> bool {
 /// What a redeclaration filled in on this function, if anything.
 pub(super) fn filled_inputs(named: &str) -> Option<Vec<(String, Expr)>> {
     FILLED_INPUTS.with(|held| held.borrow().get(named).cloned())
+}
+
+thread_local! {
+    /// The prefix of the instance whose class is being built, innermost
+    /// last. A body inlined into an equation is inlined on behalf of
+    /// that instance, and what its aliases filled in is filed under it.
+    static INSTANCE: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
+
+    /// The functions two aliases of one model filled in differently.
+    /// The table by class keeps one writer, so for these it holds the
+    /// last and says nothing true about the others.
+    static FILLED_DISAGREE: RefCell<std::collections::HashSet<String>> =
+        RefCell::new(std::collections::HashSet::new());
+}
+
+/// The instance at `prefix` is being built while this stands.
+pub(super) struct BuildingInstance;
+
+impl BuildingInstance {
+    pub(super) fn at(prefix: &str) -> Self {
+        INSTANCE.with(|held| held.borrow_mut().push(prefix.to_string()));
+        BuildingInstance
+    }
+}
+
+impl Drop for BuildingInstance {
+    fn drop(&mut self) {
+        INSTANCE.with(|held| {
+            held.borrow_mut().pop();
+        });
+    }
+}
+
+/// Remember that the alias of the instance at `prefix` names this
+/// function and fills nothing in.
+///
+/// The absence has to be written down: `P p(redeclare function f =
+/// g(a = 2)); P q;` leaves `q.f` as plain `g`, and with nothing filed
+/// under `q` the reading fell through to the table by class and found
+/// `p`'s `a = 2` - a silent wrong number, `q.y = 4` where `2` was
+/// meant.
+pub(super) fn remember_nothing_filled(named: &str, prefix: &str) {
+    FILLED_AT.with(|held| {
+        held.borrow_mut()
+            .entry((prefix.to_string(), named.to_string()))
+            .or_default();
+    });
+}
+
+/// What a redeclaration filled in on the function being inlined, read
+/// for the instance the inlining is done on behalf of.
+///
+/// The instance's own filing answers first, and an empty one means the
+/// alias filled nothing in. Where the instance has no filing at all -
+/// a call reaching the function through another instance, as
+/// `world.gravityAcceleration` is reached from every body - the table
+/// by class answers, but only while every alias of the model that
+/// filled the function in said the same: where they disagree there is
+/// no telling whose values were meant, and a refusal is owed rather
+/// than the last writer's numbers.
+///
+/// `OXIDELICA_FILLED_INPUTS_BY_CLASS=1` reads the table by class alone,
+/// as before, so that one binary gives both numbers.
+pub(super) fn filled_inputs_for_call(named: &str) -> Result<Option<Vec<(String, Expr)>>, String> {
+    if filled_inputs_by_class() {
+        return Ok(filled_inputs(named));
+    }
+    let here = INSTANCE.with(|held| held.borrow().last().cloned());
+    if let Some(prefix) = here {
+        let own = FILLED_AT.with(|held| {
+            held.borrow()
+                .get(&(prefix.clone(), named.to_string()))
+                .cloned()
+        });
+        if let Some(own) = own {
+            return Ok((!own.is_empty()).then_some(own));
+        }
+    }
+    let Some(held) = filled_inputs(named) else {
+        return Ok(None);
+    };
+    if FILLED_DISAGREE.with(|seen| seen.borrow().contains(named)) {
+        return Err(format!(
+            "function `{named}` has inputs filled in differently by two \
+             redeclarations, and the call is not made from either"
+        ));
+    }
+    Ok(Some(held))
+}
+
+/// Whether filled inputs of a call are read by the class alone, as
+/// before they were read for the instance the call is made from.
+fn filled_inputs_by_class() -> bool {
+    std::env::var("OXIDELICA_FILLED_INPUTS_BY_CLASS").as_deref() == Ok("1")
 }
 
 /// Whether the range of a `for` statement has the constants of its

@@ -138,8 +138,20 @@ pub(super) fn effective_imports(
             ),
             _ => None,
         };
-        if let Some(filled) = filled {
-            super::statements::remember_filled_inputs(&target, &alias.name, prefix, filled);
+        match filled {
+            Some(filled) => {
+                super::statements::remember_filled_inputs(&target, &alias.name, prefix, filled)
+            }
+            // An alias of a function that fills nothing in says so for
+            // this instance, so that a neighbour's filling is not read
+            // as its own.
+            None if registry
+                .get(target.as_str())
+                .is_some_and(|named| named.kind == ClassKind::Function) =>
+            {
+                super::statements::remember_nothing_filled(&target, prefix)
+            }
+            None => {}
         }
         // What the alias itself wrote, kept apart from what a
         // redeclaration wrote: `package Medium = MoistAir(

@@ -1663,7 +1663,7 @@ fn worked_body(
             // application written where a declaration goes, and the
             // pumps of the standard library ask for their
             // characteristics that way.
-            let filled = super::statements::filled_inputs(&class.name).and_then(|held| {
+            let filled = super::statements::filled_inputs_for_call(&class.name)?.and_then(|held| {
                 held.iter()
                     .find(|(name, _)| name == &input.name)
                     .map(|(_, value)| value.clone())

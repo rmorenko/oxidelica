@@ -1199,3 +1199,90 @@ fn what_an_alias_filled_in_travels_with_the_redeclaration_that_names_it() {
     assert_eq!(k("h.p.f.k"), Some(2.0), "the pipe handed the alias");
     assert_eq!(k("h.q.f.k"), Some(1.0), "the pipe left alone");
 }
+
+/// The value an equation of the flat model gives `name`, where one side
+/// is the name and the other comes to a number.
+fn equated_value(model: &crate::ast::Model, name: &str) -> Option<f64> {
+    let empty = std::collections::HashMap::new();
+    model
+        .equations
+        .iter()
+        .find_map(|eq| match (&eq.lhs, &eq.rhs) {
+            (crate::ast::Expr::Ref(held), other) | (other, crate::ast::Expr::Ref(held))
+                if held == name =>
+            {
+                super::const_eval(other, &empty)
+            }
+            _ => None,
+        })
+}
+
+#[test]
+fn what_one_function_alias_filled_in_is_not_read_by_its_neighbour() {
+    // `p` redeclares its function with `a = 2`; `q` beside it keeps the
+    // plain `g`, whose `a` is 1. Read by the class alone, the call in
+    // `q` found `p`'s `a = 2` and `q.y` came out 4 where 2 was meant -
+    // and only in this order: with `q` written first it was 2.
+    let classes = crate::parser::parse_file(
+        "package L \
+           function g input Real x; input Real a = 1; output Real y; \
+             algorithm y := a*x; end g; \
+           model P replaceable function f = g; Real y; equation y = f(2); end P; \
+           model C P p(redeclare function f = g(a = 2)); P q; end C; \
+           model D P q; P p(redeclare function f = g(a = 2)); end D; \
+           model W P p(redeclare function f = g(a = 2)); end W; \
+           model U P q; end U; \
+           model E W w; U u; end E; \
+         end L;",
+    )
+    .unwrap();
+    let model = super::flatten(&classes, "L.C").unwrap();
+    assert_eq!(
+        equated_value(&model, "p.y"),
+        Some(4.0),
+        "the redeclared one"
+    );
+    assert_eq!(
+        equated_value(&model, "q.y"),
+        Some(2.0),
+        "its neighbour, after"
+    );
+    let model = super::flatten(&classes, "L.D").unwrap();
+    assert_eq!(
+        equated_value(&model, "q.y"),
+        Some(2.0),
+        "its neighbour, before"
+    );
+    assert_eq!(
+        equated_value(&model, "p.y"),
+        Some(4.0),
+        "the redeclared one"
+    );
+    let model = super::flatten(&classes, "L.E").unwrap();
+    assert_eq!(equated_value(&model, "w.p.y"), Some(4.0), "one level down");
+    assert_eq!(equated_value(&model, "u.q.y"), Some(2.0), "a cousin");
+}
+
+#[test]
+fn a_function_two_aliases_filled_in_differently_is_refused_where_neither_is_meant() {
+    // `w1.f(2)` reaches `g` through another instance, whose own filing
+    // is not the one being built. By the class alone the last writer
+    // answered, `a = 3` from `w2`, and `y` came out 6 where 4 was
+    // meant. With two different fillings and no telling which one
+    // the call means, the model is refused by name.
+    let classes = crate::parser::parse_file(
+        "package L \
+           function g input Real x; input Real a = 1; output Real y; \
+             algorithm y := a*x; end g; \
+           model Wd replaceable function f = g; end Wd; \
+           model U Wd w1(redeclare function f = g(a = 2)); \
+             Wd w2(redeclare function f = g(a = 3)); Real y; equation y = w1.f(2); end U; \
+         end L;",
+    )
+    .unwrap();
+    let refused = super::flatten(&classes, "L.U").unwrap_err();
+    assert!(
+        refused.contains("`L.g` has inputs filled in differently"),
+        "{refused}"
+    );
+}
