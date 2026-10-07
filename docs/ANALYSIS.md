@@ -36713,3 +36713,36 @@ switches. It tests the spelling of a name and so is an instrument
 only. The honest form of the rule, not built, is structural: a
 candidate that is the only one another row of the same subset reaches
 is not taken while something else carries weight.
+
+### The twenty-five singular Jacobians, read by the row that is zero (m377, a map)
+
+The census on `2c67c3d` (`/tmp/m377/census.txt`) holds 25 models in
+`singular Jacobian in algebraic loop`. Each was run with `--only` from
+`.msl` under `OXIDELICA_NEWTON_TRAIL` (`/tmp/m377/sing/`), and the
+matrix it last printed was searched for a row that is zero in every
+column (`/tmp/m377/sing/classify.sh`). Sixteen have one, and it is the
+same row: the zero sequence of a star with no neutral. In thirteen
+machines it is the stator's `-(m*spacePhasorS.zero.i) = i[1] + i[2] +
+i[3]` or `zeroInductor.plug_p.pin[k].i + plug_n.pin[k].i = 0`, in
+`PolyphaseRectifier` the source's own pin current, and in the two
+`SMEE_LoadDump` the load inductor's `der(i) + v/L = 0`. The other nine
+have no zero row and stand one apiece: two battery stacks, the
+quasi-static `Rectifier`, `PumpingSystem`, `RoomCO2`,
+`IMC_DOL_Polyphase`, `RollingWheel`, `LossyGearDemo2` and
+`TestMixingVolumesPressureStates`. So the largest single family of the
+run half is the star the m356 and m357 maps already named, and nothing
+here is new about it except its size.
+
+### `ThreeSprings`, one link further (m377, a map)
+
+The m361 table put `ThreeSprings` down to a spring length starting at
+zero. The trail (`/tmp/m377/ts.txt`) says more. The block has 34
+unknowns because the one reduction demotes `body1.Q[4]` on the
+quaternion's norm, and through the frame positions every spring's
+`r_rel_0`, `length`, `s` and `e_rel_0` joins the accelerations. Started
+at `1e-6`, Newton comes within 3.4e-4 in five steps and then steps to a
+point where the second spring's length is 3.8e-9, on the `s_small`
+branch, with `|e_rel_0|` near 3.9. The line search stops there. A
+single start of 0.01, 0.1, 0.3, 3 or 10 for every zero in the block
+refuses the same way, so what is wanted is a start each name takes from
+its own definition, not another magnitude. Nothing was built.
