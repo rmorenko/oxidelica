@@ -36746,3 +36746,41 @@ branch, with `|e_rel_0|` near 3.9. The line search stops there. A
 single start of 0.01, 0.1, 0.3, 3 or 10 for every zero in the block
 refuses the same way, so what is wanted is a start each name takes from
 its own definition, not another magnitude. Nothing was built.
+
+### `DynamicPipeInitialization` under its simplified problem (m377, a map)
+
+The Fable answer of m352 put a homotopy pass fourth on the ladder for
+`DynamicPipeInitialization`: the valve's `simplified` branch names the
+model, so starting from the simplified problem looked like the road.
+Before building a pass, the cheapest form of the question was asked:
+with every `homotopy` taking its `simplified` argument instead of its
+`actual` one (a switch in the flattener and in the run's built-in, one
+binary, `/tmp/m377/hom/`), does the initialization of the simplified
+problem itself settle? If it does not, a continuation from it has
+nowhere to start.
+
+It does not. Three probes, each on top of the last:
+
+- `simplified` alone: the first residual of the outer initialization
+  is 3.0e10, against 1.7e7 for `actual`, and the pressure block jumps
+  to 1e11 Pa on its first step. The cause is the two parameters the
+  initialization solves for: `pipe.flowModel.dp_nominal` starts at 1
+  and not at its 13342.67, and the simplified pipe divides by it.
+- with the two parameters set to their values before the first step:
+  the first residual is 3.3e7, and the iteration wanders between
+  1.5e9 and 2.9e8 for six steps until the pressure block leaves IF97
+  (`mediums[2].d = NaN`).
+- with a step shortened until the residual falls as well: it falls,
+  3.3e7, 3.27e7, 2.94e7, 1.94e7, 1.94e7, and at the eighteenth inner
+  iteration the block leaves IF97 again, now at node 3.
+
+At the last point the rows that carry the residual are the mass and
+energy balances of the last node (1.9e7 and 2.6e6), with the masses
+near 8.7 kg throughout. The simplified flow law does not change what
+was found in m351: the outer Newton on the balances of a two-phase
+pipe crawls, and the crawl ends at the edge of IF97 whichever flow law
+the pipe uses. So a homotopy pass that starts from the simplified
+problem would start from a problem this initialization does not solve
+either, and the pass was not built. The probes are kept as a patch
+(`state/homotopy_probes_m377.patch`, `M377_SIMPLIFIED`, `M377_PARAMS`,
+`M377_ARMIJO`, `M377_OUTER`), not in the tree.
