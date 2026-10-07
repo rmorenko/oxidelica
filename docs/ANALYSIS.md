@@ -35780,16 +35780,25 @@ sets differ in is the path of the iteration, not the structure of the
 system, which puts the tie out of reach of any rule read off the
 system at the time of the choice. The parked patch stays parked.
 
-What it does say is where the wall is for both: a block with three
-near-null directions on the derivative of the secondary currents of
-`transformer1`'s core. That is a block that should not be singular -
-a transformer with three primary and three secondary leakages is a
-regular system - and the near-null vectors name the coupled
-derivatives of one core. The next measure is the block's structure
-rather than the tie: which equations of the core and the leakages the
-block holds, and whether the three near-null directions are the three
-`der(i)` that index reduction left as algebraic unknowns where it
-demoted the leakage currents as states.
+What it does say is where the wall is for both, and that was measured
+too (`/tmp/m371/jac_k2.txt`, `jac_k5.txt`, the left and right
+singular vectors of the scaled Jacobian). In both sets the three
+near-null directions have the same shape. On the right, each pairs
+`der(transformer1.core.plug_p2.pin[i].i)` with
+`transformer1.l1sigma.plug_n.pin[i].v` at equal weight (0.67 and 0.67,
+0.62 and 0.62), or the same pair on `transformer2`. On the left, each
+combines one diode's current equation, `diode1.idealDiode[i].i = s *
+unitVoltage * (if off then Goff else 1) + Goff * Vknee`, with the
+secondary's resistor and leakage-inductor current balances of that
+phase at equal weight (0.51, 0.51, 0.51). A phase whose diode is off
+conducts through `Goff = 1e-5` alone, so the derivative of its
+secondary current is fixed by a conductance five orders below the
+rest of the block: the near-singularity is the off diode itself, and
+it stands in the winning set exactly as in the losing one. So the
+block is not singular for want of structure but for a scale the ideal
+diode chooses, and what tells the two sets apart lies in the path of
+the iteration through those three directions - which nothing read off
+the system at the time of the choice can see.
 
 ### `TestMultiPortTraceSubstances`: the third kind is an initialization (m371, a probe)
 
