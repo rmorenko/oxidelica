@@ -35917,4 +35917,8 @@ where `V_mss.im` is `2.1e-4` and `V_mss.re` is `151.7` - the angle of
 a space phasor taken from a component of `2e-4` would do it. A column
 that wide drowns the `-3.33` of row 7 in the same direction. That
 puts the next measure one row over: what the definition of the cage's
-`V_m.im` divides by, at `V_mss.im = 2.1e-4`.
+`V_m.im` divides by, at `V_mss.im = 2.1e-4`. `oxidelica why` names the
+candidates: beside the row itself, `V_m.im` is read by `abs_V_m =
+sqrt(V_m.re^2 + V_m.im^2)` and `arg_V_m = atan2(V_m.im, V_m.re)`, and
+the slope of either is a quotient by the phasor's magnitude, which is
+near zero for a cage carrying no current at `t = 0`.
