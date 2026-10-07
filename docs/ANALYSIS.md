@@ -35862,3 +35862,35 @@ h_pTX(p, T, X)`, which reads `-2.08e5` at the start: the volume's
 `h` comes from its states `U` and `m`, which the initial equations
 were spent on, and the loop has to move `p` and `T` to meet it. So
 the road that remains is the first one - which states a volume keeps.
+
+### `SMPM_Mains`: one row of the air gap left at 1.8e-4 (m371, a probe)
+
+The m363 map put `SMPM_Mains` alone in the first kind at `|f| =
+1.8e-4`. Traced on the final binary (`/tmp/ox371c`,
+`OXIDELICA_NEWTON_TRAIL`, `/tmp/m371/smpm_trail.txt`): the block is
+22 unknowns of both machines, the quasi-static and the transient one,
+at `t = 0`, and of its 22 rows exactly one stands above the floor of
+its own arithmetic at the refusal - row 7, `1.8e-4` against a loudness
+of `9.4e3`, every other row inside four ulps. Named with the older
+probe binary that prints rows (`/tmp/m359/oxtie3`, `OXIDELICA_STUCK_JAC`,
+`/tmp/m371/smpm_jac.txt`), row 7 is the air gap's rotation,
+`smpm.airGap.V_msr.im = V_mss.re * (-rotator.im) + V_mss.im *
+rotator.re`, and its row of the Jacobian holds one entry, on
+`smpm.airGap.V_mss.im`. That block is 23 unknowns rather than 22, so
+the two binaries do not tear it alike, and the row is named rather
+than proven to be the same one.
+
+What the trail shows is that the residual is not stuck from the
+start. Over 25 Newton steps at `t = 0` the block is solved again and
+again to `1e-13`, and row 7 is what jumps each time a new solve
+begins - to `6.5e12`, `9.8e4`, `9.8e12` - and is brought back down.
+The last solve starts from `9.4e-4`, takes one step that moves
+`V_mss.im` from 0 to `2.1e-4`, and then no step descends: row 7 holds
+at `1.8e-4` for three steps running while everything else sits on its
+floor. The one entry of that row reads `-3.33`, which `rotator.re`, a
+cosine, cannot be, so in that binary's block the row is not the row as
+written - something was put into it, or the dump names the column
+differently, and which of the two is not known. The next
+measure is that substitution, the row written out as the block
+evaluates it, against the slope the finite difference gives it at the
+stuck point. Nothing was changed.
