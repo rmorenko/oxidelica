@@ -1157,7 +1157,18 @@ FLATTEN_FLOOR=961
 # 37540119396 (/tmp/m370/ci_d58700e.log). The desk read 961 / 718 and
 # 844 / 676 (/tmp/m370/pair_off.txt); the difference is the same two
 # swings, SpringWithMass and SMPM_VoltageSource. Set from the runner.
-RUN_FLOOR=716
+#
+# And run 717 = 716 + QuasiStatic SMPM_Mains, which runs once a slope
+# the size of rounding is read as the zero it stands for (fa896d0;
+# desk pair /tmp/m372/on.txt against off.txt). The runner printed 961
+# / 718 and runnable 844 / 676 on fa896d0, in job 112639640479 of run
+# 37574293572 (/tmp/m373/ci_fa896d0b.log); against d58700e its run
+# list gained SMPM_Mains and SpringWithMass and lost nothing. The
+# second is the swing named above: absent from the runner's list on
+# d58700e, present on afd29e6, 75b6878 and fa896d0. A floor that holds
+# a swing turns red the first time it swings back, so it is left out
+# until it has stood still longer. Set from the runner, less the swing.
+RUN_FLOOR=717
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -1376,7 +1387,10 @@ RUNNABLE_FLATTEN_FLOOR=844
 # And runnable run 674 = 671 + the three batteries, all runnable
 # examples, by the same runner job as `RUN_FLOOR` (d58700e, job
 # 112530851204).
-RUNNABLE_RUN_FLOOR=674
+# And runnable run 675 = 674 + SMPM_Mains, a runnable example, by the
+# same runner job as `RUN_FLOOR` (fa896d0, job 112639640479), which
+# printed 676; the one left out is SpringWithMass, as there.
+RUNNABLE_RUN_FLOOR=675
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
