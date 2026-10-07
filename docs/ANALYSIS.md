@@ -36836,6 +36836,23 @@ So the split is real, and it is a different compiler rather than a
 fix: half the arrivals are the singular and underdetermined machines
 and batteries this census has been reading as families, and the
 losses are the water models that the single block had been carrying
-through their media. Not committed. What would come next is the
-pair's work printed by model to find the payer, and the six losses
-one at a time, before any of it is taken.
+through their media. Not committed.
+
+Five of the six losses were then asked one at a time under `--only`
+with the trail on. `CurvedBend` is solved the same way both ways - the
+block of two converges in six steps without the switch, and the
+pressure drop alone follows the very same iterates with it - until the
+fifth step, where the block of one is read as underdetermined: the
+slope of the bend's flow law is small near the answer, and in the
+block of two the other row held it up. `WaterIF97`, `IdealSteam` and
+`TestWaterPumpStorage` lose the machinery of the steady start (m351):
+the swap of steady rows, the halving that goes with it and the live
+column all look at the one block of the medium, and split into
+components it no longer sees one. The pump's pressure, alone in its
+block, starts at 1e8 Pa and diverges, where without the split the
+pair it sat in stood at 1.4e5 Pa through the first hundredth of a
+second. The two thyristor bridges were not probed. So a split,
+if it is ever taken, takes those rules with it to whichever component
+holds the medium, and the rank test of a block of one needs looking
+at before then. What would come next is the pair's work printed by
+model to find who pays the tenfold Newton steps, and the two bridges.
