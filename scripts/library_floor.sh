@@ -1149,7 +1149,15 @@ FLATTEN_FLOOR=961
 # 673 (/tmp/m368/pair_on.txt); the difference is the two swings
 # SpringWithMass and SMPM_VoltageSource, which run on the desk and not
 # on the runner. Set from the runner.
-RUN_FLOOR=713
+#
+# And run 716 = 713 + BatteryDischargeCharge, CCCV_CellRC and
+# CCCVcharging, which run once a record redeclared by an extends is
+# filed under its own class (58a504c). The runner printed 961 / 716
+# and runnable 844 / 674 on d58700e, in job 112530851204 of run
+# 37540119396 (/tmp/m370/ci_d58700e.log). The desk read 961 / 718 and
+# 844 / 676 (/tmp/m370/pair_off.txt); the difference is the same two
+# swings, SpringWithMass and SMPM_VoltageSource. Set from the runner.
+RUN_FLOOR=716
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -1365,7 +1373,10 @@ RUN_FLOOR=713
 # And runnable flatten 844 = 849 less the five refused giants carved
 # into the scheduled run; see `FLATTEN_FLOOR`.
 RUNNABLE_FLATTEN_FLOOR=844
-RUNNABLE_RUN_FLOOR=671
+# And runnable run 674 = 671 + the three batteries, all runnable
+# examples, by the same runner job as `RUN_FLOOR` (d58700e, job
+# 112530851204).
+RUNNABLE_RUN_FLOOR=674
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
