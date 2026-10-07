@@ -35970,3 +35970,23 @@ larger folded slope when two rows can solve one unknown is a change to
 the matching. Either moves which row solves which unknown in every
 model with a winding at a right angle, so either is a series measured
 by its victims, not a shift's end.
+
+A probe took the first of the two ways and answered for the one model.
+A switch, `OX_PROBE_TINY_SLOPE`, makes `solve_linear_known` refuse a
+folded slope below `1e-14` in size as it refuses an exact zero (kept as
+`~/oxideflow/state/tiny_slope_probe_m371.patch`, not merged, binary
+`/tmp/ox371p`). In `cos.mo` the cosine row then becomes the residual
+and `vre` is computed from the sum. `SMPM_Mains` runs under it
+(`--only` from `.msl`, `/tmp/m371/smpm_p1.txt`; `smpm_p0.txt` is the
+same binary with the switch off and the old refusal). And the numbers
+it gives can be checked against the model itself, because the example
+puts a transient machine and its quasi-static twin on the same mains:
+at `t = 1` the two torques read `181.402` and `181.398` N m and the
+two speeds `157.0788` and `157.0796` rad/s, which is `50 * pi`, the
+synchronous speed of a two-pole-pair machine on 50 Hz
+(`/tmp/m371/smpm_run.csv`). The corpus was not measured: the brief of
+this shift allowed one corpus pair, spent on the redeclaration change,
+and a threshold on a slope is a definition-adding change by the rules
+of these notes - it moves which row solves which unknown, and only the
+list of victims can say what it costs. That pair is the first thing to
+take with the patch.
