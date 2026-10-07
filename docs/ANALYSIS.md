@@ -35990,3 +35990,21 @@ and a threshold on a slope is a definition-adding change by the rules
 of these notes - it moves which row solves which unknown, and only the
 list of victims can say what it costs. That pair is the first thing to
 take with the patch.
+
+The victims were then asked of the family rather than of the corpus:
+the 125 machine models that flatten in the pair above (`Machines`,
+`FundamentalWave`, `QuasiStatic` in the name, `/tmp/m371/machines.lst`),
+`--only-from`, one binary (`/tmp/ox371p`), the switch off and on
+(`/tmp/m371/fam_off.txt`, `fam_on.txt`). Off: 125 flatten and 71 run,
+runnable 119 and 70. On: 72 run and 71, the one more being
+`SMPM_Mains`, and none of the 71 that ran before lost. Two refusals
+changed their text: the row of two models first met on
+`FundamentalWave...SynchronousMachines.SMEE_DOL` went from `singular
+Jacobian in algebraic loop ["smee.airGap.V_mss.im", ...]` to
+`underdetermined algebraic loop ["smee.airGap.V_mss.im", ...]` - the
+same air gap, the same block, now named as having a row too few once
+the right-angle row no longer counts. That is the family moving one
+storey and not a loss, and it is the next link: the electrically
+excited machine has the same `cos(pi/2)` and something else behind
+it. The rest of the corpus is not measured, and the pair over it is
+still owed before the change is taken.
