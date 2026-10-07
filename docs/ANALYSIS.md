@@ -36326,3 +36326,141 @@ their ends (`/tmp/m373/num/`). The six are six on the corpus count,
 and fewer than six on the full road. Accepting a block at 1e4 ulps is a choice that could give a
 wrong number, so the next step is to check the six curves against a
 reference, and only then run a pair. Nothing of this is in the tree.
+
+## The floor series checked against numbers, and a run that forgot where to stop (m374)
+
+The two links of the floor series (m373) were put to a numerical
+check before any of it went into the tree. The binary was
+`/tmp/m374/oxw`, a copy of the m373 probe binary. Its switches are
+`OXIDELICA_FLOOR_ABS`, the absolute arm, and `OXIDELICA_FLOOR_ULPS`,
+the number of ulps of a row's loudest term the floor forgives. Every
+model was run to its own stop time with `simulate`. The files are in
+`/tmp/m374/w/`.
+
+The models the series wins give plausible numbers:
+
+- `Analog.Examples.Rectifier`: `uDC` has a mean of 524.8 V over
+  0.06 to 0.1 s (`ar.on.csv`). The ideal bridge gives 540 V, less
+  4 V for two diode knees and about 9 V for commutation on the line
+  inductors at 500 A, which is about 526 V.
+- `Transformers.Rectifier6pulse`: the load voltage has a mean of
+  127.7 V (`r6.on.csv`, `--dt 1e-5`). Its spectrum holds only multiples
+  of the sixth harmonic of 50 Hz: 13.6, 0.68 and 0.14 V at the 6th,
+  12th and 18th, and below 3e-3 V everywhere else.
+- `FundamentalWave` `IMC_Transformer` runs to 1.99 s (`fw4.on.csv`).
+  The speed is 119 rad/s against a synchronous 157, with a load torque
+  of -101 N m, which is a start on the transformer still under way. At
+  2.0 s, where the bypass closes, it refuses with a step size
+  underflow (`fw3.on.log`).
+- The two `Machines` `IMC_Transformer` models refuse at `t = 0.01266`
+  (`mi.on.log`, `mt.on.log`). Their gain is ten steps of the corpus
+  and nothing more.
+
+A control moves, so the series stops here. `Rectifier12pulse` runs
+without the switches and was run to 0.22 s both ways (`r12s.on.csv`,
+`r12s.off.csv`). The first difference is at `t = 5e-4`, at 1.2e-7
+relative. By 0.054 s the load voltage differs by 9.8e-5 V out of
+128 V. Of 270 events, 14 move or appear on one side only, and at the
+first of them a diode's `s` differs by 30%. Run with one switch at a
+time, the absolute arm alone gives a file identical byte for byte. The
+whole difference comes from the ulps.
+
+No threshold separates the gain from the move. At 1e3 and 1e4 ulps,
+`Rectifier12pulse` stays byte for byte and `Rectifier6pulse` refuses.
+At 3e4, `Rectifier6pulse` runs and `Rectifier12pulse` moves exactly as
+it did at 1e5. The absolute arm is clean on every control, and on its
+own it wins nothing: `Analog.Examples.Rectifier` runs under the ulps
+switch alone (`ar.ulps.csv` is identical to `ar.on.csv`) and refuses
+under the absolute arm alone. `TransformerTestbench` and
+`CauerLowPassAnalog` give identical files under both switches, and
+`IMC_DOL` refuses with the same text. Widening the floor by a factor
+of 25,000 changes the numbers of a model that already runs, so the
+decision goes to Roman and the patch stays outside the tree.
+
+On the way, the check found a defect in the run itself, and that one
+is fixed here. When a run stalls and re-selects its states,
+`simulate()` compiles afresh from the flat model and carries over
+only the method. The stop time and output step come from the
+annotation again, or from the defaults of 1.0 and 1e-3. So
+`simulate --stop 2.5` on a model with no annotation stopped at 1.0
+without a word, which is what m373 read as the `FundamentalWave`
+`IMC_Transformer` running "to its end". And `library check`, which
+sets the stop to ten steps, ran every model that re-selects on to the
+model's whole stop time at the annotation's step: `IMC_Transformer`
+took 9933 Newton iterations in one interval where ten steps would
+have taken a handful.
+
+The spinning pendulum the solver tests already use shows the defect
+in half a second. Told to stop at 0.5 with a step of 0.01, it ran to
+3 on a grid of 0.002. The fix carries both values across the
+re-selection, behind `OXIDELICA_NO_CARRIED_STOP`. The test
+`a_reselected_run_stops_where_the_caller_said_and_not_where_the_model_did`
+fails under the switch (the run stops at t = 3) and passes without it.
+The corpus pair for the fix is below.
+
+Two maps from the remaining time, neither of them in the tree:
+
+- `OvervoltageProtection` refuses not on a block's first step but on a
+  stage of the explicit solver. With the default grid of 1e-4 the
+  first step of `dopri45` puts `CL.v` near -12 V at a stage, where the
+  physics has it at 0.024 V. The unclipped middle branch of `zDiode1`
+  then gives 1.6e15 A, and the refusal of the block ends the run
+  instead of rejecting the step. Under a probe switch that rejects the
+  step on any refusal of a block (`dopri.rs` stages and FSAL,
+  `bdf.rs` Newton), the model runs to 0.4 s on grids of both 1e-4 and
+  1e-5. `CL.v` stays within ±5.56 V, and where the old run reached it
+  agrees with that run to 2e-10 V. Three controls give identical files.
+  But on a ladder of the 34 models of the solver-refusal rows, five
+  Fluid models ran into a ceiling of 150 s each that they pass in
+  seconds without the switch. Rejecting a step costs a whole Newton
+  solve on a large block, and nothing bounds how many are rejected. So
+  the phase has no ceiling, and the probe is kept as
+  `stage_reject_probe_m374.patch`. It wins `OvervoltageProtection` and
+  `TestWaterPumpCheckValve` on `--only` (`/tmp/m374/lad2_on.txt`,
+  `lad3_on.txt`).
+- The `der(Q1.vbx)` blocks of the Spice3 transistor (`r5.mo`, `a0.mo`
+  of m373) refuse in the first evaluation of the segment
+  (`dopri.rs:128`), before any row is recorded. A re-selection resumes
+  from the last row, so here it has nothing to stand on. And at
+  `t = 0` every candidate the victim probe lists weighs 0.0, so a
+  re-selection on the same weights would choose the same victim.
+  Reading a zero column as "not a state here" needs a choice made at
+  the initial point, not a re-selection during the run.
+
+The pair for the fix was taken with one binary, `/tmp/m374/ox374c`,
+built from the final tree, over the corpus without the heavy models
+(`/tmp/m374/pair/on.txt`, `off.txt`; `off` is
+`OXIDELICA_NO_CARRIED_STOP=1`). Both halves give 961 flatten, and the
+run count is 720 against 719, with runnable 678 against 677. One model
+arrives and none leaves. The refusals of the flatten half are
+identical line for line. In the run half one text changes:
+`IMC_YDarc` now refuses with a step size underflow at `t = 0` rather
+than on a Newton direction later in the run.
+
+The model that arrives is `FluidHeatFlow.Examples.ParallelPumpDropOut`,
+and it is not a win. It re-selects at `t = 0.007`. With the fix it
+stops at its ten steps, 0.01, and passes. Without the fix it ran on
+towards its stop time of 2.0 and refused at `t = 0.39`. So the +1
+brings the instrument into line with what it was meant to measure,
+which is ten steps. The model still refuses on its full run. The
+corpus asks for ten steps of every model, and before the fix it asked
+for more of the models that re-select.
+
+The fix also changes how much work the corpus does, and two of the
+library job's work bands will see it. The pair prints
+24,072,510 points and 35,179,936 Newton iterations with the fix,
+against 25,793,799 and 37,595,175 without it. `IMC_YDarc` is one of
+the models the floor script holds apart, at 18,081 points and 97,685
+Newton iterations within 20%. Asked alone with `--only`, it costs
+41,012 points and 196,725 Newton iterations with the fix and
+18,081 and 88,830 without. It does not run either way, so it is no
+victim. What changes is its refusal: it now refuses at its first
+re-selection, inside the ten steps. Before, it ran on into a later
+wall, and that later wall took fewer iterations to reach.
+`Dimmer_RL`, the other model held apart, costs the same either way.
+Without those two, the rest of the corpus falls from 2,112,728 points
+to 368,508, and from 3,165,453 Newton iterations to 642,319. That is
+0.18 and 0.20 of the bands' centres. The models that re-select were
+where most of the corpus's run work went, because each ran on to its
+own stop time. The bands' centres are set from the runner's print,
+and are not moved here from the desk's.

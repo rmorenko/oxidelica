@@ -97,6 +97,15 @@ fn newton_trail() -> bool {
     *ON.get_or_init(|| std::env::var_os("OXIDELICA_NEWTON_TRAIL").is_some())
 }
 
+/// Whether a re-selection compiles the run afresh with the stop time
+/// and output step of the model's annotation, as it did before, rather
+/// than with the ones the caller set. Off by default; the switch
+/// exists so that the two halves of a measurement come from one binary.
+fn carried_stop_off() -> bool {
+    static OFF: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *OFF.get_or_init(|| std::env::var_os("OXIDELICA_NO_CARRIED_STOP").is_some())
+}
+
 /// Whether to refuse a stalled block without first asking whether
 /// what is left of its residual is the floor of the arithmetic. Off
 /// by default; the switch exists so that the two halves of a
@@ -2075,6 +2084,19 @@ impl CompiledModel {
                         }),
                     )?;
                     next.method = self.method;
+                    // Where the run stops and how often it reports are
+                    // the caller's to say, not the model's: `simulate
+                    // --stop` and the ten steps of `library check` are
+                    // both set on the compiled model after it is built.
+                    // A compilation made afresh here reads them from
+                    // the model's annotation again, so before this the
+                    // first re-selection quietly took a ten-step check
+                    // on to the model's whole stop time, and a run
+                    // asked to stop at 2.5 s stopped at the default 1.0.
+                    if !carried_stop_off() {
+                        next.stop_time = self.stop_time;
+                        next.step = self.step;
+                    }
                     merged = Some(match merged {
                         Some(merged) => append_segment(&self.name, merged, stall.partial)?,
                         None => stall.partial,

@@ -648,6 +648,44 @@ fn a_constant_ratio_between_victim_and_alternative_is_no_reason_to_choose_again(
 }
 
 #[test]
+fn a_reselected_run_stops_where_the_caller_said_and_not_where_the_model_did() {
+    // The spinning pendulum below re-selects its states every quarter
+    // turn, and every re-selection compiles the run afresh. The stop
+    // time and output step set on the compiled model after it was
+    // built - which is what `simulate --stop` and the ten steps of
+    // `library check` both do - must survive that, rather than the
+    // fresh build reading them from the annotation again and running
+    // on to t = 3 at the annotation's step.
+    const SPIN: &str = "model P parameter Real g = 9.81; \
+         Real x(start = 0, fixed = true); Real y(start = -1, fixed = true); \
+         Real vx(start = 8, fixed = true); Real vy(start = 0, fixed = true); Real lam; \
+         equation der(x) = vx; der(y) = vy; der(vx) = lam * x; der(vy) = lam * y - g; \
+         x * x + y * y = 1; \
+         annotation(experiment(StopTime = 3, Interval = 0.002, Tolerance = 1e-9)); end P;";
+    let mut compiled = compile(&parse_model(SPIN).unwrap()).unwrap();
+    compiled.stop_time = 0.5;
+    compiled.step = 0.01;
+    let result = compiled.simulate().expect("runs");
+    assert!(result.reselections >= 1, "the run never re-selected");
+    let last = result.rows.last().unwrap()[0];
+    assert!((last - 0.5).abs() < 1e-9, "the run stopped at t = {last}");
+    // Every output point lies on the caller's grid of 0.01; a point an
+    // event placed between them is allowed, a grid of 0.002 is not.
+    let on_fine_grid = result
+        .rows
+        .iter()
+        .filter(|row| {
+            let k = row[0] / 0.002;
+            (k - k.round()).abs() < 1e-6 && ((row[0] / 0.01) - (row[0] / 0.01).round()).abs() > 1e-6
+        })
+        .count();
+    assert!(
+        on_fine_grid < 5,
+        "{on_fine_grid} rows on the annotation's grid of 0.002"
+    );
+}
+
+#[test]
 fn the_stiff_solver_reselects_states_like_the_adaptive_one() {
     // A pendulum in Cartesian coordinates given enough speed to go
     // over the top: the length constraint defines a different
