@@ -36639,3 +36639,77 @@ and 0.2%, which is the three machines now taking their ten steps. Of
 the three, only the `FundamentalWave` one runs past its first switch on
 a full run; the two `Machines` ones stop at the fourth link, which is
 where the road goes next. The floors are left for the runner to raise.
+
+## Where the twenty-two Jacobians came from, and two roads measured empty (m377)
+
+The corpus pair of m376 counted 223 Jacobians with the carried floor
+and 201 without, and m376 could not place the 22: each of the three
+`IMC_Transformer` run alone had seemed to count none either way. Run
+again from the root of the library with one binary (`2c67c3d`, copied
+to `/tmp/m377/ox_base`), the count per model is 10 with the arm and 0
+without for each of the two `Machines` ones, 3 and 0 for the
+`FundamentalWave` one, 8 and 9 for `Rectifier12pulse`, and 4 and 4 for
+`Rectifier6pulse`. That is 10 + 10 + 3 - 1 = 22. The machines that now
+arrive run under BDF and pay for its finite-difference Jacobians, the
+only place the counter ticks (`solvers/mod.rs`, `Jacobian`), while
+without the arm they refused within 17 to 28 Newton iterations, before
+a first one. The inverse the carried floor builds is not counted as a
+Jacobian: `IMC_DOL` counts 11 either way and `IMC_YDarc` 0 either way.
+So the band moved for work the arrivals do, not for a price paid on
+refusals.
+
+The census on `2c67c3d` against m376: the run half holds 235 models in
+146 rows where it held 238 in 146, the flatten half 67 in 39 both
+times, and the names that left are exactly the three `IMC_Transformer`,
+from the Newton-direction row (14 to 11). Nothing arrived.
+
+The road the m376 map drew for the `Spice3` half of `underdetermined`
+was to give the dummy derivative of a demoted `vbx` the derivative of
+its algebraic definition rather than the former state equation. A probe
+that prints, at each reduction, the right-hand side the victim leaves
+behind and every equation naming it (`/tmp/m377/oxp4`) says there is
+nothing to replace. The right-hand side is a bare `der(x)` for every
+victim measured - three of three in the nine-line `r5.mo`, 123 of 123
+in `FourBitBinaryAdder.ONEBIT` - and for that case reduction already
+adds no equation, while the differentiated constraint is already in
+the system: in `r5`, `der(vbx) = der(vbc)`. What refuses is the
+matching. Printed as `build_plan` receives it, `der(Q1.vbx)` is paired
+with `icapbx = capbx*der(vbx)` and the differentiated constraint with
+`der(vbc)`, with `capbx` zero for the whole run because the card leaves
+`XCJC = 1`. More to the point for the corpus, in `RtlInverter` and
+`DifferentialPair` `vbx` is not a victim at all: it stays a state and
+its derivative is solved from the same capacitance row. So the change
+would not reach one model of the family.
+
+The other road, deriving that a capacitance computed by
+`junctionCapRevised(0, ...)` is zero whatever the voltage, was measured
+before being built: a probe that declares `.cc.capbx` and `.cc.capcs`
+zero in the set the existing quench reads (`/tmp/m377/oxz`) gives each
+model exactly what an honest derivation would. None runs. `RtlInverter`
+goes one storey up to a block on `der(Q1.vbe)`, `der(Q1.vbc)` and
+`Q1.B.v` that does not mention `der(Q1.vbe)`; `NAND` and `ONEBIT` to an
+underdetermined block on `der(vbc)`; `DifferentialPair` to an
+initialization that is satisfied but not determined. Why the base and
+collector capacitances read as absent at `t = 0` with a card that sets
+them was not measured. Neither change was built.
+
+The fourth link of the `IMC_Transformer` chain, the re-selection at
+`t = 0.1045` that ends structurally singular, was read from the m376
+trace. The first two selections and the third differ in weight alone.
+On the stator current row the third weighs the rotor angle at 259
+against the stator flux at 108, where the first weighed it at zero; on
+the next current row the load angle at 663 against 108; on the rotor
+current row `phiMechanical` at 3.6e7 against 6.6e6. An angle's weight
+grows with the speed, a flux's does not, and so the greedy choice takes
+the angles on the current rows - though each angle has a flange row of
+its own on which it is the only candidate. By the fifteenth reduction
+the rotor row is left with candidates that all weigh zero, and the
+sixteenth has none. A probe that takes angles out of the candidates
+wherever anything else weighs more than zero (`/tmp/m377/oxbar`, files
+in `/tmp/m377/l4/`) makes the third selection the same as the first,
+and the model runs past `0.1045` to `t = 0.311`, where it refuses on a
+Newton direction in a block of the air-gap currents and the ideal
+switches. It tests the spelling of a name and so is an instrument
+only. The honest form of the rule, not built, is structural: a
+candidate that is the only one another row of the same subset reaches
+is not taken while something else carries weight.
