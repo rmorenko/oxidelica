@@ -1188,7 +1188,18 @@ FLATTEN_FLOOR=961
 # the swing named above, which is left out as there:
 #
 #   722 printed - 1 SpringWithMass = 721
-RUN_FLOOR=721
+#
+# And run 724 = 721 + the three IMC_Transformer models, the two of
+# Machines and the one of FundamentalWave, which the carried floor
+# lets past their first steps (2c67c3d). The runner printed 961 / 726
+# and runnable 844 / 684 on 2c67c3d, in job 112910619622 of run
+# 37655696217 (/tmp/m377/ci_2c67c3d.log); against e259916 its run
+# list gained exactly those three and SMPM_VoltageSource, and lost
+# nothing. Both swings named above ran there this time, and both are
+# left out:
+#
+#   726 printed - 1 SpringWithMass - 1 SMPM_VoltageSource = 724
+RUN_FLOOR=724
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -1417,7 +1428,12 @@ RUNNABLE_FLATTEN_FLOOR=844
 # And runnable run 679 = 676 + the same three, all runnable examples,
 # by the same runner job as `RUN_FLOOR` (e259916, job 112849644622),
 # which printed 680; the one left out is SpringWithMass, as there.
-RUNNABLE_RUN_FLOOR=679
+#
+# And runnable run 682 = 679 + the three IMC_Transformer, all runnable
+# examples, by the same runner job as `RUN_FLOOR` (2c67c3d, job
+# 112910619622), which printed 684; the two left out are
+# SpringWithMass and SMPM_VoltageSource, as there.
+RUNNABLE_RUN_FLOOR=682
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
@@ -1970,7 +1986,18 @@ WORK_DEAREST=12
 # 2026-10-05: the machines count differently on the two platforms and
 # no five-percent centre holds both. The centre is 185, between the
 # two prints, and ten percent around it is 166.5 to 203.5.
-WORK_JACOBIANS=185
+#
+# Moved by the carried floor (2c67c3d), and the rise is named model by
+# model from one binary with the arm set and unset (m377, `--only`
+# from the root of the library): the two Machines IMC_Transformer 10
+# and 10 against 0, the FundamentalWave one 3 against 0, which now run
+# under BDF and pay for its finite-difference Jacobians, and
+# Rectifier12pulse 8 against 9. That is +22, the desk pair's 201 ->
+# 223 (/tmp/m376/pair). The inverse the arm builds is not counted:
+# IMC_DOL counts 11 and IMC_YDarc 0 either way. The runner printed 234
+# (run 37655696217, job 112910619622), and the centre is set there:
+# ten percent around it is 210.6 to 257.4, which holds the desk's 223.
+WORK_JACOBIANS=234
 WORK_JACOBIANS_PPM=100000
 # The pair is held on a line of its own and to a band of its own, an
 # order of magnitude wide in either direction rather than five percent:
