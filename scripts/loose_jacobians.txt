@@ -10,9 +10,6 @@
 Modelica.Magnetic.FluxTubes.Examples.SolenoidActuator.ComparisonQuasiStatic
 Modelica.Magnetic.FluxTubes.Examples.SolenoidActuator.ComparisonPullInStroke
 #
-# IMC_YDarc since 2026-10-05 (m356). It reaches the integrator and is
-# refused for a step underflow at t = 0, and what it builds before the
-# refusal depends on the platform: 22 Jacobians on the desk, 11 on the
-# build machine. Summed with the rest it put the two machines 1.106
-# apart, wider than the band of five percent can hold around anything.
-Modelica.Electrical.Machines.Examples.InductionMachines.IMC_YDarc
+# IMC_YDarc stood here from 2026-10-05 (m356) to 2026-10-07, when its
+# work left every band on Roman's word (`WORK_UNCOUNTED` in
+# `scripts/library_floor.sh`).

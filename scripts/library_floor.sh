@@ -1839,9 +1839,22 @@ WORK_BODIES=1422042
 #
 #   points  370081 + 61614  = 431695
 #   newton  651209 + 296547 = 947756
-WORK_POINTS=431695
+#
+# The word came on 2026-10-07: IMC_YDarc is counted in no band (see
+# `WORK_UNCOUNTED`). The runner's print for 2c67c3d (run 37655696217,
+# /tmp/m377/ci_2c67c3d.log) gave it 725070 points and 9083514 Newton
+# steps, thirty times what it spent for e259916, and the rest of the
+# corpus without it and without Dimmer_RL is the centre:
+#
+#   points  30820097 - 29718304 - 725070  = 376723   (370081 + 6642)
+#   newton  52473967 - 42669790 - 9083514 = 720663   (651209 + 69454)
+#
+# Over e259916 the rest grew by the three IMC_Transformer models the
+# carried floor let run, which the runner names among the dearest by
+# Newton steps at 24845, 24845 and 18227.
+WORK_POINTS=376723
 WORK_POINTS_PPM=100000
-WORK_NEWTON=947756
+WORK_NEWTON=720663
 WORK_NEWTON_PPM=100000
 # And Dimmer_RL, whichever way it falls, centred between the desk's run
 # under the series and the machine's printed refusal:
@@ -1885,6 +1898,20 @@ WORK_NEWTON_PPM=100000
 # One line per model held apart: the name, its points, its Newton steps.
 WORK_APART="Modelica.Electrical.PowerConverters.Examples.ACAC.Dimmer_RL 27371282 39432785"
 WORK_APART_PPM=200000
+# The models whose work is counted in no band at all: not in the rest,
+# not apart, not in the Jacobians and not in the Jacobians apart. Each
+# is still run, its refusal still counts against the floors, and its
+# work is still printed among the dearest; only no band holds it.
+#
+# IMC_YDarc on Roman's word of 2026-10-07. It is refused, and the road
+# to the refusal belongs to the machine and not to the compiler: for
+# one and the same 2c67c3d the desk spends 2363 points, 12694 Newton
+# steps and 2 Jacobians, the runner 725070 points, 9083514 Newton
+# steps and about 20028 Jacobians (22002 apart, less the solenoids'
+# 1974). The models that run cost the same on both machines, the
+# dearest lists agreeing name for name, so a band that holds this one
+# holds a coin toss. It owned the last three red library jobs alone.
+WORK_UNCOUNTED="Modelica.Electrical.Machines.Examples.InductionMachines.IMC_YDarc"
 # How many of the dearest models the log names on each count.
 WORK_DEAREST=12
 # Jacobians refreshed from /tmp/m278/k_on.txt, 605, after the m278
@@ -2027,6 +2054,12 @@ WORK_JACOBIANS_PPM=100000
 #
 # IMC_YDarc joined the pair on 2026-10-05 (m356) and adds 22 on the
 # desk and 11 on the runner, 1996 and 1985, inside the band unmoved.
+#
+# And left it on 2026-10-07 for no band at all (`WORK_UNCOUNTED`),
+# after the runner printed 22002 for 2c67c3d: about 20028 of it was
+# IMC_YDarc's, against 2 on the desk. Without it the pair is the
+# solenoids' 1974 on both machines (desk 1841 + 133, `--only`), and
+# the centre stands where it was.
 WORK_JACOBIANS_APART=1974
 WORK_JACOBIANS_APART_PPM=900000
 WORK_PERCENT=5
@@ -2288,13 +2321,34 @@ while read -r apart_model apart_points_written apart_newton_written; do
   apart_points_sum=$((apart_points_sum + apart_points))
   apart_newton_sum=$((apart_newton_sum + apart_newton))
 done <<< "$WORK_APART"
+# The models no band counts, taken out of the rest the same way and
+# held to nothing. Not named by the report is a failure here too: a
+# model that left the corpus would otherwise subtract a silent zero.
+uncounted_jacobians_sum=0
+for uncounted_model in $WORK_UNCOUNTED; do
+  uncounted_line="$(echo "$each_work" | awk -v m="$uncounted_model" '$2 == m' || true)"
+  uncounted_points="$(echo "$uncounted_line" | awk '{ print $3 }')"
+  uncounted_newton="$(echo "$uncounted_line" | awk '{ print $5 }')"
+  uncounted_jacobians="$(echo "$uncounted_line" | awk '{ print $7 }')"
+  if [ -z "$uncounted_points" ] || [ -z "$uncounted_newton" ] || [ -z "$uncounted_jacobians" ]; then
+    echo "WORK: the report did not say what $uncounted_model cost"
+    status=1
+    apart_named=0
+    continue
+  fi
+  echo "work not counted: $uncounted_model $uncounted_points points, $uncounted_newton newton, $uncounted_jacobians jacobians"
+  apart_points_sum=$((apart_points_sum + uncounted_points))
+  apart_newton_sum=$((apart_newton_sum + uncounted_newton))
+  uncounted_jacobians_sum=$((uncounted_jacobians_sum + uncounted_jacobians))
+done
 if [ "$apart_named" -eq 1 ]; then
   points_all="$(work_of points)"
   newton_all="$(work_of newton)"
+  jacobians_all="$(work_of jacobians)"
   held "points evaluated" "${points_all:+$((points_all - apart_points_sum))}" "$WORK_POINTS" "$WORK_POINTS_PPM"
   held "newton iterations" "${newton_all:+$((newton_all - apart_newton_sum))}" "$WORK_NEWTON" "$WORK_NEWTON_PPM"
+  held "jacobians" "${jacobians_all:+$((jacobians_all - uncounted_jacobians_sum))}" "$WORK_JACOBIANS" "$WORK_JACOBIANS_PPM"
 fi
-held "jacobians" "$(work_of jacobians)" "$WORK_JACOBIANS" "$WORK_JACOBIANS_PPM"
 held "jacobians counted apart" "$(work_of "jacobians apart")" "$WORK_JACOBIANS_APART" "$WORK_JACOBIANS_APART_PPM"
 
 if [ "$status" -eq 0 ]; then
