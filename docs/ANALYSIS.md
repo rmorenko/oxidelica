@@ -36316,7 +36316,13 @@ both switches, all five run, and so does `Analog.Examples.Rectifier`.
 Six controls do not move (`/tmp/m373/floor_both_probe.txt`).
 `Rectifier6pulse` gives a load voltage with a mean of 129.3 V and a
 range of 113.9 to 140.8 V. The ideal bridge gives 135 V, and the line
-peak is 141.4 V. `IMC_Transformer` still refuses on the `simulate`
-road. Accepting a block at 1e4 ulps is a choice that could give a
+peak is 141.4 V. What "run" means here has to be stated, because `library check`
+takes a model only ten steps (`run_a_little`), so `IMC_Transformer`
+is judged at 1 ms. Run to its own stop time with `simulate`, the
+`Machines.Transformers` one still refuses at `t = 0.0127` with the
+same text, so it is waiting on a third link. `Analog.Examples.Rectifier`,
+`Rectifier6pulse` and the `FundamentalWave` `IMC_Transformer` run to
+their ends (`/tmp/m373/num/`). The six are six on the corpus count,
+and fewer than six on the full road. Accepting a block at 1e4 ulps is a choice that could give a
 wrong number, so the next step is to check the six curves against a
 reference, and only then run a pair. Nothing of this is in the tree.
