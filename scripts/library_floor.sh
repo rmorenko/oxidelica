@@ -1168,7 +1168,16 @@ FLATTEN_FLOOR=961
 # d58700e, present on afd29e6, 75b6878 and fa896d0. A floor that holds
 # a swing turns red the first time it swings back, so it is left out
 # until it has stood still longer. Set from the runner, less the swing.
-RUN_FLOOR=717
+#
+# And run 718 = 717 + ParallelPumpDropOut, which a re-selected run now
+# stops at the caller's ten steps instead of running on to its own
+# stop time and refusing there (4a9082d). The runner printed 961 / 719
+# and runnable 844 / 677 on 4a9082d, in job 112761438351 of run
+# 37612047384 (/tmp/m375/ci_4a9082d.log); against fa896d0 its run list
+# gained ParallelPumpDropOut and lost nothing. The 719 holds
+# SpringWithMass, the swing named above, which is left out as there.
+# Set from the runner, less the swing.
+RUN_FLOOR=718
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -1390,7 +1399,10 @@ RUNNABLE_FLATTEN_FLOOR=844
 # And runnable run 675 = 674 + SMPM_Mains, a runnable example, by the
 # same runner job as `RUN_FLOOR` (fa896d0, job 112639640479), which
 # printed 676; the one left out is SpringWithMass, as there.
-RUNNABLE_RUN_FLOOR=675
+# And runnable run 676 = 675 + ParallelPumpDropOut, a runnable example,
+# by the same runner job as `RUN_FLOOR` (4a9082d, job 112761438351),
+# which printed 677; the one left out is SpringWithMass, as there.
+RUNNABLE_RUN_FLOOR=676
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
@@ -1751,9 +1763,22 @@ WORK_BODIES=1422042
 #
 #   points  2060155 - 585  = 2059570
 #   newton  3147388 - 1999 = 3145389
-WORK_POINTS=2059570
+#
+# Moved on 2026-10-07 (m375) to the runner's print for 4a9082d (job
+# 112761438351, /tmp/m375/ci_4a9082d.log), and moved by a factor of
+# five, which is not a loss. The old centres measured a defect: a model
+# that re-selected its states ran on to its own stop time at the
+# annotation's step instead of the ten steps the check asks for, and
+# the rest of the corpus was mostly those runs. 4a9082d carries the
+# caller's stop across the re-selection, and these are the first
+# centres that count ten steps. IMC_YDarc is counted in them now (see
+# `WORK_APART`), so the centre is the runner's rest plus that model:
+#
+#   points  368995 + 61285  = 430280
+#   newton  644528 + 293486 = 938014
+WORK_POINTS=430280
 WORK_POINTS_PPM=100000
-WORK_NEWTON=3145389
+WORK_NEWTON=938014
 WORK_NEWTON_PPM=100000
 # And Dimmer_RL, whichever way it falls, centred between the desk's run
 # under the series and the machine's printed refusal:
@@ -1787,9 +1812,15 @@ WORK_NEWTON_PPM=100000
 #   newton  97685 +- 20%  =  78148 .. 117222
 #           the runner's print, the desk's 88830 x0.909
 #
+# IMC_YDarc held apart no longer, on Roman's word of 2026-10-07. It is
+# refused for a Newton direction that does not descend, and what it
+# spends before that depends on the machine: 41012 points and 196725
+# Newton steps on the desk against 61285 and 293486 on the runner for
+# 4a9082d, a factor of 1.5 that no centre with twenty percent holds on
+# both. Its work goes back into the rest of the corpus.
+#
 # One line per model held apart: the name, its points, its Newton steps.
-WORK_APART="Modelica.Electrical.PowerConverters.Examples.ACAC.Dimmer_RL 27371282 39432785
-Modelica.Electrical.Machines.Examples.InductionMachines.IMC_YDarc 18081 97685"
+WORK_APART="Modelica.Electrical.PowerConverters.Examples.ACAC.Dimmer_RL 27371282 39432785"
 WORK_APART_PPM=200000
 # How many of the dearest models the log names on each count.
 WORK_DEAREST=12
