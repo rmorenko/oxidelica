@@ -36169,3 +36169,118 @@ per-model copies of functions for another reason. Resolving `f` at
 reader need no key at all, and `q`'s `f` would resolve to `g` as it
 stands. Three links, so no second reader is needed; the change is a
 silent-wrong-number fix and wants its own pair, so it is not built here.
+
+## What a function alias filled in is read for the instance that calls it (m373)
+
+The fault mapped in the chapter before is mended. `fn2.mo` on `fa896d0`
+gave `q.y = 4` where `2` was meant, and gives `2` now. The fix is not
+the copy that chapter proposed. The writer already filed what an alias
+filled in under the instance as well as under the bare class, so the
+copy was not needed. What was missing was the reader's key: it is now
+told which instance it is building (`BuildingInstance` in
+`statements.rs`, opened by `instantiate` beside `Inlined::open`). Three
+pieces:
+
+1. The reader at `inlining.rs:1666` asks `filled_inputs_for_call`. The
+   instance's own filing answers first.
+2. An alias of a function that fills nothing in now writes an empty
+   filing for its instance (`scoping.rs`). Before, the absence fell
+   through to the class table, and that table held the neighbour's
+   values. This was the leak itself.
+3. A call that reaches the function through another instance, such as
+   `w1.f(2)`, has no filing of its own. There the class table still
+   answers, but only while every alias of the model agrees. Where two
+   aliases filled the function in differently, the model is refused by
+   name. Before, the last writer's numbers came out: `y = 6` where `4`
+   was meant.
+
+`OXIDELICA_FILLED_INPUTS_BY_CLASS=1` reads by the class alone, as
+before, so one binary gives both numbers. Small models, one binary
+(`/tmp/m373/fn{2,3,4,5}.mo`), the switch off and on:
+
+| model                                      | values      | new     | old       |
+| ------------------------------------------ | ----------- | ------- | --------- |
+| `fn2`: `p` (`a = 2`) declared first, `q`   | `p.y, q.y`  | 4, 2    | 4, 4      |
+| `fn3`: `q` first, then `p`, then `r` `a=3` | `q, p, r.y` | 2, 4, 6 | 2, 4, 6   |
+| `fn4`: `w.p` redeclared, cousin `u.q`      | `w.p, u.q`  | 4, 2    | 4, 4      |
+| `fn5`: `w1.f(2)`, `w1`/`w2` disagree       | `y`         | refused | 6 (wrong) |
+
+Two tests check numbers and refusals. Both were seen red under the
+switch. The first runs `fn2` both ways round and `fn4`, and checks the
+four values. The second checks that `fn5` is refused by name.
+
+The steps through `--only` from `.msl` (`/tmp/m373/ox373a`) are the
+three running models that redeclare a function with modifiers:
+`Elementary.Surfaces`, `Elementary.UserDefinedGravityField` and
+`TestControlledPump`. Next are the pump and heat-exchanger examples of
+the shift before. Under both readings each one runs, or refuses with
+the same text.
+
+The corpus pair is one binary built from `b0a5076` (`/tmp/m373/ox373b`),
+run with `--list --refused` and the giants left out by default. The new
+half is `/tmp/m373/on.txt` and the old half is `/tmp/m373/off.txt`. Both
+give 961 flatten and 719 run, and runnable 844 and 677. The flatten
+lists and the run lists are identical name for name. The 309 refusal
+texts are identical line for line. The fix moves no list. It changes a
+number inside models that already ran, and the corpus does not compare
+numbers. So the witnesses for it are the tests and the small models,
+not the pair. In the corpus, the redeclared functions with modifiers
+are the pumps, the gravity field and the visualizer surfaces. Each of
+those is one instance or one agreeing filling per model. That is why
+nothing moved, and why the fault waited to be found by a small model.
+
+## The census on `fa896d0`, against `m370` (m373)
+
+`/tmp/m373/census.txt`, `refusals.sh .msl both`, counted between the
+section markers: 67 would not flatten, in 39 rows; 242 would not run,
+in 146 rows. The census of `m370` (`5e42b8f`) gives 67 in 39 and 243
+in 146. Three rows moved and no row was born or died:
+
+| row                    | m370 | m373 |
+| ---------------------- | ---- | ---- |
+| `singular Jacobian`    | 27   | 25   |
+| `the Newton direction` | 16   | 15   |
+| `underdetermined`      | 5    | 7    |
+
+The one model gone from `Newton direction` is `QuasiStatic ...
+SMPM_Mains`, which now runs. The two that moved from `singular` to
+`underdetermined` are `FundamentalWave ... SMEE_DOL` and
+`SMEE_Rectifier`, which is what the pair of `m372` already printed
+(`/tmp/m372/on.txt`). The other five in `underdetermined` are the
+Spice3 transistors with a capacitance of zero.
+
+## The Spice3 half of `underdetermined` in nine lines (m373)
+
+`Q1.mo` of the shift before can be shrunk further while its refusal
+survives. `/tmp/m373/small/r5.mo` has one `Q_NPNBJT` with the default
+model card, a constant current source into the base, and the collector
+and emitter grounded. It is refused with the same block
+`{der(Q1.vbx)}`, which "does not mention" its unknown. With the base
+grounded too, the model runs. With a resistor to ground in place of the
+source, the block is the same one, refused as underdetermined. So the
+breed is held by none of the parts that were thrown out: not the
+collector resistor, not the supply, not the fixed starts and not `CJC`.
+
+`OXIDELICA_VICTIM_PROBE` names the link. The first reduction is on
+`0 = Q1.B.v - Q1.Binternal`. That is `irb*m_baseResist = B.v -
+Binternal` with a base resistance of zero by default, so the outer and
+inner base are one node. That reduction demotes `Q1.vbx` itself. Its
+derivative becomes a dummy, and the only row that names the dummy is
+`icapbx = capbx*der(vbx)`. In the run, `capbx` is zero (`XCJC = 1`).
+On the original `Q1`, with `RB = 100`, a different state is demoted,
+but the block is the same: `der(vbx)` is solved from the capacitance
+row alone. Setting `XCJC = 0.5` makes `capbx` about `1e-12`, and the
+1x1 block reads as underdetermined because its column is below the
+noise of the difference quotient.
+
+The synthetic forms do not take the breed. A zero coefficient on the
+derivative of an algebraic variable, as a parameter, as a value
+decided in the run, through an implicit node and through a body the
+compiler cannot differentiate, runs in all four forms
+(`/tmp/m373/small/Q1{d,f,g,h2}.mo`). What the transistor adds is that
+`der(vbx)` is an unknown of a block, and the capacitance row is the
+only row that can determine it. A map, not a fix. Two roads are open:
+a variable whose derivative is named only where a function's output
+multiplies it should not be a state, or the capacitance row should
+solve for `icapbx`, with `der(vbx)` taken from the differentiated
+`vbx = B.v - Cinternal`.
