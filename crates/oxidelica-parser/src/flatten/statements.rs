@@ -1689,6 +1689,10 @@ pub(super) fn specialization(name: &str) -> Option<ClassDef> {
     SPECIALIZED.with(|held| held.borrow().get(name).cloned())
 }
 
+/// What a redeclaration filled in, by the instance it was gathered for
+/// and a name: the class the alias resolved to, or the alias itself.
+type FilledAt = HashMap<(String, String), Vec<(String, Expr)>>;
+
 thread_local! {
     /// Inputs a redeclaration filled in on the function it named.
     ///
@@ -1712,8 +1716,7 @@ thread_local! {
     /// The aliases of a class are gathered at the very prefix its
     /// components are then instantiated under, so the pair is the
     /// whole of what the reader has to match.
-    static FILLED_AT: RefCell<HashMap<(String, String), Vec<(String, Expr)>>> =
-        RefCell::new(HashMap::new());
+    static FILLED_AT: RefCell<FilledAt> = RefCell::new(HashMap::new());
 
     /// The same again, by the name of the alias rather than by the
     /// class it resolved to. A redeclaration handed down names the
@@ -1721,8 +1724,7 @@ thread_local! {
     /// that was given `redeclare model F2 = Flow(k = 2)` - and what F2
     /// filled in has to travel with it into `p`, where the table above
     /// is asked under `p`'s own prefix.
-    static FILLED_BY_ALIAS: RefCell<HashMap<(String, String), Vec<(String, Expr)>>> =
-        RefCell::new(HashMap::new());
+    static FILLED_BY_ALIAS: RefCell<FilledAt> = RefCell::new(HashMap::new());
 
     /// What a package alias wrote on the package it names.
     ///

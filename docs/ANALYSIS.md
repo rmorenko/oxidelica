@@ -35688,7 +35688,7 @@ the second binary (`/tmp/ox371b`) the exchanger's refusal is the old
 text again, both ways (`/tmp/m371/hex_b0.txt`, `hex_b1.txt`).
 
 Not closed, and named here so that it is not found a second time: the
-same table read for a *function*. `redeclare function f = g(a = 2)` on
+same table read for a _function_. `redeclare function f = g(a = 2)` on
 one component, a neighbour of the same class leaving `f = g` with
 `g`'s default `a = 1`, and both calls come out with 2
 (`/tmp/m371/small/fn2.mo`, `q.y = 4` where 2 is owed). The function
@@ -35810,3 +35810,28 @@ initial equations. The next measure is the matching of the initial
 system - why an equation that fixes `medium.T` outright is spent on
 `U` rather than solved for `medium.T` and the rest computed forward -
 and it is a question for the initial matching, not for Newton.
+
+One link of that is already visible. The volume writes
+`Medium.BaseProperties medium(preferredMediumStates = true, ...)`
+(`Fluid/Interfaces.mo:552`; `oxidelica why` gives the parameter
+`true`), and moist air turns that into `StateSelect.prefer` on
+`medium.p`, `medium.T` and `medium.Xi` (`Media/Air/MoistAir.mo:37-41`).
+The compiler keeps `volume1.U` and `volume1.m` as the states instead,
+and with them the initial equations on `p` and `T` have nothing to
+fix but through an algebraic loop. Is the `prefer` being ignored?
+Asked with a twelve-line volume (`/tmp/m371/small/ss.mo`: `p` and `T`
+with `stateSelect` through a parameter, `ss2.mo` with a literal
+`StateSelect.prefer`, `m = V*p/(R*T)`, `U = m*cv*T`, `der(m)` and
+`der(U)` written, `p` and `T` fixed by initial equations): in both the
+states stay `m` and `U`, the initial equations reach `m` and `U`, and
+the model runs and gives the right numbers. So `prefer` is not read in
+either spelling - and in a small model that costs nothing, because the
+initial loop it builds is two unknowns that Newton solves at once.
+What it costs in the trace-substance test is the same construction at
+21 unknowns started from the nominal `1e6` of the multiport's enthalpy.
+Two roads lie open and neither was taken: honour `prefer` in state
+selection, which changes which states index reduction keeps across
+every fluid model and is to be measured by the list of victims; or
+give the initial loop a better start for what flows out of the
+multiport. The second is narrower and does not change the compiler's
+states.
