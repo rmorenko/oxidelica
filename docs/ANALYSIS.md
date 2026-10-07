@@ -36284,3 +36284,39 @@ a variable whose derivative is named only where a function's output
 multiplies it should not be a state, or the capacitance row should
 solve for `icapbx`, with `der(vbx)` taken from the differentiated
 `vbx = B.v - Cinternal`.
+
+## The Newton-direction row, split by how far the refused block stood from its solution (m373)
+
+The census row `the Newton direction of algebraic loop` holds 15 models
+on `fa896d0`. For each, `/tmp/m373/rows_over.py` reads the last Newton
+iteration of the refused block (`OXIDELICA_NEWTON_TRAIL`, binary
+`/tmp/m373/ox373b`, `--only` from `.msl`, files in `/tmp/m373/nd/`). It
+names the rows that stand over the first arm of the convergence test,
+`|f| <= 1e-10 * (1 + |v|)`. The row splits in two:
+
+- Five transformers stand one row over, by a factor of 1.1 to 7:
+  `Transformers.Rectifier6pulse`, and `IMC_Transformer` in
+  `Machines.InductionMachines`, `Machines.Transformers` and
+  `FundamentalWave`. The row in `Rectifier6pulse` is
+  `der(core.i2[2]) - der(core.plug_p2.pin[2].i) = 0`. In the three
+  `IMC_Transformer` models it is `transformer.l1sigma.inductor[1].v`
+  at `t = 0`.
+- Ten have not converged at all: every row of the block stands 1e2 to
+  1e14 over. These are `OvervoltageProtection` and the Fluid tests.
+
+The five near the floor are refused by the floor test
+(`on_arithmetic_floor`), and for two reasons. A row written as a
+difference of two derivatives sits at 1e4 ulps of its loudest term,
+where the test allows 4. And a row whose every term is rounding noise
+near `1e-33` has no absolute arm to fall under, so at 1e15 ulps it
+fails the test, which reads it as not on the floor. A probe patch,
+kept outside the tree as `floor_abs_probe_m373.patch`, puts both
+behind switches, and the chain was walked to its end on `--only`. With
+both switches, all five run, and so does `Analog.Examples.Rectifier`.
+Six controls do not move (`/tmp/m373/floor_both_probe.txt`).
+`Rectifier6pulse` gives a load voltage with a mean of 129.3 V and a
+range of 113.9 to 140.8 V. The ideal bridge gives 135 V, and the line
+peak is 141.4 V. `IMC_Transformer` still refuses on the `simulate`
+road. Accepting a block at 1e4 ulps is a choice that could give a
+wrong number, so the next step is to check the six curves against a
+reference, and only then run a pair. Nothing of this is in the tree.
