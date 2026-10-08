@@ -1509,6 +1509,32 @@ fn reduce_index(
             }
         }
         let Some((failed_eq, visited)) = failed else {
+            // Every equation has an unknown, which is what the matching
+            // can see. A constraint on states written as the sum of
+            // several linear equations is what it cannot, and it is
+            // written out here as one equation so that the matching
+            // stumbles on it and reduction takes it like any other -
+            // see the `hidden` module for the five-phase star.
+            if hidden_constraint_enabled() {
+                if let Some((replaced, lhs)) =
+                    crate::hidden::hidden_constraint(&algebraic_eqs, &unknowns, &states, params)
+                {
+                    if std::env::var_os("OXIDELICA_VICTIM_PROBE").is_some() {
+                        let (old_l, old_r) = &algebraic_eqs[replaced];
+                        eprintln!(
+                            "hidden-constraint: {} = {} stands in for {} = {}",
+                            lhs.describe(),
+                            0,
+                            old_l.describe(),
+                            old_r.describe()
+                        );
+                    }
+                    algebraic_eqs[replaced] = (lhs, Expr::Number(0.0));
+                    solved_for.retain(|(index, _), _| *index != replaced);
+                    solve_shapes.retain(|(index, _), _| *index != replaced);
+                    continue;
+                }
+            }
             break (matched_eq, eq_vars, n_alg);
         };
 

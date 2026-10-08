@@ -1459,3 +1459,36 @@ fn a_record_redeclared_by_an_extends_comes_apart_into_its_own_fields() {
         "leaf[2].x = {second}"
     );
 }
+
+#[test]
+fn index_reduction_finds_a_star_hidden_in_a_sum_of_linear_equations() {
+    // A three-resistor star fed through a zero-sequence inductor. No
+    // single equation constrains the state `i0`: the matching gives
+    // `3*i0 = i1 + i2 + i3` to a phase current and the star's
+    // `i1 + i2 + i3 = 0` to another, and every equation has an
+    // unknown. Added together they say `3*i0 = 0`, which is the
+    // constraint reduction must take - left alone, `v0` and `vs` are
+    // free in a block whose Jacobian has a zero row, and the run is
+    // refused. The five-phase machines of the library meet this as
+    // a floating star.
+    //
+    // With `i0` held at zero, `v0 = L*der(i0)` is zero, the star point
+    // sits at the mean of the three sources, and each current is its
+    // source's distance from that mean over R.
+    let result = run("model Toy parameter Real R = 2; parameter Real L = 0.1; \
+         Real i0(start = 0); Real v0; Real vs; Real i1; Real i2; Real i3; \
+         equation L * der(i0) = v0; 3 * i0 = i1 + i2 + i3; \
+         R * i1 = sin(time) - v0 - vs; R * i2 = sin(time + 2) - v0 - vs; \
+         R * i3 = sin(time + 4) - v0 - vs; i1 + i2 + i3 = 0; \
+         annotation(experiment(StopTime = 1.0, Interval = 0.5)); end Toy;");
+    let value = |name: &str| {
+        let index = result.columns.iter().position(|c| c == name).unwrap();
+        result.rows.last().unwrap()[index]
+    };
+    let mean = (1.0f64.sin() + 3.0f64.sin() + 5.0f64.sin()) / 3.0;
+    assert!(value("i0").abs() < 1e-9, "i0 = {}", value("i0"));
+    assert!(value("v0").abs() < 1e-9, "v0 = {}", value("v0"));
+    assert!((value("vs") - mean).abs() < 1e-9, "vs = {}", value("vs"));
+    let i1 = (1.0f64.sin() - mean) / 2.0;
+    assert!((value("i1") - i1).abs() < 1e-9, "i1 = {}", value("i1"));
+}

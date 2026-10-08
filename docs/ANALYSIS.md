@@ -37236,3 +37236,137 @@ with plus one and the other with minus one. The cell's heat balance (row 5) name
 slope there is zero, so what fixes the loss is not in the block. A
 power read off a bus and a heat flow read off a sensor, equal to each
 other and to nothing else here: not a floating star.
+
+## The five-phase star, found as a sum of two equations (m381)
+
+The map of m380 named two roads for the four `ComparisonPolyphase`
+models: a rank test on the star before matching, or a block that sends
+its zero row back to reduction. The probe on the small five-phase
+machine (`/tmp/m380/small/M5.mo`) settled the choice by reading the
+equations the matching receives, not the block it hands on. Two of
+them are the whole story:
+
+```text
+zeroInductor.m * zeroInductor.i0 = i[1] + i[2] + i[3] + i[4] + i[5]
+(-tb.star.pin_n.i) + (-tb.star.plug_p.pin[1].i) + ... + (-pin[5].i) = 0
+```
+
+Through the connection equations, each `tb.star.plug_p.pin[k].i` is
+`zeroInductor.i[k]` with a sign, and `tb.starpoint.i = 0` closes the
+star. Added together, every phase current cancels and what is left is
+`m * i0 = 0`: a constraint on a state that no single equation writes.
+With three phases the matching cannot avoid it, because the two
+space-phasor states fix every phase current and the sum equation can
+only take `i0`. With five it has algebraic currents to spare, gives
+the sum to `zeroInductor.i[3]`, matches every equation and never calls
+reduction. Road (a) in its literal form, a rank test of the star
+alone, would not see it either: the star's own row is full rank, and
+the dependency is between the star and the zero inductor.
+
+So the change reads the linear equations as integer rows once the
+matching has succeeded, eliminates the unknowns exactly, and where a
+combination is left that names a state and no unknown, writes it out
+as one equation in place of a member of the combination
+(`crates/oxidelica-sim/src/hidden.rs`). The matching then stumbles on
+it and reduction takes it like any other: `m * i0 = 0` is
+differentiated and `i0` is demoted. It is a fact of the structure -
+integer coefficients, exact arithmetic, no tolerance, no name read -
+and a coefficient that is not a nonzero whole number takes the
+equation out of the search, which can only miss a constraint. Zero is
+refused for the reason the quench was: a term scaled by a parameter
+worth zero stands in the rest of the compiler, and the test
+`a_zero_element_of_an_array_parameter_does_not_quench_the_term_it_scales`
+caught a first version that let it fall out. The search is bounded by
+the work of elimination and gives up silently past the bound.
+`OXIDELICA_NO_HIDDEN_CONSTRAINT=1` matches as before.
+
+The small models, one binary (`/tmp/ox381c`) with the switch off and
+on: `M5` and `M6` run, `M5` agrees with its grounded twin `M5g` to
+`load.w` 0.52140028 against 0.52140029 at 0.1 s; `M3` writes the same
+CSV byte for byte; `M5l` reaches the different wall it reached in
+m380, now after the star is taken; `M6l` refuses unchanged. The test
+`index_reduction_finds_a_star_hidden_in_a_sum_of_linear_equations` is
+a three-resistor star behind a zero inductor with no library, checks
+the star point at the mean of the three sources to 1e-9, and is red
+with the switch off.
+
+The ladder of controls, one model at a time from the same binary
+(`/tmp/m381/ctl/`): `Rectifier12pulse`, QS `SMEE_Generator`,
+`TransformerTestbench` and `CauerLowPassAnalog` write the same CSV
+byte for byte with the switch off and on, and `IMC_DOL` refuses with
+the same text. Of the five-phase comparisons,
+`SMR_Inverter_Polyphase` and `SMPM_Inverter_Polyphase` now run, and
+they check themselves: each simulates the five-phase machine beside
+its three-phase twin, and the two agree in angle, speed and torque to
+1e-10 over the whole second, with `zeroInductor.i0` of the five-phase
+machine identically zero. `SMEE_Generator_Polyphase` and
+`IMC_DOL_Polyphase` take the five-phase star as well
+(`/tmp/m381/sgp.txt`, `idp.txt`), and what is left in their refused
+block is the three-phase twin's star - `terminalBox3.star.pin_n.v`
+with `*3.stator.zeroInductor.v0` - whose reduction is made. That is
+the family of `SMEE_DOL` and `IMC_DOL` (item 2 of the queue), a
+different layer, and `IMC_DOL_Polyphase` moved there from `singular
+Jacobian` to `underdetermined algebraic loop` on the same unknowns.
+`PolyphaseRectifier` finds no hidden constraint and refuses unchanged:
+its zero row cancels through the tearing's inner assignments, not
+through a sum of linear equations, so the one sentence m380 found the
+three to share does not make them one cause.
+
+The pair, one binary with the switch off and on over the main pass
+(`/tmp/m381/off.txt`, `/tmp/m381/on.txt`): flattened 961 and 961 with
+the same list, ran 734 and 736. The run lists differ by exactly
+`SMR_Inverter_Polyphase` and `SMPM_Inverter_Polyphase` arriving, and
+none leaving. In the refusal rows of the run half, the three
+`singular Jacobian` rows of those two and of `IMC_DOL_Polyphase`
+leave, and one `underdetermined algebraic loop` row arrives for
+`IMC_DOL_Polyphase`; nothing else moves. The floors are left for the
+runner's print.
+
+### Machines `SMEE_DOL` and `SMEE_Rectifier`: the cone is singular only where its Newton starts (m381, a map)
+
+The summary of m379 left both with one unweighed tie: reduction 2,
+`airGap.spacePhasor_s.i_[2] + lssigma.spacePhasor_b.i_[2] = 0`, whose
+joint weighing came back unknown for every candidate, so the tie fell
+to the walk and took `lssigma.i_[1]`. A probe built for one run and
+taken out again (`state/cone_forward_probe_m381.patch`, the patch of
+m379 no longer applies to this tree) printed the Jacobian the cone's
+Newton gives up on (`/tmp/m381/esd2.txt`). It is 24 by 24, and its
+column `airGap.i_sr[1]` is zero in every row. The one definition that
+reads `i_sr[1]` is
+`i_sr[1] = i_ss[1] - (RotationMatrix[1,1]*i_sr[1] + RotationMatrix[1,2]*i_sr[2])`,
+and at the first iterate `RotationMatrix[1,1]` still stands at its
+start value 0 - the gap of its own definition is `-1`, where `cos(0)`
+is 1. The cone's Newton evaluates every definition from the raw start
+values, so a matrix entry that an explicit definition would give at
+once is zero on the first step, and the step cannot be taken. Nothing
+singular in the machine: the rotation at `gamma = 0` is the identity.
+
+Measured, with every explicit definition of the cone worked out from
+the start values first and the Newton begun from there
+(`M381_CONE_FORWARD`, probe only): the reduction-2 cone settles, and
+the joint weights are `lssigma.i_[1]` 0, `airGap.psi_mr[2]` 209.4,
+`lssigma.i_[2]` -1 and `damperCage.spacePhasor_r.i_[2]` 1, so the
+undetermined current drops out of the tie and `psi_mr[2]` is demoted
+(`/tmp/m381/esd3.txt`). The singular block at t = 0 is gone in both
+models. `SMEE_DOL` runs to t = 0.005 and stops at the re-selection the
+monitor asks for, whose states are not those of the first stretch
+(two arrive: `der(inertiaRotor.flange_b.phi)` and `der(flange.phi)`).
+`SMEE_Rectifier` goes the same way, seven singular cones without the
+pass and one with it, and stops at the re-selection at t = 0.005 with
+three arriving (`/tmp/m381/esr_on.txt`). So the cone of m379 was not
+the hidden constraint of the five-phase machines: it is a start
+value, and behind it stands the re-selection wall, which is the
+next storey. Not built, because the pass changes what every tied
+reduction weighs and wants its own pair; and `SMEE_DOL` meets the
+switch of item 30 after that.
+
+Whether the three zero rows of m380 share one cause now has a measured
+answer, and it is no. The hidden-constraint search finds nothing in
+`PolyphaseRectifier` or in Machines `SMEE_LoadDump`
+(`/tmp/m381/ld.txt`), both of which refuse exactly as before, while
+it takes the five-phase star wherever one stands. And the cone's start
+value is not the load dump's wall either: with the forward pass the
+load dump trades its step size underflow for the `singular Jacobian`
+on `airGap.i_sr[1..2]` and `loadInductor.inductor[2].v` that `--solver
+bdf` showed in m380 (`/tmp/m381/ld3.txt`), which is the open switch of
+item 30. Three zero rows, three layers.
