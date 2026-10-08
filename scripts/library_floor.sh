@@ -1227,7 +1227,17 @@ FLATTEN_FLOOR=961
 # name. Both swings named above ran this time, and both are left out:
 #
 #   736 printed - 1 SpringWithMass - 1 SMPM_VoltageSource = 734
-RUN_FLOOR=734
+#
+# And run 736 = 734 + SMEE_DOL and SMEE_Rectifier of Machines'
+# SynchronousMachines, which the cone's forward pass lets run. The
+# runner printed 961 / 738 and runnable 844 / 696 on 72a2372, in job
+# 113388412125 of push run 37799702438 (/tmp/m383/ci_72a2.log);
+# against 7d0b4ab its run list gained exactly those two and lost
+# nothing (/tmp/m384/r7d against /tmp/m384/r72). Both swings named
+# above ran again, and both are left out:
+#
+#   738 printed - 1 SpringWithMass - 1 SMPM_VoltageSource = 736
+RUN_FLOOR=736
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -1471,7 +1481,12 @@ RUNNABLE_FLATTEN_FLOOR=844
 # by the same runner job as `RUN_FLOOR` (7d0b4ab, job 113332217982),
 # which printed 694; the two left out are SpringWithMass and
 # SMPM_VoltageSource, as there.
-RUNNABLE_RUN_FLOOR=692
+#
+# And runnable run 694 = 692 + SMEE_DOL and SMEE_Rectifier, both
+# runnable examples, by the same runner job as `RUN_FLOOR` (72a2372,
+# job 113388412125), which printed 696; the two left out are
+# SpringWithMass and SMPM_VoltageSource, as there.
+RUNNABLE_RUN_FLOOR=694
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
