@@ -38074,3 +38074,17 @@ row's lightning models on this road, and none lands on the degenerate
 family; what is left behind it is two different walls and one model
 that runs. The corpus pair, with a ceiling on the halvings so that the
 three Fluid giants pay a bounded price, is the next shift's.
+
+And the price on the giant, which is what keeps it from being built
+today. `SeriesPipes12` under the same road with the halvings capped at
+four (`/tmp/m384/ox20p`, `/tmp/m384/giant/SeriesPipes12.fr4.txt`)
+still pays about fifty seconds an iteration, and the frozen norm
+accepts steps along which the plain residual grows: `3.5e4`, `1.4e8`,
+`4.1e9`, `4.5e10` over four iterations, where the main binary refuses
+it after four in 178 s. A row scale frozen at the starts is right for
+a system whose rows differ in dimension and wrong for one whose rows
+move by orders of magnitude, as a water pipe's do. So the series needs
+a fence as well as a ceiling: the frozen norm only where the plain one
+also falls, or only on the parameters marked `fixed = false`, which is
+what all four lightning models solve for and none of the three Fluid
+giants does. Which of the two is the next shift's first measurement.
