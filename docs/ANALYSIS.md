@@ -37512,3 +37512,44 @@ of 1e7 that the Newton should never have reached. Not built; a step
 choice is no cure for a Newton that leaves the physical range, and the
 first question for whoever takes it is why one event step multiplies
 the source current by six orders.
+
+### Road (a) at t = 0.005 does not pay (m383, a probe)
+
+The m382 map left two readings of a cure for the re-selection wall of
+Machines `SMEE_DOL` and `SMEE_Rectifier`, and named the second as
+keeping the joint weight of a zero-slope tie in force while resuming.
+Probed behind a throwaway switch on one binary, with the tie's gate
+read on the residual's own slope on resuming as well (on resuming
+`sensitivity` already weighs through the cone, so the gate as written
+could never see a tie there), it changes no victim in either model:
+the victim lists of all three compilations are the same line for line
+with the switch off and on, and so is the refusal
+(`/tmp/m383/z/ESD.off.log`, `ESD.on3.log`, `ESR.off.log`,
+`ESR.on3.log`).
+
+The reason is in the weights the tie rule would read
+(`/tmp/m383/z/ESD.on3.log`). At the second compilation of `SMEE_DOL`
+the joint weights of reduction 2 are `inertiaRotor.phi` 1912,
+`psi_mr[2]` -209, `lssigma.i_[2]` and the damper's current about 1,
+`lssigma.i_[1]` 0.004 and `psi_mr[1]` 0. The rule drops only what
+weighs a millionth of the heaviest or less, which is `psi_mr[1]`, and
+the rotor's angle is not a candidate the constraint fails to
+determine: it is the heaviest one. At t = 0 the same joint weight read
+the angle at exactly 0, which is why the first compilation took
+`psi_mr[2]`; a few milliseconds in, with the rotor turned, the angle
+weighs most, and the choice in the middle stretch is the pivot's
+honest answer to the point it is given. `SMEE_Rectifier` fails the
+rule from the other side: at its second compilation the joint weight
+of `psi_mr[2]` cannot be worked out (`None`) and the damper's current
+reads 1.1e12, so the rule leaves the tie as it was and the slope
+through the definitions picks `lssigma.i_[2]` at 1.0.
+
+So the tie rule is not the rule the resume skips that matters. What
+makes the stretches differ is the monitor asking for a rebuild at a
+point where a third state legitimately outweighs both, and the third
+compilation, one stall later, going back. Road (b), a column one
+stretch did not write, has no value to fill it with but a number the
+run did not compute, which is the refusal `append_segment` exists to
+make. Neither road is built. What is left open is the shape itself:
+a selection that is right at each of three instants and still writes
+a dummy derivative in the middle one only.
