@@ -38041,3 +38041,18 @@ of the Jacobian row as it moves - which is the one that slid into
 `eta = 0`. How the compiler would know a row's dimension is the units
 layer's question (the declared units are there: `1/s` against `1`);
 not built.
+
+And the units layer may not be needed. The same Python loop, with
+every row divided by the size of its terms at the library's starts
+(`|J| |x|` row by row, the measure the initialization already uses to
+judge a row solved) taken once and then held, reaches the physical
+root of both forms: the double-exponential in 7 steps (`eta =
+0.9511`, `tau1 = 470.1 us`, `tau2 = 4.06 us`) and Heidler in 5 (`eta =
+0.9405`, the m383 root), against 79 steps stalled at `0.397` and 36
+solved without it. A weight fixed at the start cannot follow a moving
+row towards `eta = 0`, which is what the row-weighted norm of m383 did.
+So the candidate for whoever builds it is a row scale frozen at the
+starts, inside the step and the descent alike, with the relative
+finite-difference step, and the price the giants of the pair set
+bounded by a ceiling on the halvings. Measured in Python only; the
+compiler's pair is the next shift's.
