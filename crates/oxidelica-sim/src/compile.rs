@@ -772,6 +772,20 @@ fn probe_mode_conditions(ordered_algs: &[String], stages: &[PlanStage]) {
 /// letting the refusal stand.
 const INIT_DOMAIN_HALVINGS: usize = 30;
 
+/// How many iterations the initialization's scaled road is given, where
+/// the plain Newton had no answer, before it gives up. The lightning
+/// sources it is for solve in five to seven; a Fluid giant pays about
+/// fifty seconds an iteration there and has its plain residual grow
+/// along the way (`SeriesPipes12`: 3.5e4 to 4.5e10 in four), so the
+/// ceiling is the price such a model pays once for a road that is not
+/// its own.
+const INIT_SCALED_ITERATIONS: usize = 10;
+
+/// What the scaled road's weighed residual must at least fall by at each
+/// step to go on. The lightning sources fall by 0.39 or better from the
+/// first step to the root; a Fluid giant falls by 0.63 and then stands.
+const INIT_SCALED_FALL: f64 = 0.5;
+
 /// Whether `OXIDELICA_NO_INIT_DOMAIN_HALVING` asks for the step whole.
 /// Read by its value: `1` switches the halving off and anything else,
 /// `0` included, leaves it on - a switch that `0` turns on is a pair
@@ -6720,15 +6734,33 @@ impl CompiledModel {
         // with the residual of every condition and its row of the
         // Jacobian there - the left-out one included, so that the
         // caller can ask whether it holds.
+        //
+        // `scaled` is the second road: each row weighed by the size
+        // of its terms at the starts, `|J| |x|` taken once and held, the
+        // difference step relative to the unknown, and a step shortened
+        // until the weighed residual falls. A lightning source solves
+        // for `eta`, `tau1` and `tau2` from rows whose units differ - a
+        // rate in 1/s beside fractions of the amplitude - and the plain
+        // norm, which the rate's row owns, stalls at 0.40 for fifty
+        // iterations or slides to the degenerate `eta = 0`, where the
+        // weighed one reaches the physical root in five to seven (m384).
+        // A weight fixed at the starts is wrong for rows that move by
+        // orders of magnitude, as a water pipe's do, so the road has a
+        // ceiling of its own and is taken only where the plain Newton
+        // has no answer.
         let newton = |mut y: Vec<f64>,
                       skip: Option<usize>,
+                      scaled: bool,
                       values: &mut Vec<f64>,
                       derivatives: &mut Vec<f64>,
                       alg_guess: &mut Vec<f64>|
          -> Result<NewtonAnswer, SimError> {
             let mut last_f: Option<Vec<f64>> = None;
             let mut same_f = 0usize;
-            for _ in 0..50 {
+            let mut weights: Option<Vec<f64>> = None;
+            let mut last_weighed = f64::INFINITY;
+            let iterations = if scaled { INIT_SCALED_ITERATIONS } else { 50 };
+            for _ in 0..iterations {
                 let full = residual(&y, values, derivatives, alg_guess)?;
                 let f = without_row(&full, skip);
                 if let Some(most) = stall_after {
@@ -6747,7 +6779,14 @@ impl CompiledModel {
                 let held_guess = alg_guess.clone();
                 let mut jac = vec![vec![0.0; n]; full.len()];
                 for j in 0..n {
-                    let mut h = 1e-7 * (1.0 + y[j].abs());
+                    // On the scaled road the step is relative to the
+                    // unknown itself, so that a time constant of 4e-6 s
+                    // is not moved by a tenth of itself to read its slope.
+                    let mut h = if scaled && y[j] != 0.0 {
+                        1e-7 * y[j].abs()
+                    } else {
+                        1e-7 * (1.0 + y[j].abs())
+                    };
                     let mut probe = y.clone();
                     probe[j] += h;
                     if !drift_guess {
@@ -6813,6 +6852,24 @@ impl CompiledModel {
                 // out, which is carried beside them so that whoever left it
                 // out can ask whether it holds at the answer.
                 let mut used = without_row(&jac, skip);
+                if scaled && weights.is_none() {
+                    weights = Some(
+                        used.iter()
+                            .map(|row| {
+                                let terms: f64 = row
+                                    .iter()
+                                    .zip(&y)
+                                    .map(|(slope, at)| (slope * at).abs())
+                                    .sum();
+                                if terms.is_finite() && terms > 0.0 {
+                                    1.0 / terms
+                                } else {
+                                    1.0
+                                }
+                            })
+                            .collect(),
+                    );
+                }
                 let solved = f.iter().zip(&used).all(|(r, row)| holds(*r, row, &y));
                 if solved {
                     // Satisfied is not the same as determined: a singular
@@ -6893,6 +6950,46 @@ impl CompiledModel {
                         lambda *= 0.5;
                     }
                 }
+                // The scaled road takes a step only as far as the weighed
+                // residual falls, halving from wherever the domain left it.
+                if let Some(weights) = weights.as_ref() {
+                    let weighed = |f: &[f64]| {
+                        f.iter()
+                            .zip(weights)
+                            .map(|(r, w)| (r * w) * (r * w))
+                            .sum::<f64>()
+                            .sqrt()
+                    };
+                    let here = weighed(&f);
+                    // A road that is converging halves its weighed residual
+                    // at every step: the lightning sources fall by 0.39 or
+                    // better each time, to the root. One that does not has
+                    // stopped being this road's model, and the steps left of
+                    // its ceiling would be paid for nothing - `SeriesPipes13`
+                    // sat at 3.48e-6 for six iterations of thirty seconds
+                    // with its plain residual climbing from 2.3e9 to 2.8e9.
+                    if here > INIT_SCALED_FALL * last_weighed {
+                        return err(format!(
+                            "the scaled initialization stopped falling at {here:e}"
+                        ));
+                    }
+                    last_weighed = here;
+                    for _ in 0..INIT_DOMAIN_HALVINGS {
+                        let trial: Vec<f64> =
+                            y.iter().zip(&step).map(|(at, s)| at - lambda * s).collect();
+                        let held = alg_guess.clone();
+                        let falls = match residual(&trial, values, derivatives, alg_guess) {
+                            Ok(at) => weighed(&without_row(&at, skip)) < here,
+                            Err(_) => false,
+                        };
+                        let _ = self.walked.complaint();
+                        *alg_guess = held;
+                        if falls {
+                            break;
+                        }
+                        lambda *= 0.5;
+                    }
+                }
                 for j in 0..n {
                     y[j] -= lambda * step[j];
                 }
@@ -6900,7 +6997,118 @@ impl CompiledModel {
                     return err("initialization diverged".to_string());
                 }
             }
+            if scaled {
+                return err(format!(
+                    "the scaled initialization did not converge in {INIT_SCALED_ITERATIONS} \
+                     iterations"
+                ));
+            }
             err("initialization did not converge in 50 Newton iterations".to_string())
+        };
+        // The plain Newton first, exactly as before, and the scaled road
+        // only where it refused or answered with a point the run cannot
+        // begin from. Taken first, the scaled road starts a
+        // machine that solves either way a rounding's width elsewhere:
+        // `IMC_DCBraking` initialized to the same root within 1e-14 and
+        // its run drifted by 2.5e-7 of a voltage's scale over a second
+        // (m385), a model that runs moving for a model that did not. In
+        // this order nothing the plain road solves can move, and where
+        // both refuse the plain road's words are the ones that stand.
+        // `OXIDELICA_NO_INIT_FROZEN_SCALE=1` takes the plain road alone,
+        // so that one binary gives both numbers.
+        let scaled_off =
+            std::env::var("OXIDELICA_NO_INIT_FROZEN_SCALE").is_ok_and(|said| said == "1");
+        let newton = |y: Vec<f64>,
+                      skip: Option<usize>,
+                      values: &mut Vec<f64>,
+                      derivatives: &mut Vec<f64>,
+                      alg_guess: &mut Vec<f64>|
+         -> Result<NewtonAnswer, SimError> {
+            let held_values = values.clone();
+            let held_derivatives = derivatives.clone();
+            let held_alg = alg_guess.clone();
+            // An answer is one the run can begin from: the assertions,
+            // the declared `min` and `max` among them, hold there. The
+            // double-exponential source's plain road converges to `eta =
+            // -1.2e-18` with `tau1 = tau2`, a family on which every row
+            // holds and the pulse is `0/0`, and the library declares
+            // `eta(min = small)` precisely to rule it out; the run then
+            // stopped on that assertion at t = 0 (m385). Such an answer
+            // is the plain road's refusal in all but name, and the other
+            // road is tried.
+            let admissible = |found: &NewtonAnswer,
+                              values: &mut Vec<f64>,
+                              derivatives: &mut Vec<f64>,
+                              alg_guess: &mut Vec<f64>|
+             -> bool {
+                // A reason a walked body left behind belongs to whoever
+                // reads it next, as it did before this check existed; the
+                // answer is then taken as the plain road gave it.
+                if self.walked.troubled() {
+                    return true;
+                }
+                let mut at = alg_guess.clone();
+                let evaluated = residual(&found.y, values, derivatives, &mut at).is_ok();
+                let _ = self.walked.complaint();
+                evaluated && self.check_asserts(0.0, values).is_ok()
+            };
+            let plain = newton(y.clone(), skip, false, values, derivatives, alg_guess);
+            if scaled_off {
+                return plain;
+            }
+            if let Ok(found) = &plain {
+                let mut probe_values = values.clone();
+                let mut probe_derivatives = derivatives.clone();
+                if admissible(found, &mut probe_values, &mut probe_derivatives, alg_guess) {
+                    return plain;
+                }
+            }
+            let _ = self.walked.complaint();
+            {
+                let mut tried_values = held_values;
+                let mut tried_derivatives = held_derivatives;
+                let mut tried_alg = held_alg;
+                // What the scaled road finds is where the plain Newton
+                // starts, not the answer: whether a point is solved is
+                // judged by the plain road's own slopes. The relative step
+                // reads a jump as a slope of 1e13, against which a
+                // residual of 10 passes for rounding, and a start that
+                // satisfies nothing would be taken as one that does.
+                if let Ok(found) = newton(
+                    y.clone(),
+                    skip,
+                    true,
+                    &mut tried_values,
+                    &mut tried_derivatives,
+                    &mut tried_alg,
+                ) {
+                    let _ = self.walked.complaint();
+                    if let Ok(found) = newton(
+                        found.y,
+                        skip,
+                        false,
+                        &mut tried_values,
+                        &mut tried_derivatives,
+                        &mut tried_alg,
+                    ) {
+                        let mut probe_values = tried_values.clone();
+                        let mut probe_derivatives = tried_derivatives.clone();
+                        if admissible(
+                            &found,
+                            &mut probe_values,
+                            &mut probe_derivatives,
+                            &mut tried_alg,
+                        ) {
+                            *values = tried_values;
+                            *derivatives = tried_derivatives;
+                            *alg_guess = tried_alg;
+                            return Ok(found);
+                        }
+                    }
+                }
+                let _ = self.walked.complaint();
+            }
+            plain
         };
 
         let answer = match one_over {

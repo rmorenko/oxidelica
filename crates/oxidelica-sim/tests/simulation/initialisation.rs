@@ -428,6 +428,57 @@ fn a_parameter_the_initialization_solved_survives_a_mode_change() {
     assert!((last - 23.0).abs() < 1e-6, "{last}");
 }
 
+/// The library's double-exponential lightning source, its five
+/// conditions written out, with the `min` on `eta` the library declares.
+/// The first row is a rate in 1/s and the others fractions of the
+/// amplitude, so the plain norm belongs to the first row: unweighed,
+/// Newton slid to `eta = -1.2e-18` with `tau1 = tau2`, where every row
+/// holds and the pulse is `0/0`, and the run stopped at t = 0 on the
+/// `min` (without the `min` it answered -189 for a pulse normalised to
+/// one). That answer is not one the run can begin from, so each row is
+/// weighed by the size of its terms at the starts, which reaches the
+/// physical root, `eta = 0.9511`, `tau1 = 470.1 us`, `tau2 = 4.06 us`,
+/// and the pulse peaks at its amplitude.
+#[test]
+fn a_double_exponential_pulse_reaches_its_physical_root() {
+    let result = run("model M \
+         parameter Real T1 = 10e-6; parameter Real T2 = 350e-6; \
+         parameter Real T0 = T2*T1/(T2 - T1)*log(T2/T1); \
+         parameter Real eta(min = 1e-60, fixed = false, start = 1); \
+         parameter Real T(fixed = false, start = T0); \
+         parameter Real T10(fixed = false, start = 0.01*T0); \
+         parameter Real tau1(fixed = false, start = T2); \
+         parameter Real tau2(fixed = false, start = T1); \
+         Real y; Real e; Real a; Real b; \
+         initial equation \
+         exp(-T/tau1)/tau1 = exp(-T/tau2)/tau2; \
+         eta = exp(-T/tau1) - exp(-T/tau2); \
+         0.1*eta = exp(-T10/tau1) - exp(-T10/tau2); \
+         0.9*eta = exp(-(T10 + 0.8*T1)/tau1) - exp(-(T10 + 0.8*T1)/tau2); \
+         0.5*eta = exp(-(T10 - 0.1*T1 + T2)/tau1) - exp(-(T10 - 0.1*T1 + T2)/tau2); \
+         equation y = 1/eta*(exp(-time/tau1) - exp(-time/tau2)); \
+         e = eta; a = tau1; b = tau2; \
+         annotation(experiment(StopTime = 1e-4, Interval = 1e-7)); end M;");
+    let column = |name: &str| {
+        result
+            .columns
+            .iter()
+            .position(|column| column == name)
+            .expect(name)
+    };
+    let last = result.rows.last().expect("a final row");
+    assert!((last[column("e")] - 0.951_124_849).abs() < 1e-6, "{last:?}");
+    assert!((last[column("a")] - 470.106_6e-6).abs() < 1e-9, "{last:?}");
+    assert!((last[column("b")] - 4.063_95e-6).abs() < 1e-10, "{last:?}");
+    let y = column("y");
+    let peak = result
+        .rows
+        .iter()
+        .map(|row| row[y])
+        .fold(f64::NEG_INFINITY, f64::max);
+    assert!((peak - 1.0).abs() < 1e-5, "{peak}");
+}
+
 /// What `fixed = false` on a parameter does and does not change.
 #[test]
 fn a_parameter_the_initialization_settles_is_read_the_way_the_language_says() {
@@ -1614,8 +1665,12 @@ fn an_initial_residual_that_repeats_itself_is_refused_early() {
         refused.0
     );
     // Fifty iterations of a residual and one column are a hundred
-    // points; the first residual and eight repeats are eighteen.
-    assert!(spent.points < 40, "{} points", spent.points);
+    // points; the first residual and eight repeats are eighteen. Where
+    // the plain road refuses, the road weighed by the rows' sizes is
+    // tried, at most ten iterations, and the plain road asked again from
+    // where it stopped, each caught by the repeats: fifty-two points
+    // measured, where two plain roads of fifty would be two hundred.
+    assert!(spent.points < 60, "{} points", spent.points);
 }
 
 #[test]
