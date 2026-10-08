@@ -38015,4 +38015,11 @@ library writes), changes nothing measured: `DemonstrateLightning` and
 the double-exponential source still stop at 50 iterations (`|f| =
 0.40` for the latter, the same as without it), and the two Heidler
 models still solve in 36. The double-exponential half is the wall, and
-it is not a step that leaves the domain.
+it is not a step that leaves the domain. At the library's starts that
+source's residual is already `0.4055` (the same formulas in Python),
+with the time-of-maximum row satisfied to `1e-12` by the start `T0`
+and its terms of order `2.6e3` against order one in the other four.
+So the descent stalls at `0.400`, barely below where it began. Why
+the step it is given does not lower the other four rows further is not
+measured here, and it is the question the double-exponential half
+leaves.
