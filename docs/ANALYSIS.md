@@ -37800,3 +37800,187 @@ step of an initialization that already takes fifty steps is a price
 some model pays in full. So the measurement found a giant before it
 found a number. Whoever builds on it starts with `--slow` on the two
 halves to name that model.
+
+## A solved parameter lost at the first event, and two maps (m384)
+
+### The lightning source peaks at 0.922 of its amplitude (m384, a fix)
+
+The giant of the m383 pair was named first, as the m383 chapter asked,
+and the second probe it asked for then found something worse than a
+giant: a wrong number in models that already run.
+
+The giant. The on half of the m383 pair was taken again with the same
+switches and the same binary (`/tmp/m384/ox12a`, a copy of
+`/tmp/m383/ox12`) under `OXIDELICA_TRACE`, which prints `start` and
+`done` for every model (`/tmp/m384/on_trace.txt`). The pass stood at
+`read 927 of 1028` again after 1127 s, and the models started and not
+done were three, all in `ModelicaTest.Fluid.TestPipesAndValves`:
+`DynamicPipeInitialization`, `SeriesPipes12` and `SeriesPipes13`. All
+three are `flat` in the off half. Each was then taken alone with
+`--only` and the initialization trail, off against on
+(`/tmp/m384/giant/`). Off, `SeriesPipes12` takes four Newton
+iterations and refuses in 178 s; on, it took fifteen in nine minutes,
+about 36 s apiece, with the residual standing at `3.47e4`.
+`DynamicPipeInitialization` is the same shape: six iterations and a
+refusal in 179 s off, eleven in nine minutes on. Neither grew past
+0.2 GB, so the price is time and not memory: every iteration pays a
+Jacobian of a Fluid model plus up to thirty halvings, each a full
+residual, and fifty of those is the hour the pair waited.
+
+The trap. Item 2 of the order asked where an unweighted descent puts
+`DemonstrateLightning`. It does not reach the degenerate root, because
+it reaches no root at all (`/tmp/m384/z/DL.*.log`):
+
+```text
+DemonstrateLightning      iterations  refusal
+plain                     7           singular, T10
+relative step             6           singular, T
+descent                   50          not converged, |f| = 0.68
+both                      50          not converged, |f| = 1.12
+both, row-weighted        31          solved, eta = 5.8e-23 (the trap)
+```
+
+So the degenerate family is reached only by the weighted norm, and the
+unweighted road is closed for this model by not converging rather than
+by a wrong root. But checking the models the relative step and
+descent do solve gave a number that is wrong. In
+`LightningLosslessTransmissionLine`, with a 10 kA lightning, the
+source current peaks at 9222 A (`/tmp/m384/z/WL.both.csv`). Three
+lines of the source alone, with the amplitude at 1 and the library's
+`startTime = 0.02`, peak at `0.92219758`; the same three lines with
+`startTime = 0` peak at `0.99999973`, the m383 number. The initial
+equations solve to the same `eta = 0.9405`, `tau1 = 9.63 us`,
+`tau2 = 470.7 us` in both (`init-newton` trails). And 0.92219758 is
+exactly what the pulse formula gives with `eta = 1`, `tau1 = T1`,
+`tau2 = T2`: the declared starts.
+
+The cause is not in the lightning source. The source writes its pulse
+in an `if` equation switching at `startTime`. A run-time `if` is
+settled per mode, and a mode change compiles the model again at the
+point reached (`compile_at` with a `ResumePoint`). That compilation
+does not solve the initialization again, rightly, and so its
+parameters marked `fixed = false` stand at the start
+`evaluate_parameters` gives them - the guess Newton began from, not
+the answer it ended on. Ten lines show it without any library:
+
+```modelica
+model M1
+  Real y;
+  parameter Real p(fixed=false, start=1);
+  parameter Real q(fixed=false, start=1);
+initial equation
+  p*p + q = 7;
+  p + q*q = 11;
+equation
+  if time < 0.5 then y = 0; else y = 10*p + q; end if;
+end M1;
+```
+
+`y` should be 23 after 0.5 and was 11. The same body written as an
+`if` expression gives 23, because an expression needs no new mode.
+And `p = 2` alone gives 2, because a parameter its own equation
+settles gets its value in `evaluate_parameters` and not from Newton,
+which is why the many small checks of `fixed = false` never saw this.
+
+The fix takes the value the run resumed from, which holds every
+parameter's solved value, for each parameter the initialization
+solves. `OXIDELICA_NO_RESUMED_UNSETTLED=1` keeps the old reading, and
+the test `a_parameter_the_initialization_solved_survives_a_mode_change`
+is the ten lines above; it goes red under the switch. The lightning
+models still refuse on the main binary, as before, because their
+initialization is the wall; what changes is that whichever change
+lets them solve will now give 1.0 and not 0.922. Any model that runs
+today with a solved parameter read after a mode change gave a wrong
+number until now, and the pair below names them.
+
+The pair names none. One binary (`/tmp/m384/ox13`, the tree of this
+commit), the main pass with the switch on and off
+(`/tmp/m384/pair/off.txt`, `on.txt`): both print 961 / 738 and
+runnable 844 / 696, the `flat` and `ran` lists are the same name for
+name, and the off list is the runner's print for 72a2372 name for
+name (`/tmp/m384/r72`). A second binary carrying a print at the one
+place the change acts (`/tmp/m384/ox14p`, not kept) took the whole
+pass and printed it zero times (`/tmp/m384/probe_resumed.txt`); the
+same binary prints it twice on the ten lines above, so the instrument
+can print something other than zero. So no model that
+runs today reads a solved parameter after a mode change, and the
+change moves no number of the library. Its witness is the test and
+the lightning sources, for whichever change gets their initialization
+through. The controls, `simulate` with the switch on and off on the
+same binary (`/tmp/m384/ctl/`): `Rectifier12pulse`,
+`CauerLowPassAnalog` and `TwoMasses` (which declares a `fixed = false`
+parameter) give the same CSV byte for byte. `HeatingSystem`,
+`SMPM_ResistiveBraking` and `SMEE_DOL`, three more holders of
+`fixed = false` parameters, refuse a full run the same way in both
+halves, which is the check's ten steps against a whole run and not
+this change.
+
+### `PolyphaseRectifier`: where the event iteration is cut (m384, a map)
+
+The m383 chapter left one question: the t = 0 event solves its block
+in a mode the next pass would undo (a diode switched on by `+5e-12`
+carrying `-6.1e7` backwards), and the block's refusal comes before
+that pass. A throwaway print at the place the refusal leaves the
+event (one binary, `/tmp/m384/ox15p`, not kept) answers where. The
+refusal leaves through `handle_event` in `events.rs`, at the
+`eval_point` that opens each round of discrete definitions:
+
+```text
+event-cut t = 0 pass 1 moved-last-round [2, 3, 5, 6, 7, 10] initial 1
+```
+
+That is the first pass of the initial event, after the round in which
+six diode `off` definitions moved, the six the m383 trail named. The
+`Err` of that `eval_point` has exactly one way back into the
+iteration: `fire_initial_assignments`, which exists for a table that
+answers zero until `when initial()` has fired. It finds no clause to
+fire here, returns false, and the block's refusal is returned as the
+event's. So the iteration has no notion of a mode that is not yet
+confirmed. A round of definitions moves the switches, the next round
+evaluates the point in the new mode, and a block that cannot be solved
+in that mode ends the run, although the definitions, asked once more
+at the rough point, would move the switches again.
+
+What it would take: where the block refuses after a round that moved
+discrete definitions, the round should be asked again from the
+block's last iterate rather than refused. Concretely, the solver would
+hand back its last point with the refusal marked as "unconfirmed
+mode", the definitions would run on that point, and only a block that
+refuses in a mode no definition moves out of would be refused as it
+is today. The m383 rough probe already showed the second pass turns
+`diode2[1][1]` off and the block converges (6.9e-11) at t = 0. This
+is a change to the event iteration, not to the solver's thresholds,
+and it is a series of its own: the refusal type has to carry the
+point, and the bound on rounds already present (`rounds`) is the
+bound on how often a refused block is passed on. Not built.
+
+### The rows of four, read again by layer (m384, a map)
+
+Of the three rows of four the order named, two are already mapped and
+parked, and the register does not show it because their wording
+splits them. `vin.T0` is four models by its row, but the same words
+name `VGS.T0`, `vin1.T0` and `vin2.T0` once each
+(`/tmp/m384/pair/off.txt`), so the family is seven, as the earlier
+map's line "no equation determines a source's start time: Spice3
+vin.T0 x7 (parked)" already counted.
+`oxidelica why Inverter vin.T0` gives the same answer as then: `T0` is
+assigned only in `when (pre(counter2) <> 0) and sample(TD, PER)`, and
+index reduction asks for its derivative through `vin.p.v`. The zero
+that derivative would be is the rule the charter parks, so nothing
+here. `PrismaticConstraint` stops at `the equation determining
+spring...` and is one of the parked Constraints four.
+
+`MixtureGases` is the one left. It stops at
+`compile.rs:1987`, differentiating the equation that determines
+`medium2.T`, because it holds a call of
+`IdealGases.Common.Functions.h_T` that stands in the flat model. The
+function is declared `Inline=false, smoothOrder=2` and has no
+`derivative` annotation, and the compiler reads neither `Inline` nor
+`smoothOrder`: a call left standing has no derivative, so the
+reduction refuses. `smoothOrder=2` is the library's statement that the
+body may be differentiated twice, so the road is to differentiate the
+body of a function that says so, and that is the family the m293
+notes above put under the depth ceiling (`h_T` unrolls to nesting
+past 32, and at 48 still stands, on subscripts). Not
+probed further: the depth ceiling's own notes say what raising it
+costs.
