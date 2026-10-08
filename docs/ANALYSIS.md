@@ -36856,3 +36856,107 @@ if it is ever taken, takes those rules with it to whichever component
 holds the medium, and the rank test of a block of one needs looking
 at before then. What would come next is the pair's work printed by
 model to find who pays the tenfold Newton steps, and the two bridges.
+
+## The rows that stand one step from the floor (m378)
+
+The road Roman named in place of a wider floor was to say why the
+transformer cores' `der(a) - der(b)` rows stand a thousand ulps above
+the loudness of their terms and do not fall. On the present tree the
+question has already been answered for `Rectifier6pulse`: it runs to
+the end of its experiment, 1609 steps, with the load voltage averaging
+129.29 V over the last fifth of a second and only sixfold harmonics,
+as m374 measured. Each of the two arms added since forgives its row
+alone - with either `OXIDELICA_NO_REACH_FLOOR` or
+`OXIDELICA_NO_CARRIED_FLOOR` set it still runs, and with both set it is
+refused as before - so the core rows are on the floor by the reach of
+their coefficients, as m375 named it.
+
+What was left of the family is `Analog.Examples.Rectifier`, which m375
+counted among the winners over ten steps and which, run to its stop
+time, is refused at t = 0.7919 for a Newton direction that does not
+descend. Printing the floor's three arms at the refusal
+(`/tmp/m378/ar.trail2.tail`) shows what holds it. The inductor row
+stands at 1.05e-9 and is forgiven, its carried floor being 3.0e-8. The
+row that is not forgiven is a diode's, at 5.68e-13 - five ulps of the
+538 V it adds up, where the loudness arm allows four, and over the
+2.4e-13 the rest of the block carries into it. The Newton step on that
+row is 5.7e-13, five ulps of its unknown and perfectly representable,
+so the row can still be brought down. It is not, because the line
+search judges a step by the norm of every row together, and the
+inductor row's noise, three orders louder, decides whether that norm
+falls.
+
+So the floor was asked in the wrong place rather than with the wrong
+width. Asked also at the point the whole Newton step lands on, with
+every row judged by the same three arms and nothing widened, the block
+is solved and the bridge runs to 1.0 s (1602 steps), ten times its own
+stop time, with the DC voltage across both capacitors averaging
+527.30 V over the last fifth of a second and staying between 517.0
+and 533.9 V. A copy
+of the model without the library, forty lines, is refused by the base
+at t = 1.5e-3 the same way and runs under the change with the two
+capacitors averaging 524.87 V together, against 524.8 for m374's run
+under the widened floor and an estimate of 526 from the bridge's knee
+and commutation. That copy would be the test, red under the switch
+`OXIDELICA_NO_FLOOR_AT_STEP`.
+
+The controls do not move: `Rectifier6pulse`, `Rectifier12pulse`,
+`TransformerTestbench`, `CauerLowPassAnalog` and the FundamentalWave
+`IMC_Transformer` to 1.99 s are the same CSV to the byte, and the two
+Machines `IMC_Transformer` and `IMC_DOL` are refused with the same
+text (`/tmp/m378/lad_*`). Of the eleven models the census has under a
+Newton direction, the ten Fluid ones are refused with the same text;
+`IMC_YDarc` changes its text to a step size underflow at t = 0.
+
+### `ThreeSprings`, the two roads of starts (m378, a map)
+
+Road 2 is empty. `body1.Q[4]` is the victim of the quaternion's norm,
+but what joins the accelerations' block is `der(body1.Q[4])`; `Q[4]`
+itself is a state the initial equations set to 1, and it is 1 in the
+first row of a run. There is no zero to replace.
+
+Road 1 is half of it. Starting every spring's `length` and `s` from
+the geometry - wrapped by modifiers, nothing built - is refused for
+fifty Newton steps (`TS3`). Starting the free end of the two series
+springs, `r_rel_0` of the second and third, from a guess of the
+massless node's place is refused the same way (`TS1`, m377). Both
+together run to 1.0 s on dopri45 (`TS2`, `/tmp/m378/ts/`), with the
+lengths staying between 0.18 and 0.40 m. So the start a fix would need
+is the position of the node where three springs meet, and that is not
+any body's start: it is the equilibrium of the springs, which is what
+the block is solving for. A start "from its own definition" for
+`length` and `s` is not enough without it.
+
+### The thyristor bridge's star under the split (m378, a map)
+
+The start of -291352 that the split of the cyclic remainder changes in
+`ThyristorBridge2mPulse_RLV` is not taken from a neighbouring block. It
+is block eight's own warm start, carried from its last solve, and the
+star's potential `multiStar.pin[1].v` walks -347, 520, -43322, -291352,
+-1.0e6 and 891923 over the first 2e-4 s with residuals of 1e-10 to
+1e-12 every time (`/tmp/m378/rlv_off.trail`). That is the floating star
+of m345: with the switches open every potential satisfies the block,
+and where Newton leaves it is decided by the step it took. Under the
+split the same block starts at -5e-10 and walks elsewhere. Nothing to
+build here that is not the star's own question.
+
+The pair, one binary with the switch off and on (`/tmp/m378/pair/`):
+961/726 and 844/684 both ways, and the lists of the models that ran
+are the same name for name, because the corpus runs ten steps and the
+bridge's wall stood at t = 0.79. What the pair does show is the work:
+44447901 Newton steps against 35075907, and 20251 Jacobians against
+225 - a quarter more Newton steps and ninety times the Jacobians, with
+the running half 3454 s against 4688 s. All of it is `IMC_YDarc`'s,
+which under the change goes on from 12694 Newton steps to 9384688 and
+20028 Jacobians and is refused for a step size underflow at t = 0
+instead - the very numbers and the very road the runner prints for it
+without the change, and the model whose work and time no band counts.
+Without it the two halves agree to the digit: 24039723 points,
+35063213 Newton steps, 223 Jacobians.
+
+So the change buys no model in the corpus, whose ten steps never reach
+the bridge's wall, and its whole price falls on the one model the
+bands were told the same evening not to see. The win is real but is
+measured only by the test and by the bridge's full run. It is not
+committed: it waits on Roman's word as the widened floor did, and
+lies as `state/floor_at_step_m378.patch`.
