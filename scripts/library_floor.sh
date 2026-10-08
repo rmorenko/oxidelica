@@ -1216,7 +1216,18 @@ FLATTEN_FLOOR=961
 # A second measurement of the same head, the hand-started run
 # 37746692327, had not finished when this was set, and is not read
 # here.
-RUN_FLOOR=732
+#
+# And run 734 = 732 + the two five-phase machines the star in a sum of
+# two equations lets run (7d0b4ab): SMPM_Inverter_Polyphase and
+# SMR_Inverter_Polyphase of FundamentalWave's ComparisonPolyphase. The
+# runner printed 961 / 736 and runnable 844 / 694 on 7d0b4ab, in job
+# 113332217982 of push run 37783472775 (/tmp/m383/ci_7d0b.log);
+# against 6251721 its run list gained exactly those two and lost
+# nothing, and it is the desk's run list (/tmp/m381/on.txt) name for
+# name. Both swings named above ran this time, and both are left out:
+#
+#   736 printed - 1 SpringWithMass - 1 SMPM_VoltageSource = 734
+RUN_FLOOR=734
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -1455,7 +1466,12 @@ RUNNABLE_FLATTEN_FLOOR=844
 # by the same runner job as `RUN_FLOOR` (6251721, job 113205797147),
 # which printed 692; the two left out are SpringWithMass and
 # SMPM_VoltageSource, as there.
-RUNNABLE_RUN_FLOOR=690
+#
+# And runnable run 692 = 690 + the same two, both runnable examples,
+# by the same runner job as `RUN_FLOOR` (7d0b4ab, job 113332217982),
+# which printed 694; the two left out are SpringWithMass and
+# SMPM_VoltageSource, as there.
+RUNNABLE_RUN_FLOOR=692
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
