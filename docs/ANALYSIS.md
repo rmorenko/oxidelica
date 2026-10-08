@@ -37644,6 +37644,28 @@ current the trail settles on, to five digits. The block has solved
 the mode it was given: a phase-to-phase short through two conducting
 diodes, with nothing else in the path.
 
+The trail also shows where the current sits. From the second iteration
+on, `diode2[1].idealDiode[1].s` reads `-6.1236e7` and
+`diode2[1].idealDiode[2].s` reads `+6.1236e7`, the same magnitude as
+the source current. The diode law reads `s` as a current when the
+diode is on and as a voltage when it is off. A throwaway print of the
+`off` flags at each solve's first iteration (one binary, not kept,
+`/tmp/m383/z/PR.off.log`) settles which. Every solve at t = 0 before
+the event has all twelve diodes off. The refusing solve has six on:
+`diode1[1][3]`, `diode1[2][1]`, `diode1[2][3]`, `diode2[1][1]`,
+`diode2[1][2]` and `diode2[2][2]`. These are exactly the diodes whose
+`s` was positive at the settled all-off point (122.5, 70.7, 70.7,
+5e-12, 122.5, 141.4). One of them, `diode2[1][1]`, was turned on by an
+`s` of `+5e-12`, which is no forward voltage at all. In the mode
+solved, that same diode is on and carries `-6.1e7`, a current
+backwards through a conducting diode, against `+6.1e7` forwards in its
+neighbour. So the mode contradicts itself. The event switched on every
+diode with a positive voltage at once, including one that sat on a
+rounding zero, and the bridge those six make shorts two phases. The
+event iteration would turn the backward diode off on its sign at the
+next pass. The block's refusal comes first, because it cannot be
+accepted at those currents (the m382 map).
+
 So the six orders are not the Newton's. They come from the mode the
 event chose, and that mode was chosen on the sign of an `s` that
 stood at rounding level (`5e-12` against currents of order 1e2). The
