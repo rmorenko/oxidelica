@@ -37046,3 +37046,193 @@ point, by an axis component that is zero there, and not by the
 structure: the two forms are one equation reached by two roads of the
 reduction, and they part only once the wheel leans. A map; no change
 was built.
+
+## The census after the star's victim, and three maps (m380)
+
+The census on 6251721 (`/tmp/m380/census.txt`, raw in
+`/tmp/m380/raw.txt`), counted between the section marks: would not
+flatten 67 models in 39 rows, flattened and would not run 227 models
+in 143 rows. The m377 reference on the same pipe was 67/39 and 235/146.
+The run half fell by exactly the eight models 7135756 let run, named
+model by model against `/tmp/m377/raw.txt`, and no model arrived.
+
+The rows moved more than the total. `singular Jacobian` went 25 to 16:
+the eight left by running and `SMEE_LoadDump` (Machines) moved to a
+step size underflow, which is now a row of two with
+`Rotational.Examples.Friction`. The row `` `X` of algebraic loop `` went
+7 to 10, and that is not the eight: four MultiBody models changed wall
+with 7135756 and nothing else. `PendulumWithSpringDamper`,
+`PlanarFourbar` and `RobotR3.Utilities.MechanicalStructure` went from
+`structurally singular model` to a named row of an algebraic loop,
+and `LineForceWithTwoMasses` stayed structurally singular with another
+equation named. Each was run under `--only` with and without
+`OXIDELICA_NO_TIE_JOINT` from one binary, and the switch gives back
+the old refusal in all four, so the move is the rule's and not the
+weather. A family travelling one storey: structurally singular 66 to
+63 models, the loop rows up by three.
+
+The sixteen are now: `CCCV_Stack`, `CCCV_StackRC`, `SMEE_DOL`,
+`SMEE_Rectifier`, `PolyphaseRectifier`, QS `Rectifier`, `PumpingSystem`,
+`RoomCO2`, the four `ComparisonPolyphase`, FundamentalWave
+`SMEE_LoadDump`, `RollingWheel`, `LossyGearDemo2` and
+`TestMixingVolumesPressureStates`.
+
+### Machines `SMEE_LoadDump`: the step does not shrink to a cure (m380, a map)
+
+Under `OXIDELICA_WHERE` the refusal is raised at
+`solvers/mod.rs:2118`: the run stalled, the states were selected again
+at t = 6e-17, and the second selection stalled at the same instant.
+The second compile demotes differently from the first
+(`/tmp/m380/v_ld.txt`): reduction 13 takes `lssigma.i_[1]` at weight
+1.5 where the first took `loadInductor.inductor[1].i`, and reduction 2
+takes `airGap.psi_mr[2]`. Reductions 11 and 12 are the same equation,
+the voltage sensor's `plug_n.pin[3].i` aliased to a current fixed at
+zero, taken twice - with the rule off it is taken a third time and
+finds no victim, so the doubling is older than 7135756.
+
+The trail (`/tmp/m380/ld.txt`) shows what the integrator meets. The
+block of 17 at the start converges, and from it every step multiplies
+`airGap.spacePhasor_r.v_[1]` by some hundreds with alternating sign:
+-0.52, 439, -4.1e5, 6.2e9 at h = 1e-5, and -0.52, 17, -638, 3.9e5 at
+h = 4e-7. Row 4 of that block,
+`der(plug_sp.pin[2].i) + inductor[2].v / L + der(...pin[2].i) = 0`,
+has an all-zero row in the Jacobian - none of the block's unknowns
+moves it - and its residual is what grows, from 7e-7 to 5.0 across
+the attempts.
+
+The growth has a size, and the size names it. At t = 0 the load
+switch, a `CloserWithArc`, is open with `Goff = 1e-5`, so the load
+inductance `L = 1.91e-3` H sits in series with 1e5 ohm: a mode with
+`tau = L / R = 1.9e-8` s. The growth per step is about 1.6 to 1.8
+times `h / tau` at both step sizes measured (839 and 943 at
+`h / tau = 524`, 33 and 37 at 21). A factor that scales with
+`h / tau` is the mark of a mode the step passes over, not of a
+structural constant. Which part of the step multiplies by it was not
+measured. So the first wall reads as stiffness the start does not
+hand to the implicit solver in time. Given that solver from the start (`--solver bdf`, a ten
+millisecond copy of the model in `/tmp/m380/small/LDW.mo`), the run
+refuses at once with the old `singular Jacobian` on the same 17
+unknowns, and the same row 4 is all zero (`/tmp/m380/ld_bdf.txt`,
+null direction `der(airGap.i_sr[2])` alone). So behind the stiffness
+stands the m379 block again: a differentiated current balance written
+about states the block does not move. This is the open switch of
+item 30 seen from the load side, and not taken here for that reason.
+Not built.
+
+### The four `ComparisonPolyphase`: the five-phase star is never reduced (m380, a map)
+
+In all four the refused block's all-zero row is the KCL of the
+multi-phase machine's zero inductor, for example
+`smrM.stator.zeroInductor.plug_p.pin[1].i + plug_n.pin[1].i = 0`
+(`/tmp/m380/cp_smr.txt`, 52 by 52). Its residual is 0 at every
+iteration printed, so the row is a tautology for the block and not a
+wrong number. The one null direction of the matrix is
+`terminalBoxM.star.pin_n.v` and `smrM.stator.zeroInductor.v0` together,
+0.707 each. Nothing in the block fixes the floating star's potential.
+
+The victim probe on all four (`/tmp/m380/v_{imc,smee,smpm}.txt` and
+`cp_victims.txt`, 37, 31, 29 and 27 reductions) shows one star
+reduction each, always `terminalBox3.starpoint.i = 0` with
+`*3.stator.zeroInductor.i0` as the victim. The multi-phase twin's
+`terminalBoxM.starpoint.i = 0` is in the model and is never reduced:
+`zeroInductor.i0` of the multi-phase machine stays a state, the
+constraint the star puts on its derivative is never differentiated,
+and the potential that should follow from it is left free. That is
+the m379 reading made precise. The question for the probe is why
+reduction never meets the five-phase starpoint equation: matching may
+assign it to the current without it ever being seen as a constraint
+on states.
+
+A small model answers it (`/tmp/m380/small/`). A five-phase
+`SM_ReluctanceRotor` with no damper cage, a `TerminalBox` in Y, a
+sine source on a grounded star and an inertia - nothing else -
+refuses with the same singular block, `tb.star.pin_n.v` and
+`zeroInductor.v0` among its unknowns, after 14 reductions none of
+them on `tb.starpoint.i`. The same text with `m=3` runs, and its
+reduction 9 is `tb.starpoint.i = 0` demoting `zeroInductor.i0`; with
+`m=6` it refuses the same way. Grounding the five-phase starpoint
+makes it run, so the open star is the whole of the trouble. And
+`ratioCommonStatorLeakage=0.5` - which gives each phase a leakage
+inductance of its own - brings the reduction back at once (reduction
+11, `tb.starpoint.i`), and that model walks on to a different wall.
+
+A probe of the final matching, built for one run and taken out again,
+says where the star went. In the three-phase model the zero inductor's
+`m * i0 = sum(i)` is matched to `zeroInductor.i0` itself, and
+`der(tb.starpoint.i) = 0`, the differentiated star, is in the system.
+In the five-phase model the same equation is matched to
+`zeroInductor.i[3]`, an algebraic phase current, and no derivative of
+the star appears. So with three phases every phase current is fixed
+by the machine's two space-phasor states and `i0`, the equation can
+only take `i0`, and the star, which then reads states alone, is
+unmatchable and reduced. With five, two more current components
+exist that nothing differentiates when all leakage is common (the
+default, 1), so `m * i0 = sum(i)` has an algebraic current to take,
+and the star's `sum(i) = 0` never stands alone against states. In
+numbers those two components sum to zero over a symmetric five-phase
+set, which is why the row is all zero in the block: what is left of
+it is a constraint on the state `i0` that the structure hides and the
+numbers show. A per-phase leakage makes every phase current a state
+again, and the star is reduced.
+
+Removing the hidden zero row is not a tie, a weight or a step. It
+needs either the structure to see that the star constrains `i0` - a
+rank test on the star's equation against the algebraic currents,
+before matching - or the run to detect a block whose zero row reads a
+state through a cancellation, and to send it back to reduction. A
+map; not built.
+
+### `PolyphaseRectifier`: a source current with no row (m380, a map)
+
+The refused block holds the twelve diodes' `s`, four potentials of
+`analysatorAC.multiDelta`, two source currents and
+`multiStar.star.pin_n.v` (`/tmp/m380/pr.txt`, 19 by 19). Row 17,
+`-sineVoltage.plug_p.pin[2].i + sineVoltage[2].p.i = 0`, has an
+all-zero row. Unlike the machines, its residual is not zero. It goes
+from 0 to -14.9 at the first Newton step and sits at 0.083 when the
+solve gives up, while the diodes' `s` reach ±6.1e7 - the current
+through `diode2[1]` is free to run off. The row names an unknown of
+the block, `sineVoltage.plug_p.pin[2].i` (column 17, which rows 0 and
+1 do read), so its zero is not an absent unknown: through the block's
+inner assignments the row's two terms move together, and what is left
+of it is a residual no unknown reaches. The null
+direction is the joint shift of the four delta potentials and the
+star potential (0.30, 0.30, 0.60, 0.60, 0.30), so the star floats as
+the summary of m379 read it. But what refuses is a row whose residual
+stands while its slope is zero, and that is the tearing's arithmetic
+of the row, not the rank of the circuit alone.
+
+A probe of the block's inner assignments, built for one run and taken
+out again (648 of them), shows the road. The row's second term,
+`sineVoltage[2].p.i`, is not computed from `plug_p.pin[2].i` at all:
+the tearing takes it as `-sineVoltage[2].n.i`, that from
+`plug_n.pin[2].i`, and that from the source's negative side through
+the `multiStar` current balance (`multiStar.multiStar.plug_p.pin[2].i`
+from the sum of the other two pins and the star point). So the two
+halves of row 17 come from the two ends of the source by two
+different roads, and the all-zero row says that the road through the
+star reads none of the block's unknowns. That is the same
+shape as the five-phase machines - an equation the matching uses to
+compute a current, leaving the balance it would have closed as a row
+no unknown moves - and a floating star at the end of it again. A map;
+not built.
+
+What the three share is one sentence, measured and no more: in each,
+the block's zero row names an unknown of the block - `inductor[2].v`
+(column 4) in `SMEE_LoadDump`, `zeroInductor.plug_p.pin[1].i` (column 51) in `SMR_Inverter_Polyphase`, `plug_p.pin[2].i` (column 17) in the
+rectifier - and its dependence on that unknown cancels through the
+block's inner assignments. For the five-phase machines that is now
+traced to the matching, which hands the zero inductor's sum to an
+algebraic current; whether the load dump and the rectifier cancel by
+the same road is the next question, not this map's finding.
+
+One more of the sixteen was looked at for the shape alone, and it is
+another shape. `CCCV_Stack` refuses an 8 by 8 block
+(`/tmp/m380/cccv.txt`) with no all-zero row. Its null direction is
+`stackBus.cellBus[1,1].lossPower` and
+`cell[1,1].heatFlowSensor.port_a.Q_flow` together (0.707 each), and
+only row 4, `lossPower = cellBus.lossPower`, reads either of them, one
+with plus one and the other with minus one. The cell's heat balance (row 5) names `Q_flow` and its
+slope there is zero, so what fixes the loss is not in the block. A
+power read off a bus and a heat flow read off a sensor, equal to each
+other and to nothing else here: not a floating star.
