@@ -323,6 +323,9 @@ pub(crate) fn weigh_jointly(
     };
     let mut vars = env.clone();
     let x = *vars.get(state)?;
+    if cone_forward() {
+        forward_explicit(cone, &mut vars, |expr, vars| read(expr, vars));
+    }
     settle(&mut vars)?;
     let before = read(residual, &vars)?;
     let h = step_for(x);
@@ -330,6 +333,52 @@ pub(crate) fn weigh_jointly(
     settle(&mut vars)?;
     let after = read(residual, &vars)?;
     Some((after - before) / h)
+}
+
+/// Whether the cone's explicit definitions are worked forward from the
+/// starts before its Newton. On by default; `OXIDELICA_NO_CONE_FORWARD`
+/// starts the Newton from the raw starts as before, so that one binary
+/// gives both halves of a measurement.
+fn cone_forward() -> bool {
+    static OFF: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    !*OFF.get_or_init(|| std::env::var_os("OXIDELICA_NO_CONE_FORWARD").is_some())
+}
+
+/// Work every explicit definition of the cone forward from what stands
+/// in `vars`, in passes until nothing moves or every definition has had
+/// a pass of its own, so that an order the cone was not written in
+/// still settles.
+///
+/// A start is a number somebody wrote, not a value the definitions
+/// agree with: a machine's `RotationMatrix[1, 1]` starts at 0 where its
+/// definition `cos(phi)` gives 1 at the angle's start of 0, and the
+/// Newton begun there finds a column of zeros - the current the matrix
+/// multiplies has no influence at a rotation that does not exist - and
+/// gives up on a cone that is regular at the point the model stands
+/// on. An explicit definition needs no Newton to be met, only reading,
+/// so it is met first. A definition that cannot be read keeps its start
+/// and is left to the Newton, which refuses for it as before.
+fn forward_explicit(
+    cone: &[ConeDef],
+    vars: &mut HashMap<String, f64>,
+    read: impl Fn(&Expr, &HashMap<String, f64>) -> Option<f64>,
+) {
+    for _ in 0..cone.len() {
+        let mut moved = false;
+        for def in cone {
+            if let ConeDef::Explicit(name, expr) = def {
+                if let Some(value) = read(expr, vars) {
+                    if vars.get(name) != Some(&value) {
+                        moved = true;
+                    }
+                    vars.insert(name.clone(), value);
+                }
+            }
+        }
+        if !moved {
+            break;
+        }
+    }
 }
 
 /// `x` with `A x = b`, the matrix given by its columns, by elimination
@@ -551,6 +600,31 @@ mod tests {
         let b = weigh_jointly(&residual, "b", &cone, &env, 0.0, &none).expect("weighed");
         assert!(a.abs() < 1e-6, "a weighs {a}");
         assert!((b - 1.0).abs() < 1e-6, "b weighs {b}");
+    }
+
+    #[test]
+    fn a_cone_is_weighed_where_its_explicit_definitions_put_it_not_at_the_raw_starts() {
+        // c := cos(phi) and i where c*i = v, the shape of a machine's
+        // rotation matrix multiplying a current. phi starts at 0, so c
+        // is 1 there, but c's own start is 0: the Newton begun at c = 0
+        // finds i's column empty and the cone singular, where at c = 1
+        // it is regular and di/dv = 1/c = 1.
+        let mul =
+            |l: Expr, r: Expr| Expr::Bin(oxidelica_parser::BinOp::Mul, Box::new(l), Box::new(r));
+        let residual = r("i");
+        let mut alg = HashMap::new();
+        alg.insert("c".to_string(), Expr::Call(".cos".into(), vec![r("phi")]));
+        let mut implicit = HashMap::new();
+        implicit.insert("i".to_string(), (mul(r("c"), r("i")), r("v")));
+        let cone = cone_of(&residual, &alg, &implicit);
+        assert_eq!(cone.len(), 2);
+        let env: HashMap<String, f64> = [("phi", 0.0), ("c", 0.0), ("i", 0.0), ("v", 2.0)]
+            .into_iter()
+            .map(|(k, v)| (k.to_string(), v))
+            .collect();
+        let weight =
+            weigh_jointly(&residual, "v", &cone, &env, 0.0, &HashMap::new()).expect("weighed");
+        assert!((weight - 1.0).abs() < 1e-6, "v weighs {weight}");
     }
 
     #[test]

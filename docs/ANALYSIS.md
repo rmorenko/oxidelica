@@ -37370,3 +37370,90 @@ load dump trades its step size underflow for the `singular Jacobian`
 on `airGap.i_sr[1..2]` and `loadInductor.inductor[2].v` that `--solver
 bdf` showed in m380 (`/tmp/m381/ld3.txt`), which is the open switch of
 item 30. Three zero rows, three layers.
+
+## The cone's Newton begun where its explicit definitions put it (m382)
+
+The map of m381 found the joint weighing of the tie in reduction 2 of
+`SMEE_DOL` and `SMEE_Rectifier` singular only at its first iterate:
+the Newton began from raw start values, `RotationMatrix[1,1]` stood at
+its start 0 where `cos(0)` gives 1, and the column of `airGap.i_sr[1]`
+was empty. The change works every explicit definition of the cone
+forward from the starts, in passes until nothing moves, before the
+Newton is begun. A definition that cannot be read keeps its start and
+is left to the Newton as before. `OXIDELICA_NO_CONE_FORWARD=1` gives
+the old start, so that one binary gives both halves.
+
+The test is small and it is red without the change: `c := cos(phi)`
+and `i` where `c*i = v`, with `phi` and `c` both starting at 0. Begun
+at `c = 0`, the column of `i` is empty and the weight is unknown;
+begun at `c = 1`, `di/dv = 1`.
+
+The ladder of controls, one binary (`/tmp/m382/ctl`), off against on:
+`Rectifier12pulse`, QuasiStatic `SMEE_Generator`,
+`TransformerTestbench`, `CauerLowPassAnalog`, `SMPM_Inverter_Polyphase`,
+`SMR_Inverter_Polyphase` and the small machines `M3`, `M5`, `M6` write
+the same CSV byte for byte, and `M3` the same as m381's. `IMC_DOL`, the
+three induction `ComparisonPolyphase`, `SMEE_Generator_Polyphase`,
+`PolyphaseRectifier` and FundamentalWave `SMEE_DOL` refuse with the
+same text to the byte. The three the map named move exactly as it
+said. Machines `SMEE_DOL` leaves the singular block at t = 0 and stops
+at the re-selection at t = 0.005 with two arriving. `SMEE_Rectifier`
+does the same with three arriving. `SMEE_LoadDump` trades its step
+size underflow at t = 0 for the `singular Jacobian` of the open switch
+of item 30, which is a layer and not a regression.
+
+### The re-selection wall at t = 0.005 (m382, a map)
+
+The refusal is not the run's. It is the table's: the second stretch
+writes columns the first did not have, and `append_segment` will not
+pad them. What makes the columns differ was read with the victim probe
+across every compilation of one run (`/tmp/m382/esd_vp.txt`,
+`esr_vp.txt`).
+
+Machines `SMEE_DOL` compiles three times. The first, at t = 0, takes
+`airGap.psi_mr[2]` for the tie of reduction 2 by the joint weight. At
+the monitor's call, a few milliseconds in (a run stopped at 0.002
+finishes on the first compilation, one stopped at 0.0049 already
+holds two), the second compilation resumes, and resuming
+switches the tie rule off (`compile.rs:2466`). The raw weights there
+are `inertiaRotor.phi` 1912, `psi_mr[2]` 209, `lssigma.i_[2]` 1, so
+the tie is no tie and the rotor's angle is demoted. With it the
+reductions after it take other victims: on `internalSupport.phi`
+`phiMechanical` where the first took
+`mechanicalMultiSensor.flange_a.phi`, on `inertiaRotor.flange_b.phi`
+`mechanicalMultiSensor.flange_a.phi` where the first took
+`inertiaRotor.phi` (already spent), and on the excitation's
+`pin_ep.i + lesigma.n.i = 0` `lesigma.i` where the first took
+`damperCage.spacePhasor_r.i_[1]`. The dummy derivatives
+`der(inertiaRotor.flange_b.phi)` and `der(flange.phi)` appear as
+columns. The third compilation, where the second stretch stalls in its
+turn, goes back to `psi_mr[2]` (weight 214 against 95 for the angle),
+and only then is the second stretch appended - and refused. The `t =
+0.005` of the refusal is the first row of the second stretch on the
+output grid, not the instant of the switch: stopped at 0.0049 the same
+run says `t = 0.004`. The stretch the second compilation wrote is what
+the table cannot hold.
+
+`SMEE_Rectifier` follows the same course with another name: the
+second compilation takes `lssigma.i_[2]` in the tie (the only nonzero
+raw weight there, 1.0, every other candidate at 0), the third goes back
+to `psi_mr[2]` (731), and the three arriving columns are the dummy
+derivatives of the stator's space-phasor current
+(`spacePhasorS.spacePhasor.i_[2]`, `lssigma.spacePhasor_a.i_[2]`,
+`spacePhasor_b.i_[2]`). Without the forward pass both models choose
+`lssigma.i_[1]` once and never reach the monitor.
+
+So one wall for both, and its shape is a selection that changes its
+mind twice in a millisecond: the state chosen in the middle stretch is
+neither the one before nor the one after. Two readings of a cure stand
+apart and neither is built: let the table carry a column that one
+stretch did not write (a refusal guards it today for a reason, NaN or
+zero in a CSV is a number nobody computed), or keep the joint weight
+of the first compilation in force while resuming, which is the rule
+the resume skips. The second changes what every resumed reduction
+weighs and wants its own pair.
+
+`SMEE_Generator_Polyphase` is not this wall. Its single compilation
+refuses at once with a `singular Jacobian` over both machines'
+air gaps, and its victims are unchanged by the pass (the log is the
+same to the byte), so the cone does not reach its block.
