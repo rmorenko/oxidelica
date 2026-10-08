@@ -37712,3 +37712,78 @@ said that a step choice is no cure for a block solved in the wrong
 mode. What it shows is that the rectifier has no wall of its own
 behind the event: with the event's first mode taken roughly, it runs
 and gives the right number.
+
+### `the initialization problem is singular`, four models: the lightning source (m383, a probe)
+
+The row of four (`/tmp/m382/on.txt`) is two layers by name
+(`/tmp/m383/nonfluid_ref.txt`). `AmplifierWithOpAmpDetailed` names
+`opAmp.v_in`, and the initialization probe shows why: of the model's
+five initial equations, `resistor2.i = 0` reaches no state
+(`reaches []`) and is paired with `opAmp.v_in` by elimination, the
+one state left. The m280 note already found that column scaling does
+not change its refusal. Not probed further here. `DemonstrateLightning`,
+`LightningLosslessTransmissionLine` and
+`LightningSegmentedTransmissionLine` all name a parameter of
+`Analog.Sources.LightningImpulse` (`T10`, `eta`). The source declares
+five parameters `fixed = false` (`eta`, `T`, `T10`, `tau1`, `tau2`)
+and fixes them with five initial equations: where the maximum is, the
+height there, and the times to 10 %, 90 % and back to 50 %. A model
+of three lines holding one source
+(`/tmp/m383/z/LI.mo`) refuses word for word, so the family is the
+source and not the circuits.
+
+The system has a root next to the starts the library gives, and the
+compiler does not reach it. For the Heidler form (the default), SciPy
+and a plain Armijo Newton both land at `eta = 0.9405`, `T = 24.0 us`,
+`T10 = 6.14 us`, `tau1 = 9.63 us`, `tau2 = 470.7 us` from the library's
+starts. The compiler's Newton (`/tmp/m383/z/LI.trail.log`, a throwaway
+trail of the initialization) takes full steps. Its residual goes 1.08,
+15.5, 23.2, 11.6, 8.4, 3.8, 3.9e3, 1.5e36, `tau2` turns negative on the
+third step, and the matrix is singular on the eighth. Two throwaway
+switches were measured, one binary (`/tmp/m383/ox12`, from 72a2372):
+
+```text
+small model, Heidler           plain   descent   rel. step   both
+compiler                       refused stalls    refused     solved, 37 iterations
+Python, same formulas          singular  0.389   singular    solved, 35 iterations
+```
+
+"Descent" halves a step until the residual falls, "rel. step" takes
+the finite difference at `1e-7 * |y|` rather than `1e-7 * (1 + |y|)`.
+The second matters because these unknowns are of order 1e-5: an
+absolute step of 1e-7 is a 1 % change in `tau1`, raised to the fifth
+power by the formula, and the Jacobian is wrong enough that descent
+alone stalls at `|f| = 0.39`. Solved with both, the source is right to
+the digits the run prints (`/tmp/m383/z/LI2.csv`): peak 1.0000 at
+24.0 us, `1.25 * (T90 - T10) = 10.0 us = T1`, and 50 % at 350 us after
+the virtual start, which is `T2`.
+
+The double-exponential form is where it turns dangerous. Its system
+has a second family of exact roots, `eta = 0` with `tau1 = tau2`, on
+which every one of the five equations reads `0 = 0`, and the physical
+root (`eta = 0.9511`, `tau1 = 470.1 us`, `tau2 = 4.06 us`) is a
+separate point. Plain Newton, descent on the plain norm, and both
+switches together stall at `|f| = 0.40` (`/tmp/m383/z/LD.log`). A
+descent on a norm weighted by the size of each Jacobian row reaches
+`|f| = 3e-13` in five steps, and reaches the wrong family:
+`eta = -1.2e-18`, `tau1 = tau2 = 370.6 us` (`LDs.log`). Python with the
+same weighting does the same. Inside `DemonstrateLightning`, which
+holds one source of each form, the weighted descent lands the
+double-exponential source on its physical root. It lands the Heidler
+source at `eta = 5.8e-23`, `tau1 = 32.8 ms`, and the `library check`
+list then prints the model as `ran`, because the ten steps of the
+check meet nothing. Its full run is refused later, on a
+differentiation. A wrong root that passes the run list is exactly the
+wrong number the project does not give, so the weighted norm is not a
+road. The relative step and plain descent together keep the physical
+root in every case measured, but they leave `DemonstrateLightning`
+stalled at `|f| = 1.12`. That model has both sources in one Newton,
+and the double-exponential half does not move.
+
+So the layer is the initialization Newton: full steps, an absolute
+finite-difference step for unknowns of order 1e-5, and no guard
+against a root family on which a parameter declared `min = small`
+goes to zero. A corpus pair of the relative step with descent, taken
+as a measurement and not as a change, is recorded below. Nothing is
+built; the guard on `eta` (its `min` attribute says what the library
+means) is the question for whoever takes it.
