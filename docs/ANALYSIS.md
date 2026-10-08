@@ -37684,3 +37684,31 @@ not yet confirmed, may be taken roughly and passed on to the next
 pass. That belongs to the event iteration, not to the algebraic
 solver. Not built; noted so that the next probe starts at the event
 and not at the step.
+
+`PolyphaseRectifier` runs on the main binary under two settings
+together, and under neither alone (`/tmp/m383/z/PR.bdf_fd4.log`,
+binary built from 72a2372, no probe). With `--solver bdf` and
+`OXIDELICA_FD_STEP=1e-4` it takes 2358 steps in 18 s to t = 1 and
+ends at a load current of 233.79 A and a DC power of 54.66 kW. For six
+phases at 100 V to the star point, split into two three-phase bridges
+in series, that is what a 1 ohm load should draw (1.35 times the line
+voltage of 173.2 V is 233.9 V per bridge). `OXIDELICA_FD_STEP=1e-5`
+gives the same load current to 3.6e-5 A at every shared output time
+(`PR.bdf_fd5.csv`). With bdf at the default step the t = 0 event is
+refused as singular, and with the auto solver at 1e-4 the run is
+refused as not converging. The trail at 1e-4
+(`/tmp/m383/z/PR.fd4trail.log`) shows the t = 0 event passing through
+the same short-circuit mode (`6.12e7`) and leaving it on the next
+pass, which is the rough acceptance the paragraph above asks about,
+bought here by a Jacobian that can read the mode's columns. The
+difference between the two step sizes is the `iH1` means at the last
+row, which read their values just after a reset at t = 1 in one run
+and just before it in the other. That is the order of two events at
+the stop time and has not been checked further.
+
+This is a measurement, not a change. The step of the finite
+difference is a threshold of the solver, and the m382 map already
+said that a step choice is no cure for a block solved in the wrong
+mode. What it shows is that the rectifier has no wall of its own
+behind the event: with the event's first mode taken roughly, it runs
+and gives the right number.
