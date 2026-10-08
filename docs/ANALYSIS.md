@@ -37787,3 +37787,16 @@ goes to zero. A corpus pair of the relative step with descent, taken
 as a measurement and not as a change, is recorded below. Nothing is
 built; the guard on `eta` (its `min` attribute says what the library
 means) is the question for whoever takes it.
+
+The corpus pair of that measurement did not finish. One binary
+(`/tmp/m383/ox12`), the off half took the whole main pass in about
+nineteen minutes and printed 961 / 738 and runnable 844 / 696
+(`/tmp/m383/pair/off.txt`), the same as the m382 pair. The on half,
+with the relative step and the descent in the initialization, reached
+`read 927 of 1028 models` at 1056 s and was still there 33 minutes
+later, at three cores, when it was taken down
+(`/tmp/m383/pair/on.txt`). A halving loop of thirty trials on every
+step of an initialization that already takes fifty steps is a price
+some model pays in full. So the measurement found a giant before it
+found a number. Whoever builds on it starts with `--slow` on the two
+halves to name that model.
