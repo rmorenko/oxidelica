@@ -38091,3 +38091,18 @@ trail prints six values past the states, and `Fluid.Pipes` declares
 parameters" lets the giant in. The fence left to measure is the frozen
 norm accepted only where the plain one also falls, which is the next
 shift's first measurement.
+
+Measured at once, since it costs seconds (`/tmp/m384/ox21p`, a step
+accepted only where the frozen norm and the plain norm both fall): the
+fence gives back what the frozen norm bought. The Heidler source still
+solves, in 28 iterations, peaking at `0.99999973`, but the
+double-exponential source and `DemonstrateLightning` are back at 50
+iterations and refused. The double-exponential root lies past a stretch
+where the plain residual rises, and a fence that forbids the rise
+forbids the root. So neither fence measured keeps the lightning and
+shuts out the giant. What is left is a fence on cost rather than on
+direction - a ceiling on the iterations of this road, say ten, after
+which the old Newton takes over, which the giant pays once at fifty
+seconds a step and the lightning never reaches. That is the shape the
+order asked for (`every phase of a run has a size`) and it is the
+next shift's pair.
