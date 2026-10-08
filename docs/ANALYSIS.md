@@ -36960,3 +36960,86 @@ bands were told the same evening not to see. The win is real but is
 measured only by the test and by the bridge's full run. It is not
 committed: it waits on Roman's word as the widened floor did, and
 lies as `state/floor_at_step_m378.patch`.
+
+## The star's victim, told apart by settling the definitions together (m379)
+
+The open star's zero row (m357) is one tie: `starpoint.i = 0` names
+none of a machine's states, its own slope weighs every candidate at
+zero, and the walk's last one is demoted - `lssigma.i_[1]`, which the
+star does not determine, instead of `lszero.i`, which it does. m359
+measured the weight through the definitions as a way out and found it
+no sign: the parked rule lost `Rectifier12pulse` at 3.46 against 1 and
+`SMEE_Generator` at 1 against two zeros, and won `IMC_Inverter` at
+9 against 3 and 0.
+
+The 3.0 that `lssigma.i_[1]` weighed in `IMC_Inverter` is the finding.
+The weight is worked out one definition at a time, in order, each with
+the ones after it held, and the stator writes its three phase currents
+as three implicit equations, `spacePhasorS.i[k]`, each reading all
+three (`/tmp/m379/imc_cone10.txt`, 25 definitions). Worked in order
+they give a sensitivity that is not one. Settled together, by one
+Newton over the whole cone, the star weighs `lszero.i` at -3.0 and
+both space-phasor currents at exactly 0.0
+(`/tmp/m379/imc_joint.txt`). The same instrument on the other two
+m359 rows: `Rectifier12pulse` at reduction 2 weighs `l1sigma[1]` 1.73
+and `l2sigma[2]` 1.0 - both determined, so the loss there is the
+numerical one m373 traced and no wrong victim; `SMEE_Generator` at 17
+weighs its two candidates 1.0 and -1.0 (`/tmp/m379/smee_joint.txt`).
+
+So the sign is not how heavy a candidate is but whether it is zero
+when the definitions are settled together: a candidate the constraint
+does not determine. The rule taken drops those from a tie at zero
+slope and changes nothing else - among the determined ones the walk
+still decides, and where any weight cannot be worked out (the cone
+will not settle, or its own Jacobian is singular) the tie is left
+whole. It is behind `OXIDELICA_NO_TIE_JOINT`, and the twelve-line
+`T1` (an open star in miniature) is refused as underdetermined with the
+switch and runs without it, `z` held at zero.
+
+The ladder, `--only` from `.msl` with one binary
+(`/tmp/m379/off.txt`, `/tmp/m379/fix.txt`): of the fourteen machines
+of m377's list (a), eight run - `IMC_Conveyor`, `IMC_DCBraking`,
+`IMC_Inverter`, Machines `SMPM_Inverter`, `SMR_DOL`, `SMR_Inverter`,
+FundamentalWave `SMPM_Inverter` and `SMR_Inverter`. Of the 248 ties
+the probe binary printed over the twenty models, the rule changed the
+choice in sixteen, every one in those ten machines and the Machines
+`SMEE_LoadDump`. The controls do not move: `Rectifier12pulse` and QS
+`SMEE_Generator` give the same CSV to the byte, and `IMC_DOL` and
+`IMC_YD` choose the same 24 victims (their wrapped copies are refused
+outside the library check on base and fix alike).
+
+Six stay, and why is named as far as it was measured. `SMEE_DOL` and
+`SMEE_Rectifier`: the star's tie is now decided right (`lszero.i` -3.0
+against `lssigma.i_[2]` 0.0) and the refused block no longer has a
+zero row (`/tmp/m379/z_SMEE_DOL.txt`, 120 rows), but it is still
+singular. The one tie there the rule could not weigh is the second
+reduction, whose cone's own Jacobian is singular at column
+`smee.airGap.i_sr[1]`, so it was left whole; whether that tie is what
+holds the block is the next probe, not a finding. The three
+`ComparisonPolyphase` are not this tie at all. Their zero row is the
+five-phase machine's, `smrM.stator.zeroInductor.plug_p.pin[1].i +
+plug_n.pin[1].i = 0` (`/tmp/m379/z_SMR_Inverter_Polyphase.txt`), and
+no reduction is ever made on that machine's star: the only star
+reduced is the three-phase `terminalBox3.starpoint.i`, where the
+victim is `zeroInductor.i0` - the only candidate in
+`SMEE_Generator_Polyphase`, weighed -3.0, and the walk's choice in the
+other two, whose cone of 169 and 173 definitions is singular so the
+rule leaves the tie whole.
+`PolyphaseRectifier` has no tie at all - its zero row comes from the
+source, not through definitions.
+Machines `SMEE_LoadDump` changes its refusal to a step size underflow
+at t = 0; the FundamentalWave one is not touched.
+
+### `RollingWheel` (m379, a map)
+
+The refused block at t = 0 holds the differentiated constraint
+`delta_0 . e_axis_0 = 0` twice, as rows 11 and 16
+(`/tmp/m379/rw.txt`). The two texts differ in one term: one has
+`-v_0[3] * e_axis_0[3]` where the other has
+`der(delta_0[3]) * e_axis_0[3]`. With the wheel upright `e_axis_0[3]`
+is zero, the term vanishes from both, and the two rows of the Jacobian
+agree to the last bit. So the rank is lost numerically at the start
+point, by an axis component that is zero there, and not by the
+structure: the two forms are one equation reached by two roads of the
+reduction, and they part only once the wheel leans. A map; no change
+was built.

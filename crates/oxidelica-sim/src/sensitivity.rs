@@ -241,6 +241,130 @@ pub(crate) fn weigh_at_start(
     Some((after - before) / h)
 }
 
+/// The residual's change per unit change of `state` with every
+/// definition of the cone settled together, by one Newton over all of
+/// them, every other state held where it stands.
+///
+/// `weigh_at_start` works the definitions out one at a time in order,
+/// each with the ones after it held, which is exact for a chain and
+/// not for definitions that hold one another. A machine's stator writes
+/// its three phase currents as three implicit equations that each read
+/// all three: worked one at a time, an open star's `starpoint.i = 0`
+/// weighed the space-phasor current `lssigma.i_[1]` at 3.0, and settled
+/// together it weighs exactly zero, which is what the physics says -
+/// the star holds the zero sequence and nothing else. `None` where the
+/// cone will not settle or its own Jacobian is singular: then nothing
+/// is known, and nothing is guessed.
+pub(crate) fn weigh_jointly(
+    residual: &Expr,
+    state: &str,
+    cone: &[ConeDef],
+    env: &HashMap<String, f64>,
+    time: f64,
+    programs: &HashMap<String, ClassDef>,
+) -> Option<f64> {
+    let names: Vec<&str> = cone.iter().map(ConeDef::name).collect();
+    let read = |expr: &Expr, vars: &HashMap<String, f64>| -> Option<f64> {
+        eval(
+            expr,
+            &EvalCtx {
+                vars,
+                time,
+                programs: Some(programs),
+                depth: 0,
+            },
+        )
+        .ok()
+        .filter(|value| value.is_finite())
+    };
+    // An explicit definition is the residual `name - expr`, so that one
+    // Newton settles both kinds alike.
+    let gaps = |vars: &HashMap<String, f64>| -> Option<Vec<f64>> {
+        cone.iter()
+            .map(|def| match def {
+                ConeDef::Explicit(name, expr) => Some(*vars.get(name)? - read(expr, vars)?),
+                ConeDef::Implicit(_, expr) => read(expr, vars),
+            })
+            .collect()
+    };
+    let settle = |vars: &mut HashMap<String, f64>| -> Option<()> {
+        for _ in 0..30 {
+            let here = gaps(vars)?;
+            let mut columns = Vec::with_capacity(names.len());
+            for name in &names {
+                let v = *vars.get(*name)?;
+                let h = 1e-7 * (1.0 + v.abs());
+                vars.insert(name.to_string(), v + h);
+                let moved = gaps(vars)?;
+                vars.insert(name.to_string(), v);
+                columns.push(
+                    moved
+                        .iter()
+                        .zip(&here)
+                        .map(|(m, g)| (m - g) / h)
+                        .collect::<Vec<f64>>(),
+                );
+            }
+            let step = solve_dense(&columns, &here)?;
+            for (name, delta) in names.iter().zip(&step) {
+                let v = vars[*name] - delta;
+                if !v.is_finite() {
+                    return None;
+                }
+                vars.insert(name.to_string(), v);
+            }
+            let size = step.iter().fold(0.0f64, |m, v| m.max(v.abs()));
+            let gap = here.iter().fold(0.0f64, |m, v| m.max(v.abs()));
+            if size <= 1e-13 && gap <= 1e-9 {
+                return Some(());
+            }
+        }
+        None
+    };
+    let mut vars = env.clone();
+    let x = *vars.get(state)?;
+    settle(&mut vars)?;
+    let before = read(residual, &vars)?;
+    let h = step_for(x);
+    vars.insert(state.to_string(), x + h);
+    settle(&mut vars)?;
+    let after = read(residual, &vars)?;
+    Some((after - before) / h)
+}
+
+/// `x` with `A x = b`, the matrix given by its columns, by elimination
+/// with partial pivoting. `None` where a pivot is zero.
+fn solve_dense(columns: &[Vec<f64>], b: &[f64]) -> Option<Vec<f64>> {
+    let n = b.len();
+    let mut a: Vec<Vec<f64>> = (0..n)
+        .map(|i| columns.iter().map(|c| c[i]).collect())
+        .collect();
+    let mut b = b.to_vec();
+    for k in 0..n {
+        let pivot = (k..n).max_by(|&i, &j| a[i][k].abs().total_cmp(&a[j][k].abs()))?;
+        if a[pivot][k] == 0.0 {
+            return None;
+        }
+        a.swap(k, pivot);
+        b.swap(k, pivot);
+        let (above, below) = a.split_at_mut(k + 1);
+        let pivot_row = &above[k];
+        for (offset, row) in below.iter_mut().enumerate() {
+            let factor = row[k] / pivot_row[k];
+            for (cell, top) in row[k..].iter_mut().zip(&pivot_row[k..]) {
+                *cell -= factor * top;
+            }
+            b[k + 1 + offset] -= factor * b[k];
+        }
+    }
+    let mut x = vec![0.0; n];
+    for k in (0..n).rev() {
+        let known: f64 = (k + 1..n).map(|j| a[k][j] * x[j]).sum();
+        x[k] = (b[k] - known) / a[k][k];
+    }
+    Some(x)
+}
+
 /// The same weight as run-time code, for the monitor that asks after
 /// every accepted step whether the pivot would still choose the same.
 #[derive(Debug, Clone)]
@@ -399,6 +523,52 @@ mod tests {
             .collect();
         assert_eq!(
             weigh_at_start(&residual, "x", &cone, &env, 0.0, &HashMap::new()),
+            None
+        );
+    }
+
+    #[test]
+    fn definitions_that_hold_one_another_are_weighed_settled_together() {
+        // p and q hold each other: p - (a + q) = 0 and q - (b - p) = 0,
+        // so p = (a + b)/2 and q = (b - a)/2. The residual p + q = b
+        // reads nothing of `a`, though worked one definition at a time
+        // it would.
+        let sub =
+            |l: Expr, r: Expr| Expr::Bin(oxidelica_parser::BinOp::Sub, Box::new(l), Box::new(r));
+        let add =
+            |l: Expr, r: Expr| Expr::Bin(oxidelica_parser::BinOp::Add, Box::new(l), Box::new(r));
+        let residual = add(r("p"), r("q"));
+        let mut implicit = HashMap::new();
+        implicit.insert("p".to_string(), (r("p"), add(r("a"), r("q"))));
+        implicit.insert("q".to_string(), (r("q"), sub(r("b"), r("p"))));
+        let cone = cone_of(&residual, &HashMap::new(), &implicit);
+        let env: HashMap<String, f64> = [("a", 1.0), ("b", 2.0), ("p", 0.0), ("q", 0.0)]
+            .into_iter()
+            .map(|(k, v)| (k.to_string(), v))
+            .collect();
+        let none = HashMap::new();
+        let a = weigh_jointly(&residual, "a", &cone, &env, 0.0, &none).expect("weighed");
+        let b = weigh_jointly(&residual, "b", &cone, &env, 0.0, &none).expect("weighed");
+        assert!(a.abs() < 1e-6, "a weighs {a}");
+        assert!((b - 1.0).abs() < 1e-6, "b weighs {b}");
+    }
+
+    #[test]
+    fn a_cone_with_no_unique_solution_is_not_a_weight() {
+        // p - (a + q) = 0 twice over: p and q are not determined.
+        let add =
+            |l: Expr, r: Expr| Expr::Bin(oxidelica_parser::BinOp::Add, Box::new(l), Box::new(r));
+        let residual = r("p");
+        let mut implicit = HashMap::new();
+        implicit.insert("p".to_string(), (r("p"), add(r("a"), r("q"))));
+        implicit.insert("q".to_string(), (r("p"), add(r("a"), r("q"))));
+        let cone = cone_of(&residual, &HashMap::new(), &implicit);
+        let env: HashMap<String, f64> = [("a", 1.0), ("p", 0.0), ("q", 0.0)]
+            .into_iter()
+            .map(|(k, v)| (k.to_string(), v))
+            .collect();
+        assert_eq!(
+            weigh_jointly(&residual, "a", &cone, &env, 0.0, &HashMap::new()),
             None
         );
     }

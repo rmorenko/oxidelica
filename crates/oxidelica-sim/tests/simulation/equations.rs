@@ -304,6 +304,38 @@ fn dummy_derivatives_demote_a_state_and_keep_the_constraint_exact() {
     assert!(late < 100.0 * early.max(1e-12), "drift: {early} -> {late}");
 }
 
+/// An open star in miniature: three phase currents built from two
+/// space-phasor states and a zero sequence `z`, and the star saying
+/// they sum to zero. The constraint names no state, so its own slope
+/// weighs `a`, `b` and `z` all at zero; only through the definitions
+/// does it read `3*z` and nothing of the other two. Taken from the
+/// tie by the order of the walk it demoted `a`, which the star does
+/// not determine, and the block was refused as underdetermined. With
+/// the candidates the star does not determine dropped from the tie,
+/// only `z` is left.
+#[test]
+fn a_constraint_reaching_its_states_only_through_definitions_demotes_the_one_it_determines() {
+    let result = run(
+        "model T1 Real a(start = 0); Real b(start = 0); Real z(start = 0); \
+         Real v0; Real vs; Real i1; Real i2; Real i3; \
+         equation der(a) = sin(time) - a; der(b) = cos(time) - b; \
+         0.1 * der(z) = v0; v0 = vs; \
+         i1 = a + z; i2 = -0.5 * a + 0.8660254037844386 * b + z; \
+         i3 = -0.5 * a - 0.8660254037844386 * b + z; i1 + i2 + i3 = 0; \
+         annotation(experiment(StopTime=1.0, Interval=0.01)); end T1;",
+    );
+    let last = result.rows.last().unwrap();
+    let column = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+    // der(a) = sin(t) - a from a(0) = 0 closes to (sin t - cos t + e^-t)/2.
+    let exact = (1f64.sin() - 1f64.cos() + (-1f64).exp()) / 2.0;
+    assert!(
+        (last[column("a")] - exact).abs() < 1e-5,
+        "a = {}",
+        last[column("a")]
+    );
+    assert!(last[column("z")].abs() < 1e-9, "z = {}", last[column("z")]);
+}
+
 #[test]
 fn a_constraint_of_every_shape_is_differentiated() {
     // Index reduction differentiates the constraint, and the

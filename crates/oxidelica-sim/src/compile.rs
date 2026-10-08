@@ -2113,6 +2113,42 @@ fn reduce_index(
     })
 }
 
+/// Whether a tie at zero slope drops the candidates the constraint does
+/// not determine. On by default; `OXIDELICA_NO_TIE_JOINT=1` keeps every
+/// candidate in the tie, as before.
+fn tie_drops_the_undetermined() -> bool {
+    std::env::var_os("OXIDELICA_NO_TIE_JOINT").is_none()
+}
+
+/// The candidates of a tie that `weigh` finds the constraint
+/// determines, in their order. A weight is zero when it is a millionth
+/// of the heaviest or less - the weights are differences, and a
+/// candidate the constraint misses reads as rounding beside one it
+/// holds. Every candidate is kept where any weight is not known or
+/// where none is above zero, so the tie is never emptied.
+fn drop_the_undetermined(
+    candidates: Vec<String>,
+    weigh: impl Fn(&str) -> Option<f64>,
+) -> Vec<String> {
+    let mut weights = Vec::with_capacity(candidates.len());
+    for name in &candidates {
+        match weigh(name) {
+            Some(w) => weights.push(w.abs()),
+            None => return candidates,
+        }
+    }
+    let heaviest = weights.iter().copied().fold(0.0f64, f64::max);
+    if heaviest == 0.0 {
+        return candidates;
+    }
+    candidates
+        .into_iter()
+        .zip(weights)
+        .filter(|(_, w)| *w > 1e-6 * heaviest)
+        .map(|(name, _)| name)
+        .collect()
+}
+
 /// Which state a constraint demotes.
 ///
 /// The choice is a pivot: the constraint has to *determine* the
@@ -2385,6 +2421,33 @@ fn choose_the_victim(
         candidates.clone()
     } else {
         before_anchor
+    };
+    // Where every candidate weighs zero by the residual's own slope the
+    // choice below is not a choice: `max_by` hands back whichever came
+    // last in the walk. An open star's `starpoint.i = 0` names none of
+    // a machine's currents, so it weighed `lszero.i` and the two
+    // space-phasor currents all at zero, and the last of them was
+    // `lssigma.i_[1]` - a current the star does not determine at all.
+    // Demoted, it left the zero sequence a state the star then held a
+    // second time, and the block that row landed in read zero in every
+    // column. So in such a tie a candidate whose weight, with the
+    // definitions settled together, is zero is not a candidate: the
+    // constraint does not determine it. Nothing else changes - among
+    // those the constraint does determine the walk still decides, since
+    // how heavy a determined candidate is was measured and is no sign
+    // of the right one. Where any weight cannot be worked out the tie
+    // is left exactly as it was.
+    let candidates = if !resuming
+        && tie_drops_the_undetermined()
+        && !through.is_empty()
+        && candidates.len() > 1
+        && candidates.iter().all(|name| sensitivity(name) == 0.0)
+    {
+        drop_the_undetermined(candidates, |name| {
+            crate::sensitivity::weigh_jointly(residual, name, &cone, start_env, at_time, programs)
+        })
+    } else {
+        candidates
     };
     let chosen = candidates.into_iter().max_by(|a, b| {
         sensitivity(a)
@@ -7044,4 +7107,40 @@ fn pre_as_now(condition: &Expr) -> Expr {
 /// old reading, so that one binary gives both numbers.
 fn pre_in_modes_refused() -> bool {
     std::env::var_os("OXIDELICA_PRE_IN_MODES_OFF").is_some()
+}
+
+#[cfg(test)]
+mod tie_tests {
+    use super::drop_the_undetermined;
+
+    fn names(list: &[&str]) -> Vec<String> {
+        list.iter().map(|s| s.to_string()).collect()
+    }
+
+    #[test]
+    fn a_tie_keeps_only_what_the_constraint_determines() {
+        let weights = |name: &str| match name {
+            "z" => Some(-3.0),
+            "a" => Some(0.0),
+            _ => Some(2e-15),
+        };
+        assert_eq!(
+            drop_the_undetermined(names(&["z", "b", "a"]), weights),
+            names(&["z"])
+        );
+    }
+
+    #[test]
+    fn a_tie_is_left_whole_where_a_weight_is_not_known_or_none_is_above_zero() {
+        let unknown = |name: &str| if name == "b" { None } else { Some(1.0) };
+        assert_eq!(
+            drop_the_undetermined(names(&["a", "b"]), unknown),
+            names(&["a", "b"])
+        );
+        let nothing = |_: &str| Some(0.0);
+        assert_eq!(
+            drop_the_undetermined(names(&["a", "b"]), nothing),
+            names(&["a", "b"])
+        );
+    }
 }
