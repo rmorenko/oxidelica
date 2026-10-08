@@ -37984,3 +37984,35 @@ notes above put under the depth ceiling (`h_T` unrolls to nesting
 past 32, and at 48 still stands, on subscripts). Not
 probed further: the depth ceiling's own notes say what raising it
 costs.
+
+A throwaway of that road was built in a copy of the tree (binary
+`/tmp/m384/ox17p`, not kept): where the block refuses, the
+definitions are run once more on the refused point, and if any moves,
+the round goes on instead of refusing. On `PolyphaseRectifier` with
+`--stop 0.01` it fires once, at t = 0 on the first pass, and one
+definition moves (`slot 2278`, 0 to 1). The point is then evaluated
+in the new mode and the block refuses again, now as `did not converge
+in 50 Newton iterations` (`solvers/mod.rs:2070`), and no definition
+moves on that refusal. The same happens when the block's guess is put
+back to where it stood before the refused solve. So passing the
+refusal back to the iteration is not enough on its own: the second
+mode is not the one the m383 rough probe reached, which moved the
+diodes from a point solved roughly rather than from the refused
+iterate. The series has a second question before it is built - which
+point the definitions are asked at - and the rough probe of m383 is
+the reference for the answer.
+
+Two last measurements on the lightning family, both throwaways in a
+copy of the tree on top of the fix (`/tmp/m384/ox18p`, not kept). The
+three-line source with `startTime = 0.02`, which peaked at 0.92219758
+before the fix, peaks at `0.99999973` at 24 us after the start with
+the relative step and descent, the m383 number for `startTime = 0`.
+So the fix is what the probes of m383 were missing for every source
+that does not start at zero, which is every lightning in the library.
+And the guard the m383 chapter asked about, a step not allowed to take
+a parameter that was positive to zero or below (the `min = small` the
+library writes), changes nothing measured: `DemonstrateLightning` and
+the double-exponential source still stop at 50 iterations (`|f| =
+0.40` for the latter, the same as without it), and the two Heidler
+models still solve in 36. The double-exponential half is the wall, and
+it is not a step that leaves the domain.
