@@ -37015,7 +37015,10 @@ zero row (`/tmp/m379/z_SMEE_DOL.txt`, 120 rows), but it is still
 singular. The one tie there the rule could not weigh is the second
 reduction, whose cone's own Jacobian is singular at column
 `smee.airGap.i_sr[1]`, so it was left whole; whether that tie is what
-holds the block is the next probe, not a finding. The three
+holds the block is the next probe, not a finding. The refused block
+carries the closer's `idealClosingSwitch[k].s` among its unknowns, so
+the wall behind the star is the open switch read by the rank test,
+the road m372 mapped for this model and left unbuilt. The three
 `ComparisonPolyphase` are not this tie at all. Their zero row is the
 five-phase machine's, `smrM.stator.zeroInductor.plug_p.pin[1].i +
 plug_n.pin[1].i = 0` (`/tmp/m379/z_SMR_Inverter_Polyphase.txt`), and
