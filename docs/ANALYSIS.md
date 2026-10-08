@@ -37626,3 +37626,31 @@ and none was built here. The edge is the only layer with ten models
 behind it. Its open question is still how far from the start of a
 solve a retreat may leave the block, and m363 measured that the two
 cheap switches turn a quick refusal into a slow one.
+
+### `PolyphaseRectifier`: the 6.1e7 is the exact answer for the mode chosen (m383, a probe)
+
+The m382 map ended on a question: why does one step after the event
+take the source current from 1e2 to 6.1e7? The trail answers it
+(`/tmp/m382/pr_trail.txt`, unknowns named in `/tmp/m380/prnames.txt`).
+The Newton did not overshoot. At the start of the solve that
+refuses, `diode2[1].idealDiode[1].s` stands at `4.998e-12`, a
+rounding zero on the positive side, and `diode1[1].idealDiode[1].s`
+at `-9.755e-12`. The event has switched the diodes from those signs.
+Within two iterations `sineVoltage.plug_p.pin[2].i` reads
+`6.12361e7`, and at the end `6.12372e7`. The source difference
+across that branch is `122.4745` V and two diodes conduct in series
+with `Ron = 1e-6` each, so `122.4745 / 2e-6 = 6.1237e7`. That is the
+current the trail settles on, to five digits. The block has solved
+the mode it was given: a phase-to-phase short through two conducting
+diodes, with nothing else in the path.
+
+So the six orders are not the Newton's. They come from the mode the
+event chose, and that mode was chosen on the sign of an `s` that
+stood at rounding level (`5e-12` against currents of order 1e2). The
+row 17 the m382 map found zero is then read at currents the mode
+really does carry. The question for whoever takes the rectifier is
+no longer the Newton step. It is how an event decides a diode's
+state when its `s` sits inside the rounding of the block, and that
+belongs to the event iteration, not to the algebraic solver. Not
+built; noted so that the next probe starts at the event and not at
+the step.
