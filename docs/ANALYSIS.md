@@ -37669,10 +37669,18 @@ accepted at those currents (the m382 map).
 So the six orders are not the Newton's. They come from the mode the
 event chose, and that mode was chosen on the sign of an `s` that
 stood at rounding level (`5e-12` against currents of order 1e2). The
-row 17 the m382 map found zero is then read at currents the mode
-really does carry. The question for whoever takes the rectifier is
-no longer the Newton step. It is how an event decides a diode's
-state when its `s` sits inside the rounding of the block, and that
-belongs to the event iteration, not to the algebraic solver. Not
-built; noted so that the next probe starts at the event and not at
-the step.
+choice is the library's own law, `off = s < 0` in
+`Analog.Ideal.IdealDiode`, applied faithfully, so the compiler did not
+choose wrongly. What the compiler does with the result is the open
+part. The law says the next pass of the event iteration turns
+`diode2[1][1]` off again on its `-6.1e7`, and a mode that a pass will
+undo is a step of the iteration, not an answer. Today that step's
+algebraic block is held to the ordinary acceptance test and refused
+before the pass can happen. The row 17 the m382 map found zero is read
+at currents the mode really does carry. The question for whoever takes
+the rectifier is therefore no longer the Newton step. It is whether a
+block solved inside an event iteration, in a mode the iteration has
+not yet confirmed, may be taken roughly and passed on to the next
+pass. That belongs to the event iteration, not to the algebraic
+solver. Not built; noted so that the next probe starts at the event
+and not at the step.
