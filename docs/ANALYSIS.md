@@ -37457,3 +37457,38 @@ weighs and wants its own pair.
 refuses at once with a `singular Jacobian` over both machines'
 air gaps, and its victims are unchanged by the pass (the log is the
 same to the byte), so the cone does not reach its block.
+
+### `PolyphaseRectifier`: the zero row is rounding, not structure (m382, a map)
+
+The map of m380 left row 17 of the refused block,
+`-sineVoltage.plug_p.pin[2].i + sineVoltage[2].p.i = 0`, as a row whose
+dependence on its own unknown cancels through the block's inner
+assignments. Walked through all 102 of the assignments it reads
+(`/tmp/m380/pr_inner.txt`, evaluated by a throwaway script at a random
+point with every outside value at 1 and the two ground resistances at
+their `RGnd = 1e5`), the row does cancel in `plug_p.pin[2].i`, and in
+nothing else: it reads `multiStar.star.pin_n.v` with slope `2/RGnd =
+2e-5` and `analysatorAC.multiDelta.plug_p.pin[5].v` with `-1/RGnd =
+-1e-5`, through the resistor to ground and the star's own resistors.
+So the row is not structurally zero, and the star is held, weakly, by
+the resistance the example puts there for exactly that purpose.
+
+What zeroes it is arithmetic (`/tmp/m382/pr_trail.txt`). The block
+settles at t = 0, an event switches the diodes, and the Newton begun
+there drives `sineVoltage.plug_p.pin[2].i` to 6.1e7 and the star to
+8.3e3 within two steps. At that point the finite difference of the
+star's column steps by `1e-8 * (1 + 8279) = 8.3e-5` and moves row 17
+by `2e-5 * 8.3e-5 = 1.7e-9`, while the two terms of the row stand at
+6.1e7, whose last place is 1.3e-8. The move is inside the rounding of
+the row, the column entry reads zero, and the row is zero in every
+column. Switching off each floor of the zero ladder, the row scaling,
+the descent guard, or changing to `bdf` leaves the refusal word for
+word. `OXIDELICA_FD_STEP=1e-4` (and 1e-6) reads the column and moves
+the wall on: the block then fails to converge in 50 iterations at
+t = 0.00089, with the residual growing to 1e16. So the rectifier is a
+third layer of its own, as m381 measured, and its shape is a 1e5 ohm
+path that is the only thing fixing a potential, read against currents
+of 1e7 that the Newton should never have reached. Not built; a step
+choice is no cure for a Newton that leaves the physical range, and the
+first question for whoever takes it is why one event step multiplies
+the source current by six orders.
