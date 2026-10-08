@@ -38056,3 +38056,21 @@ starts, inside the step and the descent alike, with the relative
 finite-difference step, and the price the giants of the pair set
 bounded by a ceiling on the halvings. Measured in Python only; the
 compiler's pair is the next shift's.
+
+The same frozen scale inside the compiler, as a throwaway in a copy of
+the tree on top of the fix (`/tmp/m384/ox19p`, not kept: the relative
+step, descent on the plain norm, and the norm's rows divided by `|J|
+|x|` taken at the first iteration and held). Every lightning model
+reaches the physical root: the three-line Heidler source in 6
+iterations and the double-exponential in 5, peaking at `0.99999973`
+(with `startTime = 0.02`) and `0.99999984`. `DemonstrateLightning`
+solves both sources in 6, `eta = 0.9511` for the double exponential
+and `0.9405` for Heidler, neither degenerate. Its run then refuses on
+`cannot differentiate a non-constant exponent`, the Heidler `^ m`,
+which is a wall of its own behind this one. The lossless line solves
+and runs; the segmented line solves and refuses `step size underflow
+at t = 0`. So the initialization layer is crossed by all four of the
+row's lightning models on this road, and none lands on the degenerate
+family; what is left behind it is two different walls and one model
+that runs. The corpus pair, with a ceiling on the halvings so that the
+three Fluid giants pay a bounded price, is the next shift's.
