@@ -1199,7 +1199,24 @@ FLATTEN_FLOOR=961
 # left out:
 #
 #   726 printed - 1 SpringWithMass - 1 SMPM_VoltageSource = 724
-RUN_FLOOR=724
+#
+# And run 732 = 724 + the eight machines the joint weight of a
+# zero-slope tie lets run (7135756): IMC_Conveyor, IMC_DCBraking,
+# IMC_Inverter, SMPM_Inverter, SMR_DOL and SMR_Inverter of Machines,
+# and SMPM_Inverter and SMR_Inverter of FundamentalWave. The runner
+# printed 961 / 734 and runnable 844 / 692 on 6251721, the commit
+# after it, in job 113205797147 of push run 37745456183
+# (/tmp/m380/ci_6251721.log); against a711d1a its run list gained
+# exactly those eight and lost nothing. The desk pair printed the same
+# 734 / 692 (/tmp/m379/pair_on.txt). Both swings named above ran this
+# time, and both are left out, as there:
+#
+#   734 printed - 1 SpringWithMass - 1 SMPM_VoltageSource = 732
+#
+# A second measurement of the same head, the hand-started run
+# 37746692327, had not finished when this was set, and is not read
+# here.
+RUN_FLOOR=732
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -1433,7 +1450,12 @@ RUNNABLE_FLATTEN_FLOOR=844
 # examples, by the same runner job as `RUN_FLOOR` (2c67c3d, job
 # 112910619622), which printed 684; the two left out are
 # SpringWithMass and SMPM_VoltageSource, as there.
-RUNNABLE_RUN_FLOOR=682
+#
+# And runnable run 690 = 682 + the same eight, all runnable examples,
+# by the same runner job as `RUN_FLOOR` (6251721, job 113205797147),
+# which printed 692; the two left out are SpringWithMass and
+# SMPM_VoltageSource, as there.
+RUNNABLE_RUN_FLOOR=690
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
