@@ -38084,7 +38084,10 @@ accepts steps along which the plain residual grows: `3.5e4`, `1.4e8`,
 it after four in 178 s. A row scale frozen at the starts is right for
 a system whose rows differ in dimension and wrong for one whose rows
 move by orders of magnitude, as a water pipe's do. So the series needs
-a fence as well as a ceiling: the frozen norm only where the plain one
-also falls, or only on the parameters marked `fixed = false`, which is
-what all four lightning models solve for and none of the three Fluid
-giants does. Which of the two is the next shift's first measurement.
+a fence as well as a ceiling, and the obvious one does not hold:
+`SeriesPipes12` solves for six parameters marked `fixed = false` (the
+trail prints six values past the states, and `Fluid.Pipes` declares
+`dp_small` and `dp_nominal` that way), so "only systems that solve for
+parameters" lets the giant in. The fence left to measure is the frozen
+norm accepted only where the plain one also falls, which is the next
+shift's first measurement.
