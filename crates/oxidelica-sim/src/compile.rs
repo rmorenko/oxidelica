@@ -4121,8 +4121,27 @@ pub(crate) fn compile_at(
         .iter()
         .map(|class| (class.name.clone(), class.clone()))
         .collect();
-    let (params, settled_parameters, parameter_definitions, unsettled_parameters) =
+    let (mut params, settled_parameters, parameter_definitions, unsettled_parameters) =
         evaluate_parameters(model, &programs)?;
+    // A parameter the initialisation solved for is a parameter from
+    // then on, and a compilation made again in the middle of the run
+    // does not solve the initialisation again: it would stand at the
+    // start it was declared with, which is where Newton began and not
+    // where it ended. The point the run resumes from carries the value
+    // that was solved, so it is taken from there. Without this a
+    // lightning source whose `if` switches on at `startTime` ran its
+    // whole pulse on `eta = 1`, `tau1 = T1`, `tau2 = T2` and peaked at
+    // 0.922 of its amplitude. `OXIDELICA_NO_RESUMED_UNSETTLED` takes
+    // the start again, so that one binary gives both numbers.
+    if let Some(point) = &resume {
+        if std::env::var_os("OXIDELICA_NO_RESUMED_UNSETTLED").is_none() {
+            for name in &unsettled_parameters {
+                if let Some(value) = point.values.get(name) {
+                    params.insert(name.clone(), *value);
+                }
+            }
+        }
+    }
 
     // 1b. The discrete layer: what changes only at an event, and what
     // each of those starts at.

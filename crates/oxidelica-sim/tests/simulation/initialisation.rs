@@ -404,6 +404,30 @@ fn a_parameter_fixed_false_is_settled_by_an_initial_equation() {
     assert!((final_row[index] - 2.0).abs() < 1e-6, "{:?}", final_row);
 }
 
+/// A parameter the initialisation solved keeps its solved value after
+/// the run compiles itself again at an event. Here `p` and `q` come
+/// out of a nonlinear pair at 2 and 3, and the branch of the `if`
+/// that reads them only switches on at 0.5: the old reading took
+/// them back to their starts of 1 there and answered 11 for 23. The
+/// lightning sources of the library peaked at 0.922 of their
+/// amplitude this way.
+#[test]
+fn a_parameter_the_initialization_solved_survives_a_mode_change() {
+    let result = run("model M Real y; \
+         parameter Real p(fixed = false, start = 1); \
+         parameter Real q(fixed = false, start = 1); \
+         initial equation p*p + q = 7; p + q*q = 11; \
+         equation if time < 0.5 then y = 0; else y = 10*p + q; end if; \
+         annotation(experiment(StopTime = 1, Interval = 0.1)); end M;");
+    let at = result
+        .columns
+        .iter()
+        .position(|column| column == "y")
+        .expect("y");
+    let last = result.rows.last().expect("a final row")[at];
+    assert!((last - 23.0).abs() < 1e-6, "{last}");
+}
+
 /// What `fixed = false` on a parameter does and does not change.
 #[test]
 fn a_parameter_the_initialization_settles_is_read_the_way_the_language_says() {
