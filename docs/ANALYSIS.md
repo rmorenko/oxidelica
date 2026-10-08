@@ -38106,3 +38106,141 @@ which the old Newton takes over, which the giant pays once at fifty
 seconds a step and the lightning never reaches. That is the shape the
 order asked for (`every phase of a run has a size`) and it is the
 next shift's pair.
+
+## The initialization weighed by its rows at the starts, as a second road (m385)
+
+The m384 chapter left the lightning sources one fence short of a
+change. A row scale frozen at the starts (`|J| |x|` row by row, taken at
+the first iteration and held), with a finite-difference step relative to
+the unknown and a step shortened until the weighed residual falls,
+brought all four of the row's lightning models to the physical root. But
+it pushed `SeriesPipes12` from a plain residual of 3.5e4 to 4.5e10, and
+neither fence on direction kept the lightning while shutting out the
+giant. This chapter builds the road, and the order it ended in is not
+the order it began in.
+
+**The road and its two fences.** The scaled road has a ceiling of its
+own (`INIT_SCALED_ITERATIONS = 10`, in `compile.rs`). It also gives up as
+soon as its weighed residual falls by less than half in one step
+(`INIT_SCALED_FALL = 0.5`), a fence measured on the giant before it was
+written. A throwaway trail (`/tmp/m385/ox5p`, not kept) gives the two
+shapes side by side. `SeriesPipes13` goes 3.5e4, 2.6e-1, 6.5e-6,
+4.1e-6, 3.48e-6, then stands at 3.48e-6 for four more iterations of
+about thirty seconds each, while its plain residual climbs from 2.3e9 to
+2.8e9 (`/tmp/m385/sp13trail.txt`). The double-exponential source goes
+5.0e-1, 1.5e-1, 9.8e-3, 3.6e-4, 3.6e-7 and is solved. The three-line
+Heidler source falls by 0.39 at its slowest step. So a ratio of one half
+cuts the giant at its fourth iteration and none of the lightning: under
+the fence each lightning model takes the iterations it took without it
+(5 for the double exponential, 6 for the Heidler sources and both
+transmission lines).
+
+What the scaled road finds is not taken as the answer. It is where the
+plain Newton starts again, and the plain road's own test says whether
+the point is solved. The test that forced this is
+`an_initial_residual_that_repeats_itself_is_refused_early`, which holds
+`10 + 1e6*floor(x) = 0` at `x = 0.99999999`. A step relative to `x`
+reads the jump of `floor` as a slope of about 1e13, and against terms
+that large a residual of 10 passes the relative 1e-12 for rounding. So
+the scaled road reported a start that satisfies nothing as solved. The
+plain road, asked from that point, refuses with the same words as
+before.
+
+**Scaled first moved a model that runs.** Built first as the road
+taken before the plain one, the change was paired on the whole corpus
+(`/tmp/m385/ox7p`, one binary, `/tmp/m385/pair/off7.txt` and `on7.txt`):
+961 / 738 against 961 / 741, runnable 844 / 696 against 844 / 699. It
+gained `DemonstrateLightning`, `LightningLosslessTransmissionLine` and
+`LightningSegmentedTransmissionLine`, lost nothing, and the flatten
+lists were the same. A probe in the on half compared each scaled answer
+with what the plain road alone would have given. It printed four names:
+the three lightning models, which the plain road does not solve, and
+`IMC_DCBraking`, which both roads solve. Its two answers agree to about
+1e-14 in the currents (`70.71067811865538` against
+`70.71067811865386`), but the run that follows drifts by up to 2.5e-7 of
+a column's scale over the second (`/tmp/m385/ctl/IMC.*.csv`), and the
+CSV is no longer the same byte for byte. A model that runs moved, so
+that order was not merged.
+
+**The order taken: plain first, the scaled road only where the plain
+one has no answer.** The plain Newton runs first, exactly as before.
+The scaled road is tried only where the plain one refused, or where it
+answered with a point the run cannot begin from. The second case is
+the double-exponential source itself. Its plain road does not refuse.
+It converges to the degenerate family, `eta = -1.2e-18` with `tau1 =
+tau2 = 370.55 us`, where every row holds and the pulse is `0/0`. The
+library declares `eta(min = small)` to rule exactly that out, and the
+run used to stop on that assertion at t = 0. So an answer is now one at
+which the model's assertions, the declared `min` and `max` among them,
+hold. Where they do not, the scaled road is tried, and its answer is
+held to the same test. Where both fail, the plain road's result stands
+as it did. A reason a walked body left behind before the check is not
+the check's to read, and the answer is then taken as the plain road gave
+it.
+
+`OXIDELICA_NO_INIT_FROZEN_SCALE=1` takes the plain road alone, so one
+binary gives both halves of every number below.
+
+**The witness.** The double-exponential source, written out with the
+library's `min` on `eta`, in the test
+`a_double_exponential_pulse_reaches_its_physical_root`. Under the
+switch it stops at t = 0 on `eta went below its min`. With the change:
+`eta = 0.951124849`, `tau1 = 470.107 us`, `tau2 = 4.06395 us`, peak
+within 1e-5 of the amplitude. Without the `min`, the plain road's
+degenerate answer runs and gives `y = -188.86` for a pulse normalised to
+one. That is a wrong number presented as a right one. The change does
+not reach it, because nothing tells the compiler that point is wrong.
+The library's own models all carry the `min`.
+
+**The lightning on the final binary** (`/tmp/m385/ox11`). The
+double-exponential source peaks at `0.9999998418944565` at 19.5 us. The
+Heidler source with `startTime = 0.02` peaks at `0.9999997274397177`,
+24 us after its start. Both match the m384 throwaway to every digit
+printed. `LightningLosslessTransmissionLine` peaks at
+`9999.997274397178` against an amplitude of 1e4.
+
+`DemonstrateLightning` and `LightningSegmentedTransmissionLine` are
+counted as running, and what that means has to be said by number. The
+check runs ten output steps, and both models start their pulse later
+than that: at 10 us against a 1 us horizon, and at 0.02 s against
+10 us. So the check sees the initialization and the quiet stretch before
+the pulse, and nothing of the pulse itself. The initialization is what
+moved, and its answer is physical. In `DemonstrateLightning` the
+double-exponential source settles at `eta = 0.9511248`, `tau1 =
+470.107 us`, `tau2 = 4.06395 us`, and the Heidler source at `eta =
+0.9405241`, `tau1 = 9.62713 us`, `tau2 = 470.714 us`. The segmented
+line's Heidler source settles at the same three numbers. These are the
+roots the m383 probes reached, and none is degenerate. A full run of either still refuses:
+`DemonstrateLightning` on `cannot differentiate a non-constant
+exponent` (the Heidler `^ m`, at index reduction) and the segmented line
+on `step size underflow at t = 0`. Those are two walls of their own
+behind this one. So the two are counted honestly as far as the check
+goes, which is the first ten steps, and the number of either pulse is
+not yet something this compiler produces.
+
+**The pair** (`/tmp/m385/ox11`, both halves one binary,
+`/tmp/m385/pair/off11.txt` and `on11.txt`, the heavy models left out).
+961 / 738 against 961 / 741, runnable 844 / 696 against 844 / 699. The
+three gained are the three lightning models above, nothing is lost, and
+the flatten lists are the same name for name. The off half's run list
+is the m384 pair's, name for name (`/tmp/m384/pair/off_ran`). The floors
+are not moved by this pair. A desk pair is not the runner's print, and
+they rise by the runner's number for this commit, in the next shift.
+
+**The controls**, `simulate` with the switch on and off on the same
+binary (`/tmp/m385/ctl/`). `Rectifier12pulse`, `CauerLowPassAnalog`,
+`TwoMasses` and `IMC_DCBraking` give the same CSV byte for byte. The
+last one is the model the first order moved.
+
+**The price on the giants.** The first prices were taken with the
+fall fence missing and with three giants and a corpus half running side
+by side: `SeriesPipes12` 146 to 810 s, `SeriesPipes13` 161 to 489 s.
+That was the price plus a loaded machine, and it is why the fence was
+built. On the final binary, one model at a time with nothing beside it
+(`/tmp/m385/giant11/`): `SeriesPipes12` 136 s under the switch and
+187 s without it, `SeriesPipes13` 178 s and 239 s. Both still refuse as
+before, `algebraic loop ["pipe1.mediums[1].p", ...`, at the run. So the
+road costs each of these giants about a minute, well under the
+fifteen-minute line the order drew. `DynamicPipeInitialization` was
+timed beside the library step of a preflight, so its number is not
+given here. It is the next shift's, taken quiet.
