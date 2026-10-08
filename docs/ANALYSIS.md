@@ -38023,3 +38023,21 @@ So the descent stalls at `0.400`, barely below where it began. Why
 the step it is given does not lower the other four rows further is not
 measured here, and it is the question the double-exponential half
 leaves.
+
+One measurement towards it, in Python with the same formulas and the
+same relative step (no compiler involved). The first row,
+`exp(-T/tau1)/tau1 = exp(-T/tau2)/tau2`, is a rate in 1/s while the
+other four are fractions of the amplitude. Multiplied by `tau2`, which
+makes it a fraction as well and leaves its root where it was, plain
+Newton with Armijo halving reaches `|f| = 6.8e-13` in five steps from
+the library's starts, and reaches the physical root: `eta = 0.9511`,
+`T = 19.5 us`, `tau1 = 470.1 us`, `tau2 = 4.06 us`, the root of the
+m383 chapter, not the degenerate family. Unscaled, the same loop
+stands at `0.399` after sixty steps. So the double-exponential wall is
+the scale of one row against the rest, which is what the row-weighted
+norm also corrected, and the difference between the two is that one
+rescales by the row's dimension at the start and the other by the size
+of the Jacobian row as it moves - which is the one that slid into
+`eta = 0`. How the compiler would know a row's dimension is the units
+layer's question (the declared units are there: `1/s` against `1`);
+not built.
