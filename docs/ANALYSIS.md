@@ -37402,6 +37402,26 @@ does the same with three arriving. `SMEE_LoadDump` trades its step
 size underflow at t = 0 for the `singular Jacobian` of the open switch
 of item 30, which is a layer and not a regression.
 
+The pair, one binary, off against on (`/tmp/m382/off.txt`, `on.txt`):
+961 flatten in both, the flat list the same to the name; 736 run
+against 738, and 694 against 696 of the runnable. Two arrive and none
+leave: Machines `SMEE_DOL` and `SMEE_Rectifier`. They run in the
+check because the check runs ten output steps, 1 ms for both, and the
+re-selection wall below stands a few milliseconds further on; a full
+`simulate` still refuses there. The run half's census goes from 225
+models in 170 rows to 223 in 171. Besides the two arrivals, six
+refusing models changed their refusal, which is what a change to every
+tied reduction's weight is expected to do: `DoublePendulum` from an
+expression nobody could evaluate to a diverging algebraic loop on
+`revolute1.phi`, `DoublePendulumInitTip` to a structurally singular
+model on `world.frame_b.R.w`, `PlanarFourbar` to another expression
+on `body2.v_0[2]`, `Engine1b` from a structurally singular model to an
+expression on `crank2.a_0[1]`, FundamentalWave `SMPM_CurrentSource`
+from a Newton that would not converge to a singular Jacobian on
+`airGap.Phi_ss.im`, and `SMEE_LoadDump` as above. `TestDensity` only
+heads the row `SMPM_CurrentSource` left; its refusal is the same
+(each checked on its own with `--only --refused`, both halves).
+
 ### The re-selection wall at t = 0.005 (m382, a map)
 
 The refusal is not the run's. It is the table's: the second stretch
