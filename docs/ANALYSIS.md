@@ -37553,3 +37553,76 @@ run did not compute, which is the refusal `append_segment` exists to
 make. Neither road is built. What is left open is the shape itself:
 a selection that is right at each of three instants and still writes
 a dummy derivative in the middle one only.
+
+### The Fluid rows at the top of the run register, by name (m383, a map)
+
+After the cone the top of the run half of the register
+(`/tmp/m382/on.txt`) is `the Newton direction of algebraic loop
+["pipe1.mediums[1].p"...` with 6, beside two rows of 2 with the same
+words on `pump.medium.p` and `volume1.medium.p`, and rows of 3, 1, 1
+and 1 of `algebraic loop did not converge in 50 Newton iterations`.
+Taken by name over the 62 Fluid and Media-with-Fluid models that
+flatten and do not run, with one binary built from 72a2372
+(`/tmp/m383/fluid62_ref.txt`, `--refused --only-from
+/tmp/m383/fluid62.txt`), the rows add up as follows:
+
+```text
+family                                  models  names
+Newton direction does not reduce        10      BranchingPipes1/2/4/14, SeriesPipes1/2,
+                                                TestWaterPumpCheckValve,
+                                                TestWaterPumpPowerCharacteristic,
+                                                TestTemperature1, TestMultiPortTraceSubstances
+did not converge in 50, in the run       6      TankWithEmptyingPipe2, TanksWithEmptyingPipe1/2,
+                                                PressureLoss.Bend, TestDensity,
+                                                DynamicPipeInitialization
+did not converge in 50, initialization   2      BranchingPipes18, DynamicPipeClosingValve
+```
+
+The ten of the first family are, name for name, the Fluid part of the
+m363 map: nine of its second kind (over the edge, crawling) and
+`TestMultiPortTraceSubstances` of its third (far from the root, no
+edge). Nothing has joined or left in twenty shifts. The trail of
+`SeriesPipes2` (`/tmp/m383/sp2_trail.txt`) is the m363 trail
+(`/tmp/m363/tr_SeriesPipes2.txt`) line for line, all 79 Newton lines.
+The block settles at t = 0.0002 and 0.0003. At t = 0.0008 the first
+step takes `pipe1.mediums[1].p` from 7.5e5 to -1.8e7. Five halvings
+bring it back to 1.7e5 with `|f| = 3168`, and from there the line
+search buys only slivers: `|f|` goes 3168, 3144, 3140, 3139, 3138
+while the pressure crawls to 1.0e3, and the guard refuses. So the
+family is one layer, the domain edge of the water formulation and how
+far a retreat may leave a block from where it began. That is the
+question m363 left open, and nothing since has touched it.
+
+The run's `did not converge` is not one family. Read by trail
+(`/tmp/m383/dnc_*.txt`), there are three shapes:
+
+- The three tank models swing and drift. `TankWithEmptyingPipe2`
+  alternates between `|f|` near 1e2 and near 1e3 to 1e5, and the
+  residual of the lower branch falls from 126 to 61 over fifty
+  iterations, as m363 measured (`d_k` alternating, residual down about
+  30 percent).
+- `Bend` stands still. `from_mflow.dp` goes +1000, -990, +1000, -990
+  with `|f|` at 5.73e-5 and 5.72e-5 throughout. That is a regularised
+  characteristic overshot symmetrically, and its residual is already
+  near the floor of the arithmetic while the unknown swings over
+  2000 Pa.
+- `TestDensity` and `DynamicPipeInitialization` converge too slowly.
+  `TestDensity` goes from 120 to 0.35 in one step and then to 0.27
+  over 48 more, swinging in pressure between 1.00e5 and 1.03e5. In
+  `DynamicPipeInitialization` `|f|` falls from 5.7e3 to 340 and stops
+  there, with the last pressure at 2.2e7 against neighbours of 5e6
+  to 9e6.
+
+The two in initialization belong to the initialization layer, not to
+the run, and are kept apart as the earlier note asked.
+
+So the eighteen Fluid models these words cover are five groups, not
+one family. Ten models stand at the domain edge, one layer and
+unmoved since m363. Three are tanks that swing and drift, and m363
+showed they have no threshold that separates them from
+`BranchingPipes12`. `Bend` stands still in a symmetric swing. Two
+are slow, and two are in initialization. None of these is a new wall,
+and none was built here. The edge is the only layer with ten models
+behind it. Its open question is still how far from the start of a
+solve a retreat may leave the block, and m363 measured that the two
+cheap switches turn a quick refusal into a slow one.
