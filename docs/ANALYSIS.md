@@ -38944,7 +38944,22 @@ where an equation is paired with a name its slope does not reach: the
 incidence the matching is built over (`eq_vars` in `reduce_index`)
 takes every name an equation writes. Pruning it by the folded slope
 would be a change to the matching, measured by its victims, and it is
-not built. So of the three reasons the joint weight comes out `None`,
+not built. A throwaway that does exactly that (`OX_PROBE_PRUNE`,
+`/tmp/m389/oxA`, `/tmp/m389/psdA.log`) drops a name from an equation's
+row of the incidence where the slope, with the parameters folded in,
+is the number zero. On `PendulumWithSpringDamper` the dead columns go
+from 5 to none, and the weights of reductions 2 to 11 become readable.
+`None` goes from 11 to 4, and the 4 left are all at reduction 1, the
+cone of 37 around `damper1.s` that did not settle either way. The
+`slope inf` of reductions 9 and 10 becomes 2, and the matching now
+reduces on `R.T[1,j]` where it reduced on `R.T[3,j]`. The eleven
+victims come out the same, and the model refuses where it did, at
+`damper1.e_rel_0[1] = damper1.r_rel_0[1] / damper1.s`. So on this
+model the pruning repairs the weighing and not the outcome, and the
+model is held by the spring's division by its own length. The pruning
+was not run on the corpus: it changes the incidence of every model,
+which is a series of its own. So of the three reasons the joint weight
+comes out `None`,
 two are now told apart by the probe. The first is a cone that cannot
 be read: some name holds no value, for example a clock (link A) or a
 derivative name (above). The cure is in the environment. The second is
