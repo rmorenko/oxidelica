@@ -39500,3 +39500,29 @@ the same row, the first diode's current and the load's, which is the
 four ideal diodes in one mode at the start. That is the layer
 `PolyphaseRectifier` showed at m386 (the event iteration of the
 rectifiers), and not a new family.
+
+### Link 4 squeezed: a preferred position whose velocity is no state (m392, a probe)
+
+`ArmatureStroke` refuses the same way with one actuator and its load
+(`state/m392/small/ASc.mo`, sixteen lines, under a second). The
+`ElastoGap` stoppers declare both `s_rel` and `v_rel` preferred, and
+read, the first reduction keeps `stopper_xMax.s_rel` and demotes the
+armature's `mass.s`. The velocity level then has no preferred state to
+keep: `v_rel = der(s_rel)` is a definition the compiler reads as an
+algebraic equation, not as the state equation of `s_rel`, so `v_rel`
+is never a candidate. Reduction 5, `stopper_xMax.v_rel = -cLoad.v`,
+demotes `cLoad.v`, and reduction 6, `cLoad.v = der(mass.s)`, has
+`mass.v` alone as candidate, at weight zero, and demotes it. Nothing
+then determines either stopper's `v_rel` at t = 0, which is the
+refusal. Unread, the walk demotes the two `s_rel` and the run is the
+one it always was.
+
+So link 4 is the pair a preference names. A position kept because it
+is preferred needs its velocity kept with it, and here the velocity is
+the right-hand side of `der(s_rel) = v_rel` rather than a state of its
+own. The next probe is to read such a definition as the state equation
+of the preferred position, so that `v_rel` stands as a candidate at the
+velocity level. Not built. A plain mass between two gaps with a fixed
+position (`Gap3.mo`) does not show it: there the first reductions
+demote both `s_rel` either way, because the position the model fixes
+sits on the mass.
