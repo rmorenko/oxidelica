@@ -39106,3 +39106,38 @@ So the kinds that could only be told apart by reading a log one by one
 are now separate words in the print. The fourth kind, a cone that does
 not settle, was not on m389's list. It is all of PSD's reduction 1 and
 is where the m389 pruning still left 4.
+
+### A product with a zero parameter does not move (m390, a probe)
+
+Two of `MS4`'s three unmentioned names are derivatives of rotation
+entries that are constant once the parameters are folded in. The
+"whatever does not move" rule in `does_not_move` misses both, for two
+different reasons. A throwaway (`OX_PROBE_ZERO_FACTOR`, `/tmp/m390/oxZ`,
+tree `/tmp/m390/wt3`) makes a product with a factor that does not move
+and folds to the number 0 count as not moving. Under the divisor probe
+`der(r3.R_rel.T[3,1])` then leaves the wall of `MS4`, and
+`der(r2.R_rel.T[1,1])` stays (`/tmp/m390/z{0,1}.log`). A print on the
+second name (`OX_PROBE_ZF_NAME`, `/tmp/m390/oxZ2`) shows why. Of 47759
+times it is asked whether the name moves, 46665 find it in
+`implicit_defs`, taken from `r2.frame_b.R.T[1,2] = r2.R_rel.T[1,1] *
+r2.frame_a.R.T[1,2] + ...`, an equation that merely mentions it, and
+only 978 find its explicit definition, the constant 1. That is the
+PSD pairing fault again. The same probe on `MechanicalStructure`
+leaves the wall where it was, at `der(r3.frame_a.R.w[2])` and
+`der(r4.frame_a.R.w[2])`. The first is defined as `b2.frame_b.R.w[2]`,
+a true angular velocity and not a constant, so that wall is a
+different family.
+
+The probe is a change that gives names a definition, so it moves
+victims. It moves three of `MS4`'s 91 (reductions 79, 83 and 86,
+`/tmp/m390/zms4v{0,1}.txt`), and with it `PendulumWithSpringDamper`
+does not finish. It was stopped after 6:44 of CPU against seconds
+without it, the last reduction printed being the eleventh
+(`/tmp/m390/zpsd1.log`). Not a candidate for merging.
+
+A corpus pair on that one binary (`/tmp/m390/zpair`) was begun and
+stopped by hand. The half with the probe stood at 412 of 1028
+flattened for ten minutes while the half without it reached 618, so
+the probe does not finish some model in the flatten half, the same
+sign as on `PendulumWithSpringDamper`. Which model it is was not
+named. There is no pair for this probe.
