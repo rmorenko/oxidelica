@@ -38635,3 +38635,166 @@ blocks of 26, 27 and 59 names holding the switches' or the diodes' `s`
 stator's derivatives and the star point. The m387 series does not move
 them (`/tmp/m387/oxC`: refused at the same place), which fits: they
 refuse before any event, where the definitions are not asked.
+
+## The census at 55e3254, and the star's remainder (m388)
+
+### The census at 55e3254 (m388, a measurement)
+
+`refusals.sh .msl both` on a binary built from 55e3254
+(`/tmp/m388/census.txt`, raw half `/tmp/m388/raw.txt`). Counted between
+the section markers: the flatten half is 67 models in 39 rows, the run
+half 219 models in 142 rows, against 67 in 39 and 220 in 142 at b71dd3d
+(`/tmp/m386/census.txt`). The flatten half is the same line for line.
+The run half differs in three rows: `singular Jacobian` 13 to 12, the
+one that left being `PolyphaseRectifier`, which runs; and
+`IMC_YDarc` moved from `the Newton direction` (11 to 10) to the row of
+`step size underflow ... probable singularity`, which went from 1 to 2
+and so moved up the list. The rows stay 142 because the singular row
+did not empty and the underflow row did not split. 961 - 742 = 219,
+the desk's print for the same commit.
+
+### `SMEE_Generator_Polyphase`: the field fed by a current (m388, a series)
+
+The three models left of the star refuse at the block check before the
+run, and they are two layers, not one. Both `SMEE_LoadDump` keep the
+row `der(smee.plug_sp.pin[2].i) + loadInductor.inductor[2].v / L +
+der(voltageQuasiRMSSensor.plug_p.pin[2].i) = 0` exactly zero in the
+refused block (`/tmp/m388/d1.txt`, `d2.txt`, ranks 16 of 17 and 28 of
+29): the star of item 22, reached through the load's inductors.
+`SMEE_Generator_Polyphase` has no zero row (`/tmp/m388/d3.txt`, rank 36
+of 38, structural rank 36 as well): its null directions are the two
+air gaps, one each, the rows `airGap.Phi_sr.re = Phi_ss.re *
+rotator.re - ...` reading `Phi_ss.re` alone.
+
+Its three-phase half alone refuses the same way (`/tmp/m388/g/S3b.mo`,
+the machine, the star of sources, a `RampCurrent` on the field and a
+constant speed). Measured against the FundamentalWave machines that
+run, its reduction list has one entry more: reduction 8, on
+`stator.c[1].port_n.Phi.im + stator.c[2].port_p.Phi.im = 0`, which
+`SMEE_DOL` and `SMPM_Inverter` never make. That entry is right, and it
+comes from the field: with a `ConstantVoltage` in place of the ramp the
+reductions are twelve, the eighth is gone and the model runs
+(`S3v.mo`). A field driven by a current fixes the field's flux, so one
+more flux balance becomes a constraint on states, and there the choice
+of victim matters: the walk demoted `rotorCage.c[2].Phi.im`, a damper
+flux, and the init block was singular; kept out of the victims by a
+throwaway switch, the reduction demoted
+`excitation.electroMagneticConverter.Phi.re`, the flux the current
+fixes, and the small model ran to 1.5 s.
+
+Why the walk decided: every one of the five candidates weighed zero by
+the residual's slope, and the joint weight that breaks such a tie
+(m379) was `None` for all five. A probe in the weighing
+(`/tmp/m388/oxD`, `OX_PROBE_JOINT`) named the reason: the cone of 132
+definitions could not be read at `rampCurrent3.signalSource.y`, whose
+definition reads `$clock0` and `$clock1` - the compiler's clocks for
+`time < startTime` and `time < startTime + duration`. The rewrite makes
+those clocks before index reduction and the run's table starts them at
+their value before the threshold, but the environment index reduction
+weighs in was taken before the rewrite and never held them. So
+anything a ramp, a step or a pulse drives was unreadable to the
+weighing, and every joint weight through it was unknown.
+
+The change puts each clock into the environment of the reduction, at
+the value the run starts it at (`truth(!turns_true)`), behind
+`OXIDELICA_NO_CLOCK_AT_REDUCTION`. The test is a star of three phase
+currents with a ramp in one phase
+(`a_tie_read_through_a_ramp_still_demotes_the_state_the_constraint_determines`),
+red with the switch on. On the small model at `gamma0 = 0.3` it now
+demotes `rotorCage.c[2].Phi.re` and then the excitation flux, and runs
+to 1.5 s (`/tmp/m388/g/c_on.log`); without the change it refuses
+(`c_off.log`). The full model at `gamma0 = 0.3` runs to 0.3 s with the
+five-phase and the three-phase machine agreeing as the example means
+them to: torque equal to 1e-11 and the line currents in the ratio
+25.78 / 42.97 = 0.600 = 3/5 (`/tmp/m388/g/PG03.csv`).
+
+At the example's own `gamma0 = 0` it still refuses, which is the second
+link. With the clocks read, the cone is readable and singular: no dead
+column, no empty row, and its null direction is the `.im` half of the
+magnetic potentials on both sides of the air gap (`/tmp/m388/g/cone.log`).
+With a minimum-norm step put in the cone's Newton by a throwaway
+(`OX_PROBE_LSQ`), the iteration does not settle either: its gap grows
+from 1e2 to 1e162 in thirty steps from the starts. At the angle zero
+the rotor's `sin(gamma)` terms vanish, and the cone has no point near
+the starts. That link is a map only; the sequential weight
+(`weigh_at_start`) gives `1.0` to `stator.c[2].Phi.im` alone and
+nothing to the others, so it does not name the excitation flux either.
+
+The pair, one binary built from the tree that is committed
+(`/tmp/m388/oxP`, the switch on in `off.txt` and absent in `on.txt`,
+heavy models carved out as the floor does it): 961 / 742 and 844 / 700
+both ways. The flatten and run lists are the same name for name
+(`/tmp/m388/pair/ran.diff` is empty), the refusal texts are the same
+apart from the order two notes were printed in, and the work line is
+the same to the digit - 24805994 points, 44468527 Newton iterations,
+20265 Jacobians. So the change moves no model today: the one it was
+built for stands on the second link. It goes in because without it a
+tie whose candidates reach a ramp, a step or a pulse is decided by the
+walk for a reason that is no fact about the model, and that is the
+first of the three reasons below. Controls written byte for byte with
+the switch on and off on the same binary: `Rectifier12pulse` (to
+0.02 s), `CauerLowPassAnalog`, `TwoMasses` and `IMC_DCBraking`
+(`/tmp/m388/ctl`).
+
+### The tie behind the MultiBody row is the same shape (m388, a map)
+
+Item 2 of the malyava asked what tells a right candidate from a victim
+in `PendulumWithSpringDamper` and `MechanicalStructure`. With the same
+probe (`/tmp/m388/oxI`, `/tmp/m388/psd.log`, `ms.log`) the answer is
+that nothing is told, for two different reasons. In the pendulum,
+reduction 4 weighs `prismatic.s` and `revolute.phi` at slope zero and
+joint `None` both: the cone of 34 is singular with a dead column,
+`prismatic.frame_a.R.T[3,3]`, so the walk decides as m387 saw. In
+`MechanicalStructure`, `r1.phi` is demoted where two candidates both
+have a joint weight, `b2.r_0[1]` at -1.0 and `r1.phi` at 0.3, so the
+rule that drops what the constraint does not determine keeps both, and
+the walk takes the last; and `r2.phi` is demoted (reduction 105) where
+the cone of 36 cannot be read at the derivative names that earlier
+reductions made (`der(b1.frame_b.R.T[3,1])` and the like), which the
+environment does not hold. So the lever this line looked for is the
+same as the star's: a tie is decided by the order of the walk whenever
+the weighing through definitions fails, and it fails for three
+countable reasons - a clock the environment lacks (now given), a
+derivative name it lacks, and a cone singular at the start. None of
+the three is a preference the model states.
+
+One reading of the second half was tried and measured, and it is
+negative. Choosing among candidates whose slopes tie by the larger
+joint weight (a throwaway, `OX_PROBE_JOINT_PICK`, `/tmp/m388/oxJ`)
+makes `MechanicalStructure` worse, not better: it demotes all of
+`r1` to `r4`, angle and speed, and the model refuses earlier as
+structurally singular (`/tmp/m388/ms_pick.log`). So the size of a
+joint weight is no more a sign of the right victim than the size of a
+slope was in m357; what the joint weight can say is only zero or not
+zero.
+
+### Spice3: where `der(vbx)` becomes an unknown (m388, a map)
+
+`Q1.icapbx = if Q1.m_bInit then 0 else Q1.cc.capbx * der(Q1.vbx)`
+(Spice3.mo:4953) is read by `split_equations`. `isolate_der` cannot
+take the derivative out of an `if`, so the equation stays algebraic;
+then the loop that names the derivatives still standing makes
+`der(Q1.vbx)` the name of an unknown and `Q1.vbx` an implicit state
+(`compile.rs`, the `name_derivatives` loop after `isolate_der`), and
+`unknowns_of` adds it to the unknowns. `Q1.vbx` itself is algebraic,
+`Q1.B.v - Q1.Cinternal`, and nothing else asks for its derivative. The
+quench of zero coefficients cannot see `capbx`: it reads parameters
+and variables defined as zero by a sum or a product
+(`zero_variables`), and `capbx` is an output of the record function
+`bjtNoBypassCode` (Spice3.mo:9749), so the coefficient is zero only as
+a number at the start. What the place sees at the moment of choice is
+the equation's shape and the continuous names, and not the value of
+anything. The road the map points at is the choice itself: a
+derivative of an algebraic variable whose only reader is a product
+with a run-time coefficient is a candidate for differentiating the
+variable's definition rather than solving for the derivative. Not
+built; it changes the unknowns of every model that writes a derivative
+inside an `if`.
+
+Five synthetic models of the shape, a derivative of an algebraic node
+under an `if` with a zero coefficient that a function computes
+(`/tmp/m388/sp/If1.mo` to `If5.mo`), all run, and why they run where
+`Q1` does not was not measured. So the only
+witnesses are still `Q1.mo` and the five library models, and the map
+says where the derivative becomes an unknown, not that a smaller model
+shows it.

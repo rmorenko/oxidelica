@@ -336,6 +336,41 @@ fn a_constraint_reaching_its_states_only_through_definitions_demotes_the_one_it_
     assert!(last[column("z")].abs() < 1e-9, "z = {}", last[column("z")]);
 }
 
+/// The same star, with a source in one phase that a ramp drives: its
+/// value is written with `time < 0.5`, which the compiler turns into a
+/// clock of its own before index reduction weighs the candidates. With
+/// the clock missing from what the weighing reads, the source could
+/// not be worked out, no candidate had a joint weight, and the tie went
+/// to the order of the walk again - the machine with a current-fed
+/// field in `SMEE_Generator_Polyphase` is the whole family.
+#[test]
+fn a_tie_read_through_a_ramp_still_demotes_the_state_the_constraint_determines() {
+    let result = run(
+        "model T2 Real a(start = 0); Real b(start = 0); Real z(start = 0); \
+         Real v0; Real vs; Real s; Real i1; Real i2; Real i3; \
+         equation der(a) = sin(time) - a; der(b) = cos(time) - b; \
+         0.1 * der(z) = v0; v0 = vs; \
+         s = if time < 0.5 then 0 else 0.3 * (time - 0.5); \
+         i1 = a + z + s; i2 = -0.5 * a + 0.8660254037844386 * b + z; \
+         i3 = -0.5 * a - 0.8660254037844386 * b + z; i1 + i2 + i3 = 0; \
+         annotation(experiment(StopTime=1.0, Interval=0.01)); end T2;",
+    );
+    let last = result.rows.last().unwrap();
+    let column = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+    let exact = (1f64.sin() - 1f64.cos() + (-1f64).exp()) / 2.0;
+    assert!(
+        (last[column("a")] - exact).abs() < 1e-5,
+        "a = {}",
+        last[column("a")]
+    );
+    // The star holds 3 z + s = 0, and s has ramped to 0.15.
+    assert!(
+        (last[column("z")] + 0.05).abs() < 1e-6,
+        "z = {}",
+        last[column("z")]
+    );
+}
+
 #[test]
 fn a_constraint_of_every_shape_is_differentiated() {
     // Index reduction differentiates the constraint, and the

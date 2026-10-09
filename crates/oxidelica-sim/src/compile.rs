@@ -1122,6 +1122,15 @@ pub(crate) fn assignment_lines(
 /// Behind a switch so that one binary can produce both numbers: two
 /// counts are comparable only when the same build made them.
 /// On by default; `OXIDELICA_NO_MATCH_ORDER=1` gives the old order.
+/// Whether the clocks the rewrite made of relations on `time` are in
+/// the environment index reduction weighs its candidates in.
+///
+/// On by default; `OXIDELICA_NO_CLOCK_AT_REDUCTION=1` leaves them out
+/// as before, so that one binary gives both halves of a measurement.
+fn clocks_at_reduction() -> bool {
+    std::env::var_os("OXIDELICA_NO_CLOCK_AT_REDUCTION").is_none()
+}
+
 fn match_order_enabled() -> bool {
     std::env::var_os("OXIDELICA_NO_MATCH_ORDER").is_none()
 }
@@ -4334,6 +4343,24 @@ pub(crate) fn compile_at(
     let samples = rewrite.samples;
     let clocks = rewrite.clocks;
     let delayed = rewrite.delays;
+    // The rewrite turned each relation on `time` into a clock of the
+    // compiler's own, and the definitions index reduction weighs read
+    // those clocks from now on. Every clock stands ahead of the point
+    // compiled for by construction, so it holds what it holds before
+    // its threshold - the value the run's table starts it at. Left out
+    // of the environment the pivot reads, a source driven by a ramp
+    // cannot be read at all, the joint weight of every candidate
+    // through it is unknown, and the choice falls to the order of the
+    // walk.
+    let reduction_env = if clocks_at_reduction() {
+        let mut env = start_env.clone();
+        for (index, &(_, turns_true)) in clocks.iter().enumerate() {
+            env.insert(format!("$clock{index}"), crate::code::truth(!turns_true));
+        }
+        env
+    } else {
+        start_env.clone()
+    };
     let pre_wanted = rewrite.pre_wanted;
 
     // 2. Which equations give a state its derivative, and which are
@@ -4430,7 +4457,7 @@ pub(crate) fn compile_at(
         algebraic_eqs,
         &mut state_rhs,
         &params,
-        &start_env,
+        &reduction_env,
         resume.as_ref().map_or(0.0, |point| point.time),
         // A start declared fixed binds the value at the start, and a
         // re-selection happens after the run has left it: there the
