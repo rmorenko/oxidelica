@@ -38860,6 +38860,30 @@ else. The runner's print for d481752 (job 113821552053) is the same
 961 / 742 and 844 / 700, with the run list the same as 55e3254's name
 for name (`/tmp/m389/ci`).
 
+A shrink of the library model came closer than the synthetic ones.
+`MS4` (`/tmp/m389/shrink/MS4.mo`, 40 lines) keeps four of the six
+joints, the first four bodies, and the `q = {..phi}`, `qd = der(q)`,
+`qdd = der(qd)` ring, with each axis flange on an inertia. With the
+change off it has 10 cones that cannot be read at a derivative name
+and demotes `r3.w` by the order of the walk. With it on there are none,
+and `b4.body.v_0[2]` is demoted instead, a one-line change in 91
+victims. Three joints (`MS3`) show 4 unread cones and no change of
+victim. But `MS4` refuses either way at the wall m386 mapped, the NaN of
+a definition that divides by `r3.R_rel.T[2,3]`, which is zero at the
+start. So it witnesses the mechanism and not yet a number: a test
+needs a model that runs on one side, and that waits on the divisor
+link. Started off zero (`MS5`, the inertias at 0.3, 0.6, 0.9 and 1.2)
+the model refuses earlier, as structurally singular, either way. The
+change reads only 15 of 93 such cones there. The other 78 lack
+`der(r1.phi)` itself. At that point the settling has given it a
+definition other than `r1.w`: a quotient out of a differentiated
+position equation (`/tmp/m389/shrink/ms5n.log`, reduction 45). Every
+name the quotient reads is held, and it still does not read to a
+finite number, which is the shape of the divisor link again. So the
+two links are not independent. Where the settling chooses a
+definition by division, the derivative name is unreadable for the same
+reason the run's NaN is.
+
 ### Spice3: why `If5` runs and `Q1` does not (m389, a map)
 
 The two part ways at the coefficient, not at the derivative. `If5`
