@@ -38244,3 +38244,120 @@ road costs each of these giants about a minute, well under the
 fifteen-minute line the order drew. `DynamicPipeInitialization` was
 timed beside the library step of a preflight, so its number is not
 given here. It is the next shift's, taken quiet.
+
+`DynamicPipeInitialization`, taken quiet in the next shift (m386).
+One binary built from b71dd3d (`/tmp/m386/ox1`), `library check .msl
+--only` on the model and nothing else running on the machine, the two
+halves alternated off, on, off, on (`/tmp/m386/dpi.log`, one file per
+run beside it). Off, with `OXIDELICA_NO_INIT_FROZEN_SCALE=1`: 124 s and
+124 s, 88 points and 347 Newton iterations. On: 171 s and 172 s, 134
+points and 508 iterations. Both halves refuse as before, `algebraic
+loop did not converge in 50 Newton iterations`, at the run. So the road
+costs this model 47 s, the same order as the minute it costs the two
+`SeriesPipes` giants, and the model gets further before it stops (134
+points against 88) rather than stopping at the same place more slowly.
+The fifteen-minute line is not near.
+
+## The first census since the frozen scale, and where the event iteration asks (m386)
+
+### The census at b71dd3d (m386, a measurement)
+
+`refusals.sh .msl both` on a binary built from b71dd3d
+(`/tmp/m386/census.txt`, raw half `/tmp/m386/raw.txt`). Counted between
+the section markers: the flatten half is 67 models in 39 rows, the run
+half 220 models in 142 rows. 961 - 741 = 220, the runner's print for
+the same commit, so the run half agrees with the floors to the model.
+Against the last full census, m380 (`/tmp/m380/census.txt`, 227 in 143
+rows), the refused-to-run list lost exactly seven names and gained none
+(`/tmp/m386/b380.txt` against `b386.txt`): the three lightning models,
+Machines' `SMEE_DOL` and `SMEE_Rectifier`, and FundamentalWave's
+`SMPM_Inverter_Polyphase` and `SMR_Inverter_Polyphase`. All seven run.
+
+The top three rows, by name:
+
+- `singular Jacobian in algebraic loop`, 13 (was 16). Out: the four
+  machines just named and `IMC_DOL_Polyphase`, which moved to
+  `underdetermined algebraic loop`. In: Machines' `SMEE_LoadDump`, which
+  stopped earlier on a step size underflow, and FundamentalWave's
+  `SMPM_CurrentSource`, which stopped earlier at fifty iterations. What
+  is left: `PolyphaseRectifier`, `SMEE_Generator_Polyphase` and the two
+  `SMEE_LoadDump` (the star of the m377 map), the two `CCCV_Stack`,
+  QuasiStatic `Rectifier`, `PumpingSystem`, `RoomCO2`, `RollingWheel`,
+  `LossyGearDemo2`, `TestMixingVolumesPressureStates` and
+  `SMPM_CurrentSource`. The star is four of thirteen now, not sixteen of
+  twenty-five.
+- `the Newton direction of algebraic loop`, 11, unchanged: `IMC_YDarc`
+  and ten Fluid tests (pumps, `BranchingPipes1/2/4/14`, `SeriesPipes1/2`,
+  `TestTemperature1`, `TestMultiPortTraceSubstances`).
+- `` `X` of algebraic loop ``, 9 (was 10): the MultiBody blocks NaN
+  before their first step (`PendulumWithSpringDamper`, `ThreeSprings`,
+  both `RollingWheelSet`, `Engine1b`, `MechanicalStructure`),
+  `PlanarFourbar` on a walked `planarRotationAngle`, `RoomCO2WithControls`
+  on an unbracketed root and `IdealMixing1` on an unknown variable in a
+  walked function.
+
+Adding the rows that mean the same thing: the seven rows that name an
+algebraic loop hold 57 models (60 at m380), the `structurally singular`
+rows 63 in 53 rows (unchanged), `has no value` 25 in 20 (unchanged), the
+initialization rows 7 in 3 (10 in 4: the lightning row of three
+emptied). Single rows went 116 to 117. Seven models changed their
+refusal without leaving the list (`/tmp/m386/k380.txt` against
+`k386.txt`): the three named above, and four in MultiBody that moved
+between the NaN row, `either side`, and `structurally singular`
+(`DoublePendulum`, `DoublePendulumInitTip`, `Engine1b`,
+`PlanarFourbar`).
+
+So the top of the queue is not one family. The `singular` row is three
+layers (the star, the event iteration of the rectifiers below, and
+seven singles), the `Newton direction` row is the Fluid block with a
+pump or a valve, and the third row is the MultiBody start.
+
+### `PolyphaseRectifier`: definitions asked at every refused block (m386, a probe)
+
+The m384 map asked at which point the definitions should be asked. A
+throwaway in a copy of the tree (`/tmp/m386/wt`, binaries
+`/tmp/m386/ox3p` and `ox4p`, not kept; notes `/tmp/m386/p3_notes.txt`):
+where `eval_point` refuses inside the event iteration, the discrete
+definitions are run on the point the refused block left, and while any
+moves, the point is asked again in the new mode.
+
+At b71dd3d this is not the m384 result. The t = 0 block refuses
+singular, one definition moves (`diode2[1].idealDiode[1].off`, 0 to 1),
+and the block then solves in the new mode to `|f| = 6.9e-11`, the
+number of the m383 rough probe (`/tmp/m386/pr_re3.log`). Putting the
+block's guess back first gives the same (`pr_rr.log`). The m384 copy
+refused at fifty iterations in the second mode; the tree has since
+taken the row-weighted second road, which is the difference between
+the two binaries, though which part of it is not measured.
+
+The run then stops at the next point, not at an event. The step to t =
+0.0002 solves with the source current at 7.69e6, with no event between
+(`pr_re3.log`), and t = 0.0003 stalls at `|f| = 2.3e-5`. Two diodes on
+in series across a phase pair again, now one step after t = 0 and in
+the integration, where no definition is asked. With `--solver bdf` the
+run ends singular, with `dopri45` at fifty iterations, and the
+`OXIDELICA_FD_STEP=1e-4` of the m383 measurement does not carry it
+either.
+
+A second throwaway on top (`ox4p`, `OX_PROBE_PLAINMEND`): a plain or
+singular refusal of a stage is taken as a step too long, as the
+unbracketed one already is. Alone it changes nothing (singular at t =
+0). With the asking it carries the run through t = 0, the commutations
+at 0.0016667 and 0.0033333, and stops singular at t = 0.0033792
+(`solvers/mod.rs:1900`, `pr_pm3.log`). There the shape is the t = 0
+shape: at the 0.0033333 event `diode2[2].idealDiode[3].s` reads
+0.0071, the step after it puts `diode2[2][2].s` at -1.77e6 and
+`diode2[2][3].s` at +1.77e6, and the source current `pin[5].i` at
+-1.77e6. A diode turned on by a few millivolts, its neighbour on
+backwards, a phase pair shorted.
+
+So the point to ask at is the refused point, and it is enough at the
+event. What it is not enough for is the step after an event: a mode
+chosen on a sign at rounding level is carried into the integration,
+where the solve in that mode succeeds with a current no diode law
+allows, or fails with no definition asked. The map for whoever builds
+it: (1) the refused point inside the event iteration, as above; (2) a
+step whose solve gives a conducting diode a backward current is a
+crossing the indicators did not see, because the indicator is `s` and
+the solve put `s` across zero inside one Newton iteration rather than
+along the step. Not built; no change to the solver in this shift.
