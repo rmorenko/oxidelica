@@ -1237,7 +1237,19 @@ FLATTEN_FLOOR=961
 # above ran again, and both are left out:
 #
 #   738 printed - 1 SpringWithMass - 1 SMPM_VoltageSource = 736
-RUN_FLOOR=736
+#
+# And run 739 = 736 + DemonstrateLightning,
+# LightningLosslessTransmissionLine and
+# LightningSegmentedTransmissionLine of Analog's Examples, which the
+# initialization's second road, weighed by its rows, lets start. The
+# runner printed 961 / 741 and runnable 844 / 699 on b71dd3d, in job
+# 113588851710 of push run 37858636951 (/tmp/m386/ci_b71d.log);
+# against 0441528 (job 113520270320) its run list gained exactly those
+# three and lost nothing (/tmp/m386/ran.diff). Both swings named above
+# ran again, and both are left out:
+#
+#   741 printed - 1 SpringWithMass - 1 SMPM_VoltageSource = 739
+RUN_FLOOR=739
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -1486,7 +1498,12 @@ RUNNABLE_FLATTEN_FLOOR=844
 # runnable examples, by the same runner job as `RUN_FLOOR` (72a2372,
 # job 113388412125), which printed 696; the two left out are
 # SpringWithMass and SMPM_VoltageSource, as there.
-RUNNABLE_RUN_FLOOR=694
+#
+# And runnable run 697 = 694 + the three lightning examples, all
+# runnable, by the same runner job as `RUN_FLOOR` (b71dd3d, job
+# 113588851710), which printed 699; the two left out are
+# SpringWithMass and SMPM_VoltageSource, as there.
+RUNNABLE_RUN_FLOOR=697
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
