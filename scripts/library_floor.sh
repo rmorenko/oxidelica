@@ -1249,7 +1249,17 @@ FLATTEN_FLOOR=961
 # ran again, and both are left out:
 #
 #   741 printed - 1 SpringWithMass - 1 SMPM_VoltageSource = 739
-RUN_FLOOR=739
+#
+# And run 740 = 739 + PolyphaseRectifier of Polyphase's Examples, which
+# runs once a refusal the step made is taken for the step's. The
+# runner printed 961 / 742 and runnable 844 / 700 on 55e3254, in job
+# 113771681244 of push run 37915823345 (/tmp/m388/ci/ci_55e3.log);
+# against b71dd3d (job 113588851710) its run list gained exactly
+# PolyphaseRectifier and lost nothing. Both swings named above ran
+# again, and both are left out:
+#
+#   742 printed - 1 SpringWithMass - 1 SMPM_VoltageSource = 740
+RUN_FLOOR=740
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -1503,7 +1513,12 @@ RUNNABLE_FLATTEN_FLOOR=844
 # runnable, by the same runner job as `RUN_FLOOR` (b71dd3d, job
 # 113588851710), which printed 699; the two left out are
 # SpringWithMass and SMPM_VoltageSource, as there.
-RUNNABLE_RUN_FLOOR=697
+#
+# And runnable run 698 = 697 + PolyphaseRectifier, a runnable example,
+# by the same runner job as `RUN_FLOOR` (55e3254, job 113771681244),
+# which printed 700; the two left out are SpringWithMass and
+# SMPM_VoltageSource, as there.
+RUNNABLE_RUN_FLOOR=698
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
