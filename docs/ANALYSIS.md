@@ -38967,9 +38967,9 @@ stopped. Halved again, eight models at a time on one thread, and then
 one model at a time under a 4 GB ceiling, the one that never finishes
 is `IMC_YDarc`. Without the probe it refuses at once (`step size
 underflow at t = 0`). With it, it stood for more than a minute at
-under 200 MB and was stopped. The arc of a switched star-delta
-starter gives the run a path that does not end once the incidence is
-pruned. Without the probe that path is refused by the step size. The
+under 200 MB and was stopped after 83 seconds. Why it does not finish
+was not probed: whether the run creeps forward behind the arc or the
+pruned matching loops was not told apart. The
 stack overflow of the full pass was not reproduced in a slice and is
 not named. The pruning is no candidate for a change until both are
 understood, and `IMC_YDarc` is where its series starts
