@@ -38475,3 +38475,24 @@ flat model, and settles it as an algebraic variable of the run. So its
 zero in the starts table is the absence of a start, and the rule
 dropped the only definitions the path has. That is the fact a buildable
 version of the rule needs the table to record.
+
+A narrower version keeps every running model. The same throwaway
+(`/tmp/m386/ox14p`, `OX_PROBE_START_DIV` with `OX_PROBE_THROUGH_DEFS`)
+records which names had no start written (the `(None, None)` arm of
+`values_at_this_point`), treats those as unknown rather than zero, and
+gives a name a value only through a definition candidate whose every
+input already has one; a divisor is judged only when all it reads is
+valued. The four kinds of victim above run again under `--only`, and
+the corpus pair on one binary (`/tmp/m386/pair2/off.txt` and
+`on.txt`) is 961 / 741 and 844 / 699 on both sides, with the flatten
+and run lists the same name for name. It gains nothing either.
+`MechanicalStructure` and both `RollingWheelSet` move one wall (to the
+second link and to the normalisation of a zero vector, as above), and
+`Engine1b`, `PendulumWithSpringDamper` and `ThreeSprings` stay where
+they were. So the rule is safe as far as the corpus can see and is the
+first link of a chain whose next links are not built: in
+`MechanicalStructure` the angular velocities of `r3` are taken from the
+connection to `b2` in most reductions (an accept trail, `/tmp/m386`),
+never from a row of the rotation, and `der(r3.frame_a.R.w[2])` is left
+an unknown of the block that only `sin(phi)` rows carry. A chain is
+taken whole, so the first link waits for the rest. Not built.
