@@ -39350,3 +39350,153 @@ in the first pair. So the second reading of the series costs no model
 and wins none. It still turns `scripts/victim_witness.sh` red in the
 same way, and `MS4` still runs only with a start written by hand and
 gives a wrong `q[1]` at the axis, because link 3 stands. Not merged.
+
+## Link 3 of the divisor chain: what a model says about its states (m392)
+
+### The witness taken out of scratch (m392, a record)
+
+The Lagrangian witness of m391 lived in one file under `/tmp`, and the
+chapter above names its agreement and not its numbers. The script is
+now kept beside the shift notes (`state/witness_m391/lagrange.py`, with
+`energy.py` and the model with a hand-written start, `MS4g.mo`). Its
+reference at t = 0.5, integrated by `DOP853` at `rtol = 1e-10`, is
+
+```text
+q(0.5) = [0.040694  0.171707  -1.108411  -0.002717]
+```
+
+The figures `[0.040702 0.171749 -1.108825 -0.002718]` that went round
+in the shift notes are not what the script prints, and they appear
+nowhere in this file. Whoever quoted them, they are a recollection and
+not a measurement.
+
+### `stateSelect` carried to index reduction (m392, a probe)
+
+The parser read `stateSelect` and dropped it. The probe carries it on
+the component like `nominal` (the attribute, the alias road, a nested
+modifier from above, resolved into the flat model's names), settles
+it with the parameters before index reduction, and keeps the level in
+a table: never 1, avoid 2, default 3, prefer 4, always 5, the order the
+language gives the literals. A value the parameters cannot settle is
+left as default and printed under the probe.
+
+Two rules read it, each behind its own switch. A tie the weights leave
+open is decided by the level, the lower demoted first
+(`OXIDELICA_NO_STATE_SELECT`). And `always` is not a weight: such a
+candidate stands aside while any other candidate the constraint
+determines is left (`OXIDELICA_NO_STATE_SELECT_ALWAYS`). The second
+rule has an exception, found on the smallest model there is: the
+cartesian pendulum level at the start (`x = 1`, `y = 0`) told to keep
+`x` always demoted `y`, which `x^2 + y^2 = 1` has no slope in at that
+point, and the start block was underdetermined. So where only the
+`always` candidates are determined, one of them goes and the probe says
+so. Two tests hold both rules on the pendulum, and each was seen red
+under its switch (`a_tie_between_positions_keeps_the_one_the_model_prefers`,
+`a_state_the_model_says_is_always_one_is_not_demoted_while_another_can_be`).
+
+On `MS4` the ties of reductions 26, 37 and 45 were `r1/r2/r3.phi`
+(prefer) against `b2/b3/b4.r_0` (avoid), all weighing zero; read, the
+positions go and the four joint angles stay states until reductions
+50 to 53, where they are the only candidates. With the series of
+m391 v2 underneath, `MS4` runs as written, with no start by hand, in
+0.6 s, and the witness agrees to `max |q_ox - q_ref| = 1.9e-6` over
+eleven points with no jump of `q[1]` at the axis
+(`/tmp/m392/on2.csv`). Without the switch the model stops at the
+initialisation Newton of m391 link 2. `MechanicalStructure`, the model
+`MS4` was squeezed from, runs as well (`/tmp/m392/smoke`), where
+without it the run stops at the algebraic loop of the NaN row.
+
+The second worry about `always` did not happen anywhere it was looked
+for: in `RevoluteConstraint`, `SphericalConstraint`,
+`UniversalConstraint`, `SpringMassSystem` and `BevelGear1D` no
+candidate of level 5 reached a tie, and the always switch moves no
+victim there. In `PlanarFourbar` and `Engine1b` it is reached and
+demoted only as the last candidate (`revolute1.phi`, `inertia.w`),
+which the language allows when nothing else is left. Both still stop,
+now as structurally singular instead of at the NaN row.
+
+### The witness of reduction 86 under the series (m392, a finding)
+
+With `stateSelect` read, `OXIDELICA_NO_DERIVATIVES_AT_REDUCTION` moves
+no victim of `MS4` at all: all 91 are the same both ways. The tie at
+reduction 86 that `held_at_start` decided is decided earlier. So
+`scripts/victim_witness.sh` cannot keep its present form under the
+series. The patch moves its first pair under
+`OXIDELICA_NO_CONSTANT_CANDIDATES` and `OXIDELICA_NO_STATE_SELECT`,
+where it reads `b4.body.v_0[2]` and `r3.w` as before, and adds a
+pair at reduction 26: `b2.r_0[1]` with `stateSelect` read, `r1.phi`
+without. It goes red when either rule is lost.
+
+### The corpus pair (m392, a measurement)
+
+One binary built from the whole series (`/tmp/m392/pair/oxpair`), off
+being all three switches set. Both halves 961 flatten and 742 run, and
+the flatten lists agree name for name. The run lists do not: off runs
+`FluxTubes.Examples.MovingCoilActuator.ArmatureStroke`, on runs
+`MechanicalStructure` (`state/m392/{off,on}_ran.txt`). Runnable 700
+off, 699 on, because `MechanicalStructure` is not one.
+
+`ArmatureStroke` is lost to the preference read correctly. The two
+`ElastoGap` stoppers of each armature declare `s_rel` with
+`stateSelect = prefer`, and the ties of the first seven reductions now
+keep them and demote the mass's position. The run then stops at
+`the equations of algebraic loop [...] do not mention
+["cActuator.armature.stopper_xMin.v_rel", ...] at t = 0`.
+
+The equal counts hide a second cost, and only the victims show it. Of
+the 741 models that run both ways, six demote another state
+(`state/m392/vic.txt`, victims taken at `--stop 0` on both sides). The
+full runs compared on the shared columns:
+
+```text
+GearConstraint                  48 vs 45 victims, file identical
+ForceCurrentBehaviour           identical
+ForceStrokeBehaviour            identical
+ComparisonPullInStroke          ends agree to 1e-12, the armature's
+                                acceleration differs by up to 6% in
+                                a stretch of the run
+TranslatoryArmatureAndStopper   a different trajectory: the mass
+                                sits at x_max = 0.01, not at 0
+Translational.HeatLosses        runs both ways under `check`
+```
+
+`TranslatoryArmatureAndStopper` is the one that matters. No start is
+fixed there: the armature writes `s(start = 0)` and each stopper
+`s_rel(start = 0)`, and the start the compiler honours is that of the
+state it keeps. Off keeps `mass.s` and starts the armature at the
+lower stop. On keeps the preferred `stopper_xMax.s_rel` and starts it
+at the upper one. Keeping the preferred state is what the language
+asks for, and so the run moves. This is the shift in a running
+model's file that the brief says stops the series: it is recorded,
+not repaired, and not merged.
+
+The four controls of m388 (`Rectifier12pulse`, `CauerLowPassAnalog`,
+`TwoMasses`, `IMC_DCBraking`) give identical files both ways, and the
+same file as the m388 binary (`/tmp/m392/ctl`).
+
+So the whole series wins `MechanicalStructure` and the witness's
+`MS4` with the right number, loses `ArmatureStroke`, and moves the
+start of `TranslatoryArmatureAndStopper`. Link 4 is the
+`ElastoGap` relative states: once kept, their velocities are not in
+the block that needs them at the start. Not merged. The series is
+`state/divisor_series_m392.patch` (611 lines, the witness edit
+inside).
+
+### The census at 894a30d (m392, a measurement)
+
+`refusals.sh .msl both` at 894a30d (`/tmp/m392/census.txt`, raw half
+`/tmp/m392/raw.txt`), the first since `held_at_start` was merged.
+Counted between the section markers: 67 models in 39 rows would not
+flatten, and 219 in 142 flattened and would not run. Both counted
+sections are the same as at 55e3254 line for line, and the queue by
+name differs only in which names one MultiBody loop prints. So
+`held_at_start` moved no family. The top of the run half is still
+12 singular, 10 Newton direction, 9 `X` of algebraic loop.
+
+The top row, probed on its least mapped name,
+`QuasiStatic.SinglePhase.Examples.Rectifier`: the block refuses at
+t = 0 before the first Newton step. Rows 3 and 7 of its Jacobian are
+the same row, the first diode's current and the load's, which is the
+four ideal diodes in one mode at the start. That is the layer
+`PolyphaseRectifier` showed at m386 (the event iteration of the
+rectifiers), and not a new family.
