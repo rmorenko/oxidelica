@@ -38423,7 +38423,7 @@ and the third is one, and the fixpoint takes the first that grounds,
 which is the row dividing by zero; the derivative of that definition is
 the `/ (-r3.R_rel.T[2,3]) ^ 2` of the refusal. Sorting the candidates
 so that those without a division come first changes nothing (the same
-refusal, `nd_MS.log`). Barring the two quotients of `r3` moves the NaN
+refusal, the no-division-first trace in `/tmp/m386`). Barring the two quotients of `r3` moves the NaN
 to `r4`, `/ (-r4.R_rel.T[2,1]) ^ 2` (`sk_MS.log`). Barring every
 quotient by a `R_rel.T` entry (a test on the spelling, fit for a probe
 only) carries `MechanicalStructure` past the NaN to a new wall: `the
