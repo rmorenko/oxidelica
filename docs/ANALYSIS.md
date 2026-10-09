@@ -38397,3 +38397,17 @@ NaN in a long expression of the joint's rotation, `(1 - e[1]*e[1]) *
 to `connectingRod.body.v_0[2]` and `crank4.body.w_a[1]`. Not probed
 further. The two remaining in the row are `PlanarFourbar` (a walked
 `planarRotationAngle`) and the two Fluid singles named above.
+
+The NaN of the four has a divisor, and it is zero at the start. In
+`MechanicalStructure` the refused equation divides by
+`(-r3.R_rel.T[2,3]) ^ 2`. The joint is declared `n = {1,0,0}`, so
+`R_rel.T[2,3] = e[2]*e[3]*(1 - cos(phi)) + e[1]*sin(phi)` is
+`sin(phi)`, and `phi` starts at zero. Both `RollingWheelSet` models
+divide by `(-wheelSet.wheelSetJoint.rolling1.e_long_0[2]) ^ 2`, the same
+shape. So the equation was solved for its unknown by dividing by an
+entry of a rotation matrix that the start puts at zero, which is the
+`sin(0)` the rolling wheel already met (the state-divisor table in
+`compile.rs` keeps such an assignment out of the explicit set for a
+divisor it can see, and this division sits inside a residual rather
+than an assignment). Not probed further: which pass wrote the quotient
+is the next question.
