@@ -39141,3 +39141,185 @@ flattened for ten minutes while the half without it reached 618, so
 the probe does not finish some model in the flatten half, the same
 sign as on `PendulumWithSpringDamper`. Which model it is was not
 named. There is no pair for this probe.
+
+## The divisor chain walked to its end, a fourth kind of `None`, the singular row (m391)
+
+### The chain on `MS4`, link by link (m391, a map)
+
+The m386 probe was carried onto this tree once more (the patch of m390
+on 76be615, the `held_at_start` conflict resolved by keeping the merged
+copy) and the chain was walked with `MS4`
+(`tests/small/a_derivative_name_weighed_at_the_start.mo`) until the
+family changed. Probes in `state/probe_m391.patch`, binaries
+`/tmp/m391/oxp1` to `oxp8`, logs in `/tmp/m391`.
+
+1. The two names of the m390 wall, `r2.R_rel.T[1,1]` and
+   `r3.R_rel.T[3,1]`, have their explicit definition (equation 91 and
+   141, the constants 1 and 0 once the axis is folded in) for 50 and 51
+   reductions. From reduction 51 and 52 that definition is blocked by
+   `r2.phi` and `r3.phi`, which have just lost their own
+   (`/tmp/m391/p1_name.log`), and the names are left to the rows that
+   merely mention them. A throwaway (`OX_PROBE_CONST_DEF`) takes a
+   candidate the parameters fold to a number as that number. The pair
+   `der(r2.R_rel.T[1,1])`, `der(r3.R_rel.T[3,1])` leaves the wall on
+   both sides of the switch (`/tmp/m391/l1_{off,on}.log`), and it moves
+   three victims of 91 (reductions 79, 83 and 86,
+   `/tmp/m391/v_{base,l1}_{on,off}.txt`). `PendulumWithSpringDamper`
+   and `MechanicalStructure` take 18 to 19 seconds each with and
+   without it, with the same walls (`/tmp/m391/smoke_*.log`), so this
+   link is not the m390 zero factor, which did not finish.
+2. `MS4` then refuses as "algebraic loop did not converge in 50 Newton
+   iterations", in the initialisation. The eight states left are
+   `r3.w`, `b4.r_0[1..3]`, `b4.body.w_a[1,2]`, `i4.phi` and `i4.w`, and
+   the six fixed starts of `i1..i3` enter as conditions
+   (`OX_PROBE_DEMOTED_FIXED`). The start of `b4.r_0` is the `{0,0,0}`
+   that `Body.mo` writes, the true position is `{0, 1.739, 0.145}`, and
+   Newton's inverse kinematics from zero walks `r1.phi` through
+   multiples of pi and out to -4.5e6 (`/tmp/m391/l1_trail.log`). With
+   `r_0(start = {0,1.739,0.145})` written on `b4` (`/tmp/m391/g/MS4g.mo`)
+   the model runs, 500 steps, and both sides of
+   `OXIDELICA_NO_DERIVATIVES_AT_REDUCTION` give the same file to the
+   bit.
+3. The numbers were checked against a witness written apart from the
+   compiler: the four joints as a Lagrangian system in their angles,
+   integrated by scipy at a tolerance of 1e-10
+   (`/tmp/m391/g/lagrange.py`). `q[2]`, `q[3]` and `q[4]` agree to 2e-7
+   over the half second, and the energy the compiler's run carries
+   drifts by 2.4e-4 J of 1314.7. But `q[1]` jumps by -3.9e-4 rad at
+   t = 0.4529, the moment the last body passes over the axis of `r1`
+   (`b4.r_0[1]` and `b4.r_0[3]` both cross zero there), and keeps the
+   offset after it. The angle is read back from Cartesian states, and
+   on the axis the Cartesian position does not say what it is. That is
+   a wrong number, not a refusal.
+
+The first witness used g = 9.81, which `MechanicalStructure` writes,
+and read an energy drift of 0.03 J that did not shrink with the step.
+`World` takes `g_n` = 9.80665. The drift was the witness's.
+
+Links 2 and 3 have one root. Reductions 26, 37 and 45 demote `r1.phi`,
+`r2.phi` and `r3.phi`, which `Revolute` declares
+`stateSelect = prefer`, in a tie of slope zero against the bodies'
+`r_0` (`/tmp/m391/l1_vic.log`). That is the layer m387 and m388 probed
+without a result, and this shift was told not to touch it. So the chain
+ends at a change of family: a divisor series of link 1 and the divisor
+rule would let `MS4` run only with a start written by hand, and the
+run gives a wrong `q[1]` at the axis. It is not merged.
+
+The series without the prints is `state/divisor_series_m391.patch`
+(180 lines): the divisor rule read through definitions, behind
+`OXIDELICA_NO_START_DIVISORS`, and link 1, behind
+`OXIDELICA_NO_CONSTANT_CANDIDATES`. Built as `/tmp/m391/oxs1`, it gives
+`MS4g` the same file as the probe to the bit, and each switch gives
+back the wall before it.
+
+The series turns `scripts/victim_witness.sh` red. Under link 1 the
+eighty-sixth reduction demotes `b4.v_0[2]` on both sides of
+`OXIDELICA_NO_DERIVATIVES_AT_REDUCTION`, where the witness expects
+`b4.body.v_0[2]` and `r3.w`. With `OXIDELICA_NO_CONSTANT_CANDIDATES`
+the witness is green again. So with constant candidates the tie at 86
+no longer depends on the derivative names held at the start, and a
+merge of the series has to move the witness's two names and say why in
+the same commit.
+
+### The fourth kind of `None` is a kink, not a dead column (m391, a map)
+
+`PendulumWithSpringDamper` has the same 11 `None` as m390 on this tree
+(`/tmp/m391/psd_v.log`). A print of every settling step
+(`OX_PROBE_SETTLE`, `/tmp/m391/psd_row.log`) shows the four that do not
+settle in thirty steps are one row. The cone of 37 has no dead column
+at any step. Its largest gap is always the implicit row
+`damper1.length - sqrt(r_rel_0[1]^2 + r_rel_0[2]^2 + r_rel_0[3]^2)`,
+paired with `damper1.r_rel_0[3]`, which is 0 at the start. There the
+row's slope in its own name is -1.7e-7 against a gap of 0.3, so the
+first step is 1.8e6, and after that the iteration swings between 197
+and -0.000456 until the thirty steps are spent. The five built-wrong
+cones of 34 are the m389 pairing fault. So the 11 `None` are three
+causes: 5 built wrong, 4 a row paired at the kink of a length, 1 and
+its echo unread.
+
+### `singular 12` is six layers (m391, a map)
+
+Each of the twelve names of the census row (`/tmp/m388/raw.txt`) was
+run once under `OXIDELICA_DEAD_PROBE` and `OXIDELICA_NEWTON_TRAIL`,
+and the last Jacobian printed was decomposed for its dependent rows
+(`/tmp/m391/sing12.txt`, `/tmp/m391/rowdep.py`). One model has a dead
+column, the other eleven none:
+
+- 4 machines (`SMEE_LoadDump` twice, `SMEE_Generator_Polyphase`,
+  `SMPM_CurrentSource`): an empty row of current derivatives or an
+  air-gap flux row;
+- 3 media (`PumpingSystem`, `RoomCO2`,
+  `TestMixingVolumesPressureStates`): the row of the medium's density;
+- 2 battery stacks (`CCCV_Stack`, `CCCV_StackRC`): a cell's pin
+  potentials, rank 2 of 8 and 13 of 23;
+- 1 rectifier: a diode row and the load row, one combination of the
+  other;
+- 1 `LossyGearDemo2`: the friction modes, with `gear.a_a`, the
+  inertia and `bearingFriction.a_relfric` rows dependent while both are
+  locked at the start;
+- 1 `RollingWheel`: the dead column `der(wheel1.rollingWheel.delta_0[3])`,
+  never mentioned, the family of a derivative name no row determines
+  that `MS4` met. The divisor series leaves it where it was.
+
+So the count of kinds read one row where the probe reads six layers,
+and the top of the queue is the machines' four, not the row's twelve.
+
+### The corpus pair of the series (m391, a measurement)
+
+One binary built from the series tree (`/tmp/m391/pair/oxpair`, the
+main pass without `scripts/heavy_models.txt`), run twice side by side:
+with both links on (`/tmp/m391/pair/on.txt`) and with
+`OXIDELICA_NO_CONSTANT_CANDIDATES` and `OXIDELICA_NO_START_DIVISORS`
+(`/tmp/m391/pair/off.txt`). Off: 961 flatten, 742 run. On: 961 flatten,
+735 run. The run lists (`on_ran.txt`, `off_ran.txt`) differ by seven
+names, all lost and none won: `IMC_Conveyor`, `IMC_Inverter`,
+`SMPM_Inverter`, `SMPM_Inverter_Polyphase`, `SMPM_VoltageSource`,
+`SMR_Inverter` and `SMR_Inverter_Polyphase`, all of
+`Magnetic.FundamentalWave`. `SMPM_VoltageSource` is one of the two
+models known to swing, the other six are not.
+
+Each of the seven was run under `--only` with each link switched off
+alone (`/tmp/m391/seven.txt`). All seven run with
+`OXIDELICA_NO_CONSTANT_CANDIDATES` and none with
+`OXIDELICA_NO_START_DIVISORS` alone, so the divisor rule costs nothing
+and link 1 costs all seven. `SMR_Inverter` repeated four times each way
+gives 0 and 1 every time, so it is not weather.
+
+The mechanism, on `SMR_Inverter`: the first phase of the stator winding
+writes `V_m = (2/pi)*N*i` with `N.im = effectiveTurns*sin(orientation)`,
+which is 0 for the phase at orientation 0. Link 1 folds the candidate
+for `V_m.im` to the constant 0, and that drops the only reference the
+definition had to `i`. With `V_m.im` settled out of its equation, `i`
+is taken as an implicit definition (`OX_PROBE_NAME` shows
+`implicit true` on, `false` off), and differentiating the star point's
+Kirchhoff row refuses with "cannot differentiate through algebraic
+variable `...singlePhaseElectroMagneticConverter[1].V_m.im`". This is the
+same shape as `r2.R_rel.T[1,1]`, a term times a factor that folds to
+zero, so the fold alone cannot tell the case `MS4` needs from the case
+the machines are hurt by. Link 1 as written is not a candidate for a
+series. What tells them apart is not yet known: in `MS4` the folded
+name had lost every other definition, and in the machines it had not,
+which is the next question to measure.
+
+Three narrower readings of link 1 were tried on the probe tree, each
+on `MS4`, `MS4g` and the seven machines (`/tmp/m391/oxpA` to `oxpC`):
+
+| reading                                                     | `MS4g` runs | machines run |
+| ----------------------------------------------------------- | ----------- | ------------ |
+| folded number replaces the candidate (link 1)               | yes         | 0 of 7       |
+| folded number offered after the written candidate           | no          | 0 of 7       |
+| folded only where it waits on an unknown nothing defines    | no          | 7 of 7       |
+| folded only for a name the written candidates cannot ground | no          | 0 of 7       |
+
+None keeps both. Offered as a second candidate, the number is never
+reached, and `MS4` goes back to the m390 wall. Folded only for a name
+the fixpoint of written candidates cannot ground, the machines' phase
+is still folded, because at the reduction in question its `i` is not
+yet grounded either. Folding only where a candidate waits on an unknown
+that no candidate defines keeps the machines but misses `MS4`, whose
+`r2.phi` still has candidates, only blocked ones. So the fork between
+the two cases is not in the candidate list of one reduction. The
+measurement that would find it is the order of the reductions: in
+`MS4` the angle's last definition goes at reduction 51 and the rotation
+entry is needed after, and nothing yet says whether the machines'
+phase has the same order. Not built.
