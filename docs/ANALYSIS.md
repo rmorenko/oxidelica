@@ -38437,3 +38437,32 @@ and the choice ignores that the coefficient divided by is zero at the
 start, where another row's coefficient is one. Index reduction has the
 starts in view (the state-divisor table already reads them for the
 block's assignments). Two links mapped, the second unwalked; not built.
+
+The rule stated in general terms was measured and does not pay. A
+throwaway (`/tmp/m386/ox11p`, `OX_PROBE_START_DIV`) drops a definition
+candidate whose divisor evaluates to zero at the starts index
+reduction reads (`start_env`), with no test on any name. On
+`MechanicalStructure` it reaches the same second wall as the bar on
+the spelling (`sd_MS.log`): `do not mention
+["der(r3.frame_a.R.w[2])", "der(r6.frame_a.R.w[2])"]`. That second
+link is the first one a level down. In the block,
+`der(r3.frame_a.R.w[2])` is carried only by rows whose coefficients
+are `R_rel.T[1,2]` and `R_rel.T[3,2]`, both `sin(phi)` up to sign at
+`phi = 0`, while the row with `cos(phi)` was taken for another name.
+`RollingWheelSet` goes one wall further, to a NaN in
+`e_long_0 = aux / sqrt(aux*aux + ...)`, a normalisation of a vector
+zero at the start (`sd_RW.log`). `Engine1b` still divides by a sum of
+`sin(bearing.phi)` terms (`sd_E1.log`).
+
+The corpus pair, one binary, the heavy models left out
+(`/tmp/m386/pair/off.txt` and `on.txt`): 961 / 741 and runnable 844 /
+699 off, 961 / 734 and 844 / 694 on. Seven lost, none gained
+(`off.ran` against `on.ran`): the three `CascadeControlledDrive`,
+`FluxTubes` `QuadraticCoreAirgap`, `PathPlanning1` and `PathPlanning6`,
+and `WaterIF97`. `PathPlanning1` now refuses on `cannot differentiate
+function abs` and had eight candidates dropped. The starts table holds
+zeros that nobody wrote, a declaration's default start rather than a
+value, so "zero at the start" is read where the start is merely
+absent. This is the `unwrap_or(0.0)` fault of the notes above in
+another form. A rule that could be built would have to know which
+starts were written, which the table does not record. Not built.
