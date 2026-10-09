@@ -38361,3 +38361,39 @@ step whose solve gives a conducting diode a backward current is a
 crossing the indicators did not see, because the indicator is `s` and
 the solve put `s` across zero inside one Newton iteration rather than
 along the step. Not built; no change to the solver in this shift.
+
+### The third row, the MultiBody start, by layer (m386, a map)
+
+Six of the nine in `` `X` of algebraic loop `` are MultiBody blocks
+whose residual is not a number before the first Newton step. Probed one
+at a time with the main binary (`/tmp/m386/ox1`, small wrappers
+`/tmp/m386/PSD.mo`, `TS.mo`, `MS.mo`, `E1.mo`), they are two layers.
+
+Two divide by a line force's guarded distance at zero.
+`PendulumWithSpringDamper` refuses on `damper1.e_rel_0[1] =
+damper1.r_rel_0[1] / damper1.s`, `-inf`, and `ThreeSprings` on the same
+equation of `spring2.lineForce`. The guard is
+`s = maxWithoutEvent(length, s_small)` with `s_small = 1e-10`. In the
+pendulum `damper1.s` is a state: the initialization probe prints
+`demoted revolute.phi reaches [], took damper1.s`, so index reduction
+kept the damper's length where the library writes
+`phi(stateSelect = StateSelect.prefer)` on the joint, and the state's
+start is zero (`OXIDELICA_INIT_PROBE`, `/tmp/m386/psd7.log`). The
+refusal is the first residual of the initialization itself
+(`compile.rs:6764`), before any Newton step, and the four restarts off
+zero (1e-6 to 1e3) are given only to the block's own unknowns, not to
+the state it divides by. Raising `s_small` to 1e-6 moves it one wall:
+`the Newton direction of algebraic loop ["damper1.length"]`
+(`/tmp/m386/psd2.log`). In `ThreeSprings` the state choice is different
+(the body's quaternion and position) and the restarts do run: from 1e-6
+the block descends for 389 iterations without converging
+(`/tmp/m386/ts3.log`). So the pendulum is the reading of `stateSelect`
+(item 21 of the queue, the parser drops it) and the springs are not.
+
+Four (`Engine1b`, `MechanicalStructure`, both `RollingWheelSet`) are
+NaN in a long expression of the joint's rotation, `(1 - e[1]*e[1]) *
+(-sin(phi) * w) ...`, with every value the residual reads finite.
+`Engine1b` demotes `inertia.phi` and `inertia.w`, which reach nothing,
+to `connectingRod.body.v_0[2]` and `crank4.body.w_a[1]`. Not probed
+further. The two remaining in the row are `PlanarFourbar` (a walked
+`planarRotationAngle`) and the two Fluid singles named above.
