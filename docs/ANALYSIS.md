@@ -38963,11 +38963,17 @@ in, at about the 206th model, of a stack overflow (exit 134, 2.6 GB at
 the peak, so not memory). Split into four slices of 65 and run alone,
 three slices went through clean and the fourth, the batteries and the
 digital examples, stood at 63 of 65 for ten minutes at 7 GB and was
-stopped. So the pruning, as written, takes some models into a walk
-that does not end, presumably a definition chain that the full
-incidence used to break. Which model that is was not named. The
-pruning is no candidate for a change until it is, and that is the
-first step of its series. So of the three reasons the joint weight
+stopped. Halved again, eight models at a time on one thread, and then
+one model at a time under a 4 GB ceiling, the one that never finishes
+is `IMC_YDarc`. Without the probe it refuses at once (`step size
+underflow at t = 0`). With it, it stood for more than a minute at
+under 200 MB and was stopped. The arc of a switched star-delta
+starter gives the run a path that does not end once the incidence is
+pruned. Without the probe that path is refused by the step size. The
+stack overflow of the full pass was not reproduced in a slice and is
+not named. The pruning is no candidate for a change until both are
+understood, and `IMC_YDarc` is where its series starts
+(`/tmp/m389/prune/one_*.out`). So of the three reasons the joint weight
 comes out `None`,
 two are now told apart by the probe. The first is a cone that cannot
 be read: some name holds no value, for example a clock (link A) or a
