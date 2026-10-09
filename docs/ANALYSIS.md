@@ -38798,3 +38798,134 @@ under an `if` with a zero coefficient that a function computes
 witnesses are still `Q1.mo` and the five library models, and the map
 says where the derivative becomes an unknown, not that a smaller model
 shows it.
+
+## Derivative names at reduction, the Spice3 fork, a singular cone (m389)
+
+### What the cone of 36 lacks, and where its value lies (m389, a map)
+
+`MechanicalStructure`, reduction 105, demotes `r2.phi` by the order of
+the walk, because the cone of 36 cannot be read. A probe that printed,
+for each name the cone lacks, every candidate definition and which
+unknown blocks it (`OX_PROBE_NAME`, tree `/tmp/m389/wt`, patch
+`state/probe_m389.patch`, log `/tmp/m389/ms7.log`) walks the chain to
+its end. `der(b1.frameTranslation.frame_b.R.T[3,1])` equals
+`der(b1.frameTranslation.frame_a.R.T[3,1])`, which equals
+`der(b1.body.frame_a.R.T[3,1])`, then `der(b1.frame_a.R.T[3,1])`, then
+`der(r1.frame_b.R.T[3,1])`. That one is a product of
+`der(r1.R_rel.T[3,j])` with the frame, and those are
+`f(r1.phi) * der(r1.phi)`. And `der(r1.phi)` is the dummy of the first
+reduction's spent `r1.phi`, defined by the former state equation as
+`r1.w`. Every link is an equality or a product. The chain does not
+settle in the reduction's own fixpoint because `r1.w` and `r1.phi` are
+spent states. They are unknowns now, and the only definitions offered
+for them run in a ring of aliases (`r1.w := qd[1]`,
+`qd[1] := r1.w`; `q[1] := r1.phi`, `r1.phi := q[1]`). Both hold a
+start value (`0.0`), so the whole chain can be worked out at the
+start. The value is there. Nothing walks it into the environment the
+weighing reads.
+
+A change that does that, `held_at_start`, was built behind
+`OXIDELICA_NO_DERIVATIVES_AT_REDUCTION`
+(`state/derivatives_at_reduction_m389.patch`). It gives each unknown
+without a start the value of the first candidate definition that reads
+only held names, to a fixpoint, and it is used only where the tie rule
+weighs. On `MechanicalStructure` it reads the cone: every cone of 34
+to 37 that failed now reads (62 unread before, 16 after, the 16 being
+cones of 25, 44 and 93 that lack `r3.frame_a.R.w[3]` and the like).
+At reduction 105 the joint weight of `r2.phi` comes out as 0, so the
+tie drops it and `b3.body.v_0[1]` is demoted. That is a different
+victim set: `r2.phi`, `r3.phi` and `r3.w` are no longer demoted, and
+`b5.body.v_0[1]`, `b6.body.v_0[2]` and `b6.body.v_0[3]` are demoted in
+their place. The model still refuses, at the same wall on `r3`
+(`/tmp/m389/ms9.out`).
+
+It is not merged. No small witness was found in twelve tries: star
+ties reading a derivative directly, through `cos`, through an alias
+chain, a driven joint, and a three-link MultiBody chain built from the
+library (`/tmp/m389/small/T3.mo` to `T12.mo`, `mb/Chain3.mo`). Each
+one either has a weighable cone with the change off, or fails earlier
+for a reason the change does not touch. What makes the library model
+different seems to be the spent state reached only through a ring of
+aliases, and a synthetic ring of that kind gave "two equations for
+der(...)" before reduction. A corpus pair on one binary
+(`/tmp/m389/oxF`, `/tmp/m389/pair`) is recorded as a measurement, not
+as grounds for merging. With the change switched off and on, both
+halves give 961 / 742 and 844 / 700. The flatten and run lists match
+name for name, the run half's refusals match line for line, and the
+work matches to the digit. `Rectifier12pulse` (to 0.02 s),
+`CauerLowPassAnalog`, `TwoMasses` and `IMC_DCBraking` write the same
+results byte for byte (`/tmp/m389/ctl`). So on today's corpus the
+change moves victims in one model that refuses either way, and nothing
+else. The runner's print for d481752 (job 113821552053) is the same
+961 / 742 and 844 / 700, with the run list the same as 55e3254's name
+for name (`/tmp/m389/ci`).
+
+### Spice3: why `If5` runs and `Q1` does not (m389, a map)
+
+The two part ways at the coefficient, not at the derivative. `If5`
+runs only because `zero_variables` folds its coefficient: the function
+there is `y := 0 * u`, and the quench of products with a zero variable
+takes `c * der(vbx)` out before `split_equations` ever names
+`der(vbx)`. With `OXIDELICA_NO_ZERO_VAR=1` the same `If5` refuses
+exactly as `Q1` does, `underdetermined algebraic loop ["der(vbx)"]`.
+Two new models that keep the shape and make the coefficient a value
+nothing folds before the run both refuse like `Q1`: `If6` computes it
+in a loop with a branch, and `If7` takes it as the field of a record
+that a function returns, which is the `bjtNoBypassCode` shape
+(`/tmp/m389/sp/If6.mo`, `If7.mo`). `If9`, which is `If6` with the
+coefficient `1e-3` instead of zero, runs. So the smallest witness of
+the Spice3 family is `If6`, 20 lines. The fault needs a coefficient
+that is zero at run time and opaque before it, and the derivative of
+an algebraic node it multiplies is then an unknown that no equation
+reads with a nonzero slope. Also without the `if`, `If8` fails, as a
+step underflow at the start. So the `if` is not the cause either:
+what matters is how opaque the coefficient is.
+
+### What a singular cone is in `PendulumWithSpringDamper` (m389, a map)
+
+With the Jacobian dumped (`OX_PROBE_JOINT_DUMP`, `/tmp/m389/psd.log`),
+the cone of 34 at reduction 2 has one dead column,
+`prismatic.frame_a.R.T[3,1]`, and reductions 3 and 4 have `[3,2]` and
+`[3,3]` (m388 saw the last). Its definition is implicit, row 33, and
+the name probe confirms that at reduction 2 the name is in
+`implicit_defs` (`/tmp/m389/psd_name.log`). It was taken from
+`prismatic.frame_b.r_0[1] = prismatic.frame_a.r_0[1] + ... +
+prismatic.frame_a.R.T[3,1] * (prismatic.e[3] * prismatic.s)`, and the
+prismatic axis is the default `{1,0,0}`, so `prismatic.e[3]` is the
+parameter 0. The equation names the matrix entry, and a parameter
+makes the slope in it zero. The equation was chosen to define a name
+it does not determine. The mechanism is in the reduction. The implicit
+rule takes the one unsettled name of an equation that
+`reduction_solve` cannot rearrange. `solve_linear_known` refuses a
+slope that the parameters make zero, and it is right to, since a zero
+slope means the equation does not mention the name. But the refusal
+comes back as the same `None` that "not linear" gives, and the
+implicit rule reads it as "solvable only implicitly". So an equation
+that says nothing about a name is offered as that name's definition.
+The two answers need telling apart at that call. A throwaway probe
+(`OX_PROBE_IMPLICIT_SLOPE`, `/tmp/m389/ox8`) did that. It folds the
+parameters into the slope and skips an equation whose slope is zero,
+and it removes the name from `implicit_defs` at reductions 2 and 3
+(`/tmp/m389/psd8.log`). But the dead column stays, with the same row
+and the same victims. The cone is the union of `implicit_defs` and the
+definitions the matching supplies (`matched_defs`, the
+"needed derivatives" walk). With the implicit road closed, the row
+can only come from the matching, so the matching must have taken the
+same equation for the same name. This is inferred from the two
+sources, not printed. So the faulty pairing is made twice, once by each
+road, and closing one road changes nothing. The fault is where an
+equation is paired with a name its slope does not reach. That would
+be a change to the matching, measured by its victims, and it is not
+built. So of the three reasons the joint
+weight comes
+out `None`, two are now told apart by the probe. The first is a cone
+that cannot be read: some name holds no value, for example a clock
+(link A) or a derivative name (above). The cure is in the environment.
+The second is a cone built wrong: an implicit definition whose
+equation's slope in its own name is zero at the start, which is a dead
+column. The cure is in the choice of `implicit_defs`. The third, the
+`SMEE` cone of 132 (m388), is singular with no dead column and Newton
+diverges. There `None` is the honest answer and nothing in the cone
+is at fault. What the weighing should report differs: the first two
+are faults of the compiler and the third is a fact about the point.
+Not built.
