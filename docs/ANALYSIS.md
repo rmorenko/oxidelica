@@ -38466,3 +38466,12 @@ value, so "zero at the start" is read where the start is merely
 absent. This is the `unwrap_or(0.0)` fault of the notes above in
 another form. A rule that could be built would have to know which
 starts were written, which the table does not record. Not built.
+
+Confirmed by name on `PathPlanning1` (`/tmp/m386/ox12p`, a trail of
+what was dropped): eight divisors read zero at the starts, among them
+`path.sdd_max`, `path.Ta1`, `path.Te - path.Tv` and `abs(path.aux1[1])`.
+`oxidelica why` gives `path.sdd_max` no binding, no equation of the
+flat model, and settles it as an algebraic variable of the run. So its
+zero in the starts table is the absence of a start, and the rule
+dropped the only definitions the path has. That is the fact a buildable
+version of the rule needs the table to record.
