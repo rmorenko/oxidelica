@@ -38411,3 +38411,29 @@ entry of a rotation matrix that the start puts at zero, which is the
 divisor it can see, and this division sits inside a residual rather
 than an assignment). Not probed further: which pass wrote the quotient
 is the next question.
+
+Which pass wrote the quotient (a throwaway in `/tmp/m386/wt`, binaries
+`ox7p` to `ox10p`, not kept). It is index reduction's definition
+settling (`compile.rs`, the candidates handed to `settle`). For
+`r3.frame_a.R.w[3]` it is offered seven definitions, three of them the
+three rows of `frame_b.R.w = R_rel.T * frame_a.R.w + R_rel.w` solved for
+the third component: dividing by `R_rel.T[1,3]`, `R_rel.T[2,3]` and
+`R_rel.T[3,3]`. At `phi = 0` with `n = {1,0,0}` the first two are zero
+and the third is one, and the fixpoint takes the first that grounds,
+which is the row dividing by zero; the derivative of that definition is
+the `/ (-r3.R_rel.T[2,3]) ^ 2` of the refusal. Sorting the candidates
+so that those without a division come first changes nothing (the same
+refusal, `nd_MS.log`). Barring the two quotients of `r3` moves the NaN
+to `r4`, `/ (-r4.R_rel.T[2,1]) ^ 2` (`sk_MS.log`). Barring every
+quotient by a `R_rel.T` entry (a test on the spelling, fit for a probe
+only) carries `MechanicalStructure` past the NaN to a new wall: `the
+equations of algebraic loop [...] do not mention
+["der(r3.frame_a.R.w[2])", "der(r6.frame_a.R.w[2])"]` (`rd_MS.log`).
+The rolling wheel sets divide by `rolling1.e_long_0[2]` instead and are
+untouched by that bar (`rd_RW.log`), and `Engine1b` divides by a sum of
+`sin(bearing.phi)` terms. So the rule a fix would state is not about
+rotations: a definition is chosen among rows that solve the same name,
+and the choice ignores that the coefficient divided by is zero at the
+start, where another row's coefficient is one. Index reduction has the
+starts in view (the state-divisor table already reads them for the
+block's assignments). Two links mapped, the second unwalked; not built.
