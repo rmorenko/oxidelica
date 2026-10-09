@@ -38987,3 +38987,122 @@ diverges. There `None` is the honest answer and nothing in the cone
 is at fault. What the weighing should report differs: the first two
 are faults of the compiler and the third is a fact about the point.
 Not built.
+
+## Derivative names at reduction merged, the divisor probe, three kinds of `None` (m390)
+
+### The change, and what witnesses it
+
+`held_at_start` (m389) is merged behind
+`OXIDELICA_NO_DERIVATIVES_AT_REDUCTION`, as it was measured. The patch
+went onto 9f26e01 without a conflict. The code between d481752, where
+the m389 pair was taken, and 9f26e01 did not change, and the pair's
+binary is byte for byte the one this tree builds (`cmp /tmp/m390/ox1
+/tmp/m389/oxF`). So the pair stands as the measurement: 961 / 742 and
+844 / 700 on both halves, `ran.diff` empty (`/tmp/m389/pair`). That
+pair left out the heavy models, which CI's push job never measures,
+so they were taken as a pair of their own on `/tmp/m390/ox1`
+(`--only-from scripts/heavy_models.txt`, `/tmp/m390/heavy`). Both
+halves give 15 / 2 and 13 / 2, the heavy floors exactly. The flatten
+and run lists match name for name (`Oscillator` and `MoistAir` run),
+and the refusals match line for line once the timings are taken out.
+The change moves no model, and it is merged anyway because it changes
+which states index reduction keeps. On `MechanicalStructure` the
+cones of 34 to 37 now read, and the unread cones fall from 62 to 16.
+
+`MS4` is the witness. In m389 it was called 40 lines, but the file
+is 36 (`wc -l`). It is now `tests/small/a_derivative_name_weighed_at_the_start.mo`.
+It needs the standard library, so it cannot be a test of the suite,
+and `scripts/victim_witness.sh` asks it from the library job instead.
+That script reads the victim of reduction 86 from the victim probe,
+with the switch off and on, from one binary: `r3.w` with the starts
+alone, `b4.body.v_0[2]` with the derivative names held. The two lists
+of 91 victims differ in that one line. The witness was seen red on a
+binary built without the change (`/tmp/m390/ox0`: reduction 86
+demotes `r3.w` on both sides) and green with it (`/tmp/m390/ox1`).
+The settling itself has a unit test,
+`the_names_without_a_start_are_given_what_their_equations_work_out_to`.
+
+### The divisor probe on `MS4` and `MechanicalStructure` (m390, a map)
+
+The m386 probe (`OX_PROBE_START_DIV` with `OX_PROBE_THROUGH_DEFS`) was
+carried onto this tree with the change. Only its `compile.rs` and
+`lib.rs` halves applied, and the halves that did not (`events.rs`,
+`bdf.rs`) hold none of the two switches. Binaries `/tmp/m390/ox14f`,
+plus the m389 joint probe in `/tmp/m390/oxJ`.
+
+`MS4` gets past the NaN at `r3.R_rel.T[2,3]` on both sides of the
+switch, and both sides then refuse at the next wall: the loop does not
+mention `der(r2.R_rel.T[1,1])` and `der(r3.R_rel.T[3,1])` at t = 0
+(`/tmp/m390/p2_ms4_{off,on}.log`). It runs on neither side, so there
+is still no numerical witness for a divisor series. Under the probe
+the victim lists move in three more places (reductions 37 to 48 trade
+`b2.body.w_a[2]` and `b3.body.w_a[2]`), and the one-line difference at
+reduction 86 is kept.
+
+On `MechanicalStructure` the unread cones, counted from the probe's
+`cannot be read` lines (`/tmp/m390/p22_*.log`):
+
+| switch           | divisor probe off | divisor probe on |
+| ---------------- | ----------------- | ---------------- |
+| starts alone     | 62                | 46               |
+| derivative names | 16                | 2                |
+
+The two that are left are the cones of 93 and 44, which lack
+`der(r1.R_rel.T[2,1])` and `der(r1.frame_b.R.T[2,3])`, and their chains
+down the first body. Under the probe the wall on `r3` moves. On both
+sides the model gets past the NaN and refuses as a loop that does not
+mention `der(r3.frame_a.R.w[2])` and `der(r4.frame_a.R.w[2])`, and with
+the starts alone `der(r3.R_rel.T[3,1])` as well
+(`/tmp/m390/p22_{off,on}_divref.txt`). So the two links do what m389
+said they would. Each link reads what the other leaves unread, and
+together they leave 2 unread cones over 132 reductions. The next wall is the
+same for `MS4` and the library model: derivatives of rotation entries
+that the block names and no row determines at the start. That is
+where the divisor series would start. It is not merged, and the chain
+is taken whole.
+
+One of those names is already explained by `why`. `r3.R_rel.T[3,1]` is
+`e[3]*e[1] + (0 - e[3]*e[1])*cos(phi) - (-e[2])*sin(phi)`, and with
+`r3.n = {1,0,0}` every term carries a zero parameter. The entry is the
+constant 0, so its derivative is 0 everywhere, and a block that names
+`der(r3.R_rel.T[3,1])` as an unknown names something no row can
+determine. That is the PSD fault, an entry whose folded slope is
+zero, met one level of derivative higher. `r2.R_rel.T[1,1]` has the
+same shape. It is `e[1]*e[1] + (1 - e[1]*e[1])*cos(phi) - 0*sin(phi)`,
+and with `e = {1,0,0}` that is the constant 1. So two of `MS4`'s three
+unmentioned names are derivatives of constants. Whether
+`der(r3.frame_a.R.w[2])` has that shape too was not checked.
+
+### Three kinds of `None`, told apart by print (m390, a map)
+
+A print-only probe (`/tmp/m390/oxL`, tree `/tmp/m390/wt2`, under
+`OX_PROBE_JOINT`) names every road out of `weigh_jointly` that gives
+`None`. For a singular cone it also tells whether a dead column is
+dead by its folded slope: every row's derivative in that name, with
+everything outside the cone folded in, simplifies to the number zero.
+It prunes nothing.
+
+`PendulumWithSpringDamper`, 11 `None` (`/tmp/m390/p3_psd2.log`):
+
+- 5 singular and built wrong, the cones of 34 whose dead column
+  `prismatic.frame_a.R.T[3,j]` is dead by its folded slope, which is
+  m389's pairing fault;
+- 4 that took thirty Newton steps without settling, all the cone of
+  37 around `damper1.s` and the body's position, which m389 called
+  "did not settle";
+- 1 unread, the cone of 19 at `der(prismatic.frame_a.R.T[3,3])`, a
+  derivative of a built-wrong name.
+
+The `SMEE` small model (`/tmp/m388/g/S3.mo`) has one, the cone of 132,
+singular and honest, with no dead column by number or by slope
+(`/tmp/m390/p3_smee.log`). `MechanicalStructure` without the victim
+probe has 11 unread with the starts alone and 2 with the derivative
+names held, and nothing of the other kinds (`/tmp/m390/p3_ms_*.log`).
+These are fewer than the 62 and 16 above, which counted with the
+victim probe on. The victim probe weighs every candidate of every
+reduction for its print (`cand ... joint`), while the choice weighs
+only the ties, so 62 and 16 count cones the choice never asks about.
+So the kinds that could only be told apart by reading a log one by one
+are now separate words in the print. The fourth kind, a cone that does
+not settle, was not on m389's list. It is all of PSD's reduction 1 and
+is where the m389 pruning still left 4.

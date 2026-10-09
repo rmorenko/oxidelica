@@ -2063,6 +2063,7 @@ fn reduce_index(
                     reductions,
                     resuming,
                     programs,
+                    &candidates,
                 )?
                 else {
                     return Ok(false);
@@ -2169,6 +2170,65 @@ fn tie_drops_the_undetermined() -> bool {
     std::env::var_os("OXIDELICA_NO_TIE_JOINT").is_none()
 }
 
+/// Whether a tie is weighed with the unknowns that have no start given
+/// the value their equations work out to at the start. On by default;
+/// `OXIDELICA_NO_DERIVATIVES_AT_REDUCTION=1` weighs with the starts
+/// alone, as before, so that one binary gives both halves of a
+/// measurement.
+fn derivatives_at_reduction() -> bool {
+    std::env::var_os("OXIDELICA_NO_DERIVATIVES_AT_REDUCTION").is_none()
+}
+
+/// The start values, and beside them every unknown without a start
+/// that one of `defining` works out from what is already held.
+///
+/// What this is for is the derivative names index reduction makes:
+/// `der(r1.phi)` is defined by the former state equation as `r1.w`,
+/// and the derivatives differentiated constraints pass on read it in
+/// turn, but none of them was ever declared, so none has a start. A
+/// name that has a start keeps it - this adds values where there were
+/// none and changes none - and a definition that cannot be read, or
+/// reads to something not finite, gives nothing rather than a guess.
+fn held_at_start(
+    start_env: &HashMap<String, f64>,
+    defining: &[(String, Expr, usize)],
+    at_time: f64,
+    programs: &HashMap<String, ClassDef>,
+) -> HashMap<String, f64> {
+    let mut held = start_env.clone();
+    loop {
+        let mut progress = false;
+        for (name, expr, _) in defining {
+            if held.contains_key(name) {
+                continue;
+            }
+            let mut refs = Vec::new();
+            expr.collect_refs(&mut refs);
+            if !refs.iter().all(|r| held.contains_key(*r)) {
+                continue;
+            }
+            let value = eval(
+                expr,
+                &EvalCtx {
+                    vars: &held,
+                    time: at_time,
+                    programs: Some(programs),
+                    depth: 0,
+                },
+            );
+            if let Ok(value) = value {
+                if value.is_finite() {
+                    held.insert(name.clone(), value);
+                    progress = true;
+                }
+            }
+        }
+        if !progress {
+            return held;
+        }
+    }
+}
+
 /// The candidates of a tie that `weigh` finds the constraint
 /// determines, in their order. A weight is zero when it is a millionth
 /// of the heaviest or less - the weights are differences, and a
@@ -2225,6 +2285,7 @@ fn choose_the_victim(
     reduction: usize,
     resuming: bool,
     programs: &HashMap<String, ClassDef>,
+    defining: &[(String, Expr, usize)],
 ) -> Result<Option<String>, SimError> {
     // Demote a state the constraint actually constrains. The
     // choice is a pivot: the constraint has to *determine* the
@@ -2486,14 +2547,25 @@ fn choose_the_victim(
     // how heavy a determined candidate is was measured and is no sign
     // of the right one. Where any weight cannot be worked out the tie
     // is left exactly as it was.
+    //
+    // The weights are read where the names earlier reductions made hold
+    // a value. `der(r1.phi)` has no start - nothing declared it - and
+    // every derivative a rotation matrix passes on down a chain of
+    // bodies reads it in the end, so without it the cone of a later
+    // reduction could not be read at all and the tie fell to the walk.
     let candidates = if !resuming
         && tie_drops_the_undetermined()
         && !through.is_empty()
         && candidates.len() > 1
         && candidates.iter().all(|name| sensitivity(name) == 0.0)
     {
+        let held = if derivatives_at_reduction() {
+            std::borrow::Cow::Owned(held_at_start(start_env, defining, at_time, programs))
+        } else {
+            std::borrow::Cow::Borrowed(start_env)
+        };
         drop_the_undetermined(candidates, |name| {
-            crate::sensitivity::weigh_jointly(residual, name, &cone, start_env, at_time, programs)
+            crate::sensitivity::weigh_jointly(residual, name, &cone, &held, at_time, programs)
         })
     } else {
         candidates
@@ -7387,6 +7459,64 @@ fn pre_as_now(condition: &Expr) -> Expr {
 /// old reading, so that one binary gives both numbers.
 fn pre_in_modes_refused() -> bool {
     std::env::var_os("OXIDELICA_PRE_IN_MODES_OFF").is_some()
+}
+
+#[cfg(test)]
+mod held_tests {
+    use super::held_at_start;
+    use crate::*;
+    use oxidelica_parser::BinOp;
+
+    fn r(name: &str) -> Expr {
+        Expr::Ref(name.to_string())
+    }
+
+    fn bin(op: BinOp, a: Expr, b: Expr) -> Expr {
+        Expr::Bin(op, Box::new(a), Box::new(b))
+    }
+
+    /// A derivative name earlier reductions made has no start, and the
+    /// equation defining it gives it one - read in whatever order the
+    /// definitions come, since one may read another written later.
+    /// What has a start keeps it, what reads a name nothing holds gets
+    /// nothing, and a value that is not finite is not a value.
+    #[test]
+    fn the_names_without_a_start_are_given_what_their_equations_work_out_to() {
+        let start: HashMap<String, f64> = [("x".to_string(), 2.0), ("kept".to_string(), 7.0)]
+            .into_iter()
+            .collect();
+        let defining = vec![
+            // Reads `der(x)`, which is defined only below.
+            (
+                "der(v)".to_string(),
+                bin(BinOp::Add, r("der(x)"), Expr::Number(1.0)),
+                0,
+            ),
+            (
+                "der(x)".to_string(),
+                bin(BinOp::Mul, r("x"), Expr::Number(3.0)),
+                1,
+            ),
+            ("kept".to_string(), Expr::Number(-1.0), 2),
+            ("lost".to_string(), r("nobody"), 3),
+            (
+                "infinite".to_string(),
+                bin(
+                    BinOp::Div,
+                    Expr::Number(1.0),
+                    bin(BinOp::Sub, r("x"), r("x")),
+                ),
+                4,
+            ),
+        ];
+        let held = held_at_start(&start, &defining, 0.0, &HashMap::new());
+        assert_eq!(held.get("der(x)"), Some(&6.0));
+        assert_eq!(held.get("der(v)"), Some(&7.0));
+        assert_eq!(held.get("kept"), Some(&7.0));
+        assert_eq!(held.get("lost"), None);
+        assert_eq!(held.get("infinite"), None);
+        assert_eq!(held.len(), 4);
+    }
 }
 
 #[cfg(test)]

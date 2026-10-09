@@ -2472,6 +2472,14 @@ if [ "$apart_named" -eq 1 ]; then
 fi
 held "jacobians counted apart" "$(work_of "jacobians apart")" "$WORK_JACOBIANS_APART" "$WORK_JACOBIANS_APART_PPM"
 
+# Which state a reduction demotes, asked of a model that needs the
+# library and so cannot stand in the test suite. A change that gives a
+# name a value moves no count here and still changes the compiler, so
+# the choice it changed is held by name; see the script for the model.
+if ! ./scripts/victim_witness.sh "$directory"; then
+  status=1
+fi
+
 if [ "$status" -eq 0 ]; then
   echo "OK: $read_now files read, $flatten_now flatten, $run_now run; runnable $runnable_flatten_now flatten, $runnable_run_now run"
   echo "OK: ${flatten_ms_now}ms per model flattening, ${run_ms_now}ms running"
