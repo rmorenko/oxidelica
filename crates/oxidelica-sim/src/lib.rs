@@ -76,6 +76,14 @@ pub(crate) enum Refusal {
     /// (`ThyristorBridge2mPulse_RLV`). If no shorter step mends it, the
     /// run ends on this refusal, in its own words.
     Singular,
+    /// An algebraic loop whose Newton iteration ran out of iterations or
+    /// of a direction that descends. Mended by a shorter step in the
+    /// implicit solver only, as `Singular` is, and for the same kind of
+    /// reason: an ideal diode bridge one step past a commutation is
+    /// asked, at the whole step, for a mode whose currents are 1.8e6
+    /// amperes, and the block stalls there where a step a quarter as
+    /// long does not go (`PolyphaseRectifier`).
+    Unconverged,
     /// The point asked about is outside what the equations can answer:
     /// a function body refused its arguments in its own words (`IF97
     /// medium function tsat called with too low pressure`), or a block
@@ -99,6 +107,8 @@ impl SimError {
         self.smaller_step_mends()
             || (self.1 == Refusal::Singular
                 && std::env::var_os("OXIDELICA_NO_SINGULAR_REJECT").is_none())
+            || (self.1 == Refusal::Unconverged
+                && std::env::var_os("OXIDELICA_NO_UNCONVERGED_REJECT").is_none())
     }
 
     /// Whether the refusal is about the point rather than the model:

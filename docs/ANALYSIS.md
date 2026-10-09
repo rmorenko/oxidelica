@@ -38496,3 +38496,142 @@ connection to `b2` in most reductions (an accept trail, `/tmp/m386`),
 never from a row of the rotation, and `der(r3.frame_a.R.w[2])` is left
 an unknown of the block that only `sin(phi)` rows carry. A chain is
 taken whole, so the first link waits for the rest. Not built.
+
+### `PolyphaseRectifier`: the chain to its end (m387, a series)
+
+The m386 map left the run stopped at t = 0.0033792, one step past the
+commutation at 0.0033333, with the shape of t = 0 (a diode on by a few
+millivolts, its neighbour on backwards, a phase pair shorted at 1.77e6
+amperes) and no event between. The question of the third link was why
+no event: the indicator was asked only at a step that had been
+accepted. Walked with the probe binaries `/tmp/m387/ox16p` to `ox18p`
+(a copy of the tree, not kept), the chain is four links and ends in a
+run.
+
+1. The refused block at an event asks the definitions at the point the
+   refusal left, as m386 found (`events.rs`, the event iteration).
+2. The step past the commutation is not where the run ends. A backtrace
+   of the last singular refusal (`/tmp/m387/p17.log`) is `bdf.rs:194`,
+   the corrector's matrix, called with `?`: the corrector had converged
+   at t = 0.0033792 with the pair at plus and minus 1.77e6, and the
+   finite-difference Jacobian taken there met the singular block and
+   left the run, where the same refusal at the corrector's own point
+   rejects the step. No indicator was ever asked at that point, which
+   is why no event was born: the step was never accepted.
+3. With the matrix's refusal taken as the step's, the corrector's
+   shorter steps meet blocks that run out of iterations (48 times) or
+   of a descending direction (40 times) at the full step
+   (`/tmp/m387/p20.log`). Both were `Plain`, so the run ended on them.
+   They are now `Unconverged`, which the implicit solver takes for a
+   step too long, as it already takes `Singular`.
+4. Under `Auto` the run starts in the explicit solver, which ends the
+   run on an `Unconverged` stage (five times in the same log) rather
+   than handing it over. It now hands such a run to BDF, as it does a
+   stiff one.
+
+Measured on the main tree with each link behind its own switch
+(`OXIDELICA_NO_REFUSED_REASK`, `OXIDELICA_NO_JACOBIAN_REJECT`,
+`OXIDELICA_NO_UNCONVERGED_REJECT`, `OXIDELICA_NO_IMPLICIT_HANDOFF`),
+binary `/tmp/m387/oxC`: with all four on, `PolyphaseRectifier` runs to
+its stop time of 0.2 s in 472 steps (8 s); any one switched off and it
+refuses (singular for the first two, unconverged for the last two). The
+answer is physical: the load's mean voltage settles at 233.79 V where a
+three-phase bridge on 100 V per phase gives 1.35 times the line voltage,
+233.8 V, and the largest current anywhere is the load's 234 A, with no
+1e6 left (`/tmp/m387/ctl/PolyphaseRectifier.on.csv`). With `data.m = 3`
+(one bridge) the model needs the last two links only.
+
+The rest of the star is not this chain. `SMEE_Generator_Polyphase` and
+both `SMEE_LoadDump` refuse in the initialization's block check
+(`compile.rs`, `check_block_regularity`, before any event) and never
+reach the event iteration; the four switches move none of them.
+
+The corpus pair on one binary built from the tree that is committed
+(`/tmp/m387/pair/oxP`, all four switches off in `off.txt`, none in
+`on.txt`, heavy models carved out as the floor does it): off 961 / 741
+and 844 / 699, on 961 / 742 and 844 / 700. The flatten lists are the
+same name for name, and the run lists differ by one name,
+`PolyphaseRectifier`, gained, none lost (`/tmp/m387/pair/ran.diff`).
+The time ratio is 0.80 off and 1.20 on, with the coverage run sharing
+the machine during the second half; both inside the band.
+
+Controls, the four switches off against on on one binary, compared byte
+for byte: `Rectifier12pulse` (to 0.02 s), `CauerLowPassAnalog`,
+`TwoMasses` and `IMC_DCBraking` are identical
+(`/tmp/m387/ctl/res.txt`, `res2.txt`).
+
+The test is for links 3 and 4: a loop that has no real root where an
+overlong step predicts its state (`a*a + b*b = 2 + x` with `x` decaying
+at 1e4), red under BDF and `Auto` with either switch off. Links 1 and 2
+have no small witness. An inline bridge of six ideal diodes, two such
+bridges in series, and the library's `IdealDiode` in a minimal circuit
+were tried (`/tmp/m387/sm`); the first runs either way and the others
+refuse in another shape before the event iteration is reached. Their
+only witness is `PolyphaseRectifier` itself, so that is said here rather
+than implied by a test.
+
+### The MultiBody second link and `stateSelect = prefer` (m387, a map)
+
+The second link of `MechanicalStructure` (m386: `der(r3.frame_a.R.w[2])`
+an unknown no row determines) was asked which states index reduction
+demotes. With the m386 throwaway (`/tmp/m386/ox14p`, the divisor rule
+read through definitions) and `OXIDELICA_VICTIM_PROBE`, the 132
+reductions demote `r1.phi`, `r1.w`, `r2.phi`, `r2.w`, `r3.phi`, `r3.w`
+and `r5.w`, every one of them declared `stateSelect = StateSelect.prefer`
+by `Joints.Revolute`, and 101 body variables
+(`/tmp/m387/ms_victims.txt`). The joint angles leave, so the rotation
+of `r3` is no longer a state's function, which is where its angular
+velocity ends up an unknown only `sin(phi)` rows carry. The block of the
+refusal is 123 unknowns, 46 of them derivatives (`/tmp/m387/ms2.log`).
+So the second link is the same layer as item 21 of the queue: what the
+model prefers is not read.
+
+A probe carried the attribute (`/tmp/m387/wt`, binary `/tmp/m387/oxS1`,
+not kept): parsed instead of dropped, resolved through flattening like
+`fixed`, evaluated at the reduction (a preferred state reads 4 or 5),
+and kept out of the victims while any unpreferred candidate is left.
+It reaches the variables: `revolute.phi`, `revolute.w`, `prismatic.s`
+and `prismatic.v` read 4 in `PendulumWithSpringDamper`, and the bodies'
+`if enforceStates then ... else StateSelect.default` read 2. It moves
+no victim. In the pendulum the reduction that demotes `revolute.phi`
+(reduction 4, on `revolute.frame_b.R.T[3,3]`) reaches exactly two
+states, `prismatic.s` and `revolute.phi`, both preferred, both fixed
+and both weighing 0, so the filter leaves the tie as it was and the walk
+picks `revolute.phi` again (`/tmp/m387/psd_on.log`). The victim lists
+off and on are the same eleven names. In `ThreeSprings` nothing is
+preferred (the one victim is `body1.Q[4]`, the same both ways,
+`ts_off.v` and `ts_on.v`). Zero victims moved, so no corpus pair was
+taken.
+
+So `prefer` read as a preference is not the layer. What decides the
+pendulum is a tie between two preferred states of weight zero, and the
+question for the next map is what else can tell such a pair apart.
+Not built; item 21's fluid half is untouched.
+
+### The fourth row, `underdetermined algebraic loop`, by layer (m387, a map)
+
+The eight, each with `--only` on the root `.msl` and a backtrace of the
+refusal (`/tmp/m387/ox21p`, a throwaway). All eight are raised at the
+same place: the block check before the run (`check_block_regularity`
+through `solve_plan_once`, `solvers/mod.rs` underdetermined branch),
+at t = 0. They are two layers.
+
+Five are Spice3 (`InvertersExtendedModel.MNmos`, `MPmos`,
+`Spice3BenchmarkFourBitBinaryAdder.NAND` and `ONEBIT`,
+`Spice3BenchmarkRtlInverter`), blocks of 1, 5, 5, 15 and 117 unknowns
+almost all derivatives. The smallest says the layer: in
+`Spice3BenchmarkRtlInverter` the block is `der(Q1.vbx)` alone, whose
+only equation is `Q1.icapbx = Q1.cc.capbx * der(Q1.vbx)`, and `capbx`
+is the base-collector capacitance outside the internal base,
+`CJC * (1 - XCJC)`, with `XCJC` defaulting to 1. The coefficient is
+exactly zero, so the derivative is undetermined and the current is
+zero whatever it is. In `MNmos` the same shape is
+`icBS = cc.cBS * (der(B.v) - der(Sinternal))`. A derivative behind a
+capacitance that the parameters make zero.
+
+Three are machines (`SMEE_DOL`, `SMEE_Rectifier`, `IMC_DOL_Polyphase`),
+blocks of 26, 27 and 59 names holding the switches' or the diodes' `s`
+(`idealClosingSwitch[k].s`, `idealDiode1.idealDiode[k].s`) beside the
+stator's derivatives and the star point. The m387 series does not move
+them (`/tmp/m387/oxC`: refused at the same place), which fits: they
+refuse before any event, where the definitions are not asked.

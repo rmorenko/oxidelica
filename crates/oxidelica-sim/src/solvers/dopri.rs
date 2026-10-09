@@ -4,6 +4,15 @@ use crate::*;
 
 use super::{reject_keeps_guess, turned, Segment, SegmentStart};
 
+/// Whether a refusal only the implicit solver mends ends an `Auto` run
+/// in the explicit one, as it did before such a run was handed over.
+/// `OXIDELICA_NO_IMPLICIT_HANDOFF` keeps the old reading, so that one
+/// binary gives both numbers.
+fn implicit_handoff_off() -> bool {
+    static OFF: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *OFF.get_or_init(|| std::env::var_os("OXIDELICA_NO_IMPLICIT_HANDOFF").is_some())
+}
+
 impl CompiledModel {
     /// Adaptive Dormand-Prince 5(4) integration with dense output.
     pub fn simulate_adaptive(&self) -> Result<SimResult, SimError> {
@@ -201,6 +210,17 @@ impl CompiledModel {
                     Err(ref error) if self.reselectable || error.smaller_step_mends() => {
                         stage_failed = true;
                         break;
+                    }
+                    // A refusal only the implicit solver takes for a step
+                    // too long is not this solver's to end the run on
+                    // when the implicit one is standing by: under `Auto`
+                    // the run is handed over, as it is for stiffness.
+                    Err(ref error)
+                        if watch_stiffness
+                            && !implicit_handoff_off()
+                            && error.implicit_step_mends() =>
+                    {
+                        return Ok(AdaptiveOutcome::Stiff);
                     }
                     Err(error) => return Err(error),
                 }

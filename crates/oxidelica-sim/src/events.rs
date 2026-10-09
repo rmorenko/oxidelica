@@ -131,6 +131,15 @@ pub(crate) fn initial_order_off() -> bool {
     *OFF.get_or_init(|| std::env::var_os("OXIDELICA_NO_INITIAL_ORDER").is_some())
 }
 
+/// Whether a block refused inside the event iteration ends the event
+/// at once, as it did before the definitions were asked at the point
+/// the refusal left. `OXIDELICA_NO_REFUSED_REASK` keeps the old order,
+/// so that one binary gives both numbers.
+fn refused_reask_off() -> bool {
+    static OFF: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *OFF.get_or_init(|| std::env::var_os("OXIDELICA_NO_REFUSED_REASK").is_some())
+}
+
 impl EventRewrite<'_> {
     /// `time < C` with `C` known before the run, as the flag that
     /// stands for it.
@@ -601,7 +610,36 @@ impl CompiledModel {
                     // fired then, and the point is asked once more; a
                     // block that refuses with them fired refuses for
                     // the model's own reasons.
-                    if let Err(why) = self.eval_point(t, y, values, &mut scratch, alg_guess) {
+                    let mut asked = self.eval_point(t, y, values, &mut scratch, alg_guess);
+                    // A block refused in the mode the switches hold may be
+                    // refused for the mode: an ideal diode bridge at t = 0
+                    // with every diode off is singular, and the point the
+                    // refusal leaves already says which diode conducts.
+                    // So the definitions are asked there, and while any
+                    // of them moves the point is asked again in the new
+                    // mode. A refusal no definition answers is the
+                    // model's own and goes on as before. Each pass moves
+                    // a switch or stops, so the asking is bounded by the
+                    // rounds the event already allows.
+                    let mut reasked = 0usize;
+                    while asked.is_err() && !refused_reask_off() && reasked < rounds {
+                        reasked += 1;
+                        let mut moved_any = false;
+                        for (slot, code) in &self.discrete_definitions {
+                            let new = code.run(values, t);
+                            if values[*slot] != new && !(values[*slot].is_nan() && new.is_nan()) {
+                                values[*slot] = new;
+                                moved_any = true;
+                            }
+                        }
+                        if !moved_any {
+                            break;
+                        }
+                        acted = true;
+                        outcome.changed = true;
+                        asked = self.eval_point(t, y, values, &mut scratch, alg_guess);
+                    }
+                    if let Err(why) = asked {
                         if initial_order_off()
                             || values[self.initial_slot] == 0.0
                             || !self.fire_initial_assignments(t, values, &before_event, &mut fired)

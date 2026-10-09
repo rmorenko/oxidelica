@@ -4,6 +4,15 @@ use crate::*;
 
 use super::{place_crossing, reject_keeps_guess, turned, Segment, SegmentStart};
 
+/// Whether a block refusing while the corrector's matrix is taken ends
+/// the run, as it did before such a refusal was read as the step's.
+/// `OXIDELICA_NO_JACOBIAN_REJECT` keeps the old reading, so that one
+/// binary gives both numbers.
+fn jacobian_reject_off() -> bool {
+    static OFF: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *OFF.get_or_init(|| std::env::var_os("OXIDELICA_NO_JACOBIAN_REJECT").is_some())
+}
+
 impl CompiledModel {
     /// Variable-order (1..5), variable-step BDF with Newton iteration
     /// and a reused finite-difference Jacobian.
@@ -191,7 +200,31 @@ impl CompiledModel {
                 }
 
                 if jac.is_none() || iteration == 4 {
-                    jac = Some(self.jacobian(t_new, &y_new, &f_new, &mut values, &alg_guess)?);
+                    // The matrix is taken by asking the blocks again at
+                    // points a hair from the corrector's, and a block
+                    // refusing there refuses for the same reason it would
+                    // at the corrector's own point: the step put it
+                    // where a shorter one does not go. It was an exit
+                    // from the run before, which no other refusal of a
+                    // step's own making is: `PolyphaseRectifier` one step
+                    // past a commutation solved at 1.8e6 amperes and then
+                    // ended the run on the matrix of that point.
+                    match self.jacobian(t_new, &y_new, &f_new, &mut values, &alg_guess) {
+                        Ok(fresh) => jac = Some(fresh),
+                        Err(ref error)
+                            if !jacobian_reject_off()
+                                && (self.reselectable || error.smaller_step_mends()) =>
+                        {
+                            newton_failed = true;
+                            break;
+                        }
+                        Err(error) if !jacobian_reject_off() && error.implicit_step_mends() => {
+                            singular = Some(error);
+                            newton_failed = true;
+                            break;
+                        }
+                        Err(error) => return Err(error),
+                    }
                 }
                 // The iteration matrix only moves when the Jacobian is
                 // refreshed or the step coefficient changes, so it is

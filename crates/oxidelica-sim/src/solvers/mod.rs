@@ -2031,7 +2031,7 @@ impl CompiledModel {
                         let kind = if over_edge {
                             Refusal::Outside
                         } else {
-                            Refusal::Plain
+                            Refusal::Unconverged
                         };
                         return err_of(
                             kind,
@@ -2067,10 +2067,13 @@ impl CompiledModel {
             }
             return Ok(());
         }
-        err(format!(
-            "algebraic loop did not converge in 50 Newton iterations: {:?}",
-            block_names()
-        ))
+        err_of(
+            Refusal::Unconverged,
+            format!(
+                "algebraic loop did not converge in 50 Newton iterations: {:?}",
+                block_names()
+            ),
+        )
     }
 
     /// Integrate over `[start_time, stop_time]` with the selected

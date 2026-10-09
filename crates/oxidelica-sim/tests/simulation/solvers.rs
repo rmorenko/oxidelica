@@ -1349,6 +1349,40 @@ fn a_loop_singular_only_where_an_overlong_step_predicts_rejects_the_step() {
     }
 }
 
+/// A loop that runs out of Newton iterations only where an overlong
+/// step predicts its state. `x` decays at 1e4 per second from 1, and
+/// the loop `a*a + b*b = 2 + x, a = b` has `a = sqrt((2 + x) / 2)` at
+/// every point the solution passes through. The first step's predictor
+/// puts `x` far below -2, where the loop has no real root and the
+/// iteration wanders for fifty steps. That ended the run, in the
+/// implicit solver and in the explicit one before it, as a model
+/// nobody could solve; the step is rejected instead, as a singular
+/// loop's is, and under `Auto` the explicit solver hands the run to
+/// the implicit one rather than ending it.
+#[test]
+fn a_loop_unconverged_only_where_an_overlong_step_predicts_rejects_the_step() {
+    let source = "model U Real x(start = 1, fixed = true); \
+         Real a(start = 1); Real b(start = 1); \
+         equation der(x) = -1e4*x; a*a + b*b = 2 + x; a - b = 0; \
+         annotation(experiment(StopTime = 0.01)); end U;";
+    for method in [SolverMethod::Bdf, SolverMethod::Auto] {
+        let result = run_on(source, method).expect("runs");
+        let column = |name: &str| result.columns.iter().position(|c| c == name).expect(name);
+        let (x, a) = (column("x"), column("a"));
+        let last = result.rows.last().expect("a row");
+        assert!((last[0] - 0.01).abs() < 1e-12, "stopped at t = {}", last[0]);
+        for row in &result.rows {
+            let exact = ((2.0 + row[x]) / 2.0).sqrt();
+            assert!(
+                (row[a] - exact).abs() < 1e-9,
+                "a = {} at t = {}, sqrt((2 + x) / 2) = {exact}",
+                row[a],
+                row[0]
+            );
+        }
+    }
+}
+
 /// A voltage read through the reciprocal of a nanohenry. The loop's
 /// one row carries the rounding of `u` - an ulp of a thousand volts -
 /// times 1e9, so the residual cannot fall below some 1e-4 however the
