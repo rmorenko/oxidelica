@@ -38956,9 +38956,18 @@ reduces on `R.T[1,j]` where it reduced on `R.T[3,j]`. The eleven
 victims come out the same, and the model refuses where it did, at
 `damper1.e_rel_0[1] = damper1.r_rel_0[1] / damper1.s`. So on this
 model the pruning repairs the weighing and not the outcome, and the
-model is held by the spring's division by its own length. The pruning
-was not run on the corpus: it changes the incidence of every model,
-which is a series of its own. So of the three reasons the joint weight
+model is held by the spring's division by its own length. Taken to the
+corpus on one binary (`/tmp/m389/prune`), the half with the probe off
+gave 961 / 742 and 844 / 700. The half with it on died seven seconds
+in, at about the 206th model, of a stack overflow (exit 134, 2.6 GB at
+the peak, so not memory). Split into four slices of 65 and run alone,
+three slices went through clean and the fourth, the batteries and the
+digital examples, stood at 63 of 65 for ten minutes at 7 GB and was
+stopped. So the pruning, as written, takes some models into a walk
+that does not end, presumably a definition chain that the full
+incidence used to break. Which model that is was not named. The
+pruning is no candidate for a change until it is, and that is the
+first step of its series. So of the three reasons the joint weight
 comes out `None`,
 two are now told apart by the probe. The first is a cone that cannot
 be read: some name holds no value, for example a clock (link A) or a
