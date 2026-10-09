@@ -39526,3 +39526,42 @@ velocity level. Not built. A plain mass between two gaps with a fixed
 position (`Gap3.mo`) does not show it: there the first reductions
 demote both `s_rel` either way, because the position the model fixes
 sits on the mass.
+
+### `IdealMixing1`: the unknown `X` opened (m392, a probe)
+
+The census has listed `IdealMixing1` under `unknown variable X` in a
+walked body since m366 without saying which body. A probe that puts the
+function's name and arguments on the complaint (`OX_PROBE_WALK_NAME`)
+names it:
+`solveOneNonlinearEquation$...MixtureGasNasa_T_hX_f_nonlinear@...FlueGasSixComponents`,
+the inverse of `h_TX` for the flue gas. `h_TX` writes
+`(if fixedX then reference_X else X) * {h_T(data[i], T, ...) for i in 1:nX}`,
+and the walk's `elements_of` has no arm for a choice between two
+arrays, so `X` falls to `to_scalar` as a bare name. Thirty lines show
+it (`state/m392/small/WalkArr3.mo`): a closure handed to
+`solveOneNonlinearEquation` whose body multiplies an `if` over arrays by
+a comprehension. The same body with the `if` replaced by `X` runs
+(`WalkArr.mo`), so the closure is not the cause.
+
+The chain behind it, walked with throwaway arms behind
+`OX_PROBE_WALK_IF_LIST` (`state/walk_if_list_probe_m392.patch`):
+
+1. An `if` choosing between two lists is a list of choices, one per
+   element (`elements_of` and `holds_a_list`).
+2. A comprehension over a range the walk can read as numbers is a list,
+   the iterator substituted per element. With 1 and 2, `WalkArr3` and
+   `WalkArr5` run and give `T = 628.571429` at t = 1, which is
+   `1100 / 1.75`, the right number. Without them both refuse.
+3. `data[i]` reaches the walk as the medium's records written out in a
+   list and subscripted by the number the comprehension put in. Read
+   as the i-th element, the refusal moves on to
+4. that element, a `DataRecord(name = "N2", MM = ..., ...)` constructor
+   handed to `h_T` as an argument inside the walk, whose `name` field
+   is a String and is refused as one.
+
+Link 4 is a record built in place and passed on inside a walked body,
+which the walk carries only as a frame's fields today. Not built: the
+chain is four links and its end is a feature rather than an arm, so
+the map stops here. Links 1 and 2 alone are worth nothing in the
+corpus as far as is known, since `IdealMixing1` is the only model the
+census names with this text.
