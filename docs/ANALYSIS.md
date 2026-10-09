@@ -39323,3 +39323,30 @@ measurement that would find it is the order of the reductions: in
 `MS4` the angle's last definition goes at reduction 51 and the rotation
 entry is needed after, and nothing yet says whether the machines'
 phase has the same order. Not built.
+
+### Link 1 read by history, and its pair (m391, a measurement)
+
+The fork the table above did not find is in the history of the
+reductions. A probe (`OX_PROBE_CONST_LOST` with `OX_PROBE_CONST_PROPAGATE`
+and `OX_PROBE_CONST_ALSO_GROUNDED`, `/tmp/m391/oxpF`) records every name
+a reduction settles a definition for, and folds a candidate only for a
+name that the written candidates ground at this reduction or that an
+earlier one grounded, with a folded name read as its number by the
+candidates after it. The machines' `V_m.im` is never grounded by
+anything before the fold would invent it, and the rotation entries of
+`MS4` were, until their angle lost its definition. Under it `MS4g` runs
+and gives the file of link 1 to the bit, all seven machines run, and
+`PendulumWithSpringDamper` and `MechanicalStructure` take 22 seconds
+each with their walls unchanged.
+
+The series written that way without prints is
+`state/divisor_series_m391_v2.patch` (255 lines, the same two
+switches). A second corpus pair on one binary built from it
+(`/tmp/m391/pair2/oxpair2`) measured 961 flatten and 742 run on both
+sides, and the run and flatten lists agree name for name
+(`/tmp/m391/pair2/{on,off}_ran.txt`, `{on,off}_flat.txt`). The half
+without the series also agrees name for name with the half without it
+in the first pair. So the second reading of the series costs no model
+and wins none. It still turns `scripts/victim_witness.sh` red in the
+same way, and `MS4` still runs only with a start written by hand and
+gives a wrong `q[1]` at the axis, because link 3 stands. Not merged.
