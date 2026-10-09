@@ -39565,3 +39565,34 @@ chain is four links and its end is a feature rather than an arm, so
 the map stops here. Links 1 and 2 alone are worth nothing in the
 corpus as far as is known, since `IdealMixing1` is the only model the
 census names with this text.
+
+### The other two walked-body refusals of the census, named (m392, a probe)
+
+The same naming probe on the two other models the census lists as
+refusing inside a walked body:
+
+- `PlanarFourbar` walks `Modelica.Mechanics.MultiBody.Frames.planarRotationAngle`
+  with `e = {0,1,0}`, `v1 = {0,0,0}`, `v2 = {1,0,0}`, and refuses on
+  `-cross(e, v1) * v2`: the walk has no arm for `cross` of two lists. A
+  throwaway arm writing the vector product out element by element (in
+  the same probe patch, `state/walk_if_list_probe_m392.patch`) takes the
+  walk through, and the model then refuses as the rest of its row does:
+  `is NaN at t = 0, before any Newton step ... every value the residual
+reads is a finite number`, a block started at zero. So a `cross` arm
+  moves `PlanarFourbar` from one wording to the common one and wins
+  nothing alone. A small model calling the function through a loop
+  (`state/m392/small/Cross2.mo`) runs both ways and gives the right
+  1.3 rad, so the walk is reached only from the four-bar's own block.
+- `RoomCO2WithControls` walks the moist air's `T_phX` inverse with
+  `p = 101325`, `h = -163226 J/kg` and `X = 0.01`, and the medium's own
+  bracket 190..647 K holds no root: `f(190) = 75640` and
+  `f(647) = 575206`, both positive. The walk is right to refuse; the
+  enthalpy handed in is below anything the air can have at 190 K. That
+  is a start, not a walk, and belongs with the medium starts of the
+  queue.
+
+So of the three walked-body refusals, one is a chain ending in a
+record built inside the walk (`IdealMixing1`), one is a missing arm in
+front of the common NaN start (`PlanarFourbar`), and one is a start
+value outside the medium (`RoomCO2WithControls`). Three layers, not a
+family.
