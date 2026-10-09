@@ -38909,21 +38909,25 @@ and it removes the name from `implicit_defs` at reductions 2 and 3
 (`/tmp/m389/psd8.log`). But the dead column stays, with the same row
 and the same victims. The cone is the union of `implicit_defs` and the
 definitions the matching supplies (`matched_defs`, the
-"needed derivatives" walk). With the implicit road closed, the row
-can only come from the matching, so the matching must have taken the
-same equation for the same name. This is inferred from the two
-sources, not printed. So the faulty pairing is made twice, once by each
-road, and closing one road changes nothing. The fault is where an
-equation is paired with a name its slope does not reach. That would
-be a change to the matching, measured by its victims, and it is not
-built. So of the three reasons the joint
-weight comes
-out `None`, two are now told apart by the probe. The first is a cone
-that cannot be read: some name holds no value, for example a clock
-(link A) or a derivative name (above). The cure is in the environment.
-The second is a cone built wrong: an implicit definition whose
-equation's slope in its own name is zero at the start, which is a dead
-column. The cure is in the choice of `implicit_defs`. The third, the
+"needed derivatives" walk). A second probe printed the matching's
+pairing (`/tmp/m389/psd9.log`). At reductions 2, 3 and 4 the matching
+supplies `prismatic.frame_a.R.T[3,j]` from the same equations, 1115 to
+1117, the `frame_b.r_0[j]` ones. The matching is structural, so a name
+the equation writes counts as one it determines, whatever the
+parameters make of its slope. So the faulty pairing is made twice,
+once by each road, and closing one road changes nothing. The fault is
+where an equation is paired with a name its slope does not reach: the
+incidence the matching is built over (`eq_vars` in `reduce_index`)
+takes every name an equation writes. Pruning it by the folded slope
+would be a change to the matching, measured by its victims, and it is
+not built. So of the three reasons the joint weight comes out `None`,
+two are now told apart by the probe. The first is a cone that cannot
+be read: some name holds no value, for example a clock (link A) or a
+derivative name (above). The cure is in the environment. The second is
+a cone built wrong: a definition taken from an equation whose slope in
+that name is zero once the parameters are folded in, which is a dead
+column. The cure is in the pairing, both the matching and
+`implicit_defs`. The third, the
 `SMEE` cone of 132 (m388), is singular with no dead column and Newton
 diverges. There `None` is the honest answer and nothing in the cone
 is at fault. What the weighing should report differs: the first two
