@@ -40358,3 +40358,124 @@ Form A
 reduction moved `revolute.phi` off its `prefer` and `fixed` and did not
 carry the fixed condition with it) was not touched and waits for a
 series of its own.
+
+### Form A, mapped: where the fixed angle is lost (m397, probes)
+
+The two models left over from the m395 map,
+`PendulumWithSpringDamper` and `PointGravityWithPointMasses2`, were
+taken with `OXIDELICA_VICTIM_PROBE`, `OXIDELICA_INIT_PROBE` and two
+local probes that are not kept (`state/m397_formA_probes.diff`): one
+prints each reduction's residual, the states it reaches through
+definitions, and for each candidate the residual's own slope, the
+weight through the definitions settled together and the `stateSelect`;
+the other, `OX_PROBE_FORCE=<reduction>:<name>`, makes one reduction
+take a named victim. The outputs and the small models are in
+`state/m397_small/`. The two models are not one shape. They share
+the last link, in initialization, and reach it by different roads.
+
+**The pendulum.** The victim lists:
+
+```text
+reduction 1  damper1.frame_b.r_0[3] = body1.frame_a.r_0[3]
+             body1.frame_a.r_0[3] 1.0, r_0[2] 0, r_0[1] 0, damper1.s 0  -> r_0[3]
+reduction 2  revolute.frame_b.R.T[3,1] = prismatic.frame_a.R.T[3,1]     -> r_0[1]
+reduction 3  revolute.frame_b.R.T[3,2] = prismatic.frame_a.R.T[3,2]     -> r_0[2]
+reduction 4  revolute.frame_b.R.T[3,3] = prismatic.frame_a.R.T[3,3]
+             prismatic.s 0 (prefer), revolute.phi 0 (prefer)            -> revolute.phi
+init         demoted revolute.phi reaches [], took damper1.s
+```
+
+The choice that loses the angle is made in `choose_the_victim`
+(`compile.rs:2466`), at reduction 4 and not before. Both candidates
+left there are `prefer`, both are anchored (`fixed = true`), so the
+anchor filter at `compile.rs:2708` keeps both. Both weigh 0 by the
+residual's slope, and the weight through the definitions is `None`
+for both, so the tie rule leaves them as they are. The `max_by` at
+`compile.rs:2810` then has two equal keys and returns the last, which
+is the walk's order. The fixed condition is not dropped by the
+reduction: it is handed on, as every demoted `fixed = true` is, and
+initialization is where it goes astray. The explicit plan says the
+demoted angle reaches no state, and the pairing through blocks
+(`compile.rs:6397`) pairs it with `damper1.s`, a state nothing writes.
+The residual then reads `damper1.s` at its start of 0, the m394 wall.
+With `OXIDELICA_NO_PAIR_LOST_DEMOTED=1` the pairing is gone (`took
+nothing`) and the refusal is the same.
+
+The tie is not the cause. The probes that say so all run on a
+small model squeezed out of the pendulum, the world, a bar, the two
+joints, a body and the damper with no spring
+(`state/m397_small/A1.mo`). It refuses with the pendulum's victims,
+the same init line and the same `damper1.e_rel_0[1] = ... /
+damper1.s` at -inf. Then:
+
+| small model                  | what changed                     | reduction 4                  | refusal after                           |
+| ---------------------------- | -------------------------------- | ---------------------------- | --------------------------------------- |
+| `A2`                         | no damper                        | reductions 1-3 take `r_0[*]` | NaN `body1.v_0[1]`, another wall        |
+| `A3`, `A4`                   | prismatic or revolute axis 1,1,1 | `revolute.phi`               | the same -inf                           |
+| `A5`                         | prismatic not fixed              | `prismatic.s`, the only one  | NaN in a block, another wall            |
+| `A6`                         | revolute not fixed               | `revolute.phi`, the only one | the same -inf                           |
+| `A7`                         | `damper1.s` `avoid`              | `revolute.phi`               | the same -inf                           |
+| `A1`, `OX_PROBE_FORCE=1:...` | reduction 1 takes `damper1.s`    | reductions 2-4 take `r_0[*]` | `no equation determines der(damper1.s)` |
+
+So the axes do not matter (the zero coefficient `prismatic.e[3]` of
+the m395 map is not what picks the victim). The tie between the two
+joints does not matter either: when only one of them is anchored the
+same reduction takes whichever is left. What matters is reduction 1.
+The orientation row `R.T[3,*]` needs three positions to spend, and
+without the damper it finds `body1.frame_a.r_0[1..3]` and the angle
+stays. With the damper, reduction 1 spends `r_0[3]` on the damper's
+own connection, because its slope is 1 and the damper's guarded
+distance `s = max(length, s_small)` weighs 0 by slope and `None`
+through its definitions. By reduction 4 no position is left, and a
+joint coordinate goes. `stateSelect = avoid` on `damper1.s` changes
+nothing, because the slope decides before `stateSelect` is read.
+
+Taking `damper1.s` at reduction 1 keeps the angle, and the model
+then refuses one link further on: `der(damper1.s)` is the derivative
+of the `max` guard and no equation determines it. So the chain is at
+least two links long, and the first is the pivot's weight of a
+guarded distance through its definitions at the start. This is the
+road of item 13 of the queue (the pivot's weight through definitions
+at the declaration point is blind where nothing has a start), met
+here from MultiBody rather than from a medium. The roads may well be
+one.
+
+**The point masses.** Not the same road:
+
+```text
+reduction 13  world.frame_b.R.T[1,2] = freeMotion.frame_a.R.T[1,2]   -> <none>
+              then pointMass1.r_0[1] = pointMass1.frame_a.r_0[1]     -> pointMass1.r_0[1]
+reductions 14, 16, 20, the same for r_0[1..3]; 60-65 for v_0[1..3]
+init          demoted pointMass1.r_0[1..3], v_0[2..3] reach [], took pointMass2.r_0[1..3], v_0[2..3]
+              demoted pointMass1.v_0[1] reaches [], took pointMass3.r_0[1]
+```
+
+The rows of the orientation equality between the world and
+`freeMotion` reach no state (`freeMotion.r_rel_a` is `always` and
+stands aside, `Q` is spent), so the walk takes another member of the
+singular subset, the point mass's own alias `r_0 = frame_a.r_0`, and
+demotes `pointMass1.r_0`, which the model fixed (`avoid`, slope 1,
+the only candidate). Initialization then pairs the six demoted fixed
+conditions through blocks with `pointMass2.r_0` and `v_0`, states that
+nothing writes, and `world.mu / |pointMass2.r_0|^2` is read at their
+starts of 0. Without the pairing the refusal is again the same.
+
+**What is shared.** Both end in `match_initial_conditions`: a demoted
+`fixed = true` whose definition reaches no state through the explicit
+plan, and a state paired with it through a block that no one gives a
+value. The pairing is not the wall, since switching it off changes
+neither refusal. The wall is that the fixed value has no route back
+into the states the block depends on. The reductions that cost the
+fixed variable differ. In the pendulum a slope spends a position the
+orientation row needed later, and in the point masses an orientation
+row that reaches nothing falls through to a fixed alias.
+
+**How a series should be measured.** By the victim lists of the two
+models (above) and of `A1`, diffed before against after, and by the
+run list of the corpus. Not by a count, because both chains go on
+past the first link: the forced victim shows the pendulum's second
+wall, and nothing moves a number until both fall. The small model
+`A1` is red today and is the candidate for `tests/small`. It does
+not go white with the first link taken, so it does not yet say which
+fix it guards, and it is not added here. Nothing in the reduction was
+changed.
