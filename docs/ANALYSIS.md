@@ -40568,3 +40568,40 @@ smallest that keeps the road, and with the pendulum's `A1` it is the
 pair a form A series is measured on: both red today, both by victim
 list, neither added to `tests/small` until a fix says which link it
 guards.
+
+**Where the point masses' road turns** (`B6`, with the probes above).
+The reductions that come back `<none>` are on the rows
+`world.frame_b.R.T[i,j] = freeMotion.frame_a.R.T[i,j]`: the world's
+orientation is the constant `nullRotation` and the free motion's
+`frame_a.R` is rooted at it, so the row equates two constants and no
+state stands behind it. Then the next member of the singular subset is
+tried (`attempt_order`, `compile.rs:1585`), and at reduction 8 the
+member taken is the first of 32, the point mass's alias
+`pointMass1.r_0[1] = pointMass1.frame_a.r_0[1]`. Its only candidate is
+`pointMass1.r_0[1]` itself, slope 1, anchored, so the anchor filter has
+nothing else to prefer and the fixed position is demoted. Reductions
+10 and later do the same for the other coordinates and the velocities.
+So the turn on this road is the order in which the subset's members
+are tried after a member that constrains nothing: the first member
+that reaches any state wins, with no regard for whether the only
+state it reaches is one the model fixed. That is the decision a
+series would have to take (prefer a member whose demotion leaves the
+written conditions standing), and it is measured by the victim list
+of `B6` and of the example. Not built.
+
+A probe on that decision (`state/m397_member_probe.diff`,
+`OX_PROBE_MEMBER_ANCHOR`): a member tried in place of the one the
+matching stumbled on, whose victim is anchored, is passed over for the
+next member, so long as one is left. On `B6` the three coordinates of
+`pointMass1.r_0` are passed over at reductions 8 and 10, and the
+positions of `pointMass2` go instead. No demoted fixed condition is
+left for initialization to pair, and the refusal moves to `the
+equations of algebraic loop [...] do not mention
+der(der(freeMotion.R_rel.T[3,1]))`. On the example itself the same
+nine passes are made (reductions 14, 16 and 20), no `pointMass1`
+condition is demoted, and the refusal moves to the same row, `the
+equations of algebraic loop [...] do not mention`
+(`state/m397_small/member_pg2.txt`). So the first link of the point
+masses' road is this decision and the probe takes it, and the second
+is the m395 family of a block that does not mention its derivative.
+Not measured on the corpus, and not built.
