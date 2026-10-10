@@ -40067,3 +40067,90 @@ its start because nothing settled it before the block began. In
 `ThreeSprings` the same shape appears inside the block, as a guess of 0. Whether the block's order should take the divisor in, or settle it
 first from the starts of what it depends on, is the decision this map
 leaves for the next one. The wheel sets were not probed.
+
+### The five MultiBody divisors, mapped (m395, probes)
+
+The map the paragraph above left open, taken for all five models with
+three local probes and not kept: one printing what a refused residual
+reads and guesses, one printing the plan's stages and states
+(`OX_PROBE_PLAN`), and the existing `OXIDELICA_INIT_PROBE` and
+`OXIDELICA_VICTIM_PROBE`. The outputs are in `/tmp/m395/`
+(`probe_*.txt`, `probe3_*.txt`, `plan5_*.txt`, `init_*.txt`,
+`victim_PSD.txt`).
+
+The reading of m394 needs correcting first. `damper1.s` in
+`PendulumWithSpringDamper` and `pointMass2.r_0` in
+`PointGravityWithPointMasses2` are not read early by an order that
+put them after the block. They are states. The plan's state list for
+the pendulum is `damper1.s, revolute.w, prismatic.s, prismatic.v`,
+and for the point masses it opens with `pointMass2.r_0[1..3]`. A
+state is never computed by the plan, so nothing reorders it, and what
+the residual reads at `t = 0` is whatever initialization leaves in
+it. Neither declaration is fixed, so that is the declared start, 0.
+
+| model                          | divisor                              | its definition                                  | where it lives                           | what the residual got |
+| ------------------------------ | ------------------------------------ | ----------------------------------------------- | ---------------------------------------- | --------------------- |
+| `PendulumWithSpringDamper`     | `damper1.s`                          | `max(length, s_small)`, `length = abs(r_rel_0)` | a state                                  | 0, its start          |
+| `PointGravityWithPointMasses2` | `abs(pointMass2.r_0)^2` and its root | `r_0` is the frame's position                   | three states                             | 0, their starts       |
+| `ThreeSprings`                 | `spring2.lineForce.s`                | `max(length, s_small)`                          | an unknown of the block, with `length`   | guess 0               |
+| `RollingWheelSetDriving`       | `abs(rolling2.aux)`                  | `aux = cross(e_n_0, e_axis_0)`                  | `aux[1]` in the block, `aux[2..3]` inner | guess 0, inner 0      |
+| `RollingWheelSetPulling`       | the same                             | the same                                        | the same                                 | the same              |
+
+So there are two shapes and not three, and they are split by where
+the divisor lives, not by its form. In the first two the divisor is a
+state that initialization does not settle. In the last three it is an
+unknown of the block, or computed inside it from one, and the guess
+the block starts from is 0 in every case. A data cycle, the question
+the brief asked, is there in the last three: `spring2.lineForce.s` and
+`length` are both unknowns of the block they divide in, and so is
+`rolling2.aux[1]`. In the first two there is no cycle to find, because
+a state is not on the plan's data path at all.
+
+How a guarded distance became a state is the victim probe's answer
+for the pendulum. Reduction 1 weighs
+`body1.frame_a.r_0[3]` (1.0), `r_0[2]` (0), `r_0[1]` (0) and
+`damper1.s` (0), and demotes `r_0[3]`. `damper1.s` comes up in no
+later reduction and stays. Reduction 4 then demotes `revolute.phi`,
+which is declared `prefer` and `fixed = true`. The initialization
+probe pairs that demoted fixed condition, through the block, with
+`damper1.s` (`demoted revolute.phi reaches [], took damper1.s`). The
+fixed angle claims the state, but nothing writes a value into it
+before the first residual.
+
+Each start was then given by hand to see whether it is the whole wall
+(`/tmp/m395/st/*.mo`, which extend each model and set one start). All
+four moved, and none ran.
+
+| start given                          | refusal after                                                                                                            |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------ |
+| `damper1.s = 0.5`                    | a residual that divides by `prismatic.e[3] * prismatic.s`, with `e[3] = 0`                                               |
+| `pointMass2.r_0 = {-1, 0, 0}`        | `the equations of algebraic loop [...] do not mention der(...)`                                                          |
+| `spring2.lineForce.s = length = 0.3` | `did not converge in 50 Newton iterations`                                                                               |
+| `rolling2.aux = {-1, 0, 0}`          | NaN in a residual that divides by `abs(rolling1.aux)` and by `rolling1.e_lat_0[2]^2`, with `rolling1.e_long_0` guessed 0 |
+
+The start is a real wall in all five, then, and the first link of a
+chain in each. The wheel sets' second link has the same shape as the
+first, one wheel further on. The pendulum's second link is a divisor
+that is exactly zero along the chosen joint axis, which is a fault of
+the choice of states and not of any start. The point masses walk into
+the row of item 2 below, and `ThreeSprings` into the row of item 3.
+
+Two small models were written for `tests/small`: a pendulum-driven
+guarded distance with a damper on `der(s)`, and the same with a body
+whose position the angle places (`/tmp/m395/small/DivState.mo`,
+`DivState2.mo`). Neither reproduces the fault. In both the guarded `s`
+comes up in a reduction of its own and is demoted, and `phi, w` stay.
+The pendulum differs in that `s` shares reduction 1 with three
+positions and loses the tie to them. So the mechanism needs a
+reduction where a derivative-bearing guarded distance ties at weight 0
+with positions, and a two-equation model does not carry one. That
+narrows where the next shift should cut the real model down.
+
+What the series has to decide is now two questions, not one. For the
+block shape (three models), the guess: a block unknown that a max
+guard defines should be guessed from that definition, never from a
+start the guard cannot produce. For the state shape (two models), the
+choice: a state nothing fixes, kept in place of a fixed preferred
+angle that index reduction demoted, gets no value from
+initialization. Neither question is answered here, and both chains go
+on past the first link, so neither fix will move a count on its own.
