@@ -40343,8 +40343,17 @@ which are inner unknowns at 0 and not torn ones. The seed covers
 the probe for. Two small models of the shape, a guarded distance in a
 block on a line and in a plane (`/tmp/m396/small/SeedB.mo`,
 `SeedB2.mo`), run with and without the seed and give the same numbers,
-so neither is a test for `tests/small`. No census was taken on the
-probe: the corpus pairs took the machine for the shift. Form A
+so neither is a test for `tests/small`. A corpus pass with the seed
+on, against the same binary with it off (`/tmp/m396/seed_corpus.txt`
+against `fold_fast.txt`, both with the fold probe on), names the cost:
+741 run against 743. The two lost are
+`Electrical.Batteries.Examples.CCCV_Cell` and `CCCV_CellRC`, which now
+refuse as a block whose equations do not mention one of its unknowns.
+The two SMPM models of that row move to another wall of the same
+block, and `ThreeSprings` moves as above. So the seed as written is
+not a fix: it seeds blocks whose zero was a right start, and a series
+on it would need to say which zeros are no value before seeding them.
+Form A
 (`PendulumWithSpringDamper`, `PointGravityWithPointMasses2`, where
 reduction moved `revolute.phi` off its `prefer` and `fixed` and did not
 carry the fixed condition with it) was not touched and waits for a
