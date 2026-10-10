@@ -39797,3 +39797,28 @@ start: both `CCCV_Stack` (`|w.f|` near 1e6), `PumpingSystem` (0.23),
 `RoomCO2` (0.53) and `SMEE_Generator_Polyphase` (0.07). Every block is
 at its first Newton step, so all twelve are starts and none is a step
 that went astray.
+
+The zero rows of the machines, opened with the trail printing each
+inner assignment of the torn block (a local probe, not kept). In
+`SMPM_CurrentSource` row 8 is
+`-der(conv.port_p.Phi.re) + der(conv.single[3].Phi.re) = 0`, and the
+inner assignments give `der(conv.port_p.Phi.re)` as
+`der(stator.port_p.Phi.re) - der(stray.port_p.Phi.re)` with
+`der(stator.port_p.Phi.re) = der(conv.single[3].Phi.re) +
+der(stray.port_p.Phi.re)`. Substituted, the stray term cancels and the
+row reads `x - x = 0` in its own tear variable: structurally it holds
+the unknown, symbolically it is an identity. In the machines'
+`SMEE_LoadDump` the zero row reads
+`der(plug_sp.pin[2].i) + v/L + der(sensor.plug_p.pin[2].i) = 0`; the
+first term expands, through `/ turnsRatio * turnsRatio` and a pair of
+negations, toward the load inductor and the star point (the expansion
+was cut at twelve levels, so whether a tear variable survives deeper
+is not shown), and the third is settled outside the block. So the
+machine layer, measured on `SMPM_CurrentSource` and read as likely on
+`SMEE_LoadDump`, is a differentiated Kirchhoff
+sum made redundant with what the block already holds - in
+`SMPM_CurrentSource` after reductions on the flux cut-sets of the
+three converters (10, 11, 13 and 14 among them) - and the matching
+cannot see it, because the redundancy shows only once the inner
+assignments are substituted. That is the next probe for this layer,
+not taken here (`state/m393/sing/*.7.trail`, `smpm7.trail`).
