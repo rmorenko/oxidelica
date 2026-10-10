@@ -1716,20 +1716,38 @@ fn reduce_index(
                 // lost; it may not invent one it never had. A name folded
                 // is read as its number by the candidates after it, so
                 // a rotation's product of folded entries folds too.
+                //
+                // The names each candidate reads are gathered once per
+                // reduction and not once per pass: three fixpoints below
+                // walk every candidate on every pass, and read afresh
+                // that was fourteen million names over one reduction of
+                // a pendulum's sixty-five. A candidate's names change
+                // only when the fold replaces it by a number, and then
+                // they are cleared with it.
+                let mut named_once: Vec<Vec<String>> = candidates
+                    .iter()
+                    .map(|(_, expr, _)| {
+                        let mut all = Vec::new();
+                        expr.collect_refs(&mut all);
+                        all.sort_unstable();
+                        all.dedup();
+                        all.into_iter().map(str::to_string).collect()
+                    })
+                    .collect();
                 if constant_candidates() {
+                    let unknown_set: std::collections::HashSet<&str> =
+                        unknowns.iter().map(String::as_str).collect();
                     let mut grounded: std::collections::HashSet<String> =
                         std::collections::HashSet::new();
                     loop {
                         let mut grew = false;
-                        for (name, expr, _) in &candidates {
+                        for ((name, _, _), refs) in candidates.iter().zip(&named_once) {
                             if grounded.contains(name) {
                                 continue;
                             }
-                            let mut refs = Vec::new();
-                            expr.collect_refs(&mut refs);
                             if refs.iter().all(|r| {
-                                *r != name.as_str()
-                                    && (!unknowns.iter().any(|u| u == *r) || grounded.contains(*r))
+                                r != name
+                                    && (!unknown_set.contains(r.as_str()) || grounded.contains(r))
                             }) {
                                 grounded.insert(name.clone());
                                 grew = true;
@@ -1741,31 +1759,43 @@ fn reduce_index(
                     }
                     let ever = EVER_GROUNDED.with(|set| set.borrow().clone());
                     let mut known: HashMap<String, f64> = HashMap::new();
+                    // How many inputs each candidate was last folded
+                    // with. The parameters do not move and `known` only
+                    // grows, so a candidate offered as many as before is
+                    // being asked the same question, and its answer was
+                    // not a number then either.
+                    let mut tried: Vec<usize> = vec![usize::MAX; candidates.len()];
                     loop {
                         let mut grew = false;
-                        for (name, expr, _) in candidates.iter_mut() {
+                        for (slot, (name, expr, _)) in candidates.iter_mut().enumerate() {
                             if !grounded.contains(name) && !ever.contains(name) {
                                 continue;
                             }
                             if matches!(expr, Expr::Number(_)) {
                                 continue;
                             }
-                            let mut refs = Vec::new();
-                            expr.collect_refs(&mut refs);
-                            let wanted: HashMap<&str, f64> = refs
+                            let wanted: HashMap<&str, f64> = named_once[slot]
                                 .iter()
                                 .filter_map(|r| {
-                                    params.get(*r).or_else(|| known.get(*r)).map(|v| (*r, *v))
+                                    params
+                                        .get(r)
+                                        .or_else(|| known.get(r))
+                                        .map(|v| (r.as_str(), *v))
                                 })
                                 .collect();
                             if wanted.is_empty() {
                                 continue;
                             }
+                            if tried[slot] == wanted.len() {
+                                continue;
+                            }
+                            tried[slot] = wanted.len();
                             let folded = simplify(&crate::symbolic::substitute_all(expr, &wanted));
                             if let Expr::Number(value) = folded {
                                 if value.is_finite() {
                                     known.insert(name.clone(), value);
                                     *expr = folded;
+                                    named_once[slot].clear();
                                     grew = true;
                                 }
                             }
@@ -1796,13 +1826,11 @@ fn reduce_index(
                         .collect();
                     loop {
                         let mut grew = false;
-                        for (name, expr, _) in &candidates {
+                        for ((name, expr, _), refs) in candidates.iter().zip(&named_once) {
                             if valued.contains_key(name) {
                                 continue;
                             }
-                            let mut refs = Vec::new();
-                            expr.collect_refs(&mut refs);
-                            if !refs.iter().all(|r| valued.contains_key(*r)) {
+                            if !refs.iter().all(|r| valued.contains_key(r)) {
                                 continue;
                             }
                             let value = eval(
