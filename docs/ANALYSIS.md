@@ -39852,7 +39852,11 @@ the true singular direction lies is not established. In
 `TestMixingVolumesPressureStates` the column of
 `der(mixingVolume1.medium.p)` reads `0.0015` in the volume's energy
 balance and `-5.1e-7` in the other volume's mass balance, small beside
-the rest of those rows; whether it is singular in fact or only by
-scale is not settled by the trail. Neither is a medium function blind
+the rest of those rows. Equilibrated by rows and columns, its smallest
+singular value is 1.0e-6 against 0.46 for the next, where
+`LossyGearDemo2`, `CCCV_Stack` and `SMEE_Generator_Polyphase` fall to
+1e-16 or 1e-17 (the last has two such). So `TestMixingVolumesPressureStates`
+is nearly singular rather than singular: a column a millionth of the
+others, not an absent one. Neither is a medium function blind
 to an argument, so the row's third line names its members and not its
 cause: three models, three different readings.
