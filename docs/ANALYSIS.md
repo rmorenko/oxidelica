@@ -39678,8 +39678,16 @@ main and the rule demote `springDamper1.s_rel`. So the rule gives the
 series main's selection back here too. The 5% was measured between
 the rule and the half reading; `simulate` on main gives no file to
 hold either against, refusing at the `reinit`, while `library check
---only` counts the model as run on both binaries. That disagreement
-between the two instruments is open and not this rule's.
+--only` counts the model as run on both binaries. The two instruments
+answer different questions: `library check` runs ten steps, and main
+refuses at the state re-selection after the stop mass breaks away at
+t = 0.248. There the second compilation's sixth reduction demotes
+`massWithStopAndFriction.s`, which the library declares `always` and
+the stop then `reinit`s. Main runs to 0.24 and refuses by 0.5. Under
+the series the `always` rule keeps it, and with either
+`OXIDELICA_NO_STATE_SELECT_ALWAYS` or `OXIDELICA_NO_STATE_SELECT` the
+probe binary gives main's refusal back word for word. So the run is
+won by the `always` rule of m392, not by the half-pair rule.
 
 So `HeatLosses` has no number to be checked against. Main gives no
 file, and the 5% is between two probes, the rule and the half reading.
@@ -39752,10 +39760,13 @@ ideal switch modes at the start          2  Rectifier (diode1 and the load:
 battery stack, heat port                 2  CCCV_Stack, CCCV_StackRC: null in
                                             lossPower + heatFlowSensor.Q_flow,
                                             the cell's heat equal to itself
-machine Kirchhoff row, differentiated    4  both SMEE_LoadDump, SMPM_CurrentSource,
-                                            SMEE_Generator_Polyphase: a zero row
-                                            from der(...) of a star or plug sum,
-                                            null in one der(...) of the air gap
+machine Kirchhoff row, differentiated    3  both SMEE_LoadDump, SMPM_CurrentSource:
+                                            a zero row from der(...) of a star
+                                            or plug sum, null in one der(...)
+                                            of the air gap
+machine air gap, two rotations alike     1  SMEE_Generator_Polyphase: no zero
+                                            row; Phi_sr and V_msr rows of each
+                                            machine proportional, rank 36 of 38
 medium density blind to an argument      3  PumpingSystem (pumps.s), RoomCO2
                                             (pipe.port_b.h_outflow),
                                             TestMixingVolumesPressureStates
@@ -39764,7 +39775,7 @@ rolling contact, one row twice           1  RollingWheel: the two contact rows
                                             of delta_0 differentiated agree
 ```
 
-So the row is five layers, not one. The largest, four machines, is
+So the row is six layers, not one. The largest, three machines, is
 the zero row of a differentiated Kirchhoff sum: the reduction kept
 `der` of a constraint that the structure already pins, and the block
 has one equation that says nothing. The medium three are each a
@@ -39772,3 +39783,17 @@ property call whose slope in the unknown the row is matched to reads
 zero at the start. The two switch models are the family of m386 and
 need event iteration at t = 0. None of these is the half-pair layer of
 link 4.
+
+The residual at the refused point, projected on the left null vector
+of the Jacobian, splits the row a second way. Seven blocks are
+redundant and consistent, `|w.f|` at rounding (1e-8 or below): both
+`SMEE_LoadDump`, `SMPM_CurrentSource`, `Rectifier`, `RollingWheel`,
+`LossyGearDemo2`, `TestMixingVolumesPressureStates`. There the
+equations do not contradict each other at the start; they fail to
+pick one point of a family, and no step of minimum norm was built,
+since which member of the family is meant is exactly what the model
+would have to say. The other five carry a real contradiction at the
+start: both `CCCV_Stack` (`|w.f|` near 1e6), `PumpingSystem` (0.23),
+`RoomCO2` (0.53) and `SMEE_Generator_Polyphase` (0.07). Every block is
+at its first Newton step, so all twelve are starts and none is a step
+that went astray.
