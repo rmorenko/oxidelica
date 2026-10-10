@@ -40130,10 +40130,14 @@ four moved, and none ran.
 
 The start is a real wall in all five, then, and the first link of a
 chain in each. The wheel sets' second link has the same shape as the
-first, one wheel further on. The pendulum's second link is a divisor
-that is exactly zero along the chosen joint axis, which is a fault of
-the choice of states and not of any start. The point masses walk into
-the row of item 2 below, and `ThreeSprings` into the row of item 3.
+first, one wheel further on. The pendulum's second link divides by
+`-(prismatic.e[3] * prismatic.s)`, and `prismatic.e[3]` is a parameter
+that is 0 because the joint's axis is `{1, 0, 0}`. So the block solves
+a residual for an unknown whose coefficient is zero by the model's own
+parameters, and no start can change that. Whether the fault is in the
+choice of states or in the tearing was not measured. The point masses
+walk into the dead-column row and `ThreeSprings` into the iteration
+budget row, both mapped in the next two chapters.
 
 Two small models were written for `tests/small`: a pendulum-driven
 guarded distance with a damper on `der(s)`, and the same with a body
