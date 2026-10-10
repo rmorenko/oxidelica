@@ -39769,7 +39769,7 @@ machine air gap, two rotations alike     1  SMEE_Generator_Polyphase: no zero
                                             machine proportional, rank 36 of 38
 medium density blind to an argument      3  PumpingSystem (pumps.s; see below,
                                             a check valve's edge), RoomCO2
-                                            (pipe.port_b.h_outflow),
+                                            (withdrawn below: a NaN artifact),
                                             TestMixingVolumesPressureStates
                                             (der(mixingVolume1.medium.p))
 rolling contact, one row twice           1  RollingWheel: the two contact rows
@@ -39795,7 +39795,8 @@ pick one point of a family, and no step of minimum norm was built,
 since which member of the family is meant is exactly what the model
 would have to say. The other five carry a real contradiction at the
 start: both `CCCV_Stack` (`|w.f|` near 1e6), `PumpingSystem` (0.23),
-`RoomCO2` (0.53) and `SMEE_Generator_Polyphase` (0.07). Every block is
+`RoomCO2` (0.53, from a matrix with a NaN entry zeroed, so not to be
+relied on) and `SMEE_Generator_Polyphase` (0.07). Every block is
 at its first Newton step, so all twelve are starts and none is a step
 that went astray.
 
@@ -39839,3 +39840,19 @@ matrix is singular where neither branch is. A twelve-line model with
 the same two `if`s (`state/m393/small/CV.mo`) runs, so the shape alone
 is not enough to make the fault. Which other condition the library
 adds is the next question. The finding is the edge, not a fix.
+
+The other two of the medium row, read the same way (`room7.trail`,
+`tmv7.trail`). In `RoomCO2` the column of `pipe.port_b.h_outflow` has
+one entry, its own row (a stream mixing rule with `max(-m_flow, 1e-10)`
+weights), so it cannot be the singular direction. The null vector that
+named it was taken from a Jacobian holding one NaN entry, which
+`null.py` set to zero: that reading is an artifact and is withdrawn.
+The row starts at `h_outflow = 1e6` with a residual of 1.05e6. Where
+the true singular direction lies is not established. In
+`TestMixingVolumesPressureStates` the column of
+`der(mixingVolume1.medium.p)` reads `0.0015` in the volume's energy
+balance and `-5.1e-7` in the other volume's mass balance, small beside
+the rest of those rows; whether it is singular in fact or only by
+scale is not settled by the trail. Neither is a medium function blind
+to an argument, so the row's third line names its members and not its
+cause: three models, three different readings.
