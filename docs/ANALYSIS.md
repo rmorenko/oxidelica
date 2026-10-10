@@ -40550,3 +40550,21 @@ second further on. So the 83 seconds of m389 were cut off in the
 middle of a run that is this long either way, not in a loop of the
 pruned matching. The stack overflow of the m389 corpus pass is still
 not named.
+
+**A small model of the point masses' road** (`state/m397_small/B6.mo`,
+21 lines). The world with point gravity, the free motion, three point
+masses and the three translations that place them, with the masses'
+`fixed` attributes as the example writes them, and without the
+reference system of standard bodies. It refuses in two seconds where
+the example takes ninety, the same way: reductions whose orientation
+row reaches nothing (`<none>`) fall through to `pointMass1.r_0` and
+`v_0`, which the model fixed, initialization pairs those demoted
+conditions with `pointMass2.r_0` and `v_0`, and `world.mu / |r_0|^2` is
+NaN at their starts. With the third mass taken out as well (`B7`) the
+refusal moves to the block's own values being NaN, and with only the
+free motion and two masses (`B1`) another member of the singular set
+is taken and the model stops at `do not mention`. So `B6` is the
+smallest that keeps the road, and with the pendulum's `A1` it is the
+pair a form A series is measured on: both red today, both by victim
+list, neither added to `tests/small` until a fix says which link it
+guards.
