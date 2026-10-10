@@ -40433,12 +40433,30 @@ nothing, because the slope decides before `stateSelect` is read.
 Taking `damper1.s` at reduction 1 keeps the angle, and the model
 then refuses one link further on: `der(damper1.s)` is the derivative
 of the `max` guard and no equation determines it. So the chain is at
-least two links long, and the first is the pivot's weight of a
-guarded distance through its definitions at the start. This is the
-road of item 13 of the queue (the pivot's weight through definitions
-at the declaration point is blind where nothing has a start), met
-here from MultiBody rather than from a medium. The roads may well be
-one.
+least two links long.
+
+Why the weight through definitions is `None` at reduction 1 was
+asked of the cone itself (`state/m397_formA_probes3.diff`, which
+prints what the cone reads and whether it settles). All four
+candidates' cone of 37 refuses to settle. It reads `damper1.length`
+and `damper1.s` at their declared 0 and `damper1.r_rel_0` at
+`{-0.3, 0, 0}`, and its implicit row `length = sqrt(r_rel_0 *
+r_rel_0)` is held to define `damper1.r_rel_0[3]`, whose slope there is
+`r_rel_0[3] / length`, zero. So the cone's Jacobian is singular at the
+point the declarations give, the same shape as the m389 dead column
+of reductions 2 to 4, where an equation was held to define a name its
+slope does not reach. Given starts `length = s = 0.3` by hand
+(`state/m397_small/A8.mo`), the cone settles and the weights are read
+(`r_0[3]` -1, `r_0[1]` 774.6, `r_0[2]` still `None`), and the victims
+are unchanged: the residual's own slope of 1 for `r_0[3]` decides
+before the weights through definitions are asked, since they are
+read only in a tie. The angle still goes, and the refusal moves to
+`body1.v_0[1]` read as NaN, which is where the model without a damper
+(`A2`) stops as well. So the blind weight is a fault of its own, and
+it is not what loses the angle: the slope does. This is the road of
+item 13 of the queue (the pivot's weight at the declaration point is
+blind where nothing has a start), met here from MultiBody, and on
+this model the road ends before the victims are reached.
 
 **The point masses.** Not the same road:
 
