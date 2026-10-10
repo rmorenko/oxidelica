@@ -39767,7 +39767,8 @@ machine Kirchhoff row, differentiated    3  both SMEE_LoadDump, SMPM_CurrentSour
 machine air gap, two rotations alike     1  SMEE_Generator_Polyphase: no zero
                                             row; Phi_sr and V_msr rows of each
                                             machine proportional, rank 36 of 38
-medium density blind to an argument      3  PumpingSystem (pumps.s), RoomCO2
+medium density blind to an argument      3  PumpingSystem (pumps.s; see below,
+                                            a check valve's edge), RoomCO2
                                             (pipe.port_b.h_outflow),
                                             TestMixingVolumesPressureStates
                                             (der(mixingVolume1.medium.p))
@@ -39778,9 +39779,9 @@ rolling contact, one row twice           1  RollingWheel: the two contact rows
 So the row is six layers, not one. The largest, three machines, is
 the zero row of a differentiated Kirchhoff sum: the reduction kept
 `der` of a constraint that the structure already pins, and the block
-has one equation that says nothing. The medium three are each a
-property call whose slope in the unknown the row is matched to reads
-zero at the start. The two switch models are the family of m386 and
+has one equation that says nothing. The medium three were read off
+their null vectors as a property call whose slope reads zero at the
+start; for `PumpingSystem` the probe below shows otherwise. The two switch models are the family of m386 and
 need event iteration at t = 0. None of these is the half-pair layer of
 link 4.
 
@@ -39822,3 +39823,19 @@ three converters (10, 11, 13 and 14 among them) - and the matching
 cannot see it, because the redundancy shows only once the inner
 assignments are substituted. That is the next probe for this layer,
 not taken here (`state/m393/sing/*.7.trail`, `smpm7.trail`).
+
+`PumpingSystem`, read off its block at t = 0 (`pump7.trail`), is not
+the medium's fault, whatever its null vector suggested. The pump has
+`checkValve = true`, and its curve is
+`V_flow_single = if s > 0 then s*unitMassFlowRate/rho else 0`, with
+`head` likewise split on `s > 0`. The start puts `s` at exactly 0, on
+the edge. The row of `V_flow_single` reads `-0.001` in the column of
+`s`, which is `-1/rho`: the slope of the open branch. At `s = 0` the
+closed branch holds, where that slope is 0. The forward difference
+steps `s` by `+1e-7` and crosses into the open branch, where `head`
+reads `V_flow_single` and not `s`. So the column of `s` is taken from
+one branch and the rest of the block from the other, and the mixed
+matrix is singular where neither branch is. A twelve-line model with
+the same two `if`s (`state/m393/small/CV.mo`) runs, so the shape alone
+is not enough to make the fault. Which other condition the library
+adds is the next question. The finding is the edge, not a fix.
