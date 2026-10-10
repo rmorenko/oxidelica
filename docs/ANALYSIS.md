@@ -40536,3 +40536,17 @@ der(der(...))`, the name cut by the census. So the pruning repairs
 the zero-coefficient division where it is the only wall, as m389 found
 for the weights, and is not a road for form A. Its price and its
 `IMC_YDarc` question stand as m389 left them.
+
+**`IMC_YDarc` under the pruning** (the open question of m389). The
+model is not stuck under the probe. On this tree it is dear without
+the probe as well: the base pair of m396 spent 1244 seconds running
+it and it was still refused, with `step size underflow at t =
+0.000000`. Run alone with one binary, with and without
+`OX_PROBE_PRUNE`, under a ceiling of 6 GB (`ydarc_base.txt` and
+`ydarc_prune.txt` in `state/m397_small`), the base ran 962 seconds and
+the pruned one 769, both at 0.2 GB. The base refuses as before, and the pruned one refuses with
+`step size underflow at t = 0.000300`, three ten-thousandths of a
+second further on. So the 83 seconds of m389 were cut off in the
+middle of a run that is this long either way, not in a loop of the
+pruned matching. The stack overflow of the m389 corpus pass is still
+not named.
