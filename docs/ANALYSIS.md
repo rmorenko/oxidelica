@@ -39596,3 +39596,179 @@ record built inside the walk (`IdealMixing1`), one is a missing arm in
 front of the common NaN start (`PlanarFourbar`), and one is a start
 value outside the medium (`RoomCO2WithControls`). Three layers, not a
 family.
+
+### Link 4: a preference read for the pair or not at all (m393, a probe)
+
+Why `stopper_x*.v_rel` was never a candidate: candidates are states,
+and `v_rel` never was one. `v_rel = der(s_rel)` is read as the state
+equation of `s_rel`, and nothing states `der(v_rel)`, so the velocity
+is an algebraic name from the first matching on. Its `stateSelect` is
+read and settled to 4 like the position's (`why` shows the declaration;
+the probe prints no unsettled level), so neither hypothesis of the
+brief held: the preference is not lost in flattening, and nothing
+drops `v_rel` by its definition - it is not in the running at all. The
+armature's `v(fixed = true)` does not enter either: `fixed` is read by
+`anchored` on the state it is written on, and `cActuator.armature.v`
+is an alias that is never a state, so the tie of reduction 6 has one
+candidate, `mass.v`, and nothing to weigh it against.
+
+Two ways of mending it were tried on `ASc`, each behind its own switch.
+
+Making the preferred velocity a state of its own
+(`state/m393/promote_velocity_probe.diff`) moves the wall without
+taking it down. The reductions then keep one stopper's position
+(`stopper_xMin.s_rel`) and the other stopper's velocity
+(`stopper_xMax.v_rel`), and the eighth reduction reaches the
+acceleration level and refuses on `mass.m * mass.a = ...`. Demoting the
+velocity of a position once the position is demoted makes the pair
+agree up to reduction 7 and stops at the same place; letting the other
+members of the singular subset be tried after a refusal gets one
+reduction further and stops at `stopper_xMin.ratio`. A velocity that
+is a state needs its derivative's equation and its own dummy, which
+this reduction does not build. Not taken.
+
+What was taken: a preferred position whose derivative is a preferred
+name that is no state is read as the default
+(`OXIDELICA_NO_HALF_PAIRS` gives back the half reading). The language
+asks for the pair; this compiler can keep only the position of it, and
+keeping the position for its preference is exactly what takes the
+velocity level's only preferred candidate away. With the rule:
+
+```text
+ASc                            runs; same file as with stateSelect unread
+ArmatureStroke                 runs; every value as on main (a82042c)
+TranslatoryArmatureAndStopper  runs; file identical to main, byte for byte
+MechanicalStructure            runs (main: refused)
+MS4                            q(0.5) = [0.040694 0.171707 -1.108411 -0.002717],
+                               max |q_ox - q_ref| = 1.92e-6 (variant g)
+victim_witness.sh              6/6 on the probe binary; the new pair red
+                               on the binary without the rule
+```
+
+So the shift of `TranslatoryArmatureAndStopper` was not a tie between
+two preferences decided by the wrong end: it was the same half reading.
+Read for the pair, no stopper position is preferred, the reductions
+demote `stopper_xMax.s_rel` and `stopper_xMin.s_rel` as before, and the
+mass keeps `s(start = 0)`. The parameters the brief named are as the
+probe reads them: `x_max` and `x_min` have no binding and take their
+`start`, 0.01 and 0, which is the row of the census for parameters
+without a value; the rule does not lean on either.
+
+The six models whose victims moved under the m392 series, now against
+main on the shared time points (`state/m393/cmpt.py`):
+
+```text
+ForceCurrentBehaviour   identical values
+ForceStrokeBehaviour    identical values
+ComparisonPullInStroke  identical values (the 6% of m392 is gone)
+GearConstraint          identical values
+HeatLosses              runs on the series, refused by main at
+                        `reinit(massWithStopAndFriction.s)`; against the
+                        series without the rule the ends agree to 1e-7,
+                        the brake's normal force differs by 5% at t = 0
+```
+
+`HeatLosses` is the one to watch. Its `MassWithStopAndFriction` says
+`s` and `v` are `always` states; the series reads that and the model
+runs where main refuses, and the rule changes which of the other
+preferred positions (`springDamper.s_rel`, `damper.s_rel`,
+`elastoGap.s_rel`) are kept. At `--stop 0` the victims with the rule
+are main's, eight for eight; without it the sixth is `mass3.s` where
+main and the rule demote `springDamper1.s_rel`. So the rule gives the
+series main's selection back here too. The 5% was measured between
+the rule and the half reading; `simulate` on main gives no file to
+hold either against, refusing at the `reinit`, while `library check
+--only` counts the model as run on both binaries. That disagreement
+between the two instruments is open and not this rule's.
+
+So `HeatLosses` has no number to be checked against. Main gives no
+file, and the 5% is between two probes, the rule and the half reading.
+Eight victims for eight as main says the selection is main's; it says
+nothing about the physics. A model that runs for the first time with
+nothing to hold its numbers against does not go into a floor until it
+has an independent witness, as `MS4` has its Lagrangian one.
+
+No small model shows the wall. Eight attempts, six written from
+scratch and two from library components (`state/m393/small/HP*.mo`) all keep the gaps'
+positions out of the way in the first reductions, whichever way the
+preference is read - the gap that binds the armature to its fixed
+stop has to be met before the mass that carries the start, and that is
+an accident of the order the library writes its connections in. The
+witness therefore asks `tests/small/a_preferred_position_whose_velocity_is_no_state.mo`,
+which is `ASc` with a header, and needs the library.
+
+### The corpus pair of the whole series (m393, a measurement)
+
+One binary built from the series with the rule above
+(`/tmp/m394/pair/oxpair`, the patch `state/divisor_series_m393.patch`),
+off being all four switches set (`OXIDELICA_NO_START_DIVISORS`,
+`OXIDELICA_NO_CONSTANT_CANDIDATES`, `OXIDELICA_NO_STATE_SELECT`,
+`OXIDELICA_NO_HALF_PAIRS`). Lists in `state/m393/{off,on}_{flat,ran}.txt`.
+
+```text
+                 off    on
+flatten          961    961   the same names
+run              742    743   on = off + MechanicalStructure
+runnable         700    700   MechanicalStructure is not one
+```
+
+`ArmatureStroke` runs on both sides, so the series no longer loses a
+name; the run list on is the m392 on list with `ArmatureStroke` back.
+None of the fifteen names of `scripts/heavy_models.txt` is in either
+list: `library check --list` leaves them out of its own accord, so the
+pair is held against the floors as it stands.
+
+Victims at `--stop 0` over the 742 models that run both ways
+(`state/m393/vic.txt`): 741 the same, one different. In
+`GearConstraint` the series adds three reductions, 42 to 44, that
+demote nothing, and the 45 named victims are the same names in the
+same order. Its file has the same values on every shared column at
+every one of the 1001 points, on against off and on against main; the
+36 columns that differ are the names of derivatives the reductions
+minted. So of the six models whose victims moved at m392, five no
+longer move at all and the sixth moves only in reductions that demote
+nothing. The four controls of m388 give identical files both ways and
+the same file as m392 (`/tmp/m394/ctl`).
+
+So the series is clean on everything the pair can see: no name lost,
+one won, no running model's file moved. `HeatLosses` stays outside
+that claim for the reason given above. Not merged.
+
+### The twelve singular Jacobians, laid out (m393, a probe)
+
+The census's top row, 12 models refused with `singular Jacobian in
+algebraic loop`, all raised at `solvers/mod.rs:1900` and all at t = 0
+(`--stop 0` refuses every one). Run once each under
+`OXIDELICA_NEWTON_TRAIL`, the last block's Jacobian was taken apart by
+its null vectors (`state/m393/sing/`, `null.py` on the trails). Every
+one is short by exactly one rank except `SMEE_Generator_Polyphase`
+(36 of 38) and `SMPM_CurrentSource` (6 of 9):
+
+```text
+ideal switch modes at the start          2  Rectifier (diode1 and the load:
+                                            two rows the same at s = 0),
+                                            LossyGearDemo2 (gear quadrants and
+                                            the bearing's sa together)
+battery stack, heat port                 2  CCCV_Stack, CCCV_StackRC: null in
+                                            lossPower + heatFlowSensor.Q_flow,
+                                            the cell's heat equal to itself
+machine Kirchhoff row, differentiated    4  both SMEE_LoadDump, SMPM_CurrentSource,
+                                            SMEE_Generator_Polyphase: a zero row
+                                            from der(...) of a star or plug sum,
+                                            null in one der(...) of the air gap
+medium density blind to an argument      3  PumpingSystem (pumps.s), RoomCO2
+                                            (pipe.port_b.h_outflow),
+                                            TestMixingVolumesPressureStates
+                                            (der(mixingVolume1.medium.p))
+rolling contact, one row twice           1  RollingWheel: the two contact rows
+                                            of delta_0 differentiated agree
+```
+
+So the row is five layers, not one. The largest, four machines, is
+the zero row of a differentiated Kirchhoff sum: the reduction kept
+`der` of a constraint that the structure already pins, and the block
+has one equation that says nothing. The medium three are each a
+property call whose slope in the unknown the row is matched to reads
+zero at the start. The two switch models are the family of m386 and
+need event iteration at t = 0. None of these is the half-pair layer of
+link 4.
