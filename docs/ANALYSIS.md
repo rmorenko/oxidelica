@@ -39860,3 +39860,129 @@ is nearly singular rather than singular: a column a millionth of the
 others, not an absent one. Neither is a medium function blind
 to an argument, so the row's third line names its members and not its
 cause: three models, three different readings.
+
+## The divisor series merged (m394)
+
+### What the merge measured (m394, a measurement)
+
+The series of m393 went in as e3a6005, unchanged from the patch the
+pair was taken on (the binary built from it is byte for byte the `on`
+half of that pair). One corpus pass of the final tree
+(`/tmp/m394/corpus.txt`) printed 2671 files read, 961 flatten, 743 run;
+runnable 844 flatten, 700 run. The floors were left as they stood, 740
+for the run count, since a floor rises to what the runner prints and
+the runner had not yet printed 743. `MechanicalStructure` is the model
+won, and it is dear: 200 seconds in the run half and 2.3 GB resident
+under `--only`, where the binary without the series refuses it in
+seven.
+
+### The census after the merge, against m392 (m394, a measurement)
+
+Counted between the section marks, the census at e3a6005
+(`/tmp/m394/census.txt`, raw half `/tmp/m394/raw.txt`) against m392
+(`state/m392/census.txt`, `/tmp/m392/raw.txt`):
+
+```text
+                         m392            m394
+would not flatten        67 in 39 rows   67 in 39 rows, identical
+flattened, not run       219 in 142 rows 218 in 143 rows
+```
+
+The flatten half is the same row for row. The run half lost one model,
+as expected, and gained a row. The sums hide more than that: matched
+by name, 15 models stand at a different wall. One is
+`MechanicalStructure`, which left. The other fourteen still refuse,
+for different reasons:
+
+```text
+model                               m392 wall                   m394 wall
+PumpingSystem                       singular Jacobian           `X` of loop (IF97 h)
+SMEE_LoadDump (FundamentalWave)     singular Jacobian           cannot differentiate through
+ThreePhaseTransformerWithRectifier  no equation determines der  der() outside a state eq.
+GyroscopicEffects                   no equation determines der  subscripts survive as scalars
+DoublePendulum                      algebraic loop              constrains no state
+DoublePendulumInitTip               constrains no state         equations do not mention
+LineForceWithTwoMasses              constrains no state         constrains no state (der form)
+PointGravityWithPointMasses2        equations do not mention    `X` of loop
+Engine1a                            constrains no state         cannot differentiate through
+Engine1b                            `X` of loop                 constrains no state
+PlanarFourbar                       `X` of loop                 cannot differentiate through
+PendulumWithSpringDamper            `X` of loop                 `X` of loop, another loop
+RollingWheelSetDriving / Pulling    `X` of loop                 `X` of loop, another X
+```
+
+Six of these were asked of the two binaries of one tree under `--only`
+(`/tmp/m394/pair2.out`): `ThreePhaseTransformerWithRectifier`,
+`GyroscopicEffects`, `DoublePendulum`, `PlanarFourbar`, the
+FundamentalWave `SMEE_LoadDump` and `PumpingSystem`. In each the binary
+without the series prints the m392 wall and the binary with it prints
+the m394 wall, so the moves are the series' and not something between
+the two censuses. The m393 pair compared the victims of the models
+that run (741 the same); it never looked at the walls of the models
+that refuse, and those are where the series changed something. No
+running model fell, so none of this is a loss. But it changes the
+census's top rows: `singular Jacobian` went 12 to 10 (`PumpingSystem`
+and the FundamentalWave `SMEE_LoadDump` left it, so the edge of the
+check valve found in m393 is no longer what stops `PumpingSystem`),
+and `X` of algebraic loop went 9 to 8 by four out and three in. The
+m393 map of the twelve now holds for the ten still in the row.
+
+### The ten `Newton direction` refusals, laid out (m394, a probe)
+
+The run half's next row after the singular Jacobians, ten models
+(`/tmp/m394/nd/`). All ten are `ModelicaTest.Fluid`: four in
+`TestComponents` (`TestMultiPortTraceSubstances`,
+`TestWaterPumpCheckValve`, `TestWaterPumpPowerCharacteristic`,
+`TestTemperature1`) and six in `TestPipesAndValves` (`BranchingPipes1`,
+`2`, `4`, `14`, `SeriesPipes1`, `2`). One place raises all ten: the
+descent guard in `solve_implicit_block_from`
+(`solvers/mod.rs`, the refusal at line 2039). And all ten take the same
+branch of it: a step that descended only below a ten thousandth of the
+Newton step, three in a row (the line search's fractions run from
+9.5e-7 to 6.1e-5). None is a step that did not descend at all. Nine
+are refused after the start (t = 0.0002 to 0.0022), one at t = 0
+(`TestMultiPortTraceSubstances`).
+
+None of the ten is in the singular row, so the two rows do not share
+a layer by membership. The guard is honest about them: run with
+`OXIDELICA_NO_DESCENT_GUARD=1` (`/tmp/m394/nd/behind.out`,
+`behind2.out`), not one runs, and what stands behind it is
+
+```text
+stepped outside the domain of its equations, IF97 NaN   7  TestWaterPumpPowerCharacteristic,
+                                                           TestTemperature1, BranchingPipes1,
+                                                           2, 4, 14, SeriesPipes1
+                                                           (SeriesPipes2 the same, asked once)
+IF97 tsat called with too low a pressure                1  TestWaterPumpCheckValve
+the equations of the loop do not mention its unknowns   1  TestMultiPortTraceSubstances
+```
+
+So eight are one layer: a water block whose Newton direction leads
+off the edge of the IF97 formulation, which the guard stops before the
+NaN does. `TestWaterPumpCheckValve` reaches that edge through
+saturation, and `TestMultiPortTraceSubstances` is a separate wall (a
+multi-port trace substance block whose equations miss its own
+unknowns). Two layers and a single, by the count used for the twelve.
+Not mended here. The descent guard, the sliver threshold and the
+solver's tolerances are what the eight lean on, and those are not to
+be moved.
+
+### `SMEE_LoadDump`: the zero row proven, not likely (m394, a probe)
+
+m393 read the Machines `SMEE_LoadDump`'s zero row as likely a
+differentiated Kirchhoff sum made redundant, with the expansion cut at
+twelve levels. Taken all the way here: every inner assignment of the
+torn block (438 in `state/m393/sing/Machines_SMEE_LoadDump.7.trail`)
+substituted symbolically into row 4,
+`der(smee.plug_sp.pin[2].i) + loadInductor.inductor[2].v / L +
+der(voltageQuasiRMSSensor.plug_p.pin[2].i) = 0`, until nothing defined
+in the block was left (27 rounds, `/tmp/m394/smee/sub.py`). What
+remains is
+`der(voltageQuasiRMSSensor.plug_p.pin[2].i) -
+der(voltageQuasiRMSSensor.plug_p.pin[1].i)`, both settled outside the
+block. The row holds no tear variable at all: a zero row, the same
+`x - x` shape as `SMPM_CurrentSource` (the script, run on that model's
+row 8, prints `0`). So the machine layer stands proven on both
+machines that remain in the row. The FundamentalWave `SMEE_LoadDump`
+is no longer in it: after the merge it stops earlier, at
+`cannot differentiate through algebraic variable`.
