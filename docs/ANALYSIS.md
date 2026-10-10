@@ -40154,3 +40154,71 @@ choice: a state nothing fixes, kept in place of a fixed preferred
 angle that index reduction demoted, gets no value from
 initialization. Neither question is answered here, and both chains go
 on past the first link, so neither fix will move a count on its own.
+
+### The six of `the equations of algebraic loop [...]`, by name (m395, a map)
+
+The row of six in `/tmp/m394/census.txt`, asked one model at a time
+under `--only` with `OXIDELICA_WHERE=1` (`/tmp/m395/p2/*.txt`). All
+six refusals are raised at one place,
+`crates/oxidelica-sim/src/solvers/mod.rs:1923`, the dead-column
+refusal of a block at `t = 0`. One site does not make one family. By
+what the block fails to mention, the six fall into four layers, and
+each of them was already mapped:
+
+```text
+model                            block  dead columns                      layer
+GearType2                            1  bearingFriction.sa                friction mode, m360
+TestBearingConversion               32  der(gear2_1.flange_b.phi),        friction mode, m360
+                                        inertia8.w, lossyGear.flange_b.phi
+Spice3BenchmarkDifferentialPair      1  der(Q2.vbx)                       zero capacitance, m359/m377
+SMPM_Braking                        16  airGap.spacePhasor_r.v_[1]        machines' dead column, m354
+SMPM_VoltageSource                  13  der(airGap.i_sr[1])               machines' dead column, m354
+DoublePendulumInitTip               49  der(r_rel_a[3]), der(der(...))    orientation, m361
+```
+
+`GearType2` is the m360 map unchanged: the block's only unknown is
+`sa`, and the torque equation holds `sa` only in the `locked` branch,
+which the template answers false. `TestBearingConversion` carries the
+same `BearingFriction` and fails on its flanges. `DifferentialPair`
+fails on `der(vbx)` behind `icapbx = if m_bInit then 0 else
+capbx*der(vbx)`, the zero-coefficient derivative of m359. The two
+`SMPM` are the machines' layer, and `SMPM_VoltageSource` is one of the
+two swinging models the floors already subtract, so it is not work for
+this queue. `DoublePendulumInitTip` was `structurally singular` at
+m392 and reached this row after the e3a6005 merge. Its dead columns
+are derivatives of the initial position's relative vector.
+
+The brief asked whether this is the ASc family after the merge. It is
+not. `ASc` died on `do not mention ["...stopper_xMin.v_rel", ...]`,
+and the merge took it, with `ArmatureStroke` and
+`TranslatoryArmatureAndStopper`, out of the row: both run in
+`/tmp/m394/corpus.txt`. No `ElastoGap` name is among the six. The one
+model that joined from the divisor map is `PointGravityWithPointMasses2`
+once its start is given by hand (`/tmp/m395/st/PG_r.out`). It dies here
+on `der(fixedTranslation1.frame_a.R.T[3,2..3])`, an orientation like
+`DoublePendulumInitTip`'s. So the orientation layer is the one shared
+by this row and the divisor chain, and it holds two models now.
+
+### The six of `did not converge in 50`, by name (m395, a check)
+
+The census row of six run-half refusals that stop at
+`algebraic loop did not converge in 50 Newton iterations` was asked
+one model at a time with `OXIDELICA_WHERE=1` (`/tmp/m395/p3/*.txt`).
+All six are raised at `crates/oxidelica-sim/src/solvers/mod.rs:2088`,
+the end of the iteration budget. The names are, one for one, the six
+of the m383 map's second family: `TankWithEmptyingPipe2`,
+`TanksWithEmptyingPipe1` and `TanksWithEmptyingPipe2` (blocks of two,
+three and five flows), `PressureLoss.Bend` (three), `TestDensity`
+(nine) and `DynamicPipeInitialization` (five pressures and
+`valve.dp_turbulent`). Nothing has joined or left since m383, and the
+e3a6005 merge did not touch the row. Its three shapes stand as m383
+read them by trail: the tanks swing and drift, `Bend` swings over a
+regularised characteristic at a residual already at the floor, and
+the last two converge too slowly. No trail was taken again. The row
+is not a new queue entry. Its next step is the m383 question, which
+of the three shapes the budget is wrong for.
+
+`ThreeSprings` would join it if its guarded distance were guessed
+from its definition. With the start given by hand it refuses at
+exactly this site (`/tmp/m395/st/TS_s.out`), so a fix to the divisor
+family's guess sends one model here.
