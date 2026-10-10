@@ -40024,3 +40024,21 @@ the mass at `{-1, 0, 0}` through `fixedTranslation1`). Whether the
 value read there is the start 0 in place of the value the order should
 have computed first is not shown, and is the next question for this
 family. Not mended.
+
+### `ThreePhaseTransformerWithRectifier` joins the hysteresis row (m394, a probe)
+
+After the merge the census's `der() outside a state equation` row went
+3 to 4, and the model that joined is
+`FluxTubes.Examples.Hysteresis.ThreePhaseTransformerWithRectifier`, which
+at m392 stopped earlier at `no equation determines der(transformer.coreN.B)`.
+Its three cores are `GenericHystTellinenEverett`, the same as
+`InductorWithHysteresis`'s, and `GenericHysteresisTellinen` writes the
+indicator `asc = der(Hstat) > 0`. Under `OXIDELICA_WHERE=1` it is
+refused at the same place as `InductorWithHysteresis`
+(`code.rs:1134`). So the series took it one wall up into a known
+family, the derivative of an algebraic name at an event indicator
+(the m310 map), and not into a new one. The row's other neighbours of
+size four, `the equation determining X does not depend on it` (the
+four `Constraints` models) and `initialization is not square`, hold
+the same names as at m392. So do the eight `underdetermined` models,
+which are still the two layers of the m387 map.
