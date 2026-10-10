@@ -40605,3 +40605,19 @@ equations of algebraic loop [...] do not mention`
 masses' road is this decision and the probe takes it, and the second
 is the m395 family of a block that does not mention its derivative.
 Not measured on the corpus, and not built.
+
+The probe was then taken to the corpus, one binary, off against on
+(`member_off.txt` and `member_on.txt` in `state/m397_small`). Both
+halves give 961 flatten and 743 run, and the run lists are identical.
+The census moves on three models and on nothing else: the point
+masses go to the `do not mention` row as above,
+`LineForceWithTwoMasses` moves from a structurally singular equation
+to a NaN in `jointUPS.e2_a[1] = jointUPS.n2_a[1] /
+jointUPS.length_n2_a`, and `Engine1b` moves from one structurally
+singular equation to another. The work counts differ by 7 points and
+16 Newton steps. The probe passed over 56 members, 46 of them for
+`inertia.phi` and `inertia.w` (the probe's line does not name the
+model, so which models those are was not read) and 9 for the point
+masses' `pointMass1.r_0`. So the decision is cheap and costs nothing
+that runs, and it wins nothing yet: each of the three it moves stops
+one wall later. A series on it is measured by those three names.
