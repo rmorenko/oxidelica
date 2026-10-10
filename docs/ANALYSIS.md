@@ -39986,3 +39986,41 @@ row 8, prints `0`). So the machine layer stands proven on both
 machines that remain in the row. The FundamentalWave `SMEE_LoadDump`
 is no longer in it: after the merge it stops earlier, at
 `cannot differentiate through algebraic variable`.
+
+### The eight `X` of algebraic loop refusals, sorted (m394, a probe)
+
+The row after the Newton directions, eight models at e3a6005
+(`/tmp/m394/raw.txt`), all refused at t = 0 before any Newton step.
+They are two families by what the message says stood behind the value:
+
+```text
+a function the residual calls could not be walked     3  PumpingSystem (IF97 visc_dTp at
+                                                         d = NaN), RoomCO2WithControls
+                                                         (solveOneNonlinearEquation not
+                                                         bracketed, 190 to 647 K),
+                                                         IdealMixing1 (unknown `X`, m392)
+the residual is not finite though every value it      5  ThreeSprings, PendulumWithSpringDamper
+reads is                                                 (-inf), PointGravityWithPointMasses2,
+                                                         RollingWheelSetDriving, Pulling (NaN)
+```
+
+The second family is MultiBody, and each names a division: by a line
+force's guarded distance `s` (`ThreeSprings`, `PendulumWithSpringDamper`),
+by the length of `aux = cross(e_n_0, e_axis_0)` (both wheel sets), and
+by the square of a point mass's distance from the world's centre
+(`PointGravityWithPointMasses2`). Run under `OXIDELICA_NEWTON_TRAIL`
+(`/tmp/m394/x8*/`), the five uniform guesses of the start rescue (0,
+1e-6, 1e-3, 1, 1e3) do not bring any of the three asked
+(`ThreeSprings`, `PendulumWithSpringDamper`, `PointGravityWithPointMasses2`)
+to a finite residual and a converged block. In `ThreeSprings`
+the divisor is inside the block: `spring1.lineForce.s`,
+`spring1.lineForce.length` and their `spring2` pair are among its
+unknowns, so the guess of 0 puts `s` itself at 0 and `r_rel_0 / s`
+reads -inf before `max(length, s_small)` is ever asked, and the
+nonzero guesses walk away to |f| of 1e7. In the
+other two the divisor is not an unknown of the block (`damper1.s`, and
+`pointMass2.r_0`, which has no start of its own while the model places
+the mass at `{-1, 0, 0}` through `fixedTranslation1`). Whether the
+value read there is the start 0 in place of the value the order should
+have computed first is not shown, and is the next question for this
+family. Not mended.
