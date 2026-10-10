@@ -136,7 +136,7 @@ pub(crate) fn substitute(expr: &Expr, var: &str, value: f64) -> Expr {
 /// constant: a slope carrying a thousand references was walked a
 /// thousand times over, which is quadratic in a tree that index
 /// reduction is perfectly capable of growing to that size.
-fn substitute_all(expr: &Expr, table: &HashMap<&str, f64>) -> Expr {
+pub(crate) fn substitute_all(expr: &Expr, table: &HashMap<&str, f64>) -> Expr {
     match expr {
         Expr::Ref(name) => match table.get(name.as_str()) {
             Some(value) => Expr::Number(*value),

@@ -2638,3 +2638,64 @@ fn two_draws_in_one_algorithm_are_taken_in_the_order_written() {
     assert_eq!(last[column("second")], 0.5358190340172654);
     assert_eq!(last[column("twice")], 2.0 * 0.5259321584469488);
 }
+
+/// The cartesian pendulum with what the model says about its states.
+/// Started at 45 degrees, `x^2 + y^2 = 1` weighs both positions the
+/// same, and the tie is the model's to decide: what it would rather keep
+/// as a state is kept.
+fn pendulum_states(x_says: &str, y_says: &str, x0: &str, y0: &str) -> Vec<String> {
+    let source = format!(
+        "model P \
+           Real x(start = {x0}, stateSelect = StateSelect.{x_says}); \
+           Real y(start = {y0}, stateSelect = StateSelect.{y_says}); \
+           Real vx(stateSelect = StateSelect.{x_says}); \
+           Real vy(stateSelect = StateSelect.{y_says}); Real lam; \
+         equation der(x) = vx; der(y) = vy; \
+           der(vx) = -lam*x; der(vy) = -lam*y - 9.81; x^2 + y^2 = 1; end P;"
+    );
+    compile(&parse_model(&source).unwrap()).unwrap().states
+}
+
+#[test]
+fn a_tie_between_positions_keeps_the_one_the_model_prefers() {
+    let half = "0.7071067811865476";
+    let minus = "-0.7071067811865476";
+    assert_eq!(
+        pendulum_states("prefer", "default", half, minus),
+        vec!["x", "vx"]
+    );
+    assert_eq!(
+        pendulum_states("default", "prefer", half, minus),
+        vec!["y", "vy"]
+    );
+    assert_eq!(
+        pendulum_states("default", "never", half, minus),
+        vec!["x", "vx"]
+    );
+    assert_eq!(
+        pendulum_states("never", "avoid", half, minus),
+        vec!["y", "vy"]
+    );
+}
+
+/// `always` is not a weight: the lighter `y` is demoted rather than the
+/// `x` the constraint determines more strongly, because the model said
+/// `x` is a state. Where only the `always` one is determined at all -
+/// the pendulum level, `x = 1`, `y = 0` - it is demoted anyway, since
+/// standing aside for a candidate the constraint has no slope in leaves
+/// a block that cannot be solved.
+#[test]
+fn a_state_the_model_says_is_always_one_is_not_demoted_while_another_can_be() {
+    assert_eq!(
+        pendulum_states("always", "default", "0.8", "-0.6"),
+        vec!["x", "vx"]
+    );
+    assert_eq!(
+        pendulum_states("default", "default", "0.8", "-0.6"),
+        vec!["y", "vy"]
+    );
+    assert_eq!(
+        pendulum_states("always", "default", "1", "0"),
+        vec!["y", "vy"]
+    );
+}

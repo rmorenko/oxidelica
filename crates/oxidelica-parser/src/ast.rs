@@ -180,6 +180,10 @@ pub struct Component {
     /// as where an unknown without a `start` begins, so that a block
     /// solving for a pressure does not begin at zero pascal.
     pub nominal: Option<Expr>,
+    /// The `stateSelect` attribute as written: `StateSelect.prefer`.
+    /// Read by index reduction, which weighs it where a tie leaves the
+    /// choice of a state to demote otherwise open.
+    pub state_select: Option<Expr>,
     /// Declaration binding: `parameter Real a = 1.0`.
     pub binding: Option<Expr>,
     /// Optional description string.

@@ -1539,6 +1539,9 @@ pub(super) fn instantiate_one(
             // magnitude rather than an equation, and what cannot be
             // settled here is left as it was written.
             flat.nominal = flat.nominal.as_ref().map(bound);
+            flat.state_select = flat.state_select.as_ref().map(|expr| {
+                resolve_value(expr).unwrap_or_else(|_| prefix_expr(expr, prefix, outers))
+            });
             // A parent modifier `name = expr` overrides the binding, and
             // a nested one - `phi(start = 1)` - the attribute.
             let modifier = |target: &str| {
@@ -1632,6 +1635,9 @@ pub(super) fn instantiate_one(
                     );
                     flat.start_from_type = false;
                 }
+            }
+            if let Some(value) = modifier(&format!("{}.stateSelect", component.name)) {
+                flat.state_select = Some(value);
             }
             if let Some(value) = modifier(&format!("{}.fixed", component.name)) {
                 // A modifier from above outranks the declaration, and

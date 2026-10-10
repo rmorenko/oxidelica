@@ -36,25 +36,45 @@ library="$(cd "$library" && pwd)"
 # run's own refusal is expected and goes to the log, so `|| true` stands
 # for the model and not for the pipe: an empty answer below is a
 # failure, not a zero.
-victim_86() {
-  local log
+victim_at() {
+  local at="$1" log
+  shift
   log="$(env "$@" OXIDELICA_LIB="$library" OXIDELICA_VICTIM_PROBE=1 \
     "$binary" simulate "$model" --stop 0 2>&1 > /dev/null || true)"
-  echo "$log" | awk '
+  echo "$log" | awk -v at="$at" '
     /^victim-probe: reduction / { r = $3 }
-    /^victim-probe:   victim: / && r == 86 && !seen { print $3; seen = 1 }'
+    /^victim-probe:   victim: / && r == at && !seen { print $3; seen = 1 }'
 }
 
 status=0
 check() {
-  local side="$1" want="$2" got="$3"
+  local side="$1" at="$2" want="$3" got="$4"
   if [ "$got" = "$want" ]; then
-    echo "witness $side: reduction 86 demotes $got"
+    echo "witness $side: reduction $at demotes $got"
   else
-    echo "WITNESS $side: reduction 86 demotes '${got}', expected $want"
+    echo "WITNESS $side: reduction $at demotes '${got}', expected $want"
     status=1
   fi
 }
-check "weighed at the start" "b4.body.v_0[2]" "$(victim_86 OXIDELICA_UNUSED=1)"
-check "starts alone" "r3.w" "$(victim_86 OXIDELICA_NO_DERIVATIVES_AT_REDUCTION=1)"
+# The weighing at the start is seen only where the tie it decides is
+# still open: folding the constant candidates and reading stateSelect
+# both decide the same ties earlier, so this pair holds them off.
+before=(OXIDELICA_NO_CONSTANT_CANDIDATES=1 OXIDELICA_NO_STATE_SELECT=1)
+check "weighed at the start" 86 "b4.body.v_0[2]" "$(victim_at 86 "${before[@]}")"
+check "starts alone" 86 "r3.w" \
+  "$(victim_at 86 "${before[@]}" OXIDELICA_NO_DERIVATIVES_AT_REDUCTION=1)"
+# What the model says about its states decides the tie of reduction 26,
+# where the first joint's angle (prefer) weighs nothing against a body's
+# position (avoid): read, the position goes and the angle stays a state.
+check "stateSelect read" 26 "b2.r_0[1]" "$(victim_at 26 OXIDELICA_UNUSED=1)"
+check "stateSelect unread" 26 "r1.phi" "$(victim_at 26 OXIDELICA_NO_STATE_SELECT=1)"
+# A preferred position whose velocity is no state is preferred for the
+# pair or not at all. Read for the pair, the actuator's first reduction
+# demotes the stopper's position; read for the position alone, it keeps
+# the position and demotes the armature's, and the run stops at the
+# stopper's velocity nothing determines.
+model="tests/small/a_preferred_position_whose_velocity_is_no_state.mo"
+[ -f "$model" ] || { echo "WITNESS: no model at $model"; exit 1; }
+check "half pair unread" 1 "cActuator.armature.stopper_xMax.s_rel" "$(victim_at 1 OXIDELICA_UNUSED=1)"
+check "half pair read" 1 "cActuator.armature.mass.s" "$(victim_at 1 OXIDELICA_NO_HALF_PAIRS=1)"
 exit "$status"

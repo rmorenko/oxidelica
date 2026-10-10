@@ -270,6 +270,12 @@ pub(super) fn resolve_type(
                     }
                     false
                 }
+                "stateSelect" => {
+                    if component.state_select.is_none() {
+                        component.state_select = Some(value.clone());
+                    }
+                    false
+                }
                 _ => true,
             });
     }
@@ -354,6 +360,9 @@ pub(super) fn resolve_type(
                 "min" if component.min.is_none() => component.min = Some(value),
                 "max" if component.max.is_none() => component.max = Some(value),
                 "nominal" if component.nominal.is_none() => component.nominal = Some(value),
+                "stateSelect" if component.state_select.is_none() => {
+                    component.state_select = Some(value)
+                }
                 _ => {}
             }
         }

@@ -1440,6 +1440,7 @@ fn reduce_index(
     programs: &HashMap<String, ClassDef>,
 ) -> Result<Reduction, SimError> {
     let mut dummies: HashMap<String, String> = HashMap::new();
+    EVER_GROUNDED.with(|set| set.borrow_mut().clear());
     // States named in the right-hand side of an already-demoted state:
     // when `y` goes, its `der(y) = vy` marks `vy` as the companion the
     // next differentiation level should demote. Preferring companions
@@ -1695,6 +1696,157 @@ fn reduce_index(
                     }
                 }
 
+                // A candidate the parameters fold to a number is that
+                // number. `r2.R_rel.T[1,1]` of a joint turning about
+                // `{1,0,0}` is `e[1]*e[1] + (1 - e[1]*e[1])*cos(phi)`,
+                // which is the constant 1, but read as written it waits
+                // on `phi` - and once a reduction has taken the angle's
+                // own definition away, it waits for ever, the name is
+                // left to whichever equation merely mentions it, and its
+                // derivative becomes an unknown no row determines.
+                //
+                // Only for a name the written candidates ground here, or
+                // an earlier reduction grounded. A machine's phase writes
+                // `V_m.im = (2/pi)*N.im*i` with `N.im` zero, and folded
+                // to 0 that candidate forgets the only reference it made
+                // to the winding current `i`, which nothing else grounds:
+                // `i` then goes to an implicit definition and the star
+                // point's Kirchhoff row cannot be differentiated. The
+                // fold may give back a definition the structure had and
+                // lost; it may not invent one it never had. A name folded
+                // is read as its number by the candidates after it, so
+                // a rotation's product of folded entries folds too.
+                if constant_candidates() {
+                    let mut grounded: std::collections::HashSet<String> =
+                        std::collections::HashSet::new();
+                    loop {
+                        let mut grew = false;
+                        for (name, expr, _) in &candidates {
+                            if grounded.contains(name) {
+                                continue;
+                            }
+                            let mut refs = Vec::new();
+                            expr.collect_refs(&mut refs);
+                            if refs.iter().all(|r| {
+                                *r != name.as_str()
+                                    && (!unknowns.iter().any(|u| u == *r) || grounded.contains(*r))
+                            }) {
+                                grounded.insert(name.clone());
+                                grew = true;
+                            }
+                        }
+                        if !grew {
+                            break;
+                        }
+                    }
+                    let ever = EVER_GROUNDED.with(|set| set.borrow().clone());
+                    let mut known: HashMap<String, f64> = HashMap::new();
+                    loop {
+                        let mut grew = false;
+                        for (name, expr, _) in candidates.iter_mut() {
+                            if !grounded.contains(name) && !ever.contains(name) {
+                                continue;
+                            }
+                            if matches!(expr, Expr::Number(_)) {
+                                continue;
+                            }
+                            let mut refs = Vec::new();
+                            expr.collect_refs(&mut refs);
+                            let wanted: HashMap<&str, f64> = refs
+                                .iter()
+                                .filter_map(|r| {
+                                    params.get(*r).or_else(|| known.get(*r)).map(|v| (*r, *v))
+                                })
+                                .collect();
+                            if wanted.is_empty() {
+                                continue;
+                            }
+                            let folded = simplify(&crate::symbolic::substitute_all(expr, &wanted));
+                            if let Expr::Number(value) = folded {
+                                if value.is_finite() {
+                                    known.insert(name.clone(), value);
+                                    *expr = folded;
+                                    grew = true;
+                                }
+                            }
+                        }
+                        if !grew {
+                            break;
+                        }
+                    }
+                }
+
+                // A definition that divides by something reading zero at
+                // the start is no definition there: `r3.R_rel.T[2,3]`
+                // taken out of a rotation's product divides by an entry
+                // that is zero for the joint's axis, and the start that
+                // reduction builds reads NaN. The divisor is read with
+                // what the definitions themselves work out from the
+                // written starts and the parameters - a zero nobody wrote
+                // is no value, and a name earns one only from a candidate
+                // whose every input already has one. A divisor that
+                // cannot be read so keeps its definition.
+                if start_divisors_read() {
+                    let unwritten: std::collections::HashSet<String> =
+                        UNWRITTEN.with(|set| set.borrow().clone());
+                    let mut valued: HashMap<String, f64> = start_env
+                        .iter()
+                        .filter(|(name, _)| !unwritten.contains(*name))
+                        .map(|(name, value)| (name.clone(), *value))
+                        .collect();
+                    loop {
+                        let mut grew = false;
+                        for (name, expr, _) in &candidates {
+                            if valued.contains_key(name) {
+                                continue;
+                            }
+                            let mut refs = Vec::new();
+                            expr.collect_refs(&mut refs);
+                            if !refs.iter().all(|r| valued.contains_key(*r)) {
+                                continue;
+                            }
+                            let value = eval(
+                                expr,
+                                &EvalCtx {
+                                    vars: &valued,
+                                    time: at_time,
+                                    programs: None,
+                                    depth: 0,
+                                },
+                            );
+                            if let Ok(value) = value {
+                                if value.is_finite() {
+                                    valued.insert(name.clone(), value);
+                                    grew = true;
+                                }
+                            }
+                        }
+                        if !grew {
+                            break;
+                        }
+                    }
+                    candidates.retain(|(_, expr, _)| {
+                        let Expr::Bin(oxidelica_parser::BinOp::Div, _, den) = expr else {
+                            return true;
+                        };
+                        let mut refs = Vec::new();
+                        den.collect_refs(&mut refs);
+                        if !refs.iter().all(|r| valued.contains_key(*r)) {
+                            return true;
+                        }
+                        let at = eval(
+                            den,
+                            &EvalCtx {
+                                vars: &valued,
+                                time: at_time,
+                                programs: None,
+                                depth: 0,
+                            },
+                        );
+                        !matches!(at, Ok(value) if value.abs() < 1e-12)
+                    });
+                }
+
                 // Definitions to differentiate through, built to a fixpoint so
                 // the graph is acyclic and grounds out in states, parameters
                 // and whatever is already grounded. A definition is accepted
@@ -1832,6 +1984,7 @@ fn reduce_index(
                 } else {
                     settle(&implicit_defs, &barred)
                 };
+                EVER_GROUNDED.with(|set| set.borrow_mut().extend(alg_defs.keys().cloned()));
                 for (minted, value) in &minted_defs {
                     alg_defs
                         .entry(minted.clone())
@@ -2168,6 +2321,20 @@ fn reduce_index(
 /// candidate in the tie, as before.
 fn tie_drops_the_undetermined() -> bool {
     std::env::var_os("OXIDELICA_NO_TIE_JOINT").is_none()
+}
+
+/// Whether a reduction's candidate definition that the parameters fold
+/// to a number is taken as that number. On by default;
+/// `OXIDELICA_NO_CONSTANT_CANDIDATES=1` reads it as written.
+fn constant_candidates() -> bool {
+    std::env::var_os("OXIDELICA_NO_CONSTANT_CANDIDATES").is_none()
+}
+
+/// Whether a reduction refuses a definition whose divisor reads zero at
+/// the start. On by default; `OXIDELICA_NO_START_DIVISORS=1` keeps
+/// every definition, as before.
+fn start_divisors_read() -> bool {
+    std::env::var_os("OXIDELICA_NO_START_DIVISORS").is_none()
 }
 
 /// Whether a tie is weighed with the unknowns that have no start given
@@ -2570,10 +2737,61 @@ fn choose_the_victim(
     } else {
         candidates
     };
+    // `StateSelect.always` says the variable is a state, and demoting
+    // it breaks what the model said rather than choosing among what it
+    // left open: such a candidate stands aside wherever anything else
+    // is constrained. Only where nothing else is does it stay, and the
+    // probe says so.
+    let candidates = if state_select_decides() && state_select_always_kept() {
+        let others: Vec<String> = candidates
+            .iter()
+            .filter(|name| state_select_of(name) < 5.0)
+            .cloned()
+            .collect();
+        // Standing aside for a candidate the constraint does not
+        // determine trades a demotion the model did not want for a
+        // block that cannot be solved: a pendulum told to keep `x`
+        // demotes `y` at `y = 0`, where `x^2 + y^2 = 1` has no slope in
+        // it, and the start is underdetermined. Where every candidate
+        // weighs zero the tie is open either way and `always` still
+        // stands aside.
+        let others_weigh_nothing = others.iter().all(|name| sensitivity(name) == 0.0)
+            && candidates.iter().any(|name| sensitivity(name) > 0.0);
+        if others.is_empty() || others_weigh_nothing {
+            if probing && !candidates.is_empty() {
+                eprintln!("state-select: reduction {reduction} has only `always` to demote: {candidates:?}");
+            }
+            candidates
+        } else {
+            others
+        }
+    } else {
+        candidates
+    };
+    if probing && state_select_decides() {
+        let said: Vec<(String, f64, f64)> = candidates
+            .iter()
+            .map(|name| (name.clone(), sensitivity(name), state_select_of(name)))
+            .collect();
+        eprintln!("state-select: reduction {reduction} weighs {said:?}");
+    }
+    // A tie the weights leave open is the walk's to decide unless the
+    // model said something: what it would rather keep as a state goes
+    // last, so `StateSelect.never` goes first and `prefer` after
+    // `avoid` and `default`.
     let chosen = candidates.into_iter().max_by(|a, b| {
         sensitivity(a)
             .partial_cmp(&sensitivity(b))
             .unwrap_or(std::cmp::Ordering::Equal)
+            .then_with(|| {
+                if state_select_decides() {
+                    state_select_of(b)
+                        .partial_cmp(&state_select_of(a))
+                        .unwrap_or(std::cmp::Ordering::Equal)
+                } else {
+                    std::cmp::Ordering::Equal
+                }
+            })
     });
     if probing {
         eprintln!(
@@ -3210,6 +3428,51 @@ fn settle_modes(
     Ok(modes)
 }
 
+thread_local! {
+    /// Every name a reduction of the present model has settled a
+    /// definition for, so that a later reduction can tell a definition
+    /// the structure lost from one it never had.
+    static EVER_GROUNDED: std::cell::RefCell<std::collections::HashSet<String>> =
+        std::cell::RefCell::new(std::collections::HashSet::new());
+    /// The names whose zero at the start is no start anybody wrote,
+    /// kept beside the numbers `values_at_this_point` gives for the one
+    /// reader that has to tell the two apart: a divisor that reads zero
+    /// at the start is a reason to refuse a definition only where the
+    /// zero was written.
+    static UNWRITTEN: std::cell::RefCell<std::collections::HashSet<String>> =
+        std::cell::RefCell::new(std::collections::HashSet::new());
+    /// The `stateSelect` each variable of the present model says, by
+    /// the position of its literal: never 1, avoid 2, default 3,
+    /// prefer 4, always 5. Absent is default.
+    static STATE_SELECT: std::cell::RefCell<HashMap<String, f64>> =
+        std::cell::RefCell::new(HashMap::new());
+}
+
+/// Whether a tie the weights leave open is decided by what the model
+/// said about its states. On by default under the probe;
+/// `OXIDELICA_NO_STATE_SELECT=1` leaves it to the walk, as before.
+fn state_select_decides() -> bool {
+    std::env::var_os("OXIDELICA_NO_STATE_SELECT").is_none()
+}
+
+/// Whether `StateSelect.always` keeps a candidate out of the demotion.
+/// `OXIDELICA_NO_STATE_SELECT_ALWAYS=1` lets it be demoted like any.
+fn state_select_always_kept() -> bool {
+    std::env::var_os("OXIDELICA_NO_STATE_SELECT_ALWAYS").is_none()
+}
+
+/// Whether a preferred position whose velocity is no state has its
+/// preference left unread. On by default; `OXIDELICA_NO_HALF_PAIRS=1`
+/// reads it like any other.
+fn half_pairs_unread() -> bool {
+    std::env::var_os("OXIDELICA_NO_HALF_PAIRS").is_none()
+}
+
+/// What a variable said about being a state; default where it said nothing.
+fn state_select_of(name: &str) -> f64 {
+    STATE_SELECT.with(|table| table.borrow().get(name).copied().unwrap_or(3.0))
+}
+
 /// What every variable stands at, at the point being compiled for.
 ///
 /// A fresh compilation reads the start attributes; a continuation
@@ -3239,6 +3502,7 @@ fn values_at_this_point(
         programs: (!silent).then_some(programs),
         depth: 0,
     };
+    UNWRITTEN.with(|set| set.borrow_mut().clear());
     let mut env = params.clone();
     for (name, value) in discretes.iter().zip(discrete_start) {
         env.insert(name.clone(), resumed(name).unwrap_or(*value));
@@ -3270,7 +3534,10 @@ fn values_at_this_point(
                 }
             },
             // No start written: zero is what the language says it is.
-            (None, None) => 0.0,
+            (None, None) => {
+                UNWRITTEN.with(|set| set.borrow_mut().insert(component.name.clone()));
+                0.0
+            }
         };
         env.insert(component.name.clone(), value);
     }
@@ -4514,6 +4781,74 @@ pub(crate) fn compile_at(
     //     restores the equation/unknown balance.
 
     // 4b. Matching, and the index reduction it may call for.
+    //
+    // What each variable said about being a state, settled by the
+    // parameters: `stateSelect = if enforceStates then
+    // StateSelect.always else StateSelect.avoid` is the library's way.
+    // A word the parameters cannot settle is no word, and is left as
+    // the default rather than guessed at.
+    STATE_SELECT.with(|table| {
+        let mut table = table.borrow_mut();
+        table.clear();
+        let context = EvalCtx {
+            vars: &params,
+            time: 0.0,
+            programs: Some(&programs),
+            depth: 0,
+        };
+        for c in &model.components {
+            let Some(said) = c.state_select.as_ref() else {
+                continue;
+            };
+            match eval(said, &context) {
+                Ok(level) if (1.0..=5.0).contains(&level) => {
+                    table.insert(c.name.clone(), level);
+                }
+                other => {
+                    if std::env::var_os("OXIDELICA_VICTIM_PROBE").is_some() {
+                        eprintln!(
+                            "state-select: `{}` says `{}`, read as {other:?}",
+                            c.name,
+                            said.describe()
+                        );
+                    }
+                }
+            }
+        }
+        // A preferred position whose derivative is a preferred velocity
+        // that is no state, `der(s_rel) = v_rel` with nothing stating
+        // `der(v_rel)`, asks for a pair of states this compiler can keep
+        // only half of: reduction demotes states, and the velocity was
+        // never one. Kept for its preference, the position takes the
+        // place of the state whose velocity could have been kept, and
+        // the velocity level is left with nothing preferred - the last
+        // default velocity goes and the preferred one is determined by
+        // nothing at the start. So the preference is read for the pair
+        // or not at all: such a position weighs as the default.
+        if half_pairs_unread() {
+            let halves: Vec<String> = table
+                .iter()
+                .filter(|(_, &level)| level == 4.0)
+                .filter_map(|(position, _)| match state_rhs.get(position) {
+                    Some(Expr::Ref(velocity))
+                        if !state_rhs.contains_key(velocity)
+                            && table.get(velocity).copied() == Some(4.0) =>
+                    {
+                        Some(position.clone())
+                    }
+                    _ => None,
+                })
+                .collect();
+            for position in halves {
+                if std::env::var_os("OXIDELICA_VICTIM_PROBE").is_some() {
+                    eprintln!(
+                        "state-select: `{position}` is preferred with a velocity that is no state, read as default"
+                    );
+                }
+                table.insert(position, 3.0);
+            }
+        }
+    });
     let Reduction {
         states,
         unknowns,

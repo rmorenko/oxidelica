@@ -63,6 +63,7 @@ impl Parser {
             let mut unit = None;
             let (mut min, mut max) = (None, None);
             let mut nominal = None;
+            let mut state_select = None;
             let mut modifiers = Vec::new();
             let mut redeclares = Vec::new();
             let mut each_modifiers = Vec::new();
@@ -82,6 +83,7 @@ impl Parser {
                             "start" => start = Some(self.expr()?),
                             "min" => min = Some(self.expr()?),
                             "nominal" => nominal = Some(self.expr()?),
+                            "stateSelect" => state_select = Some(self.expr()?),
                             "max" => max = Some(self.expr()?),
                             "fixed" => {
                                 // `fixed` is a Boolean attribute, and
@@ -209,6 +211,7 @@ impl Parser {
                 min,
                 max,
                 nominal,
+                state_select,
                 binding,
                 description,
                 scope,
