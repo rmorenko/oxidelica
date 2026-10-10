@@ -40042,3 +40042,28 @@ size four, `the equation determining X does not depend on it` (the
 four `Constraints` models) and `initialization is not square`, hold
 the same names as at m392. So do the eight `underdetermined` models,
 which are still the two layers of the m387 map.
+
+### The two divisors outside their blocks read their starts (m394, a probe)
+
+The question left open above, answered for two of the five MultiBody
+models. A local probe (`state/m394_probe_reads.diff`, not kept)
+printed every name the refused residual reads, with its value, at each
+guess the start rescue tries. In `PendulumWithSpringDamper` the
+residual reads `damper1.s = 0` at all of them. The one equation
+defining it is `s = max(length, s_small)` with `s_small = 1e-10`, so a
+computed `s` is never 0. What is read is the declared start, 0, and
+`damper1.s` was not worked out before the block was reached. Its
+definition depends, through `length`, on `damper1.r_rel_0`, and
+`damper1.r_rel_0[3]` is one of the block's own unknowns. So the
+quotient is evaluated with a name the order puts after the block that
+needs it. In `PointGravityWithPointMasses2` the residual reads
+`pointMass2.r_0 = {0, 0, 0}`, and `world.mu / |r_0|^2` is inf. The
+model places that mass at the free motion's frame plus
+`fixedTranslation1`'s `{-1, 0, 0}`, so the computed distance is not
+zero there either.
+
+So the family's two outside cases are one shape: a divisor read at
+its start because nothing settled it before the block began. In
+`ThreeSprings` the same shape appears inside the block, as a guess of 0. Whether the block's order should take the divisor in, or settle it
+first from the starts of what it depends on, is the decision this map
+leaves for the next one. The wheel sets were not probed.
