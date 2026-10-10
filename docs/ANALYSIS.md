@@ -40164,8 +40164,9 @@ on past the first link, so neither fix will move a count on its own.
 The row of six in `/tmp/m394/census.txt`, asked one model at a time
 under `--only` with `OXIDELICA_WHERE=1` (`/tmp/m395/p2/*.txt`). All
 six refusals are raised at one place,
-`crates/oxidelica-sim/src/solvers/mod.rs:1923`, the dead-column
-refusal of a block at `t = 0`. One site does not make one family. By
+`crates/oxidelica-sim/src/solvers/mod.rs:1906`, the dead-column
+refusal of a block at `t = 0` (measured on a probe binary whose diff
+shifted the lines; the address is the one on main). One site does not make one family. By
 what the block fails to mention, the six fall into four layers, and
 each of them was already mapped:
 
@@ -40208,8 +40209,9 @@ by this row and the divisor chain, and it holds two models now.
 The census row of six run-half refusals that stop at
 `algebraic loop did not converge in 50 Newton iterations` was asked
 one model at a time with `OXIDELICA_WHERE=1` (`/tmp/m395/p3/*.txt`).
-All six are raised at `crates/oxidelica-sim/src/solvers/mod.rs:2088`,
-the end of the iteration budget. The names are, one for one, the six
+All six are raised at `crates/oxidelica-sim/src/solvers/mod.rs:2073`,
+the end of the iteration budget (the address on main, not on the probe
+binary it was measured with). The names are, one for one, the six
 of the m383 map's second family: `TankWithEmptyingPipe2`,
 `TanksWithEmptyingPipe1` and `TanksWithEmptyingPipe2` (blocks of two,
 three and five flows), `PressureLoss.Bend` (three), `TestDensity`
@@ -40226,3 +40228,124 @@ of the three shapes the budget is wrong for.
 from its definition. With the start given by hand it refuses at
 exactly this site (`/tmp/m395/st/TS_s.out`), so a fix to the divisor
 family's guess sends one model here.
+
+### Where the run half's 1.675 went: the constant fold re-reads its names (m396, probes)
+
+The library job of `e3a6005` went red twice on the band, at 1.626 and
+then 1.675 (job 114223501184), with the counts right. The solver's
+work did not move between the series off and on (24806042 points
+against 24805994), so the extra time is not in more steps. It is in
+what `library check` counts as running and the step counter does not
+see: `run_a_little` times `compile()` and the steps together, and
+`compile()` holds index reduction.
+
+One model shows it. `DoublePendulum` runs in 21 to 30 s with the
+series' five switches off and in 67 to 75 s with them on, at 0 points
+either way. Of the five, only `OXIDELICA_NO_CONSTANT_CANDIDATES` gives
+the time back (30 s against 74 to 82 s for each of the other four). A
+`sample` of the process puts 99% of it in `reduce_index`, and a timer
+inside the fold (`compile.rs:1719` on main) says why: the model goes
+through 65 reductions, each with about 4250 candidates, and each fold
+runs its fixpoint 6 times. Every pass of both fixpoints, and of the
+start-divisor fixpoint after them (`compile.rs:1789`), calls
+`collect_refs` on every candidate again: 14.8 million names per
+reduction, 97% of the fold's 26 s. The substitution itself is cheap.
+Skipping a candidate whose inputs did not grow saved nothing (26.1 s),
+and a table of folds across reductions saved nothing either.
+
+The probe that works collects each candidate's names once per
+reduction, sorted and deduplicated, and reuses them in all three
+fixpoints. A candidate's list is cleared when the fold replaces its
+expression with a number, and it then has no names to read anyway. A
+set of the unknowns replaces the linear `unknowns.iter().any` in the
+grounding test. Nothing a fixpoint decides is changed, only how often
+the same names are read. On `DoublePendulum` the fold went from 26.1 s
+to 0.3 s and the run from 67 s to 35 s.
+
+The measurements, each with its file and its conditions (the desk, on
+mains power, one binary per pair, `--without` the heavy list, ratio
+taken with `IMC_YDarc` left out as the floor script does):
+
+| pass                                | where it was taken                         | run/flatten |
+| ----------------------------------- | ------------------------------------------ | ----------- |
+| series off (`pair_off.txt`)         | 4 threads, a neighbour pass from minute 31 | 1.063       |
+| series on (`pair_on.txt`)           | the same, alongside                        | 1.652       |
+| series on (`fold_on.txt`)           | 3 threads, alongside the pair above        | 1.541       |
+| series on, names once (`fold_fast`) | the same, alongside                        | 1.212       |
+| series on (`solo_base`)             | `library_floor.sh` alone                   | 1.462       |
+| series on, names once (`solo_fast`) | `library_floor.sh` alone, same binary      | 1.129       |
+
+All files are under `/tmp/m396/`. A neighbour inflates flattening more
+than running, so the ratios of the first four are low readings, not
+values for the band; they are compared only half with half. The two
+solo passes ran one after the other with nothing beside them, from one
+binary, the switch the only difference: running without `IMC_YDarc`
+went from 5331 ms to 4294 ms per model and flattening stayed at 3646
+and 3804 ms. Both print `OK` on all five counts.
+
+Carried to the runner by the same factor (1.129 / 1.462 = 0.772),
+attempt 2's 1.675 comes to about 1.29, which is where the runner stood
+before the series (1.290 at `b694b23`). The two readings do not agree
+in full, and the disagreement is stated rather than smoothed: per
+model, reading names once removes 56% of what the series added to
+running, so the series' own work (`MechanicalStructure` first) should
+leave the ratio above where it stood before. The scaled number puts
+it at the old place. No solo pass with the series off was taken, so
+which reading is nearer is not measured. Either way the ratio with the
+fix sits inside the band by these estimates. This is a desk
+measurement scaled, not a runner measurement, and the runner's number
+is what the band will judge. Both halves of each pair print 961
+flatten and 743 run (742 with the series off).
+The register of `fold_fast` is the register of `pair_on`, line for
+line (2136 lines), and its work counts are the same to the digit.
+
+Per model, the series added 1610 s of running over the pair
+(`w_diff.txt`), 1415 s of it in MultiBody: `Engine1b` +349 s,
+`LineForceWithTwoMasses` +221 s, `MechanicalStructure` +213 s. Reading
+names once saves 901 s of the 1610 (`f_diff.txt`): `Engine1b` 351 s to
+176 s, `LineForceWithTwoMasses` 245 s to 157 s, the two wheel sets 128 s
+to 58 s each. Models that got slower by more than 2 s add up to 40 s.
+So of the series' extra running about 56% was this re-reading, and the
+rest is the series' own work, of which `MechanicalStructure`, the model
+it won, is the largest single part. The consultant's arithmetic left
+56% of the runner's extra running unexplained by the giant and the
+series' measured price; this re-reading is a cost of exactly that
+kind, inside `compile()`, and is not weather. The numbers from shift
+337 (`/tmp/m395/pair2_*.txt`) were taken on battery across a change of
+power and are not compared here.
+
+The probe is not on main. It is a performance change to the reduction
+and wants its own pair and its own commit (`state/m396_probes.diff`
+holds it under `OX_PROBE_FOLD_REFS` and `OX_PROBE_FOLD_FAST`).
+
+### Seeding a zero guess from its definition (m396, a probe)
+
+The road the m395 map named for the form-B divisors was tried as a
+probe (`OX_PROBE_SEED_DEF`, in the same diff): a torn unknown of a
+block whose guess is 0 and whose block holds an explicit `x = f(...)`
+not naming `x` starts from one evaluation of `f` at the current
+guesses. One evaluation, no iteration.
+
+| model                    | refusal without                          | with the seed                                                    |
+| ------------------------ | ---------------------------------------- | ---------------------------------------------------------------- |
+| `ThreeSprings`           | NaN in `e_rel_0[1] = r_rel_0[1] / s`     | `the Newton direction ... does not reduce the residual at t = 0` |
+| `RollingWheelSetDriving` | NaN in `rolling2.e_long_0[1] = aux[1]/…` | the same                                                         |
+| `RollingWheelSetPulling` | the same                                 | the same                                                         |
+
+The Newton-direction refusal is raised at `solvers/mod.rs:2039` on
+main. `ThreeSprings` moved a wall, but not to the iteration budget the
+map expected: the guarded distance is seeded and the block then has no
+descent from where it stands (629 Newton steps fell to 168). The wheel
+sets are seeded too (`aux[1]` goes from 0 to -1), and the residual is
+still NaN at the start, because the norm of `aux` reads `aux[2..3]`,
+which are inner unknowns at 0 and not torn ones. The seed covers
+`ThreeSprings` and not the norm, which is the answer the brief asked
+the probe for. Two small models of the shape, a guarded distance in a
+block on a line and in a plane (`/tmp/m396/small/SeedB.mo`,
+`SeedB2.mo`), run with and without the seed and give the same numbers,
+so neither is a test for `tests/small`. No census was taken on the
+probe: the corpus pairs took the machine for the shift. Form A
+(`PendulumWithSpringDamper`, `PointGravityWithPointMasses2`, where
+reduction moved `revolute.phi` off its `prefer` and `fixed` and did not
+carry the fixed condition with it) was not touched and waits for a
+series of its own.
