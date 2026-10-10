@@ -40486,14 +40486,13 @@ derivative ledger asks for and what the matching gave it). With
 reduction 1 forced to take `damper1.s`, the refusal is raised at the
 ledger (`compile.rs:2159` on main): `der(damper1.s)` is wanted and no
 equation is matched to it. What still names it is the damper's own
-`f = d*der(s)` (printed twice, as `der(damper1.s) = damper1.f /
-damper1.d`) and the power `lossPower = f*der(s)`, and the first is
-matched to `damper1.f`. The guard differentiated, `der(s) = if length
-
-> s_small then der(length) else 0`, is no longer a row about
-`der(damper1.s)`: it arrives with `f/d`in its place and is matched to`der(damper1.r_rel_0[3])`, and solved for that name it divides by `if
-> length > s_small then 1 else 0`, which is zero on the guard's other
-> branch. So the second link is the matching's: the one row that could
-> define the guard's derivative was spent on a position's derivative,
-> by a quotient that is right on one branch only. The probe did not go
-> on to the third link.
+force law, printed twice as `der(damper1.s) = damper1.f / damper1.d`,
+and the power `lossPower = f*der(s)`, and the first is matched to
+`damper1.f`. The guard differentiated is no longer a row about
+`der(damper1.s)`: it arrives with `f/d` in its place and is matched to
+`der(damper1.r_rel_0[3])`. Solved for that name it divides by the
+guard's own slope, which is 1 on one branch and 0 on the other. So the
+second link is the matching's: the one row that could define the
+guard's derivative was spent on a position's derivative, by a quotient
+that is right on one branch only. The probe did not go on to the third
+link.
