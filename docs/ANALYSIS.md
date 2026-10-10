@@ -40514,3 +40514,25 @@ second link is the matching's: the one row that could define the
 guard's derivative was spent on a position's derivative, by a quotient
 that is right on one branch only. The probe did not go on to the third
 link.
+
+**The pruning of m389, taken to form A** (the same day,
+`state/m397_prune_probe.diff`, ported to this tree under
+`OX_PROBE_PRUNE`: a name leaves an equation's row of the matching's
+incidence where the slope, with the parameters folded in, is the
+number zero). The small pendulum without a damper (`A2`) refuses on
+main with `body1.v_0[1]` read as NaN, because reductions 8 to 10 solve
+the body's velocity out of a row that divides by
+`prismatic.e[3] * prismatic.s`, and `prismatic.e[3]` is the parameter 0. Under the probe `A2` runs, and its numbers are right: the body's
+`frame_a.r_0` equals `(0.3 + s cos phi, s sin phi, 0)` to five places
+at t = 0, 0.5 and 1 (`state/m397_small/A2.prune.csv`, read with a CSV
+parser, since the header's names hold commas inside quotes and a split
+on commas reads the wrong columns). The models with the damper (`A1`,
+`A8`, the pendulum itself) lose the angle exactly as before, since the
+pruning does not touch the slope of reduction 1. `A8` moves to the
+`do not mention der(revolute.R_rel.T[1,1])` row. The point masses
+take 8.5 minutes under the probe against 90 seconds without, and
+refuse with `structurally singular model: no equation determines
+der(der(...))`, the name cut by the census. So the pruning repairs
+the zero-coefficient division where it is the only wall, as m389 found
+for the weights, and is not a road for form A. Its price and its
+`IMC_YDarc` question stand as m389 left them.
