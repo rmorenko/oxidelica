@@ -41008,3 +41008,12 @@ apart is that `r1.w` is already determined by the driven `position1`.
 That is a different sign from a weight, and a rule on it changes the
 victims of every rebuild, so it is a series measured by victim lists
 and by the four pendulum tests above, not a cheap link. Not built.
+
+**Its row's neighbours.** The census row `the equations of algebraic
+loop ... do not mention` holds seven models. Six are refused at
+t = 0 (`SMPM_Braking`, `SMPM_VoltageSource` of Machines,
+`Spice3BenchmarkDifferentialPair`, `DoublePendulumInitTip`,
+`GearType2`, `TestBearingConversion`), before any rebuild can happen.
+`MovingActuatedDrive` alone is refused at t = 0.005, after one. So the
+tie above is a family of one in this row, and the other six were not
+probed here.
