@@ -41017,3 +41017,179 @@ t = 0 (`SMPM_Braking`, `SMPM_VoltageSource` of Machines,
 `MovingActuatedDrive` alone is refused at t = 0.005, after one. So the
 tie above is a family of one in this row, and the other six were not
 probed here.
+
+## Form A taken as a series: the retreat merged, the pruning parked (m400)
+
+**The first link, built as a rule.** The pendulum's angle is lost at
+reduction 4 and decided at reduction 1 (m397, m399). Reduction 4 has
+only the two joint coordinates the model fixed to demote, and the
+probe's `spent` list there names `body1.frame_a.r_0[3]`, the free
+state reduction 1 took on the damper's connection. That is the sign
+the rule reads: a reduction left with nothing but anchored states,
+while its reach passes a free state an earlier reduction spent, sends
+the walk back to that reduction with that victim refused, and the
+walk starts again (`reduce_index` around `reduce_index_once`; at most
+four retreats; `OXIDELICA_NO_RETREAT=1` gives back the first walk).
+Nothing weighs differently: a model whose walk never meets the sign
+reduces exactly as before. On `A1` the retreat fires once, reduction 1
+takes `damper1.s` instead, and the victims are those of the hand
+forcing of m399 (`OX_PROBE_FORCE=1:damper1.s`), now chosen by the
+compiler. A grep and `git log -S` for a retreat in the reduction found
+none (`205f803` and `15adce6` protect the anchor where it stands, not
+behind it).
+
+Victim lists of the m397 small models, one binary, switch off and on
+(`/tmp/m400/v/*.off.v`, `*.on.v`):
+
+| model | off                    | on                                 |
+| ----- | ---------------------- | ---------------------------------- |
+| `A1`  | 11 victims, -inf       | retreat, 15, the m399 third link   |
+| `A2`  | 10, unchanged          | the same, no anchor is lost        |
+| `A3`  | 11, -inf               | retreat, **runs**                  |
+| `A4`  | 11, -inf               | retreat, the third link            |
+| `A5`  | 11, unchanged          | the same: the prismatic is free    |
+| `A6`  | 11, unchanged          | the same: the revolute is free     |
+| `A7`  | 11, -inf               | retreat, the third link            |
+| `A8`  | 11, NaN `body1.v_0[1]` | retreat, the third link            |
+| `B6`  | 18, unchanged          | the same: its road is not this one |
+
+A test (`a_fixed_state_is_kept_by_undoing_an_earlier_victim`) holds
+the rule on four lines of algebra with no library: `x + sin(x) + z^3 =
+1` takes `x` by slope, `x + y = 1` is then left with the fixed `y`.
+Red without the retreat (`the fixed state was demoted: ["z"]`), green
+with it. `A1` goes into `tests/small` as
+`a_fixed_angle_lost_to_an_earlier_victim`, and its header says which
+two links it stands on.
+
+**The second link, measured and parked.** The pruning of m389/m397
+was built as a rule too: a name leaves an equation's row of the
+matching where its slope, with the parameters folded in, is the
+number zero, held in a table keyed by equation and name in the same
+bracket as `solve_shapes`. Two things were learned building it. The
+plan's order must still read the full rows: pruned rows handed to
+`build_plan` lost `u` in `a = ceil(u)` and broke
+`the_numeric_builtins_follow_their_definitions`, so only the matching
+is told. And the price m397 measured is gone with the table:
+`PointGravityWithPointMasses2` alone ran 70 s against 69 s, not 8.5
+minutes against 90 s (`/tmp/m400/PointGravityWithPointMasses2.*.txt`).
+With both links `A1`, `A2`, `A3`, `A4`, `A7` and `A8` run, `A1`'s angle
+is the m399 numbers to the fifth place, and `PendulumWithSpringDamper`
+runs from the root of the library.
+
+The corpus pair with both links, one binary
+(`/tmp/m400/pair_off.txt`, `pair_on.txt`, `/tmp/ox400e`, each half
+under a 20 GB ceiling, peaks 6.1 and 9.5 GB):
+
+```text
+off  961 flatten, 750 run; runnable 844, 707   8341 ms run/model
+on   961 flatten, 753 run; runnable 844, 710  10145 ms run/model
+won  PendulumWithSpringDamper, SMPM_VoltageSource (Machines),
+     SMEE_Generator (Machines), SMEE_DOL, SMEE_Rectifier (FundamentalWave)
+lost GearConstraint, SMR_Inverter_Polyphase (FundamentalWave)
+```
+
+Taken one link at a time with `--only` on the same binary: the
+pendulum needs both; `SMPM_VoltageSource` and `SMEE_Generator` run on
+the retreat alone; `SMEE_DOL` and `SMEE_Rectifier` on the pruning
+alone; and both losses are the pruning's. `GearConstraint` is refused
+on the pruning as it was refused by the quench of array elements that
+e45a2aa took back (`spare_no_elements`, "the reach that cost
+`GearConstraint`"): `actuatedRevolute_a.e[3]` is a zero element of an
+axis, and taken as a zero coefficient it is where the vector points,
+not a term the model left out. A pruning that spares array elements
+in the same way (`OX_PROBE_PRUNE_SPARE`, a probe not kept) loses `A1`
+and `A2` as well: `prismatic.e[3]` is the same kind of zero, so the
+pendulum's second link and `GearConstraint` stand on one question
+from two sides. That is an architectural question - when a zero axis
+element may cut a row - and not a link to take on a number, so the
+pruning is parked whole with its diff
+(`state/m400_series_full.diff`). The time is a second reason not to
+take it unexamined. The two halves ran side by side, and their
+flattening already differs by a fifth (7947 against 6313 ms per
+model), so the weather of one pass is not cancelled between them. But
+the ratio the band holds is read inside one pass, and it went from
+1.05 off to 1.61 on (8341 and 10145 ms per model running), past the
+band's edge of 1.50.
+
+**A walk bent halfway.** The preflight on the retreat alone went red
+on the victim witness (`scripts/victim_witness.sh`): reduction 86 of
+`a_derivative_name_weighed_at_the_start` demoted `b4.v_0[2]` and not
+`b4.body.v_0[2]`. The RobotR3 structure retreats from four reductions
+running (26, 35, 44 and 37, each refusing `r1.phi` or `r2.phi`), uses
+up its four retreats, and was then left with the fourth walk, which
+is bent by four refusals and still loses an anchor. So a walk that is
+out of retreats now takes the first walk again, whole: the refusals
+bought nothing there, and the witness reads the old victims again. On
+`A1` and `A3` the victim lists are unchanged by this.
+
+**The retreat alone** is what is merged. Measured with the same
+binary and `OXIDELICA_NO_PRUNE_ZERO_SLOPE=1`
+(`/tmp/m400/pair_aonly.txt`, peak 11.0 GB under the 20 GB ceiling):
+961 flatten and 752 run, runnable 844 and 709, 5596 ms per model
+flattening and 7562 running. Against the off half of the pair, the run
+list gains `SMEE_Generator` and `SMPM_VoltageSource` and loses
+nothing. With the fallback above in, the pair was taken again from
+one binary built from the final tree (`/tmp/ox400f`,
+`/tmp/m400/final_off.txt` and `final_on.txt`, `OXIDELICA_NO_RETREAT=1`
+on the first): off 961 / 750, runnable 844 / 707; on 961 / 752,
+runnable 844 / 709; won `SMEE_Generator` and `SMPM_VoltageSource`,
+lost none, the off list identical to the first pair's off list, and
+the victim witness green on the same binary. The two halves ran side
+by side, so their times are one weather only roughly: 7427 and 6413
+ms per model flattening, 8173 and 9206 running. The floors are not
+moved here: by the rule they wait for the runner's print, and `SMPM_VoltageSource` is one of the two swinging
+models the floors already subtract.
+
+**The census's families, folded** (item 2 of the brief, on m399's
+census `state/m399/census.txt` and raw half `state/m399/raw.txt`).
+The run half is counted between its section markers: 211 models in
+136 rows, as m399 gave. A family is folded two ways that must agree,
+by the rows of the census whose text holds the phrase, and by the
+lines of the raw half, one per model:
+
+| family                                   | models (rows) | models (raw) |
+| ---------------------------------------- | ------------- | ------------ |
+| `equation ... constrains no state`       | 32 in 29 rows | 32           |
+| `unbalanced ... nothing ...`             | 35 in 33 rows | 35           |
+| `parameter ... has no value`             | 25 in 20 rows | 25           |
+| `no equation determines`                 | 10 in 7 rows  | 10           |
+| `cannot differentiate`                   | 10 in 10 rows | 10           |
+| any `algebraic loop` (the solve's walls) | 52 in 7 rows  | 52           |
+| of which `... do not mention`            | 7 in 1 row    | 7            |
+
+The review's numbers stand. One trap on the way: the census cuts a
+row's text at a fixed width, and the long `structurally singular
+model: equation Bin(...)` rows lose the words `constrains no state`
+past the cut. Folded by that phrase, the census gives 16 models in 15
+rows, half the family. Folded by the row's head, `structurally
+singular model: equation`, it gives 32 in 29, which the raw half
+confirms. So a family is folded by what a cut row still carries, and
+checked against the raw half. As the review said, `unbalanced` is a
+lower bound for probing and not one cause.
+
+**The six neighbours of `do not mention`** (item 3, each with
+`--only` and `OXIDELICA_WHERE=1`, base and series, `/tmp/m400/six_*`).
+All six are refused at t = 0 in `solvers/mod.rs:1905`, the block that
+does not mention a name it was given:
+
+| model                             | not mentioned                                       | under the retreat                           |
+| --------------------------------- | --------------------------------------------------- | ------------------------------------------- |
+| `SMPM_VoltageSource`              | `der(smpm.airGap.i_sr[1])`, the air gap's angle     | **runs**                                    |
+| `SMPM_Braking`                    | `smpm.airGap.spacePhasor_r.v_[1]`                   | passes t = 0, refused at a rebuild t = 9e-4 |
+| `DoublePendulumInitTip`           | `der(freeMotionScalarInit.initPosition.r_rel_a[3])` | unchanged                                   |
+| `GearType2`                       | `bearingFriction.sa`                                | unchanged                                   |
+| `TestBearingConversion`           | `der(gear2_1.flange_b.phi)`, `...sa`                | unchanged                                   |
+| `Spice3BenchmarkDifferentialPair` | `der(Q2.vbx)`                                       | unchanged                                   |
+
+So the row is at least four families by layer. The two machines with
+a permanent-magnet rotor are form A's: the air gap's angle is the
+anchored state a later reduction would demote, and the retreat keeps
+it. `SMPM_Braking` then meets the monitor's rebuild, where the
+states re-selected at t = 9e-4 name two derivatives the first stretch
+did not (`der(smpm.inertiaRotor.flange_b.phi)`, `der(smpm.flange.phi)`),
+the same shape as `MovingActuatedDrive` (m399). The two with
+`sa` are the friction's mode variable, a third layer, and the
+pendulum's initialization and the Spice transistor are each their
+own. `SMPM_VoltageSource` is the swinging model of item 29 of the
+queue: it now runs on the desk, and the runner's word on it waits
+for Roman as the queue says.
