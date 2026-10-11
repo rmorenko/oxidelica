@@ -41571,3 +41571,11 @@ last equation, at reduction 66, is the same relation reached
 implicitly. The next probe for these six is the spanning tree of the
 overconstrained graph on `TransformerTestbench`: which connection
 between `l1sigma` and `l2sigma` the tree should have dropped.
+
+Of the three grounds of `TransformerTestbench`, only `groundT` was made
+the root (`groundT.pin.reference.gamma = 0` stands, and `groundS` and
+`groundL` keep only their alias to their star). That is right if the
+transformer joins the two sides into one overconstrained graph, and
+then the angle of the secondary has two writers: the graph, and the
+frequency of the source carried through the components' `omega`. It
+is the first thing the spanning-tree probe should check.
