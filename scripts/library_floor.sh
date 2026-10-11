@@ -2133,7 +2133,17 @@ WORK_DEAREST=12
 # IMC_DOL counts 11 and IMC_YDarc 0 either way. The runner printed 234
 # (run 37655696217, job 112910619622), and the centre is set there:
 # ten percent around it is 210.6 to 257.4, which holds the desk's 223.
-WORK_JACOBIANS=234
+#
+# Moved by the dummy given once (f3d1bd0), which let seven models run
+# and pay for their Jacobians. The desk counted 250 for that tree
+# (20278 - 20028 IMC_YDarc), 6.8% over 234 and inside the band, but
+# the margin was thinner than the known difference between machines,
+# and the runner printed 262 for 99ec8fc (run 38108622514, job
+# 114379354140: 20290 - 20028 IMC_YDarc) and turned red on this line
+# alone, 1.120 of 234. The seven cost +28 on the runner and +16 on the
+# desk. The centre is set at the runner's print: ten percent around
+# it is 235.8 to 288.2, which holds the desk's 250.
+WORK_JACOBIANS=262
 WORK_JACOBIANS_PPM=100000
 # The pair is held on a line of its own and to a band of its own, an
 # order of magnitude wide in either direction rather than five percent:
