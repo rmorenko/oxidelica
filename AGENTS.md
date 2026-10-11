@@ -200,7 +200,7 @@ between them, and stops the round trip of pushing, waiting several
 minutes and finding out a linter had something to say. `--quick` is
 the fast half while a change is still moving. CI is _six_ jobs: the
 tests on three platforms, the library floor, the advisories, and a
-coverage and linters job holding a 95% line threshold that is easy to
+coverage and linters job holding a 92.5% line threshold that is easy to
 forget until it turns a commit red.
 
 Coverage is measured by `scripts/coverage.sh --summary-only`. Write
