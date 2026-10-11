@@ -1534,11 +1534,56 @@ thread_local! {
 }
 
 /// Whether a reduction refuses a member whose derivative the system
-/// already holds. Off by default and taken with `OXIDELICA_IMPLIED_ROW=1`:
-/// the corpus under it could not be measured, its pass went past a
-/// 20 GB ceiling that the pass without it stays at half of (m402).
+/// already holds. Off by default and taken with `OXIDELICA_IMPLIED_ROW=1`.
+/// The corpus under it first went past a 20 GB ceiling (m402); the
+/// growth was one model climbing a ladder of derivatives, which
+/// `MAX_REDUCED_ORDER` now stops, and the pass under it reads 961 / 753
+/// against 961 / 752 without it, at the same peak (m403).
 fn implied_row_refused() -> bool {
     std::env::var_os("OXIDELICA_IMPLIED_ROW").is_some()
+}
+
+/// The highest order of time derivative a reduction may write, taken
+/// with `OXIDELICA_IMPLIED_ROW` for now.
+///
+/// Mechanics is of index three: a position constraint is differentiated
+/// to velocity and to acceleration, and the row that reaches the
+/// acceleration names `der(der(r))`. One storey past that is room. What
+/// the ceiling is for is a ladder: under the switch,
+/// `PointGravityWithPointMasses2` came to reduce
+/// `der(der(a_0[3])) - der(der(der(der(r_0[3]))))` at reduction 84,
+/// each reduction differentiating the row the previous one had just
+/// pushed, the gravity term `mu/|r|^3` growing a storey at a time and
+/// the process from 1.4 GB without the switch to past 10 GB with it
+/// (m403). Nothing else bounds that walk short of 256 reductions or two
+/// million nodes, both far beyond what the memory survives.
+const MAX_REDUCED_ORDER: usize = 3;
+
+/// The highest order of derivative named in an expression: `x` is 0,
+/// `der(x)` is 1, `der(der(x))` is 2, whether the derivative is written
+/// as a call or carried as a name the reduction minted.
+fn highest_derivative_order(expr: &Expr) -> usize {
+    fn of_name(name: &str) -> usize {
+        let mut rest = name;
+        let mut order = 0;
+        while let Some(inner) = rest.strip_prefix("der(") {
+            order += 1;
+            rest = inner;
+        }
+        order
+    }
+    // Every node is looked at, and a call to `der` counts one more than
+    // what it wraps; a node met again inside the call counts less and
+    // does not move the highest.
+    let mut highest = 0;
+    expr.for_each(&mut |inner| match inner {
+        Expr::Ref(name) => highest = highest.max(of_name(name)),
+        Expr::Call(name, args) if name == "der" && args.len() == 1 => {
+            highest = highest.max(1 + highest_derivative_order(&args[0]));
+        }
+        _ => {}
+    });
+    highest
 }
 
 /// Whether the differentiated row `a - b = 0` already follows from the
@@ -2245,6 +2290,16 @@ fn reduce_index_once(
                  {lhs:?} = {rhs:?} grew to {nodes} terms at reduction {reductions}, \
                  past the {ceiling} this compiler will carry"
                             ));
+                        }
+                        if implied_row_refused() {
+                            let order = highest_derivative_order(&folded);
+                            if order > MAX_REDUCED_ORDER {
+                                return err(format!(
+                                    "structurally singular model: differentiating the equation \
+                 {lhs:?} = {rhs:?} at reduction {reductions} names a derivative of order \
+                 {order}, past the {MAX_REDUCED_ORDER} a reduction may reach"
+                                ));
+                            }
                         }
                         if implied_row_refused()
                             && row_follows_from_aliases(&folded, &algebraic_eqs)
@@ -8228,5 +8283,25 @@ mod implied_row_tests {
         assert!(!row_follows_from_aliases(&sub("v", "w1"), &system));
         let product = Expr::Bin(BinOp::Mul, Box::new(r("w1")), Box::new(r("w2")));
         assert!(!row_follows_from_aliases(&product, &system));
+    }
+
+    /// The ladder `PointGravityWithPointMasses2` climbed under the
+    /// switch: the order is read from a minted name and from a written
+    /// call alike, and from deep inside a row, not only from its top.
+    #[test]
+    fn the_order_of_a_derivative_is_read_from_names_and_calls() {
+        use super::highest_derivative_order as order;
+        assert_eq!(order(&r("x")), 0);
+        assert_eq!(order(&r("der(der(x))")), 2);
+        let call = |e: Expr| Expr::Call("der".to_string(), vec![e]);
+        assert_eq!(order(&call(r("der(der(x))"))), 3);
+        let rung = sub("der(der(a))", "der(der(der(der(r))))");
+        assert_eq!(order(&rung), 4);
+        let deep = Expr::Bin(
+            BinOp::Mul,
+            Box::new(r("mu")),
+            Box::new(call(call(Expr::Neg(Box::new(r("y")))))),
+        );
+        assert_eq!(order(&deep), 2);
     }
 }
