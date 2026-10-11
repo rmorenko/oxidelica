@@ -41193,3 +41193,218 @@ pendulum's initialization and the Spice transistor are each their
 own. `SMPM_VoltageSource` is the swinging model of item 29 of the
 queue: it now runs on the desk, and the runner's word on it waits
 for Roman as the queue says.
+
+## The pruning's two losses taken apart, and the family that constrains no state (m401)
+
+**The verdict of eb79c22: red on the band, the counts as expected.**
+The push run 38142945947 printed 961 flatten and 752 run, runnable
+844 and 709, exactly the m400 desk pair with the retreat. It went red
+on the ratio, not on a count:
+
+```text
+38130519436 (714431b, green)  8575 ms flattening  16117 running  12151 without IMC_YDarc  ratio 1.416
+38142945947 (eb79c22, red)    6867 ms flattening  14276 running  11993 without IMC_YDarc  ratio 1.745
+```
+
+The running half did not slow down. It went from 12151 to 11993 ms
+per model with the giant left out. The flattening half got faster by a
+fifth, and eb79c22 and 9ab5210 did not touch flattening. The ratio
+has a numerator that held still and a denominator that moved, and the
+note that sets the band names this blind spot from the other side: it
+cannot tell weather that lands on one half only. The band is not
+moved and the floors are not moved. The floors wait for a green
+print, and this print is red. The desk pair of the shift measured
+6581 ms against 4347 (ratio 1.51) with the retreat in, and m400 found
+the same thing on the desk before the push.
+
+**Link B put back by hand.** The parked diff
+(`state/m400_series_full.diff`) no longer applies, since its retreat
+half went in with 9ab5210, so the pruning alone was lifted out of it
+by hand: the zero-slope table, the `mentioned` rows handed to the plan,
+and the switch `OXIDELICA_NO_PRUNE_ZERO_SLOPE`. Check after: `A1` runs
+with it and is refused without it, as m400 had. Every number below is
+from one binary per comparison, both halves under the switch.
+
+**`SMR_Inverter_Polyphase` does not die in the matching.** The probe
+(`OX_PROBE_PRUNE`, a print of every name a row loses, not kept) finds
+seven prunings in the model, and bisecting them by name with a second
+probe knob leaves one: `smr3.stator.electroMagneticConverter.
+singlePhaseElectroMagneticConverter[1].i` leaving the row of
+`V_m.im = (2/pi * N.re - 0 * N.im) * 0 + (2/pi * N.im + 0 * N.re) * i`,
+where `N.im` is zero. That pruning is right: the equation cannot be
+solved for `i`. The first walk's 28 victims are the same with and
+without it, the run under `rk4` agrees with the unpruned run to 5e-9,
+and the refusal is `step size underflow ... (state re-selection did
+not help)`. So the death is in the run, and a print on the stall
+(`OX_PROBE_STALL`, not kept) names it: the selection monitor, record
+22, whose victim is `smr3.stator.zeroInductor.i0` on
+`terminalBox3.starpoint.i = 0`:
+
+```text
+pruned    own 9.0  alternative smr3.phiMechanical 5.9e7 (t=1e-4), 4.0e9 (t=6e-4)
+unpruned  own 3.0  alternative smr3.phiMechanical NaN
+```
+
+Unpruned, the alternative's weight through the cone divides by the
+zero `N.im` and is NaN, which `f64::max` passes over, and the monitor
+is blind for the whole run. Pruned, the cone reaches it another way,
+the weight is a number and grows, the ratio falls under 0.15 of its
+own first reading at t = 6e-4, the rebuild resumes from the last row
+written (t = 0), takes the same victim and stalls again, and the
+second stall at the same instant is read as a singularity. With
+`OXIDELICA_PARTIAL_SENSITIVITY=1` the pruned model runs, 1001 steps.
+So this loss is not the pruning's layer at all: the pruning took away
+a NaN that was hiding a monitor reading which then cries wolf. A
+discriminator in the matching cannot reach it, and none was looked for
+there.
+
+**`GearConstraint` dies of two prunings together.** 975 prunings in
+the model, grouped by name: actuated revolutes, `z_a`, `w_a`, the
+labels of `world`, `tau`, and the forces `.f`. Each group alone runs.
+Every group but the forces runs, and so does every group but the
+revolutes, and so does the forces alone with any one subgroup. The
+smallest pair that kills it is `actuatedRevolute_a.phi` with the
+`frame_a.R.T[*]` prunings (`OX_PROBE_PRUNE_ONLY=
+"actuatedRevolute_a.phi,frame_a.R.T["`), and the refusal is the same
+as the full pruning's, from `compile.rs:2260`:
+
+```text
+cannot differentiate through algebraic variable
+`der(gearConstraint.actuatedRevolute_a.R_rel.T[1,3])`
+```
+
+The equation behind it is the axis-angle rotation with `e = {0, 0, 1}`:
+`R_rel.T[1,3] = e1*e3 + (0 - e1*e3)*cos(phi) - e2*sin(phi)`. With
+`e[2] = 0` its slope in `phi` is zero, so the row loses `phi`, and
+that is right. But the expression still holds `phi` under a zero
+coefficient. Without retreat (`OXIDELICA_NO_RETREAT=1`) it dies the
+same way, so the retreat is not a party to it. The walk differentiates
+the equation at reduction 45 and needs `der(der(R_rel.T[1,3]))` at 47,
+and the derivative carries `phi` and `der(phi)` that the row no longer
+admits. The row and the expression disagree, and the reduction reads
+the expression.
+
+**Candidate 1: fold the zeros where the row was cut.** If the row
+loses a name because a zero parameter multiplies it, the expression can
+be told the same thing: in each equation where the pruning cut a name,
+the parameters whose value is zero are substituted into the equation
+itself and the result simplified, once per equation, before the
+matching reads it (`OX_PROBE_PRUNE_FOLD=1`). It reads structure, the
+zero parameters the equation names, and no model's name. On the small
+ladder, one binary (`/tmp/oxB9`):
+
+| model                    | off                 | pruned      | pruned and folded            |
+| ------------------------ | ------------------- | ----------- | ---------------------------- |
+| `A1`                     | refused             | runs        | runs, same victims as pruned |
+| `A2`, `A4`, `A7`, `A8`   | refused             | runs        | runs, same victims           |
+| `A3`                     | runs                | runs        | runs, same victims           |
+| `A5`, `A6`               | refused             | refused     | refused, same victims        |
+| `B6`                     | 18 victims, refused | 12, refused | 16, refused                  |
+| `GearConstraint`         | runs                | refused     | **runs**                     |
+| `SMR_Inverter_Polyphase` | runs                | refused     | refused (the monitor)        |
+
+`GearConstraint` folded agrees with the unpruned run over 1001 rows to
+3.4e-10 relative. `B6` is refused all three ways and walks a different
+road under the fold, which the corpus pair has to judge.
+
+The corpus pair, one binary (`/tmp/oxB9`, `state/m401_corpus_off.txt`
+and `state/m401_corpus_fold.txt`, run one after the other under a 20
+GB ceiling, peaks 8.5 and 7.7 GB):
+
+```text
+off     961 flatten, 752 run; runnable 844, 709   4347 ms flat, 6581 ms run
+folded  961 flatten, 753 run; runnable 844, 709   4104 ms flat, 6294 ms run
+won   PendulumWithSpringDamper, SMEE_DOL and SMEE_Rectifier (FundamentalWave),
+      SMPM_Braking, SMPM_CurrentSource, SMPM_NoLoad (Machines),
+      MotorWithCurrentControl (Blocks.Noise utility)
+lost  SMR_Inverter_Polyphase, SMR_Inverter, SMPM_VoltageSource (FundamentalWave),
+      SMEE_DOL (Machines), ActuatedDrive, BevelGear1D (MultiBody)
+```
+
+The off list matches the m400 retreat list (`final_on`) name for name.
+Seven are won and six are lost, so the rule cannot go in. The six
+losses, run three ways with `--only-from` on one binary: unpruned, all
+six run. Pruned, five run and only `SMR_Inverter_Polyphase` is lost
+(the monitor, above). Pruned and folded, none run. So the fold costs
+five models of its own while it saves `GearConstraint`. It changes
+more than the row it was built to match.
+
+**Candidate 2: fold only zero elements of arrays.** The zero that cut
+`GearConstraint` is an axis element, `e[2]`. So the fold was narrowed
+to parameters that are elements of an array (the same
+`element_of_an_array` set the m400 spare probe read,
+`OX_PROBE_PRUNE_FOLD_ELEMENTS=1`). It was measured on the fourteen
+names of the pair (the 7 won, the 6 lost, and `GearConstraint`), one
+binary (`/tmp/oxB10`):
+
+| name                                 | folded | elements only |
+| ------------------------------------ | ------ | ------------- |
+| the seven won and `GearConstraint`   | run    | run           |
+| `SMR_Inverter`, `SMPM_VoltageSource` | lost   | **run**       |
+| `ActuatedDrive`, `BevelGear1D`       | lost   | lost          |
+| `SMEE_DOL` (Machines)                | lost   | lost          |
+| `SMR_Inverter_Polyphase`             | lost   | lost          |
+
+`ActuatedDrive` shows why. The rotor with 3D effects writes
+`der(w_a[1]) = ((w_a[2]*nJ[3]*w - w_a[3]*nJ[2]*w - t[1]) / e[1]) /
+nJ[1]`, and with `nJ[2] = nJ[3] = 0` (array elements, the rotor's
+inertia axis) the fold takes `w_a[2]` and `w_a[3]` out of it. That is
+right for the row of this equation. But it is also the only equation
+that still named them for the walk, and the refusal is now `no equation
+determines der(rotor1D.rotorWith3DEffects.w_a[1])`. A zero that cuts a
+row is local to that row. A zero folded into the expression changes
+what every later differentiation of the expression can reach, and that
+reach is not local. The same rule seen before: true locally, and not
+safe for a pass that outlives the locality.
+
+**What is left for the question.** The pruning has two losses with
+two different causes, and neither is a discriminator in the matching:
+
+1. `SMR_Inverter_Polyphase` is the selection monitor. The pruning took
+   away a NaN that hid an alternative's weight through the cone, and
+   the weight that took its place sends the run into a rebuild that
+   resumes at t = 0 and ends in the same stall. The question is the
+   monitor's: whether a weight that grows by two orders of magnitude
+   in 5e-4 s is a selection going bad, or a cone reaching through a
+   division by a near-zero.
+2. `GearConstraint` is a row that drops `phi` while the expression
+   keeps it under a zero coefficient. Folding the expression to match
+   saves it, and in `ActuatedDrive`, `BevelGear1D` and `SMEE_DOL` it
+   costs the names the walk reaches only through that expression.
+
+So m400's reading, that the pendulum and `GearConstraint` stand on one
+question from two sides, is right about `GearConstraint` and wrong
+about `SMR_Inverter_Polyphase`, which stands on another question. Both
+candidates are parked with their probes
+(`state/m401_probe_full.diff`, switches `OX_PROBE_PRUNE_FOLD` and
+`OX_PROBE_PRUNE_FOLD_ELEMENTS`). Nothing is merged.
+
+**The family that constrains no state** (item 3, the 32 models of
+m399's raw half, `--only-from` with `OXIDELICA_WHERE=1`, unpruned,
+`/tmp/m401/cns_refused.txt`). On today's tree 25 still refuse with
+the phrase, at `compile.rs:2574`, the singular-subset loop's own
+refusal. Seven have moved to other walls: `SMEE_Generator`
+(FundamentalWave) runs, five machines are refused by their algebraic
+loops in `solvers/mod.rs` (1878 twice, 1900, 1905, 2070), and
+`Engine1b` by `cannot differentiate` at `compile.rs:2411`. The 25 by
+the head of the equation:
+
+| head                                   | models | who                                                                                                                                                 |
+| -------------------------------------- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| a free connector's flow, `x.i = 0`     | 11     | OpAmp circuits ×4 (`Add`, `Gain`, `Buffer`, `Feedback`), `Nand`, `RealSwitch`, `AnalysatorAC/DC`, two FluxTubes actuators, `Transformer3PhaseYy...` |
+| the two `SpringDamperNoRelativeStates` | 2      | `flange_b.tau = 0`, `flange_b.f = 0`                                                                                                                |
+| a machine's speed, `w - der(phi) = 0`  | 5      | `SMPM_NoLoad`, QuasiStatic `SMPM_CurrentSource`, `SMPM_MTPA`, `SMPM_FieldWeakening`, `SMR_CurrentSource`                                            |
+| a transformer's `der(reference.gamma)` | 2      | `TransformerTestbench`, `IMC_Transformer`                                                                                                           |
+| a MultiBody frame's `der(R...) = 0`    | 2      | `DoublePendulum`, `LineForceWithTwoMasses`                                                                                                          |
+| a sensor's current sum                 | 1      | `ActuatorWithNoise`                                                                                                                                 |
+| a tank's port flow                     | 1      | `TanksWithOverflow`                                                                                                                                 |
+| a winding's current sum                | 1      | `Transformer1PhaseWithHysteresis`                                                                                                                   |
+
+The largest head is not a model at all: fourteen of the 25 are
+components the check counts as examples (no `experiment`, no example
+icon, in `Examples.Utilities` or `...Components`), and what refuses is
+the open connector that the enclosing example would have connected.
+That half of the row is a question of what the check calls an example,
+not of index reduction. The machines' five are one layer (the speed
+equation against the rotor's angle) and are the next probe; the two
+MultiBody frames and the two transformers are each their own.
