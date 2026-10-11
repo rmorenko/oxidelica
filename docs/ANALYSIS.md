@@ -40750,3 +40750,147 @@ fix does not make the run dearer than flattening.
 `do not mention` wall above. Each is red for its own link and for no
 neighbouring one, and neither is put in `tests/small` until a fix
 says which link it guards.
+
+## The pendulum's road walked to its end, the census after the dummy, the ratio's spread (m399)
+
+**Where the pendulum stands on a clean tree.** On 4229adb,
+`PendulumWithSpringDamper` run from the root of the library
+(`/tmp/m399/psd.txt`) stops where m397 left it, at the first link:
+`damper1.e_rel_0[1] = damper1.r_rel_0[1] / damper1.s` of a block is
+-inf at t = 0, because reduction 1 spends `body1.frame_a.r_0[3]` and
+`damper1.s` stays a state at its start of 0. The small model `A1`
+(`state/m399/A1.mo`, a copy of m397's) refuses the same way. The
+second link, the dummy pushed twice, is merged (f3d1bd0), so it is
+seen only with the first link forced.
+
+**The third link.** With reduction 1 forced to `damper1.s`
+(`OX_PROBE_FORCE=1:damper1.s`, re-ported by hand to this tree), `A1`
+now passes the ledger and stops at the third link the brief named:
+the residual of the one-unknown block `damper1.f` is NaN at t = 0
+and reads `body1.v_0[1]`, `body1.v_0[2]` and
+`der(damper1.r_rel_0[3])` as NaN. The rows above it were solved by
+dividing by the slope of the guard `s = max(length, s_small)`,
+`if length > s_small then 1 else 0`. That is 0 at the start, where
+`length` is 0. That division is what `branch_is_zero` in
+`symbolic.rs` was written to refuse (2ce6af4, `semiLinear`), and it
+does refuse it in the linear solve. The row reaches the block from
+the matching's side, and that guard is not on that path. The
+victim list is the same with and without the pruning below, so the
+third link is not in the reduction's choice. It is in which row
+defines which name.
+
+Under the pruning of m397 as well (`OX_PROBE_PRUNE`, a name leaves a
+row of the matching's incidence where its slope, folded with the
+parameters, is the number zero), `A1` **runs**. Its numbers were
+checked against a hand-written ODE of the same pendulum in polar
+form, with a radial damper `d*der(s)`, RK4 at h = 1e-5:
+
+```text
+t     revolute.phi        revolute.w          prismatic.s       prismatic.v
+      ref       oxidelica ref       oxidelica ref     oxidelica ref     oxidelica
+0.25  -0.12243  -0.12239  -0.97624  -0.97592  0.50835 0.50834   0.13194 0.13185
+0.5   -0.47761  -0.47746  -1.80523  -1.80472  0.62681 0.62672   0.98473 0.98409
+1.0   -1.31485  -1.31468  -1.02967  -1.03003  2.07044 2.06956   4.88141 4.87922
+```
+
+The difference is at most 4.5e-4 relative, which is dopri45 at its
+own tolerance. `PendulumWithSpringDamper` itself, under the same two
+probes from the root of the library (`/tmp/m399/psd_fp.txt`),
+flattens and runs. So the road has an end, and it has two links
+still to build. The first is the slope against the weight at
+reduction 1, the m397 question. The second is the pruning, which
+m397 measured at 8.5 minutes on the point masses and which has its
+open `IMC_YDarc` question. Neither is a cheap link, so neither was
+merged. The two probes together are in
+`state/m399/force_prune_probes.diff`. The force probe is not a fix:
+it names one victim by hand. What it shows is that once reduction 1
+keeps the angle, nothing past the pruning stands in the pendulum's
+way.
+
+**The census on the new tree** (`state/m399/census.txt`, raw half
+`raw.txt`, taken on 99ec8fc's compiler, which 4229adb and 6e46ec1 do
+not change). Counted by the section boundaries, the flatten half is
+67 models in 39 rows, the same as m394. The run half is 211 models in
+136 rows, against 218 in 143 (`/tmp/m394/census.txt`). That agrees
+with 1028 - 961 = 67 and 961 - 750 = 211. The top of the run half is
+`the Newton direction of algebraic loop` 10, `singular Jacobian` 10,
+`underdetermined algebraic loop` 8 and `X of algebraic loop` (a
+residual not a number) 8. The top of the flatten half is the
+external C functions, 6.
+
+The `no equation determines` rows went from 18 models in 14 rows to
+10 in 7. By name, from the raw halves of the two censuses:
+
+| model                                     | now                                                  |
+| ----------------------------------------- | ---------------------------------------------------- |
+| FundamentalWave `EddyCurrentLosses`       | runs                                                 |
+| MultiBody `HeatLosses`                    | runs                                                 |
+| MultiBody `SpringDamperSystem`            | runs                                                 |
+| Rotational3DEffects `ActuatedDrive`       | runs                                                 |
+| Rotational3DEffects `BevelGear1D`         | runs                                                 |
+| HeatTransfer `GenerationOfFMUs`           | runs                                                 |
+| HeatTransfer `Utilities.InverseCapacity`  | `initial value of mass.T is fixed`, its own row      |
+| Rotational3DEffects `MovingActuatedDrive` | `the equations of algebraic loop ... do not mention` |
+
+Six run. Two stop at a later wall. `MovingActuatedDrive` was not
+named by m398. It now stops at `t = 0.005` with
+`bodyCylinder.body.z_a[3]` unmentioned by its block, so it ran five
+milliseconds before failing. The seventh model that runs,
+`DifferenceAmplifier`, was in another row. No model entered the
+`built, would not run` half that was not there before.
+
+**The run/flatten ratio of the library job, sixteen real prints.**
+Every library job of push CI from 6251721 to 99ec8fc that ran the
+library (docs-only runs skip it), read from its log
+(`/tmp/m399/ci/job_*.txt`). The ratio is the one the band holds,
+the per-model times without the uncounted `IMC_YDarc`. The last
+column is that one model's running time on the runner. It is a
+model run whole on every print, so it shows the runner's speed and
+not this compiler's:
+
+```text
+commit   verdict  job     flatten/run  ratio  IMC_YDarc run
+6251721  success  136min  961/734      1.202  3567s
+cf04f73  success  106min  961/734      1.127  2051s
+7d0b4ab  success  137min  961/736      1.215  3785s
+72a2372  success  138min  961/738      1.136  3420s
+9be98b9  success   90min  961/738      1.156  1379s
+0441528  success  112min  961/738      1.180  1518s
+b71dd3d  success  147min  961/741      1.254  3312s
+569e836  success  139min  961/741      1.169  2846s
+55e3254  success  144min  961/742      1.197  3823s
+7028e4f  success  142min  961/742      1.194  3256s
+d481752  success   98min  961/742      1.222  1358s
+b694b23  success  145min  961/742      1.290  3792s
+e3a6005  failure  163min  961/743      1.675  3613s
+934d5b8  success  155min  961/743      1.379  3492s
+0cb1a5d  failure  148min  961/743      1.513  3400s
+99ec8fc  failure   95min  961/750      1.478  1556s
+```
+
+Mean 1.274, standard deviation 0.152, from 1.127 to 1.675. Two things
+can be read from it, and neither is a verdict on the band. First, the
+runner's own speed moves by a factor of two to three:
+`IMC_YDarc` takes 1358 s to 3823 s for the same work, and the job
+takes 90 to 163 minutes. Second, the ratio has crept up with the
+run count, from about 1.15 at 734 to 738 runs to 1.38 to 1.68 at
+743 and over. Every model that starts to run adds running time and
+no flattening time. The three red prints are the three highest, and
+0cb1a5d and 934d5b8 are the same compiler at 1.513 and 1.379. That
+is a spread of 0.13 from weather alone, at a point where the band's
+ceiling has 0.12 to 0.37 left. The band is not moved here. The
+numbers are for the review.
+
+**Sleep and the corpus.** The loop now keeps the desk awake for a
+shift and its review and no longer (`caffeinate -i -s -w <driver>` in
+`flow.sh`, checked by hand on a stand: the assertion shows in
+`pmset -g assertions` while the driver lives, and is gone after a
+normal exit and after `kill -9`). Whether sleep had touched a corpus
+measurement was asked of `pmset -g log`. The twenty corpus runs of
+`/tmp/m394` to `/tmp/m398` over ten minutes long were each checked
+against the sixty sleep intervals the log holds from 2026-10-08. None
+of them overlaps one: every desk pair of those days was taken awake.
+A run that did cross a sleep would print less time than its wall
+clock, since the times are taken with `Instant`. So the comparison of
+printed against wall time is the check for a future pair, and it
+costs nothing.
