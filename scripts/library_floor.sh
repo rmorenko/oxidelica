@@ -1270,7 +1270,17 @@ FLATTEN_FLOOR=961
 # name in the same log, and both are left out:
 #
 #   743 printed - 1 SpringWithMass - 1 SMPM_VoltageSource = 741
-RUN_FLOOR=741
+#
+# And run 748 = 741 + the seven the dummy given once lets run
+# (f3d1bd0): HeatLosses, SpringDamperSystem, BevelGear1D, ActuatedDrive,
+# EddyCurrentLosses, HeatTransfer GenerationOfFMUs and
+# DifferenceAmplifier. The runner printed 961 / 750 and runnable
+# 844 / 707 on 99ec8fc, in job 114379354140 of push run 38108622514,
+# at a ratio of 1.478. Both swings ran again, by name in the same log,
+# and both are left out:
+#
+#   750 printed - 1 SpringWithMass - 1 SMPM_VoltageSource = 748
+RUN_FLOOR=748
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -1529,7 +1539,12 @@ RUNNABLE_FLATTEN_FLOOR=844
 # by the same runner job as `RUN_FLOOR` (55e3254, job 113771681244),
 # which printed 700; the two left out are SpringWithMass and
 # SMPM_VoltageSource, as there.
-RUNNABLE_RUN_FLOOR=698
+#
+# And runnable run 705 = 698 + the seven of f3d1bd0, all runnable, by
+# the same runner job as `RUN_FLOOR` (99ec8fc, job 114379354140), which
+# printed 707; the two left out are SpringWithMass and
+# SMPM_VoltageSource, as there.
+RUNNABLE_RUN_FLOOR=705
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
