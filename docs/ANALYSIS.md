@@ -41405,6 +41405,22 @@ components the check counts as examples (no `experiment`, no example
 icon, in `Examples.Utilities` or `...Components`), and what refuses is
 the open connector that the enclosing example would have connected.
 That half of the row is a question of what the check calls an example,
-not of index reduction. The machines' five are one layer (the speed
-equation against the rotor's angle) and are the next probe; the two
-MultiBody frames and the two transformers are each their own.
+not of index reduction. The two MultiBody frames and the two
+transformers are each their own.
+
+The machines' five were probed with the victim probe (`SMPM_NoLoad`,
+`SMPM_MTPA`, `SMR_CurrentSource`, unpruned). They are one family. In
+each one the rotor's speed is set from outside, by `Speed(exact =
+true)` or a `w_fixed` load. Earlier reductions have already demoted
+both of the rotor's states, `inertiaRotor.phi` and then
+`inertiaRotor.w`, and the equation that is left, `wMechanical =
+der(inertiaRotor.phi)`, has no state to take. In the last walk of
+`SMPM_NoLoad` (the probe prints several, since the retreat fires) these
+are `smpm.inertiaRotor.phi` at reduction 8, the speed source's own
+`speed.phi` at 13 and `smpm.inertiaRotor.w` at 15, and reduction 16 is
+refused. The QuasiStatic machines carry a transient twin
+(`smr` beside `smrQS`) joined at the shaft, and both rotors' `w` go
+the same way. The next probe is to ask why a rotor that is driven
+from outside keeps neither of its states once the source has given up
+its `phi`. The retreat does not reach this case, because nothing here
+is anchored by `fixed`.
