@@ -1280,7 +1280,21 @@ FLATTEN_FLOOR=961
 # and both are left out:
 #
 #   750 printed - 1 SpringWithMass - 1 SMPM_VoltageSource = 748
-RUN_FLOOR=748
+#
+# And run 750 = 748 + SMEE_Generator and SMPM_VoltageSource of
+# Electrical.Machines' SynchronousMachines, which run once the
+# reduction goes back to the step that spent a free state when only
+# anchored ones are left (9ab5210). The runner printed 961 / 752 and
+# runnable 844 / 709 on eb79c22, in job 114480391223 of push run
+# 38142945947; that job went red on the ratio band (1.745), not on a
+# count, and the counts are printed before the band is judged. Against
+# 99ec8fc (job 114379354140) its run list gained exactly those two and
+# lost nothing. The swing of the same name is FundamentalWave's, and
+# it and SpringWithMass both ran, by name in the same log, and both
+# are left out:
+#
+#   752 printed - 1 SpringWithMass - 1 SMPM_VoltageSource = 750
+RUN_FLOOR=750
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -1544,7 +1558,13 @@ RUNNABLE_FLATTEN_FLOOR=844
 # the same runner job as `RUN_FLOOR` (99ec8fc, job 114379354140), which
 # printed 707; the two left out are SpringWithMass and
 # SMPM_VoltageSource, as there.
-RUNNABLE_RUN_FLOOR=705
+#
+# And runnable run 707 = 705 + SMEE_Generator and SMPM_VoltageSource of
+# Electrical.Machines, both runnable, by the same runner job as
+# `RUN_FLOOR` (eb79c22, job 114480391223), which printed 709; the two
+# left out are SpringWithMass and SMPM_VoltageSource of FundamentalWave,
+# as there.
+RUNNABLE_RUN_FLOOR=707
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
