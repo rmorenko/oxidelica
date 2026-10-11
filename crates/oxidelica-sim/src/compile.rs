@@ -1426,8 +1426,115 @@ fn pair_lost_enabled() -> bool {
 /// Where that equation constrains no state, another member of the
 /// singular subset the failed matching walked through is
 /// differentiated in its place - see [`attempt_order`].
+///
+/// A reduction may find nothing but anchored states to demote while
+/// an earlier reduction spent a free one on its way: the pendulum
+/// with a damper spends `body1.frame_a.r_0[3]` on the damper's own
+/// connection at reduction 1, because its slope there is 1 and the
+/// damper's guarded length weighs nothing, and by reduction 4 the
+/// orientation row has only the two joint coordinates the model
+/// fixed. Nothing chosen at reduction 4 can be right then. The
+/// mistake was made at reduction 1, so it is undone there: the walk
+/// starts again with that victim refused at that reduction, and the
+/// earlier reduction takes another state it reaches. A refusal stands
+/// only where it leaves a choice. A walk that still loses an anchor
+/// after [`MAX_RETREATS`] retreats is given up, and the first walk is
+/// taken whole, as it was before there was a retreat.
 #[allow(clippy::too_many_arguments)]
 fn reduce_index(
+    states: Vec<String>,
+    unknowns: Vec<String>,
+    algebraic_eqs: Vec<(Expr, Expr)>,
+    state_rhs: &mut HashMap<String, Expr>,
+    params: &HashMap<String, f64>,
+    start_env: &HashMap<String, f64>,
+    at_time: f64,
+    anchored: &dyn Fn(&str) -> bool,
+    resuming: bool,
+    programs: &HashMap<String, ClassDef>,
+) -> Result<Reduction, SimError> {
+    REFUSED_VICTIMS.with(|set| set.borrow_mut().clear());
+    let original_rhs = state_rhs.clone();
+    let mut retreats = 0usize;
+    loop {
+        RETREAT_TO.with(|cell| cell.set(None));
+        let outcome = reduce_index_once(
+            states.clone(),
+            unknowns.clone(),
+            algebraic_eqs.clone(),
+            state_rhs,
+            params,
+            start_env,
+            at_time,
+            anchored,
+            resuming,
+            programs,
+            true,
+        );
+        let Some(refused) = RETREAT_TO.with(std::cell::Cell::take) else {
+            return outcome;
+        };
+        // Out of retreats with an anchor still to lose: the refusals
+        // bought nothing, and a walk half bent by them is neither the
+        // first walk nor one that keeps the anchor. The first walk is
+        // taken again, whole.
+        if retreats == MAX_RETREATS {
+            REFUSED_VICTIMS.with(|set| set.borrow_mut().clear());
+            *state_rhs = original_rhs.clone();
+            let _ = take_minted_derivatives();
+            let _ = take_needed_derivatives();
+            return reduce_index_once(
+                states,
+                unknowns,
+                algebraic_eqs,
+                state_rhs,
+                params,
+                start_env,
+                at_time,
+                anchored,
+                resuming,
+                programs,
+                false,
+            );
+        }
+        if std::env::var_os("OXIDELICA_VICTIM_PROBE").is_some() {
+            eprintln!(
+                "retreat: reduction {} may not take `{}`, starting again",
+                refused.0, refused.1
+            );
+        }
+        REFUSED_VICTIMS.with(|set| set.borrow_mut().push(refused));
+        *state_rhs = original_rhs.clone();
+        let _ = take_minted_derivatives();
+        let _ = take_needed_derivatives();
+        retreats += 1;
+    }
+}
+
+/// How many times the walk may start again with an earlier victim
+/// refused. Each retreat repeats the reductions before it, so the
+/// bound is a bound on time as well.
+const MAX_RETREATS: usize = 4;
+
+/// Whether a reduction left with only anchored states may send the
+/// walk back to the earlier reduction that spent a free one. On by
+/// default; `OXIDELICA_NO_RETREAT=1` keeps the first walk, as before.
+fn retreat_enabled() -> bool {
+    std::env::var_os("OXIDELICA_NO_RETREAT").is_none()
+}
+
+thread_local! {
+    /// The victims refused to the walk, by the reduction that took them.
+    static REFUSED_VICTIMS: std::cell::RefCell<Vec<(usize, String)>> =
+        const { std::cell::RefCell::new(Vec::new()) };
+    /// Set by a reduction that found only anchored states and an
+    /// earlier free victim on its reach: where the walk should retreat.
+    static RETREAT_TO: std::cell::Cell<Option<(usize, String)>> =
+        const { std::cell::Cell::new(None) };
+}
+
+#[allow(clippy::too_many_arguments)]
+fn reduce_index_once(
     mut states: Vec<String>,
     mut unknowns: Vec<String>,
     mut algebraic_eqs: Vec<(Expr, Expr)>,
@@ -1438,8 +1545,11 @@ fn reduce_index(
     anchored: &dyn Fn(&str) -> bool,
     resuming: bool,
     programs: &HashMap<String, ClassDef>,
+    may_retreat: bool,
 ) -> Result<Reduction, SimError> {
     let mut dummies: HashMap<String, String> = HashMap::new();
+    // Which reduction demoted each state, for a retreat to name.
+    let mut taken_at: HashMap<String, usize> = HashMap::new();
     EVER_GROUNDED.with(|set| set.borrow_mut().clear());
     // States named in the right-hand side of an already-demoted state:
     // when `y` goes, its `der(y) = vy` marks `vy` as the companion the
@@ -2245,10 +2355,13 @@ fn reduce_index(
                     resuming,
                     programs,
                     &candidates,
+                    &taken_at,
+                    may_retreat,
                 )?
                 else {
                     return Ok(false);
                 };
+                taken_at.insert(victim.clone(), reductions);
                 let dummy = derivative_name(&victim);
                 let victim_rhs = state_rhs
                     .remove(&victim)
@@ -2512,6 +2625,8 @@ fn choose_the_victim(
     resuming: bool,
     programs: &HashMap<String, ClassDef>,
     defining: &[(String, Expr, usize)],
+    taken_at: &HashMap<String, usize>,
+    may_retreat: bool,
 ) -> Result<Option<String>, SimError> {
     // Demote a state the constraint actually constrains. The
     // choice is a pivot: the constraint has to *determine* the
@@ -2564,7 +2679,10 @@ fn choose_the_victim(
     // weighs exactly what it weighed before.
     let probing = std::env::var_os("OXIDELICA_VICTIM_PROBE").is_some();
     let mut spent: Vec<String> = Vec::new();
-    if probing {
+    // The same walk is what a retreat reads, so it is taken wherever
+    // the walk may retreat as well as under the probe.
+    let may_retreat_here = may_retreat && !resuming && retreat_enabled();
+    if probing || may_retreat_here {
         let mut queue: Vec<String> = Vec::new();
         let mut direct = Vec::new();
         residual.collect_refs(&mut direct);
@@ -2694,6 +2812,27 @@ fn choose_the_victim(
     } else {
         favoured
     };
+    // A victim an earlier walk was sent back from is not offered here
+    // again, unless refusing it leaves nothing to take.
+    let candidates: Vec<String> = {
+        let refused: Vec<String> = REFUSED_VICTIMS.with(|set| {
+            set.borrow()
+                .iter()
+                .filter(|(at, _)| *at == reduction)
+                .map(|(_, name)| name.clone())
+                .collect()
+        });
+        let kept: Vec<String> = candidates
+            .iter()
+            .filter(|name| !refused.contains(name))
+            .cloned()
+            .collect();
+        if kept.is_empty() {
+            candidates
+        } else {
+            kept
+        }
+    };
     // A state the model anchored - a start it declared as fixed - is
     // the worst thing to demote: demoted, its value is solved from
     // the constraints, and the initial condition the model wrote
@@ -2749,6 +2888,27 @@ fn choose_the_victim(
     // take over at a pendulum's turning point, and the monitor had
     // nothing to compare against.
     let before_anchor = candidates.clone();
+    // Nothing but anchored states left, while an earlier reduction
+    // spent a free one this constraint reaches: that is where the
+    // anchor was lost, and the walk goes back to it rather than break
+    // the condition the model wrote. The latest such victim is the one
+    // refused, since it is the nearest decision that could have left
+    // this one a free state.
+    if may_retreat_here && free.is_empty() && !candidates.is_empty() {
+        let already: Vec<(usize, String)> = REFUSED_VICTIMS.with(|set| set.borrow().clone());
+        let back_to = spent
+            .iter()
+            .filter(|name| !anchored_below(name))
+            .filter_map(|name| taken_at.get(name).map(|&at| (at, name.clone())))
+            .filter(|pair| !already.contains(pair))
+            .max();
+        if let Some(pair) = back_to {
+            RETREAT_TO.with(|cell| cell.set(Some(pair)));
+            return err(format!(
+                "index reduction {reduction} found only anchored states to demote"
+            ));
+        }
+    }
     let candidates = if free.is_empty() { candidates } else { free };
     // The runtime monitor compares the victim against exactly the
     // set the pivot weighed - alternatives of another derivative

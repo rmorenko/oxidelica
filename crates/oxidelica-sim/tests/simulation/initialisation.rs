@@ -1851,3 +1851,40 @@ fn a_section_one_condition_over_is_solved_if_it_agrees_and_named_if_not() {
     assert!(error.contains("initial equation 2 `y = 2`"), "{error}");
     assert!(error.contains("off by -1e0"), "{error}");
 }
+
+/// A reduction left with nothing but a fixed state to demote sends the
+/// walk back to the earlier reduction that spent a free one.
+///
+/// `x + sin(x) + z^3 = 1` takes `x`, its slope there being the larger,
+/// and `x + y = 1` then reaches only `y`, which the model fixed. Taken
+/// from there, the start the model wrote was solved away from it. Sent
+/// back, the first reduction takes `z`, the second takes `x`, and `y`
+/// stays a state that starts where it was told to.
+#[test]
+fn a_fixed_state_is_kept_by_undoing_an_earlier_victim() {
+    let model = parse_model(
+        "model R parameter Real e = 0; \
+         Real x(start = 0.25), y(start = 0.6, fixed = true), z(start = 0.5); Real u, v, w; \
+         equation der(x) = u; der(y) = v; der(z) = w; w = -z; \
+         x + sin(x) + e*z + z^3 = 1; x + y = 1; \
+         annotation(experiment(StopTime = 1)); end R;",
+    )
+    .unwrap();
+    let compiled = compile(&model).unwrap();
+    assert!(
+        compiled.states.iter().any(|s| s == "y"),
+        "the fixed state was demoted: {:?}",
+        compiled.states
+    );
+    let result = compiled.simulate().unwrap();
+    let column = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+    let first = &result.rows[0];
+    assert!(
+        (first[column("y")] - 0.6).abs() < 1e-12,
+        "y = {}",
+        first[column("y")]
+    );
+    for row in &result.rows {
+        assert!((row[column("x")] + row[column("y")] - 1.0).abs() < 1e-6);
+    }
+}
