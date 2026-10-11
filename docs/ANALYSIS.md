@@ -40621,3 +40621,132 @@ model, so which models those are was not read) and 9 for the point
 masses' `pointMass1.r_0`. So the decision is cheap and costs nothing
 that runs, and it wins nothing yet: each of the three it moves stops
 one wall later. A series on it is measured by those three names.
+
+## The point masses' second link, and a dummy pushed twice (m398)
+
+**The second link of the point masses' road** (`B6` under the member
+probe of m397; probes in `state/m398_probes.diff`, logs in
+`state/m398`). The dead column is
+`der(der(freeMotion.R_rel.T[3,1]))`. A print of the block's rows at the
+dead-column refusal (`OX_PROBE_DEAD_ROWS`, `B6r.log`, walked by
+`walk.py`) shows where its definition went. The row that defines it,
+`R_rel.T[3,1] = 2*(Q[3]*Q[1] + Q[2]*Q[4])` twice differentiated, is
+matched to `der(der(freeMotion.Q[2]))`, solved by dividing by
+`-2*Q[4]`. In every other row that names it, it stands beside a
+coefficient that is zero at the start. In
+`frame_b.R.T[3,j] = R_rel.T[3,1]*frame_a.R.T[1,j] + ...` that
+coefficient is the free motion's `frame_a.R`, which is the world's
+`nullRotation` through `world.frame_b.R.T[i,j] = freeMotion.frame_a.R.T[i,j]`.
+That is not a parameter. It is a variable that two equations pin to a
+number. So the column is dead by its folded slope, the m389/m390
+pairing fault, but the zero comes from a pinned variable and not from
+a parameter.
+
+Four probes walked the chain one link at a time on `B6`:
+
+```text
+probe set                                 B6 stops at
+member (m397)                             do not mention der(der(freeMotion.R_rel.T[3,1]))
++ prune by parameters (m397)              no equation determines der(freeMotion.R_rel.T[1,2])
++ prune by pinned variables (PINNED)      no equation determines der(freeMotion.R_rel.T[2,1])
+member + skip constant rows (CONSTROW)    do not mention der(fixedTranslation.frame_a.R.T[3,3])
+  + pinned names do not move              the same
+  + prune by pinned variables             no equation determines der(fixedTranslation1.frame_a.R.T[3,1])
+```
+
+`CONSTROW` passes over a member of the singular subset whose two
+sides are numbers or pinned names. Reductions 2 to 10 of `B6` are
+rows like `world.frame_b.R.T[1,1] = freeMotion.frame_a.R.T[1,1]`,
+which equate two constants. They reach states only through
+reach-weights of zero and demote `freeMotion.Q`, `r_rel_a` and
+`v_rel_a`, three of them `StateSelect.always`. With those rows passed
+over, the victims are `Q[4]`, the masses' `r_0` and `v_0`, and the
+free motion's `r_rel_a` and `v_rel_a`, which is the set a person would
+pick. The refusal then moves to the derivative of an orientation entry
+that is also pinned, `der(fixedTranslation.frame_a.R.T[3,3])`, next to
+the zero `r[3]` of `fixedTranslation`.
+With the third coordinate made non-zero (`B6z`, `B6z3`) the dead
+column moves to `der(der(freeMotion.Q[1]))` or the block becomes
+singular, so the zero coordinate is not the only wall.
+
+On `PointGravityWithPointMasses2` itself (`pg2c.log`), `CONSTROW` and
+the member probe together take 125 reductions against 93 and stop at
+`pointMass4.a_0[2] - der(der(pointMass4.frame_a.r_0[2]))`, an equation
+that constrains no state, and none of the 31 other equations of its
+singular subset does either.
+
+So the answer to the brief's question is: **the same wall as
+`der(R.T/R.w)` of m390**, read one level further on. A rotation entry
+that is constant once the model is folded, here because the world pins
+the free motion's `frame_a.R` and not because of a zero in `n`, is
+held by the matching as an unknown with a definition whose slope is
+zero. It is a different source of the constant (pinned variables in
+place of parameters), and the cure m390 measured (`does_not_move` on a
+zero product, the pruning by parameters) does not see it. The chain is
+at least four links: constant rows taken as members, the pinned
+`frame_a.R` read as moving, the zero coordinate `r[3]`, and the
+reductions that stop at `pointMass4`. It is a series, not a small
+fix. A corpus pair on `CONSTROW` was started and stopped at 824 of
+1028 to give the machine to the fix below. It is not a candidate to
+merge alone. The member probe is not merged either, as the brief said.
+
+**The pendulum's second link: a dummy pushed twice.** On `A1` with
+reduction 1 forced to `damper1.s` (`OX_PROBE_FORCE`), a print at the
+derivative ledger (`OX_PROBE_NEEDED`) shows that `der(damper1.s)` is
+among the unknowns **twice**, at 994 with no row and at 998 matched to
+row 997, `der(damper1.s) = damper1.f / damper1.d`. The ledger looks a
+name up by its first place, finds the copy the matching left out and
+refuses with `no equation determines der(damper1.s)`.
+
+The second copy comes from demotion. The damper writes
+`f = d*der(s)`, so `der(s)` is an unknown of the model and the row
+`der(s) = f/d` is in the system. When `s` is demoted, its dummy is
+`der(s)` and its former state equation is that same row, and both were
+pushed again: two unknowns of one name and two copies of one row. The
+guard that already existed caught only `der(v) = der(v)`.
+The smallest model with this fault is 13 lines (`state/m398/DT4.mo`):
+`f = d*der(s); lossP = f*der(s); der(q) = -q; q = 2*s`, with `q`
+kept. Main refuses it. With the pushes skipped it runs, with
+`q = 2/e`, `s = 1/e` and `f = -2/e` at t = 1.
+
+This is not the PSD link the brief asked about. The pendulum still
+stops at its first link, the slope against the weight, which comes
+before the duplicate. But the same duplicate is the whole wall of five
+models in the census row `no equation determines`. Under the probe
+each of them runs, one at a time (`/tmp/m398/ds_*.txt`):
+`MultiBody.Examples.Elementary.HeatLosses`, `SpringDamperSystem`,
+`Rotational3DEffects.BevelGear1D`,
+`FundamentalWave.Examples.Components.EddyCurrentLosses` and
+`HeatTransfer.Examples.GenerationOfFMUs`. These are the
+`matched Some(None)` names of the table above, which a chapter long
+ago read as "a name the matching has a row for and left unmatched".
+It was. The name it had a row for was the other copy.
+
+So the fix was built at once, by the rule for a link that is cheap.
+A dummy is not pushed when the system already holds that name and a
+row that sets it to the same right-hand side. A different right-hand
+side would be a relation the system lacks, and it is still pushed.
+`OXIDELICA_NO_DUMMY_ONCE=1` gives back the old pushes for a pair. The
+test `a_state_whose_derivative_the_model_solved_is_demoted_once` checks
+the four numbers of `DT4`. It was seen to fail without the fix, with
+main's refusal word for word.
+
+The pair was taken with one binary on the desk, with the switch on and
+off (`f_off.txt` and `f_on.txt` in `state/m398`). Flatten is 961 on
+both sides. Run goes from 743 to 750 and runnable run from 700 to 707.
+The run lists differ by seven names gained and none lost: the five
+above, `Rotational3DEffects.ActuatedDrive` (the second `der(rot...`
+model of the same row) and `Analog.Examples.DifferenceAmplifier`, which
+was refused with `cannot differentiate a non-constant ...` and so stood
+behind this wall in another row. The `no equation determines` rows held
+18 models and hold 10. The eighth is `InverseCapacity` of
+`HeatTransfer`'s utilities. It leaves the row and does not run: it now
+stops one wall later, at `initial value of mass.T is fixed`, a row of
+its own. The time per model is
+3916 ms flattening and 5404 ms running against 3820 and 5415, so the
+fix does not make the run dearer than flattening.
+
+**The small models.** `A1` stops at the PSD first link and `B6` at the
+`do not mention` wall above. Each is red for its own link and for no
+neighbouring one, and neither is put in `tests/small` until a fix
+says which link it guards.
