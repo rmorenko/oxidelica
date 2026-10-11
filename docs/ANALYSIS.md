@@ -41546,3 +41546,28 @@ candidate is a different compiler for the point masses even where the
 counts do not move, and that, together with `SMPM_OpenCircuit` getting
 only one wall further, is the reading to take into the series rather
 than the +2.
+
+**The quasi-static network's angles, one step further.** In
+`TransformerTestbench` 39 of the 40 reductions differentiate a bare
+alias between two `reference.gamma`: every component of the
+quasi-static library writes `omega = der(plug_p.reference.gamma)`, so
+every angle on the network is a state, and each connection between two
+of them is a constraint that spends one. The equation left at
+reduction 40 reaches no state at all. A print of its reach (not kept)
+finds both sides defined by the same number:
+
+```text
+reach 40: der(transformer.l2sigma.plug_p.reference.gamma) -> def 314.1592653589793
+reach 40: transformer.l1sigma.inductor[1].omega            -> def 314.1592653589793
+```
+
+So the last equation is `314.159... - 314.159... = 0`, true and
+redundant, and not a constraint with a state behind it. That reads like
+one equation too many from the overconstrained graph: the angle of the
+transformer's secondary is tied to the primary's both through the
+transformer and through the network, so a connection that closes a
+ring has kept its equation for the angle. In `IMC_Transformer` the
+last equation, at reduction 66, is the same relation reached
+implicitly. The next probe for these six is the spanning tree of the
+overconstrained graph on `TransformerTestbench`: which connection
+between `l1sigma` and `l2sigma` the tree should have dropped.
