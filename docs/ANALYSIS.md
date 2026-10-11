@@ -40979,3 +40979,32 @@ the pendulum's swaps `x` for `y` and runs on, and `MD2`'s takes `r1.w`
 on the next constraint and `revolute.w` at a new reduction 12, and
 that second stretch cannot be solved. So the series, if one is
 taken, starts at the rebuild's choice and not at the monitor.
+
+**The rebuild's choice, read.** The victim probe across both
+compilations of `MD2` (`state/m399/md2_victims.txt`) shows where the
+second stretch goes wrong. On the constraint
+`revolute.frame_a.R.w[2] = r1.frame_b.R.w[2]` the rebuild weighs
+`bodyCylinder.w_a[2]` at 1.0000000000373488 and `r1.w` at
+1.000000000037347, a difference of 1.8e-15, and `max_by` hands the
+tie to `r1.w`, the later in the walk. `r1.w` is the base's speed,
+which `position1` already drives. With it spent there, the drive's
+own row `r1.w - position1.w = 0` at reduction 9 can no longer take
+it and demotes the body's `w_a[3]`, and a new reduction 13,
+`der(r1.w) = position1.a`, demotes `revolute.w`, the speed of the
+joint the torque drives, which the first build kept as a state. The
+second stretch is the one that cannot be solved.
+With that one choice forced to the body's speed
+(`OX_PROBE_FORCE=6:bodyCylinder.w_a[2]` on `MD2`, and `9:...` on the
+full `MA2`, where the same row is reduction 9), both run to 1.1 s
+with the answer of the hold probe, through the monitor's rebuild and
+not around it.
+
+So the wall is a tie the rebuild's weights cannot see as one: two
+candidates equal to rounding, and the walk deciding. The tie rule of
+the first build (`drop_the_undetermined`) is switched off on resume
+(`!resuming`, `compile.rs`), and it would not help here anyway, since
+it acts only where every weight is zero. What would tell the two
+apart is that `r1.w` is already determined by the driven `position1`.
+That is a different sign from a weight, and a rule on it changes the
+victims of every rebuild, so it is a series measured by victim lists
+and by the four pendulum tests above, not a cheap link. Not built.
