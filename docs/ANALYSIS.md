@@ -40944,9 +40944,38 @@ reading about the whole monitor, and it is not a fix: switching the
 monitor off removes a mechanism every reselectable model has, the
 heavy set was not measured, and the tests that hold the rebuild
 (`a_reselected_run_stops_where_the_caller_said_and_not_where_the_model_did`
-and its neighbours) were not run under the probe. The narrower
-question for a series is the monitor's reference taken at a start
-where the best alternative is close to zero, the same shape m348
-named for `W3` (an alternative read as zero at rest letting the
-monitor overrule a right choice). Two witnesses now, `W3` and
-`MovingActuatedDrive`. Not merged, as the brief asked.
+and its neighbours) were not run under the probe (they are below).
+`W3` of m348 is a neighbour in shape, a monitor overruling a right
+choice, and whether it is the same mechanism was not measured. Not
+merged, as the brief asked.
+
+What the probe would cost the suite was measured too (the workspace's
+tests under `OX_PROBE_HOLD=1`, `--no-fail-fast`). Five fail:
+`a_pendulum_over_the_top_reselects_its_states`,
+`a_pendulum_written_through_its_angle_does_not_freeze_at_the_turning_point`,
+`a_reselected_run_stops_where_the_caller_said_and_not_where_the_model_did`,
+`the_stiff_solver_reselects_states_like_the_adaptive_one` and
+`a_constraint_of_every_shape_is_differentiated`. The first four are
+the rebuild's own reason for being: a pendulum in Cartesian
+coordinates whose length constraint has to change the coordinate it
+defines every quarter turn. So the corpus sees no model that needs the
+rebuild, and the small models show the rebuild is needed. A series on
+the monitor has to keep those four green and win
+`MovingActuatedDrive`. A blanket hold cannot do both. The fifth,
+`a_constraint_of_every_shape_is_differentiated`, was not read and
+is not explained here.
+
+The first guess at a narrower rule was the reference ratio taken
+where the best alternative is near zero. It was printed (a line at
+the first check of each stretch, in the same probe diff), and it is
+wrong. The spinning pendulum's references are 62.5 at the start and
+6.9 to 7.7 after each rebuild. `MD2`'s is 2563. Every one is above 1,
+and the level is the reference capped at 1, so both models are held
+to the same fixed rule, own below 0.15 of best. The pendulum crosses
+it at 0.29 against 1.98 (0.148), each quarter turn, as its geometry
+says it should. `MD2` crosses it at 1 against 8.1 (0.123). The
+trigger does not tell the two apart. What differs is the rebuild:
+the pendulum's swaps `x` for `y` and runs on, and `MD2`'s takes `r1.w`
+on the next constraint and `revolute.w` at a new reduction 12, and
+that second stretch cannot be solved. So the series, if one is
+taken, starts at the rebuild's choice and not at the monitor.
