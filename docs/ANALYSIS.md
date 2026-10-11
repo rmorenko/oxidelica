@@ -41535,3 +41535,14 @@ reach that stops at a coupled air gap (`SMPM_NoLoad`, and the open-star
 shape behind the others), the quasi-static network's angles (the
 QuasiStatic machines and the two transformers, 6), and singles
 (`TanksWithOverflow`, the two MultiBody frames, `ActuatorWithNoise`).
+
+The victim witness for the candidate, one binary, `--stop` as each
+file says: `A1` to `A8` demote the same states with it as without it,
+name for name. Six of the point-mass models (`B1`, `B3`, `B6`, `B6z`,
+`B6z3`, `B7`) demote other states under it, and all six are refused
+both ways, at different walls (`B3` and `B6` move from a body's force
+balance to an algebraic loop, `B6z` to a singular Jacobian). So the
+candidate is a different compiler for the point masses even where the
+counts do not move, and that, together with `SMPM_OpenCircuit` getting
+only one wall further, is the reading to take into the series rather
+than the +2.
