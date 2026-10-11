@@ -1259,7 +1259,18 @@ FLATTEN_FLOOR=961
 # again, and both are left out:
 #
 #   742 printed - 1 SpringWithMass - 1 SMPM_VoltageSource = 740
-RUN_FLOOR=740
+#
+# And run 741 = 740 + RobotR3.Utilities.MechanicalStructure of
+# MultiBody's Systems, which the folding of the reduction's candidate
+# names lets run inside the ratio band. The runner printed 961 / 743
+# and runnable 844 / 700 on 934d5b8, in job 114323652631 of push run
+# 38089761168, at 9245ms flattening and 12749ms running, a ratio of
+# 1.379. MechanicalStructure is not a runnable example, so the
+# runnable floors do not move. Both swings named above ran again, by
+# name in the same log, and both are left out:
+#
+#   743 printed - 1 SpringWithMass - 1 SMPM_VoltageSource = 741
+RUN_FLOOR=741
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
