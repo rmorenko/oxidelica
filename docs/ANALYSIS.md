@@ -40894,3 +40894,59 @@ A run that did cross a sleep would print less time than its wall
 clock, since the times are taken with `Instant`. So the comparison of
 printed against wall time is the check for a future pair, and it
 costs nothing.
+
+**`MovingActuatedDrive`: the monitor's rebuild is the wall** (a probe,
+not merged). The model that came into the `do not mention` row
+behind the dummy fix stops at t = 0.005 with
+`bodyCylinder.body.z_a[3]` unmentioned by its block. It was shrunk
+by throwing out parts of the real model, not by writing a synthetic
+one (`state/m399/MA2.mo` is the library model with the annotations
+stripped, `MA3.mo` and `MD2.mo` the shrunk ones). The zero-inertia
+body is not the cause: the same body on a fixed base (`MA1`) runs,
+with `revolute.phi(1) = 1/(4*pi)` as the torque's double integral
+says, and so do mass, inertias and `driveTrainMechanics3D` changed
+one at a time (`MB1` to `MB4`), all of which still refuse. What the
+wall needs is the moving base, `r1` driven by a `Position` from a sine.
+With the sine replaced by a constant (`MB6`) the model runs. Without
+the torque (`MD1`) it stops at the same instant at another wall,
+`the states re-selected at t = 0.005 name different variables than the
+run so far`.
+
+Both walls are one event. A print at `selection_sound`
+(`state/m399/monitor_hold_probes.diff`, `OX_PROBE_MONITOR`) shows the
+monitor asking for a rebuild at t = 0.005245 on entry 4, the
+constraint `revolute.frame_a.R.w[1] = r1.frame_b.R.w[1]` with victim
+`bodyCylinder.w_a[1]`: its own weight is 1, and the alternative
+`revolute.w` weighs 8.1. At the first check the ratio was 2563,
+because `revolute.w` reaches the constraint through `r1`'s rotation,
+which is the identity at the start and moves only as the base turns.
+So 8.1 is not the selection going bad. It is the reference the
+relative monitor takes from a start where the alternative is nearly
+zero. The rebuild takes another set of victims (`r1.w` on entry 5,
+`revolute.w` at reduction 12), and the second stretch fails.
+
+With the monitor held to "sound" (`OX_PROBE_HOLD`), `MD2` and the full
+copy `MA2` run to 1.1 s. `revolute.phi` and `rotor1D.phi` agree to
+1e-14 and reach 0.0796 at t = 1, which is 1/(4*pi) again. That is
+the answer of a fixed base: the body's only inertia is about its own
+x axis, which is normal to the base's y axis of rotation, so the
+base's turning adds no torque about it. `position1.phi` follows
+`2 sin(2 pi t)` behind the filter of `Position`.
+
+A corpus pair with one binary (`/tmp/m399/oxm3`, the probe switched
+off and on, `state/m399/hold_off.txt` and `hold_on.txt`, the heavy
+set left out): flatten 961 on both sides, run 750 to 751, runnable run
+707 to 708. The run lists differ by exactly `MovingActuatedDrive`
+gained and nothing lost. Time per model 5927/8603 ms off against
+5941/8598 ms on. So on the main pass no model needs the monitor's
+rebuild to run today, and one model is killed by it. That is a
+reading about the whole monitor, and it is not a fix: switching the
+monitor off removes a mechanism every reselectable model has, the
+heavy set was not measured, and the tests that hold the rebuild
+(`a_reselected_run_stops_where_the_caller_said_and_not_where_the_model_did`
+and its neighbours) were not run under the probe. The narrower
+question for a series is the monitor's reference taken at a start
+where the best alternative is close to zero, the same shape m348
+named for `W3` (an alternative read as zero at rest letting the
+monitor overrule a right choice). Two witnesses now, `W3` and
+`MovingActuatedDrive`. Not merged, as the brief asked.
