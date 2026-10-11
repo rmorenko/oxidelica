@@ -41424,3 +41424,114 @@ the same way. The next probe is to ask why a rotor that is driven
 from outside keeps neither of its states once the source has given up
 its `phi`. The retreat does not reach this case, because nothing here
 is anchored by `fixed`.
+
+**The verdict, read again on the floors' side.** The floors were set
+from the same print after all (8cf7695): the counts of 38142945947 are
+printed before the band is judged, and its run list against 99ec8fc
+gained exactly `SMEE_Generator` and `SMPM_VoltageSource` of
+Electrical.Machines, the two the retreat was measured to win, and lost
+nothing. Run 750 and runnable run 707, the two swings left out by name
+as before. The band stays where it is until the nightly run has
+spoken.
+
+**The family that constrains no state, probed model by model** (the 25
+of `state/m401_cns_refused.txt`, one binary built from 8531efe,
+`--only` with `OXIDELICA_VICTIM_PROBE=1`). First the retreat is ruled
+out: with `OXIDELICA_NO_RETREAT=1` all 25 refuse with the same phrase,
+so it neither causes the family nor touches it. Nor do the switches
+already in the compiler that act on the subset or the weighing
+(`OXIDELICA_NO_SINGULAR_SET`, `OXIDELICA_NO_REPEAT_MEMBER`,
+`OXIDELICA_PARTIAL_SENSITIVITY`, `OXIDELICA_NO_HIDDEN_CONSTRAINT`): none
+of the six machines runs under any of them.
+
+The machines are not mechanical, which is what the earlier paragraph
+supposed. A rotor driven by `Speed` or `ConstantSpeed`, with an
+anchored angle and a stator inertia beside it, runs in a ten-line
+model. The fault comes from the electrical side. A permanent-magnet
+machine with an open star and nothing on its shaft but a zero torque
+refuses with the same phrase, at the third current law of the open
+terminals (`state/m401_S4_open_star.mo`):
+
+```text
+equation Bin(Add, Neg(Ref("tb.plugSupply.pin[3].i")), Neg(Ref("tb.plug_sp.pin[3].i"))) = Number(0.0)
+  constrains no state, ... nor did the 31 other equations of its singular subset
+```
+
+The walk to it, without the damper cage: the stator fluxes go at
+reductions 1 and 5, the two stator currents at 2 and 4 (one of them
+the rotor flux `psi_mr[1]`, taken in a tie at zero), the stator's angle
+at 5, the mechanical angles at 6 to 10, `lszero.i` at 11 and
+`lssigma.i_[1]` at 12. At 13 the reach of the third phase is empty
+while `psi_mr[2]` is still a state, and a print of the reach (not kept)
+shows where it stops:
+
+```text
+reach 13: smpm.lssigma.spacePhasor_b.i_[2] -> implicit airGap.spacePhasor_s.i_[2] + lssigma.spacePhasor_b.i_[2] = 0
+reach 13: smpm.airGap.spacePhasor_s.i_[2]  -> nothing (stop)
+```
+
+At reduction 2 the same name went on through `i_ss = R*i_sr`,
+`i_mr = i_sr + i_rr` and `psi_mr = L*i_mr` to both rotor fluxes. By
+13 those equations each name two unsettled unknowns, so none of them is
+an implicit definition ("the single unsettled one in the equation"),
+and the walk stops one step short of the state the constraint does
+pin. When the reach is empty, the singular subset differentiates
+another member in its place. With a source driving the shaft, that is
+how the speed source's angle is spent (`speed.phi` at reduction 13 of
+`SMPM_NoLoad`), and the mechanical equation left at the end has
+nothing to take: the phrase about `der(smpm.flange.phi)` that heads the
+census row.
+
+**A candidate, measured and parked.** Where the reach of the equation
+under reduction comes back empty, it is let go on through the
+equation the matching assigned to each name as well
+(`OX_PROBE_MATCHED_REACH=empty`, `state/m401_matched_reach.diff`).
+This reads structure: whether the reach found a state, and which
+equation determines a name. The small models: the driven rotor
+(`state/m401_S2_rotor_driven.mo`) runs, with zero current, zero torque
+and the flux of 0.5055 turning. The anchored one runs. The open star
+with a free shaft still refuses, now on an algebraic loop. The pair,
+one binary (`/tmp/ox401p4`), one half after the other under a 20 GB
+ceiling (`state/m401_reach_off.txt` and `state/m401_reach_empty.txt`):
+
+```text
+off    961 flatten, 752 run; runnable 844, 709   3778 ms flat, 6313 ms run
+empty  961 flatten, 754 run; runnable 844, 711   3838 ms flat, 5738 ms run
+won    SMPM_NoLoad (Machines), SMPM_OpenCircuit (QuasiStatic FundamentalWave)
+lost   none
+```
+
+`SMPM_NoLoad` run whole is physical: no current, no torque, and the
+terminal voltage's amplitude is 158.8 V at 157.08 rad/s, which is
+`VsOpenCircuit*sqrt(2)` = 112.3 x 1.414. `SMPM_OpenCircuit` passes the
+check's ten steps but a whole run stops at t = 0.0156 on a step size
+underflow. So one of the two wins is real and the other is a model
+that gets one wall further. It is not merged in this shift, because
+item 3 asked for a probe and not a change, and a change that adds
+reach adds definitions, which by the rules here wants its victim lists
+read before it goes in. The 23 the candidate does not move stand where
+they stood: the QuasiStatic machines spend reductions 20 to 23 of
+`phiMechanical = flange.phi - internalSupport.phi` on the
+`reference.gamma` angles of the quasi-static network (`SMPM_MTPA`), a
+cause of its own.
+
+**What the rest of the row is.** The component half, read in its
+source, is honest. `SpringDamperNoRelativeStates` with both flanges
+free writes `flange_a.tau = 0` and `flange_b.tau = 0` for one torque,
+so the model is singular as written. The OpAmp circuits, `Nand`,
+`RealSwitch`, the analysers and the FluxTubes components are the same
+open connector a parent would close. Those 14 are a question of what
+the check calls an example. The two transformers (`TransformerTestbench`,
+`IMC_Transformer`) end on `der(reference.gamma)` with an empty reach
+after 40 and 66 reductions spent on the quasi-static network's
+angles, the same layer as the QuasiStatic machines. `TanksWithOverflow`
+ends on `ports[2].m_flow = 0`, which is the `else` branch of the
+vessel's port equation, written for a port above the level. Under the
+candidate `DoublePendulum` moves from this row to a singular Jacobian,
+and `ActuatorWithNoise` to `no equation determines`. Neither runs.
+
+So the 25 are at least four families: the open component (14), the
+reach that stops at a coupled air gap (`SMPM_NoLoad`, and the open-star
+shape behind the others), the quasi-static network's angles (the
+QuasiStatic machines and the two transformers, 6), and singles
+(`TanksWithOverflow`, the two MultiBody frames, `ActuatorWithNoise`).
