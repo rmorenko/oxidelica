@@ -2271,7 +2271,30 @@ fn reduce_index(
                 // holding it are already in the system: there is no former
                 // state equation to hand the dummy, and adding one would say
                 // `der(v) = der(v)`.
-                if !matches!(&victim_rhs, Expr::Ref(name) if name == &dummy) {
+                //
+                // And the same for a state whose derivative the model
+                // wrote out and solved: `f = d*der(s)` leaves `der(s)` an
+                // unknown and `der(s) = f/d` a row of the system, and the
+                // state equation is that row again. Pushing both a second
+                // time makes two unknowns of one name and two copies of
+                // one row - a dependent pair the matching cannot cover,
+                // and since a name is looked up by its first place, the
+                // copy the matching left out is the one the ledger reads.
+                // It then refused `der(damper1.s)` as determined by no
+                // equation while the equation stood twice in the system
+                // (`HeatLosses`, `SpringDamperSystem`, `BevelGear1D`,
+                // `EddyCurrentLosses`, `GenerationOfFMUs`). Only the exact
+                // row is taken as already there: a different right-hand
+                // side is a relation the system does not yet hold.
+                let already_held = dummy_once() && unknowns.iter().any(|u| u == &dummy) && {
+                    let named = Expr::Ref(dummy.clone());
+                    let wanted = simplify(&victim_rhs);
+                    algebraic_eqs.iter().any(|(l, r)| {
+                        (l == &named && simplify(r) == wanted)
+                            || (r == &named && simplify(l) == wanted)
+                    })
+                };
+                if !already_held && !matches!(&victim_rhs, Expr::Ref(name) if name == &dummy) {
                     unknowns.push(dummy.clone());
                     // The former state equation `der(v) = rhs` now determines
                     // the dummy, and the differentiated constraint joins the
@@ -2349,6 +2372,14 @@ fn reduce_index(
 /// candidate in the tie, as before.
 fn tie_drops_the_undetermined() -> bool {
     std::env::var_os("OXIDELICA_NO_TIE_JOINT").is_none()
+}
+
+/// Whether a demoted state whose dummy and defining row the system
+/// already holds is given them only once. On by default;
+/// `OXIDELICA_NO_DUMMY_ONCE=1` pushes them again, as before, so that
+/// one binary gives both halves of a measurement.
+fn dummy_once() -> bool {
+    std::env::var_os("OXIDELICA_NO_DUMMY_ONCE").is_none()
 }
 
 /// Whether a reduction's candidate definition that the parameters fold

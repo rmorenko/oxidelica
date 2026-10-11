@@ -1492,3 +1492,38 @@ fn index_reduction_finds_a_star_hidden_in_a_sum_of_linear_equations() {
     let i1 = (1.0f64.sin() - mean) / 2.0;
     assert!((value("i1") - i1).abs() < 1e-9, "i1 = {}", value("i1"));
 }
+
+#[test]
+fn a_state_whose_derivative_the_model_solved_is_demoted_once() {
+    // `f = d*der(s)` makes `der(s)` an unknown of the model with the
+    // row `der(s) = f/d`, and that row is also the state equation of
+    // `s`. When `q = 2*s` takes `s` out of the states, the dummy for it
+    // is a name the system already holds, defined by a row it already
+    // holds. Pushed again, the name stood twice among the unknowns and
+    // the row twice among the equations, the matching covered one
+    // copy, and the ledger read the other: the model was refused with
+    // `no equation determines der(s)`. A damper between two frames of
+    // the multibody library is this model.
+    //
+    // With `q` kept, `q = 2*exp(-t)`, `s` is half of it and
+    // `f = d*der(s) = -2*exp(-t)`.
+    let result = run("model DT parameter Real d = 2; \
+         Real s(stateSelect = StateSelect.never); \
+         Real q(start = 2, fixed = true, stateSelect = StateSelect.always); \
+         Real f; Real lossP; \
+         equation f = d * der(s); lossP = f * der(s); der(q) = -q; q = 2 * s; \
+         annotation(experiment(StopTime = 1.0, Interval = 0.5)); end DT;");
+    let value = |name: &str| {
+        let index = result.columns.iter().position(|c| c == name).unwrap();
+        result.rows.last().unwrap()[index]
+    };
+    let e = (-1.0f64).exp();
+    assert!((value("q") - 2.0 * e).abs() < 1e-5, "q = {}", value("q"));
+    assert!((value("s") - e).abs() < 1e-5, "s = {}", value("s"));
+    assert!((value("f") + 2.0 * e).abs() < 1e-5, "f = {}", value("f"));
+    assert!(
+        (value("lossP") - 2.0 * e * e).abs() < 1e-5,
+        "lossP = {}",
+        value("lossP")
+    );
+}

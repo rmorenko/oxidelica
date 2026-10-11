@@ -1948,9 +1948,22 @@ WORK_BODIES=1422042
 # Over e259916 the rest grew by the three IMC_Transformer models the
 # carried floor let run, which the runner names among the dearest by
 # Newton steps at 24845, 24845 and 18227.
+#
+# And grown by DifferenceAmplifier of Analog's Examples, which runs
+# once a demoted state is given its dummy once and spends 106658
+# Newton steps doing it, the fourth dearest of the corpus. One binary
+# with OXIDELICA_NO_DUMMY_ONCE set and unset (state/m398, f_off.txt
+# and f_on.txt) gives 44468640 and 44577094 Newton steps in all,
+# 108454 apart, the rest being the six other models the change lets
+# run. Without it the desk's rest is 743372, x1.031 of the centre;
+# with it 851826, x1.182 and outside. The model is carried over at
+# the desk's count, since what the runner spends on it has not been
+# printed yet, and the runner's next print settles it:
+#
+#   newton  720663 + 106658 = 827321
 WORK_POINTS=376723
 WORK_POINTS_PPM=100000
-WORK_NEWTON=720663
+WORK_NEWTON=827321
 WORK_NEWTON_PPM=100000
 # And Dimmer_RL, whichever way it falls, centred between the desk's run
 # under the series and the machine's printed refusal:
