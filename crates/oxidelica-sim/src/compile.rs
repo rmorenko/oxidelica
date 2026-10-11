@@ -1533,6 +1533,77 @@ thread_local! {
         const { std::cell::Cell::new(None) };
 }
 
+/// Whether a reduction refuses a member whose derivative the system
+/// already holds. Off by default and taken with `OXIDELICA_IMPLIED_ROW=1`:
+/// the corpus under it could not be measured, its pass went past a
+/// 20 GB ceiling that the pass without it stays at half of (m402).
+fn implied_row_refused() -> bool {
+    std::env::var_os("OXIDELICA_IMPLIED_ROW").is_some()
+}
+
+/// Whether the differentiated row `a - b = 0` already follows from the
+/// bare equalities the system holds.
+///
+/// The quasi-static library ties every reference angle of a network
+/// together with written aliases, and each component also writes
+/// `omega = der(gamma)` for one of them. In a transformer whose
+/// secondary is a delta, the matching stumbles on the same alias
+/// `l1sigma.plug_n.gamma = plugToPins_n.plug_n.gamma` four reductions
+/// running (`TransformerTestbench`, reductions 7 to 10). Each time
+/// the equation differentiates to the same first derivative,
+/// `der(l2sigma.plug_p.gamma) - l1sigma.inductor[1].omega`, which an
+/// earlier reduction had already put in the system as
+/// `l2sigma.omega - l1sigma.inductor[1].omega` beside
+/// `l2sigma.omega = der(l2sigma.plug_p.gamma)`. A row the system can
+/// already derive determines nothing, yet each copy spent a state, and
+/// the last reduction was left with `314.159 - 314.159 = 0` and no
+/// state to take. Such a member is refused like one that reaches no
+/// state, and the next member of the singular subset is tried.
+///
+/// Only the shape the fault has is read: a row that is the difference
+/// of two names, checked against the classes the system's bare
+/// equalities - `a = b` and `a - b = 0` - draw. Anything else is not
+/// claimed to follow, so the reduction goes on as it did.
+fn row_follows_from_aliases(row: &Expr, system: &[(Expr, Expr)]) -> bool {
+    let pair = |e: &Expr| -> Option<(String, String)> {
+        match e {
+            Expr::Bin(oxidelica_parser::BinOp::Sub, a, b) => match (&**a, &**b) {
+                (Expr::Ref(a), Expr::Ref(b)) => Some((a.clone(), b.clone())),
+                _ => None,
+            },
+            _ => None,
+        }
+    };
+    let Some((a, b)) = pair(row) else {
+        return false;
+    };
+    let mut parent: HashMap<String, String> = HashMap::new();
+    fn find(parent: &mut HashMap<String, String>, x: &str) -> String {
+        let mut at = x.to_string();
+        while let Some(up) = parent.get(&at) {
+            if up == &at {
+                break;
+            }
+            at = up.clone();
+        }
+        at
+    }
+    for (l, r) in system {
+        let edge = match (l, r) {
+            (Expr::Ref(x), Expr::Ref(y)) => Some((x.clone(), y.clone())),
+            (other, Expr::Number(z)) if *z == 0.0 => pair(other),
+            _ => None,
+        };
+        if let Some((x, y)) = edge {
+            let (rx, ry) = (find(&mut parent, &x), find(&mut parent, &y));
+            if rx != ry {
+                parent.insert(rx, ry);
+            }
+        }
+    }
+    find(&mut parent, &a) == find(&mut parent, &b)
+}
+
 #[allow(clippy::too_many_arguments)]
 fn reduce_index_once(
     mut states: Vec<String>,
@@ -2174,6 +2245,17 @@ fn reduce_index_once(
                  {lhs:?} = {rhs:?} grew to {nodes} terms at reduction {reductions}, \
                  past the {ceiling} this compiler will carry"
                             ));
+                        }
+                        if implied_row_refused()
+                            && row_follows_from_aliases(&folded, &algebraic_eqs)
+                        {
+                            if std::env::var_os("OXIDELICA_VICTIM_PROBE").is_some() {
+                                eprintln!(
+                                    "implied-row: reduction {reductions} on {lhs:?} = {rhs:?} \
+                                     gives a row the system already holds"
+                                );
+                            }
+                            return Ok(false);
                         }
                         if std::env::var_os("OXIDELICA_GROWTH_PROBE").is_some() {
                             eprintln!(
@@ -8106,5 +8188,45 @@ mod tie_tests {
             drop_the_undetermined(names(&["a", "b"]), nothing),
             names(&["a", "b"])
         );
+    }
+}
+
+#[cfg(test)]
+mod implied_row_tests {
+    use super::row_follows_from_aliases;
+    use crate::*;
+    use oxidelica_parser::BinOp;
+
+    fn r(name: &str) -> Expr {
+        Expr::Ref(name.to_string())
+    }
+
+    fn sub(a: &str, b: &str) -> Expr {
+        Expr::Bin(BinOp::Sub, Box::new(r(a)), Box::new(r(b)))
+    }
+
+    /// The transformer's fourth copy: an earlier reduction left
+    /// `w2 - w1 = 0`, the component wrote `w2 = der(g2)`, and the alias
+    /// differentiated again gives `der(g2) - w1`. That row is already in
+    /// the system and must not be taken for a new one. A row that joins
+    /// two classes the equalities keep apart, or a row of another shape,
+    /// is not claimed to follow.
+    #[test]
+    fn a_row_the_equalities_already_give_is_recognised_and_nothing_else_is() {
+        let system = vec![
+            (sub("w2", "w1"), Expr::Number(0.0)),
+            (r("w2"), r("der(g2)")),
+            (r("w3"), r("der(g3)")),
+            (
+                r("v"),
+                Expr::Bin(BinOp::Mul, Box::new(r("w1")), Box::new(r("L"))),
+            ),
+        ];
+        assert!(row_follows_from_aliases(&sub("der(g2)", "w1"), &system));
+        assert!(row_follows_from_aliases(&sub("w1", "der(g2)"), &system));
+        assert!(!row_follows_from_aliases(&sub("der(g3)", "w1"), &system));
+        assert!(!row_follows_from_aliases(&sub("v", "w1"), &system));
+        let product = Expr::Bin(BinOp::Mul, Box::new(r("w1")), Box::new(r("w2")));
+        assert!(!row_follows_from_aliases(&product, &system));
     }
 }

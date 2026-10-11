@@ -77,4 +77,10 @@ model="tests/small/a_preferred_position_whose_velocity_is_no_state.mo"
 [ -f "$model" ] || { echo "WITNESS: no model at $model"; exit 1; }
 check "half pair unread" 1 "cActuator.armature.stopper_xMax.s_rel" "$(victim_at 1 OXIDELICA_UNUSED=1)"
 check "half pair read" 1 "cActuator.armature.mass.s" "$(victim_at 1 OXIDELICA_NO_HALF_PAIRS=1)"
+model="tests/small/a_delta_secondary_does_not_spend_its_angles_twice.mo"
+[ -f "$model" ] || { echo "WITNESS: no model at $model"; exit 1; }
+check "implied row refused" 8 "transformer.r2.resistor[2].pin_p.reference.gamma" \
+  "$(victim_at 8 OXIDELICA_IMPLIED_ROW=1)"
+check "implied row taken" 8 "transformer.l2sigma.inductor[2].pin_p.reference.gamma" \
+  "$(victim_at 8 OXIDELICA_UNUSED=1)"
 exit "$status"
