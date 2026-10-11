@@ -41579,3 +41579,194 @@ transformer joins the two sides into one overconstrained graph, and
 then the angle of the secondary has two writers: the graph, and the
 frequency of the source carried through the components' `omega`. It
 is the first thing the spanning-tree probe should check.
+
+## The quasi-static angles: a row spent twice, not a ring left closed (m402)
+
+**The verdict of 8cf7695.** The push run 38161236909 went red on the
+ratio alone: its counts were 961 flatten and 752 run, runnable 844 and
+709, the same as the desk pair and the floors set from it (750 and
+707 with the two swings left out by name). The ratio printed 1.725.
+What the band becomes is decided and is not this chapter's to discuss.
+
+**The overconstrained graph is not the fault.** The spanning-tree
+question the last chapter ended on has a measured answer. The ring
+probe on `TransformerTestbench` (`OXIDELICA_RING_PROBE=1`,
+`/tmp/m402_ring.txt`) prints 157 written branches, 50 dropped
+equalities and 1841 kept ones. Drawn as one union-find, the branches
+and the kept equalities of `reference.gamma` close no ring at all
+(323 equalities over 482 nodes, two parts: the source's root with 479
+nodes and `groundT` with `earth`). The transformer does join both sides
+into one part, and the secondary's angle has one writer in the graph.
+The flat model is balanced in its angles too: 211 bare equalities over
+212 angles in the small model below, none of them redundant.
+
+**A small model shows it in two seconds.** A source, a star, a
+`Yd01` transformer and a resistor with its own star
+(`tests/small/a_delta_secondary_does_not_spend_its_angles_twice.mo`)
+refuses with the corpus phrase. The other groups of the same library
+split by their secondary: `Dy01` and `Dz00` run, `Yd01` and `Dd00`
+refuse (`Dd00` on `source.omega - transformer.l1sigma.inductor[1].omega`),
+and `Yy00` and `Yz01` stop later on a singular Jacobian, not on this.
+A delta on the secondary is what the two refusing groups share.
+
+**The mechanism, printed equation by equation** (a print of each
+differentiated row, not kept). In `Yd01` the reduction differentiates
+`transformer.l1sigma.plug_n.reference.gamma =
+transformer.l1sigma.plugToPins_n.plug_n.reference.gamma` at reductions
+7, 8, 9 and 10. Reductions 7 to 9 give the same row:
+
+```text
+4   transformer.l2sigma.omega - transformer.l1sigma.inductor[1].omega
+7   der(transformer.l2sigma.plug_p.reference.gamma) - transformer.l1sigma.inductor[1].omega
+8   der(transformer.l2sigma.plug_p.reference.gamma) - transformer.l1sigma.inductor[1].omega
+9   der(transformer.l2sigma.plug_p.reference.gamma) - transformer.l1sigma.inductor[1].omega
+21  0, tried for each of four members, and refused
+```
+
+Reduction 4 had already put the first row in, and the component
+writes `transformer.l2sigma.omega =
+der(transformer.l2sigma.plug_p.reference.gamma)`. So rows 7 to 9 are
+one row the system already derives, written three times, and each copy
+demoted a state: `l2sigma.inductor[1..3].pin_p.reference.gamma`. The
+last reduction is the `314.159 - 314.159 = 0` the last chapter found.
+`Dy01` differentiates the same alias once and never repeats it. None
+of the switches the compiler already has moves the small model
+(`NO_REPEAT_MEMBER`, `NO_SINGULAR_SET`, `NO_HIDDEN_CONSTRAINT`,
+`NO_RETREAT`, `NO_MATCH_ORDER`, `PARTIAL_SENSITIVITY`,
+`NO_STATE_SELECT`, `NO_IMPLICIT_RING`, `NO_TIE_JOINT`,
+`NO_REACH_FLOOR`).
+
+Two models written by hand without the library, five angles tied by
+aliases with one frequency, and two three-phase windings joined at
+their plugs, both run with and without the change. The fault needs
+the library's shape. The small model stays a library model, and
+`scripts/victim_witness.sh` asks it both ways.
+
+**The change.** Where the row a member differentiates to is the
+difference of two names that the system's bare equalities (`a = b`
+and `a - b = 0`) already put in one class, the member is refused like
+one that reaches no state, and the next member of the singular subset
+is tried. It is off by default and taken with `OXIDELICA_IMPLIED_ROW=1`,
+for the reason below. Only that one shape is read, and nothing else is
+claimed to follow. Two
+variants were measured and dropped. Matching the row text alone
+(sign included) moved the small model one wall further and no more,
+since row 7 is not the text of row 4. Demoting the state but leaving
+out the row unbalanced the system and panicked the matching.
+
+The small model under the change runs to 0.02 s with 314.159 rad/s on
+both windings, and its power closes: the source gives 25284.8 W, the
+load takes 24952.1 W, and the 332.7 W between them is the copper of
+the two windings, 3 x 0.01 x (91.20^2 + 52.65^2), the delta's phase
+current being the line current over the square root of three. `Dd00`
+runs too and closes the same way.
+
+**The six models of the family, and the corpus.** The six of the
+family run under the rule one binary apart (`/tmp/m402/qs6_off.txt`,
+`/tmp/m402/qs6_on.txt`): 0 of 6 without, 1 of 6 with.
+`IMC_Transformer` runs. `TransformerTestbench` moves to another wall:
+at its reduction 28 every one of the 32 members the subset search
+tries gives a row the system already derives, and raising that
+ceiling to 64 or 200 for a probe did not find a member that does
+not. The four QuasiStatic machines keep their head,
+`wMechanical - der(inertiaRotor.phi) = 0` with no state to take; in
+`SMR_CurrentSource` the rule refuses three repeat rows (reductions 29,
+30 and 50) and the rotor's two states still go at 48 and 50. Their
+wall is the rotor, as the last chapter said, and not this.
+
+The corpus pair was taken with one binary (`/tmp/ox402a`) under a
+20 GB ceiling. Without the rule it printed the floors exactly
+(`/tmp/m402/corpus_off.txt`):
+
+```text
+off  961 flatten, 752 run; runnable 844, 709   3771 ms flat, 6311 ms run   peak 10.0 GB
+on   taken down by its own 20 GB ceiling after 927 of 1028 read            21.0 GB
+```
+
+The half with the rule did not finish, so it has no count. Where the
+memory went is not found. A second pass over the 209 models that
+flatten and do not run, under the rule with a 16 GB ceiling, was taken
+down after 147 of them; the four of those in flight that are dear to
+run, each measured alone, peak at 0.35 GB (`SeriesPipes12`), 1.82 GB
+(`SphericalConstraint`), 0.33 GB (`TestDensity`) and 0.35 GB
+(`SeriesPipes2`). So no single giant was named, and the growth is
+either a model not yet measured alone or the sum over a pass. By the
+rule that a phase without a ceiling is a wager, the change goes in off
+by default, `OXIDELICA_IMPLIED_ROW=1`, with its test, its small model
+and two lines of the victim witness, and nothing is claimed for the
+floors. The next probe is the memory: the 209 one at a time with
+their peaks, under the rule and without it.
+
+**The reach candidate's six point masses, read model by model** (item
+2; `state/m401_matched_reach.diff` applied to one binary, the six of
+`state/m397_small` run with and without `OX_PROBE_MATCHED_REACH=empty`,
+logs in `/tmp/m402/b`). The victim counts first, without and with:
+`B1` 10 and 10, `B3` 34 and 34, `B6` 16 and 16, `B6z` 16 and 16,
+`B6z3` 17 and 16, `B7` 50 and 10. The walls:
+
+| model  | without                                     | with                                                            |
+| ------ | ------------------------------------------- | --------------------------------------------------------------- |
+| `B1`   | block does not mention `freeMotion.a_rel_a` | a block residual NaN at t = 0                                   |
+| `B3`   | a block residual NaN at t = 0               | block does not mention `der(fixedTranslation.frame_a.R.T[2,3])` |
+| `B6`   | a block residual NaN at t = 0               | block does not mention `pointMass3.a_0[2]` and two more         |
+| `B6z`  | a block residual NaN at t = 0               | singular Jacobian                                               |
+| `B6z3` | a block residual NaN at t = 0               | a block residual NaN at t = 0                                   |
+| `B7`   | a block residual NaN at t = 0               | a block residual NaN at t = 0                                   |
+
+The model text is the judge. `B1` and `B7` put their two point masses
+on one line through the free body, so the rotation about that line is
+not determined by anything, and a refusal there is honest under either
+walk. `B3` and `B6` are not singular as written: `B6` has three point
+masses off one line, so the body's inertia about every axis is
+non-zero and its six degrees of freedom are all determined. The wall
+the candidate moves them to says a block does not mention a name, and
+the model has the masses that would. `B6z` is `B6` with the third mass
+lifted out of the plane, which only makes the body less degenerate,
+and the candidate gives it a singular Jacobian. A singular Jacobian on
+a body with a full inertia is a statement about the walk, not about
+the model. So by the rule set for this item, the candidate trades an
+honest refusal for an invented one in at least `B6z`, and it is not
+merged. The NaN walls on the left are themselves a single
+unexplained wall shared by five of the six, and that is the next probe
+for this family, not the candidate.
+
+**The fourteen open components, priced** (item 3, by name from
+`state/m401_cns_refused.txt` and the run list of
+`state/m401_reach_off.txt`). None of the fourteen has an `experiment`
+annotation, none inherits the Example icon through its `extends`
+chain, and each lives under `Examples.Utilities`,
+`Examples.OpAmps.OpAmpCircuits` or `Examples.*.Components`, which is
+why the name rule (`.Examples.` or `.Test`) takes it as an example.
+
+| component                                                          | open connector a parent would close     |
+| ------------------------------------------------------------------ | --------------------------------------- |
+| `OpAmpCircuits.Add`, `.Buffer`, `.Feedback`, `.Gain`               | the four pins of `FourPin` (and `p1_2`) |
+| `Analog.Examples.Utilities.Nand`                                   | `x1`, `x2`, `Vdd`, `y`                  |
+| `Analog.Examples.Utilities.RealSwitch`                             | `p`, `n1`, `n2`, `control`              |
+| `Polyphase.Examples.Utilities.AnalysatorAC`, `...DC`               | the plugs of `TwoPlug`, `TwoPin`        |
+| `FluxTubes...Transformer1PhaseWithHysteresis`                      | `p1`, `n1`, `p2`, `n2`                  |
+| `FluxTubes...Transformer3PhaseYyWithHysteresis`                    | six pins and two star points            |
+| `FluxTubes...PermeanceActuator`, `...SimpleSolenoid`               | `p`, `n`, `flange`                      |
+| `Rotational` and `Translational` `...SpringDamperNoRelativeStates` | both flanges                            |
+
+All fourteen are in the flatten list and none is in the run list.
+None is runnable. A filter that stopped calling exactly these
+examples would take flatten from 961 to 947 and leave runnable flatten
+at 844, run at 752 and runnable run at 709. The wider filter, counting
+only what is runnable, would cost 117 flatten (961 - 844) and 43 run
+(752 - 709). The filter is not changed here.
+
+**`TanksWithOverflow`, mapped** (item 4). At the start both ends of
+the `overflow` pipe sit above their tank's level: both ports are at
+6 m and both tanks start at a level of 2 m. Each vessel writes its port's three-way `if`, and the
+start settles both in the last branch, "above the level, no outflow",
+whose first equation is `ports[i].m_flow = 0` (`s` starts at -4.0 and
+-4.008, `inFlow` false). Through a `StaticPipe`, which holds no mass,
+`overflow.port_b.m_flow = -overflow.port_a.m_flow`, so the one flow of
+the pipe is set to zero twice and the pipe's pressure by nobody. The
+mode as written is structurally singular, and the refusal names the
+second of the two zeros. A tool that solves this model either reads
+the branch per port at run time with the two zeros as one, or relies on
+the pipe's `m_flow` start. This compiler builds each mode as written,
+and the refusal is honest for that build. It is a question of how
+modes are built, not of reach.
