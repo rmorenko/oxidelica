@@ -42326,7 +42326,7 @@ files, 953 flatten, 753 run, runnable 836 / 710, ratio 1.130 inside
 the library ran 111 minutes (09:01:45 to 10:53:10), the job 112. The
 estimate in the chapter above was about 1.05 to 1.10; the print is
 0.03 over its top, a point and not a reason to move anything. The run
-of 1592ba0 skipped the library job, as a documentation commit does, so
+of the commit after it, which recorded the heavy list, skipped the library job, as a documentation commit does, so
 it confirms nothing about the carving. The heavy job did not run for
 the carving commit and will not for any push: it is declared for the schedule
 and for a manual dispatch only, so the heavy floors 23 / 21 wait for
