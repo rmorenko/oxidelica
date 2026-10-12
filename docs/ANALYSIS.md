@@ -42857,3 +42857,33 @@ m406's count therefore go one each way under `=4`: `SMEE_LoadDump`
 runs, `RollingWheel` does not move (its copy is nonlinear), and
 `SMPM_CurrentSource` turns from a singular block into a reduction with
 nothing to take.
+
+**The chain taken whole, as a probe** (`/tmp/m406/cone_unknown_probe.patch`:
+the `=5` order of the two rules and the monitor reading a cone that
+will not settle as a weight not known, the way it already reads an
+alternative of zero; binary `/tmp/m406/ox15`, not in the tree). On the
+generator alone this returns it under `=5`, and the rule off still
+runs. The pair from that one binary under 20 GB caps,
+`OXIDELICA_SUPPLY_ONCE=0` against `=5` with `OX_PROBE_CONE_UNKNOWN=1`
+(`/tmp/m406/pair15/off.txt`, `on.txt`, peaks 8.7 and 10.0 GB):
+
+```text
+off   953 flatten, 753 run, runnable 836 / 710
+on    953 flatten, 755 run, runnable 836 / 712
+gained   Machines...SMEE_LoadDump
+gained   QuasiStatic.FundamentalWave...SMPM_OpenCircuit
+lost     none
+```
+
+The off half's lists are the `ox7` pair's off half name for name. So
+the chain this chapter walked has an end: the ledger, the dependence
+check after it, and the monitor not re-selecting on a cone it cannot
+read together win the two machines and lose nothing. That is the same
+count as the `=1` pair of m406, now with the mechanism of each link
+measured and a small model under the dependence check. It is not in
+the tree. The monitor link changes when every model with a cone
+re-selects, the corpus says that cost nothing here, and the
+`TransformerTestbench` refusal and the `GearConstraint` note beside
+the monitor are the two places where reading a weight as not known
+was argued about before. Whether all three links go in by default is
+a series of its own, and it needs a word first, as the brief asked.
