@@ -42418,3 +42418,15 @@ dependence check proposed above would be measured against: three for
 certain, five at most. A reading from the raw matrix overstated it at
 first: unscaled, a row a million times quieter than its neighbours
 looks alone in the null space.
+
+The two certain members outside the pair's winners were run alone
+under the switch (`/tmp/m405b/ox_once4`, `--only`). `SMPM_CurrentSource`
+refuses the same way at `=0`, `=1` and `=2`. `RollingWheel` moves: at
+`=0` it differentiates one equation twice (equation 74) and stops on
+the singular Jacobian; at `=1` and `=2` the walk refuses that member
+and then runs out of members, `structurally singular model: equation
+wheel1.rollingWheel.v_0[1] - wheel1.body.v_0[1] ...`. So the ledger
+turns the row the system already held into a reduction with nothing
+left to take, which is the point masses' `=2` result again: the copies
+are what let these walks finish at all, and taking them away shows
+the constraint that was over-counted, not a way through it.
