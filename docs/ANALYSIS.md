@@ -42267,9 +42267,40 @@ and the probe print are kept as `/tmp/m405b/supply_once_final.patch`
 (81 lines against `4f89fd7`); `=1` refuses a member whose supply
 would differentiate an equation again, `=2` also refuses a member
 that is itself such an equation. What it needs before it goes in is
-the twelve-line model, which is the next probe: shrink
-`SMEE_LoadDump`'s star until the double supply survives without the
-library.
+a model small enough to be a test.
+
+**Shrinking the model that runs only with the switch, and where the
+rule runs out.** `SMEE_LoadDump` copied out as a file (`/tmp/m405b/t/M0.mo`,
+stopped at 0.01 s) is red without the switch and runs with it, and so
+it stays with the current sensor taken out (`M3`) and the load switch
+as well (`M4`). Taking out the voltage controller (`M1`) loses it - red
+both ways. Then a cut that changes nothing physical loses it too:
+`M5` is `M4` without the `output Real controlError`, and it is red
+both ways. In both the switch refuses the same thing, the star point's
+current balance asked for at reduction 14 for the second time
+(`/tmp/m405b/t/vict_M4_1.txt`, `vict_M5_1.txt`), and in both the
+reduction goes on to another member of the same singular subset - the
+third of 32 in `M4`, the first in `M5` - and only `M4`'s choice runs.
+What `M5` is left with is again a row zero in every column (row 4,
+`der(smee.rs.plug_p.pin[1].i) + loadInductor.inductor[1].v / L = 0`,
+`/tmp/m405b/t/M5_on_trail.txt`). Followed through the block's inner
+assignments, the pin current's derivative is the stray-load and
+terminal currents' derivatives in turn, down to `-(v/L +
+der(voltageQuasiRMSSensor.plug_p.pin[1].i))`, so the row reads
+`-der(voltageQuasiRMSSensor.plug_p.pin[1].i) = 0`: the star sum stated
+a second time through a different chain of equations, with no index
+repeated anywhere for the ledger to see.
+
+So the switch catches the literal case, one equation handed over
+twice, and the same fault also arrives as a linear dependence among
+differentiated equations that are all different. A rule keyed on
+equation indices cannot be the whole cure, and whether `SMEE_LoadDump`
+runs under it depends on which member of a 32-member subset happens to
+be tried. That is a reason against committing it as it stands, beyond
+the missing test. The question for the next probe is the general one:
+whether a member's differentiated row can be checked against the rows
+already in the block for dependence before it is accepted, which is
+the implied-row check widened from alias pairs to linear combinations.
 
 **The singular-Jacobian row of the census, read for the same
 fault.** Each of its eleven members was run alone with the trail
