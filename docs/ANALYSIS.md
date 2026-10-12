@@ -42808,3 +42808,30 @@ gives NaN at the first check, and the re-selection that follows cannot
 find the same states again. Why the cone reads NaN there - which
 definition in it is not a number at t = 0.01 - is the next link, and
 it is the monitor's, not the dependence check's.
+
+**The link behind it: the cone solves `cos(gamma)` for `gamma`**
+(probe print in the cone's build and run, `/tmp/m406/cone_probe.patch`
+with the `=5` probe, binary `/tmp/m406/ox14`, not in the tree;
+`/tmp/m406/gen_cone5.txt`). The cone that weighs `psi_ms[1]` for
+record 9 holds three implicit definitions, each settled by Newton on
+one unknown (`sensitivity.rs`, `settle_one`): `RotationMatrix[1,1]`
+from `psi_ms[1] = RotationMatrix[1,1] * psi_mr[1] + ...`, then
+`smee.airGap.gamma` from `RotationMatrix[1,1] = cos(gamma)`, then the
+flange angle from `gamma = p * (flange.phi - support.phi)`. The second
+is the one that does not settle at t = 0.01, and the only one the probe
+names. Solving `cos(gamma) = c` for `gamma` has no answer once the
+perturbed `c` leaves [-1, 1] and a zero slope at `gamma = 0` and pi,
+so whether it settles depends on where the rotor is when the monitor
+first looks. Off, the reduction reaches `psi_ms[1]` from a residual
+that names it and the monitor weighs it by the slope, with no
+inversion of the cosine. So the chain of the generator's loss is now
+four links, each measured: two rules refuse real copies, the walk
+reaches the settled selection early but through a constraint that
+reaches `psi_ms[1]` only through the rotation matrix, the cone that
+weighs it has to invert a cosine and cannot at the first check, and
+the re-selection the NaN asks for cannot rebuild the same states. The
+fourth link is a property of the monitor rather than of the rules: a
+cone that runs through `cos` of a state is a weight the monitor cannot
+always read. Not built: a monitor that treats an unsettled cone as
+"not known" rather than as a failed selection changes when every model
+with a cone re-selects, and is a series of its own.
