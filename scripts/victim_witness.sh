@@ -80,7 +80,7 @@ check "half pair read" 1 "cActuator.armature.mass.s" "$(victim_at 1 OXIDELICA_NO
 model="tests/small/a_delta_secondary_does_not_spend_its_angles_twice.mo"
 [ -f "$model" ] || { echo "WITNESS: no model at $model"; exit 1; }
 check "implied row refused" 8 "transformer.r2.resistor[2].pin_p.reference.gamma" \
-  "$(victim_at 8 OXIDELICA_IMPLIED_ROW=1)"
-check "implied row taken" 8 "transformer.l2sigma.inductor[2].pin_p.reference.gamma" \
   "$(victim_at 8 OXIDELICA_UNUSED=1)"
+check "implied row taken" 8 "transformer.l2sigma.inductor[2].pin_p.reference.gamma" \
+  "$(victim_at 8 OXIDELICA_IMPLIED_ROW=0)"
 exit "$status"

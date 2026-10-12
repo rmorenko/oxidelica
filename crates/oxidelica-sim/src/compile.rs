@@ -1534,17 +1534,25 @@ thread_local! {
 }
 
 /// Whether a reduction refuses a member whose derivative the system
-/// already holds. Off by default and taken with `OXIDELICA_IMPLIED_ROW=1`.
+/// already holds. On by default, and `OXIDELICA_IMPLIED_ROW=0` takes it
+/// back, so that both halves of a pair are measured with one binary.
 /// The corpus under it first went past a 20 GB ceiling (m402); the
 /// growth was one model climbing a ladder of derivatives, which
 /// `MAX_REDUCED_ORDER` now stops, and the pass under it reads 961 / 753
 /// against 961 / 752 without it, at the same peak (m403).
 fn implied_row_refused() -> bool {
-    std::env::var_os("OXIDELICA_IMPLIED_ROW").is_some()
+    implied_row_said(std::env::var("OXIDELICA_IMPLIED_ROW").ok().as_deref())
 }
 
-/// The highest order of time derivative a reduction may write, taken
-/// with `OXIDELICA_IMPLIED_ROW` for now.
+/// What the switch says. Only a `0` turns the rule off: the switch
+/// was once an opt-in read by presence alone, and a presence test
+/// would now read `=0` as on, the opposite of what was written.
+fn implied_row_said(said: Option<&str>) -> bool {
+    said != Some("0")
+}
+
+/// The highest order of time derivative a reduction may write, held
+/// together with the implied row and taken back with it.
 ///
 /// Mechanics is of index three: a position constraint is differentiated
 /// to velocity and to acceleration, and the row that reaches the
@@ -8248,9 +8256,20 @@ mod tie_tests {
 
 #[cfg(test)]
 mod implied_row_tests {
-    use super::row_follows_from_aliases;
+    use super::{implied_row_said, row_follows_from_aliases};
     use crate::*;
     use oxidelica_parser::BinOp;
+
+    /// The rule is on unless the switch says `0`; `=0` is the one
+    /// spelling that must not read as on, and `=1`, which the opt-in
+    /// era wrote, keeps meaning on.
+    #[test]
+    fn the_implied_row_is_on_unless_the_switch_says_zero() {
+        assert!(implied_row_said(None));
+        assert!(implied_row_said(Some("1")));
+        assert!(implied_row_said(Some("")));
+        assert!(!implied_row_said(Some("0")));
+    }
 
     fn r(name: &str) -> Expr {
         Expr::Ref(name.to_string())

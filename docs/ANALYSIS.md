@@ -41906,3 +41906,112 @@ start lost when its state is demoted, which is the breed m397 mapped
 as form A (`PendulumWithSpringDamper`, `PointGravityWithPointMasses2`)
 seen through another component. It is named here so that the series
 form A waits for knows it has these five beside it.
+
+## The library job priced again, the implied row turned on, the point masses' guess mapped (m404)
+
+**What the main pass costs, model by model** (item 1). Measured in
+quiet with one binary built from 3a1480c (`/tmp/m404/ox_head`), under
+`cap.sh` at 24 GB, `library check --list --slow 50 .msl`, which leaves
+out `scripts/heavy_models.txt` of its own accord
+(`/tmp/m404/slow.txt`). Exit code 0, about 26 minutes of wall, a peak
+footprint of 8.4 GB (17.3 GB resident).
+
+```text
+counts: 961 flatten, 752 run; runnable 844 / 709 (the floors 961/750,
+        844/707)
+time:   flattening 3806s over 1028 models; running 6002s over 961
+```
+
+The ten dearest in the run half, the same model's flatten cost (zero
+where it is outside the fifty dearest to flatten), and whether it
+runs:
+
+```text
+  run s   flat s  model
+ 1182.2     -     IMC_YDarc                              REFUSED
+  468.2    21.6   LineForceWithTwoMasses                 REFUSED
+  351.7    21.2   Fourbar2                               REFUSED
+  298.6    44.3   Engine1b                               REFUSED
+  212.9     -     MechanicalStructure                    RUNS
+  204.7    37.6   SeriesPipes13                          REFUSED
+  183.6    21.7   DynamicPipeInitialization              REFUSED
+  182.7   186.1   DynamicPipeEnergyConservationCheck     RUNS
+  166.0    38.3   SeriesPipes12                          REFUSED
+  131.3    50.9   BranchingPipes18                       REFUSED
+```
+
+The ten hold 3382 s of the 6002 s run half (56%, against 43% in m364),
+and the fifty hold 5211 s (87%, against 82%). Of the fifty, 35 are
+refused, and those 35 hold 4109 s. `IMC_YDarc` alone is 1182 s, a
+fifth of the run half, and it ends in `step size underflow at t = 0`.
+So the money has gathered further into fewer models since m364, and
+it is still spent mostly on runs that end in a refusal.
+
+Against m364 the run half grew from 4523 s to 6002 s while flattening
+fell from 4679 s to 3806 s, which is the movement that recentred the
+ratio band. The m364 coefficient (0.97 of desk model time gives the
+runner's wall) puts the main pass at about 159 minutes, inside the
+127 to 168 the last three jobs took. The eight refused models of the
+top ten together are 3222 desk s, about 52 runner minutes; `IMC_YDarc`
+alone about 19, and more than that as a tail, because it runs on one
+thread after the rest have finished. Nothing was carved here: the cut
+is Roman's decision, and these are its numbers.
+
+**The implied row, on by default** (item 2). `implied_row_refused`
+reads `OXIDELICA_IMPLIED_ROW` as on unless it says `0`, so both
+halves of a pair are one binary; a presence test would have read `=0`
+as on. The victim witness now contrasts the default with `=0`, and it
+was seen red on the binary before the flip (both transformer lines
+swap) and green after it.
+
+**Where the point masses' NaN comes from, one storey further** (item
+3, a probe, no change kept). Small models in `/tmp/m404/p3`. A single
+point mass under point gravity runs (`P1`). A free body with inertia
+behind `FreeMotion` runs when its position is `fixed` (`P3`) and hits
+the same NaN wall when it is only a start (`P4`: `body.g_0` NaN), and
+a `fixed` body behind a `FixedTranslation` gets a singular Jacobian
+instead (`P5`). On `B6z` the NaN rows are the gravity rows of
+`pointMass1` and `pointMass2`. Two guesses are missing there, not one.
+The frames' rotation matrices start at the zero matrix, and
+`pointMass2.r_0` starts at the library's `start = {0,0,0}`, which is
+the origin of the point gravity. Giving either by hand leaves the NaN;
+giving both (`B6both`, the identity on one frame and `{1,0,0}` on
+`pointMass2`) moves the wall to `do not mention der(der(freeMotion.Q[1]))`.
+
+The start reader is what could supply them, and it is held by two of
+its own rules. Its reach is one equation from a name that wants a
+start; widened to four behind a probe switch, it reads every rotation
+matrix as the identity, `pointMass1.frame_a.r_0` as 3 and
+`pointMass3`'s as `{2,1,0}`, but `pointMass2`'s as the origin, because
+it reads forward from `freeMotion.r_rel_a = 0` (a declared start)
+rather than back from the `fixed` mass. And `pointMass2.r_0` is not
+silent - the library wrote `start = {0,0,0}` - so it is never asked
+about. With reach two and `pointMass2` given a start by hand, `B6g`
+passes the NaN wall. So the wall is a question of which start wins
+when a declared one and a fixed one disagree along a rigid chain, which
+is form A's question (a fixed start lost when its state is demoted),
+not a reach to widen. The reach probe was taken out again. Under the
+implied row `B6z` and `B6both` stop at a singular Jacobian instead,
+and `B3` at the derivative ladder's ceiling; `B6`, `B6z3` and `B7`
+keep the NaN.
+
+The judge of the flip is a pair from one binary of the final tree
+(`/tmp/m404/ox_flip`), each half under its own 20 GB ceiling, the
+default against `OXIDELICA_IMPLIED_ROW=0`, `--without
+scripts/heavy_models.txt` (`/tmp/m404/corpus_on.txt`,
+`corpus_off.txt`, logs `pair_on.log`, `pair_off.log`). Default: 961
+flatten, 753 run, runnable 844 / 710, peak 13.0 GB. With `=0`: 961 /
+752, runnable 844 / 709, peak 14.0 GB. The flatten lists are
+identical and the run lists differ by one name, `IMC_Transformer`
+added, which is the list m403 measured. The floors are not moved
+here: they rise to the runner's print.
+
+The ratio of the two halves, a point and not a verdict: 1.688 by
+default (10129 s running over 6002 s flattening) and 1.551 with `=0`
+(9641 over 6214), the two halves of the pair running side by side;
+the quiet pass of item 1 on the unflipped binary gives 1.577 (6002
+over 3806). The desk passes m401 to m403 gave 1.30 to 1.35. All three
+sit inside the desk band's 0.80..1.73, the default half near its top
+edge, so the desk's ratio on this code has moved toward the runner's.
+The band is not touched; this is the point the recount of the desk
+band waits for.

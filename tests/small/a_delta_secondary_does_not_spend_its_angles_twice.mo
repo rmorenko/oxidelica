@@ -20,12 +20,13 @@
 //   inductor[1].omega")) = Number(0.0) constrains no state
 //
 // With such a member refused and the next one of the singular subset
-// tried (`OXIDELICA_IMPLIED_ROW=1`), the model runs: 314.159 rad/s on
-// both sides, and the source's 25284.8 W against the load's 24952.1 W
-// leaves 332.7 W, the copper of the two windings. Without the switch
+// tried, the model runs: 314.159 rad/s on both sides, and the source's
+// 25284.8 W against the load's 24952.1 W leaves 332.7 W, the copper of
+// the two windings. With the rule taken back (`OXIDELICA_IMPLIED_ROW=0`)
 // it refuses as above, and `scripts/victim_witness.sh` asks both of
-// one binary. The switch is off by default because the corpus under it
-// went past its memory ceiling (docs/ANALYSIS.md, m402).
+// one binary. The rule was an opt-in while the corpus under it went
+// past its memory ceiling (docs/ANALYSIS.md, m402) and is on by default
+// since the ladder that cost the memory was stopped (m403).
 model a_delta_secondary_does_not_spend_its_angles_twice
   import QS = Modelica.Electrical.QuasiStatic;
   QS.Polyphase.Sources.VoltageSource source(f=50, V=fill(100, 3), m=3);
