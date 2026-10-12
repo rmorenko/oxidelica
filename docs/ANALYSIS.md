@@ -43026,3 +43026,100 @@ had in fact gone bad at the point where its weight stopped being
 readable; on the corpus no such model was found, and the switch reads
 NaN only for a `Through` weight, so a slope that is not a number still
 re-selects.
+
+## The pumps' hand-over in the tree, two silences of the carved set named (m409)
+
+**The hand-over behind one switch.** The two probes m408 used to run
+both pumps are in the tree as one switch, `OXIDELICA_EDGE_HANDOFF=1`,
+since neither half is any use alone. A stage refused as `Outside`
+joins the refusals the explicit solver hands to the implicit one
+(`SimError::hands_to_implicit`), and at the hand-over the complaint
+the abandoned stage left in the walk is forgotten
+(`Walked::clear_for_handoff`), so BDF's first point does not end the
+run at t = 0 on a pressure nobody asks about any more. Two unit tests
+ask the two decisions directly and both fail with the switch's effect
+taken out. Under it, from the root with `--only`, both pumps run;
+without it both refuse as before. Simulated to the check windows
+(`/tmp/m408/pc.csv`, `cv.csv`): `TestWaterPumpPowerCharacteristic`
+1.4596 kg/s at 4.353 m head and 1.4261e5 Pa, `TestWaterPumpCheckValve`
+0.64802 kg/s at 75.145 m and 8.3583e5 Pa, the middle and last rows the
+same to five digits - the numbers of m408. A small model stiff enough
+to step out of IF97's range on a stage was not attempted; the witness
+for the whole is the pair below.
+
+**The pair under the switch, from the root.** One binary built from
+86ab6da (`/tmp/m408/ox2`), run from the root of the tree under
+`cap.sh` at 20 GB, `=0` against `OXIDELICA_EDGE_HANDOFF=1`
+(`/tmp/m408/off.txt`, `on.txt`, lists in `off_flat.txt`, `on_flat.txt`,
+`off_ran.txt`, `on_ran.txt`): 1020 examples both ways, 953 / 753 off
+and 953 / 757 on, runnable 836 / 710 and 836 / 714. The flattened
+lists are identical; the run lists differ by four names gained and
+none lost: the two pumps expected, `BranchingPipes2`, which m408 had
+named as possible, and `SeriesPipes2`, which nobody had - a pipe of
+the seven whose wall m408 read as the block at the start point, so
+for this one at least the wall stood behind an edge the hand-over now
+passes. What the numbers do not show is the price. The run half took
+3444 s off and 6898 s on, the flatten half 3833 s and 3768 s; the
+last minutes of the on half ran beside a preflight that was then
+stopped, but the run half was already far behind the off half's
+timing before that started (918 of 1020 flattened at 927 s against
+757 s, and the run tail on one core for twenty minutes after). So the
+switch makes runs dearer somewhere, very likely models whose explicit
+stage now hands over to BDF where it used to end the run quickly. Which
+models carry that was not measured this shift - `--slow` on both halves
+is the instrument - and it belongs to the decision on the default as
+much as the four names do. The floors are not moved: an opt-in does
+not go into them.
+
+**Two silences of the carved-out set, both now said.** The exclusion
+of `scripts/heavy_models.txt` hangs on the working directory, on
+purpose. A check that cannot see the file now says on stderr that the
+set is not left out and from where it looked, where before a pair
+taken from `/tmp` counted 1043 against the root's 1020 without a word.
+And a second one turned up this shift by being stepped on: from the
+root, `--only` on a carved-out model answered "no model of the library
+is called" followed by the name - false, the class is there - and a
+weather check on three giants came back empty. It now says the model
+is carved out and names `--with-heavy`. Both have a test that fails
+without the change.
+
+**The heavy cron cut by its ceiling, and it was the weather.** Run
+38266129459 on 1ff2f0d: the library job green in 116 minutes, the
+heavy job cancelled at 181 minutes against the 180 of `ci.yml`, at 21
+of 23 models read in 10544 s where the cron on 82fa4c2 (38244121082)
+had read 21 in 5096 s and finished green in 102 minutes. Slower by a
+factor of about two, and evenly: 3 models at 2599 s against 1706, 9 at
+6287 against 3276. The window between the two holds one commit that
+touches the compiler, 68d6b7d, and its work is behind
+`OXIDELICA_SUPPLY_ONCE` (`dependent_row_check` returns before doing
+anything unless the switch says 4 or 5). Measured rather than read:
+binaries of 82fa4c2 and 86ab6da on three of the heavy list from the
+root under `--with-heavy`, one after the other (`/tmp/m408/weather2.txt`).
+The work counters agree to the digit for each - `Fourbar2` 129928
+expansions and 1563627 names, `R134a1` 82449 / 247789 with 7 points
+and 42 Newton steps, `LineForceWithTwoMasses` 180488 / 1628570 - and
+the times are 292 / 273 s, 46 / 46 s and 362 / 358 s. Nothing in the
+window changed what these models do; the doubled runner time is the
+runner's. What the cut does say is that the heavy job has no margin
+against its weather: 102 minutes one day and more than 180 the next on
+identical work.
+
+**The census, and the queue it gives.** Both halves on 86ab6da
+(`/tmp/m408/census.txt`, raw `/tmp/m408/raw.txt`, counted between the
+section headings): 67 refused to flatten in 39 rows and 200 flattened
+and did not run in 131 rows, which is 1020 - 953 and 953 - 753. The
+two counted halves are identical line for line to the census of m405
+(`/tmp/m405/census/census.txt`), which is what everything since has
+promised: every change from m406 on went in behind a switch. Read with
+the rows that mean the same added: the run half is led by the
+algebraic loops, six rows that are one layer - singular Jacobian 11,
+the Newton direction 10, underdetermined 8, a named unknown of a loop
+7, the equations of a loop 6, no convergence in N iterations 6 - 48
+models in all. The Newton-direction row is the nine of m408 - the two
+pumps the switch above takes and the seven pipes - and
+`TestMultiPortTraceSubstances` (from the raw file, by name). The flatten half is led by functions written
+outside Modelica, C (6) and FORTRAN (3), nine models one layer,
+then partial functions nobody redeclared (5) and a subscript the
+compiler cannot see as a whole number (4). The top of the next order
+is the loop layer, entered at the pipes' wall at the start point, now
+that the pumps are taken.

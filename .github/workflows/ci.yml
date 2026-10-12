@@ -229,10 +229,18 @@ jobs:
     name: the heavy models still read
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
-    # Wider than the main job's ninety, because these are the models
-    # that job could not afford. Measured on a desk at around forty-five
-    # minutes for the three, and a shared runner is the slower machine.
-    timeout-minutes: 180
+    # Wider than the main job's, because these are the models that job
+    # could not afford. Raised from 180 to 240 on Roman's word,
+    # 2026-10-12: the cron on 1ff2f0d was cut at 181 minutes, 21 of 23
+    # models read, where the cron on 82fa4c2 had passed the same list
+    # and the same default code in 102 - the runner's weather, measured
+    # as such on the desk (docs/ANALYSIS.md, m409). This job runs only
+    # on the schedule and by hand, and nothing waits for it, so its
+    # minutes are cheap in a way the library job's are not. The split
+    # into two jobs is the next step when the list grows again; the
+    # prices beside every name in scripts/heavy_models.txt are what it
+    # will be reckoned from.
+    timeout-minutes: 240
     steps:
       - uses: actions/checkout@v5
 
