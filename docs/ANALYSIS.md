@@ -42052,3 +42052,41 @@ which is a guess and not a refusal, so no change was built. The map
 for the next probe: the order in which the reader settles rotations
 and positions along a rigid chain, asked of `fixedTranslation`'s
 `frame_b.r_0 = frame_a.r_0 + R * r` alone.
+
+**Why the reader lost the offsets: a parameter read at its start**
+(the probe's end). Printing what each read stood on, the reader took
+`fixedTranslation.frame_a.r_0 = 3` from `frame_b.r_0 = 3` with
+`fixedTranslation.r[1] = 0`. The parameter is bound to 1 and carries
+its type's `start = 0`, and the table the reader begins from is the
+parameters' values with every declared start written over them, so a
+parameter whose start differs from its value is read at its start.
+Behind a probe switch that keeps the value, the same run reads the
+free body at 2, which is where the fixed mass and the offset put it.
+That alone does not lift the NaN in the six point-mass models: what
+remains is `pointMass2`'s own start of the origin, read forward
+through `fixedTranslation1`. With the point masses' unfixed starts
+also held back (probe only), `B6z`, `B6` and `B6z3` pass the NaN
+wall and stop at `do not mention` refusals; `B7` keeps the NaN.
+
+The parameter half is a fact about the reader everywhere, not about
+MultiBody, so it was built as `OXIDELICA_PARAM_VALUE_STATED=1`, with
+a twelve-line model that refuses without it and starts at the root
+the model means with it (`x = -2`), held by a CLI test that runs one
+binary both ways. On the point-mass models alone it moves nothing:
+each of `B6z`, `B6`, `B6z3`, `B7` and `B3` gives the same kind of
+refusal with the switch as without it, under the implied row and with
+it taken back (`OXIDELICA_IMPLIED_ROW=0`); the move of `B6z` to a
+singular Jacobian and of `B3` to the order ceiling is the implied
+row's, not this switch's. So it is not their cure; what it does over
+the corpus is the pair below.
+
+The pair, one binary of the tree that holds the switch
+(`/tmp/m404/ox_pv2`), each half under 20 GB, `--without
+scripts/heavy_models.txt` (`/tmp/m404/pv2_on.txt`, `pv2_off.txt`):
+961 / 753, runnable 844 / 710, in both halves, the flatten lists and
+the run lists identical, and the run list the same as the flip's
+default half. Nothing moved. The switch stays an opt-in: it is right
+by the small model and moves no model of the library, so it is kept
+behind its test until the reader is next changed for the point
+masses, where it is one of the two parts and the other is still a
+map.

@@ -1609,3 +1609,38 @@ fn a_discrete_start_is_read_from_the_equation_that_defines_it() {
     assert!(old.status.success(), "{}", stderr(&old));
     assert!((first_row(&stdout(&old), "m") - 720.76).abs() < 1e-6);
 }
+
+/// A parameter's start is not its value. `k(start = 0) = 3` computes
+/// with 3, and a start read for `x` from `z = k*x` with `z(start = -6)`
+/// is -2 - the root of `x*x + w = 4` the model means. Read with the
+/// start written over the value, `x` was read from `-6 = 0*x`, which
+/// says nothing, began at zero between the two roots, and the block
+/// was refused as answered both ways. Taken with
+/// `OXIDELICA_PARAM_VALUE_STATED=1` while it is measured, so the same
+/// binary shows both.
+#[test]
+fn a_parameter_is_read_at_its_value_and_not_at_its_start() {
+    let file = TempFile::new(
+        "parameter_value_over_start.mo",
+        "model T1 parameter Real k(start = 0) = 3; Real z(start = -6); Real x; Real w; \
+         equation z = k * x; x * x + w = 4; w = 0.5 * sin(time); end T1;",
+    );
+    let run = |value: bool| {
+        let mut command = bin();
+        if value {
+            command.env("OXIDELICA_PARAM_VALUE_STATED", "1");
+        }
+        command
+            .args(["simulate", file.path(), "--stop", "0"])
+            .output()
+            .unwrap()
+    };
+    let out = run(true);
+    assert!(out.status.success(), "{}", stderr(&out));
+    let csv = stdout(&out);
+    assert!((first_row(&csv, "x") + 2.0).abs() < 1e-9, "{csv}");
+    assert!((first_row(&csv, "z") + 6.0).abs() < 1e-9, "{csv}");
+    let old = run(false);
+    assert!(!old.status.success(), "{}", stdout(&old));
+    assert!(stderr(&old).contains("on either side"), "{}", stderr(&old));
+}

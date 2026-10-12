@@ -5383,8 +5383,20 @@ pub(crate) fn compile_at(
         };
     let mut read_discretes: HashMap<&str, f64> = HashMap::new();
     let mut stated: HashMap<String, f64> = params.clone();
+    // A parameter already has its value in `params`, and that value is
+    // what the model computes with; its `start` is what a declaration
+    // says about where to begin if nothing gives it one. Written over
+    // the value, the start made `FixedTranslation.r = {1,0,0}` read as
+    // its type's `{0,0,0}`, so the reader walked a rigid chain without
+    // its offsets and put a free body where its fixed mass is. Behind
+    // `OXIDELICA_PARAM_VALUE_STATED=1` while it is measured.
+    let value_over_start =
+        std::env::var("OXIDELICA_PARAM_VALUE_STATED").is_ok_and(|said| said == "1");
     for component in &model.components {
         if !taken_as_stated(component) {
+            continue;
+        }
+        if value_over_start && params.contains_key(&component.name) {
             continue;
         }
         if let Some(expr) = &component.start {
