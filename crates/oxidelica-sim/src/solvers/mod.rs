@@ -154,8 +154,49 @@ fn stale_complaints_kept() -> bool {
 /// as one switch, since the handover alone ends the run at its start
 /// on the complaint the abandoned stage left.
 pub(crate) fn edge_handoff_on() -> bool {
-    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
-    *ON.get_or_init(|| std::env::var_os("OXIDELICA_EDGE_HANDOFF").is_some())
+    edge_handoff() != EdgeHandoff::Off
+}
+
+/// What `OXIDELICA_EDGE_HANDOFF` asks for. Any value but `all` is the
+/// narrow reading, `all` the wide one the switch had first.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum EdgeHandoff {
+    Off,
+    /// Only once the explicit solver has moved off the start: the
+    /// pumps leave IF97's range on a stage of a step taken at
+    /// t = 3e-4 after thirteen evaluations, while every pipe that pays
+    /// for the wide reading refuses on the first stage of the first
+    /// step, at the start point itself, where the implicit solver then
+    /// grinds for minutes - 187 s to win `SeriesPipes2`, 323 s to lose
+    /// `BranchingPipes4`, 2443 s to lose `SeriesPipes1` (m410).
+    AfterAStep,
+    /// Wherever the refusal comes, the start point included.
+    Always,
+}
+
+impl EdgeHandoff {
+    fn read(said: Option<&str>) -> Self {
+        match said {
+            None => EdgeHandoff::Off,
+            Some("all") => EdgeHandoff::Always,
+            Some(_) => EdgeHandoff::AfterAStep,
+        }
+    }
+
+    /// Whether an `Outside` refusal is handed over, `moved` saying the
+    /// explicit solver has accepted a step of this segment.
+    pub(crate) fn takes(self, moved: bool) -> bool {
+        match self {
+            EdgeHandoff::Off => false,
+            EdgeHandoff::AfterAStep => moved,
+            EdgeHandoff::Always => true,
+        }
+    }
+}
+
+pub(crate) fn edge_handoff() -> EdgeHandoff {
+    static SAID: std::sync::OnceLock<EdgeHandoff> = std::sync::OnceLock::new();
+    *SAID.get_or_init(|| EdgeHandoff::read(std::env::var("OXIDELICA_EDGE_HANDOFF").ok().as_deref()))
 }
 
 /// Whether a validated block leaves its last perturbed point in the
@@ -2335,6 +2376,23 @@ mod crossing_tests {
 #[cfg(test)]
 mod edge_handoff_tests {
     use crate::{Refusal, SimError, Walked};
+
+    use super::EdgeHandoff;
+
+    // The narrow reading hands an edge over only once the explicit
+    // solver has moved off the start; a refusal at the start point is
+    // where the implicit solver was found to grind for minutes and win
+    // one pipe in five. `all` is the wide reading, kept for pairs.
+    #[test]
+    fn the_narrow_handover_waits_for_a_step() {
+        assert_eq!(EdgeHandoff::read(None), EdgeHandoff::Off);
+        assert_eq!(EdgeHandoff::read(Some("1")), EdgeHandoff::AfterAStep);
+        assert_eq!(EdgeHandoff::read(Some("all")), EdgeHandoff::Always);
+        assert!(!EdgeHandoff::AfterAStep.takes(false));
+        assert!(EdgeHandoff::AfterAStep.takes(true));
+        assert!(EdgeHandoff::Always.takes(false));
+        assert!(!EdgeHandoff::Off.takes(true));
+    }
 
     // A stage refused as outside what the medium answers is handed to
     // the implicit solver under the switch and only there; without it
