@@ -42164,3 +42164,173 @@ rows and 200 flattened and did not run in 131 rows, which is 1020 -
 953 and 953 - 753. That is the base for the next diff of the register;
 the run half is still led by the algebraic loops, singular Jacobian
 (11) and the Newton direction (10).
+
+## Whose start wins along a rigid chain: neither, the rows are copies (m406)
+
+**The question m404 left.** The map ended on the order in which the
+start reader settles rotations and positions along a rigid chain, on
+the guess that the point masses' wall was a `fixed` start losing to a
+declared one. Read in the code, the reader has no rule of precedence
+at all. `stated` (`compile.rs`, the loop beside
+`OXIDELICA_PARAM_VALUE_STATED`) begins with the parameters and every
+declared start, `fixed` or not, and an equation is asked only about a
+name that is not in it yet. So a declared start is never overruled by
+the reader, and a `fixed` one is never preferred: the two are the same
+entry of one table. Five library-free models of the shape - a `fixed`
+position tied by a rigid relation to a state with a contrary declared
+start, with and without a block and a nonlinear term between them
+(`/tmp/m405b/p2/C3` to `C13`) - all start where the `fixed` start puts
+them. In those the initialization pairs the demoted `fixed` start with
+the state behind it (`init: demoted x reaches ["y"], took y`) and the
+declared start loses there, after the reader, which is the place it
+should lose.
+
+**What the point masses actually stop on.** `B6z` under
+`OXIDELICA_NEWTON_TRAIL` (`/tmp/m405b/b6z_trail.txt`): six rows of
+the 54-unknown block are zero in every column of every one of the
+seven Jacobians, and their residuals are zero at every iterate too.
+A row that is zero whatever the unknowns are is not a start problem,
+and the probe confirms it: giving the rotations and `pointMass2` their
+starts by hand (`B6both`, and `B6f` with `freeMotion.frame_a.R` at the
+identity) leaves the same six rows (`/tmp/m405b/tr/`). A local print
+of each row's outside reads and of the block's inner assignments (not
+committed, `/tmp/m405b/rows_probe.patch`, binary `ox_reads3`) names
+them: rows 26 and 30 both define `der(freeMotion.frame_b.r_0[3])`,
+and so does an inner assignment of the same block. Three spellings of
+one derivative - one through `v_rel_a`, one through
+`der(r_rel_a)`, the alias `v_rel_a = der(r_rel_a)` between them -
+and the same holds one order up for rows 37 and 41.
+
+**Where the copies come from.** A print at the point where the
+matching hands an equation to be differentiated
+(`OXIDELICA_SUPPLY_PROBE`, `/tmp/m405b/b6z_supply.txt`, 136 supplies)
+shows equation 156, `freeMotion.frame_b.r_0[3] = frame_a.r_0[3] +
+R * r_rel_a`, differentiated at reductions 4, 7 and 10, for
+`freeMotion.frame_b.r_0[3]`, then `freeMotion.frame_a.R.T[2,3]`, then
+`freeMotion.frame_a.R.T[3,3]`. Four equations are differentiated more
+than once over the walk. The ledger that forbids it,
+`supplied` in `reduce_index_once`, is made afresh in each reduction,
+so its refusal (`has already been differentiated in this reduction`)
+cannot see an earlier one. Each copy is a fresh row with a fresh
+minted unknown, the rows agree with each other identically, and the
+block they meet is singular by construction. That is the same breed
+as the implied row of m403 - a row the system already holds - reached
+through a name the alias check does not read.
+
+**The opt-in.** `OXIDELICA_SUPPLY_ONCE=1` keeps the ledger across the
+walk (`differentiated_ever`, filled only by a member that reduced) and
+refuses a member whose supply would differentiate an equation a
+second time, the way the implied row refuses one. `=2` also refuses a
+member that is itself an equation differentiated before. On the small
+models, one binary (`/tmp/m405b/ox_once4`), `=0` against `=1`:
+`B6z` moves from the singular Jacobian to a NaN residual on
+`pointMass2`'s gravity row, `B7` from that NaN to a singular Jacobian,
+`B6g` and `B6both` keep a singular Jacobian of another block. With
+`=1` the six identically zero rows of `B6z` are gone, and six others
+appear (`/tmp/m405b/tr1/B6z.txt`): `pointMass1.v_0[1]` and its
+neighbours, defined once by the chain and once by the mass. With `=2`
+every point-mass model stops at `structurally singular model:
+equation world.frame_b.R.T[i,j] = freeMotion.frame_a.R.T[i,j]
+constrains no state`, the reduction left with nothing to take. So the
+copies are one link, and the chain behind it is the over-constrained
+rotation: the nine equalities between the world's frame and the free
+joint's are the connection graph's root, and every reduction spends
+one of them on a rotation entry that the quaternion already fixes.
+Whether the connection graph's handling of that root is what should
+have kept them out of the reduction is not measured here; it is where
+the next probe goes.
+
+**The pair, and why the switch is not in the tree.** One binary of
+the tree with the switch (`/tmp/m405b/ox_once4`), each half under
+`cap.sh` at 20 GB, the two halves side by side, `=0` against `=1`
+(`/tmp/m405b/pair/off.txt`, `on.txt`, peaks 8.0 and 8.2 GB). Off: 953
+flatten, 753 run, runnable 836 / 710, which is the floor print. On:
+953 / 755, runnable 836 / 712. The flatten lists are identical and
+the run lists differ by two names gained and none lost:
+`SMEE_LoadDump`, which the census read below had already shown with
+a row that is zero throughout, and the quasi-static `SMPM_OpenCircuit`
+of `Magnetic.QuasiStatic.FundamentalWave`, which was not expected - it
+refused before with `the equations of algebraic loop ... are NaN`, not
+with a singular Jacobian - and is named here for that reason.
+`SMEE_LoadDump` re-differentiates one equation, the star point's
+current balance `terminalBox.star`, at reductions 13 and 14 for two
+different pin currents (`/tmp/m405b/smee_supply.txt`).
+
+The switch was not committed. AGENTS.md wants a change to come with a
+test that fails without it, and none of eight library-free models
+written for the shape (`/tmp/m405b/t/K1` to `K6`, `p2/D1`, `D3`: star
+points of series inductors, a machine's space phasor in a star, a
+rigid body of three masses, a twice-fixed rotation) gets a reduction
+to hand the same equation over twice - each either runs the same both
+ways or refuses the same way both ways. The ledger, the two refusals
+and the probe print are kept as `/tmp/m405b/supply_once_final.patch`
+(81 lines against `4f89fd7`); `=1` refuses a member whose supply
+would differentiate an equation again, `=2` also refuses a member
+that is itself such an equation. What it needs before it goes in is
+the twelve-line model, which is the next probe: shrink
+`SMEE_LoadDump`'s star until the double supply survives without the
+library.
+
+**The singular-Jacobian row of the census, read for the same
+fault.** Each of its eleven members was run alone with the trail
+(`/tmp/m405b/sj/*.txt`). Two of them have a row that is zero
+throughout: `SMEE_LoadDump` (row 4, a derivative of a pin current
+whose every term is outside the block) and `SMPM_CurrentSource` (row
+8, two converter fluxes, nothing of the block's own). The other nine
+have no zero row and no zero column: their matrices are singular as
+numbers, not as structure. `RollingWheel` is singular at a residual
+of 3e-14 after 28 iterations, at a solution rather than on the way to
+one.
+
+**The top two rows against m344** (item 3; names from
+`/tmp/m405/census/raw.txt`, fates of names that left from the run list
+of `/tmp/m404/pv2_ran_on.txt`, the same compiler). The raw file m344
+split, `/tmp/m342/raw.txt`, is gone, so the diff is against the names
+the m344 chapters wrote down, not against a full list.
+
+`the Newton direction ... does not reduce the residual`, 26 in m342,
+10 now. Nine of the ten are at t > 0: BranchingPipes1, 2, 4 and 14,
+SeriesPipes1 and 2, TestTemperature1, TestWaterPumpCheckValve, and
+TestWaterPumpPowerCharacteristic, which m344 had at t = 0 and which
+now refuses at t = 0.0018. The tenth, TestMultiPortTraceSubstances,
+is the one member of the fifteen at t = 0 still here. Of the other
+fourteen, nine run (Air, Nitrogen, DryAirNasa, WaterIF97_ph,
+WaterIF97OnePhase_ph, Glycol47, TestWaterPumpStorage, IMC_Transformer,
+SMPM_Mains), three were carved into the heavy list (R134a1, R134a2,
+DynamicPipeInitialization), and Essotherm650 now stops on an
+assertion that `Pr` went above its maximum. Of the t > 0 half named in
+m344, DryAir1 and Rectifier6pulse run.
+
+`singular Jacobian in algebraic loop`, 20 in m342, 11 now: CCCV_Stack,
+CCCV_StackRC, SMEE_LoadDump, the quasi-static Rectifier, RoomCO2,
+SMEE_Generator, SMEE_Generator_Polyphase, SMPM_CurrentSource,
+RollingWheel, LossyGearDemo2 and TestMixingVolumesPressureStates. Of
+the switch group m344 named, DiodeBridge2mPulse, PolyphaseRectifier,
+ThyristorBridge2mPulse_RLV, SMR_Inverter_Polyphase and
+SMPM_Inverter_Polyphase run, and IMC_DOL_Polyphase, SMEE_DOL and
+SMEE_Rectifier moved to `underdetermined algebraic loop`. PumpingSystem
+moved to a refusal of the reservoir's enthalpy equation and
+DynamicPipesAndFittings to the heavy list.
+
+The candidate for the next wall after the point masses is the t > 0
+half of the Newton row: eight Fluid test models, pipes and pumps, one
+family of point 20 (a stage rejected, then a block with no step to
+take), all of them refusing with a step accepted only below 1e-4 of
+itself or not at all. It is the largest single family left in the two
+rows, and unlike the singular-Jacobian row it has not scattered.
+
+**The first print after the carving** (item 0). The library job of
+ba885f1 (job 114737568101 of push run 38227197395) is green: 2671
+files, 953 flatten, 753 run, runnable 836 / 710, ratio 1.130 inside
+0.70..1.50 (8561 s flattening, 9037 s running). The step that reads
+the library ran 111 minutes (09:01:45 to 10:53:10), the job 112. The
+estimate in the chapter above was about 1.05 to 1.10; the print is
+0.03 over its top, a point and not a reason to move anything. The run
+of 1592ba0 skipped the library job, as a documentation commit does, so
+it confirms nothing about the carving. The heavy job did not run for
+ba885f1 and will not for any push: it is declared for the schedule
+and for a manual dispatch only, so the heavy floors 23 / 21 wait for
+the night's run or for a dispatch. The desk preflight for 4f89fd7,
+which raised the run floors to 751 / 708, printed 953 / 753, runnable
+836 / 710, ratio 0.947 inside the desk's 0.80..1.10
+(`/tmp/m405b/preflight.txt`).
