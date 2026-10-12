@@ -42690,3 +42690,31 @@ printed 23 flatten and 2 run, runnable 21 and 2, against the floors 23
 / 2 and 21 / 2, in a step of 102 minutes (11:40:18 to 13:22:12),
 flattening 1796 s and running 12594 s over the 23. The library job
 does not run on the schedule, so that run gives no ratio point.
+
+**The retreat made to descend, probed and not taken.** The Newton
+map above named one local answer: keep halving the retreat until the
+point is both finite and below where the step began. Built as a probe
+(`OX_PROBE_RETREAT_DESCENDS`, `/tmp/m406/retreat_probe.patch`, binary
+`/tmp/m406/ox9`, not in the tree) and asked of the three traced
+members, it moves none of them: the pump, `BranchingPipes14` and
+`TestTemperature1` all refuse as before. The pump's trail under it
+(`/tmp/m406/pump_pc_retreat.txt`) shows why. The retreat now halves
+three times instead of once and lands at 1.165e5 Pa with
+`|f| = 0.096`, below the 0.106 it began from, and the damped steps
+from there do descend, to 0.051 against the 0.178 of the base trail.
+They descend along the same road, though: the pressure falls 6.5e4,
+2.7e4, 1.3e4, 6.3e3, 3.4e3, 2.0e3, 1.3e3, 920, 746, 660, 616, 614,
+612 Pa, `|f|` stalling at 0.0508, and the guard refuses near the triple
+point again. So the uphill landing was real but
+it is not the wall. The Newton direction itself points the pressure
+below the bottom of the water formulation, from a finite and descending
+point, and the residual left at 616 Pa is 0.05, nowhere near a root.
+The root the step is after is not inside the region IF97 describes, or
+the block is not the one that should hold it. The question is now
+upstream of the solver, the state that the integrator handed this
+block at t = 0.0017875. `Refusal::Outside` is read only by the
+initialization's halving (`compile.rs`, `outside_the_domain`); in the
+run it ends the run, and treating it there as a step too long was
+measured in m363 (`OX_PROBE_OUTSIDE_MENDS`) and turned quick refusals
+into slow ones. That leaves the integrator's step before the refusing
+one as the next thing to read, not the Newton iteration.
