@@ -42835,3 +42835,25 @@ cone that runs through `cos` of a state is a weight the monitor cannot
 always read. Not built: a monitor that treats an unsettled cone as
 "not known" rather than as a failed selection changes when every model
 with a cone re-selects, and is a series of its own.
+
+**`SMPM_CurrentSource` under the check** (item 3 continued, the other
+member m406 counted certain; `/tmp/m406/fwsmpmcs_4.txt`, binary
+`/tmp/m406/ox7`). The census member is the `FundamentalWave` one; the
+`Machines` model of that name refuses earlier, a Newton loop that does
+not converge, the same under `=0`, `=1` and `=4`. The `FundamentalWave`
+model moves with each switch. Off it is the singular Jacobian with the
+row that holds none of the block's own unknowns. Under `=1` it stops at
+`der(smpm.flange.phi) - inertiaLoad.w` constraining no state. Under `=4`
+the check refuses eleven members at reduction 18 as rows the system
+holds (the star sum of the stator pins through the resistor and the
+stray load, `der(smpm.stator.port_n.V_m.re) = 0`, and their
+neighbours), and the reduction then runs out of members:
+`der(der(voltageQuasiRMSSensor.VoltageSensor1.plug_p.pin[3].i)) = 0
+constrains no state ... nor did the 31 other equations of its singular
+subset`. That is `RollingWheel`'s answer under `=1` in m406: the copies
+were what let the walk finish, and taking them away shows a constraint
+counted once too often rather than a way through. The certain three of
+m406's count therefore go one each way under `=4`: `SMEE_LoadDump`
+runs, `RollingWheel` does not move (its copy is nonlinear), and
+`SMPM_CurrentSource` turns from a singular block into a reduction with
+nothing to take.
