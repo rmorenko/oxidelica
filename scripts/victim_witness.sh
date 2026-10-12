@@ -82,16 +82,24 @@ model="tests/small/a_delta_secondary_does_not_spend_its_angles_twice.mo"
 check "implied row refused" 8 "transformer.r2.resistor[2].pin_p.reference.gamma" \
   "$(victim_at 8 OXIDELICA_UNUSED=1)"
 check "implied row taken" 8 "transformer.l2sigma.inductor[2].pin_p.reference.gamma" \
+  "$(victim_at 8 OXIDELICA_IMPLIED_ROW=0 OXIDELICA_SUPPLY_ONCE=0)"
+# With the chain on (the default since m410) the same member is refused
+# a second time over: the dependence check of `=4`, not the ledger,
+# reads its row as one the system already holds, which is the implied
+# row seen from the linear side. So the implied row alone taken back
+# changes nothing here, and the old victim needs both rules off.
+check "implied row taken, ledger on" 8 "transformer.r2.resistor[2].pin_p.reference.gamma" \
   "$(victim_at 8 OXIDELICA_IMPLIED_ROW=0)"
 # A row the system already holds, reached through equations that are all
 # different: the star sum of a machine's load stated a second time. With
-# the dependence of the supplied rows read (an opt-in), the reduction
-# refuses the members that give it and demotes a stator current; without
-# it, the load's inductor current goes and the block is singular.
+# the dependence of the supplied rows read (the default, `=5`), the
+# reduction refuses the members that give it and demotes a stator
+# current; with it taken back (`=0`), the load's inductor current goes
+# and the block is singular.
 model="tests/small/a_star_sum_stated_again_through_other_equations.mo"
 [ -f "$model" ] || { echo "WITNESS: no model at $model"; exit 1; }
 check "dependent row refused" 14 "smee.lssigma.i_[1]" "$(victim_at 14 OXIDELICA_SUPPLY_ONCE=4)"
 check "dependent row refused, ledger first" 14 "smee.lssigma.i_[1]" \
-  "$(victim_at 14 OXIDELICA_SUPPLY_ONCE=5)"
-check "dependent row taken" 14 "loadInductor.inductor[1].i" "$(victim_at 14 OXIDELICA_UNUSED=1)"
+  "$(victim_at 14 OXIDELICA_UNUSED=1)"
+check "dependent row taken" 14 "loadInductor.inductor[1].i" "$(victim_at 14 OXIDELICA_SUPPLY_ONCE=0)"
 exit "$status"

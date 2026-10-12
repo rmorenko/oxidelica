@@ -1697,10 +1697,11 @@ fn reduce_index_once(
     let mut minted_defs: HashMap<String, Expr> = HashMap::new();
     // The equations the matching has handed to be differentiated, over
     // every reduction of the walk and not only the one under way. Read
-    // only under `OXIDELICA_SUPPLY_ONCE`, all of whose values are
-    // opt-ins: `=1` refuses a member whose supply would differentiate
-    // such an equation again, `=2` also a member that is one, `=4`
-    // (see `dependent_row_check`) a member whose rows the system
+    // under `OXIDELICA_SUPPLY_ONCE`, which is `=5` unless said
+    // otherwise and which `=0` takes back: `=1` refuses a member whose
+    // supply would differentiate such an equation again, `=2` also a
+    // member that is one, `=4` (see `dependent_row_check`) a member
+    // whose rows the system
     // already holds by any road, and `=5` the rule of `=1` first and
     // that of `=4` after it (docs/ANALYSIS.md, m406 to m408).
     let mut differentiated_ever: Vec<usize> = Vec::new();
@@ -2683,9 +2684,19 @@ fn reduce_index_once(
     })
 }
 
-/// What `OXIDELICA_SUPPLY_ONCE` says, or nothing where it is not set.
+/// What `OXIDELICA_SUPPLY_ONCE` says, with `=5` where it is not set.
 fn supply_once_said() -> String {
-    std::env::var("OXIDELICA_SUPPLY_ONCE").unwrap_or_default()
+    supply_once_reading(std::env::var("OXIDELICA_SUPPLY_ONCE").ok().as_deref())
+}
+
+/// The rule a value of the switch names. Unset is `=5`, the ledger and
+/// the dependence check together, which is the default since m410: the
+/// pair of the final tree gave SMEE_LoadDump and SMPM_OpenCircuit and
+/// lost nothing, twice, with two binaries (docs/ANALYSIS.md, m408).
+/// `=0` takes both rules back, so that one binary gives both halves of
+/// a measurement, and `=1`, `=2` and `=4` keep their meaning.
+fn supply_once_reading(said: Option<&str>) -> String {
+    said.unwrap_or("5").to_string()
 }
 
 /// Whether a member is refused whose supply would differentiate an
@@ -2705,10 +2716,10 @@ fn reads_dependent_rows(said: &str) -> bool {
     matches!(said, "4" | "5")
 }
 
-/// Under `OXIDELICA_SUPPLY_ONCE=4` or `=5`, the first row at or past `from`
-/// that the linear rows before it already hold, the member's own
-/// differentiated row taken with the rest. Off otherwise, and off by
-/// default: it changes the reductions of every model it touches.
+/// Under `OXIDELICA_SUPPLY_ONCE=4` or `=5` (the default), the first row
+/// at or past `from` that the linear rows before it already hold, the
+/// member's own differentiated row taken with the rest. Off under `=0`,
+/// `=1` and `=2`.
 ///
 /// The integer arithmetic of the `hidden` search was tried first and
 /// is blind where it matters: the star sum of `SMEE_LoadDump` comes
@@ -8444,7 +8455,19 @@ mod implied_row_tests {
 
 #[cfg(test)]
 mod supply_once_tests {
-    use super::{reads_dependent_rows, refuses_a_repeat_supply};
+    use super::{reads_dependent_rows, refuses_a_repeat_supply, supply_once_reading};
+
+    /// The chain is the default: nothing said is `=5`, both rules on,
+    /// and `=0` is the one value that takes both back.
+    #[test]
+    fn the_chain_is_on_unless_said_otherwise() {
+        let unset = supply_once_reading(None);
+        assert!(refuses_a_repeat_supply(&unset), "ledger by default");
+        assert!(reads_dependent_rows(&unset), "dependence by default");
+        let off = supply_once_reading(Some("0"));
+        assert!(!refuses_a_repeat_supply(&off));
+        assert!(!reads_dependent_rows(&off));
+    }
 
     /// `=5` is both rules, the ledger's and the dependence check's, and
     /// the values before it keep meaning what they meant: `=4` reads

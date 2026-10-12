@@ -148,7 +148,8 @@ impl CompiledModel {
 
 /// Whether a cone of definitions that will not settle is read by the
 /// monitor as a weight not known rather than as a failed selection.
-/// Off by default; `OXIDELICA_CONE_UNKNOWN=1` turns it on.
+/// On by default since m410; `OXIDELICA_CONE_UNKNOWN=0` takes it back,
+/// so that one binary gives both halves of a measurement.
 ///
 /// Off, an own weight worked through the definitions that comes back
 /// `NaN` compares false and the model is selected again. That is right
@@ -159,10 +160,15 @@ impl CompiledModel {
 /// `gamma`, which has no answer once the moved cosine leaves [-1, 1],
 /// and the re-selection that followed could not find the same states
 /// again (docs/ANALYSIS.md, m407). On, such a weight is passed over the
-/// way an alternative of zero already is. It changes when every model
-/// with a cone re-selects, so it stays an opt-in until that is decided.
+/// way an alternative of zero already is. Taken with the chain of
+/// `OXIDELICA_SUPPLY_ONCE=5`, whose pair it was measured in.
 fn cone_not_settled_is_unknown() -> bool {
-    std::env::var("OXIDELICA_CONE_UNKNOWN").as_deref() == Ok("1")
+    cone_unknown_said(std::env::var("OXIDELICA_CONE_UNKNOWN").ok().as_deref())
+}
+
+/// What the switch says: only a `0` turns the reading off.
+pub(crate) fn cone_unknown_said(said: Option<&str>) -> bool {
+    said != Some("0")
 }
 
 /// One record of the selection monitor: whether its victim's weight

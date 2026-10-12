@@ -720,6 +720,9 @@ mod monitor_tests {
             &mut baseline,
             false
         ));
+        // Read as not known unless the switch says `0`: on by default.
+        assert!(crate::continuation::cone_unknown_said(None));
+        assert!(!crate::continuation::cone_unknown_said(Some("0")));
         // A slope that is not a number is no cone, and fails either way.
         let mut baseline = f64::NAN;
         assert!(!crate::continuation::selection_holds(
