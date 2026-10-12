@@ -42887,3 +42887,142 @@ re-selects, the corpus says that cost nothing here, and the
 the monitor are the two places where reading a weight as not known
 was argued about before. Whether all three links go in by default is
 a series of its own, and it needs a word first, as the brief asked.
+
+## The generator's chain in the tree, and the integrator's stage of the pump (m408)
+
+**The chain behind two opt-ins.** The two probe patches m407 left in
+`/tmp/m406` are in the tree as switches that change nothing unless
+set. `OXIDELICA_SUPPLY_ONCE=5` is the ledger of `=1` answering first
+and the dependence check of `=4` after it; the values 1, 2 and 4 keep
+their meaning, and which value does what is now two named predicates
+(`refuses_a_repeat_supply`, `reads_dependent_rows` in `compile.rs`)
+held by a unit test. `OXIDELICA_CONE_UNKNOWN=1` makes the selection
+monitor read an own weight worked through a cone that will not settle
+as a weight not known, as it already reads an alternative of zero. The
+monitor's decision is now a function of its numbers
+(`selection_holds` in `continuation.rs`), so the unit test in
+`sensitivity.rs` lays out the generator's cone in miniature, `gamma`
+where `c - cos(gamma)` is zero read at `c = 1`, sees it come back NaN,
+and holds the selection under the switch and not without it. Both
+tests were seen red with their rule undone. That the ledger answers
+before the check reads anything is the order of the walk itself, and
+no model small enough for the suite tells that order apart from the
+union of the two rules; the witness on the star sum asks the same
+victim under `=5` as under `=4`, and the corpus pair is the judge of
+the rest. On the generator alone (`--only` from `.msl`, binary
+`/tmp/m407/ox1`): `=0` runs, `=5` does not, `=5` with the cone switch
+runs.
+
+**The pair of the final tree** (binary `/tmp/m407/ox1`, built from
+`d0d5918`; `OXIDELICA_SUPPLY_ONCE=0` against `=5` with
+`OXIDELICA_CONE_UNKNOWN=1`, 20 GB caps, peaks 11.0 and 11.0 GB;
+`/tmp/m407/pair/off.txt`, `on.txt`, lists in `off_lists.txt`,
+`on_lists.txt`). The pass was started from `/tmp/m407/pair` and not
+from the root of the tree, and the carved-out set is excluded by
+default only where `scripts/heavy_models.txt` is visible from the
+working directory, so both halves read all 1043 examples:
+
+```text
+off   976 flatten, 755 run, runnable 857 / 712   (all 1043)
+on    976 flatten, 757 run, runnable 857 / 714
+off   953 flatten, 753 run                         (the heavy 23 taken out)
+on    953 flatten, 755 run
+gained   Machines...SMEE_LoadDump
+gained   QuasiStatic.FundamentalWave...SMPM_OpenCircuit
+lost     none
+```
+
+With the 23 of the heavy list taken out of the lists by name, the off
+half is the m407 `ox15` off half name for name (no line in one and not
+the other), and 953 / 753 is what the library job printed for
+`4d6e5c2`. The heavy 23 move nothing between the halves. So the chain
+in the tree gives exactly what the probe gave, +2 and no loss, now
+from code a test holds. A default that hangs on the working directory
+is a trap of the kind the notes name: a pass started anywhere but the
+root measures a different set without a word, and the only sign is
+1043 where 1020 was expected.
+
+**The integrator's stage of the pump, probed** (item 2; a print of
+each Dormand-Prince stage at `eval_point`,
+`/tmp/m407/stage_probe.patch`, binary `/tmp/m407/ox2probe`, not in the
+tree; `/tmp/m407/nd/*.txt`). The solve that refuses in
+`TestWaterPumpPowerCharacteristic` at t = 0.0017875 is the seventh
+stage of the third step, the fifth order point at `C = 1`, and the
+solve before it at the same time is the sixth stage at `C = 1` of the
+same step. The step had grown fivefold, from 2.98e-4 to 1.49e-3, and
+the stages move the first of the model's two states by 8.5e-8,
+1.3e-7, 3.4e-7, 7.4e-5, 1.2e-2 and -0.89: a factor
+of a hundred per stage from the fourth on. That is the signature of an
+explicit method past its stability limit on a stiff state, not of a
+predictor or a step that is long for accuracy: the states hardly move
+in the run (the operating point holds for the whole of 0.2 s under
+`bdf`, below). `TestWaterPumpCheckValve` is the same shape, its step
+grown 3.7 times to 1.74e-3 and the stages growing 0.0001, 0.003, 1.1,
+41, 137, -53 Pa. The stiffness watch counts fifteen stiff steps before
+it hands the run over, and the pump never gets past three. A first
+step of 1e-6 (`--dt 1e-6`) does not mend it: the step grows by five
+each time and the stages blow up at t = 0.0039 instead.
+
+What then stops the hand-over is two things, each probed (both
+patches in `/tmp/m407/handoff_both.patch`, binary
+`/tmp/m407/ox4handoff`, not in the tree). First, the refusal the
+stage raises is `Refusal::Outside`, which is not among those the
+explicit solver passes to the implicit one (`implicit_step_mends`), so
+the run ends rather than going to BDF; `OX_PROBE_OUTSIDE_HANDOFF=1`
+adds it. Second, with that alone both pumps then die at t = 0 with
+`tsat called with too low pressure, p = -88064 Pa`: the pressure of
+the refused Newton step of the explicit run, left in the walk's
+complaint and read by the BDF's first solve. `OX_PROBE_HANDOFF_CLEAN=1`
+drops it at the hand-over. With both, the two pumps run their check
+window, and the numbers are the physical operating point and stay
+there: 1.4596 kg/s at 4.353 m head and 1.426e5 Pa for the power
+characteristic, 0.648 kg/s at 75.1 m and 8.36e5 Pa for the check valve
+(`--stop 0.2` and `0.06`, every row the same to five digits). Forced
+to `bdf` from the start with neither probe, they run to t = 2.5 and
+t = 1.25 and stop on other walls, so the full runs have more past the
+check window.
+
+**The pipes are another wall.** The other seven (`TestTemperature1`,
+`BranchingPipes1`, `2`, `4`, `14`, `SeriesPipes1`, `2`) refuse on the
+first or third stage of the very first step, with states moved by 2e-4
+to 0.06 of their size, and `TestTemperature1` at a first step of 1e-6
+refuses at t = 8e-7, where a stage moved the pressure by 0.08 Pa and
+the block's residual went from 0.08 to 60 and its Newton step out of
+IF97. No step is short enough there, so it is the block and the start
+point rather than the integrator: what m406 read as the Newton
+direction pointing below the triple point from a descending point.
+Under both handoff probes `BranchingPipes2` runs and `TestTemperature1`,
+`BranchingPipes1`, `4` and `14` do not; `SeriesPipes1` was stopped
+unfinished after 24 minutes of processor on its own, and
+`SeriesPipes2` was not reached. So the nine are two families and not
+one: two pumps whose wall is the explicit solver's stability, mended in
+the probe by passing an edge refusal to the implicit solver with a
+clean slate, and seven pipes whose wall is the block at the start
+point, of which the same probe takes one. Neither probe is in the
+tree; both change what every model with a medium does when a stage
+steps over the edge, and are a series of their own with a pair.
+
+**For the word on the default: what the chain changes** (item 3,
+facts only). By default the chain wins `SMEE_LoadDump` and
+`SMPM_OpenCircuit` and loses nothing on the corpus, from one binary,
+twice now (`ox15` in m407, `ox1` here). What it changes beyond those
+two is in two places. The ledger and the check change which members a
+reduction takes, and so the victims, of every model where a supply
+repeats an equation or adds a row already held; on the corpus the
+lists say that moved no other model's verdict, and the victims of the
+others were not diffed. The cone switch changes when every model whose
+monitor weighs a victim through a cone re-selects: a cone that will
+not settle no longer asks for a re-selection. That is the question the
+monitor's notes already argued twice. `GearConstraint` (the note in
+`selection_holds`) was a rebuild asked for by an own weight not known
+beside an alternative of zero, and the answer then was to pass over a
+record with nothing to prefer; the switch extends the same passing
+over to an own weight not known through a cone. `TransformerTestbench`
+(the note on `append_segment`) is why a re-selection that is not
+needed costs a model: a rebuild can mint different dummy derivatives,
+and the glue refuses rather than pad. What the switch gives up is a
+re-selection a cone's NaN asked for that was right, a selection that
+had in fact gone bad at the point where its weight stopped being
+readable; on the corpus no such model was found, and the switch reads
+NaN only for a `Through` weight, so a slope that is not a number still
+re-selects.
