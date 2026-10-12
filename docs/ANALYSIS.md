@@ -42090,3 +42090,64 @@ by the small model and moves no model of the library, so it is kept
 behind its test until the reader is next changed for the point
 masses, where it is one of the two parts and the other is still a
 map.
+
+## Eight refused giants carved out, the band returned (m405)
+
+**The carving** (Roman's word on the m404 decision). The refused eight
+of the ten dearest to run by the quiet desk's `--slow 50`
+(`/tmp/m404/slow.txt`) joined `scripts/heavy_models.txt`, fifteen
+names to twenty-three, each with its price. The two of the ten that
+run stay: `MechanicalStructure` is a model won, and
+`DynamicPipeEnergyConservationCheck` is a physical check. The quiet
+desk pass without them, one binary built from ffd3bcb
+(`/tmp/m405/main2.txt`), printed what was expected and nothing else:
+
+```text
+counts: 953 flatten, 753 run; runnable 836 / 710 (from 961 / 753,
+        844 / 710 on the runner for ffd3bcb, job 114648189923)
+time:   flattening 3911s over 1020 models (3834ms each);
+        running 3483s over 953 (3655ms each); ratio 0.953
+```
+
+The eight on their own, `--only-from` from the same binary
+(`/tmp/m405/eight_only.txt`, peak 4.9 GB): 8 flatten, 0 run, all
+eight runnable examples, 255 s flattening and 2737 s running. The
+flatten-half work splits exactly: the pass without them plus the
+eight is the quiet pass with them to the digit on classes,
+expansions, bodies and names. So the flatten floors came down by
+eight on the print (961 to 953, 844 to 836), the run floors 750 and
+707 did not move, the work centres moved by what the eight count
+alone, and the heavy floors rose by the same eight (15 to 23, 13 to
+21). `WORK_UNCOUNTED` is empty: IMC_YDarc, the one model it held, is
+no longer in the main pass, and a name the report does not print is a
+failure there.
+
+**The band returned to 0.70..1.50.** The runner printed 1.787 for
+f36fa61 and 1.822 for ffd3bcb, both inside 1.45..2.02 with every count
+right. On the desk the ratio fell from 1.577 to 0.953 with the eight
+gone (estimate 0.845; the estimate took the eight's whole price off,
+the pass took off what they cost in a pass where the rest shared the
+cores). By the desk's standing below the runner the runner should
+print about 1.05 to 1.10, inside 0.70..1.50: the morning's recentring
+undone, not a new calibration. The first print after this commit is
+the first point; it is a point to record, not to fit.
+
+**Two defects of the instrument, fixed in the same movement.** The
+recentring of 8163635 moved the runner's band in `library_floor.sh`
+and its judges in `ci.yml`, and left the judges in
+`scripts/preflight.sh` (`time_band_judges`) at the new band and the
+desk's band at 0.80..1.73. The four places now agree: the band in
+`library_floor.sh`, its judges in `ci.yml` and in `preflight.sh`, and
+the desk's own band. And the desk's edges are no longer a factor of
+the runner's: the desk ran 15% above the runner once and runs below
+it now, so the factor was a fact that had changed. They are worked
+from the desk's own point after the carving, 0.953, with the runner's
+room of 18.9% under and 15.8% over: 0.80..1.10. They stand on one
+point, and the comment says so.
+
+**What went wrong on the way.** The first desk pass after the carving
+died at its end with `syntax error near unexpected token` at a line of
+`library_floor.sh`, after 1253 s of models: the script was edited
+while bash was still reading it, and bash reads a script as it goes.
+The second pass ran from a frozen copy. A script that is running is
+not edited, which the notes now say once.

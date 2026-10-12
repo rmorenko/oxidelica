@@ -51,6 +51,13 @@ disowned for the start, and a sweep for orphans at the end. Not
 `setsid`, which macOS does not have at all - a start written with it
 dies immediately and reads exactly like a run that finished.
 
+A script that is running is not edited. Bash reads a script as it
+goes, so a line changed under a pass that has twenty minutes of models
+still to print is read at the wrong offset when the models end, and
+the pass dies with a syntax error at its last step. That cost a whole
+corpus pass. Run a long measurement from a copy of the script, or
+edit only after it has finished.
+
 A change that gives a name a definition changes which states index
 reduction keeps, and that is what to measure - not the number of
 models. Three shifts running, a rule true in itself cost models with

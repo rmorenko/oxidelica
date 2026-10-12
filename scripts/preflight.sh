@@ -131,7 +131,22 @@ library_floor() {
   # against the runner's 1.725 and 1.745. Under 1.66 every one of them
   # would have been red. 0.80..1.73 holds all three, and the desk's
   # edges wait for more desk points rather than being fitted to three.
-  RATIO_LOW=0.80 RATIO_HIGH=1.73 ./scripts/library_floor.sh "$library"
+  #
+  # Set again on 2026-10-12 from the desk's own measurement, on Roman's
+  # word, and no longer as a factor of the runner's band: the desk ran
+  # above the runner once and runs below it now, so a factor carried
+  # from one to the other was carrying a fact that had changed. Eight
+  # refused giants were carved out of the main pass that day; the quiet
+  # desk pass after the carving, one binary built from ffd3bcb with this
+  # list (/tmp/m405/main2.txt), printed 3834ms per model flattening and
+  # 3655ms running, a ratio of 0.953. The edges keep the room the
+  # runner's band keeps, 18.9% under and 15.8% over: 0.953 / 1.189 =
+  # 0.80 and 0.953 x 1.158 = 1.10. They stand on ONE point. Desk passes
+  # of one code have spread from 1.30 to 1.69 before, wider than that
+  # room, so the next desk passes are the next points, and one that
+  # falls outside on right counts has the edges worked over all of them
+  # rather than fitted to it.
+  RATIO_LOW=0.80 RATIO_HIGH=1.10 ./scripts/library_floor.sh "$library"
 }
 
 # The band on the ratio of the two halves' times, seen to fire on
@@ -139,20 +154,21 @@ library_floor() {
 # only other place it runs, and there it is green whenever the pass
 # is, so without this nobody would see it red until it mattered.
 time_band_judges() {
-  # The runner's band: the old code's 1.379 under it, past its top,
-  # and the runner's own 1.745 inside.
-  ./scripts/library_floor.sh --ratio-check 9245 12749 > /dev/null && return 1
-  ./scripts/library_floor.sh --ratio-check 1000 2100 > /dev/null && return 1
-  ./scripts/library_floor.sh --ratio-check 6873 11993 || return 1
+  # The runner's band: under its floor, past its top, and the median
+  # of the 46 jobs it was first set over inside.
+  ./scripts/library_floor.sh --ratio-check 1000 500 > /dev/null && return 1
+  ./scripts/library_floor.sh --ratio-check 1000 2000 > /dev/null && return 1
+  ./scripts/library_floor.sh --ratio-check 1000 1045 || return 1
   # And the desk's band, at the two ends of what the desk has measured
   # and past either end of it.
-  # The four points are the old ones times 0.823, the factor the
-  # carving of 2026-10-06 put on the desk's ratio.
-  local desk="env RATIO_LOW=0.80 RATIO_HIGH=1.73 ./scripts/library_floor.sh --ratio-check"
-  $desk 1000 937 > /dev/null || return 1
-  $desk 1000 1477 > /dev/null || return 1
-  $desk 1000 740 > /dev/null && return 1
-  $desk 1000 1810 > /dev/null && return 1
+  # Inside: the one desk point the edges stand on, 0.953, and the
+  # median of the runner's first 46 jobs. Outside: under the floor and
+  # past the top.
+  local desk="env RATIO_LOW=0.80 RATIO_HIGH=1.10 ./scripts/library_floor.sh --ratio-check"
+  $desk 1000 953 > /dev/null || return 1
+  $desk 1000 1045 > /dev/null || return 1
+  $desk 1000 780 > /dev/null && return 1
+  $desk 1000 1130 > /dev/null && return 1
   return 0
 }
 

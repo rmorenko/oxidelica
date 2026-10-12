@@ -85,3 +85,31 @@ Modelica.Media.Examples.R134a.R134a2
 ModelicaTest.Fluid.TestComponents.Pipes.DynamicPipesAndFittings
 # 114.7s / 79.3s, 2026-10-06, refused
 Modelica.Media.Examples.R134a.R134a1
+
+# Eight refused models carved out on 2026-10-12 on Roman's word, the
+# refused eight of the ten dearest to run by the quiet desk's
+# `--slow 50` over 3a1480c (/tmp/m404/slow.txt). The other two of the
+# ten stay: `MechanicalStructure` runs, and
+# `DynamicPipeEnergyConservationCheck` is a physical check. The eight
+# together were 2986.3s of a 6002s run half and 235.6s of flattening,
+# about 48 minutes of a runner's library job that had walked to 168
+# against its 180 minute ceiling. None of them runs, so they leave the
+# flatten floors and not the run floors. Prices are run / flatten,
+# where a flatten price of zero means the model was outside the fifty
+# dearest to flatten that day.
+# 1182.2s / 0s, 2026-10-12, refused: step size underflow at t = 0
+Modelica.Electrical.Machines.Examples.InductionMachines.IMC_YDarc
+# 468.2s / 21.6s, 2026-10-12, refused
+Modelica.Mechanics.MultiBody.Examples.Elementary.LineForceWithTwoMasses
+# 351.7s / 21.2s, 2026-10-12, refused
+Modelica.Mechanics.MultiBody.Examples.Loops.Fourbar2
+# 298.6s / 44.3s, 2026-10-12, refused
+Modelica.Mechanics.MultiBody.Examples.Loops.Engine1b
+# 204.7s / 37.6s, 2026-10-12, refused
+ModelicaTest.Fluid.TestPipesAndValves.SeriesPipes13
+# 183.6s / 21.7s, 2026-10-12, refused
+ModelicaTest.Fluid.TestPipesAndValves.DynamicPipeInitialization
+# 166.0s / 38.3s, 2026-10-12, refused
+ModelicaTest.Fluid.TestPipesAndValves.SeriesPipes12
+# 131.3s / 50.9s, 2026-10-12, refused
+ModelicaTest.Fluid.TestPipesAndValves.BranchingPipes18

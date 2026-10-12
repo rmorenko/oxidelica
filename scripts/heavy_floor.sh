@@ -57,9 +57,28 @@ set -euo pipefail
 #   run               2 =  2 + 0
 #   runnable flatten 13 =  8 + 5
 #   runnable run      2 =  2 + 0
-FLATTEN_FLOOR=15
+#
+# On 2026-10-12 eight refused giants joined on Roman's word, the
+# refused eight of the ten dearest to run by the quiet desk
+# (/tmp/m404/slow.txt): IMC_YDarc, LineForceWithTwoMasses, Fourbar2,
+# Engine1b, SeriesPipes13, DynamicPipeInitialization, SeriesPipes12 and
+# BranchingPipes18. `--only-from` the eight, one binary built from
+# ffd3bcb (/tmp/m405/eight_only.txt), printed 8 / 0 and runnable 8 / 0
+# in 255s of flattening and 2737s of running, so:
+#
+#   flatten          23 = 15 + 8
+#   run               2 =  2 + 0
+#   runnable flatten 21 = 13 + 8
+#   runnable run      2 =  2 + 0
+#
+# These are the eight's own print added to the floors that stood, not
+# a print of the whole list; the scheduled job's next run is the first
+# over all twenty-three, and it is the one these floors answer to.
+# That job last took 98 minutes and these add about 48 of a runner's,
+# inside its 180.
+FLATTEN_FLOOR=23
 RUN_FLOOR=2
-RUNNABLE_FLATTEN_FLOOR=13
+RUNNABLE_FLATTEN_FLOOR=21
 RUNNABLE_RUN_FLOOR=2
 
 directory="${1:?usage: heavy_floor.sh <library directory>}"
