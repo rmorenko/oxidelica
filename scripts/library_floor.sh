@@ -1582,11 +1582,35 @@ UNREAD_CEILING=0
 # 5e0d945 at 12185, f76e71b at 12578). A threshold inside the noise
 # measures the noise.
 #
-# Over 46 library jobs the ratio of running to flattening came out
-# between 0.832 and 1.295, median 1.045, and spread 7.9% where running
-# alone spread 14.9%. The band below fired on none of the 46; it has
-# 19% of room under the lowest and 16% over the highest, so it catches
-# flattening growing dearer by 49% and running growing dearer by 44%.
+# The band was first set over 46 library jobs, whose ratio of running
+# to flattening came out between 0.832 and 1.295, median 1.045, and
+# spread 7.9% where running alone spread 14.9%; it stood at 0.70..1.50,
+# 18.9% of room under the lowest and 15.8% over the highest.
+#
+# Recentred on 2026-10-12 on the code that is here now, by the same
+# room. The proportion moved, and the counts in every print were
+# right: the retreat of 9ab5210 made the reductions cheaper, so
+# flattening fell, and two machines of Electrical.Machines were let
+# into the run half, which has to integrate them. Both are
+# improvements, and both move the ratio up. Four runner prints over
+# one count (961 / 752, runnable 844 / 709):
+#
+#   934d5b8  flatten 9245  run 12749  ratio 1.379  (the old code)
+#   eb79c22  flatten 6873  run 11993  ratio 1.745  (job 114480391223)
+#   8cf7695  flatten 8738  run 15071  ratio 1.725  (job 114534440451)
+#   bea6d5b  flatten 7373  run 12307  ratio 1.669  (job 114591215714)
+#
+# The absolute times moved by a third between them, which is the
+# runner's weather. The edges were worked on the two points before
+# bea6d5b: 1.725 / 1.189 = 1.45 and 1.745 x 1.158 = 2.02. The third,
+# bea6d5b's 1.669 (IMC_YDarc left out, as the line above the verdict
+# prints), came in while the band was being moved and falls inside
+# it, so the edges stand. The old code's 1.379 falls under the new
+# floor, as it should.
+# This band stands on few points where the old one stood on 46: the
+# next green print is the next point, and one that falls outside means
+# the edges are worked again over all the points, not fitted to it.
+#
 # It is two-sided on purpose: a regression in flattening moves the
 # ratio down, and a one-sided check would never see it.
 #
@@ -1605,12 +1629,15 @@ UNREAD_CEILING=0
 # three. The environment may therefore move the edges, and the
 # preflight does, to 0.97 and 2.10 - the same room of about 17% on
 # either side that the runner's band leaves round the runner's spread.
-# CI sets nothing and keeps 0.70..1.50. Since the five refused giants
-# were carved out on 2026-10-06 the desk's edges are 0.80 and 1.73,
-# moved by the factor the carving put on the ratio; the arithmetic is
-# in `scripts/preflight.sh`.
-RATIO_LOW="${RATIO_LOW:-0.70}"
-RATIO_HIGH="${RATIO_HIGH:-1.50}"
+# CI sets nothing and keeps the band below. Since the five refused
+# giants were carved out on 2026-10-06 the desk's edges are 0.80 and
+# 1.73, moved by the factor the carving put on the ratio. They were
+# not moved with the runner's band on 2026-10-12: the desk now runs
+# below the runner (1.30 to 1.35 against 1.73), so the old factors
+# would have put every desk pass under the floor. The arithmetic is in
+# `scripts/preflight.sh`.
+RATIO_LOW="${RATIO_LOW:-1.45}"
+RATIO_HIGH="${RATIO_HIGH:-2.02}"
 
 # The band itself, as a function, so that it can be seen red without a
 # library pass: `library_floor.sh --ratio-check <flatten ms> <run ms>`

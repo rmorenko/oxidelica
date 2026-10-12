@@ -321,9 +321,9 @@ jobs:
         # Written with `if` and not `!`: a negated command does not stop
         # a `bash -e` step, so a band that stayed green would pass.
         run: |
-          if ./scripts/library_floor.sh --ratio-check 1000 500; then exit 1; fi
-          if ./scripts/library_floor.sh --ratio-check 1000 2000; then exit 1; fi
-          ./scripts/library_floor.sh --ratio-check 1000 1045
+          if ./scripts/library_floor.sh --ratio-check 9245 12749; then exit 1; fi
+          if ./scripts/library_floor.sh --ratio-check 1000 2100; then exit 1; fi
+          ./scripts/library_floor.sh --ratio-check 6873 11993
 
       - name: Unused dependencies
         run: cargo machete

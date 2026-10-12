@@ -121,6 +121,16 @@ library_floor() {
   # floor2.txt), the pass without them 0.848 (/tmp/m365/main_new.txt):
   # 0.848 / 1.030 = 0.823, and 0.97 and 2.10 times that are 0.80 and
   # 1.73. The runner's band in library_floor.sh is not moved.
+  #
+  # Not moved on 2026-10-12, when the runner's band was recentred from
+  # 0.70..1.50 to 1.45..2.02. Moving the desk by the factors it stood at
+  # (1.143 and 1.153) would give 1.66..2.33, and the factors assumed the
+  # desk runs above the runner, which on the present code it does not:
+  # three desk passes of it gave 1.333 (/tmp/m401/preflight.txt), 1.346
+  # (/tmp/m402/preflight.txt) and 1.303 (/tmp/m403/corpus_off.txt),
+  # against the runner's 1.725 and 1.745. Under 1.66 every one of them
+  # would have been red. 0.80..1.73 holds all three, and the desk's
+  # edges wait for more desk points rather than being fitted to three.
   RATIO_LOW=0.80 RATIO_HIGH=1.73 ./scripts/library_floor.sh "$library"
 }
 
@@ -129,9 +139,11 @@ library_floor() {
 # only other place it runs, and there it is green whenever the pass
 # is, so without this nobody would see it red until it mattered.
 time_band_judges() {
-  ./scripts/library_floor.sh --ratio-check 1000 500 > /dev/null && return 1
-  ./scripts/library_floor.sh --ratio-check 1000 2000 > /dev/null && return 1
-  ./scripts/library_floor.sh --ratio-check 1000 1045 || return 1
+  # The runner's band: the old code's 1.379 under it, past its top,
+  # and the runner's own 1.745 inside.
+  ./scripts/library_floor.sh --ratio-check 9245 12749 > /dev/null && return 1
+  ./scripts/library_floor.sh --ratio-check 1000 2100 > /dev/null && return 1
+  ./scripts/library_floor.sh --ratio-check 6873 11993 || return 1
   # And the desk's band, at the two ends of what the desk has measured
   # and past either end of it.
   # The four points are the old ones times 0.823, the factor the
