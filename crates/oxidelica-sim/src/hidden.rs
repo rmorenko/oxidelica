@@ -279,6 +279,143 @@ pub(crate) fn hidden_constraint(
     None
 }
 
+/// A number, if the expression names nothing but parameters and numbers
+/// and folds to one that is finite and not zero.
+fn real_of(expr: &Expr, params: &HashMap<String, f64>) -> Option<f64> {
+    let mut refs = Vec::new();
+    expr.collect_refs(&mut refs);
+    let mut folded = expr.clone();
+    for name in refs {
+        folded = substitute(&folded, name, *params.get(name)?);
+    }
+    match simplify(&folded) {
+        Expr::Number(n) if n != 0.0 && n.is_finite() => Some(n),
+        _ => None,
+    }
+}
+
+/// `expr * scale` read into real columns, or nothing where the
+/// expression is not linear in the columns with coefficients the
+/// parameters fold to. Whatever names no column is left out: a row is
+/// compared to the others only by the columns it holds.
+fn read_real(
+    expr: &Expr,
+    scale: f64,
+    column_of: &HashMap<&str, usize>,
+    params: &HashMap<String, f64>,
+    row: &mut BTreeMap<usize, f64>,
+    rest: &mut bool,
+) -> Option<()> {
+    use oxidelica_parser::BinOp::*;
+    let names_column = |e: &Expr| {
+        let mut refs = Vec::new();
+        e.collect_refs(&mut refs);
+        refs.iter().any(|r| column_of.contains_key(r))
+    };
+    match expr {
+        Expr::Ref(name) if column_of.contains_key(name.as_str()) => {
+            *row.entry(column_of[name.as_str()]).or_insert(0.0) += scale;
+        }
+        Expr::Neg(inner) => read_real(inner, -scale, column_of, params, row, rest)?,
+        Expr::Bin(Add, l, r) => {
+            read_real(l, scale, column_of, params, row, rest)?;
+            read_real(r, scale, column_of, params, row, rest)?;
+        }
+        Expr::Bin(Sub, l, r) => {
+            read_real(l, scale, column_of, params, row, rest)?;
+            read_real(r, -scale, column_of, params, row, rest)?;
+        }
+        Expr::Bin(Mul, l, r) if names_column(expr) => {
+            if let Some(k) = real_of(l, params) {
+                read_real(r, scale * k, column_of, params, row, rest)?;
+            } else {
+                let k = real_of(r, params)?;
+                read_real(l, scale * k, column_of, params, row, rest)?;
+            }
+        }
+        Expr::Bin(Div, l, r) if names_column(expr) => {
+            let k = real_of(r, params)?;
+            read_real(l, scale / k, column_of, params, row, rest)?;
+        }
+        Expr::Number(n) if *n == 0.0 => {}
+        _ if names_column(expr) => return None,
+        _ => *rest = true,
+    }
+    Some(())
+}
+
+/// Below this, relative to the largest coefficient a row started with,
+/// an eliminated coefficient is read as cancelled.
+const DEPENDENCE_TOLERANCE: f64 = 1e-9;
+
+/// The first equation at or past `from` that a combination of the
+/// linear equations before it states again, over the unknowns and the
+/// states alike: a row the system already holds, reached through other
+/// equations. Coefficients are what the parameters fold to, so the
+/// verdict rests on a tolerance, and a row holding anything that is not
+/// linear in the names takes no part.
+pub(crate) fn dependent_row_real(
+    algebraic_eqs: &[(Expr, Expr)],
+    unknowns: &[String],
+    states: &[String],
+    params: &HashMap<String, f64>,
+    from: usize,
+) -> Option<usize> {
+    let mut column_of: HashMap<&str, usize> = HashMap::new();
+    for name in unknowns.iter().chain(states) {
+        let next = column_of.len();
+        column_of.entry(name.as_str()).or_insert(next);
+    }
+    let mut work = 0usize;
+    let mut pivots: Vec<(usize, BTreeMap<usize, f64>)> = Vec::new();
+    let mut pivot_columns: HashSet<usize> = HashSet::new();
+    for (index, (lhs, rhs)) in algebraic_eqs.iter().enumerate() {
+        let mut values: BTreeMap<usize, f64> = BTreeMap::new();
+        let mut rest = false;
+        let read = read_real(lhs, 1.0, &column_of, params, &mut values, &mut rest)
+            .and_then(|()| read_real(rhs, -1.0, &column_of, params, &mut values, &mut rest));
+        // A row with a term that names no column - a constant, a
+        // function of time - is not a copy even where its columns
+        // repeat another's; only a row of names alone is compared.
+        if read.is_none() || rest {
+            continue;
+        }
+        let size = values.values().fold(0.0f64, |m, v| m.max(v.abs()));
+        if size == 0.0 {
+            continue;
+        }
+        values.retain(|_, v| v.abs() > DEPENDENCE_TOLERANCE * size);
+        for (column, pivot) in &pivots {
+            let Some(&r) = values.get(column) else {
+                continue;
+            };
+            let factor = r / pivot[column];
+            work += values.len() + pivot.len();
+            if work > MAX_ELIMINATION_WORK {
+                return None;
+            }
+            for (&c, &v) in pivot {
+                *values.entry(c).or_insert(0.0) -= factor * v;
+            }
+            values.remove(column);
+            values.retain(|_, v| v.abs() > DEPENDENCE_TOLERANCE * size);
+        }
+        if values.is_empty() {
+            if index >= from {
+                return Some(index);
+            }
+            continue;
+        }
+        let (&column, _) = values
+            .iter()
+            .filter(|(c, _)| !pivot_columns.contains(c))
+            .max_by(|a, b| a.1.abs().total_cmp(&b.1.abs()))?;
+        pivot_columns.insert(column);
+        pivots.push((column, values));
+    }
+    None
+}
+
 fn scaled(k: i128, expr: Expr) -> Expr {
     match k {
         1 => expr,
@@ -341,5 +478,52 @@ mod tests {
         ];
         let found = hidden_constraint(&eqs, &names(&["x"]), &names(&["s"]), &HashMap::new());
         assert!(found.is_none());
+    }
+
+    #[test]
+    fn a_star_sum_stated_again_through_other_equations_is_held_already() {
+        // The shape of `SMEE_LoadDump`'s reduction 14, cut down: a
+        // pin's current derivative is the load's `v/L` through a chain
+        // of pass-throughs, and the new row states the star sum again.
+        let names = |list: &[&str]| list.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        let unknowns = names(&["da", "db", "dc", "v"]);
+        let params = HashMap::from([("L".to_string(), 0.0019)]);
+        let eqs = vec![
+            (parse("da"), parse("db")),
+            (parse("db + dc"), Expr::Number(0.0)),
+            (parse("dc"), parse("v / L")),
+            // The member's own row: `da + v/L = 0` adds nothing.
+            (parse("da + v / L"), Expr::Number(0.0)),
+        ];
+        let real = dependent_row_real(&eqs, &unknowns, &[], &params, 3);
+        assert_eq!(real, Some(3));
+        // And a row that only resembles the others is not held.
+        let mut other = eqs.clone();
+        other[3] = (parse("da + 2 * v / L"), Expr::Number(0.0));
+        assert_eq!(dependent_row_real(&other, &unknowns, &[], &params, 3), None);
+        // Nor is one with a term of its own beside the names.
+        other[3] = (parse("da + v / L"), parse("time"));
+        assert_eq!(dependent_row_real(&other, &unknowns, &[], &params, 3), None);
+    }
+
+    #[test]
+    fn a_row_held_before_the_mark_is_not_a_new_copy() {
+        // Dependence among the rows the model already had is not what
+        // the check is asked about; only rows at or past `from` count.
+        let names = |list: &[&str]| list.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        let eqs = vec![
+            (parse("x"), parse("y")),
+            (parse("y"), parse("x")),
+            (parse("x + y"), parse("z")),
+        ];
+        let unknowns = names(&["x", "y", "z"]);
+        assert_eq!(
+            dependent_row_real(&eqs, &unknowns, &[], &HashMap::new(), 2),
+            None
+        );
+        assert_eq!(
+            dependent_row_real(&eqs, &unknowns, &[], &HashMap::new(), 1),
+            Some(1)
+        );
     }
 }

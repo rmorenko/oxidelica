@@ -83,4 +83,13 @@ check "implied row refused" 8 "transformer.r2.resistor[2].pin_p.reference.gamma"
   "$(victim_at 8 OXIDELICA_UNUSED=1)"
 check "implied row taken" 8 "transformer.l2sigma.inductor[2].pin_p.reference.gamma" \
   "$(victim_at 8 OXIDELICA_IMPLIED_ROW=0)"
+# A row the system already holds, reached through equations that are all
+# different: the star sum of a machine's load stated a second time. With
+# the dependence of the supplied rows read (an opt-in), the reduction
+# refuses the members that give it and demotes a stator current; without
+# it, the load's inductor current goes and the block is singular.
+model="tests/small/a_star_sum_stated_again_through_other_equations.mo"
+[ -f "$model" ] || { echo "WITNESS: no model at $model"; exit 1; }
+check "dependent row refused" 14 "smee.lssigma.i_[1]" "$(victim_at 14 OXIDELICA_SUPPLY_ONCE=4)"
+check "dependent row taken" 14 "loadInductor.inductor[1].i" "$(victim_at 14 OXIDELICA_UNUSED=1)"
 exit "$status"

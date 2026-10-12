@@ -1695,6 +1695,14 @@ fn reduce_index_once(
     // offered to the fixpoint, which sees only `der(a) = der(b)` pairs
     // and settles neither.
     let mut minted_defs: HashMap<String, Expr> = HashMap::new();
+    // The equations the matching has handed to be differentiated, over
+    // every reduction of the walk and not only the one under way. Read
+    // only under `OXIDELICA_SUPPLY_ONCE`, all of whose values are
+    // opt-ins: `=1` refuses a member whose supply would differentiate
+    // such an equation again, `=2` also a member that is one, and `=4`
+    // (see `dependent_row_check`) a member whose rows the system
+    // already holds by any road (docs/ANALYSIS.md, m406 and m407).
+    let mut differentiated_ever: Vec<usize> = Vec::new();
     // What each equation solves for, worked once. Rearranging an
     // equation for a name is the dearest thing in this loop - it
     // differentiates the equation and folds the result three times -
@@ -1864,6 +1872,7 @@ fn reduce_index_once(
         let saved_unknowns = unknowns.len();
         let saved_eqs = algebraic_eqs.len();
         let saved_minted = minted_defs.clone();
+        let mut attempt_supplied: Vec<usize> = Vec::new();
         let mut refusal: Option<SimError> = None;
         let mut reached = false;
         for (attempt, &eq) in order.iter().enumerate() {
@@ -1887,6 +1896,15 @@ fn reduce_index_once(
             let outcome = (|| -> Result<bool, SimError> {
                 let (lhs, rhs) = algebraic_eqs[eq].clone();
                 let matched_eq = &base_match;
+                if std::env::var("OXIDELICA_SUPPLY_ONCE").is_ok_and(|said| said == "2") {
+                    if differentiated_ever.contains(&eq) {
+                        if std::env::var_os("OXIDELICA_VICTIM_PROBE").is_some() {
+                            eprintln!("supply-once: reduction {reductions} member eq {eq} was differentiated before");
+                        }
+                        return Ok(false);
+                    }
+                    attempt_supplied.push(eq);
+                }
 
                 let mut candidates: Vec<(String, Expr, usize)> = Vec::new();
                 for (index, (l, r)) in algebraic_eqs.iter().enumerate() {
@@ -2422,8 +2440,26 @@ fn reduce_index_once(
                  has already been differentiated in this reduction"
                             ));
                         }
+                        if std::env::var("OXIDELICA_SUPPLY_ONCE")
+                            .is_ok_and(|said| said == "1" || said == "2")
+                            && differentiated_ever.contains(&source)
+                        {
+                            if std::env::var_os("OXIDELICA_VICTIM_PROBE").is_some() {
+                                eprintln!(
+                                    "supply-once: reduction {reductions} would differentiate eq {source} again for {name}"
+                                );
+                            }
+                            return Ok(false);
+                        }
                         supplied.push(source);
+                        attempt_supplied.push(source);
                         let (sl, sr) = algebraic_eqs[source].clone();
+                        if std::env::var_os("OXIDELICA_SUPPLY_PROBE").is_some() {
+                            eprintln!(
+                                "supply: reduction {reductions} differentiates eq {source} for {name}: {}",
+                                format!("{sl:?} = {sr:?}").chars().take(160).collect::<String>()
+                            );
+                        }
                         matched_defs.insert(name.clone(), (sl.clone(), sr.clone()));
                         let source_residual = Expr::Bin(
                             oxidelica_parser::BinOp::Sub,
@@ -2473,6 +2509,26 @@ fn reduce_index_once(
                 // as the implicit ones - both are equations that determine a
                 // name without defining it, and the reach cannot tell them
                 // apart nor should it.
+                // A supplied row the equations already in the system add
+                // up to is a copy reached by another road: the block it
+                // joins is singular by construction. Asked before the
+                // victim is chosen, since a demotion is not taken back.
+                if let Some((row, (l, r))) = dependent_row_check(
+                    &algebraic_eqs,
+                    &derivative,
+                    &unknowns,
+                    &states,
+                    params,
+                    saved_eqs,
+                ) {
+                    if std::env::var_os("OXIDELICA_VICTIM_PROBE").is_some() {
+                        eprintln!(
+                            "dependent-row: reduction {reductions} member eq {eq} adds row {row} the system already holds: {}",
+                            format!("{l:?} = {r:?}").chars().take(200).collect::<String>()
+                        );
+                    }
+                    return Ok(false);
+                }
                 let reach_defs = if matched_defs.is_empty() {
                     implicit_defs.clone()
                 } else {
@@ -2570,6 +2626,7 @@ fn reduce_index_once(
                             order.len()
                         );
                     }
+                    differentiated_ever.append(&mut attempt_supplied);
                     reached = true;
                     break;
                 }
@@ -2594,6 +2651,7 @@ fn reduce_index_once(
                     solved_for.retain(|(index, _), _| *index < saved_eqs);
                     solve_shapes.retain(|(index, _), _| *index < saved_eqs);
                     minted_defs = saved_minted.clone();
+                    attempt_supplied.clear();
                     let _ = take_minted_derivatives();
                     let _ = take_needed_derivatives();
                 }
@@ -2623,6 +2681,31 @@ fn reduce_index_once(
         eq_vars,
         n_alg,
     })
+}
+
+/// Under `OXIDELICA_SUPPLY_ONCE=4`, the first row at or past `from`
+/// that the linear rows before it already hold, the member's own
+/// differentiated row taken with the rest. Off otherwise, and off by
+/// default: it changes the reductions of every model it touches.
+///
+/// The integer arithmetic of the `hidden` search was tried first and
+/// is blind where it matters: the star sum of `SMEE_LoadDump` comes
+/// back through `v / L`, a coefficient that is not whole.
+fn dependent_row_check(
+    algebraic_eqs: &[(Expr, Expr)],
+    member: &Expr,
+    unknowns: &[String],
+    states: &[String],
+    params: &HashMap<String, f64>,
+    from: usize,
+) -> Option<(usize, (Expr, Expr))> {
+    if std::env::var("OXIDELICA_SUPPLY_ONCE").as_deref() != Ok("4") {
+        return None;
+    }
+    let mut with_member = algebraic_eqs.to_vec();
+    with_member.push((member.clone(), Expr::Number(0.0)));
+    let row = crate::hidden::dependent_row_real(&with_member, unknowns, states, params, from)?;
+    Some((row, with_member.swap_remove(row)))
 }
 
 /// Whether a tie at zero slope drops the candidates the constraint does
