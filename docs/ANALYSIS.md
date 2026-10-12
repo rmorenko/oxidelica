@@ -42015,3 +42015,21 @@ sit inside the desk band's 0.80..1.73, the default half near its top
 edge, so the desk's ratio on this code has moved toward the runner's.
 The band is not touched; this is the point the recount of the desk
 band waits for.
+
+One more storey of the same probe, after the push of the flip. The
+block's own retry (`solve_implicit_block_tried`, which moves every
+zero of an unevaluated block to 1e-6, 1e-3, 1 and 1e3) does reach
+`B6z`: every one of the four retries is evaluated and every one is
+refused as a singular Jacobian (a print behind a probe switch, taken
+out again). A rotation matrix whose nine entries all start at the
+same number is singular, so no uniform shift gives the block the
+identity it needs. So the candidate cure is not in the retry but in
+the reader, and it has two parts that must come together: the
+rotations read as the identity, which the reader already does at a
+reach of two, and the free body's position read back from the
+`fixed` mass rather than forward from `freeMotion.r_rel_a`'s declared
+zero, past `pointMass2.r_0`'s library start of the origin. The second
+part is a rule about which of two writers wins - a `fixed` start
+against a declared one - and it changes which states every MultiBody
+model starts from, so it wants the victim lists of a pair, not a
+local change. It is left as the map.
