@@ -42365,3 +42365,56 @@ the night's run or for a dispatch. The desk preflight for 4f89fd7,
 which raised the run floors to 751 / 708, printed 953 / 753, runnable
 836 / 710, ratio 0.947 inside the desk's 0.80..1.10
 (`/tmp/m405b/preflight.txt`).
+
+**The eleven, by which rows are dependent** (no build: the left null
+space of each refused block's last Jacobian, read offline from the
+trails in `/tmp/m405b/sj/` by `/tmp/m405b/nullspace.py`, summary
+`/tmp/m405b/sj_null.txt`). The singular-Jacobian row is not one
+family; by what the null vectors name it is six:
+
+- **Potential identities of the battery stacks** (`CCCV_Stack`, rank
+  deficit 1; `CCCV_StackRC`, 5). The dependent rows are pin-voltage
+  equalities, `stack.cell[1,1].n.v = stack.cell[1,1].cell.n.v` and its
+  neighbours, closing a loop of potentials; the free direction is a
+  loss power and a heat flow. The equations agree, the block has a
+  potential nothing fixes.
+- **Two branches of a switch that answer the same thing** (`LossyGearDemo2`:
+  the gear's and the bearing's friction rows with weights 0.707 and
+  -0.707; the quasi-static `Rectifier`: a diode's current row against
+  the load's). This is the switch group of m344 under another name.
+- **Rows with nothing of the block's own** (`SMEE_LoadDump`: row 4,
+  the star sum, is zero in every column; `SMPM_CurrentSource`: row 8,
+  two converter fluxes, likewise, and two rotator rows at 1e-14). A
+  row the block's unknowns do not enter is the copy found above for
+  the point masses.
+- **Two rows of the rotor frame that move together** (`SMEE_Generator`,
+  `SMEE_Generator_Polyphase`). Read raw, the null vector is the single
+  row `airGap.Phi_sr.re`, but the matrix spans 1 to 2.9e6 between
+  rows; with each row scaled to its largest entry (which the numbers
+  in this list are read from where they differ) it is
+  `airGap.Phi_sr.re` and `airGap.V_msr.re` at 0.71 each, the flux and
+  the voltage put into the rotor frame by the same rotator. Not a row
+  without unknowns, a pair that the rotator ties.
+- **Two identical rows** (`RollingWheel`: rows 11 and 16, the
+  differentiated rolling constraint, 0.707 and -0.707), at a residual
+  of 3e-14 after 28 iterations. The same constraint differentiated
+  twice, the point masses' fault by another road.
+- **Not structural** (`TestMixingVolumesPressureStates`: the two
+  volumes' density rows, `waterBaseProp_ph`, read raw and not yet
+  rescaled, with a free direction in pressure and enthalpy derivatives, the
+  pressure-state volumes of point 21; `RoomCO2`: one entry of the
+  matrix is NaN, the slope of `pipe.flowModel.states[1].T`, a
+  `solveOneNonlinearEquation` of moist air, with respect to
+  `volume.medium.p`, read where `traceVolume.port.m_flow` is 0 and the
+  regularisation `max(-m_flow, 1e-10)` divides; with that entry
+  zeroed no row and no column is empty).
+
+So three of the eleven - the two machines with a row zero in every
+column and `RollingWheel` with two equal rows - are the breed this
+chapter found in the point masses, a reduction that leaves the block
+a row it already holds; the two generators are a dependence of the
+same kind between two different rows. That is the count the
+dependence check proposed above would be measured against: three for
+certain, five at most. A reading from the raw matrix overstated it at
+first: unscaled, a row a million times quieter than its neighbours
+looks alone in the null space.
