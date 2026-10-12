@@ -42718,3 +42718,50 @@ run it ends the run, and treating it there as a step too long was
 measured in m363 (`OX_PROBE_OUTSIDE_MENDS`) and turned quick refusals
 into slow ones. That leaves the integrator's step before the refusing
 one as the next thing to read, not the Newton iteration.
+
+Two facts from the base trail (`/tmp/m406/pump_pc_trail.txt`) for
+whoever reads that step. The refusing solve is the second at
+t = 0.0017875: the first at that time began from `|f| = 1.4e-3` and
+converged in three iterations, and the integrator then handed the
+block a point 76 times further out, `|f| = 0.106`, which is the solve
+that steps over the edge. And the pump sits at `V_flow_single =
+0.00146` m3/s against a characteristic `quadraticFlow` whose head
+reaches zero at 0.0015, with `m_flow_start = 1` kg/s. The step over
+the edge raises the flow to 0.00167, past the end of the curve, where
+the head is negative and the pressure it implies is below the water
+formulation's range. So for the pump at least the wall reads as the
+operating point near the end of its curve meeting a stage the
+integrator offered from too far, and the integrator's stage is the
+next place to look rather than the Newton iteration or the retreat.
+
+**The two rules in sequence, probed and not taken.** The order m407
+named for a default, the literal repeat refused first and dependence
+read after it, was built as `=5` (`/tmp/m406/supply5_probe.patch`,
+two lines against this tree, binary `/tmp/m406/ox8`, not in the tree)
+and paired against `=0` from that one binary under 20 GB caps
+(`/tmp/m406/pair8/off.txt`, `on.txt`, peaks 8.7 and 10.0 GB):
+
+```text
+=0   953 flatten, 753 run, runnable 836 / 710
+=5   953 flatten, 754 run, runnable 836 / 711
+gained   Machines...SMEE_LoadDump
+gained   QuasiStatic.FundamentalWave...SMPM_OpenCircuit
+lost     Machines...SMEE_Generator
+```
+
+The `=0` half's lists are identical to the `=0` half of the `ox7`
+pair, name for name. So `=5` is the union of what `=1` and `=4` win,
+and it still loses the generator: under `=5` the walk refuses seven
+members as held rows, and the run then stops at the same kind of wall,
+the states re-selected at t = 0.01 naming four columns that left
+(`der(smee.airGap.flange.phi)`, `der(smee.airGap.gamma)` and two
+entries of `RotationMatrix`) and one that arrived
+(`/tmp/m406/gen_5.txt`). The refusal is raised where two stretches of
+the run are glued into one table (`continuation.rs`,
+`append_segment`), not in the reduction. That is the generator's wall
+to read next, and it is a different question from whether a row is
+held: a re-selection that has to rebuild the states from a reduction
+that went another way cannot promise the same dummy derivatives,
+which is the `TransformerTestbench` case that refusal was written for.
+Until it is read, the net of `=5` is +1 and of `=4` is 0, and neither
+goes in by default.
