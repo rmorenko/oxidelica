@@ -42455,3 +42455,238 @@ is answered by the row it already gave, not by a new one, and the
 member the matching stumbles on is the alias only because the excess
 of the positions lands there. Not built: it changes the reduction of
 every MultiBody model, and the pair for it is a series of its own.
+
+## A row the system already holds, read by its coefficients (m407)
+
+**The question m406 left.** The once-only ledger (`OXIDELICA_SUPPLY_ONCE=1`)
+catches one equation differentiated twice and misses the same row
+reached through a chain of different equations: `M5`, `SMEE_LoadDump`
+cut down to the machine, its voltage controller and a star-connected
+RL load, is red with the ledger and without it. So the probe asked
+here is the general one: before a reduction accepts a member, are the
+rows it adds a combination of the rows already held?
+
+**The cheapest form is blind.** The integer elimination the hidden
+constraint search already does (`hidden.rs`), asked of the rows a
+member adds, finds nothing in `M5`. The row it should find is
+`der(smee.rs.plug_p.pin[1].i) + loadInductor.inductor[1].v /
+loadInductor.inductor[1].L = 0`, and `v / L` is a coefficient of
+523.6, not a whole number, so the row takes no part. That form was
+measured and taken out again rather than kept unselected.
+
+**The form that sees it.** `dependent_row_real` reads every row linear
+in the unknowns and states with coefficients the parameters fold to,
+skips a row with any term of its own (a constant, `time`), and
+eliminates in floating point with a relative tolerance of 1e-9 against
+each row's own largest coefficient. A row at or past the reduction's
+mark that cancels to nothing is a row the system holds already. Under
+`OXIDELICA_SUPPLY_ONCE=4` the member is then refused and the next one
+of the singular subset tried. Two things the first build got wrong,
+both found on `M5`:
+
+- Asked after the victim was chosen, the check refused a member whose
+  demotion had already been made, and a demotion is not taken back
+  with the attempt: the model then refused
+  `unknown variable loadInductor.inductor[1].i`. The check stands
+  before the victim is chosen.
+- The member's own differentiated row is pushed after the victim, so
+  a check over the system alone could not see it. It is appended for
+  the check.
+
+**On the small models** (one binary, `/tmp/m406/ox6`, which differs
+from the final tree only by the integer form since taken out; `M5` and
+the witness pair again on `/tmp/m406/ox7` of the final tree, same
+answers; outputs `/tmp/m406/wit/`, `/tmp/m406/M5_x*.txt`):
+
+```text
+model      =0                    =1                    =4
+M0         singular Jacobian     runs                  runs (3 rows refused)
+M4         singular Jacobian     runs                  runs (3 rows refused)
+M5         singular Jacobian     singular Jacobian     runs (9 rows refused)
+B6z        singular Jacobian     NaN gravity row       singular Jacobian
+B7         NaN gravity row       singular Jacobian     NaN gravity row
+B6g        singular Jacobian     singular Jacobian     singular Jacobian
+B6both     singular Jacobian     singular Jacobian     singular Jacobian
+RollingWheel singular Jacobian   nothing left to take  singular Jacobian
+```
+
+In `M5` nine members of reduction 14's subset of 32 are refused as
+adding a held row, the one after them is taken, and reduction 14
+demotes `smee.lssigma.i_[1]` where the rule off demotes
+`loadInductor.inductor[1].i`. The run to 0.01 s gives load currents
+0.013147, -0.005780 and -0.007367 A, summing to zero, and the same
+final values as `M4` under `=1` to thirteen digits. `M0` and `M4` give
+under `=4` exactly what they gave under `=1`.
+
+The point masses and `RollingWheel` do not move, and it is not
+because the check failed: their copies are nonlinear. The position
+equation differentiated three times reads `R * r_rel_a`, and the
+rolling constraint reads the wheel's angle through a sine; neither is
+linear in the block's names, so neither takes part. Under `=4` the
+wheel stays at its singular Jacobian rather than going to `=1`'s
+"nothing left to take", which is the right outcome for a check that
+did not fire. Whether a check over the Jacobian at the start (the
+numerical form m406 named as the fallback) would see those is the next
+question; it is dearer and it rests on a point, not on the structure.
+
+**The test.** `M5` is the small model the ledger never had:
+`tests/small/a_star_sum_stated_again_through_other_equations.mo`, and
+`scripts/victim_witness.sh` asks both halves of one binary at
+reduction 14 (`smee.lssigma.i_[1]` with `=4`, `loadInductor.inductor[1].i`
+without). The witness pair is green on `ox7` and red on the binary
+before the check (`/tmp/m406/ox1`, the ledger alone), which is the
+test failing without the change. Two unit tests in `hidden.rs` hold
+the arithmetic: the star sum through `v / L` is found, a row with twice
+the coefficient or a term of its own is not, and a dependence among
+rows before the mark is not reported.
+
+**The price.** `DoublePendulum` alone, the dearest flatten of the
+reductions, on `ox6`: 43 s off and 45 s on, inside the noise.
+`SMEE_LoadDump` alone runs under `=4` (1 s off, 2 s on).
+
+**The Newton row, read by a member m363 did not trace** (item 2; no
+build, `OXIDELICA_NEWTON_TRAIL` under `--only` from the root, binary
+`/tmp/m406/oxp`). Nine of the ten at t > 0 are Fluid models;
+`SeriesPipes2` is not traced again, its trail is the m363 one. The
+smallest of the rest, `TestWaterPumpPowerCharacteristic`, has three
+unknowns (`pump.medium.p`, `pump.V_flow_single`, `pump.eta`;
+`/tmp/m406/pump_pc_trail.txt`). It settles every step to 1e-13 up to
+t = 0.0017875, and the solve that refuses starts there from
+`|f| = 0.106`. The full step takes the pressure from 1.457e5 to
+-8.8e4 Pa, where the water formulation answers NaN. The retreat halves
+once, to 2.88e4 Pa, and takes that point because its residual is a
+number: `|f| = 0.234`, twice what the solve started from. From there
+the damped steps descend by slivers, `0.205, 0.180, 0.178, ...`, the
+pressure crawls 1465, 758, 671, 628, 617, 614, 613 Pa, and the guard
+refuses after three steps below 1e-4 of the step. 611.657 Pa is the
+triple point, the lowest pressure IF97 describes.
+
+`BranchingPipes14` (`/tmp/m406/tr_BranchingPipes14.txt`) and
+`TestTemperature1` (`/tmp/m406/tr_TestTemperature1.txt`) are the same
+trail in other numbers. In `BranchingPipes14` the step takes
+`junctionIdeal.medium.p` to -3.99e5, the retreat lands at 5.06e4 with
+`|f| = 0.203` against a start of 0.407, and the pressure crawls to 612
+Pa. In `TestTemperature1` the step takes `volume1.medium.p` to
+-3.45e5, three halvings are NaN, the fourth lands at 4.55e4 with
+`|f| = 6.2e11` against a start of 0.28, and the pressure crawls to
+815 Pa.
+
+So the family is one wall, and it is not the point masses' wall. There
+the block is singular by construction, a row repeated; here every
+block is regular and converged at the step before. What goes wrong is
+the retreat from the edge: it accepts the first point whose residual
+is finite, without asking whether it is lower than where the solve
+began, and in all three that point is uphill, on the far side of the
+root and near the bottom of the formulation's range. Every later step
+descends toward the triple point, where the residual has a floor of
+its own. Two things would answer it, and neither is built: a retreat
+that keeps halving until the residual is both finite and below the
+start (the line search's own rule, which the retreat does not apply),
+or a step that respects the medium's `min` on pressure, which nothing
+in the solver reads today. The first is local to `solvers/mod.rs` and
+its pair is the nine models of the row; it is the next series for this
+family if the row is taken.
+
+**The singular-Jacobian row's generators** (item 3).
+`SMEE_Generator_Polyphase` of `FundamentalWave` under `=4` with the
+trail (`/tmp/m406/genpoly_4.txt`): no member refused, the same
+refusal, rank deficit 2 in the last Jacobian, no zero row. The left
+null vectors are row 3 and row 1 at weights 0.999 and 0.048, and the
+other way round: `smee3.airGap.Phi_sr.re` and `smeeM.airGap.Phi_sr.re`,
+each the stator flux put into the rotor frame by a rotator,
+`Phi_ss.re * rotator.re - Phi_ss.im * (-rotator.im)`. These are
+products of unknowns, so the linear reading cannot take part, and the
+null space is the same as the m406 trail's
+(`/tmp/m405b/sj/SMEE_Generator_Polyphase.txt`). The kind is the
+rotor-frame pair of m406's six, confirmed, and not the copy breed.
+`SMEE_Generator` of `FundamentalWave` under `=4` refuses three members
+at reduction 12, each a mechanical alias
+(`der(smeeE.inertiaRotor.flange_b.phi) - smeeE.wMechanical`,
+`smeeE.wMechanical - der(smeeE.flange.phi)`,
+`der(smeeE.internalSupport.phi) = 0`), takes another, and stops at the
+same singular Jacobian (`/tmp/m406/fwgen_*.txt`). Its wall is not the
+rows the check reads.
+
+**The pair, and a name over what was expected.** One binary of the
+final tree (`/tmp/m406/ox7`), each half under `cap.sh` at 20 GB, `=0`
+against `=4` side by side (`/tmp/m406/pair7/off.txt`, `on.txt`, peaks
+10.0 GB each). Both halves print 953 flatten, 753 run, runnable 836
+and 710. The flatten lists are identical. The run lists differ by one name
+each way (`/tmp/m406/pair7/off_lists.txt`, `on_lists.txt`):
+
+```text
+gained   Modelica.Electrical.Machines.Examples.SynchronousMachines.SMEE_LoadDump
+lost     Modelica.Electrical.Machines.Examples.SynchronousMachines.SMEE_Generator
+```
+
+Against the pair of `=1` in m406 (+`SMEE_LoadDump`, +`SMPM_OpenCircuit`,
+nothing lost) this is not as good, on two names:
+
+- `SMEE_Generator` of `Machines` runs under `=0` and `=1` and stops
+  under `=4` on a different wall, the states re-selected at t = 0.01
+  naming different variables than the run so far: two left
+  (`der(smee.airGap.RotationMatrix[1,2])` among them) and four
+  arrived. At
+  reduction 10 the check refuses three members whose rows are
+  mechanical aliases the system holds already
+  (`der(smee.inertiaRotor.flange_b.phi) - smee.wMechanical`,
+  `smee.wMechanical - der(smee.flange.phi)`,
+  `der(smee.internalSupport.phi) = 0`), the fourth is taken, and the
+  victims from reduction 10 onward move. Counted over every walk of the
+  run, re-selections included, the probe prints 32 victim lines off and
+  29 on, one of the 29 a `<none>` for a refused member; the two inertias'
+  speeds `smee.inertiaRotor.w` and `smee.inertiaStator.w`, which the
+  rule off demotes only at the end of the last walk, are demoted on the
+  first walk already (lines 13 and 14 of `/tmp/m406/gen_4_v.txt`
+  against lines 31 and 32 of `gen_0_v.txt`).
+  The rows refused are real copies. What the run then stumbles on is
+  the re-selection at the first check, which has to rebuild the states
+  and cannot rebuild the same ones. So the loss is not a wrong row
+  refused but a right one refused into a selection the monitor cannot
+  keep.
+- `SMPM_OpenCircuit` of `QuasiStatic.FundamentalWave` runs under `=1`
+  and not under `=4`: fifteen members refused as held rows, the same
+  NaN loop as `=0`. The ledger and the dependence check do not refuse
+  the same members, so `=4` is not a superset of `=1`, which a reader
+  of the two switches would assume.
+
+So `=4` stays an opt-in on both counts, as the brief said it would,
+and the default is not proposed here. The one finding that holds
+without qualification is the one the test records: a held row reached
+through different equations is refused by `=4`, and a model refusing
+because of one runs. What a default would need is the order between
+the two: refuse the literal repeat first (`=1`), read dependence only
+where no index repeats, and see whether the re-selection of
+`SMEE_Generator` then keeps its states. That is the next pair.
+
+**The ratio of this pair is not a desk point.** For about seven
+minutes in the middle of the pair a third corpus pass, the library
+step of a quick preflight, ran beside it, and two single traces of
+item 2 ran at its start. The halves share a neighbour evenly, so the
+lists are good, but a neighbour inflates flattening several times more
+than running, and the desk band since the carving is 0.80..1.10,
+about fifteen percent each side, standing on two points (0.953 and
+0.955). A ratio read through a neighbour can pass or fail that band
+falsely. Read as printed, 5977 / 6857 = 0.872 off and 6168 / 6782 =
+0.909 on, and neither is entered as a point. The desk point for the
+tree is the full preflight's library step, taken with the desk empty,
+below. This is about the instrument: before the carving the band was
+0.80..1.73 and a neighbour went unnoticed inside it; at its present
+width any corpus run beside another is a run whose ratio is void.
+
+**The desk point and the two runner prints** (item 0). The full
+preflight of this tree, with nothing else on the desk, printed 2671
+files, 953 flatten, 753 run, runnable 836 and 710, and a ratio of
+3552 / 3648 = 0.974 inside the desk's 0.80..1.10, the third point
+beside 0.953 and 0.955 (`/tmp/m406/preflight.txt`). Its library step
+also asked the witness of this chapter at reduction 14, and both
+halves answered as the small model's header says. The library job of
+the floor raise (4f89fd7, job 114767314891 of run 38236166239) is
+green: 2671 files, 953 flatten, 753 run, runnable 836 and 710, and
+9340 / 7466 = 1.251 inside the runner's 0.70..1.50. The scheduled run
+on 82fa4c2 (38244121082, head checked against the commit), the first
+trial of the heavy job after the carving, is green: job 114793665086
+printed 23 flatten and 2 run, runnable 21 and 2, against the floors 23
+/ 2 and 21 / 2, in a step of 102 minutes (11:40:18 to 13:22:12),
+flattening 1796 s and running 12594 s over the 23. The library job
+does not run on the schedule, so that run gives no ratio point.
