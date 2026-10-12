@@ -43201,3 +43201,26 @@ where the wide switch doubled it. The floors are not moved: the
 runner has not printed the chain's default yet, and the switch is an
 opt-in. Whether the narrow switch becomes the default is Roman's
 word, asked for with this number.
+
+**The census of the new default, and the queue it gives.** Both halves
+on c17026e, the chain on (`/tmp/m410/census.txt`, raw
+`/tmp/m410/raw.txt`, counted between the section headings): 67 refused
+to flatten in 39 rows, the same as m409, and 198 flattened and did not
+run in 134 rows, which is 1020 - 953 and 953 - 755. Two models fewer
+and three rows more: the two machines left, and rows split as their
+neighbours moved. Read with the rows that mean the same added, the run
+half is still led by the algebraic loops - the Newton direction 10,
+underdetermined 8, singular Jacobian 8, a named unknown of a loop 8,
+no convergence in N iterations 6, the equations of a loop 4 - 44
+models in the six rows that m409 (`/tmp/m408/census.txt`) added to 48;
+the bare `algebraic loop` row stands at 3 in both. Singular Jacobian
+went 11 to 8 and the equations of a loop 6 to 4 while a named unknown
+went 7 to 8. The layer fell by four while the run half fell by two,
+so two models besides the machines left the loop layer for rows
+elsewhere; which two was not taken by name this shift
+(`/tmp/m410/raw.txt` against `/tmp/m408/raw.txt` answers it). The Newton-direction
+row is the two pumps the narrow switch takes and the pipes whose wall
+is at the start point. The flatten half is unchanged, led by functions
+written outside Modelica, C (6) and FORTRAN (3). The top of the next
+order is the loop layer, entered at the pipes, which the hand-over
+was measured not to reach.
