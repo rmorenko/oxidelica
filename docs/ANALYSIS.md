@@ -43123,3 +43123,81 @@ then partial functions nobody redeclared (5) and a subscript the
 compiler cannot see as a whole number (4). The top of the next order
 is the loop layer, entered at the pipes' wall at the start point, now
 that the pumps are taken.
+
+## The chain by default, and the pumps' hand-over narrowed to where it pays (m410)
+
+Roman's word on the default decision, 12.10: the generator's chain is
+taken by default, its floors follow in a commit of their own once the
+runner has printed them, and the pumps' hand-over is narrowed rather
+than switched on or merely priced.
+
+**The chain by default.** `OXIDELICA_SUPPLY_ONCE` reads as `=5` where it
+is not set, the ledger and the dependence check together, and `=0`
+takes both back; `OXIDELICA_CONE_UNKNOWN` reads a cone that will not
+settle as a weight not known unless it says `0`. The values `1`, `2`
+and `4` keep their meaning. The unit tests now fail when the default
+is taken back, and both were seen red with it undone. The witness
+asks the star sum's two victims by default and under `=0`, and it found
+one thing: on the delta secondary, taking back the implied row alone
+(`OXIDELICA_IMPLIED_ROW=0`) no longer gives the old victim back,
+because the dependence check of `=4` reads the same row from the
+linear side (`=1` with the implied row off gives the old victim, `=4`
+does not). The old victim now needs both rules off, and the witness
+asks both ways.
+
+**What the wide hand-over cost, by model.** The 200 models that
+flattened and did not run in m409's off half, one binary built from
+45bb379, `--slow 200` both ways (`/tmp/m409/p_off.txt`, `p_on.txt`,
+per-model times in `r_off.txt`, `r_on.txt`): the run half 1448 s off
+and 4691 s on, 3243 s more. Of that, `SeriesPipes1` alone is 2412 s (31
+s to 2443 s), `BranchingPipes4` 358, `BranchingPipes2` 281,
+`SeriesPipes2` 197, `BranchingPipes1` 48; after that nothing above 13
+s, and the two pumps about a second each. So the doubled run half was
+not dozens of models paying a little, it was five pipes paying a lot.
+
+**The mark that tells them apart.** A probe at the hand-over
+(not kept) printed where the explicit solver gave the run up. Both
+pumps leave IF97's range on a stage of a step taken at t = 3.0e-4 and
+4.7e-4, after thirteen evaluations; every one of the five pipes
+refuses on the third stage of the very first step, at t = 0, with no
+evaluation spent. After that the implicit solver grinds: 187 s to win
+`SeriesPipes2`, 323 s to lose `BranchingPipes4` on the same Newton
+direction at t = 1.8e-4. The winners and losers among the pipes are
+not told apart by anything at the hand-over itself; the pumps are
+told apart from all of the pipes by having moved first.
+
+**Narrowed.** `OXIDELICA_EDGE_HANDOFF=1` now hands an edge over only
+once the explicit solver has accepted a step of the segment; `=all`
+keeps the wide reading. On the seven from the root under `=1`
+(`/tmp/m409/seven_narrow.txt`): both pumps run, the five pipes refuse
+at their old price (`SeriesPipes1` 29 s, `BranchingPipes4` 27 s). The
+price of the narrowing is `BranchingPipes2` and `SeriesPipes2`, which
+the wide reading won at three to five minutes apiece. A unit test
+holds the three readings.
+
+**The pair from the root.** One binary built from 899e703
+(`/tmp/m409/ox4`), run from the root of the tree, 20 GB ceilings, the
+default and the narrow switch side by side (`/tmp/m409/B.txt`,
+`C.txt`, lists `B_ran.txt`, `C_ran.txt`, `B_flat.txt`, `C_flat.txt`):
+
+```text
+chain taken back     953 flatten, 753 run, runnable 836 / 710
+default (chain on)   953 flatten, 755 run, runnable 836 / 712
+EDGE_HANDOFF=1       953 flatten, 757 run, runnable 836 / 714
+run half             5364 s against 5437 s (the wide switch: 3444 against 6898)
+```
+
+The third half, `OXIDELICA_SUPPLY_ONCE=0 OXIDELICA_CONE_UNKNOWN=0`
+(`/tmp/m409/A.txt`, `A_ran.txt`, `A_flat.txt`), ran alone afterwards
+and is the runner's print for 72080a3 to the digit and m409's off list
+name for name. The flattened lists of all three are identical. The
+default gains `SMEE_LoadDump` and `SMPM_OpenCircuit` over it and loses
+nothing, which is what the chain promised, and its run half (3462 s
+alone) is the off half's of m409 (3444 s). The narrow switch gains
+the two pumps over the default and nothing else. The default and the
+switch ran side by side, so both their times carry the weather of the
+other beside them; between them the run half differs by 1.4 percent,
+where the wide switch doubled it. The floors are not moved: the
+runner has not printed the chain's default yet, and the switch is an
+opt-in. Whether the narrow switch becomes the default is Roman's
+word, asked for with this number.
