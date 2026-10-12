@@ -42765,3 +42765,25 @@ that went another way cannot promise the same dummy derivatives,
 which is the `TransformerTestbench` case that refusal was written for.
 Until it is read, the net of `=5` is +1 and of `=4` is 0, and neither
 goes in by default.
+
+**Why the generator's two stretches do not glue** (`/tmp/m406/ox10`,
+the `=5` probe applied, `OXIDELICA_VICTIM_PROBE`; victims per walk in
+`/tmp/m406/gen_r0.txt` and `gen_r5.txt`). Off, the run walks the
+reduction three times: the first compilation and two re-selections.
+The third walk ends on `smee.lesigma.i`, `smee.lszero.i`,
+`smee.inertiaRotor.w`, `smee.inertiaStator.w`, and the run finishes.
+Under `=5` the first walk already ends on exactly those four: the rows
+refused at reduction 10 send the walk straight to the selection the
+rule off reaches only after two re-selections. The monitor still asks
+for a re-selection at t = 0.01, and the second walk under `=5` goes
+another way from the start: `smee.phiMechanical` is demoted third
+where the first walk kept it, reduction 11 refuses seven members (four
+as repeats of equations 156 and 157, three as held rows) and one
+member gives no victim at all. The dummy derivatives that walk mints
+are not the first walk's, and the glue refuses. So the loss is a
+re-selection that was asked for after the selection was already the
+settled one, and then could not find it again from the new point. The
+two things to read next are why the monitor asks at all when the walk
+already holds the selection the old run settled on, and why the same
+rules from a point 0.01 s later refuse a different set of members.
+Neither is a question about held rows.
