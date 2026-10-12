@@ -1308,7 +1308,16 @@ FLATTEN_FLOOR=953
 # are left out:
 #
 #   752 printed - 1 SpringWithMass - 1 SMPM_VoltageSource = 750
-RUN_FLOOR=750
+#
+# And run 751 = 750 + IMC_Transformer of Electrical.Machines, which
+# runs once the implied row of its transformer is read the other way.
+# The runner printed 961 / 753 and runnable 844 / 710 twice running,
+# on f36fa61 (job 114636827553) and on ffd3bcb (job 114648189923);
+# against 3a1480c its run list gained exactly IMC_Transformer. The two
+# swings are left out by name as before:
+#
+#   753 printed - 1 SpringWithMass - 1 SMPM_VoltageSource = 751
+RUN_FLOOR=751
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -1581,7 +1590,12 @@ RUNNABLE_FLATTEN_FLOOR=836
 # `RUN_FLOOR` (eb79c22, job 114480391223), which printed 709; the two
 # left out are SpringWithMass and SMPM_VoltageSource of FundamentalWave,
 # as there.
-RUNNABLE_RUN_FLOOR=707
+#
+# And runnable run 708 = 707 + IMC_Transformer, runnable, by the same
+# two runner jobs as `RUN_FLOOR` (114636827553 and 114648189923), which
+# printed 710; the two left out are SpringWithMass and
+# SMPM_VoltageSource, as there.
+RUNNABLE_RUN_FLOOR=708
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
