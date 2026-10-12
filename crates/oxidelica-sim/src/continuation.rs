@@ -129,55 +129,96 @@ impl CompiledModel {
         if baselines.len() != self.selection_monitor.len() {
             *baselines = vec![f64::NAN; self.selection_monitor.len()];
         }
+        let cone_unknown = cone_not_settled_is_unknown();
         self.selection_monitor.iter().zip(baselines.iter_mut()).all(
-            |((own, alternatives), baseline)| {
-                let own = own.run(&mut scratch, time).abs();
+            |((own_weigh, alternatives), baseline)| {
+                let own = own_weigh.run(&mut scratch, time).abs();
                 // A weight that could not be read is not a zero and not a
                 // winner: `f64::max` passes over it.
                 let best = alternatives
                     .iter()
                     .map(|code| code.run(&mut scratch, time).abs())
                     .fold(0.0f64, f64::max);
-                // A selection goes bad by its ratio falling, not by the ratio
-                // standing below a level. The first build weighs by the
-                // residual's own slope and the monitor through the
-                // definitions, and the two can disagree from the first step
-                // by a constant: a gear of one to ten weighs its two sides
-                // at 0.1 and 1.0 for the whole run, and the level of 0.15
-                // read that ratio as a crossing and rebuilt the model into
-                // one whose algebra was NaN. So the ratio of the first check
-                // of this stretch is its own reference, capped at one so a
-                // choice the monitor agrees with is held to the level as
-                // before; a reference of zero or one not known says the
-                // choice was not sound to begin with, and gets the level.
-                let mut level = 1.0;
-                if relative_selection_monitor() {
-                    // With no alternative that weighs anything, the pivot
-                    // asked again has nothing to prefer, and a rebuild can
-                    // only take the same victim or one by order. At the
-                    // start of `GearConstraint` a cylinder's position
-                    // against the gear's angle read an own weight that was
-                    // not known - a definition in its reach does not move
-                    // with its own name there - beside an alternative of
-                    // exactly zero, and the rebuild that followed was one
-                    // nobody could have wanted.
-                    if best == 0.0 {
-                        return true;
-                    }
-                    if baseline.is_nan() && best > 0.0 && own.is_finite() {
-                        *baseline = own / best;
-                    }
-                    if baseline.is_finite() && *baseline > 0.0 {
-                        level = baseline.min(1.0);
-                    }
-                }
-                // An own weight that could not be read compares false, and
-                // the selection is made again, exactly as before.
-                own >= 0.15 * level * best
+                let through = matches!(own_weigh, Weigh::Through(_));
+                selection_holds(own, through, best, baseline, cone_unknown)
             },
         )
     }
+}
 
+/// Whether a cone of definitions that will not settle is read by the
+/// monitor as a weight not known rather than as a failed selection.
+/// Off by default; `OXIDELICA_CONE_UNKNOWN=1` turns it on.
+///
+/// Off, an own weight worked through the definitions that comes back
+/// `NaN` compares false and the model is selected again. That is right
+/// where the weight was a number before and has stopped being one, and
+/// wrong where the cone has to invert something that is not invertible
+/// everywhere: `SMEE_Generator` under `OXIDELICA_SUPPLY_ONCE=5` weighs
+/// `psi_ms[1]` through `RotationMatrix[1,1] = cos(gamma)` solved for
+/// `gamma`, which has no answer once the moved cosine leaves [-1, 1],
+/// and the re-selection that followed could not find the same states
+/// again (docs/ANALYSIS.md, m407). On, such a weight is passed over the
+/// way an alternative of zero already is. It changes when every model
+/// with a cone re-selects, so it stays an opt-in until that is decided.
+fn cone_not_settled_is_unknown() -> bool {
+    std::env::var("OXIDELICA_CONE_UNKNOWN").as_deref() == Ok("1")
+}
+
+/// One record of the selection monitor: whether its victim's weight
+/// `own` still holds against the best alternative `best`. `through`
+/// says the own weight was worked through a cone of definitions, and
+/// `cone_unknown` whether such a weight that would not settle is read
+/// as not known (see [`cone_not_settled_is_unknown`]).
+pub(crate) fn selection_holds(
+    own: f64,
+    through: bool,
+    best: f64,
+    baseline: &mut f64,
+    cone_unknown: bool,
+) -> bool {
+    if cone_unknown && through && own.is_nan() {
+        return true;
+    }
+    // A selection goes bad by its ratio falling, not by the ratio
+    // standing below a level. The first build weighs by the
+    // residual's own slope and the monitor through the
+    // definitions, and the two can disagree from the first step
+    // by a constant: a gear of one to ten weighs its two sides
+    // at 0.1 and 1.0 for the whole run, and the level of 0.15
+    // read that ratio as a crossing and rebuilt the model into
+    // one whose algebra was NaN. So the ratio of the first check
+    // of this stretch is its own reference, capped at one so a
+    // choice the monitor agrees with is held to the level as
+    // before; a reference of zero or one not known says the
+    // choice was not sound to begin with, and gets the level.
+    let mut level = 1.0;
+    if relative_selection_monitor() {
+        // With no alternative that weighs anything, the pivot
+        // asked again has nothing to prefer, and a rebuild can
+        // only take the same victim or one by order. At the
+        // start of `GearConstraint` a cylinder's position
+        // against the gear's angle read an own weight that was
+        // not known - a definition in its reach does not move
+        // with its own name there - beside an alternative of
+        // exactly zero, and the rebuild that followed was one
+        // nobody could have wanted.
+        if best == 0.0 {
+            return true;
+        }
+        if baseline.is_nan() && best > 0.0 && own.is_finite() {
+            *baseline = own / best;
+        }
+        if baseline.is_finite() && *baseline > 0.0 {
+            level = baseline.min(1.0);
+        }
+    }
+    // An own weight that could not be read compares false, and
+    // the selection is made again, exactly as before.
+    own >= 0.15 * level * best
+}
+
+impl CompiledModel {
     /// Put each delayed value in its slot, read from what the run has
     /// remembered. Before the delay has elapsed the answer is the
     /// value the run started from, as the specification asks.

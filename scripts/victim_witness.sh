@@ -91,5 +91,7 @@ check "implied row taken" 8 "transformer.l2sigma.inductor[2].pin_p.reference.gam
 model="tests/small/a_star_sum_stated_again_through_other_equations.mo"
 [ -f "$model" ] || { echo "WITNESS: no model at $model"; exit 1; }
 check "dependent row refused" 14 "smee.lssigma.i_[1]" "$(victim_at 14 OXIDELICA_SUPPLY_ONCE=4)"
+check "dependent row refused, ledger first" 14 "smee.lssigma.i_[1]" \
+  "$(victim_at 14 OXIDELICA_SUPPLY_ONCE=5)"
 check "dependent row taken" 14 "loadInductor.inductor[1].i" "$(victim_at 14 OXIDELICA_UNUSED=1)"
 exit "$status"

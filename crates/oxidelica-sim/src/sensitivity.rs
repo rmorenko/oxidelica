@@ -669,3 +669,65 @@ mod tests {
         assert!((v - root).abs() < 1e-12, "{v} against {root}");
     }
 }
+
+#[cfg(test)]
+mod monitor_tests {
+    use super::*;
+
+    fn r(name: &str) -> Expr {
+        Expr::Ref(name.into())
+    }
+
+    /// The generator's cone in miniature: `gamma` where
+    /// `c - cos(gamma)` is zero, read at `c = 1`. Moved by the step the
+    /// weight is read with, `c` leaves [-1, 1], the cosine has no
+    /// answer, and the weight comes back `NaN`. The monitor under
+    /// `OXIDELICA_CONE_UNKNOWN=1` reads that as a weight not known and
+    /// keeps the selection; without it the selection is made again.
+    #[test]
+    fn a_cone_inverting_a_cosine_past_one_is_a_weight_not_known() {
+        let mut table = SlotTable::new(HashMap::new());
+        let c = table.slot("c");
+        let gamma = table.slot("gamma");
+        let mut implicit = HashMap::new();
+        implicit.insert(
+            "gamma".to_string(),
+            (r("c"), Expr::Call(".cos".into(), vec![r("gamma")])),
+        );
+        let residual = r("gamma");
+        let cone = cone_of(&residual, &HashMap::new(), &implicit);
+        let worked = ConeCode::build(&residual, "c", &cone, &table).expect("laid out");
+        let mut scratch = vec![0.0; 2];
+        scratch[c] = 1.0;
+        scratch[gamma] = 0.0;
+        let own = Weigh::Through(worked).run(&mut scratch, 0.0).abs();
+        assert!(own.is_nan(), "the cone settled at {own}");
+        assert_eq!(scratch[c], 1.0, "the point is put back");
+
+        let mut baseline = f64::NAN;
+        assert!(crate::continuation::selection_holds(
+            own,
+            true,
+            411.0,
+            &mut baseline,
+            true
+        ));
+        let mut baseline = f64::NAN;
+        assert!(!crate::continuation::selection_holds(
+            own,
+            true,
+            411.0,
+            &mut baseline,
+            false
+        ));
+        // A slope that is not a number is no cone, and fails either way.
+        let mut baseline = f64::NAN;
+        assert!(!crate::continuation::selection_holds(
+            own,
+            false,
+            411.0,
+            &mut baseline,
+            true
+        ));
+    }
+}

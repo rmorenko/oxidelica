@@ -1699,9 +1699,10 @@ fn reduce_index_once(
     // every reduction of the walk and not only the one under way. Read
     // only under `OXIDELICA_SUPPLY_ONCE`, all of whose values are
     // opt-ins: `=1` refuses a member whose supply would differentiate
-    // such an equation again, `=2` also a member that is one, and `=4`
+    // such an equation again, `=2` also a member that is one, `=4`
     // (see `dependent_row_check`) a member whose rows the system
-    // already holds by any road (docs/ANALYSIS.md, m406 and m407).
+    // already holds by any road, and `=5` the rule of `=1` first and
+    // that of `=4` after it (docs/ANALYSIS.md, m406 to m408).
     let mut differentiated_ever: Vec<usize> = Vec::new();
     // What each equation solves for, worked once. Rearranging an
     // equation for a name is the dearest thing in this loop - it
@@ -2440,8 +2441,7 @@ fn reduce_index_once(
                  has already been differentiated in this reduction"
                             ));
                         }
-                        if std::env::var("OXIDELICA_SUPPLY_ONCE")
-                            .is_ok_and(|said| said == "1" || said == "2")
+                        if refuses_a_repeat_supply(&supply_once_said())
                             && differentiated_ever.contains(&source)
                         {
                             if std::env::var_os("OXIDELICA_VICTIM_PROBE").is_some() {
@@ -2683,7 +2683,29 @@ fn reduce_index_once(
     })
 }
 
-/// Under `OXIDELICA_SUPPLY_ONCE=4`, the first row at or past `from`
+/// What `OXIDELICA_SUPPLY_ONCE` says, or nothing where it is not set.
+fn supply_once_said() -> String {
+    std::env::var("OXIDELICA_SUPPLY_ONCE").unwrap_or_default()
+}
+
+/// Whether a member is refused whose supply would differentiate an
+/// equation an earlier reduction of the walk already differentiated:
+/// `=1` and `=2` (m406), and `=5`, which is `=1` taken first and the
+/// dependence check of `=4` after it. The order is the point of `=5`:
+/// the literal repeat is answered by the ledger, which is cheap and
+/// exact, before the dependence of the rows is read at all, so the
+/// check sees only members whose supplies are all new.
+fn refuses_a_repeat_supply(said: &str) -> bool {
+    matches!(said, "1" | "2" | "5")
+}
+
+/// Whether the supplied rows are checked for dependence on the rows the
+/// system already holds: `=4`, and `=5` after the ledger.
+fn reads_dependent_rows(said: &str) -> bool {
+    matches!(said, "4" | "5")
+}
+
+/// Under `OXIDELICA_SUPPLY_ONCE=4` or `=5`, the first row at or past `from`
 /// that the linear rows before it already hold, the member's own
 /// differentiated row taken with the rest. Off otherwise, and off by
 /// default: it changes the reductions of every model it touches.
@@ -2699,7 +2721,7 @@ fn dependent_row_check(
     params: &HashMap<String, f64>,
     from: usize,
 ) -> Option<(usize, (Expr, Expr))> {
-    if std::env::var("OXIDELICA_SUPPLY_ONCE").as_deref() != Ok("4") {
+    if !reads_dependent_rows(&supply_once_said()) {
         return None;
     }
     let mut with_member = algebraic_eqs.to_vec();
@@ -8417,5 +8439,43 @@ mod implied_row_tests {
             Box::new(call(call(Expr::Neg(Box::new(r("y")))))),
         );
         assert_eq!(order(&deep), 2);
+    }
+}
+
+#[cfg(test)]
+mod supply_once_tests {
+    use super::{reads_dependent_rows, refuses_a_repeat_supply};
+
+    /// `=5` is both rules, the ledger's and the dependence check's, and
+    /// the values before it keep meaning what they meant: `=4` reads
+    /// dependence and lets a literal repeat through, `=1` and `=2` the
+    /// other way round, and nothing set is neither.
+    ///
+    /// That the ledger answers first is the order of the walk itself -
+    /// a repeat returns from the supply loop before the member's rows
+    /// are put to the check - and no model small enough to stand here
+    /// tells the order apart from the union; the corpus pair is its
+    /// judge (docs/ANALYSIS.md, m408).
+    #[test]
+    fn five_is_the_ledger_and_the_dependence_check_together() {
+        for (said, repeat, dependent) in [
+            ("", false, false),
+            ("0", false, false),
+            ("1", true, false),
+            ("2", true, false),
+            ("4", false, true),
+            ("5", true, true),
+        ] {
+            assert_eq!(
+                refuses_a_repeat_supply(said),
+                repeat,
+                "ledger under {said:?}"
+            );
+            assert_eq!(
+                reads_dependent_rows(said),
+                dependent,
+                "dependence under {said:?}"
+            );
+        }
     }
 }
