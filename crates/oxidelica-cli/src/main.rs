@@ -760,6 +760,17 @@ fn library_check(args: &[String]) -> Result<(), String> {
         }
     }
     if only.is_some() && models.is_empty() {
+        // A name the carved-out set holds is a model of the library all
+        // the same, and "no model is called" sent a weather check after
+        // a missing class rather than at the flag that brings it back.
+        if let (Some(wanted), Some(named)) = (&only, &without) {
+            if named.contains(wanted) {
+                return Err(format!(
+                    "`{wanted}` is in the carved-out set and is left out of this check; \
+                     pass --with-heavy to ask for it"
+                ));
+            }
+        }
         return Err(format!(
             "no model of the library is called `{}`",
             only.unwrap_or_default()

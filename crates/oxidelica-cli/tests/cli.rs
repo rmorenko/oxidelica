@@ -555,6 +555,24 @@ fn the_carved_out_set_is_left_out_without_being_asked_for_and_asked_back_by_name
     let text = stdout(&asked_back);
     assert!(text.contains("Lib.Examples.Cheap"), "{text}");
     assert!(text.contains("Lib.Examples.Dear"), "{text}");
+
+    // Asked for by name, a carved-out model is said to be carved out,
+    // not to be missing from the library.
+    let named = bin()
+        .current_dir(&library.0)
+        .args([
+            "library",
+            "check",
+            "--only",
+            "Lib.Examples.Dear",
+            library.0.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    assert!(!named.status.success());
+    let text = stderr(&named);
+    assert!(text.contains("carved-out set"), "{text}");
+    assert!(text.contains("--with-heavy"), "{text}");
 }
 
 #[test]
