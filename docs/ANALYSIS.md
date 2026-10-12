@@ -42033,3 +42033,22 @@ part is a rule about which of two writers wins - a `fixed` start
 against a declared one - and it changes which states every MultiBody
 model starts from, so it wants the victim lists of a pair, not a
 local change. It is left as the map.
+
+And the reader's half, tried behind probe switches and taken out
+again. Holding back every start not marked `fixed` and putting them
+back at round 2, 3, 4, 5 or 7, with the reach widened to four, leaves
+the NaN: the rotations read as the identity, the fixed mass is read
+as far as `fixedTranslation.frame_b.r_0 = 3`, and
+`freeMotion.frame_b.r_0` and `pointMass2.frame_a.r_0` still read as
+zero. Holding back only the joint's `r_rel_a` start (reach four) does
+send the reader back from the fixed mass to the free body, and it
+reads a wrong number there: `freeMotion.frame_b.r_0[1] = 3` and every
+frame on the body at 3, where the offset `r = {1,0,0}` puts the body
+at 2 - the term `R * r` counted for nothing at the moment the position
+was read. The NaN holds in that run too, and with `pointMass2.r_0` or
+every `r_0` held as well. A reader that goes back along the chain
+without the rotation in hand would give a guess off by the offsets,
+which is a guess and not a refusal, so no change was built. The map
+for the next probe: the order in which the reader settles rotations
+and positions along a rigid chain, asked of `fixedTranslation`'s
+`frame_b.r_0 = frame_a.r_0 + R * r` alone.
