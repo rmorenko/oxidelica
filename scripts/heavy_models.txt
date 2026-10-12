@@ -38,27 +38,46 @@
 #
 # A blank line and a line beginning with `#` are ignored; everything
 # else is one class name.
+#
+# The ten names carved out before 2026-10-06 carried one half of their
+# price each. Both halves were measured for them on 2026-10-12, one
+# binary built from 86ab6da on an otherwise quiet desk, the ten under
+# `--only-from` with `--slow 10` (/tmp/m408/prices.txt): 679s
+# flattening and 3967s running between them. Together with the
+# thirteen priced on 2026-10-06 and 2026-10-12, every name below has
+# both halves and a date, so the split of this list into two jobs, when
+# it comes, is arithmetic and not a guess. A run price of 0.0s means
+# the model is refused before its first step.
 
 # 1643s to run, 2026-09-14
+# 1546.2s / 79.9s, 2026-10-12, run / flatten, both halves
 Modelica.Electrical.Spice3.Examples.Spice3BenchmarkFourBitBinaryAdder.FOURBIT
 # 825s to run, 2026-09-14
+# 1552.3s / 80.6s, 2026-10-12, run / flatten, both halves
 Modelica.Electrical.Spice3.Examples.Spice3BenchmarkFourBitBinaryAdder
 # 225s to run, 2026-09-14
+# 478.8s / 33.5s, 2026-10-12, run / flatten, both halves
 Modelica.Electrical.Spice3.Examples.Spice3BenchmarkFourBitBinaryAdder.TWOBIT
 
 # 270.1s to flatten, 2026-09-21
+# 0.0s / 247.9s, 2026-10-12, run / flatten, both halves
 Modelica.Mechanics.MultiBody.Examples.Loops.EngineV6
 
 # 293s to run, 2026-09-22
+# 66.1s / 57.2s, 2026-10-12, run / flatten, both halves
 ModelicaTest.Fluid.TestComponents.Pipes.DynamicPipeWithNominalLaminarFlow
 # 67s to flatten, 2026-09-22
+# 0.6s / 136.5s, 2026-10-12, run / flatten, both halves
 ModelicaTest.Fluid.TestComponents.Pipes.DynamicPipeEnergyConservationCheck2
 
 # 377.7s to flatten, 2026-09-24
+# 2.9s / 14.7s, 2026-10-12, run / flatten, both halves
 Modelica.Media.Examples.ReferenceAir.MoistAir2
 # 372.1s to flatten, 2026-09-24
+# 2.4s / 21.0s, 2026-10-12, run / flatten, both halves
 Modelica.Media.Examples.ReferenceAir.MoistAir1
 # 369.4s to flatten, 2026-09-24
+# 0.4s / 7.1s, 2026-10-12, run / flatten, both halves
 Modelica.Media.Examples.ReferenceAir.MoistAir
 
 # 233s to run, 2026-09-29, 456922 Newton steps: a Spice3 oscillator
@@ -66,6 +85,7 @@ Modelica.Media.Examples.ReferenceAir.MoistAir
 # the same class as the adders above. Spread over the runner's run
 # half it would add about 242ms to every model, against a ceiling the
 # weather already reaches.
+# 317.9s / 0.9s, 2026-10-12, run / flatten, both halves
 Modelica.Electrical.Spice3.Examples.Oscillator
 
 # Five refused models carved out on 2026-10-06, the dearest of the
