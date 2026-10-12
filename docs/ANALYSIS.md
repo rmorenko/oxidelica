@@ -42320,7 +42320,7 @@ itself or not at all. It is the largest single family left in the two
 rows, and unlike the singular-Jacobian row it has not scattered.
 
 **The first print after the carving** (item 0). The library job of
-ba885f1 (job 114737568101 of push run 38227197395) is green: 2671
+the carving commit (job 114737568101 of push run 38227197395) is green: 2671
 files, 953 flatten, 753 run, runnable 836 / 710, ratio 1.130 inside
 0.70..1.50 (8561 s flattening, 9037 s running). The step that reads
 the library ran 111 minutes (09:01:45 to 10:53:10), the job 112. The
@@ -42328,7 +42328,7 @@ estimate in the chapter above was about 1.05 to 1.10; the print is
 0.03 over its top, a point and not a reason to move anything. The run
 of 1592ba0 skipped the library job, as a documentation commit does, so
 it confirms nothing about the carving. The heavy job did not run for
-ba885f1 and will not for any push: it is declared for the schedule
+the carving commit and will not for any push: it is declared for the schedule
 and for a manual dispatch only, so the heavy floors 23 / 21 wait for
 the night's run or for a dispatch. The desk preflight for 4f89fd7,
 which raised the run floors to 751 / 708, printed 953 / 753, runnable
