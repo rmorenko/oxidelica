@@ -611,6 +611,23 @@ fn library_check(args: &[String]) -> Result<(), String> {
         std::path::Path::new(HEAVY_MODELS).is_file(),
     ) {
         (None, None, false, true) => named_in_file(HEAVY_MODELS)?,
+        // Run from anywhere but the root of the tree, the set is not
+        // in sight and the check measures every model, giants and all.
+        // That is still the reading - the scripts and the hand count
+        // the same thing - but it used to happen without a word, and a
+        // pair taken from `/tmp` counted 1043 where the root counts
+        // 1020 with nobody told why. So it is said, every time.
+        (None, None, false, false) => {
+            eprintln!(
+                "warning: the carved-out set `{HEAVY_MODELS}` is not visible from {}, \
+                 so it is NOT left out: this check measures the heavy models too \
+                 (run from the root of the tree, or pass --without or --with-heavy)",
+                std::env::current_dir()
+                    .map(|dir| format!("`{}`", dir.display()))
+                    .unwrap_or_else(|_| "the working directory".to_string())
+            );
+            without
+        }
         _ => without,
     };
     // Read the way the carved-out set is, from where the check is run,

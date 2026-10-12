@@ -558,6 +558,49 @@ fn the_carved_out_set_is_left_out_without_being_asked_for_and_asked_back_by_name
 }
 
 #[test]
+fn a_check_that_cannot_see_the_carved_out_set_says_so() {
+    // The exclusion hangs on the working directory, on purpose; what
+    // was wrong is that a check run where the file is not in sight
+    // measured the giants too without a word. It says so now, and
+    // says nothing where the set was asked about either way.
+    let library = TempDir::new("carved set out of sight");
+    std::fs::write(
+        library.0.join("Lib.mo"),
+        "package Lib package Examples \
+         model Cheap Real x(start = 1); equation der(x) = -x; end Cheap; \
+         end Examples; end Lib;",
+    )
+    .unwrap();
+
+    let blind = bin()
+        .current_dir(&library.0)
+        .args(["library", "check", library.0.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(blind.status.success(), "{}", stderr(&blind));
+    let text = stderr(&blind);
+    assert!(text.contains("is NOT left out"), "{text}");
+    assert!(text.contains("scripts/heavy_models.txt"), "{text}");
+
+    let asked = bin()
+        .current_dir(&library.0)
+        .args([
+            "library",
+            "check",
+            "--with-heavy",
+            library.0.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    assert!(asked.status.success(), "{}", stderr(&asked));
+    assert!(
+        !stderr(&asked).contains("NOT left out"),
+        "{}",
+        stderr(&asked)
+    );
+}
+
+#[test]
 fn the_jacobians_of_a_named_set_are_counted_on_a_line_of_their_own() {
     // Two solenoids build 0, 124 or 2812 Jacobians depending on the
     // difference step the run happened to take, and summed with every
