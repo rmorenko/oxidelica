@@ -218,7 +218,7 @@ impl CompiledModel {
                     Err(ref error)
                         if watch_stiffness
                             && !implicit_handoff_off()
-                            && error.implicit_step_mends() =>
+                            && error.hands_to_implicit(super::edge_handoff_on()) =>
                     {
                         return Ok(AdaptiveOutcome::Stiff);
                     }

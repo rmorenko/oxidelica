@@ -148,6 +148,16 @@ fn stale_complaints_kept() -> bool {
     *ON.get_or_init(|| std::env::var_os("OXIDELICA_KEEP_STALE_COMPLAINT").is_some())
 }
 
+/// Whether a stage refused as outside what the equations answer hands
+/// an `Auto` run to the implicit solver, with the refused stage's
+/// complaint forgotten on the way. Off by default: the two go together
+/// as one switch, since the handover alone ends the run at its start
+/// on the complaint the abandoned stage left.
+pub(crate) fn edge_handoff_on() -> bool {
+    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ON.get_or_init(|| std::env::var_os("OXIDELICA_EDGE_HANDOFF").is_some())
+}
+
 /// Whether a validated block leaves its last perturbed point in the
 /// slots rather than the point it converged to. Off by default; the
 /// switch exists so that one binary measures the repair both ways.
@@ -2214,7 +2224,10 @@ impl CompiledModel {
     pub(crate) fn run_segment(&self) -> Result<AdaptiveOutcome, SimError> {
         match self.method {
             SolverMethod::Auto => match self.adaptive(true)? {
-                AdaptiveOutcome::Stiff => self.run_bdf(),
+                AdaptiveOutcome::Stiff => {
+                    self.walked.clear_for_handoff(edge_handoff_on());
+                    self.run_bdf()
+                }
                 outcome => Ok(outcome),
             },
             SolverMethod::Dopri45 => match self.adaptive(false)? {
@@ -2316,5 +2329,47 @@ mod crossing_tests {
         assert_eq!(place_crossing(t, t_new, t, 1.2, hi), hair);
         assert_eq!(place_crossing(t, t_new, f64::NAN, 1.2, hi), hair);
         assert_eq!(place_crossing(t, t_new, 0.5, t, t), t + 1e-9);
+    }
+}
+
+#[cfg(test)]
+mod edge_handoff_tests {
+    use crate::{Refusal, SimError, Walked};
+
+    // A stage refused as outside what the medium answers is handed to
+    // the implicit solver under the switch and only there; without it
+    // the explicit solver ends the run on it, as it did before. A plain
+    // refusal is never handed over, switch or no switch.
+    #[test]
+    fn an_outside_refusal_is_handed_over_only_under_the_switch() {
+        let outside = SimError("tsat called with too low pressure".into(), Refusal::Outside);
+        assert!(outside.hands_to_implicit(true));
+        assert!(!outside.hands_to_implicit(false));
+        let plain = SimError("anything".into(), Refusal::Plain);
+        assert!(!plain.hands_to_implicit(true));
+        assert!(!plain.hands_to_implicit(false));
+    }
+
+    // The complaint an abandoned explicit stage left behind is not read
+    // by the implicit solver's first point under the switch, and is
+    // left alone without it.
+    #[test]
+    fn the_handover_forgets_the_abandoned_stage_complaint() {
+        let walked = Walked {
+            programs: Default::default(),
+            trouble: std::sync::Mutex::new(None),
+        };
+        let leave = || {
+            *walked.trouble.lock().unwrap() = Some(SimError(
+                "tsat called with too low pressure".into(),
+                Refusal::Outside,
+            ));
+        };
+        leave();
+        walked.clear_for_handoff(true);
+        assert!(!walked.troubled());
+        leave();
+        walked.clear_for_handoff(false);
+        assert!(walked.troubled());
     }
 }

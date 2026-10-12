@@ -117,6 +117,18 @@ impl SimError {
         self.1 == Refusal::Outside
     }
 
+    /// Whether the explicit solver hands an `Auto` run over to the
+    /// implicit one on this refusal of a stage. `edge` is the
+    /// `OXIDELICA_EDGE_HANDOFF` switch: with it an `Outside` refusal is
+    /// handed over too, because a stage of an explicit step that leaves
+    /// what a medium can answer is the stage being too long for a stiff
+    /// state, and the implicit solver does not ask there
+    /// (`TestWaterPumpPowerCharacteristic`, `TestWaterPumpCheckValve`:
+    /// IF97 refused a stage at a hundred times the state's range).
+    pub(crate) fn hands_to_implicit(&self, edge: bool) -> bool {
+        self.implicit_step_mends() || (edge && self.outside_the_domain())
+    }
+
     /// The same refusal saying something else.
     pub(crate) fn reworded(self, message: String) -> Self {
         SimError(message, self.1)
@@ -863,6 +875,17 @@ impl Walked {
     /// Whether a walk has failed and nobody has read why yet.
     pub(crate) fn troubled(&self) -> bool {
         self.trouble.lock().is_ok_and(|held| held.is_some())
+    }
+
+    /// Forget the reason a refused stage left behind when the run is
+    /// handed to the implicit solver, if `edge` says so. The explicit
+    /// step that left it was abandoned, and the implicit solver reads
+    /// the slot on its first point: without this it ends the run at
+    /// `t = 0` for a point it never asked about.
+    pub(crate) fn clear_for_handoff(&self, edge: bool) {
+        if edge {
+            let _ = self.complaint();
+        }
     }
 }
 
