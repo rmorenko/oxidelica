@@ -42151,3 +42151,16 @@ died at its end with `syntax error near unexpected token` at a line of
 while bash was still reading it, and bash reads a script as it goes.
 The second pass ran from a frozen copy. A script that is running is
 not edited, which the notes now say once.
+
+**After the push, two numbers to stand beside the floors.** The heavy
+list run whole on the desk against its new floors, one binary built
+from ffd3bcb under `cap.sh` at 24 GB (`/tmp/m405/heavy23.txt`,
+`heavy_floor.sh .msl`): 23 flatten, 2 run, runnable 21 / 2, green,
+1716 s flattening and 10136 s running, peak 8.3 GB. It ran beside the
+census below, so the times are not quiet ones. And the census of both
+halves on the tree after the carving (`/tmp/m405/census/census.txt`,
+counted between the section headings): 67 refused to flatten in 39
+rows and 200 flattened and did not run in 131 rows, which is 1020 -
+953 and 953 - 753. That is the base for the next diff of the register;
+the run half is still led by the algebraic loops, singular Jacobian
+(11) and the Newton direction (10).
