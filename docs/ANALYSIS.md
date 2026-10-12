@@ -42787,3 +42787,24 @@ two things to read next are why the monitor asks at all when the walk
 already holds the selection the old run settled on, and why the same
 rules from a point 0.01 s later refuse a different set of members.
 Neither is a question about held rows.
+
+**What asks for the re-selection** (probe print in the monitor and at
+its build, `/tmp/m406/monitor_probe.patch` with the `=5` probe, binary
+`/tmp/m406/ox12`, not in the tree; `/tmp/m406/gen_mon0.txt`,
+`gen_mon5.txt`). Under `=5` the first compilation's monitor has
+fourteen records, and at t = 0.01 record 9 fails: victim
+`smee.airGap.psi_ms[1]`, weighed through the cone of definitions, own
+weight NaN against a best alternative of 411 and a baseline of 1.000.
+The rule the monitor follows is that a weight it cannot read compares
+false and the selection is made again, so a NaN cone weight is a
+re-selection by construction. Off, the same victim is weighed by the
+residual's own slope (`through=false`, record 4), reads a number, and
+the monitor never fires: no line of `monitor:` in the off half. The
+model's re-selections off come from stalls, not from the monitor. So
+the generator is lost under the two rules because the walk that
+reached the settled selection early reaches `psi_ms[1]` from a
+constraint whose residual does not name it, the cone that weighs it
+gives NaN at the first check, and the re-selection that follows cannot
+find the same states again. Why the cone reads NaN there - which
+definition in it is not a number at t = 0.01 - is the next link, and
+it is the monitor's, not the dependence check's.
