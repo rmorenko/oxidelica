@@ -41770,3 +41770,139 @@ the branch per port at run time with the two zeros as one, or relies on
 the pipe's `m_flow` start. This compiler builds each mode as written,
 and the refusal is honest for that build. It is a question of how
 modes are built, not of reach.
+
+## The implied row's memory named, the band recentred, the point masses' candidate probed (m403)
+
+**What ate the memory under `OXIDELICA_IMPLIED_ROW`** (item 2). The
+fourteen names m402 listed as in flight when the switched pass died
+were measured one at a time, each half under its own ceiling, one
+binary (`/tmp/m403/pairs1.txt`, `pairs2.txt`). The peak footprint
+moved by no more than 0.04 GB for any of them: `SphericalConstraint`
+1.33 and 1.36 GB, `HeatingSystem` 0.49 and 0.49, the Fluid pipes
+0.27 and 0.27, and the rest the same. The first hypothesis - many
+moderate growths stacked by the parallelism - is refuted.
+
+The list itself was the wrong list. The partial switched pass of m402
+(`/tmp/m402/notran_on2.txt`) prints `start` and `done` per model, and
+the models started and not done at its death are seven, three of them
+not among the fourteen: `IMC_YDarc`, `LineForceWithTwoMasses` and
+`PointGravityWithPointMasses2` (`/tmp/m403/inflight.txt`). Measured the
+same way (`/tmp/m403/one.txt`), `LineForceWithTwoMasses` is 1.30 GB
+off and 1.33 GB on. `PointGravityWithPointMasses2` is 1.34 GB and 88 s
+off, and on it passed 5.4 GB within five minutes and was taken by its
+ceiling of 10 GB.
+
+The mechanism, read from `OXIDELICA_VICTIM_PROBE` on both halves
+(`/tmp/m403/pg2_off_probe.txt`, `pg2_on_probe.txt`). Under the switch
+the alias `pointMass1.r_0[1] = pointMass1.frame_a.r_0[1]` is refused
+five times as a row the system already holds (reductions 14, 17 to
+20). The walk then goes another way: at reduction 61 the unswitched
+walk takes member 8 of 19 of the singular subset, the switched one
+takes the first. Both walks reach the six `referenceSystem` masses in
+the same order, and the unswitched one stops at reduction 80. The
+switched one goes on:
+
+```text
+82  pointMass2.a_0[3] - der(der(pointMass2.frame_a.r_0[3]))
+83  der(pointMass2.a_0[3]) - der(der(der(pointMass2.frame_a.r_0[3])))
+84  der(der(pointMass2.a_0[3])) - der(der(der(der(...r_0[3]))))
+85  der(der(der(pointMass2.a_0[3]))) - der(der(der(der(der(...r_0[3])))))
+```
+
+Each reduction differentiates the row the one before it pushed, one
+order higher each time, and the point gravity `mu/|r|^3` behind the
+acceleration grows by a storey per rung. That is a phase whose work is
+bounded only by `MAX_INDEX_REDUCTIONS = 256` and the node ceiling of
+two million, both far beyond what the memory survives. No reduction
+of the unswitched walk on this model, or in the point-mass models of
+m401 (`/tmp/m402/b/*.off.log`), names a derivative past the second
+order.
+
+So the ladder is given a ceiling of its own, behind the same switch:
+a reduction whose differentiated row names a derivative of order
+above three refuses, naming the equation and the reduction.
+Mechanics is of index three and the acceleration row names
+`der(der(r))`, so one storey past that is room. Under it
+`PointGravityWithPointMasses2` with the switch refuses at 1.43 GB in
+77 s (`/tmp/m403/pg2_on_b.txt`) instead of growing past 10 GB.
+The corpus pair, one binary built from this tree (`/tmp/ox403b`), the
+two halves run side by side under a ceiling of 20 GB each
+(`/tmp/m403/corpus_off.txt`, `corpus_on.txt`, `pair_off.log`,
+`pair_on.log`): without the switch 961 flatten and 752 run, peak
+14.0 GB; with it 961 and 753, peak 14.0 GB. The flatten lists are
+identical. The run lists differ by one model gained and none lost,
+`QuasiStatic...InductionMachines.IMC_Transformer`, which is the family
+the switch was written for. This is the first time the switched pass
+finished at all. The peak of 14.0 GB for the unswitched half, against
+the 10.0 GB m402 measured, is the two halves sharing one machine and
+not a change in the code: the unswitched path is untouched.
+`IMC_YDarc`, the third model in flight, was not measured on its own:
+it runs for twenty minutes either way, and the pair covers it.
+The switch stays off by default. The decision to turn it on goes to
+review, now that the memory has a name.
+
+**The point masses' candidate on `B6z`** (item 3). Under
+`OX_PROBE_MATCHED_REACH=empty` (`state/m401_matched_reach.diff`, built
+as `/tmp/ox403r`) the sixteen victims reproduce the m402 log name for
+name. The states the two walks keep:
+
+| walk          | kept                                                                                                   |
+| ------------- | ------------------------------------------------------------------------------------------------------ |
+| without       | `pointMass1.r_0[2,3]`, `v_0[2,3]`; `pointMass2.r_0[1,2]`, `v_0[1..3]`; `pointMass3.r_0[3]`, `v_0[2,3]` |
+| the candidate | `freeMotion.r_rel_a[1..3]`, `v_rel_a[1..3]`; `pointMass1.r_0[1..3]`, `v_0[1..3]`                       |
+
+The candidate demotes all four quaternion entries `freeMotion.Q` and
+keeps the free body's translation together with the whole position
+and velocity of `pointMass1`. But `pointMass1` sits at a fixed offset
+`{1,0,0}` from the body's frame, so `|pointMass1.r_0 - r_rel_a| = 1`
+holds identically: of its six kept coordinates only the two angles of
+the offset direction are free, and the rotation of the body about the
+axis through `pointMass1` has no state left to carry it. The Jacobian
+is singular because of the states chosen, not because of the model -
+the body's inertia is full, and the unswitched walk keeps coordinates
+on all three masses, which do determine every rotation. So the
+refusal the candidate gives `B6z` is an invented one, and the
+candidate stays parked on the evidence of the walk rather than of the
+rule alone.
+
+**The ratio band recentred** (item 1). By Roman's word of 2026-10-11,
+on three runner prints over one count: 934d5b8 at 1.379 (the old
+code), eb79c22 at 1.745 (job 114480391223) and 8cf7695 at 1.725 (job
+114534440451). The third point is the print for bea6d5b (run
+38180283534, job 114591215714), red on the old band alone with the
+counts right (961 / 752, runnable 844 / 709): 7373 ms flattening and
+12307 ms running with `IMC_YDarc` left out, a ratio of 1.669, inside
+the new edges, so they stand as the word gave them. The job took 128
+minutes, and the one for 8cf7695 took 167, against a ceiling of 180:
+the library job no longer runs in fifty. The runner's band went from
+0.70..1.50 to 1.45..2.02 by the room the old band left round its 46
+points. The desk's band was to move by the same factors that held it
+to the runner's, 0.80..1.73 to 1.66..2.33, and it was not moved: those
+factors stood on a desk running above the runner, and on the present
+code the desk runs below it. Three desk passes of this code gave
+1.333 (`/tmp/m401/preflight.txt`), 1.346 (`/tmp/m402/preflight.txt`)
+and 1.303 (`/tmp/m403/corpus_off.txt`, the unswitched half of the
+pair, run beside the other half), against the runner's 1.725 and
+1.745. A desk band from 1.66 would have turned every honest preflight
+red. 0.80..1.73 holds all three, and it waits for more desk points
+rather than being fitted to three. The checks that judge the band in
+`preflight.sh` and in the linters job of `ci.yml` were judging the
+runner's band at 1.045 inside and 2.0 outside, which would have read
+the new band as broken. They now judge at the runner's own points.
+
+**The NaN wall the point masses share, located** (after the list, a
+probe). Five of the six m401 point-mass models stop without the
+candidate at a block residual that is NaN at t = 0. Under
+`OXIDELICA_NEWTON_TRAIL` on `B6z` (`/tmp/m403/b6z_trail.log`) the
+block of 52 unknowns starts with `freeMotion.r_rel_a[1]` and
+`r_rel_a[3]` at 0, and every other unknown but one at 0. The free
+body's position is a demoted state there, and its guess is the zero
+of a value nobody wrote, though `pointMass1.r_0` has `start = {3,0,0}`
+and `fixed = true`, which puts the body at `{2,0,0}`. The point
+gravity `mu/|r|^3` read at the origin is NaN, and at the trail's
+perturbed guess of 1e-6 the residual is 1.25e12. `B6` starts the same
+way. So the wall is the guess of the block and not the model: a fixed
+start lost when its state is demoted, which is the breed m397 mapped
+as form A (`PendulumWithSpringDamper`, `PointGravityWithPointMasses2`)
+seen through another component. It is named here so that the series
+form A waits for knows it has these five beside it.
