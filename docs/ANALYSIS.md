@@ -42430,3 +42430,28 @@ turns the row the system already held into a reduction with nothing
 left to take, which is the point masses' `=2` result again: the copies
 are what let these walks finish at all, and taking them away shows
 the constraint that was over-counted, not a way through it.
+
+**Why the position equation is asked for rotations** (the map's last
+link, read with `OXIDELICA_DEFS_PROBE` and `OXIDELICA_VICTIM_PROBE` on
+`B6z`, no change). Reductions 2 to 10 are each stumbled on one of the
+nine connection aliases `world.frame_b.R.T[i,j] =
+freeMotion.frame_a.R.T[i,j]`, not on a position. That much is
+measured. The reading of it, not measured: what is over determined is
+the positions - each point mass declares `r_0` under `der()` and the
+rigid chain ties all of them to the joint's `r_rel_a` - and the
+matching settles that excess on unknowns it can reach, the joint's
+rotation entries among them. Measured again: the position equation `frame_b.r_0[3] = frame_a.r_0[3] + R * r_rel_a`
+(equation 156) is left matched to a rotation entry. Differentiating the
+alias then needs `der(freeMotion.frame_a.R.T[1,3])`, and the supplier
+the matching names for it is equation 156; at reduction 7 the same
+equation is matched to `R.T[2,3]`, at reduction 10 to `R.T[3,3]`, and
+each time it is differentiated afresh. In the method this walk
+follows, an equation once differentiated stands in the system at its
+next order, and the matching of later reductions is over the highest
+derivatives. Here the original stays matchable beside its derivative,
+so one equation determines a different unknown in each reduction.
+That is the invariant to restore: a supplier already differentiated
+is answered by the row it already gave, not by a new one, and the
+member the matching stumbles on is the alias only because the excess
+of the positions lands there. Not built: it changes the reduction of
+every MultiBody model, and the pair for it is a series of its own.
