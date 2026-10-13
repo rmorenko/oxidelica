@@ -43401,3 +43401,33 @@ would keep pressure a state is not taken. The row's Fluid half is
 therefore a state-selection question, not a solver one, and the
 retreat, the line search and the descent guard are all the wrong
 place to mend it.
+
+**The runner's verdict on the chain's default: red on the work band,
+the counts right.** Push run 38321408977 for c17026e, library job
+115050181995 (`/tmp/m411/ci/lib.log`): 953 flatten and 755 run,
+runnable 836 / 712, the run list the desk's default list name for name
+(`/tmp/m409/B_ran.txt`, no difference), the ratio 1.313 inside its
+band. What turned it red is one line: `WORK: jacobians is 485 against
+262 written here (1.851145x)`. The desk's full preflight on the tree of
+this shift turns red on the same line, 486 against 262
+(`/tmp/m411/pf/preflight.txt`), and is green everywhere else. The rise
+is the chain's and is named whole. The chain taken back prints 268 and
+the default 486 (`/tmp/m409/A.txt`, `B.txt`), 218 more, and each model
+asked both ways under `--only` from the root on one binary built from
+795b7ec (`/tmp/m411/jac/out.txt`, 192 models: every machine that runs,
+every model that changed its verdict, the loop layer and the rest of
+the refused) gives exactly two names:
+
+```text
+SMEE_LoadDump (Machines)    0 -> 190   won by the chain, runs to the end
+ActuatorWithNoise           0 ->  28   refused both ways; with the
+                                       chain it runs 4292 points before
+                                       a later reduction refuses it
+```
+
+190 + 28 = 218. Nothing else moved by a single Jacobian. The floors
+are not raised, since the print they were to follow is red, and the
+centre of the band is not moved, since the brief leaves a band's
+verdict to the reviewer. The arithmetic for that decision, if it is
+taken: the runner's 485 is the desk's 486 less one, so a centre at the
+runner's print, 485, holds both machines inside ten percent.
