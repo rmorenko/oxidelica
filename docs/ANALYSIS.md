@@ -44208,8 +44208,14 @@ the zero and is not counted as evidence either way. In the library
 `Spice3BenchmarkRtlInverter` stands exactly here, a block of the one
 unknown `der(Q1.vbx)`; the other four Spice3 members of the
 `underdetermined algebraic loop` row refuse on larger blocks of the
-same kind of derivative (`der(Q1.vbc)`, `der(B.v)`, `der(Dinternal)`),
-not probed one by one. The small model refuses one step earlier than
+same kind of derivative, and `why` on a name of each block shows the
+same shape every time, a capacitance computed in the run in front of
+a node's derivative: `icapbc = capbc*der(vbc)` and
+`icaptt = captt*der(vbc)` in `NAND`, `icapbe = capbe*der(vbe)` in
+`ONEBIT`, and in both MOS inverters `icBD = cBD*(der(B.v) -
+der(Dinternal))` with its `icBS` and `icGB` siblings. Whether those
+capacitances are zero at the refusing point, as `capbx` is, was not
+read. The small model refuses one step earlier than
 RtlInverter, with an underflow rather than the rank test, because its
 block is solved by the explicit solver.
 The question m389 left, why `der(vbx)` of an algebraic `vbx` is an
