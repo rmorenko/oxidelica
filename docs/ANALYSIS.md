@@ -44610,3 +44610,43 @@ runs ten steps and cannot tell a right answer from a wrong one here. A
 stack that overcharges where its single cell does not would need a
 comparison against a reference before it is believed. Measuring the
 patch as a pair is the next step.
+
+**IdealMixing1 is the m392 chain, now built through its third link and
+parked at the fourth.** With a probe that puts the walked body's name
+on the refusal, the `unknown variable X` names
+`solveOneNonlinearEquation$...MixtureGasNasa_T_hX_f_nonlinear@...FlueGasSixComponents`,
+which is the body the m392 chapter (`IdealMixing1: the unknown X
+opened`) named. Its five-line form is `state/m417/P1.mo`
+(`Medium.T_hX(3e5 + 1000*time, Medium.reference_X)` on the flue gas),
+and the smallest synthetic form is `state/m417/cl/Q6.mo`, a package
+`Base` whose `g` writes `(if fixedX then reference_X else X) *
+{gi(c[i], T) for i in 1:nX}`, inverted through a closure. Built as arms
+of the walk's `elements_of` behind `OXIDELICA_NO_WALKED_CHOICE_LISTS`
+(`state/m417/walk_choice_lists_links1-3.patch`):
+
+1. an `if` choosing between lists lays out the branch its condition
+   picks (Q10 runs, T = 4.000000 at t = 1, the right root of
+   `0.5 T + 0.5 T = 4`);
+2. a comprehension over a range is the body once per value (Q7 moves
+   on);
+3. a subscript on a list written in place, `{1, 2}[i]`, is the element
+   (Q8 runs, T = 4.000000).
+
+The flue gas then refuses at the fourth link, as m392 recorded: `data[i]`
+is a `DataRecord(name = "N2", ...)` constructor handed to the walked
+`h_T`, and its `name` is a String. On the compiled road
+`record_numbers` (`code.rs`) drops the text and hands the numbers in
+declared order. The walk has no such road, so a record built inside
+the walk is a feature rather than an arm. Links 1 to 3 win nothing
+alone in the corpus, since the census names this text for
+`IdealMixing1` only, so they are parked whole with the map rather than
+taken a link at a time.
+
+A refusal from a walked body does not say which body it came from, and
+twice now a probe had to add that by hand. Putting the name on was
+tried this shift and taken out again. Two tests pin the exact wording
+of a model's own `assert` relayed through a walk. The refusal kind is
+rewritten from `Raised` to `Outside` after the raise, so it cannot tell
+the model's words from the compiler's. A test on the message's spelling
+would be a guess. The structure should record which writer produced
+the text before the name is added.
