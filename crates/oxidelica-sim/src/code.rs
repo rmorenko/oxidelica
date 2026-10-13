@@ -613,7 +613,8 @@ impl Code {
                 // Which number of the answer this stands for was
                 // settled where the call was laid out, against what the
                 // body declares it answers with.
-                match crate::walk::walk(&walked.programs, name, &given, lengths, time, 0)
+                match walked
+                    .answer(name, &given, lengths, time)
                     .map(|answer| answer[*which])
                 {
                     Ok(worth) => worth,
@@ -832,10 +833,7 @@ impl SlotTable {
         SlotTable {
             index: HashMap::new(),
             template: Vec::new(),
-            walked: std::sync::Arc::new(Walked {
-                programs,
-                trouble: std::sync::Mutex::new(None),
-            }),
+            walked: std::sync::Arc::new(Walked::new(programs)),
         }
     }
 

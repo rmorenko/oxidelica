@@ -864,9 +864,102 @@ enum Code {
 pub(crate) struct Walked {
     pub(crate) programs: HashMap<String, ClassDef>,
     pub(crate) trouble: std::sync::Mutex<Option<SimError>>,
+    /// The last answer of each body, beside the exact bits of what it
+    /// was handed. See [`Walked::answer`].
+    pub(crate) last: std::sync::Mutex<HashMap<String, LastWalk>>,
+    /// How many times a body was walked rather than remembered.
+    pub(crate) walks: std::sync::atomic::AtomicUsize,
+}
+
+/// What one body was last handed - the time, the bits of every number,
+/// the shapes they were laid out in - and what it answered.
+#[derive(Debug)]
+pub(crate) struct LastWalk {
+    time: u64,
+    given: Vec<u64>,
+    lengths: Vec<Vec<usize>>,
+    answer: Vec<f64>,
+}
+
+/// Whether a body asked again at the point it was last asked at answers
+/// from memory. On by default; `OXIDELICA_NO_PROPS_ONCE=1` walks every
+/// asking, as before, so that one binary gives both numbers.
+fn props_once() -> bool {
+    !crate::walk::switch_set("OXIDELICA_NO_PROPS_ONCE")
 }
 
 impl Walked {
+    /// A body for no model: nothing to walk, nothing remembered.
+    #[cfg(test)]
+    pub(crate) fn empty() -> Walked {
+        Walked::new(HashMap::new())
+    }
+
+    /// The bodies a run walks, with nothing gone wrong and nothing
+    /// remembered yet.
+    pub(crate) fn new(programs: HashMap<String, ClassDef>) -> Walked {
+        Walked {
+            programs,
+            trouble: std::sync::Mutex::new(None),
+            last: std::sync::Mutex::new(HashMap::new()),
+            walks: std::sync::atomic::AtomicUsize::new(0),
+        }
+    }
+
+    /// Walk `name` with `given`, or answer with what the same body said
+    /// when it was last handed the same bits at the same time.
+    ///
+    /// The water of the library is a record of properties worked out by
+    /// one body from pressure and enthalpy, and every equation reading a
+    /// field of it calls that body again with the same two numbers: one
+    /// evaluation of `TestWaterPumpCheckValve` walked IF97 dozens of
+    /// times at one point, and 92450 of every 100000 askings were the
+    /// asking just before. A body is a function of what it is handed -
+    /// the impure draws are written into the model as equations and
+    /// never walked - so the same bits at the same time are the same
+    /// answer, bit for bit. Only the last asking is kept, one per body,
+    /// which bounds the memory by the number of bodies; a refused walk
+    /// is not kept, and is walked again to say so again.
+    pub(crate) fn answer(
+        &self,
+        name: &str,
+        given: &[f64],
+        lengths: &[Vec<usize>],
+        time: f64,
+    ) -> Result<Vec<f64>, SimError> {
+        if !props_once() {
+            self.walks
+                .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            return crate::walk::walk(&self.programs, name, given, lengths, time, 0);
+        }
+        let same = |had: &LastWalk| {
+            had.time == time.to_bits()
+                && had.given.len() == given.len()
+                && had.given.iter().zip(given).all(|(a, b)| *a == b.to_bits())
+                && had.lengths == lengths
+        };
+        if let Ok(last) = self.last.lock() {
+            if let Some(had) = last.get(name).filter(|had| same(had)) {
+                return Ok(had.answer.clone());
+            }
+        }
+        self.walks
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let answer = crate::walk::walk(&self.programs, name, given, lengths, time, 0)?;
+        if let Ok(mut last) = self.last.lock() {
+            last.insert(
+                name.to_string(),
+                LastWalk {
+                    time: time.to_bits(),
+                    given: given.iter().map(|v| v.to_bits()).collect(),
+                    lengths: lengths.to_vec(),
+                    answer: answer.clone(),
+                },
+            );
+        }
+        Ok(answer)
+    }
+
     /// Take the reason a walk failed, if one did.
     pub(crate) fn complaint(&self) -> Option<SimError> {
         self.trouble.lock().ok().and_then(|mut held| held.take())

@@ -2413,10 +2413,7 @@ mod edge_handoff_tests {
     // left alone without it.
     #[test]
     fn the_handover_forgets_the_abandoned_stage_complaint() {
-        let walked = Walked {
-            programs: Default::default(),
-            trouble: std::sync::Mutex::new(None),
-        };
+        let walked = Walked::empty();
         let leave = || {
             *walked.trouble.lock().unwrap() = Some(SimError(
                 "tsat called with too low pressure".into(),

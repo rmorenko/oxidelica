@@ -963,3 +963,42 @@ fn a_continuation_naming_other_variables_is_refused_by_name() {
     assert!(refusal.contains("1 left (der(y))"), "{refusal}");
     assert!(refusal.contains("1 arrived (der(x))"), "{refusal}");
 }
+
+/// A body asked again at the point it was last asked at is not walked
+/// again, and answers the same; a point that moved in any bit - an
+/// argument or the time - is walked. The water's record is asked once
+/// per field at one point, and this is what makes that one walk.
+#[test]
+fn a_body_asked_twice_at_one_point_is_walked_once() {
+    let model = parse_model(
+        "model M function count input Real x; output Real y; \
+         algorithm y := 0; while y < x loop y := y + 1; end while; end count; \
+         Real y; equation y = count(time); end M;",
+    )
+    .unwrap();
+    let walked = Walked::new(
+        model
+            .functions
+            .iter()
+            .map(|class| (class.name.clone(), class.clone()))
+            .collect(),
+    );
+    let name = model.functions[0].name.clone();
+    let walks = || walked.walks.load(std::sync::atomic::Ordering::Relaxed);
+    assert_eq!(
+        walked.answer(&name, &[2.5], &[vec![]], 0.0).unwrap(),
+        vec![3.0]
+    );
+    assert_eq!(
+        walked.answer(&name, &[2.5], &[vec![]], 0.0).unwrap(),
+        vec![3.0]
+    );
+    assert_eq!(walks(), 1, "the second asking walked the body again");
+    assert_eq!(
+        walked.answer(&name, &[3.5], &[vec![]], 0.0).unwrap(),
+        vec![4.0]
+    );
+    assert_eq!(walks(), 2);
+    walked.answer(&name, &[3.5], &[vec![]], 1.0).unwrap();
+    assert_eq!(walks(), 3, "a moved time is another point");
+}
