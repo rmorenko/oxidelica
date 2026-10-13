@@ -1340,7 +1340,21 @@ FLATTEN_FLOOR=953
 # again, by name in the same log, and are left out:
 #
 #   756 printed - 1 SpringWithMass - 1 SMPM_VoltageSource = 754
-RUN_FLOOR=754
+#
+# And run 757 = 754 + InductorWithHysteresis,
+# SinglePhaseTransformerWithHysteresis1 and
+# SinglePhaseTransformerWithHysteresis2 of FluxTubes, which run once a
+# der of a linear expression is written as the same of the derivatives
+# (30b6af6). The runner printed 953 / 759 and runnable 836 / 716 on
+# 30b6af6, in job 115236280738 of push run 38379534846; that job went
+# red on the work band of points alone (below), and the counts are
+# printed before the bands are judged. Against b70320c (job
+# 115223810190, whose list is that of 8788c44 name for name) its run
+# list gained exactly those three and lost nothing. The two swings ran,
+# by name in the same log, and are left out:
+#
+#   759 printed - 1 SpringWithMass - 1 SMPM_VoltageSource = 757
+RUN_FLOOR=757
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -1628,7 +1642,12 @@ RUNNABLE_FLATTEN_FLOOR=836
 # the same runner job as `RUN_FLOOR` (8788c44, job 115160315372), which
 # printed 713; the two left out are SpringWithMass and
 # SMPM_VoltageSource, as there.
-RUNNABLE_RUN_FLOOR=711
+#
+# And runnable run 714 = 711 + the three hysteresis examples, all
+# runnable, by the same runner job as `RUN_FLOOR` (30b6af6, job
+# 115236280738), which printed 716; the two left out are SpringWithMass
+# and SMPM_VoltageSource, as there.
+RUNNABLE_RUN_FLOOR=714
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
@@ -2119,9 +2138,24 @@ WORK_BODIES=1330083
 # printed yet, and the runner's next print settles it:
 #
 #   newton  720663 + 106658 = 827321
-WORK_POINTS=376723
+#
+# Moved to the runner's print for 30b6af6 (job 115236280738), which
+# turned red on points alone, 415001 against 376723, x1.102. Most of it
+# had stood since before: the runner's rest for b70320c and for 8788c44
+# was already 411098 points and 895346 Newton steps, x1.091 and x1.082,
+# inside the band by less than a tenth, the drift of the series since
+# the centre was drawn. The last 3903 points and 9408 Newton steps are
+# the three hysteresis examples that run now. The desk's judge over the
+# two passes of the cut printed 415534 and 910324 for the same code
+# (/tmp/m415/pf/main.txt and dear.txt, the two passes of the next
+# commit summed), x1.001 and x1.006 of the new
+# centres:
+#
+#   points  30133306 - 29718305 = 415001
+#   newton  43574546 - 42669792 = 904754
+WORK_POINTS=415001
 WORK_POINTS_PPM=100000
-WORK_NEWTON=827321
+WORK_NEWTON=904754
 WORK_NEWTON_PPM=100000
 # And Dimmer_RL, whichever way it falls, centred between the desk's run
 # under the series and the machine's printed refusal:

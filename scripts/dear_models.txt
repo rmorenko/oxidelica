@@ -1,0 +1,43 @@
+# The dear models: read by the second pass of the library job, and left
+# out of the main one. Both passes are judged together by
+# `scripts/library_floor.sh --judge`, against the same floors, the same
+# time band and the same work centres the single pass was held to. This
+# is not a carving like `heavy_models.txt`: nothing here leaves the
+# floors, and a model missing from both passes turns the judge red.
+#
+# Chosen by measured cost, not by eye. One quiet desk pass of the binary
+# of 0c93f49 with `--slow 60` (/tmp/m415/slow.txt, 2026-10-13): 3896s
+# flattening over 1020 models and 3374s running over 953, 7270s in all,
+# 953 flatten and 759 run. These thirteen are the dearest by flatten
+# plus run, 2396s between them, 33% of the whole, so the dear pass is
+# about half the main one (2396 / 4874 = 0.49). A half reads 0.0 where
+# it was under the 60th place of its list (17.0s flattening, 11.3s
+# running), so those totals are a little low.
+#
+# total s  flatten + run   state
+Modelica.Magnetic.QuasiStatic.FundamentalWave.Examples.BasicMachines.InductionMachines.IMC_Transformer
+#  341.5 =   0.0 + 341.5   runs
+ModelicaTest.Fluid.TestComponents.Pipes.DynamicPipeEnergyConservationCheck
+#  313.4 = 196.7 + 116.7   runs
+Modelica.Fluid.Examples.AST_BatchPlant.BatchPlant_StandardWater
+#  297.8 = 297.8 +   0.0   flattens, refused in the run
+Modelica.Mechanics.MultiBody.Examples.Loops.Engine1a
+#  252.5 =  46.9 + 205.6   flattens, refused in the run
+Modelica.Fluid.Examples.HeatingSystem
+#  224.3 = 224.3 +   0.0   flattens, refused in the run
+Modelica.Mechanics.MultiBody.Examples.Systems.RobotR3.Utilities.MechanicalStructure
+#  222.1 =   0.0 + 222.1   runs
+Modelica.Mechanics.MultiBody.Examples.Elementary.PointGravityWithPointMasses2
+#  137.5 =   0.0 + 137.5   flattens, refused in the run
+Modelica.Mechanics.MultiBody.Examples.Loops.PlanarFourbar
+#  132.3 =  25.2 + 107.1   flattens, refused in the run
+Modelica.Mechanics.MultiBody.Examples.Rotational3DEffects.GyroscopicEffects
+#  106.3 =  29.5 +  76.8   flattens, refused in the run
+Modelica.Electrical.PowerConverters.Examples.ACAC.Dimmer_RL
+#   98.8 =   0.0 +  98.8   runs
+ModelicaTest.Fluid.TestPipesAndValves.BranchingPipes17
+#   96.9 =  75.5 +  21.4   runs
+Modelica.Electrical.Spice3.Examples.Spice3BenchmarkFourBitBinaryAdder.ONEBIT
+#   86.4 =  17.8 +  68.6   flattens, refused in the run
+ModelicaTest.Fluid.TestPipesAndValves.BranchingPipes1
+#   86.1 =  36.4 +  49.7   flattens, refused in the run
