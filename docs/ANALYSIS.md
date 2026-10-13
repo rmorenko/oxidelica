@@ -44159,3 +44159,27 @@ varies by orders of magnitude between models, which is the shape the
 notes call a phase without a size. It is not touched here, because the
 swap that reaches it is not carried, but the next change that hands
 walked medium bodies to the BDF will find the same unbounded run.
+
+**The swap's nineteen, by what it swapped.** Each of the 27 victims
+and 8 gains was asked alone on the same binary with the swap and the
+victim probe on (`/tmp/m416/sw/*.on`, 200 s each), which prints the
+names the swap preferred. The one-model verdicts agree with the
+corpus pair except for three dear Fluid gains that ran in the corpus
+and hit the 200 s limit alone. The names sort the 35 into three kinds,
+and the kinds do not net out evenly:
+
+```text
+what the swap prefers                      victims  gains
+machine dq currents (i_0_s, idq_sr, idq_rr)    8      3   (gains all SMPM)
+a volume's or pump's medium, p with T or h   10      2
+FluxTubes coil and winding currents            8      0
+pipe mediums[k], p and h                       1      3
+```
+
+Two of the machine victims share the short name `IMC_DOL` (Machines
+and FundamentalWave), so the one-model files hold one of them, and
+the count is taken from the corpus diff. The coil currents are the
+plainest result: the swap there loses eight models and gains none, so
+a narrower swap that left the flux tubes alone would cost eight models
+fewer. That is noted for whoever takes stateSelect up again (queue
+item 21), not taken now, because the swap as a whole is not carried.
