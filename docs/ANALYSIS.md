@@ -43981,3 +43981,30 @@ and the judge over the same code (`/tmp/m415/pf/main.txt`,
 centres. The main pass took 3402 s flattening and 1902 s running, the
 dear one 914 s and 1455 s, so on the desk the dear pass is 0.45 of the
 main by time: the longer pass is about two thirds of the old one.
+
+**The first runner pair.** The push of 257b190 (run 38395170900) ran
+the cut as written and came out green. The main pass took 77.7
+minutes, the dear pass 33.9 beside it, and the judge 3.7 after them:
+81.4 minutes to the verdict, against the 92 to 115 the single job
+took. The judge printed 1007 + 13 = 1020 models, 953 / 759 and
+runnable 836 / 716 (the counts of 30b6af6), work identical to the
+digit to that print, and a ratio by the sum of 1.331, inside 0.70 to
+1.50 (`/tmp/m415/ci_judge_257b190.log`). The dear pass is 0.44 of the
+main one on the runner, as on the desk.
+
+**The state swap, its on half alone: still not finished.** The on
+half of the m414 pair was run again on the same binary
+(`/tmp/m414/ox4`, `OX_PROBE_STATE_SWAP=1`, `OXIDELICA_VICTIM_PROBE=1`),
+this time alone on the desk under a 24 GB ceiling
+(`/tmp/m415/swap/on.txt`). Alone it went much faster: 816 models in
+706 s against 3055 s beside the off half, and 918 in 1881 s. Then it
+stood at 918 for more than fifty minutes with three threads still
+burning time, and the shift ended with it still running. One of those
+threads was in a reduction of `d_t_new_*` over the piecewise cubic of
+a time table, weighing `d2_t_new_*.u`. By then it had printed 887 swap
+lines for 553 names, against 858 for 550 in m414. The off half
+finished in 2231 s, so the swap costs the tail of the corpus far more
+than its head, and finding which models it makes dear is the next
+measurement. Once the file prints `read 1020 of 1020`, the run lists
+are diffed by name against `state/p4_off.txt` and the victims over
+every model the swap touches.
