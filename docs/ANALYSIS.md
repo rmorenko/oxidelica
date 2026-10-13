@@ -44183,3 +44183,42 @@ plainest result: the swap there loses eight models and gains none, so
 a narrower swap that left the flux tubes alone would cost eight models
 fewer. That is noted for whoever takes stateSelect up again (queue
 item 21), not taken now, because the swap as a whole is not carried.
+
+**The Spice3 witness of m389, written again.** The m389 small model
+of the `der(Q1.vbx)` wall was lost with its scratch directory, so it
+was rebuilt on the head binary (`state/m416/S4.mo`, twenty lines). A
+node with no capacitor of its own, `vbx = vb - vc`, and a current
+`ic = c*der(vbx)` whose `c` comes from a function with a loop and an
+`if`, as `bjtNoBypassCode` computes `capbx`. The variants, one binary:
+
+```text
+c from the function                          result
+(1 - XCJC)*1e-12, XCJC = 1  (zero, as Spice3)  step size underflow at t = 0
+c := c + 0                  (zero, literally)  step size underflow at t = 0
+(1 - XCJC)*1e-12, XCJC = 0.5                   step size underflow at t = 0
+(1 - XCJC)*1e-3,  XCJC = 0.5                   runs to t = 1
+0*v, no loop                (folds to zero)    runs
+```
+
+So where the coefficient folds, as in the last row, the derivative is
+dropped and the model runs, and where it does not, zero fails. The
+tiny nonzero case fails too, but that one is a genuine time constant
+of 1e-12 s handed to the explicit solver, so it says nothing about
+the zero and is not counted as evidence either way. In the library
+`Spice3BenchmarkRtlInverter` stands exactly here, a block of the one
+unknown `der(Q1.vbx)`; the other four Spice3 members of the
+`underdetermined algebraic loop` row refuse on larger blocks of the
+same kind of derivative (`der(Q1.vbc)`, `der(B.v)`, `der(Dinternal)`),
+not probed one by one. The small model refuses one step earlier than
+RtlInverter, with an underflow rather than the rank test, because its
+block is solved by the explicit solver.
+The question m389 left, why `der(vbx)` of an algebraic `vbx` is an
+unknown at all, is answered by one more variant: written by hand as
+`c*(der(vb) - cos(time))` (`state/m416/S4e.mo`) the model refuses the
+same way. The name is not the wall. The wall is a derivative of an
+algebraic node multiplied by a coefficient the compiler cannot fold,
+which turns the node's equation into one whose highest derivative
+vanishes at the value the run supplies. What would move these models
+is reading such a coefficient as a value at the point where index
+reduction decides, which is the opaque-coefficient question and not a
+short fix.
