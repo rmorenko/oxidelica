@@ -43344,3 +43344,33 @@ linear part of the derivative and true everywhere, and taking it is a
 series of its own: the chattering at a reversal wants measuring first,
 since a model that runs by flipping a Boolean a hundred times an
 instant is a model whose numbers have to be checked before it counts.
+
+**The retreat downhill, tried and refuted.** m407 named two cures for
+the water models' Newton-direction wall and called the first, a
+retreat from the edge that keeps halving until the residual is both
+finite and below where the solve began, the next series. Built as a
+probe (`OX_PROBE_RETREAT_DOWNHILL`,
+`state/retreat_downhill_probe_m411.patch`, not kept), run under
+`--only` from the root, off and on from one binary, on the ten
+Newton-direction models and `TanksWithEmptyingPipe1`
+(`/tmp/m411/rt/*.off.txt`, `*.on.txt`): none of the eleven runs either
+way. Two change their words (`BranchingPipes2`, `TestTemperature1`,
+now stepping outside the domain after the retreat is spent), the rest
+refuse as before. The trail of `TestWaterPumpPowerCharacteristic`
+(`/tmp/m411/rt/pc_trail.txt`) shows why. The probe does what it was
+built to do: from the solve's start at `|f| = 0.106` the full step goes
+to -8.8e4 Pa, the old retreat took 2.88e4 Pa at `|f| = 0.234`, and the
+new one halves twice more and lands at 1.165e5 Pa with `|f| = 0.096`,
+downhill. Then the damped Newton steps themselves walk the pressure
+down, 6.5e4, 2.7e4, 1.26e4, 6.3e3, 3.4e3, 2.0e3 Pa, with the residual
+falling every step (0.088, 0.066, 0.058, 0.054, 0.052, 0.0516) and the
+pump's `eta` going negative, -0.06 to -0.19. So the uphill landing was
+not the cause; the direction is. From the converged point of the step
+before, the linearised block points away from the root it had, toward
+a valley of the residual at the bottom of the formulation's range, and
+any retreat ends in the same crawl. The second cure, a step that
+respects the medium's `min` on pressure, would stop the crawl at the
+triple point rather than turn it round. What is left to ask is why the
+block's Jacobian at a converged point sends a pressure of 1.46e5 Pa
+toward zero on the next step, which is a question about the block's
+conditioning along `pump.medium.p`, not about the line search.
