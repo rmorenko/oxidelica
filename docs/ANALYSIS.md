@@ -44483,3 +44483,12 @@ in 466; the QuasiStatic one `imc.airGap.V_msr.re`, inner of k=27 in
 1604; `MoistAir` has `volume.medium.T` torn with k=8 in 67, and
 `SimpleNaturalGasFixedComposition` with k=4 in 47. Seven models, one
 address.
+
+**`parameter T has no value` is not work.** The three models of that
+census row, `OpAmpCircuits.FirstOrder`, `PI` and `Derivative`, are
+components rather than examples: `library check --only` counts each as
+"runnable examples: 0", `T` is declared without a value so that the
+user gives one, and the examples that do (`OpAmps.LowPass`,
+`HighPass`, `ControlCircuit`) all run (`/tmp/s416/on2.ran`). The
+refusal is right. Whether such components belong in the example set at
+all is the pahan queue's item 34, which waits on a decision.
