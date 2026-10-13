@@ -2613,6 +2613,8 @@ struct Site<'a> {
     binding: Option<&'a Expr>,
     /// The start of this element, from an array-valued start attribute.
     start: Option<&'a Expr>,
+    /// The `fixed` of this element, from an array-valued flag.
+    fixed: Option<&'a Expr>,
     /// The connector class this was declared with, where that class is
     /// one holding a single value rather than members: `connector
     /// RealInput = input Real`. Resolving the type leaves a primitive

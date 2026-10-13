@@ -1888,3 +1888,84 @@ fn a_fixed_state_is_kept_by_undoing_an_earlier_victim() {
         assert!((row[column("x")] + row[column("y")] - 1.0).abs() < 1e-6);
     }
 }
+
+/// A `fixed` handed down as a parameter's element is the model's word.
+///
+/// The three-phase hysteresis transformer writes `MagRel(fixed =
+/// MagRelFixed[1])` on each core. The modifier arrived as the
+/// subscript `MagRelFixed[1]`, which nothing settles, and every reader
+/// of the flag asks whether it is `true` - so the flag fell silently
+/// to `false`, the state was left to the initial equations, and here
+/// `a.x` came out at 10 from `a.x = 2*y` rather than at the -0.4 the
+/// model pinned it to. Pinned, the initial equation goes to `y`.
+#[test]
+fn a_fixed_handed_down_as_a_parameter_element_pins_the_state() {
+    let result = run("package Top \
+           model Inner Real x(start = 0); equation der(x) = -x; end Inner; \
+           model M \
+             parameter Boolean F[2] = {true, false}; \
+             Inner a(x(start = -0.4, fixed = F[1])); \
+             Real y(start = 5); \
+           initial equation a.x = 2 * y; \
+           equation der(y) = -y; \
+             annotation(experiment(StopTime=0.1)); \
+           end M; \
+         end Top;");
+    let x = result.columns.iter().position(|c| c == "a.x").unwrap();
+    let y = result.columns.iter().position(|c| c == "y").unwrap();
+    let first = &result.rows[0];
+    assert!((first[x] + 0.4).abs() < 1e-9, "a.x(0) = {}", first[x]);
+    assert!((first[y] + 0.2).abs() < 1e-9, "y(0) = {}", first[y]);
+}
+
+/// A `fixed` written over a whole array is one flag per element.
+///
+/// The bodies of the multibody library write `w_a[3](fixed =
+/// fill(w_0_fixed, 3))`. Taken whole, each element held an array where
+/// the run asks for one truth, and the flag either fell to `false` or
+/// was refused. Handed out element by element, as a start is, `w[2]`
+/// keeps the 2 it was pinned to and the initial equation goes to `y`.
+#[test]
+fn a_fixed_written_over_an_array_pins_each_element() {
+    let result = run("package Top \
+           model Inner \
+             parameter Boolean pin = true; \
+             Real w[3](start = {1, 2, 3}, fixed = fill(pin, 3)); \
+           equation der(w) = -w; end Inner; \
+           model M \
+             Inner a; \
+             Real y(start = 5); \
+           initial equation a.w[2] = 2 * y; \
+           equation der(y) = -y; \
+             annotation(experiment(StopTime=0.1)); \
+           end M; \
+         end Top;");
+    let w = result.columns.iter().position(|c| c == "a.w[2]").unwrap();
+    let y = result.columns.iter().position(|c| c == "y").unwrap();
+    let first = &result.rows[0];
+    assert!((first[w] - 2.0).abs() < 1e-9, "a.w[2](0) = {}", first[w]);
+    assert!((first[y] - 1.0).abs() < 1e-9, "y(0) = {}", first[y]);
+}
+
+/// The same flag handed down from above as a literal array: `a(r(fixed
+/// = {false, true, false}))` pins the second element and only that one.
+#[test]
+fn a_fixed_array_handed_down_pins_its_own_element() {
+    let result = run("package Top \
+           model Inner \
+             Real r[3](start = {1, 2, 3}); \
+           equation der(r) = -r; end Inner; \
+           model M \
+             Inner a(r(fixed = {false, true, false})); \
+             Real y(start = 5); \
+           initial equation a.r[2] = 2 * y; \
+           equation der(y) = -y; \
+             annotation(experiment(StopTime=0.1)); \
+           end M; \
+         end Top;");
+    let r = result.columns.iter().position(|c| c == "a.r[2]").unwrap();
+    let y = result.columns.iter().position(|c| c == "y").unwrap();
+    let first = &result.rows[0];
+    assert!((first[r] - 2.0).abs() < 1e-9, "a.r[2](0) = {}", first[r]);
+    assert!((first[y] - 1.0).abs() < 1e-9, "y(0) = {}", first[y]);
+}

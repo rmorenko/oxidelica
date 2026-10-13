@@ -44280,3 +44280,76 @@ for one element. What the fix still wants is to take the element of
 an array flag that belongs to each element, as the start already
 does, and then the pair again. The off half did not finish inside the
 shift and no diff by name was taken. Nothing of this is on main.
+
+## The array fixed handed out by element, and two probes behind it (m416, second half)
+
+**The transformer's new refusal is the library's own typo.**
+`ThreePhaseTransformerWithRectifier` went from "initialization did not
+converge" to "initialization is not square: 21 initial equation(s) and
+4 fixed start(s) for 23 unknown(s)" once an array flag was read element
+by element. The count is honest, and the two surplus conditions come
+from the library. `Transformer3PhaseYyWithHysteresis` declares the
+three secondary windings with `i(start=I2Start[1], fixed=I2Fixed[1])`
+all three times (lines 180, 187 and 194), where the primaries use
+`[1]`, `[2]` and `[3]`. The example writes `I2Fixed={true,false,false}`,
+meaning one secondary current pinned, and the typo pins all three.
+With all three legs' `H` fixed as well, the two magnetic loops through
+the ground port are already determined, and two of the three secondary
+currents are surplus. They are consistent, since every start is zero,
+which is why a tool that drops consistent surplus conditions runs it.
+
+Probed with `extends` and one modifier at a time (`/tmp/s416/T.mo`,
+binary `/tmp/s415/ox_a`): releasing `winding23.i` alone leaves 20 for
+23, releasing `winding23.i` and `winding22.i` makes it square and the
+refusal goes back to "did not converge in 50 Newton iterations", the
+same wall the model met before the flag was read. Releasing
+`core3.H` instead gives a singular Jacobian in the `dHyst` and diode
+loop, and releasing `winding13.i` a singular Newton step. The
+single-phase sisters (`SinglePhaseTransformerWithHysteresis1`, `2`,
+`InductorWithHysteresis`) carry scalar flags and no such typo, and all
+three run.
+
+So the model is not lost by the fix, it stood behind the Newton wall
+before and still does. Two separate pieces of work are left, and
+neither is short. The first is a refusal that tolerates consistent
+surplus initial conditions, at `compile.rs` near the "initialization
+is not square" check (line 7589): demote a fixed start whose condition
+is implied by the rest, as other tools do, which is a definition
+change and must be measured by victims. The second is the hysteresis
+Newton wall itself, which this probe did not reach.
+
+**`NAND` and `MNmos` are right to refuse.** Both refuse with
+"underdetermined algebraic loop" at `solvers/mod.rs:1510`, and the
+question was whether the rank test judges by start values that happen
+to be degenerate. They are not examples: `library check --only` counts
+both as "runnable examples: 0", they are the subcircuits the benchmark
+and the inverter are built from, with every pin left open. A potential
+nobody grounds is genuinely free, and the loop that holds `der(B.v)`,
+`der(Dinternal)` and `icBS` has no unique solution at any time, not
+only at the start. The same `MNmos` with its source and bulk grounded
+and two constant sources on drain and gate (`/tmp/s416/G.mo`) runs.
+No change is asked for, and the two models are not work.
+
+**The pair, whole and by name.** Both halves on one binary
+(`/tmp/s415/ox_a`, built with both halves of the change), the off half
+under `OXIDELICA_NO_FIXED_EXPR=1 OXIDELICA_RAW_FIXED_MODIFIER=1`, each
+under a 20 GB ceiling (`/tmp/s415/pair_on.txt`, peak 8.5 GB;
+`/tmp/s415/pair_off.txt`, peak 8.1 GB). Both print 953 flatten and 759
+run of 1020, runnable 836 and 716 of 891, and the lists of names diff
+empty in both halves: no victim and nothing bought. The change is a
+correction of what the flags mean rather than a win, and the floors
+stand where they are.
+
+**Behind the typo, the hysteresis Newton wall.** With the two surplus
+flags released (`/tmp/s416/T.mo`), `OXIDELICA_INIT_PROBE=1` shows a
+square matching that is square only by count. The example's own
+initial equations `transformer.coreK.derHstat = 0` reach no state
+("reaches []"), since `derHstat` is `der(Hstat)` and the initial
+problem's unknowns are states, and the matching hands them whatever is
+left over: `core3.MagRel`, `inductor2.i` and `inductor3.i`. Newton then
+does not converge in 50 iterations. What the equations mean is a
+condition on a derivative, which ties `Hstat` to `B` through
+`der(B) = k*dHyst + mu0*der(Hstat)`, and the initial problem would
+have to carry the derivatives as unknowns for it to be read that way.
+That is a change to how the initial problem is built rather than a
+short fix, and it is left as the map's last link.

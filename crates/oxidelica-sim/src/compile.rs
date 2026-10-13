@@ -5053,6 +5053,48 @@ pub(crate) fn compile_at(
         .collect();
     let (mut params, settled_parameters, parameter_definitions, unsettled_parameters) =
         evaluate_parameters(model, &programs)?;
+    // A variable's `fixed` written as a parameter - `MagRel(fixed =
+    // MagRelFixed[1])` - was carried through flattening as an
+    // expression and then read by nothing: every reader below asks
+    // `fixed == Some(true)`, so the flag the model wrote fell silently
+    // to `false`. It is settled here, where the parameters it names
+    // have values, and a flag that does not settle is refused by name
+    // rather than read as either truth.
+    let settled_flags;
+    let model = if std::env::var_os("OXIDELICA_NO_FIXED_EXPR").is_none()
+        && model.components.iter().any(|c| {
+            c.variability != Variability::Parameter && c.fixed.is_none() && c.fixed_expr.is_some()
+        }) {
+        let mut copy = model.clone();
+        for c in copy.components.iter_mut() {
+            if c.variability == Variability::Parameter || c.fixed.is_some() {
+                continue;
+            }
+            let Some(flag) = c.fixed_expr.as_ref() else {
+                continue;
+            };
+            let context = EvalCtx {
+                vars: &params,
+                time: 0.0,
+                programs: Some(&programs),
+                depth: 0,
+            };
+            match eval(flag, &context) {
+                Ok(value) => c.fixed = Some(value != 0.0),
+                Err(_) => {
+                    return err(format!(
+                        "`{}` says `fixed = {}`, and that is not something the parameters settle",
+                        c.name,
+                        flag.describe()
+                    ))
+                }
+            }
+        }
+        settled_flags = copy;
+        &settled_flags
+    } else {
+        model
+    };
     // A parameter the initialisation solved for is a parameter from
     // then on, and a compilation made again in the middle of the run
     // does not solve the initialisation again: it would stand at the

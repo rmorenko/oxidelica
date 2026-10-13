@@ -559,6 +559,24 @@ pub(super) fn instantiate_components(
             (None, Some(start), false) => Some(spread(start, "start", false)?),
             _ => None,
         };
+        // A `fixed` written over the whole array is handed out the same
+        // way: `w_a[3](fixed = fill(w_0_fixed, 3))` says one flag per
+        // element, and taken whole by each element it is an array where
+        // the run asks for one truth - refused, or read as false.
+        // What cannot be taken apart is left whole, for the run to
+        // refuse by name.
+        let fixed_target = format!("{}.fixed", component.name);
+        let element_fixed: Option<Vec<Expr>> =
+            match std::env::var_os("OXIDELICA_NO_FIXED_EXPR").is_none() && !sizes.is_empty() {
+                false => None,
+                true => match (handed_down(&fixed_target), &component.fixed_expr) {
+                    (Some(value), _) => spread(&value, "fixed", true).ok(),
+                    (None, Some(flag)) if component.fixed.is_none() => {
+                        spread(flag, "fixed", false).ok()
+                    }
+                    _ => None,
+                },
+            };
 
         let element_count = element_names.len();
         // Every element of the declaration, instantiated where it
@@ -692,6 +710,7 @@ pub(super) fn instantiate_components(
                 redeclares: &child_redeclares,
                 binding: element_bindings.as_ref().map(|items| &items[position]),
                 start: element_starts.as_ref().map(|items| &items[position]),
+                fixed: element_fixed.as_ref().map(|items| &items[position]),
                 value_connector: value_connector.as_deref(),
             };
             instantiate_one(registry, &site, &level, acc, depth)?;
@@ -1390,6 +1409,7 @@ pub(super) fn instantiate_one(
         redeclares,
         binding: _,
         start: _,
+        fixed: _,
         value_connector,
     } = *site;
     let Level {
@@ -1502,6 +1522,11 @@ pub(super) fn instantiate_one(
             flat.fixed_expr = flat.fixed_expr.as_ref().map(|expr| {
                 resolve_value(expr).unwrap_or_else(|_| prefix_expr(expr, prefix, outers))
             });
+            // An element of an array whose flag was handed out takes
+            // its own entry, already in the flat model's terms.
+            if let Some(expr) = site.fixed {
+                settle_fixed(&mut flat, expr.clone());
+            }
             flat.start = match site.start {
                 Some(expr) => Some(expr.clone()),
                 None => flat.start.as_ref().map(resolve_value).transpose()?,
@@ -1639,19 +1664,19 @@ pub(super) fn instantiate_one(
             if let Some(value) = modifier(&format!("{}.stateSelect", component.name)) {
                 flat.state_select = Some(value);
             }
-            if let Some(value) = modifier(&format!("{}.fixed", component.name)) {
+            if let Some(value) =
+                modifier(&format!("{}.fixed", component.name)).filter(|_| site.fixed.is_none())
+            {
                 // A modifier from above outranks the declaration, and
                 // outranks an expression the declaration carried too.
-                match value {
-                    Expr::Bool(_) | Expr::Number(_) => {
-                        flat.fixed = Some(!matches!(value, Expr::Bool(false) | Expr::Number(0.0)));
-                        flat.fixed_expr = None;
-                    }
-                    other => {
-                        flat.fixed = None;
-                        flat.fixed_expr = Some(other);
-                    }
-                }
+                // Worked out as a start is, so that `fixed =
+                // MagRelFixed[1]` names the element the flat model
+                // holds rather than a subscript nothing settles.
+                let value = match std::env::var_os("OXIDELICA_RAW_FIXED_MODIFIER") {
+                    None => work_out(&value).unwrap_or(value),
+                    Some(_) => value,
+                };
+                settle_fixed(&mut flat, value);
             }
             // The second of two declarations of one name is settled
             // here, where its own binding has been worked out. Where
@@ -2300,4 +2325,20 @@ fn per_axis_modifiers_open() -> bool {
 /// gives both numbers.
 fn redeclare_slices_open() -> bool {
     std::env::var_os("OXIDELICA_NO_REDECLARE_SLICES").is_none()
+}
+
+/// Record a `fixed` handed to one scalar: a literal is the flag itself,
+/// anything else is kept as an expression for the run to settle once
+/// the parameters it names have values.
+fn settle_fixed(flat: &mut Component, value: Expr) {
+    match value {
+        Expr::Bool(_) | Expr::Number(_) => {
+            flat.fixed = Some(!matches!(value, Expr::Bool(false) | Expr::Number(0.0)));
+            flat.fixed_expr = None;
+        }
+        other => {
+            flat.fixed = None;
+            flat.fixed_expr = Some(other);
+        }
+    }
 }
