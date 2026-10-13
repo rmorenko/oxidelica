@@ -44698,3 +44698,24 @@ runs. The threshold slides along a trade, so the rule is a different
 solver rather than a fix. The family wants a start for the flows that
 is off the flat of the pressure loss, or a damping rule the star can
 live with, and either one is a series of its own.
+
+**The rest of the `did not converge` row, read by the trail.** The row
+holds six models in the m417 census: the three emptying pipes above,
+plus `Bend`, `TestDensity` and the Machines `SMPM_CurrentSource`.
+`Bend` (`state/m417/tr_Bend.txt`) swings between two points,
+`from_mflow.dp` at about 1000 and about -990, for all fifty iterations.
+The two points differ in the fourth digit from one swing to the next,
+so the circling guard, which asks for agreement to 1e-6, never sees a
+circle. `TestDensity` (`state/m417/tr_TestDensity.txt`) swings its
+orifice's pressure between 102650 and 100034 with |f| near 0.3.
+Widening the guard's tolerance to 1e-2
+(`state/m417/circle_tolerance_probe.patch`, `OX_PROBE_CIRCLE`) keeps
+all 433 tests of the simulator green and runs `TestDensity` and
+`TankWithEmptyingPipe2` under `--only`, but not `Bend`. The full
+`simulate` of `TestDensity` was still running after nine minutes of
+CPU for a stop time of 1.01 s, so it buys a run that may not be one
+worth having. A corpus pair is the next measurement, and the tolerance
+is a solver knob in the same sense as the damping above.
+`SMPM_CurrentSource` swings across the machine's phase quantities with
+|f| between 175 and 450. That is the machine family m406 already maps
+(`OXIDELICA_SUPPLY_ONCE`), not a loop of its own.
