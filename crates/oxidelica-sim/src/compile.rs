@@ -4928,6 +4928,63 @@ fn evaluate_parameters(
     Ok((params, claimed, defined, unsettled))
 }
 
+/// `der` of a sum, a difference, a negation, or a product or quotient
+/// by something that does not move, written as the same of the parts:
+/// `der(k*x + c)` is `k*der(x)`.
+///
+/// Only `der` of a name is a state's derivative to the layers below,
+/// and a model writing `der` of an expression was refused whole with
+/// "der() outside a state equation". The rule is linearity and nothing
+/// else, so it is true everywhere: what does not move is a literal or
+/// a name the parameters settle, with no `time` and no `der` in it,
+/// and its derivative is zero. Anything else - a product of two moving
+/// names, a call - is left as written and refused as before.
+/// `OXIDELICA_NO_DER_LINEAR=1` leaves every `der` as written, so that
+/// one binary gives both numbers.
+fn der_linear_open() -> bool {
+    std::env::var("OXIDELICA_NO_DER_LINEAR").map_or(true, |said| said != "1")
+}
+
+/// See [`der_linear_open`].
+fn distribute_der(expr: &Expr, params: &HashMap<String, f64>) -> Expr {
+    use oxidelica_parser::BinOp::*;
+    fn still(e: &Expr, params: &HashMap<String, f64>) -> bool {
+        let mut refs = Vec::new();
+        e.collect_refs(&mut refs);
+        !e.contains_der() && !names_time(e) && refs.iter().all(|r| params.contains_key(*r))
+    }
+    fn der_of(e: &Expr, params: &HashMap<String, f64>) -> Option<Expr> {
+        let b = |x: Expr| Box::new(x);
+        Some(match e {
+            Expr::Ref(_) => Expr::Call("der".to_string(), vec![e.clone()]),
+            Expr::Number(_) => Expr::Number(0.0),
+            _ if still(e, params) => Expr::Number(0.0),
+            Expr::Neg(x) => Expr::Neg(b(der_of(x, params)?)),
+            Expr::Bin(op @ (Add | Sub), x, y) => {
+                Expr::Bin(*op, b(der_of(x, params)?), b(der_of(y, params)?))
+            }
+            Expr::Bin(Mul, x, y) if still(x, params) => {
+                Expr::Bin(Mul, x.clone(), b(der_of(y, params)?))
+            }
+            Expr::Bin(Mul, x, y) if still(y, params) => {
+                Expr::Bin(Mul, b(der_of(x, params)?), y.clone())
+            }
+            Expr::Bin(Div, x, y) if still(y, params) => {
+                Expr::Bin(Div, b(der_of(x, params)?), y.clone())
+            }
+            _ => return None,
+        })
+    }
+    if let Expr::Call(name, args) = expr {
+        if name == "der" && args.len() == 1 && !matches!(args[0], Expr::Ref(_)) {
+            if let Some(done) = der_of(&args[0], params) {
+                return done;
+            }
+        }
+    }
+    expr.map_children(&mut |child| distribute_der(child, params))
+}
+
 /// Compile a model, either from its declared start (`resume` absent) or
 /// as a continuation from mid-run.
 ///
@@ -5015,6 +5072,28 @@ pub(crate) fn compile_at(
             }
         }
     }
+
+    let distributed;
+    let model = if der_linear_open() {
+        let mut out = model.clone();
+        let fix = |e: &Expr| distribute_der(e, &params);
+        for equation in &mut out.equations {
+            equation.lhs = fix(&equation.lhs);
+            equation.rhs = fix(&equation.rhs);
+        }
+        for conditional in &mut out.conditional {
+            for branch in &mut conditional.branches {
+                for equation in branch {
+                    equation.lhs = fix(&equation.lhs);
+                    equation.rhs = fix(&equation.rhs);
+                }
+            }
+        }
+        distributed = out;
+        &distributed
+    } else {
+        model
+    };
 
     // 1b. The discrete layer: what changes only at an event, and what
     // each of those starts at.

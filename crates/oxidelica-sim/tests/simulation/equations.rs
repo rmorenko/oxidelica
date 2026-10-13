@@ -2699,3 +2699,29 @@ fn a_state_the_model_says_is_always_one_is_not_demoted_while_another_can_be() {
         vec!["y", "vy"]
     );
 }
+
+/// `der` of an expression linear in its moving names is the same
+/// combination of their derivatives: `der(k*x + 3) = -x` is
+/// `k*der(x) = -x`, a decay at rate `1/k`. It used to be refused as a
+/// `der` outside a state equation. A product of two moving names is
+/// not linear and is still refused.
+#[test]
+fn der_of_a_linear_expression_is_the_same_of_the_derivatives() {
+    let result = run(
+        "model D parameter Real k = 2; Real x(start = 1, fixed = true); \
+         equation der(k*x + 3) = -x; \
+         annotation(experiment(StopTime=1.0, Interval=0.5, Tolerance=1e-10)); end D;",
+    );
+    let last = result.rows.last().unwrap();
+    let x = last[result.columns.iter().position(|c| c == "x").unwrap()];
+    assert!(
+        (x - (-0.5f64).exp()).abs() < 1e-7,
+        "x(1)={x}, expected e^-0.5"
+    );
+    let refusal = refused(
+        "model D Real x(start = 1, fixed = true); Real y(start = 1); \
+         equation der(x*y) = -x; y = 1 + time; \
+         annotation(experiment(StopTime=1.0)); end D;",
+    );
+    assert!(refusal.contains("der"), "{refusal}");
+}
