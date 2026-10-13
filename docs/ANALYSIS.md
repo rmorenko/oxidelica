@@ -43374,3 +43374,30 @@ triple point rather than turn it round. What is left to ask is why the
 block's Jacobian at a converged point sends a pressure of 1.46e5 Pa
 toward zero on the next step, which is a question about the block's
 conditioning along `pump.medium.p`, not about the line search.
+
+**Why the direction points to the triple point.** A probe printing
+every iteration's Jacobian (`state/every_jac_probe_m411.patch`, not
+kept; `/tmp/m411/rt/pc_jac.txt`, `bp1_jac.txt`) reads the same row at
+the head of both blocks it was put on. In the pump the refused solve
+opens with row 0, `pump.medium.d = waterBaseProp_ph(p, h)[9]`, holding a
+residual of -0.106 kg/m^3 while its slope in pressure is 4.5e-7 per
+Pa; the Newton step on that row alone is -2.3e5 Pa from 1.46e5, which
+is the step to -8.8e4 Pa the trail shows. In `BranchingPipes1` at t =
+8e-4 the same row of `pipe1.mediums[1]` holds -7.3 kg/m^3 at a slope of
+4.4e-7, and the step takes the pressure to -1.6e7. `ox why` says what
+stands behind it: the pipe's states are `ms` and `Us`, mass and
+energy, so the density is fixed by the state as mass over volume, and
+pressure and enthalpy are algebraic, recovered from IF97. Liquid water
+barely compresses, so a density that a stage of the integrator has
+moved by a few kg/m^3 off the liquid surface has no pressure above
+the triple point that gives it back. The block is right to find no
+root; the stage asked it for a density water does not have at that
+enthalpy. Forced to `bdf` from the start, `BranchingPipes1` and
+`TestTemperature1` refuse the same way (`/tmp/m411/W*.bdf.txt`), so it
+is not the explicit solver's stage alone. This is queue item 21 from
+the other side: the medium asks for `p` and `h` as states
+(`Water/package.mo:150-156`, `StateSelect.prefer`) and the choice that
+would keep pressure a state is not taken. The row's Fluid half is
+therefore a state-selection question, not a solver one, and the
+retreat, the line search and the descent guard are all the wrong
+place to mend it.
