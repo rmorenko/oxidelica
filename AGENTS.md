@@ -208,7 +208,10 @@ minutes and finding out a linter had something to say. `--quick` is
 the fast half while a change is still moving. CI is _six_ jobs: the
 tests on three platforms, the library floor, the advisories, and a
 coverage and linters job holding a 92.5% line threshold that is easy to
-forget until it turns a commit red.
+forget until it turns a commit red. The library floor is itself three
+jobs since 2026-10-13: a main pass, a pass of the dear models in
+`scripts/dear_models.txt`, and a judge under the old name that adds the
+two up and holds the sum, refusing a model that neither pass read.
 
 Coverage is measured by `scripts/coverage.sh --summary-only`. Write
 its output to a file rather than piping it to `tail`, which eats it.

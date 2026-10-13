@@ -722,6 +722,40 @@ fn the_jacobians_of_a_named_set_are_counted_on_a_line_of_their_own() {
 }
 
 #[test]
+fn the_set_a_check_would_read_is_named_and_two_lists_are_taken_together() {
+    // The library job is cut into passes, and a guard compares the sets
+    // they read by name. `--models` is how a pass says its set without
+    // reading it, and the main pass leaves out two lists at once, so a
+    // second `--without` must count as much as the first.
+    let (library, list) = two_examples_and_a_list("models");
+    let models = |extra: &[&str]| {
+        let mut args = vec!["library", "check", "--models"];
+        args.extend_from_slice(extra);
+        args.push(library.0.to_str().unwrap());
+        let out = bin().args(&args).output().unwrap();
+        assert!(out.status.success(), "{}", stderr(&out));
+        stdout(&out)
+            .lines()
+            .filter_map(|line| line.strip_prefix("  model  "))
+            .map(str::to_string)
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(
+        models(&["--with-heavy"]),
+        ["Lib.Examples.Cheap", "Lib.Examples.Dear"]
+    );
+    let dear = list.to_str().unwrap();
+    assert_eq!(models(&["--only-from", dear]), ["Lib.Examples.Dear"]);
+    assert_eq!(models(&["--without", dear]), ["Lib.Examples.Cheap"]);
+    let cheap = list.with_file_name("cheap.txt");
+    std::fs::write(&cheap, "Lib.Examples.Cheap\n").unwrap();
+    assert_eq!(
+        models(&["--without", dear, "--without", cheap.to_str().unwrap()]),
+        Vec::<String>::new()
+    );
+}
+
+#[test]
 fn a_list_of_models_that_cannot_be_read_is_a_refusal_and_not_an_empty_set() {
     // Read as empty, `--without` measures the giant it was meant to
     // carve out and `--only-from` measures nothing while holding its

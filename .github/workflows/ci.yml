@@ -138,8 +138,18 @@ jobs:
   # numbers were measured by hand before every commit and believed on
   # trust afterwards, and nothing stopped one of them going down.
   # Once, where the library is cheapest to fetch.
-  library:
-    name: the standard library still reads
+  #
+  # Cut in two on Roman's word of 2026-10-13: a main pass and a pass of
+  # the dear models named in `scripts/dear_models.txt`, side by side on
+  # two runners, and a judge that adds their two reports up and holds
+  # the sum to the floors, the one time band and the one set of work
+  # centres in `scripts/library_floor.sh`, exactly as the single pass
+  # was held. The judge also checks that the two passes read the whole
+  # library between them and no model twice. The judge keeps the name
+  # the single job had, so whatever reads the verdict by that name
+  # reads the verdict of the whole.
+  library-main:
+    name: the standard library still reads, main pass
     needs: changes
     runs-on: ubuntu-latest
     # The daily cron exists for the heavy job below, and nothing else
@@ -212,7 +222,82 @@ jobs:
       - name: Read it
         run: |
           cargo build --release -p oxidelica-cli
-          ./scripts/library_floor.sh .msl
+          ./scripts/library_floor.sh --pass main .msl main.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: library-main
+          path: main.txt
+
+  library-dear:
+    name: the standard library still reads, dear pass
+    needs: changes
+    runs-on: ubuntu-latest
+    if: >-
+      needs.changes.outputs.code == 'true'
+      && (github.event_name != 'schedule' || github.event.schedule == '0 6 * * 1')
+    # The same ceiling as the main pass, for the same reasons.
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: The standard library
+        uses: actions/checkout@v5
+        with:
+          repository: modelica/ModelicaStandardLibrary
+          ref: v4.1.0
+          path: .msl
+
+      - name: Read it
+        run: |
+          cargo build --release -p oxidelica-cli
+          ./scripts/library_floor.sh --pass dear .msl dear.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: library-dear
+          path: dear.txt
+
+  library:
+    name: the standard library still reads
+    needs: [changes, library-main, library-dear]
+    runs-on: ubuntu-latest
+    if: >-
+      needs.changes.outputs.code == 'true'
+      && (github.event_name != 'schedule' || github.event.schedule == '0 6 * * 1')
+    # Builds the binary to ask it which models each pass reads, then
+    # judges the two reports; nothing here reads a model.
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: The standard library
+        uses: actions/checkout@v5
+        with:
+          repository: modelica/ModelicaStandardLibrary
+          ref: v4.1.0
+          path: .msl
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: library-main
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: library-dear
+
+      - name: Judge the two together
+        run: |
+          cargo build --release -p oxidelica-cli
+          ./scripts/library_floor.sh --judge .msl main.txt dear.txt
 
   # The models the check above does not measure, measured here. Three
   # `Spice3` benchmarks cost seventy-two percent of the run half between
@@ -332,6 +417,22 @@ jobs:
           if ./scripts/library_floor.sh --ratio-check 1000 500; then exit 1; fi
           if ./scripts/library_floor.sh --ratio-check 1000 2000; then exit 1; fi
           ./scripts/library_floor.sh --ratio-check 1000 1045
+
+      - name: The cut of the library job is guarded
+        # A model read by neither pass would be judged by nobody while
+        # every floor still held. The guard is seen red on a name left
+        # out, read twice and from outside, and green on a true cut.
+        run: |
+          printf 'A\nB\nC\n' > all.txt
+          printf 'A\n' > main.txt
+          printf 'B\nC\n' > dear.txt
+          ./scripts/library_floor.sh --partition-check all.txt main.txt dear.txt
+          printf 'B\n' > short.txt
+          printf 'A\nB\nC\n' > twice.txt
+          printf 'B\nC\nD\n' > outside.txt
+          for wrong in short twice outside; do
+            if ./scripts/library_floor.sh --partition-check all.txt main.txt "$wrong.txt"; then exit 1; fi
+          done
 
       - name: Unused dependencies
         run: cargo machete

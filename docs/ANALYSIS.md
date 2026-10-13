@@ -43910,3 +43910,74 @@ wants on the water, and it is also the scale of the change. The next
 shift wants the on half to finish, on its own and not beside another
 pass, then the run lists diffed by name and the victims diffed over
 every model the swap touches, not over three.
+
+## The library job in two passes, and the zstd reader taken out (m415)
+
+**The advisory.** The library job's neighbour, `advisories`, went red
+on 0c93f49 with RUSTSEC-2026-0344: `ruzstd` 0.8.3, a decompression
+bomb, fixed in 0.9.1. It came through bevy's default features
+`tonemapping_luts` and `smaa_luts`, whose tables ship as KTX2 files
+compressed with zstd, and `bevy_image` takes `ruzstd` as an optional
+dependency for that alone. No release of `bevy_image` up to 0.20 asks
+for anything newer, so raising bevy would not have cured it. The IDE
+now asks for bevy's default set less those two features, and the 3D
+view's camera tonemaps by the fitted ACES curve, which needs no
+table. The lock loses `ktx2` and `ruzstd` and nothing else; `cargo
+audit` on the desk is left with warnings that do not fail the job, and
+the IDE builds and starts.
+
+**The price, measured afresh.** The older prices were taken before
+the property cache of b70320c halved the water models. One quiet desk
+pass of the binary of 0c93f49, `--slow 60` (`/tmp/m415/slow.txt`),
+printed 953 / 759 and runnable 836 / 716, 3896 s flattening over 1020
+models and 3374 s running over 953. Ranked by flatten plus run, the
+thirteen dearest come to 2396 s, a third of the 7270 s: two
+transformers and machines that run, the water batch plant and heating
+system that refuse at the run after a dear flattening, four MultiBody
+loops, `Dimmer_RL`, `ONEBIT` and two branching pipes. They are
+`scripts/dear_models.txt`, each with its price, and the dear pass is
+about half the main one by that pass (2396 / 4874).
+
+**The cut.** The job is three now: `…, main pass` reads every model but
+the heavy and the dear, `…, dear pass` reads the dear, and the judge
+keeps the old name and holds the sum. The judge rebuilds one report
+out of the two, counts added by their place on each line and the times
+per model worked from milliseconds times models, so every floor, the
+one band and the one set of work centres read it exactly as they read
+the single pass. Over sixteen Blocks and Rotational examples cut eight
+and eight, the sum and the whole agree on every count, every name and
+every unit of work, and on the times by the noise of two runs.
+
+**The guard.** The judge asks the binary which models each pass reads
+(`library check --models`, the filter the check itself applies, with
+`--without` now taken together when given twice) and which the library
+has without the heavy, and it refuses with the name for a model read
+by neither, read twice or from outside. Seen red on the real library
+with a pass forged to leave out `Modelica.Blocks.Examples.Filter`; it
+named the model. It also refuses a report whose count of models is not
+the size of its set: 1007 + 13 = 1020 on the present lists.
+
+**The loop's gates.** `flow.sh` reads jobs by name. The judge keeps the
+old name, so the green and twin checks still read the verdict of the
+whole; a pass cut by its ceiling leaves the judge skipped and the run
+cancelled, so the ceiling check now reads both passes too, and finds a
+job's ceiling by its whole name, since the judge's name is a prefix of
+the passes'. On a stub fed through `jq`, the old gate called a main
+pass cut at 179 minutes red and the new one calls it the ceiling,
+while a cut at 60 minutes stays red on both.
+
+**The floors, and the first desk pair through the judge.** The runner
+printed 953 / 759 and runnable 836 / 716 for 30b6af6 (job
+115236280738), the three hysteresis examples gained by name and
+nothing lost, and the floors go to 757 / 714 with the two swings left
+out. That job went red on the work band of points, 415001 against
+376723: 411098 of it had stood since 8788c44 inside the band by less
+than a tenth, and the hysteresis examples brought the rest. The
+centres go to that print. The desk's preflight then ran the two passes
+and the judge over the same code (`/tmp/m415/pf/main.txt`,
+`dear.txt`): 940 / 754 in the main pass and 13 / 5 in the dear one,
+1007 + 13 = 1020 models, summing to the runner's 953 / 759 and 836 / 716. The ratio by the sum is 0.832 on the desk, and the work comes to
+415534 points and 910324 Newton steps, x1.001 and x1.006 of the new
+centres. The main pass took 3402 s flattening and 1902 s running, the
+dear one 914 s and 1455 s, so on the desk the dear pass is 0.45 of the
+main by time: the longer pass is about two thirds of the old one.

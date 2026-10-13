@@ -151,6 +151,9 @@
 # from /tmp/m266/heavy.txt, both from one build of one binary.
 #
 # Usage: scripts/library_floor.sh <library directory>
+#        scripts/library_floor.sh --pass main|dear <library directory> <report>
+#        scripts/library_floor.sh --judge <library directory> <main report> <dear report>
+#        scripts/library_floor.sh --partition-check <all> <main> <dear>
 set -euo pipefail
 
 FILES_FLOOR=2671
@@ -2531,15 +2534,193 @@ if [ "${1:-}" = "--work-check" ]; then
   exit "$status"
 fi
 
-directory="${1:?usage: library_floor.sh <library directory>}"
+# The library job is cut in two on Roman's word of 2026-10-13, because
+# one pass had grown to 92-115 minutes of a 180 minute ceiling and grew
+# with every model won. The main pass reads every model but the
+# carved-out giants and the dear models named in
+# `scripts/dear_models.txt`; the dear pass reads those alone; and a
+# judge adds the two reports up and holds the sum to everything below,
+# exactly as the one pass was held. There is ONE band and one set of
+# centres: the ratio is the sum of the two run halves over the sum of
+# the two flatten halves, which is the number the band has measured
+# all along, and the counts of work are added before they are judged.
+# A pair of bands of their own would be two calibrations on two points
+# each, which is the churn the cut was made to avoid.
+#
+# The danger of a cut is a model that falls out of both passes: nobody
+# judges it and every floor still holds. So the judge asks the binary
+# for the set each pass reads (`library check --models`, the same
+# filter the check applies) and for the set the whole library has
+# without the giants, and refuses with the name if the two passes do
+# not cover the whole between them or if a model is read twice.
+DEAR_MODELS=scripts/dear_models.txt
+HEAVY_MODELS=scripts/heavy_models.txt
+
+# The guard itself, as a function over three files of names, so that it
+# can be seen red without a library pass: `library_floor.sh
+# --partition-check <all> <main> <dear>`.
+partition_verdict() {
+  local all="$1" main="$2" dear="$3" st=0 name
+  while read -r name; do
+    [ -n "$name" ] || continue
+    echo "PARTITION: $name is read by both passes"
+    st=1
+  done <<< "$(sort "$main" "$dear" | uniq -d)"
+  while read -r name; do
+    [ -n "$name" ] || continue
+    echo "PARTITION: $name is in the library and read by neither pass"
+    st=1
+  done <<< "$(sort -u "$main" "$dear" | comm -23 <(sort -u "$all") -)"
+  while read -r name; do
+    [ -n "$name" ] || continue
+    echo "PARTITION: $name is read by a pass and is not in the library's set"
+    st=1
+  done <<< "$(sort -u "$main" "$dear" | comm -13 <(sort -u "$all") -)"
+  if [ ! -s "$all" ]; then
+    echo "PARTITION: the library's set is empty, and a cover of nothing proves nothing"
+    st=1
+  fi
+  [ "$st" -eq 0 ] && echo "partition: $(wc -l < "$main" | tr -d ' ') + $(wc -l < "$dear" | tr -d ' ') = $(wc -l < "$all" | tr -d ' ') models, none twice"
+  return "$st"
+}
+if [ "${1:-}" = "--partition-check" ]; then
+  partition_verdict "${2:?usage: library_floor.sh --partition-check <all> <main> <dear>}" \
+    "${3:?usage: library_floor.sh --partition-check <all> <main> <dear>}" \
+    "${4:?usage: library_floor.sh --partition-check <all> <main> <dear>}"
+  exit $?
+fi
+
+# What each pass passes to the check, in one place, so that the pass
+# and the judge's question about its set cannot drift apart.
+pass_flags() {
+  case "$1" in
+    main) echo "--without $HEAVY_MODELS --without $DEAR_MODELS" ;;
+    dear) echo "--only-from $DEAR_MODELS" ;;
+    *)
+      echo "usage: the passes are main and dear, not '$1'" >&2
+      return 1
+      ;;
+  esac
+}
+
+# A path given before the `cd` below, made absolute so it still names
+# the same file after it.
+absolute() { echo "$(cd "$(dirname "$1")" && pwd)/$(basename "$1")"; }
+
+mode=whole
+case "${1:-}" in
+  --pass)
+    mode=pass
+    pass="${2:?usage: library_floor.sh --pass main|dear <library directory> <report>}"
+    directory="${3:?usage: library_floor.sh --pass main|dear <library directory> <report>}"
+    pass_report="$(absolute "${4:?usage: library_floor.sh --pass main|dear <library directory> <report>}")"
+    ;;
+  --judge)
+    mode=judge
+    directory="${2:?usage: library_floor.sh --judge <library directory> <main report> <dear report>}"
+    main_report="$(absolute "${3:?usage: library_floor.sh --judge <library directory> <main report> <dear report>}")"
+    dear_report="$(absolute "${4:?usage: library_floor.sh --judge <library directory> <main report> <dear report>}")"
+    ;;
+  *) directory="${1:?usage: library_floor.sh <library directory>}" ;;
+esac
 cd "$(dirname "$0")/.."
 
-# The names as well as the counts: the run half differs between one
-# machine and another, and a difference nobody can name is a
-# difference nobody can fix. The list goes to a file rather than the
-# log, and the log gets the run half of it, which is where the
-# machines disagree.
-report="$(OXIDELICA_WORK_EACH=1 ./target/release/oxidelica library check --list --without scripts/heavy_models.txt "$directory")"
+# One pass: the check over its set, written whole to a file for the
+# judge, and its own counts printed for the eye. Nothing is held here;
+# a half is not judged against floors that stand for the whole.
+if [ "$mode" = pass ]; then
+  flags="$(pass_flags "$pass")"
+  # shellcheck disable=SC2086
+  OXIDELICA_WORK_EACH=1 ./target/release/oxidelica library check --list $flags "$directory" > "$pass_report"
+  grep -E '^(files:|classes:|runnable examples|time:|work:)' "$pass_report"
+  exit 0
+fi
+
+# The two reports added up into the shape of one, so that everything
+# below reads the sum exactly as it read the one pass. Each count is
+# summed by its place on its line; the per-model times are worked out
+# again from the summed seconds and models, which is the whole-library
+# ratio and not an average of two ratios.
+combined_report() {
+  awk '
+    # Plain names only: FS and RS are the separators of awk itself.
+    function nums(s, out,   n) {
+      split("", out); n = 0
+      while (match(s, /[0-9]+(\.[0-9]+)?/)) { out[++n] = substr(s, RSTART, RLENGTH) + 0; s = substr(s, RSTART + RLENGTH) }
+      return n
+    }
+    FNR == 1 { f++ }
+    /^files:/ { nf[f]++; if (f == 1) files = $0 }
+    /^classes:/ { nc[f]++; nums($0, t); C = t[1]; M += t[2]; F += t[3]; R += t[4] }
+    /^runnable examples/ { nr[f]++; nums($0, t); rb_n += t[1]; rb_f += t[2]; rb_r += t[3] }
+    # The milliseconds each times the models, rather than the whole
+    # seconds, which are rounded to the second and would move a small
+    # pass by a tenth.
+    /^time:/ { nt[f]++; nums($0, t); fl_s += t[3] * t[2] / 1000; fl_n += t[2]; ru_s += t[6] * t[5] / 1000; ru_n += t[5] }
+    /^work:/ { nw[f]++; k = nums($0, t); for (i = 1; i <= k; i++) W[i] += t[i]; wk = k }
+    /^  (flat|ran |work)  / { rest = rest $0 "\n" }
+    END {
+      for (g = 1; g <= 2; g++)
+        if (nf[g] != 1 || nc[g] != 1 || nr[g] != 1 || nt[g] != 1 || nw[g] != 1) {
+          print "JUDGE: report " g " does not have one line of each count; it is not a pass report" > "/dev/stderr"
+          exit 1
+        }
+      if (f != 2 || wk != 8) { print "JUDGE: two reports with eight counts of work were wanted" > "/dev/stderr"; exit 1 }
+      print files
+      printf "classes: %d; example models: %d, of which %d flatten and %d run\n", C, M, F, R
+      printf "runnable examples (experiment or Example icon): %d, of which %d flatten and %d run\n", rb_n, rb_f, rb_r
+      printf "time: flattening %.0fs over %d models (%.0fms each); running %.0fs over %d (%.0fms each)\n", \
+        fl_s, fl_n, (fl_n > 0 ? fl_s * 1000 / fl_n : 0), ru_s, ru_n, (ru_n > 0 ? ru_s * 1000 / ru_n : 0)
+      printf "work: flattening %.0f classes, %.0f expansions, %.0f bodies, %.0f names; running %.0f points, %.0f newton, %.0f jacobians, %.0f jacobians apart\n", \
+        W[1], W[2], W[3], W[4], W[5], W[6], W[7], W[8]
+      printf "%s", rest
+    }' "$1" "$2"
+}
+
+if [ "$mode" = judge ]; then
+  # The guard, before any count is believed.
+  sets="$(mktemp -d)"
+  trap 'rm -rf "$sets"' EXIT
+  names_of() {
+    # shellcheck disable=SC2068
+    OXIDELICA_QUIET=1 ./target/release/oxidelica library check --models $@ "$directory" |
+      sed -n 's/^  model  //p'
+  }
+  names_of --without "$HEAVY_MODELS" > "$sets/all"
+  # shellcheck disable=SC2046
+  names_of $(pass_flags main) > "$sets/main"
+  # shellcheck disable=SC2046
+  names_of $(pass_flags dear) > "$sets/dear"
+  partition_verdict "$sets/all" "$sets/main" "$sets/dear"
+  # A name in the dear list that the library does not hold is a model
+  # that was meant to be judged in the dear pass and is judged nowhere,
+  # or a giant that belongs to the scheduled run.
+  dear_unknown="$(grep -v '^#' "$DEAR_MODELS" | sed '/^[[:space:]]*$/d' | sort -u | comm -23 - "$sets/all" || true)"
+  if [ -n "$dear_unknown" ]; then
+    echo "$dear_unknown" | sed 's/^/PARTITION: the dear list names a model outside the library'"'"'s set: /'
+    exit 1
+  fi
+  # And each report is the report of its set: the count of models it
+  # read is the size of the set the judge was told it reads.
+  for side in main dear; do
+    file="$main_report"
+    [ "$side" = dear ] && file="$dear_report"
+    read_models="$(sed -n 's/^classes:.*example models: \([0-9]*\),.*/\1/p' "$file")"
+    want="$(wc -l < "$sets/$side" | tr -d ' ')"
+    if [ "${read_models:-none}" != "$want" ]; then
+      echo "PARTITION: the $side report read ${read_models:-no} models, and its set holds $want"
+      exit 1
+    fi
+  done
+  report="$(combined_report "$main_report" "$dear_report")"
+else
+  # The names as well as the counts: the run half differs between one
+  # machine and another, and a difference nobody can name is a
+  # difference nobody can fix. The list goes to a file rather than the
+  # log, and the log gets the run half of it, which is where the
+  # machines disagree.
+  report="$(OXIDELICA_WORK_EACH=1 ./target/release/oxidelica library check --list --without "$HEAVY_MODELS" "$directory")"
+fi
 # The work of each model by name, taken out of the report and kept for
 # the band below: a total that moved on the build machine and not on a
 # desk said by how much and not who, and the build machine's log is the

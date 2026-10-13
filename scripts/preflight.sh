@@ -146,7 +146,38 @@ library_floor() {
   # room, so the next desk passes are the next points, and one that
   # falls outside on right counts has the edges worked over all of them
   # rather than fitted to it.
-  RATIO_LOW=0.80 RATIO_HIGH=1.10 ./scripts/library_floor.sh "$library"
+  #
+  # The two passes and the judge, one after the other, as CI runs them
+  # side by side since 2026-10-13: the desk measures the same set and
+  # judges the same sum, so a fault in the cut shows here first. The
+  # reports stay in a directory of their own for whoever wants the names.
+  local reports
+  reports="$(mktemp -d)"
+  ./scripts/library_floor.sh --pass main "$library" "$reports/main.txt" || return 1
+  ./scripts/library_floor.sh --pass dear "$library" "$reports/dear.txt" || return 1
+  echo "the two reports: $reports"
+  RATIO_LOW=0.80 RATIO_HIGH=1.10 ./scripts/library_floor.sh --judge "$library" \
+    "$reports/main.txt" "$reports/dear.txt"
+}
+
+# The guard on the cut of the library job, seen red on a name left out,
+# a name read twice and a name from outside, and green on a true cut.
+partition_judges() {
+  local sets
+  sets="$(mktemp -d)"
+  printf 'A\nB\nC\n' > "$sets/all"
+  printf 'A\n' > "$sets/main"
+  printf 'B\nC\n' > "$sets/dear"
+  printf 'B\n' > "$sets/short"
+  printf 'A\nB\nC\n' > "$sets/twice"
+  printf 'B\nC\nD\n' > "$sets/outside"
+  ./scripts/library_floor.sh --partition-check "$sets/all" "$sets/main" "$sets/dear" || return 1
+  local wrong
+  for wrong in short twice outside; do
+    ./scripts/library_floor.sh --partition-check "$sets/all" "$sets/main" "$sets/$wrong" > /dev/null && return 1
+  done
+  rm -rf "$sets"
+  return 0
 }
 
 # The band on the ratio of the two halves' times, seen to fire on
@@ -196,6 +227,7 @@ step "Tests" cargo test --workspace
 step "The examples all simulate" examples_all_simulate
 step "The time band fires on both sides" time_band_judges
 step "The work band fires on both sides" work_band_judges
+step "The cut of the library job is guarded" partition_judges
 
 if [ -d "$library" ]; then
   step "The standard library still reads" library_floor

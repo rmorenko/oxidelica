@@ -33,6 +33,7 @@ Usage:
                             [--without <file>] every model but those named
                             [--only-from <file>] only the models named
                             [--with-heavy] the carved-out giants too
+                            [--models] name the models it would read, and stop
 
 The standard library is looked for as `lib` next to the model, next to
 the working directory or next to the binary, and among the libraries
@@ -582,15 +583,26 @@ fn library_check(args: &[String]) -> Result<(), String> {
     // serves both halves of that arrangement: the main check passes it
     // to `--without`, the scheduled one to `--only-from`, and neither
     // can drift from the other because there is only one file.
+    //
+    // A flag may be given more than once, and then the sets are taken
+    // together: the main pass of the library job leaves out both the
+    // carved-out giants and the dear models the second pass reads, and
+    // a flag read only where it first stood would quietly have kept the
+    // second list in.
     let named_in = |flag: &str| -> Result<Option<HashSet<String>>, String> {
-        let Some(path) = args
-            .iter()
-            .position(|arg| arg == flag)
-            .and_then(|at| args.get(at + 1))
-        else {
-            return Ok(None);
-        };
-        named_in_file(path)
+        let mut together: Option<HashSet<String>> = None;
+        for (at, arg) in args.iter().enumerate() {
+            if arg != flag {
+                continue;
+            }
+            let Some(path) = args.get(at + 1) else {
+                continue;
+            };
+            if let Some(names) = named_in_file(path)? {
+                together.get_or_insert_with(HashSet::new).extend(names);
+            }
+        }
+        Ok(together)
     };
     let without = named_in("--without")?;
     let only_from = named_in("--only-from")?;
@@ -758,6 +770,21 @@ fn library_check(args: &[String]) -> Result<(), String> {
                 named.len()
             ));
         }
+    }
+    // The set a check would read, named and nothing more. The library
+    // job is cut into passes whose sets must cover the library between
+    // them and not overlap, and a model that fell out of both would
+    // otherwise be judged by nobody while every floor still held. The
+    // guard asks each pass for its set this way, and the whole library
+    // for its set, and compares them by name: the filter is the one the
+    // check itself applies, so the answer is the set the check reads.
+    if args.iter().any(|arg| arg == "--models") {
+        let mut named: Vec<&String> = models.iter().collect();
+        named.sort();
+        for name in named {
+            println!("  model  {name}");
+        }
+        return Ok(());
     }
     if only.is_some() && models.is_empty() {
         // A name the carved-out set holds is a model of the library all
