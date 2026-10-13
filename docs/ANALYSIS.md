@@ -19459,6 +19459,19 @@ again once they are. Walk it for the next series: the declaration
 order first, then the 24 missing equations of `PlanarLoops_analytic`,
 then what `Engine1b` spends its minutes on.
 
+Still standing on 1502900 (m416): the census row `cannot evaluate
+parameters [jointRRP.e_ia[1] = jointRRP.jointUSP.e2_ia, ...]` holds
+`Engine1b_analytic`, `CylinderBase` and `Cylinder_analytic_CAD`, and
+the sixteen-line model above, written as a package with a run
+(`/tmp/s416/Asm.mo`), refuses the same way. The decision is in
+`spread_over_elements` (`flatten/components.rs` near line 1075): a
+single name whose shape is in neither `handed_shapes` nor
+`sizing_shapes` is copied whole to every element. A sibling declared
+below has not been instantiated, so its member's declared dimension
+`Real e[3]` is in no table yet. Reading that dimension from the
+sibling's class in the registry is the measurement the paragraph above
+asks for, and it wants a pair over the whole MultiBody loop family.
+
 ### The m269 census
 
 This census was taken after the series (`/tmp/m269/census.txt`, raw in
