@@ -43580,3 +43580,56 @@ then holds `der(Hstat)` under the `tanh` does not converge
 (`state/m412/HS.mo`). So the reference is the grid, not the
 smoothing. The linear `der` series stands ready for the queue with its
 three models and no chatter to answer for.
+
+**The pendulum with a damper, asked again (queue item 21, the
+mechanical half).** m387 left the question of how to part two
+preferred states that weigh zero at reduction 4. On this tree that tie
+is gone: the walk demotes `body1.frame_a.r_0[3]` at reduction 1,
+retreats from it, takes `damper1.s` there instead, and reduction 4
+takes `r_0[3]` with nothing preferred in its reach
+(`/tmp/m412/psd.txt`). The refusal has moved with it. Reductions 9 to
+11 now each see one default candidate, `body1.v_0[1..3]`, weighed at
+infinity against the preferred `prismatic.s`, `prismatic.v`,
+`revolute.phi` and `revolute.w` weighed at NaN, and the block of
+`damper1.f` then reads `body1.v_0[1]`, `body1.v_0[2]` and
+`der(damper1.r_rel_0[3])` as NaN at t = 0. The infinity and the NaN
+do not come from the damper's guard, which was the first version.
+Starting the length, the relative position, `s`, the damper's two
+frames or the body's frame apart (`state/m412/P1.mo` to `P5.mo`)
+moves none of the weights, and a probe printing the reduction's start
+environment shows the starts arriving (`damper1.length = 0.5` in
+`P5`). The residual of reduction 9 divides by
+`-(prismatic.e[3] * prismatic.s)`, and `prismatic.e[3]` is a parameter
+that is zero, the prismatic axis being `{1,0,0}`. The division comes
+from the implicit function theorem. An equation with one unsettled
+name that `reduction_solve` cannot rearrange is kept whole for the
+theorem, and `prismatic.frame_b.r_0[1] = ... + R.T[3,1]*(e[3]*s)` is
+one: `reduction_solve` refused it because the slope in
+`prismatic.frame_a.R.T[3,1]` folds to zero with the parameters, which
+is the refusal `solve_linear_known` is written to give. The theorem then
+took the same equation and divided by that same zero slope. A
+refusal for a zero coefficient and a refusal for nonlinearity read
+the same to the caller, and only the second is grounds for the
+theorem.
+
+A probe that leaves out of the theorem an equation whose slope in its
+one unsettled name folds to zero with the parameters
+(`OX_PROBE_IMPLICIT_ZERO`, `state/state_swap_probe_m412.patch`) turns
+down five such equations on the pendulum, on `R.T[3,1..3]` and on two
+of their derivatives, and the pendulum runs to t = 10 in 28 s
+(`state/m412/PSD6.txt`). The answer is physical on all 10001 rows: the
+body's frame sits at `0.3 + s cos(phi)`, `s sin(phi)` to the last bit,
+the damper's length equals `prismatic.s` to 2.2e-16, the spring starts
+at 20 * (0.5 - 0.2) = 6 N, and the damper's force is `d * v`, -0.30372
+at t = 10 against `prismatic.v` = -0.30372. A pair from one binary
+(`/tmp/m412/ox6`) over the 44 models of the loop rows and the 19
+MultiBody examples that run, with the heavy set left out
+(`/tmp/m412/pair_off.txt`, `pair_on.txt`): 19 run off and 20 on, the
+one won is `PendulumWithSpringDamper`, nothing is lost, the run half
+1064 s against 1077 s, and of the refusal rows exactly one, the
+pendulum's own, is gone. That is a map and not a corpus pair. The
+rule is narrow and true everywhere, since a zero slope is an equation
+that does not mention the name, but it changes which names the
+reduction holds a definition for, and that is the kind of change these
+notes say moves states elsewhere. So the series still wants the corpus
+pair and the run list diffed name by name before it goes in.
