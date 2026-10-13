@@ -43560,10 +43560,18 @@ states. The map of the series, in order:
    `state/state_swap_probe_m412.patch`): the equation of
    `volume1.medium.d` holds one, `medium.T` one and `medium.phase`
    two. So the derivative is not taken through the record's body for
-   want of a rule. What the sample's walking goes to is still to be
-   named, the rule's own body or the record it reads, which is
-   evaluated afresh in each of these equations; that is the first
-   question of this item.
+   want of a rule. What the walking goes to was counted by a probe
+   that tallies the top-level calls of the walker by name (same patch,
+   `state/m412/V1w.txt`, `V1` under the swap and BDF): after 400000
+   calls, `waterBaseProp_ph` is walked 77630 times and its
+   `region_ph` as often, `g1` 78342 and `tph1` 154758, with `tsat` and
+   `dptofT` in the low thousands. So the price is the auxiliary record
+   itself, the whole IF97 property set worked out afresh for every
+   equation that reads a field of it and for every column of the
+   finite-difference Jacobian, and not the derivative rule's body. The
+   item is then a question of computing the record once per point,
+   which is a common-subexpression matter, before it is one of
+   derivatives.
 
 The twenty models of the Fluid rows (`state/families44_m411.txt`, ten
 `newton-direction` and ten `fluid-other`) under one binary: 0 run on
