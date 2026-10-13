@@ -43550,7 +43550,16 @@ states. The map of the series, in order:
 4. The price: the derivative of a medium function should come from
    the medium's own derivative functions where it names them
    (`density_derp_h`, `density_derh_p`), not from a walk of the body,
-   or the Fluid row will run and blow the time band.
+   or the Fluid row will run and blow the time band. The rule is
+   there in the library: `rho_props_ph` says
+   `derivative(noDerivative = properties) = rho_ph_der`, and the
+   inliner carries such a rule as `WithDerivative`. Whether it reaches
+   the volume this shift did not settle. `ox why` on `V1` shows
+   `volume1.medium.d` as `waterBaseProp_ph(p, h, phase, 0)[9]`, but
+   `describe` prints a `WithDerivative` as its value alone, so that
+   line cannot say whether the rule rode along. The sample says the
+   time goes to walking bodies; which body, the record's or the rule's,
+   is the first question of this item.
 
 The twenty models of the Fluid rows (`state/families44_m411.txt`, ten
 `newton-direction` and ten `fluid-other`) under one binary: 0 run on
