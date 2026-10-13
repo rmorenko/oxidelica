@@ -1371,6 +1371,37 @@ fn implicit_ring_kept() -> bool {
     std::env::var("OXIDELICA_NO_IMPLICIT_RING").is_ok_and(|said| said == "1")
 }
 
+/// Whether an equation whose slope in its one unsettled name folds to
+/// zero is kept out of the implicit function theorem. On by default;
+/// `OXIDELICA_NO_IMPLICIT_ZERO=1` hands it to the theorem as before.
+/// Read by its value, `1`, so that an empty or stray setting does not
+/// turn it off.
+fn implicit_zero_barred() -> bool {
+    std::env::var("OXIDELICA_NO_IMPLICIT_ZERO").map_or(true, |said| said != "1")
+}
+
+/// Whether an equation with one unsettled name is kept whole for the
+/// implicit function theorem to differentiate.
+///
+/// A rearrangement refuses for two reasons, and only one of them is
+/// grounds for the theorem. Nonlinearity is. A slope that folds to zero
+/// with the parameters is not: the equation then does not hold the
+/// name at all, and the theorem would divide by that same zero. A
+/// prismatic joint on the axis `{1,0,0}` writes `e[3]*s` into the
+/// equation of `R.T[3,1]`, and taking it handed the pendulum with a
+/// damper a NaN at t = 0.
+fn for_the_theorem(lhs: &Expr, rhs: &Expr, name: &str, params: &HashMap<String, f64>) -> bool {
+    if implicit_zero_barred()
+        && matches!(
+            solve_shape(lhs, rhs, name, params),
+            SolveShape::ZeroSlope(_)
+        )
+    {
+        return false;
+    }
+    reduction_solve(lhs, rhs, name, params).is_none()
+}
+
 /// The reduction's door to the linear solver, with the parameters in
 /// view unless the switch takes them away.
 ///
@@ -2227,7 +2258,7 @@ fn reduce_index_once(
                             })
                             .collect();
                         if let [only] = unsettled[..] {
-                            if reduction_solve(l, r, only, params).is_none() {
+                            if for_the_theorem(l, r, only, params) {
                                 if let std::collections::hash_map::Entry::Vacant(slot) =
                                     found.entry(only.to_string())
                                 {
@@ -8500,5 +8531,49 @@ mod supply_once_tests {
                 "dependence under {said:?}"
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod theorem_tests {
+    use super::for_the_theorem;
+    use crate::*;
+    use oxidelica_parser::BinOp;
+
+    fn r(name: &str) -> Expr {
+        Expr::Ref(name.to_string())
+    }
+
+    fn bin(op: BinOp, a: Expr, b: Expr) -> Expr {
+        Expr::Bin(op, Box::new(a), Box::new(b))
+    }
+
+    /// The equation of a prismatic joint's rotation entry on the axis
+    /// `{1,0,0}`: `y = c + T*(e*s)` with `e` a parameter that is zero.
+    /// No rearrangement solves it for `T`, since the slope is zero, and
+    /// that is no reason to hand it to the theorem, which would divide
+    /// by the same zero. An equation that really is nonlinear in its
+    /// name still goes to the theorem, and with `e` nonzero the first
+    /// one is a linear equation that the rearrangement answers.
+    #[test]
+    fn a_zero_slope_is_no_ground_for_the_theorem() {
+        let lhs = r("y");
+        let rhs = bin(
+            BinOp::Add,
+            r("c"),
+            bin(BinOp::Mul, r("T"), bin(BinOp::Mul, r("e"), r("s"))),
+        );
+        let zero: HashMap<String, f64> = [("e".to_string(), 0.0)].into_iter().collect();
+        assert!(!for_the_theorem(&lhs, &rhs, "T", &zero));
+
+        let one: HashMap<String, f64> = [("e".to_string(), 1.0)].into_iter().collect();
+        assert!(!for_the_theorem(&lhs, &rhs, "T", &one));
+
+        let cubic = bin(
+            BinOp::Add,
+            bin(BinOp::Mul, r("q"), bin(BinOp::Mul, r("q"), r("q"))),
+            r("q"),
+        );
+        assert!(for_the_theorem(&cubic, &r("x"), "q", &zero));
     }
 }
