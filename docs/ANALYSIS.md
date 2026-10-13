@@ -44116,3 +44116,46 @@ helps `MS4` and costs seven machines, so this is not a short fix and
 is left as a map: the question that would let it be taken is still
 the one m391 named, what tells the folded name that has lost every
 other definition from the one that has not.
+
+**The singular-Jacobian row at the head, read by its null spaces.**
+All ten were asked one at a time on the head binary with
+`OXIDELICA_NEWTON_TRAIL` (`/tmp/m416/nt_*.txt`), and each refused
+block has rank one short of its size. Read by the left null vector,
+with each row scaled to its largest entry as m405b did, the families
+are the ones m405b named, with one new member:
+
+```text
+2  CCCV_Stack, CCCV_StackRC     pin-voltage equalities, a heat flow written twice
+2  SMEE_Generator, _Polyphase   airGap.V_msr and airGap.Phi_sr, 0.707 each
+1  FundamentalWave SMEE_LoadDump  airGap.V_msr.im and port_sp.Phi.im, 0.707 each
+1  QuasiStatic Rectifier        a diode's current row against load2's
+1  LossyGearDemo2               the gear's and the bearing's friction rows
+1  TestMixingVolumesPressureStates  IF97 density, d/dp of 4e-7 against der(p)
+1  RoomCO2                      a NaN in the matrix, no decomposition
+1  Engine1a                     a row of zeros, the folded orientation above
+```
+
+`SMEE_LoadDump` arrived from `cannot differentiate through` and joins
+the rotator pair of the other two synchronous machines rather than
+the floating star it was filed under before. `Engine1a` is the only
+member whose deficiency is a single row of zeros. None of the nine
+other members offers a short fix that the m405b map did not already
+weigh.
+
+**Where the four pipes hang under the swap.** `BranchingPipes2` with
+the swap on was sampled at 90 s and at 150 s
+(`/tmp/m416/bp2_sample.txt`, `bp2_sample2.txt`). Both samples stand in
+the run, not in index reduction: `run_bdf` and, beside it, the
+explicit solver's `adaptive`, each through `solve_implicit_block`
+into `walk::to_scalar`, which is the IF97 body walked once per
+residual. With `pipeN.mediums[1].p` and `.h` as states the pressure
+and enthalpy enter a block that the walked water function must
+answer on every Newton iteration. The only ceiling on that phase is
+the BDF's count of 20 000 000 evaluations (`bdf.rs:189`), and at the
+price of a walked IF97 body that count is hours rather than a
+refusal. Off, the same model refuses in 76 s on the Newton direction.
+So the ceiling counts evaluations where the cost of one evaluation
+varies by orders of magnitude between models, which is the shape the
+notes call a phase without a size. It is not touched here, because the
+swap that reaches it is not carried, but the next change that hands
+walked medium bodies to the BDF will find the same unbounded run.
