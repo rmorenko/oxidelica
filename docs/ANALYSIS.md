@@ -44412,3 +44412,39 @@ Measured as a pair on one binary (`/tmp/s416/ox1`), the off half under
 earlier pair's (`/tmp/s415/pair_off.txt`) name for name. `RUN_FLOOR`
 goes to 758 and `RUNNABLE_RUN_FLOOR` to 715, the two swings left out
 as before.
+
+**`InitSpringConstant`, a chain of two links.** The example finds the
+spring's `c` during initialisation: `c(fixed = false)` makes it an
+unknown, and `rev.phi`, `rev.w` and `rev.a`, all `fixed = true`, are
+the three conditions for the two states and the one parameter. The
+refusal said 0 equations and 2 fixed starts for 3 unknowns, and
+`OXIDELICA_INIT_PROBE=1` names why: `rev.a` is demoted by reduction,
+"reaches []", and is dropped as an alias, because the matching pairs
+conditions with states and has no column for a parameter.
+
+Link 1, taken on the desk and not on main: where the dropped demoted
+conditions are exactly as many as the parameters left to the
+initialisation and the section is short by that many, they are kept
+(`OXIDELICA_NO_PARAMETER_CONDITIONS=1` drops them as before). The
+twelve-line `K.mo` (`state/m416/K.mo`: `a = 9.81 - c*x` with `x`, `v`,
+`a` fixed and `c` free) refuses as not square without it and runs with
+it, at rest with `c*x = 9.81`. The patch is
+`state/m416/parameter_conditions_link1.patch`, and with its test
+`state/m416/parameter_conditions_link1_with_test.patch`. Measured by a
+pair on `/tmp/s416/ox2` (`/tmp/s416/pair4_on.txt` and
+`pair4_off.txt`), it moves nothing: 953 flatten and 760 run in both
+halves, the run lists equal by name. That is what a link in the middle
+of a chain measures, and it is parked rather than reverted as wrong:
+it goes in with link 2 or not at all.
+
+Link 2, not taken: with link 1 the example is square and refuses as
+singular in `spring.c`. The spring's force reads `spring.spring.c`, a
+parameter bound to `spring.c`, and that binding is folded to a number
+before the initialisation runs (the parameter pass near `compile.rs`
+line 4880 puts the start of an unsettled parameter into the table and
+evaluates every dependent against it). The Newton residual moves
+`spring.c` and nothing reads it. `K2.mo` (`state/m416/K2.mo`, the same
+model through `parameter Real k = c`) shows it in one second. What
+the link wants is for the residual to evaluate again the parameters
+bound to one under solution, which is a change to how the parameter
+table is built for the initialisation and not a short one.
