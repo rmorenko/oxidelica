@@ -44448,3 +44448,30 @@ model through `parameter Real k = c`) shows it in one second. What
 the link wants is for the residual to evaluate again the parameters
 bound to one under solution, which is a change to how the parameter
 table is built for the initialisation and not a short one.
+
+## The derivative of what a block solves, one wall under four names (m416, probe)
+
+The census row "der(X): `X` is not a state of the model" counts three
+models in the summary and seven in the raw half
+(`state/m416/raw.txt`), and the names differ - `volume.medium.T`,
+`pipe1.mediums[1].T`, `aimc.idq_sr[1]`, `airGap.V_msr.re` - which
+reads as four families. `OXIDELICA_INIT_DER_PROBE=1` on the current
+binary (`/tmp/s416/ox1`, `--only` against `.msl`) puts three of them
+in one layer: the variable whose derivative the initial section asks
+for is solved inside an implicit block with more than one torn
+unknown. `LinearWater_pT` has `volume.medium.T` torn with k=3 in a
+block of 50, `BranchingDynamicPipes` has `pipe1.mediums[k].T` torn
+with k=109 in a block of 824, and `IMC_Initialize` has
+`aimc.idq_sr[1]` as an inner assignment of a block torn with k=8 in 203.
+
+`algebraic_definition_derivatives` (`compile.rs` near line 7304)
+answers a torn unknown by the implicit function theorem only where its
+residual determines it alone, and refuses by name where two torn
+unknowns determine each other, which is every one of these. What the
+wall wants is the theorem taken over the whole block - the derivative
+of all torn unknowns at once from the block's Jacobian, `J dx/dt =
+-dg/dt` - rather than one residual at a time. That is a solve at
+initialisation, not a substitution, and it is not a short change. The
+FundamentalWave and QuasiStatic `IMC_Initialize` and the other two
+media tests were not probed one by one, so they are four of seven by
+name and not yet by layer.
