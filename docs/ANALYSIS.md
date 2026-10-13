@@ -44505,3 +44505,13 @@ user gives one, and the examples that do (`OpAmps.LowPass`,
 `HighPass`, `ControlCircuit`) all run (`/tmp/s416/on2.ran`). The
 refusal is right. Whether such components belong in the example set at
 all is the pahan queue's item 34, which waits on a decision.
+
+**The `initStep.inPort` row is not work either.** Its three models,
+`StateGraph.Examples.Utilities.CompositeStep`, `CompositeStep1` and
+`CompositeStep2`, count as "runnable examples: 0": they are composite
+steps whose ports are meant to be wired by the graph around them, and
+left open they are unbalanced by exactly those ports. The examples
+that wire them, `ShowCompositeStep` (with `CompositeStep`) and
+`ShowExceptions` (with `CompositeStep1`, which holds two
+`CompositeStep2`), both run (`/tmp/s416/on2.ran`). Like the op-amp
+components, they belong to the question of item 34 of the pahan queue.
