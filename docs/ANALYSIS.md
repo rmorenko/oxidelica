@@ -44248,3 +44248,35 @@ changed, and the wall behind it is still unread: the Newton trail
 shows only the inner blocks, which all converge, so the outer
 iteration that stalls needs a print of its own before anything is
 guessed about it.
+
+**A `fixed` handed down as a parameter is silently dropped, and the
+fix is parked.** The wall behind `ThreePhaseTransformerWithRectifier`
+is not its initial pairing but its flags: the transformer writes
+`MagRel(fixed = MagRelFixed[k])` on each core and
+`i(fixed = I1Fixed[k])` on each winding. The modifier reaches the flat
+model as a subscript nothing settles, and every reader of the flag
+asks `fixed == Some(true)`, so the flag falls to `false` without a
+word. In a small model (`state/m416/F4.mo`) the loss gives a pinned
+state of 10 where the model said -0.4. A fix in two halves was built
+(local branch `m416-fixed-flag`, `state/m416/0001-Settle-a-fixed-*.patch`,
+binary `/tmp/m416/oxf2`, switches `OXIDELICA_RAW_FIXED_MODIFIER` and
+`OXIDELICA_NO_FIXED_EXPR`): the modifier is worked out as a start
+modifier is, and a variable's flag written as an expression is
+settled once the parameters have values, refused by name if it does
+not settle. A test in `initialisation.rs` is red without it (`a.x(0) =
+10`) and green with it. The transformer moves from an initialisation
+that does not converge to one that is not square.
+
+The on half of its corpus pair (`state/m416/fixed_on.txt`) printed
+953 flatten and 743 run, against 759 in the head census, so the fix
+as built costs models, and the reason is in the same file: twenty
+rows of the new refusal, nearly all MultiBody, such as
+`body.w_a[1]` says `fixed = fill(body.w_0_fixed, 3)`. An array flag
+handed to an array variable reaches each element whole, so the
+element's flag is an array and the evaluator cannot settle it. Those
+flags read as `false` before, which for `w_0_fixed = false` happens to
+be right and for `{true, false, false}` on `pointMass3.r_0` is wrong
+for one element. What the fix still wants is to take the element of
+an array flag that belongs to each element, as the start already
+does, and then the pair again. The off half did not finish inside the
+shift and no diff by name was taken. Nothing of this is on main.
