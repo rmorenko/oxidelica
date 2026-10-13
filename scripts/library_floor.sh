@@ -1357,7 +1357,17 @@ FLATTEN_FLOOR=953
 # by name in the same log, and are left out:
 #
 #   759 printed - 1 SpringWithMass - 1 SMPM_VoltageSource = 757
-RUN_FLOOR=757
+#
+# And run 758 = 757 + CompareLineTrunks of Analog.Lines, which runs once
+# a section two conditions over leaves out the rows the matching paired
+# with nothing and holds them to the answer. Taken as a pair on one
+# desk binary (/tmp/s416/ox1, OXIDELICA_NO_SURPLUS_INIT=1 for the off
+# half): 760 against 759, the run list gaining exactly that one and
+# losing nothing, flatten 953 in both. The two swings ran on the desk
+# and are left out:
+#
+#   760 printed - 1 SpringWithMass - 1 SMPM_VoltageSource = 758
+RUN_FLOOR=758
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -1650,7 +1660,11 @@ RUNNABLE_FLATTEN_FLOOR=836
 # runnable, by the same runner job as `RUN_FLOOR` (30b6af6, job
 # 115236280738), which printed 716; the two left out are SpringWithMass
 # and SMPM_VoltageSource, as there.
-RUNNABLE_RUN_FLOOR=714
+#
+# And runnable run 715 = 714 + CompareLineTrunks, runnable, by the same
+# desk pair as `RUN_FLOOR`, which printed 717; the two left out are
+# SpringWithMass and SMPM_VoltageSource, as there.
+RUNNABLE_RUN_FLOOR=715
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and

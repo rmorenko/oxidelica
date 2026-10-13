@@ -1852,6 +1852,43 @@ fn a_section_one_condition_over_is_solved_if_it_agrees_and_named_if_not() {
     assert!(error.contains("off by -1e0"), "{error}");
 }
 
+/// A section two conditions over is solved without the two the matching
+/// paired with nothing, and they are then held to the answer.
+///
+/// `x = y` and `y = z` make the three one state, and the section gives
+/// each a start: three conditions for one unknown. They agree, so the
+/// run is the decay of `3*der(x) = -x` from 1. Where one of them
+/// disagrees, the refusal names it.
+#[test]
+fn a_section_two_conditions_over_is_solved_if_they_agree_and_named_if_not() {
+    let agreeing = "model S Real x(start = 1); Real y; Real z; \
+         equation der(x) + der(y) + der(z) = -x; x = y; y = z; \
+         initial equation x = 1; y = 1; z = 1; \
+         annotation(experiment(StopTime = 1, Interval = 0.5)); end S;";
+    let result = run(agreeing);
+    let column = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+    let last = result.rows.last().unwrap();
+    let expected = (-1.0f64 / 3.0).exp();
+    for name in ["x", "y", "z"] {
+        assert!(
+            (last[column(name)] - expected).abs() < 1e-6,
+            "{name}(1) = {}",
+            last[column(name)]
+        );
+    }
+
+    let model = parse_model(
+        "model S Real x(start = 1); Real y; Real z; \
+         equation der(x) + der(y) + der(z) = -x; x = y; y = z; \
+         initial equation x = 1; y = 1; z = 2; end S;",
+    )
+    .unwrap();
+    let error = compile(&model).unwrap_err().to_string();
+    assert!(error.contains("not square"), "{error}");
+    assert!(error.contains("does not hold"), "{error}");
+    assert!(error.contains("`z = 2`"), "{error}");
+}
+
 /// A reduction left with nothing but a fixed state to demote sends the
 /// walk back to the earlier reduction that spent a free one.
 ///

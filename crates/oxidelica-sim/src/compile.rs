@@ -7563,6 +7563,7 @@ impl CompiledModel {
         // satisfies, and whether it is, is a question for the solver
         // below rather than for the arithmetic here.
         let mut one_over: Option<String> = None;
+        let mut surplus: Option<(Vec<usize>, String)> = None;
         if conditions + pinned != n {
             // A count without names says a problem is lopsided and
             // leaves the reader to guess which statement is the extra
@@ -7603,10 +7604,26 @@ impl CompiledModel {
             // do not, and which it is, is a fact about the numbers, not
             // about the count. So the start is solved with each
             // condition left out in turn and kept where the one left out
-            // holds at the answer. Two or more over would be a search
-            // over pairs, and is refused as before.
+            // holds at the answer.
+            //
+            // Two or more over would be a search over pairs, and is not
+            // made. It is taken only where the matching already names
+            // the surplus: written conditions it paired with no unknown,
+            // exactly as many as the section is over. A line's
+            // `i[1] = 0` on a current a connection already set to the
+            // neighbour's says again what the rest say, and is kept as a
+            // check on the answer rather than as a row of the solve.
+            let over = (conditions + pinned).saturating_sub(n);
+            let unclaimed: Vec<usize> = match &condition_match {
+                Some(matched) if over >= 2 && surplus_init_open() => (0..initial_equations.len())
+                    .filter(|row| !matched.state_taken.contains(&Some(*row)))
+                    .collect(),
+                _ => Vec::new(),
+            };
             if conditions + pinned == n + 1 && !redundant_init_off() {
                 one_over = Some(refusal);
+            } else if over >= 2 && unclaimed.len() == over {
+                surplus = Some((unclaimed, refusal));
             } else {
                 return err(refusal);
             }
@@ -7827,7 +7844,7 @@ impl CompiledModel {
         // ceiling of its own and is taken only where the plain Newton
         // has no answer.
         let newton = |mut y: Vec<f64>,
-                      skip: Option<usize>,
+                      skip: &[usize],
                       scaled: bool,
                       values: &mut Vec<f64>,
                       derivatives: &mut Vec<f64>,
@@ -8097,7 +8114,7 @@ impl CompiledModel {
         let scaled_off =
             std::env::var("OXIDELICA_NO_INIT_FROZEN_SCALE").is_ok_and(|said| said == "1");
         let newton = |y: Vec<f64>,
-                      skip: Option<usize>,
+                      skip: &[usize],
                       values: &mut Vec<f64>,
                       derivatives: &mut Vec<f64>,
                       alg_guess: &mut Vec<f64>|
@@ -8190,7 +8207,32 @@ impl CompiledModel {
         };
 
         let answer = match one_over {
-            None => newton(y, None, &mut values, &mut derivatives, &mut alg_guess)?,
+            None => match surplus {
+                None => newton(y, &[], &mut values, &mut derivatives, &mut alg_guess)?,
+                Some((left_out, refusal)) => {
+                    let found = newton(y, &left_out, &mut values, &mut derivatives, &mut alg_guess)
+                        .map_err(|SimError(why, kind)| {
+                            SimError(format!("{refusal}; without the surplus: {why}"), kind)
+                        })?;
+                    let broken: Vec<String> = left_out
+                        .iter()
+                        .filter(|row| {
+                            !holds(found.residual[**row], &found.jacobian[**row], &found.y)
+                        })
+                        .map(|row| {
+                            self.condition_name(initial_equations, &demoted_fixed, fixed, *row)
+                        })
+                        .collect();
+                    if !broken.is_empty() {
+                        return err(format!(
+                            "{refusal}; solved without the conditions that claim no unknown, \
+                             the start does not hold {}",
+                            broken.join(", ")
+                        ));
+                    }
+                    found
+                }
+            },
             Some(refusal) => {
                 // Each condition is left out in turn, the lowest first,
                 // and the first square system whose answer satisfies the
@@ -8209,7 +8251,7 @@ impl CompiledModel {
                     let _ = self.walked.complaint();
                     let found = match newton(
                         y.clone(),
-                        Some(skip),
+                        &[skip],
                         &mut tried_values,
                         &mut derivatives,
                         &mut tried_alg,
@@ -8323,13 +8365,20 @@ struct NewtonAnswer {
     jacobian: Vec<Vec<f64>>,
 }
 
-/// A list with the entry at `skip` left out, or the whole of it.
-fn without_row<T: Clone>(all: &[T], skip: Option<usize>) -> Vec<T> {
+/// A list with the entries at `skip` left out, or the whole of it.
+fn without_row<T: Clone>(all: &[T], skip: &[usize]) -> Vec<T> {
     all.iter()
         .enumerate()
-        .filter(|(index, _)| Some(*index) != skip)
+        .filter(|(index, _)| !skip.contains(index))
         .map(|(_, item)| item.clone())
         .collect()
+}
+
+/// Whether a section two or more over may leave out the conditions the
+/// matching paired with nothing. `OXIDELICA_NO_SURPLUS_INIT` refuses as
+/// before.
+fn surplus_init_open() -> bool {
+    std::env::var_os("OXIDELICA_NO_SURPLUS_INIT").is_none()
 }
 
 /// Whether `OXIDELICA_NO_REDUNDANT_INIT` keeps the old refusal of a

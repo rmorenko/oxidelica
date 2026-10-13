@@ -44362,3 +44362,53 @@ condition on a derivative, which ties `Hstat` to `B` through
 have to carry the derivatives as unknowns for it to be read that way.
 That is a change to how the initial problem is built rather than a
 short fix, and it is left as the map's last link.
+
+## Two conditions over, left out where the matching names them (m416, third part)
+
+The census row "initialization is not square" held three models
+(`state/m416/census.txt`, taken before the fixed flag): the
+transformer joined them with the flag read. Probed one at a time
+(`/tmp/s416/{L,P,I}.mo`), all four are sections that say the same
+thing more than once, and `compile.rs` already took the one-over case:
+it leaves each condition out in turn and keeps the start where the one
+left out holds. Two or more over was refused outright.
+
+`CompareLineTrunks` writes `oLineK.i = zeros(9)` on four lines joined
+end to end, so `oLine2.i[1]` is the current `oLine1.i[9]` already is,
+three times over: 60 conditions for 57 states. The matching pairs 57
+and says of exactly three, `oLine2.i[1] = 0`, `oLine3.i[1] = 0` and
+`oLine4.i[1] = 0`, that they took nothing. Where the rows the
+matching paired with nothing are exactly as many as the section is
+over, they are now left out of the solve and held to the answer by the
+same test the one-over road uses; a row that does not hold is named in
+the refusal. `OXIDELICA_NO_SURPLUS_INIT=1` refuses as before. The model
+runs: every state starts at zero, as the section says, and both loads
+carry 1.0 mA at t = 1 s, the ramp's 1 V over 1000 ohm.
+
+The other two do not move, and say why in new words. `NonCircularPipes`
+(8 for 6) is matched coarsely, each `mediums[k].p = ps_start[k]`
+reaching no state by name, so the two rows the matching left over are
+the annulus pipe's pressures, which are not the surplus: solved without
+them the start is "free along `annulus_pipe.Us[2]`" and refused. The
+surplus there is the pressure at each pipe's port the boundary holds,
+and a matching that cannot see through the medium cannot name it.
+`InitSpringConstant` is a different breed: `c(fixed = false)` puts a
+parameter into the initialisation, `rev.a(fixed = true)` is demoted
+and reaches nothing, and the count is one under rather than over.
+The transformer is two over, and the matching names two rows as
+taking nothing, `core2.derHstat = 0` and `core3.derHstat = 0`. They
+are the wrong two: the surplus is the secondary currents of the
+library's typo, and solved without the hysteresis rows the start is
+singular in `core3.Hstat` and `core3.MagRel`, which is what the
+refusal now says. The new road is right to refuse there, and it names
+the two rows rather than finding a start that ignores them.
+
+Measured as a pair on one binary (`/tmp/s416/ox1`), the off half under
+`OXIDELICA_NO_SURPLUS_INIT=1`, each under a 20 GB ceiling
+(`/tmp/s416/pair_on.txt`, peak 7.8 GB; `/tmp/s416/pair_off.txt`, peak
+8.0 GB): 953 flatten in both, 760 run against 759, and of the runnable
+717 against 716. The run lists diff by name to exactly one model bought,
+`CompareLineTrunks`, and none lost; the off half's run list is the
+earlier pair's (`/tmp/s415/pair_off.txt`) name for name. `RUN_FLOOR`
+goes to 758 and `RUNNABLE_RUN_FLOOR` to 715, the two swings left out
+as before.
