@@ -1317,7 +1317,18 @@ FLATTEN_FLOOR=953
 # swings are left out by name as before:
 #
 #   753 printed - 1 SpringWithMass - 1 SMPM_VoltageSource = 751
-RUN_FLOOR=751
+#
+# And run 753 = 751 + SMEE_LoadDump of Electrical.Machines, which runs
+# once the chain of c17026e is taken, and SMPM_OpenCircuit of
+# QuasiStatic.FundamentalWave. The runner printed 953 / 755 and
+# runnable 836 / 712 on c17026e, in job 115050181995 of push run
+# 38321408977; that job went red on the Jacobian band alone, and the
+# counts are printed before the band is judged. Against ffd3bcb (job
+# 114648189923) its run list gained exactly those two and lost nothing.
+# The two swings ran, by name in the same log, and are left out:
+#
+#   755 printed - 1 SpringWithMass - 1 SMPM_VoltageSource = 753
+RUN_FLOOR=753
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -1595,7 +1606,12 @@ RUNNABLE_FLATTEN_FLOOR=836
 # two runner jobs as `RUN_FLOOR` (114636827553 and 114648189923), which
 # printed 710; the two left out are SpringWithMass and
 # SMPM_VoltageSource, as there.
-RUNNABLE_RUN_FLOOR=708
+#
+# And runnable run 710 = 708 + SMEE_LoadDump and SMPM_OpenCircuit, both
+# runnable, by the same runner job as `RUN_FLOOR` (c17026e, job
+# 115050181995), which printed 712; the two left out are SpringWithMass
+# and SMPM_VoltageSource, as there.
+RUNNABLE_RUN_FLOOR=710
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
