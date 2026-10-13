@@ -43797,3 +43797,116 @@ m411 named behind it, and `HysteresisModelComparison` keeps its array
 refusal, which is not this rule's. Both pairs are maps and not the
 corpus pair: the series wants the whole run list diffed by name
 before it goes in.
+
+## The record asked once a point, the linear der, and the band's fourth point (m414)
+
+**The floors, from the runner's print, and the band past its edge.**
+Job 115160315372 of push run 38356421713 (8788c44) printed 953 / 756
+and runnable 836 / 713, and went red on the time band alone:
+`CEILING: run/flatten ratio is 1.552, and the band is 0.70..1.50`.
+Against job 115050181995 (c17026e), the print the floors were last
+set from, its run list gained exactly `PendulumWithSpringDamper` and
+lost nothing (`/tmp/m414/prev.ran`, `now.ran`). The two swings,
+`SpringWithMass` and `SMPM_VoltageSource`, ran by name in the same
+log and are left out, so the run floors went to 756 - 2 = 754 and
+713 - 2 = 711. The job took 92 minutes, 06:23 to 07:55, against the
+fifty or so it used to take: 5894 s flattening and 8545 s running,
+summed over its threads.
+
+The ratio, read at the runner since the giants were carved out, is
+four points: 1.178 (4d6e5c2), 1.221 (fcea547), 1.251 (4f89fd7) and
+1.552 (8788c44). It grows with every model won, because a model that
+starts to run adds to the run half and not to the flatten half, as
+the m341 review said it would once the floors began to rise. The band
+was not moved here. That is Roman's call, and so is the alternative
+the queue holds: splitting the library job rather than moving the
+edges a third time.
+
+**The record asked once a point, in the tree.** The m413 probe went
+in without its swap half: `Walked::answer` in `lib.rs` keeps the last
+asking of each walked body, keyed by the time, the exact bits of every
+argument and the shapes they were laid out in, and answers a repeat of
+it from memory. One entry per body bounds the memory by the number of
+bodies, and a refused walk is not kept. `OXIDELICA_NO_PROPS_ONCE=1`
+walks every asking as before. The test is
+`a_body_asked_twice_at_one_point_is_walked_once`, which counts the
+walks and goes red under the switch.
+
+Before the pair, on one binary (`/tmp/m414/ox1`) with and without the
+switch: `WD` to its stop time 15.6 s against 0.7 s and `WA1`, 1000
+BDF steps, 126 s against 55 s, both with result files identical byte
+for byte (`/tmp/m414/WD_on.csv`, `WD_off.csv`, `WA1_on.csv`,
+`WA1_off.csv`). `TestWaterPumpCheckValve` under `library check
+--only` reaches the same Newton-direction refusal in 20.3 s and
+15.9 s. `V1` without the swap refuses both ways with the same words
+at t = 0.001, so the 304 s against 23 s of m413 is a figure under the
+swap and is not repeated here.
+
+The corpus pair was taken from one binary built from the pushed tree
+(`/tmp/m414/ox2`), at the root of `.msl`, the two halves one after
+the other under a 20 GB ceiling (`/tmp/m414/p2_off.txt`,
+`p2_on.txt`). The flat lists are 953 and 953 and identical line for
+line, and the run lists are 756 and 756 and identical by name. The
+cache won nothing and cost nothing by count, and no victim moved,
+which it cannot: it changes no equation. What it moves is time. The
+run half went from 4329 s to 3417 s, which is 21 % less, and the
+flatten half from 4455 s to 3906 s. That second fall was not split
+between the cache and the weather of a desk where the off half ran
+first. The ratio goes from 1.040 off to 0.936 on, both inside the
+desk's band. Whether the runner's 1.552 falls back inside 1.50 is for
+the runner to print.
+
+**The linear `der`, in the tree.** The m411 probe went in by default:
+`distribute_der` in `compile.rs` writes `der` of a sum, a difference,
+a negation, or a product or quotient by something the parameters
+settle, as the same combination of the ders of its parts, and leaves
+anything else as written. `OXIDELICA_NO_DER_LINEAR=1` leaves every
+`der` as written. The test is
+`der_of_a_linear_expression_is_the_same_of_the_derivatives`: the
+equation `der(k*x + 3) = -x` at `k = 2` decays as `exp(-t/2)`, and a
+product of two moving names is still refused. It goes red under the
+switch with the old refusal.
+
+The corpus pair was taken from one binary built from the final tree
+(`/tmp/m414/ox3`), at the root of `.msl`, the two halves side by side
+on five threads each under an 18 GB ceiling (`/tmp/m414/p3_off.txt`,
+`p3_on.txt`). The flat lists are 953 and 953 and identical line for
+line. The run lists are 756 and 759: the three the diff names are
+`InductorWithHysteresis`, `SinglePhaseTransformerWithHysteresis1` and
+`SinglePhaseTransformerWithHysteresis2`, and nothing is lost. The off
+half's run list is the same, name for name, as the on half of the
+cache pair above, which is a check on both. Runnable examples go 713
+to 716. The rule adds definitions, so the measure is the victims on
+the models it won, and each of the three has one reduction with the
+victim `core.hystR` (`transformer.core.hystR` in the second
+transformer), the Tellinen branch the `der` was written over, weighed
+against `core.Hstat` (`/tmp/m414/vic_*.txt`). The census rows move as
+m413 mapped them over the five hysteresis examples: `der() outside a
+state equation is not supported` (4) empties, and
+`ThreePhaseTransformerWithRectifier` joins `initialization did not
+converge in 50 Newton iterations`, which goes from 1 to 2.
+
+**The state swap, paired: parked with its map.** The m412 swap hunk
+was carried onto the tree with both rules above in it
+(`state/state_swap_probe_m414.patch`, key `OX_PROBE_STATE_SWAP`, the
+m412 zero-slope hunk dropped since 8788c44 holds it). It was built as
+`/tmp/m414/ox4` and run off and on side by side over the corpus, on
+four threads each, under `OXIDELICA_VICTIM_PROBE`
+(`/tmp/m414/p4_off.txt`, `p4_on.txt`). The off half finished at 953 /
+759, the same as the on half of the linear `der` pair. The on half
+had not finished by the end of the shift: `read 816 of 1020 models,
+3055s so far`, against the off half's 918 in 1780 s, with the CPU
+still climbing. So there is no flat list and no run list from it yet,
+and the series is not judged on it. By then it had printed 858 swap
+lines for 550 distinct names, which is how far the rule reaches. It
+swaps every variable preferred as a state that no `der` names. With
+the same binary the three Fluid models of the brief show what it
+does to the victims (`/tmp/m414/vic3_*.txt`, `--stop 0`). Off, none
+of them has a victim. On, `V1` demotes `volume1.m` and `volume1.U`,
+`TestTemperature1` demotes `m` and `U` of both volumes, and
+`BranchingPipes1` demotes `ms[1]` and `Us[1]` of all three pipes, and
+the swapped `p` and `h` take their place. That is the swap the series
+wants on the water, and it is also the scale of the change. The next
+shift wants the on half to finish, on its own and not beside another
+pass, then the run lists diffed by name and the victims diffed over
+every model the swap touches, not over three.
