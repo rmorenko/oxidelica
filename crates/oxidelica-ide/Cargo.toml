@@ -11,7 +11,50 @@ path = "src/main.rs"
 [dependencies]
 oxidelica-parser = { path = "../oxidelica-parser" }
 oxidelica-sim = { path = "../oxidelica-sim" }
-bevy = "0.16"
+# Bevy's default set less `tonemapping_luts` and `smaa_luts`. Those two
+# ship their lookup tables as KTX2 files compressed with zstd, and the
+# zstd reader they bring, `ruzstd` 0.8, is a decompression bomb
+# (RUSTSEC-2026-0344) that every release of bevy_image still pins.
+# Nothing else here asks for zstd; the 3D view's camera tonemaps by a
+# curve that needs no table (view3d.rs).
+bevy = { version = "0.16", default-features = false, features = [
+  "std",
+  "async_executor",
+  "android-game-activity",
+  "android_shared_stdcxx",
+  "animation",
+  "bevy_asset",
+  "bevy_audio",
+  "bevy_color",
+  "bevy_core_pipeline",
+  "bevy_gilrs",
+  "bevy_gizmos",
+  "bevy_gltf",
+  "bevy_input_focus",
+  "bevy_log",
+  "bevy_mesh_picking_backend",
+  "bevy_pbr",
+  "bevy_picking",
+  "bevy_render",
+  "bevy_scene",
+  "bevy_sprite",
+  "bevy_sprite_picking_backend",
+  "bevy_state",
+  "bevy_text",
+  "bevy_ui",
+  "bevy_ui_picking_backend",
+  "bevy_window",
+  "bevy_winit",
+  "custom_cursor",
+  "default_font",
+  "hdr",
+  "multi_threaded",
+  "png",
+  "sysinfo_plugin",
+  "vorbis",
+  "webgl2",
+  "x11",
+] }
 bevy_egui = "0.34"
 egui_plot = "0.31"
 egui-phosphor = "0.9"

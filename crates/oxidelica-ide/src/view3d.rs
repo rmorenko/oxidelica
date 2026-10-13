@@ -15,6 +15,7 @@
 
 use crate::settings::Theme;
 use crate::{Ide, SimData, ViewMode};
+use bevy::core_pipeline::tonemapping::Tonemapping;
 use bevy::prelude::*;
 use bevy::render::camera::RenderTarget;
 use bevy::render::render_resource::{
@@ -197,6 +198,10 @@ pub fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
 
     commands.spawn((
         Camera3d::default(),
+        // The default tonemapper reads a lookup table that bevy ships as
+        // a zstd-compressed KTX2 file, and the zstd reader is left out of
+        // the build (see this crate's Cargo.toml). This curve needs none.
+        Tonemapping::AcesFitted,
         Camera {
             target: RenderTarget::Image(target.clone().into()),
             ..default()
