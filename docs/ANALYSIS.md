@@ -43431,3 +43431,17 @@ centre of the band is not moved, since the brief leaves a band's
 verdict to the reviewer. The arithmetic for that decision, if it is
 taken: the runner's 485 is the desk's 486 less one, so a centre at the
 runner's print, 485, holds both machines inside ten percent.
+
+**And why the medium's preference cannot be heard there.** Asked with
+`OXIDELICA_VICTIM_PROBE` under `--only` from the root, `BranchingPipes1`
+reaches no index reduction at all and prints no word about
+`stateSelect`: mass and energy are states because the balances are
+written as `der(ms) = ...` and `der(Us) = ...`, nothing is structurally
+singular, and the table of preferences is read only where a reduction
+has a tie to break. The medium's `StateSelect.prefer` on `p` and `h`
+is therefore not lost by the parser any more, as queue item 21 found
+in m344, but asks for something the compiler has no step for: a change
+of the states of a model of index one, from what the balances
+differentiate to what the medium prefers. That is the size of the
+Fluid half of the loop layer's top: not a mend in the solver, and not
+a rule in the reduction, but a state transformation of its own.
