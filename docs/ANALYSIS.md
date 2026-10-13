@@ -44008,3 +44008,111 @@ than its head, and finding which models it makes dear is the next
 measurement. Once the file prints `read 1020 of 1020`, the run lists
 are diffed by name against `state/p4_off.txt` and the victims over
 every model the swap touches.
+
+## The state swap judged, and the census after the cache and the linear der (m416)
+
+**The swap's on half, measured whole at last, loses nineteen models.**
+Two attempts to take the on half of the swap pair had stalled in the
+tail (816 of 1020 in m414, 918 of 1020 for two hours in m415), and the
+second was stopped before it finished. `Test87` was suspected because
+the stalled thread was reducing `d_t_new_*` over a time table, but
+asked alone under `--only-from` on the same binary (`/tmp/m414/ox4`)
+it runs in one second with the swap on and off. The suspicion came
+from a file that cannot answer it: `--list` prints its lists only at
+the end, so a partial file holds no model names at all, and "not
+among those read" meant nothing.
+
+`OXIDELICA_TRACE` names what each thread starts and finishes, and a
+traced on half (`state/m416/on_traced_killed.txt`) stood at 910 of
+1020 with four models in flight for more than twenty minutes, all
+from the census's Newton-direction row:
+`TestTemperature1`, `BranchingPipes2`, `BranchingPipes4` and
+`SeriesPipes1`. Each thread reads a fixed stride of the list, so four
+hung models hold up every model behind them, which is why the count
+stood still with the CPU climbing. `BranchingPipes2` alone settles it:
+with the swap off it flattens and refuses in 76 s; with it on it had
+not finished at 540 s and was stopped (`state/m416/bp2_off.txt`,
+`bp2_on.txt`). The swap prefers `pipeN.mediums[1].p` and `.h`, and the
+refusal that was quick becomes a loop that does not end.
+
+The on half was then run whole without those four, on the same
+binary, under a 24 GB ceiling (`state/m416/on_wo4.txt`, peak 7.0 GB),
+and diffed by name against the off half (`state/p4_off.txt`):
+
+```text
+off   1020 models   953 flatten   759 run
+on    1016 models   949 flatten   740 run   (the four pipes left out;
+                                             off refuses all four)
+victims 27   bought 8   net -19
+```
+
+The bought eight are `MotorWithCurrentControl`, the Machines
+`SMPM_CurrentSource` and `SMPM_NoLoad`, and five Fluid tests
+(`TestWaterPumpCheckValve`, `TestMixingVolumesPressureStates`,
+`BranchingPipes1`, `BranchingPipes14`, `SeriesPipes2`). The victims
+(`state/m416/vict.l`) are four Machines induction motors and two
+synchronous ones, FundamentalWave `IMC_DOL` and `IMS_Start`, six
+FluxTubes models in both the transient and the quasi-static library,
+one hysteresis transformer, five Fluid tests and five Media tests.
+Where the census names them, they refuse at walls of many kinds:
+`cannot differentiate a non-constant`, `underdetermined algebraic
+loop` over the ideal switches, `is not a state of the model`, an
+algebraic loop that diverges, a Newton direction. A scattered loss,
+which is the shape the notes say only the run-list diff can show.
+
+So the swap is a different compiler rather than a fix, and on the
+corpus it is a worse one: nineteen fewer models and four that no
+longer finish. It is not carried further. And the instrument lesson
+stands with it: a half that does not finish is not taken by waiting
+for it a third time, but by naming what is in flight and taking the
+rest without it.
+
+**The census at 5b94e85.** Taken on the head binary
+(`state/census_5b94e85.txt`, raw `state/m416/raw.txt`) against the
+last one before the record cache and the linear `der`
+(`state/census_m410.txt`), counted by the section bounds:
+
+```text
+                 would not flatten     flattened, would not run
+m410 (c17026e)   67 in 39 rows         198 in 134 rows
+5b94e85          67 in 39 rows         194 in 132 rows
+```
+
+By name (`state/m416/rr_old.tsv` against `rr_new.tsv`), four models
+left the run half and none came: the three hysteresis examples whose
+`der()` outside a state equation is now written out, and
+`PendulumWithSpringDamper`. Five moved from one wall to another:
+`ThreePhaseTransformerWithRectifier` from the `der()` refusal to an
+initialization that does not converge; `Engine1a` and the
+FundamentalWave `SMEE_LoadDump` from `cannot differentiate through
+algebraic variable` to a singular Jacobian; the three MultiBody
+constraint examples and `RollingWheel` to differently worded
+structurally singular rows. The top of the run half is now the
+Newton direction 10 (the pump and valve family whose series waits on
+its own word), the singular Jacobian 10, and the underdetermined loop
+8 (five Spice3, three FundamentalWave machines).
+
+**`Engine1a`'s singular Jacobian is a row that folds to a constant.**
+The model reaches seven points in 187 s and refuses in a block of 32.
+With `OXIDELICA_NEWTON_TRAIL` the matrix (`state/m416/e1a_jac.txt`)
+has rank 31, and the deficiency is a whole row of zeros:
+
+```text
+bearing.frame_b.R.T[1,3] = bearing.R_rel.T[1,1]*bearing.frame_a.R.T[1,3]
+                         + bearing.R_rel.T[1,2]*bearing.frame_a.R.T[2,3]
+                         + bearing.R_rel.T[1,3]*bearing.frame_a.R.T[3,3]
+```
+
+With `n = {1,0,0}`, `bearing.R_rel.T[1,1] = e1^2 + (1 - e1^2)*cos(phi)`
+is identically 1. Of the block's unknowns the row names only
+`bearing.R_rel.T[1,1]`, and its entry there is
+`bearing.frame_a.R.T[1,3]`, which is zero in this orientation, so the
+row reads as zero everywhere. It holds a name that cannot move, and
+the block counts it as an equation. This is the shape of link 1 of the m391 map, a candidate that
+parameters fold into a number, met here as a dead row in the run
+rather than as a refusal to differentiate. The m391 map already
+measured that taking the folded number in place of the candidate
+helps `MS4` and costs seven machines, so this is not a short fix and
+is left as a map: the question that would let it be taken is still
+the one m391 named, what tells the folded name that has lost every
+other definition from the one that has not.
