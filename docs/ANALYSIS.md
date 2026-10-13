@@ -43445,3 +43445,138 @@ of the states of a model of index one, from what the balances
 differentiate to what the medium prefers. That is the size of the
 Fluid half of the loop layer's top: not a mend in the solver, and not
 a rule in the reduction, but a state transformation of its own.
+
+## The water volume on pressure and enthalpy, and the asc chatter weighed (m412)
+
+**The floors and the band, from the runner's print.** Job 115050181995
+of push run 38321408977 (c17026e) printed 953 / 755 and runnable
+836 / 712, and its run list against ffd3bcb (job 114648189923) gained
+exactly `Machines...SMEE_LoadDump` and
+`QuasiStatic...SMPM_OpenCircuit` and lost nothing
+(`/tmp/m412/old.ran`, `new.ran`). With the two swings left out, the
+run floors go to 753 and 710, and the Jacobian band is centred on the
+runner's 485 (b8c47d2, bc45545). The desk's full preflight on that
+tree prints 953 / 755, 836 / 712 and 486 Jacobians, and is green
+everywhere (`/tmp/m412/preflight.txt`).
+
+**Does water run on `p` and `h` at all.** The smallest model of the
+row is one `ClosedVolume` of a litre, a mass-flow source of 1 kg/s at
+`h = 2e5` and an orifice to a boundary at 101325 Pa
+(`state/m412/V1.mo`). It refuses at t = 3e-4 the way the row does,
+with the Newton direction of `[volume1.medium.p, source1.medium.sat.Tsat,
+orifice1.V_flow]`. Written out by hand with Fluid's own balances,
+`der(m)` and `der(U)` over `m = V*d(p, h)` and `U = m*h - p*V`
+(`WA.mo`), it refuses the same way under both solvers; written on `p`
+and `h`, the balances rewritten through the medium's own
+`density_derp_h` and `density_derh_p` (`WB.mo`), it refuses too. The
+second refusal is not the first one again. Under BDF it is IF97's
+`tsat` asked at -9.6e8 Pa on a Newton iterate, and BDF ends the run
+on that refusal (`Refusal::Outside`) where it rejects the step on a
+singular or unbracketed one. A probe that rejects the step there as
+well (`OX_PROBE_OUTSIDE_REJECT`, in
+`state/state_swap_probe_m412.patch`, not kept) makes the `p, h` model
+run to the end, 1000 steps in 43 s: the pressure sits at 101329.6 Pa,
+which is 101325 plus the orifice's 4.6 Pa at 1.0033 kg/s, the
+enthalpy climbs from 1e5 to 1.634e5 J/kg as the 2e5 inflow mixes in
+with a time constant of one second (m/ṁ), and the density walks down
+the IF97 surface from 997.34 to 992.60 kg/m^3. The same probe on the
+`m, U` model does not fail, and does not finish either: nine minutes
+of CPU on one second of model time before it was stopped. At a cubic
+metre the `m, U` model does run (`WA1`, 137 s), and its outflow
+swings between -4.3 and +7.5 kg/s around the 1.006 the `p, h` model
+holds. That is the cause put as a number. A relative tolerance of
+1e-6 on a mass of 997 kg is 1e-3 kg, which through dd/dp = 5e-7 is a
+pressure of some 2000 Pa against an orifice drop of 5 Pa. Liquid water
+on `m` and `U` is a state whose error the integrator cannot see,
+turned into a pressure the rest of the model cannot stand.
+
+**The compiler already differentiates the medium.** `WD.mo` writes
+`dm = der(V*density_ph(p, h))` with `p` and `h` driven, and runs, so
+the derivative of an IF97 call through its body is there. What is
+missing is the candidates, not the derivative: the medium's `p` and
+`h` carry `StateSelect.prefer`, but no equation names `der(p)` or
+`der(h)`, so the reduction never has them in its list (m411). Name
+them in an equation of their own and leave the anchors to an initial
+equation, as `PartialLumpedVolume` does (`WQ.mo`), and the existing
+reduction makes the swap unaided: `m = V*d` is unmatched, the
+candidates weigh `p` and `h` at 4 against `m` at 3, the victims are
+`m` and then `U`, and the model runs, 50 steps, to `p = 101329.63`,
+`h = 104890.45` at t = 0.05. Anchored with `fixed = true` on `p` and
+`h` instead, the first walk demotes `m` and then retreats, leaving `h`
+and `U` as the states: the anchor reading is a second, narrower
+matter.
+
+**The probe in the compiler.** `OX_PROBE_STATE_SWAP` (the same patch)
+gives every continuous variable that says `StateSelect.prefer` and is
+named under no `der` an equation `x$sw = der(x)` before the matching,
+and nothing else. On the hand model without the extra lines (`WR.mo`)
+it reproduces `WQ` to the last digit. On the Fluid volume `V1` it
+names `volume1.medium.p` and `volume1.medium.h`, the reduction demotes
+`volume1.m` and `volume1.U`, and the run passes the wall at 3e-4 under
+BDF to t = 0.05 with the physics right: the orifice drop 4.6266 Pa
+against `zeta/(2 d A^2) m_flow^2` = 4.627, `m_flow` 1.00585, `h`
+rising by 1e5 J/kg per second. On the two cheapest real victims the
+choice is exactly the one the medium asks for:
+`TestTemperature1` takes `volume1/2.medium.p` and `.h`, demoting
+`volume1/2.m` and `.U`, and `BranchingPipes1` takes the six `p` and
+`h` of `pipe1..3.mediums[1]`, demoting `ms[1]` and `Us[1]` of each.
+Neither refused at t = 1e-3, where both died in m411, but neither
+finished within the shift either (`/tmp/m412/s/TT*.txt`, `BP*.txt`):
+the explicit runs are still stepping before t = 1.5e-3 after nine
+minutes of CPU, and a sample of the process puts nearly all of it in
+`walk::to_scalar`, `walk::run` and `code::eval`, the walk of the IF97
+bodies.
+
+**So the wall behind the swap is price, not structure.** Two numbers
+say why. The pressure of a litre of water on an orifice has a time
+constant of `V * dd/dp / (dm_flow/dp)`, some 1e-3 * 5e-7 / 0.1 = 5e-9
+s, which no explicit step survives however the states are chosen, so
+the row wants BDF. And BDF on the swapped volume costs 5 s a step
+(`V1`, 50 steps in 259 s), against 0.04 s for the same physics with
+the derivatives handed in by name (`WB`): the reduction's derivative
+of `waterBaseProp_ph` is walked through the body at every evaluation,
+and the finite-difference Jacobian multiplies that by the number of
+states. The map of the series, in order:
+
+1. The swap itself: preferred and underived becomes a candidate. One
+   rule, measured above, and it chooses right on all three models.
+2. The anchors: a preferred state anchored by `fixed = true` should
+   not send the walk into a retreat that ends on `h, U`.
+3. A refusal outside the medium's domain on a BDF iterate is the step
+   too long, the same as a singular one. The hand model `WB` needs it
+   under BDF; the Fluid volume `V1` under the swap alone passed the
+   wall to t = 0.01 without it (10 steps in 207 s), so it is a second
+   guard and not part of the swap.
+4. The price: the derivative of a medium function should come from
+   the medium's own derivative functions where it names them
+   (`density_derp_h`, `density_derh_p`), not from a walk of the body,
+   or the Fluid row will run and blow the time band.
+
+The twenty models of the Fluid rows (`state/families44_m411.txt`, ten
+`newton-direction` and ten `fluid-other`) under one binary: 0 run on
+the default, 2 under `OXIDELICA_EDGE_HANDOFF` (the two pumps, as m410
+said), and the same 2 with the outside rejection added, so item 3 alone
+wins nothing (`/tmp/m412/f20.base.txt`, `edge.txt`, `both.txt`). Under
+the swap the list was stopped after forty minutes of CPU without a
+verdict, on the price of item 4.
+
+**The asc chatter does not move the answer.** The question from m411
+was whether `InductorWithHysteresis` under the linear-`der` probe
+answers by flipping `asc` up to 98 times an instant. It does not, and
+the hundred flips were not the model's. The run m411 counted went to
+t = 1 on the default step, because the model extending the example
+had lost its `experiment`. On the example's own `StopTime = 0.02` and
+`Interval = 4e-6`, `asc` changes 9 times over the run: the start and
+the eight reversals of a 200 Hz field. `B` at 4e-6, at 1e-6 and at a
+tolerance of 1e-7 agrees to 9.7e-7 and 5.9e-6 T, and all 20009 rows lie
+inside the limiting loop, `hystR <= B <= hystF`, between -0.629 and
+1.601 T (`/tmp/m412/h/Hb.csv`, `Hb1.csv`, `H7.csv`, `state/m412/cmp.awk`).
+The chattering run m411 made, repeated on this shift's binary
+(`/tmp/m412/h/H.csv`, 14903 flips to t = 1 as before), agrees with
+the fine grid over its first 0.02 s to 1.6e-6 T across 309 flips. Smoothing `asc` into
+`0.5 + 0.5*tanh(der(Hstat)/eps)` was tried as the reference and did
+not run at any of three widths (1e3, 1e4, 1e5 A/(m s)): the loop that
+then holds `der(Hstat)` under the `tanh` does not converge
+(`state/m412/HS.mo`). So the reference is the grid, not the
+smoothing. The linear `der` series stands ready for the queue with its
+three models and no chatter to answer for.
