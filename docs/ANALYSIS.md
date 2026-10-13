@@ -44475,3 +44475,11 @@ initialisation, not a substitution, and it is not a short change. The
 FundamentalWave and QuasiStatic `IMC_Initialize` and the other two
 media tests were not probed one by one, so they are four of seven by
 name and not yet by layer.
+
+Probed after, the four stand in the same layer, so the row is one wall
+for all seven: the FundamentalWave `IMC_Initialize` asks for
+`aimc.airGap.V_msr.re`, an inner assignment of a block torn with k=14
+in 466; the QuasiStatic one `imc.airGap.V_msr.re`, inner of k=27 in
+1604; `MoistAir` has `volume.medium.T` torn with k=8 in 67, and
+`SimpleNaturalGasFixedComposition` with k=4 in 47. Seven models, one
+address.
