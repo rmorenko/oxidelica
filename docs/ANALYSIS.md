@@ -44515,3 +44515,19 @@ that wire them, `ShowCompositeStep` (with `CompositeStep`) and
 `ShowExceptions` (with `CompositeStep1`, which holds two
 `CompositeStep2`), both run (`/tmp/s416/on2.ran`). Like the op-amp
 components, they belong to the question of item 34 of the pahan queue.
+
+**The row "`X` of algebraic loop" is seven walls, not one.** Its seven
+models (`state/m416/raw.txt`) refuse at t = 0 before any Newton step,
+and the reason after the loop's names differs model by model:
+`PumpingSystem` meets NaN in an IF97 viscosity called at a density
+of NaN, `ThreeSprings` a residual of -inf where every input is finite,
+`RoomCO2WithControls` a `solveOneNonlinearEquation` whose bracket does
+not hold the root, and `IdealMixing1` a function that could not be
+walked for `unknown variable X` (`code.rs:174`, called from
+`solvers/mod.rs:1321`). The last is the one that reads like a name
+rather than a number. `IdealMixing1` uses `FlueGasSixComponents`, whose
+`T_hX` solves through `function f_nonlinear(h=h, X=X, ...)`, a
+partial function closing over an array input. A twelve-line model of
+exactly that closure (`/tmp/s416/X.mo`) runs and gives T = 4 at h = 4,
+the right answer, so the closure alone is not the wall and the next
+probe is the real call's other arguments. Not walked further.
