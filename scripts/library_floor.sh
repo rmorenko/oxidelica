@@ -1328,7 +1328,19 @@ FLATTEN_FLOOR=953
 # The two swings ran, by name in the same log, and are left out:
 #
 #   755 printed - 1 SpringWithMass - 1 SMPM_VoltageSource = 753
-RUN_FLOOR=753
+#
+# And run 754 = 753 + PendulumWithSpringDamper of MultiBody.Elementary,
+# which runs once an equation that does not hold its name is kept out
+# of the implicit theorem (8788c44). The runner printed 953 / 756 and
+# runnable 836 / 713 on 8788c44, in job 115160315372 of push run
+# 38356421713; that job went red on the time band alone (run/flatten
+# 1.552 against 0.70..1.50), and the counts are printed before the
+# band is judged. Against c17026e (job 115050181995) its run list
+# gained exactly that one model and lost nothing. The two swings ran
+# again, by name in the same log, and are left out:
+#
+#   756 printed - 1 SpringWithMass - 1 SMPM_VoltageSource = 754
+RUN_FLOOR=754
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -1611,7 +1623,12 @@ RUNNABLE_FLATTEN_FLOOR=836
 # runnable, by the same runner job as `RUN_FLOOR` (c17026e, job
 # 115050181995), which printed 712; the two left out are SpringWithMass
 # and SMPM_VoltageSource, as there.
-RUNNABLE_RUN_FLOOR=710
+#
+# And runnable run 711 = 710 + PendulumWithSpringDamper, runnable, by
+# the same runner job as `RUN_FLOOR` (8788c44, job 115160315372), which
+# printed 713; the two left out are SpringWithMass and
+# SMPM_VoltageSource, as there.
+RUNNABLE_RUN_FLOOR=711
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
