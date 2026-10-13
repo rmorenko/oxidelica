@@ -44228,3 +44228,23 @@ vanishes at the value the run supplies. What would move these models
 is reading such a coefficient as a value at the point where index
 reduction decides, which is the opaque-coefficient question and not a
 short fix.
+
+**`ThreePhaseTransformerWithRectifier`: the pairing is not its wall.**
+After the linear `der` it refuses with `initialization did not
+converge in 50 Newton iterations` (`compile.rs:8042`). Its three
+initial equations `transformer.coreK.derHstat = 0` reach no state the
+initialisation holds, and the rule that pairs such a condition with a
+state claimed by nothing takes the next orphan in order: core 1's
+condition takes `core1.B`, core 2's takes `core1.MagRel` and core 3's
+takes `core2.B` (`OXIDELICA_INIT_PROBE`). The single-phase siblings,
+which run, have one core and so pair it with its own `B`. A probe on
+the head (`state/m416/probe_init_coarse_pair.patch`, binary
+`/tmp/m416/oxp2`) paired each condition with an orphan the coarse
+walk through blocks says it reads, and among those with the one in
+the condition's own component, so that every core's condition took
+its own `B`. The model refuses the same way. The pairing across cores
+is wrong in principle and harmless here, so it is recorded and not
+changed, and the wall behind it is still unread: the Newton trail
+shows only the inner blocks, which all converge, so the outer
+iteration that stalls needs a print of its own before anything is
+guessed about it.
