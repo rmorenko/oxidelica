@@ -43627,7 +43627,11 @@ MultiBody examples that run, with the heavy set left out
 (`/tmp/m412/pair_off.txt`, `pair_on.txt`): 19 run off and 20 on, the
 one won is `PendulumWithSpringDamper`, nothing is lost, the run half
 1064 s against 1077 s, and of the refusal rows exactly one, the
-pendulum's own, is gone. That is a map and not a corpus pair. The
+pendulum's own, is gone. A second pair over the 149 models of
+MultiBody, the machines and the one-dimensional mechanics that run on
+the runner's list, the heavy set left out (`/tmp/m412/wide_off.txt`,
+`wide_on.txt`), runs 149 of 149 both ways, 934 s against 942 s. That
+is a map and not a corpus pair. The
 rule is narrow and true everywhere, since a zero slope is an equation
 that does not mention the name, but it changes which names the
 reduction holds a definition for, and that is the kind of change these
