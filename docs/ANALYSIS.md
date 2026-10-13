@@ -43658,3 +43658,142 @@ that does not mention the name, but it changes which names the
 reduction holds a definition for, and that is the kind of change these
 notes say moves states elsewhere. So the series still wants the corpus
 pair and the run list diffed name by name before it goes in.
+
+## The zero slope in the tree, the water's price, and the anchor's address (m413)
+
+**The zero-slope rule went in.** An equation with one unsettled name
+that `reduction_solve` cannot rearrange is offered to the implicit
+function theorem only when its slope in that name does not fold to
+zero with the parameters (`for_the_theorem` in `compile.rs`,
+`OXIDELICA_NO_IMPLICIT_ZERO=1` for the old reading). The test is
+`a_zero_slope_is_no_ground_for_the_theorem`, and it goes red under the
+switch. The corpus pair was taken from one binary (`/tmp/m413/ox`) at
+the root of `.msl`, both halves by the switch and run side by side
+under a 20 GB ceiling (`state/m413/corpus_off.txt`, `corpus_on.txt`):
+the flat lists are 953 and 953 and identical line for line, the run
+lists 755 and 756, and the one model the diff names is
+`PendulumWithSpringDamper`. Nothing is lost. Runnable examples go 712
+to 713. The run half took 4595 s off and 5003 s on, but the two halves
+ran at once on one desk, so that difference is weather and not a
+measurement. The floors were left for the runner's number.
+
+**The water's price is the record worked out again for the same
+point.** A probe (`OX_PROBE_PROPS_ONCE`,
+`state/props_once_probe_m413.patch`, on top of the m412 swap patch)
+keeps the last answer of each walked body, keyed by the time and the
+exact bits of what it was handed, and answers a repeat call from it.
+The bracket is one point of evaluation: within it the arguments do
+not move, and anything else does not match the key. On `V1` under the
+swap and BDF to t = 0.01, the same binary gives 10 steps in 304 s
+without it and in 23 s with it (13.8 s of stepping), and the two
+results agree to the last bit on every column and row
+(`/tmp/m413/V1_base.csv`, `V1_once.csv`). Of the first 100000 walked
+calls 92450 were answered from the last one and 7550 were walked. So
+more than nine calls in ten were the same record asked again at the
+same point, by the next equation that reads one of its fields. What
+is left is about 1.1 to 1.4 s a step against 0.04 s for the
+hand-written `WB`. The first guess was that the remainder is the
+state Jacobian, whose columns each move one state and so each want a
+fresh record. A second count by site (same patch, a mark set while
+the finite-difference Jacobian is built) says it is not: of the first
+100000 calls, 7240 walked and 88952 cached fall outside the Jacobian
+and only 310 walked and 3498 cached inside it. A third count adds a mark while an
+implicit algebraic block is solved (`/tmp/m413/V1_once4.txt`): of the
+same 100000, the block Newton asked 84000 times and walked 192, the
+state Jacobian walked 310 of 3808, and the rest of the evaluation
+walked 7048 of 12192. And the time says where those 7048 sit: on the
+same binary, 1 step takes 11.1 s, 10 steps 11.5 s and 100 steps
+13.5 s. So the price that is left is paid once, before or at the
+first step (which of the 7048 walks belong to the reduction, the
+initial problem or the first step was not split), and a step under
+the cache costs about 0.025 s,
+which is the hand-written `WB`'s 0.04 s and not two orders above it.
+`V1` then runs to its own `StopTime = 1`, 1000 BDF steps in 27.5 s
+and 36 s in all (`/tmp/m413/V1_full.csv`). The answer is physical:
+the pressure stays between 101325 and 101329.6 Pa over the orifice
+to the sink, the enthalpy rises from 1e5 towards the inflow's 2e5
+(163406 J/kg at t = 1), and the mass falls from 0.99734 to 0.99260
+kg as the warmer water grows less dense. The price that m412 named,
+two orders of magnitude a step, is the one record asked again at one
+point, and it is gone under a cache bracketed by that point.
+
+The two Fluid models that m412 left dying without a verdict after 8
+to 11 minutes now reach t = 1e-3 under the swap and the probe:
+`TestTemperature1` in 310 s of stepping and `BranchingPipes1` in 403 s,
+one BDF step each (`/tmp/m413/TT1_sim.txt`, `BP1_sim.txt`). That is a
+step taken, not a model that runs. The ten `newton-direction` models
+as a list under the same two keys did not finish in an hour (4 of 10
+read), so they were run one at a time to t = 1e-3, each under a
+twenty-minute guard (`/tmp/m413/f10/*.txt`). Seven take the step:
+`TestWaterPumpCheckValve` in 0.2 s, `SeriesPipes2` 27 s,
+`BranchingPipes14` 72 s, `SeriesPipes1` 94 s, `TestTemperature1` 222 s,
+`BranchingPipes1` 291 s and `BranchingPipes2` 818 s. `BranchingPipes4`
+was stopped by the guard. Two refuse on a wall of their own:
+`TestMultiPortTraceSubstances` because the swap asks for the
+derivative of `Modelica.Media.Air.MoistAir.h_pTX`, a call of several
+arguments the reduction cannot differentiate, and
+`TestWaterPumpPowerCharacteristic` because its initial problem does
+not pin down `pump.medium.p`. Only the check valve is cheap, and it is
+the one model of the ten that `library check` counts as running under
+the swap alone (`--only`, both keys and the swap key alone; the cache
+key alone leaves it at the Newton-direction refusal). Its answer
+agrees with the default `simulate`, which runs it where `library
+check` does not: `pump.m_flow` 0.64801698 against 0.64801700 at t = 1.
+The same count by site on `SeriesPipes2` (`state/m413/SP2s.txt`,
+`SP2t.txt`) says how the larger ones pay. To t = 1e-3 the first step
+costs 22.5 s, and to t = 0.1, 100 steps cost 88.5 s, so here too most
+of the first step is paid once and a step after it costs about 0.67 s.
+Over those 100 steps the 1.1 million calls split as: the block Newton
+asks 879424 times and walks 27544, the state Jacobian asks 160512 and
+walks 12696, and the rest asks 60064 and walks 40588. The cache
+answers 97 calls in 100 inside the blocks, 92 in the Jacobian, and
+only 32 in the rest. So the cache leaves a pipe model at two thirds
+of a second a step, and the walks that remain are mostly outside the
+blocks and the Jacobian, where the point moves between one call and
+the next. Which evaluations those are was not split further.
+
+**The anchor's address.** `WQ` anchors `p` and `h` by initial
+equations and the reduction takes `p, h`. `WF` is the same model with
+`fixed = true` on both instead (`state/m413/WF.mo`), and the walk goes
+as m412 said: reduction 1 weighs `m` alone and demotes it, reduction
+2 then has nothing free, retreats to reduction 1, takes `p` there,
+and reduction 2 demotes `m` against `U`, so the states are `h, U`
+(`state/m413/WF_full.txt`). The reader of `fixed` is the closure
+`anchored` handed to `reduce_index` from `compile_at` (a name is an
+anchor if it is declared `fixed = true` with a start), and what turns
+`U` into an anchor is `anchored_below` in `reduce_index_once`, which
+calls a state anchored when any state named on the right-hand side of
+its derivative is. `der(U) = hin - mout*h` names `h`, `h` is fixed,
+so `U` counts as anchored, `free` at reduction 2 is empty and the
+retreat fires. The fork is shown by `WG` (`state/m413/WG.mo`): the
+same `WF` with `der(U)` reading `h` through an alias `hout = h`. The
+right-hand side then names no state, `U` is free at reduction 2 and
+is the victim there, and no retreat happens (`WG_full.txt`). The
+same `WF` with `OXIDELICA_NO_RETREAT=1` demotes `m` and then `U`
+(`WF_noret.txt`). So the chain rule written for a position and its
+velocity, "`s` whose `der(s) = v` with `v` fixed", reads any state
+that appears in a derivative's right-hand side as further down the
+chain, and an energy balance mentioning the anchored enthalpy is not
+a chain at all. No fix was built.
+
+**The linear `der` probe, paired.** The m411 probe
+(`OX_PROBE_DER_LINEAR`, `state/der_linear_probe_m411.patch`) was
+built on this tree (`/tmp/m413/oxdl`) and run off and on over 92
+models: the 44 of the loop rows (`state/families44_m411.txt`) and the
+54 `Modelica.Magnetic` examples that run on the corpus pair above,
+with six names in both (`/tmp/m413/dl_off.txt`, `dl_on.txt`). The flat
+lists are 92 and 92 and identical line for line, the run lists 49 and
+49 and identical by name, and the 29 refusal rows are the same rows
+with the same counts. So on these 92 the rule wins nothing and costs
+nothing. The models the rule is for were not in that list, so the
+same binary was run off and on over the five
+`FluxTubes.Examples.Hysteresis` examples (`/tmp/m413/hy_off.txt`,
+`hy_on.txt`): 4 flatten both ways, 0 run off and 3 on -
+`InductorWithHysteresis`, `SinglePhaseTransformerWithHysteresis1` and
+`...2`, as m411 said. The row `der() outside a state equation` (4)
+empties, `ThreePhaseTransformerWithRectifier` moves to
+`initialization did not converge in 50 Newton iterations`, the wall
+m411 named behind it, and `HysteresisModelComparison` keeps its array
+refusal, which is not this rule's. Both pairs are maps and not the
+corpus pair: the series wants the whole run list diffed by name
+before it goes in.
