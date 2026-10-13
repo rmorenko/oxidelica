@@ -1437,10 +1437,12 @@ pub(super) fn expand_call(
                     // by the path the class actually has says nothing
                     // new, and nothing is asked about it.
                     let _asked = name.rsplit_once('.').and_then(|(head, _)| {
-                        (!class.name.starts_with(head)).then(|| {
-                            let package = lookup(registry, head, scope, imports)?;
-                            super::inlining::AskedAs::under(&package.name)
-                        })?
+                        (!super::inlining::AskedAs::head_is_own_path(&class.name, head)).then(
+                            || {
+                                let package = lookup(registry, head, scope, imports)?;
+                                super::inlining::AskedAs::under(&package.name)
+                            },
+                        )?
                     });
                     // The function the call really means: the medium
                     // this was asked under may have redeclared it

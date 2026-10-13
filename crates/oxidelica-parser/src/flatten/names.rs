@@ -866,10 +866,12 @@ pub(super) fn resolve(
                     // medium's own. The road a call takes must not
                     // decide which class its names land in.
                     let _asked = name.rsplit_once('.').and_then(|(head, _)| {
-                        (!class.name.starts_with(head)).then(|| {
-                            let package = lookup(registry, head, scope, imports)?;
-                            inlining::AskedAs::under(&package.name)
-                        })?
+                        (!super::inlining::AskedAs::head_is_own_path(&class.name, head)).then(
+                            || {
+                                let package = lookup(registry, head, scope, imports)?;
+                                inlining::AskedAs::under(&package.name)
+                            },
+                        )?
                     });
                     // And a call with no name of its own for the package
                     // it was written in, to a function that package only

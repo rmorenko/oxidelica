@@ -2140,3 +2140,30 @@ fn a_length_the_extends_settles_is_measured_at_what_the_site_wrote() {
         "a pipe of one node has no second element"
     );
 }
+
+/// A package alias whose name begins the path of the class it names
+/// still asks the function under the medium, not under the base.
+#[test]
+fn an_alias_named_like_the_start_of_a_path_still_reaches_the_medium() {
+    // `package M = FlueGasSixComponents` and a call `M.h_TX`: the head
+    // `M` was compared to `Modelica.Media...` as text, the call was
+    // taken for one written by its full path, and the body was walked
+    // in the base, where the medium's constant is unread. Here `L`
+    // begins `Lib.Base.f` the same way.
+    let m = parse_model(
+        "package Lib \
+           partial package Base \
+             constant Real k = 0; \
+             function f input Real x; output Real y; algorithm y := k * x; end f; \
+           end Base; \
+           package Water extends Base(k = 7); end Water; \
+           model E package L = Lib.Water; Real y; equation y = L.f(time); end E; \
+         end Lib;",
+    )
+    .unwrap();
+    let text = format!("{:?}", m.equations);
+    assert!(
+        text.contains("Number(7.0)"),
+        "the medium's k was not read: {text}"
+    );
+}

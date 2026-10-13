@@ -1176,6 +1176,27 @@ impl AskedAs {
         Some(AskedAs)
     }
 
+    /// Whether a call's head is the path the called class actually has,
+    /// so that nothing new is said by the name it was asked under.
+    ///
+    /// Compared part by part, never as a prefix of characters: a model
+    /// that writes `package M = FlueGasSixComponents` and calls
+    /// `M.h_TX` has the head `M`, and `Modelica.Media...` begins with
+    /// that letter. Read as text the call was taken for one written by
+    /// its full path, the medium was never asked under, and the body
+    /// was walked in the base with its `X` unread - a refusal that
+    /// depended on what the alias happened to be called.
+    /// `OXIDELICA_HEAD_AS_TEXT` keeps the old reading so that one binary
+    /// can be measured against itself over the whole library.
+    pub(super) fn head_is_own_path(class_name: &str, head: &str) -> bool {
+        if std::env::var_os("OXIDELICA_HEAD_AS_TEXT").is_some() {
+            return class_name.starts_with(head);
+        }
+        class_name
+            .strip_prefix(head)
+            .is_some_and(|rest| rest.is_empty() || rest.starts_with('.'))
+    }
+
     /// The name a written path was asked as, where resolving it walked
     /// out of the class that was named into a base of it.
     ///

@@ -44550,3 +44550,63 @@ calls, a constant array of records) all run, so the wall is the alias
 and not the body. Where a plain alias is resolved for a function call
 is the next probe; `flatten/scoping.rs` near line 49 is where the two
 kinds of alias part. Not built this shift.
+
+## The alias that was a letter, and the heat flow lost in a loud row (m417)
+
+**The package alias wall was the name `M`, not the missing
+`replaceable`.** The five-line `F2` (`state/m417/F2.mo`) writes
+`package M = FlueGasSixComponents`. The same model with the alias
+called `Medium`, `N`, `A`, `Q`, `K`, `T`, `S`, `Y`, `Mx` or `MM`, with
+or without `replaceable`, runs and gives h = 303510.78 J/kg at 301 K
+(`/tmp/m417/G_*.mo`, `H_*.mo`, `J_*.mo`, `F6.mo`, `F7.mo`). Only `M`
+refuses. The two places that decide whether a call's body is asked
+under the name it was called by (`flatten/arrays.rs` and
+`flatten/names.rs`, beside `AskedAs::under`) tested
+`class.name.starts_with(head)` as text. `Modelica.Media...` starts with
+the letter `M`, so the call was read as written by its full path, the
+medium was never asked under, and the body ran in the base,
+`MixtureGasNasa`, with its `X` unread. This is the same kind of fault
+as a name shortened to its tail, coming from the other end. The test
+now compares whole parts of the name (`AskedAs::head_is_own_path`), and
+`OXIDELICA_HEAD_AS_TEXT` keeps the old reading. The test
+`an_alias_named_like_the_start_of_a_path_still_reaches_the_medium` uses
+`L` against `Lib.Base.f`. It fails under the switch and passes without
+it.
+
+The m416 chapter's suspicion of the plain alias came from comparing
+`F2` (alias `M`) with `F5` (alias `Medium`, replaceable): two things
+changed at once, and the name was the one that mattered.
+
+`IdealMixing1` is a different case. Its alias is `Medium`, so this fix
+does not reach it, and `--only` still prints `unknown variable X` from
+a walked function in its loop at t = 0. What it walks there remains to
+be probed.
+
+**CCCV_Stack and CCCV_StackRC: the heat flow is not written twice. One
+row's rounding hides it.** The null vector of the singular block at
+t = 0 (`state/m417/cccv_trail.txt`, `state/nullspace_m344.py`) lies on
+`heatFlowSensor.port_a.Q_flow` and `cellBus[1,1].lossPower`, equal and
+opposite. In the printed Jacobian, the `Q_flow` column is zero in row
+5, the heat balance `cell.heatPort.Q_flow + heatFlowSensor.port_a.Q_flow
++ temperatureSensor.port.Q_flow = 0`, where its coefficient is one.
+That row's residual at the start point is 3.5e9, and the textbook step
+of 1e-8 moves nothing a double can hold there. The column still moves
+cleanly in row 4 (`lossPower = Q_flow`), so neither existing ladder
+grows its step: both grow a column only where every row it moved stayed
+in the rounding. With `OXIDELICA_FD_STEP=1e-6` or `1e-4`, both models
+run under `library check --only`. So the singular verdict is about the
+step, not about the equations. The library writes each heat flow once.
+
+A ladder that asks such an entry again, row by row, on the road that
+would otherwise refuse (`state/m417/loud_row_ladder.patch`, switch
+`OXIDELICA_NO_LOUD_ROW_LADDER`), clears t = 0, and both models run
+under `--only`. It was parked, not committed. Over the full horizon,
+`simulate` of `CCCV_Stack` stalls at t = 555.77: Newton creeps on
+|f| = 2e-9 in rows 5 and 6, whose reach is 6.6e4 and 3.4e7, with step
+fractions of 1/64 for fifty iterations. `CCCV_StackRC` stops at
+t = 799.7 on the library's own `Battery overcharged!` assert, and the
+single cell `CCCV_Cell` runs to 1200 s at SOC 1.0. The `--only` check
+runs ten steps and cannot tell a right answer from a wrong one here. A
+stack that overcharges where its single cell does not would need a
+comparison against a reference before it is believed. Measuring the
+patch as a pair is the next step.
