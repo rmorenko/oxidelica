@@ -1527,3 +1527,32 @@ fn a_state_whose_derivative_the_model_solved_is_demoted_once() {
         value("lossP")
     );
 }
+
+/// A Newton iteration swinging across a root is caught as a circle
+/// although it never lands on the same point twice.
+#[test]
+fn a_swing_across_a_root_is_read_as_a_circle() {
+    // A signed square root from 1000: the tangent there is shallow, the
+    // full step lands far on the other side, and the next comes back
+    // near where it began, a little closer each time. The points agree
+    // to a few digits and never to six, and fifty such swings ran the
+    // budget out. Read as a circle, the steps are shortened and the
+    // answer is 1.5 squared at t = 1.
+    let result = compile(
+        &parse_model(
+            "model B \
+               function root input Real x; output Real y; \
+                 algorithm y := if x >= 0 then sqrt(x) else -sqrt(-x); end root; \
+               Real dp(start = 1000); Real s(start = 0, fixed = true); \
+             equation 0 = root(dp) - 0.5 - time; der(s) = dp; \
+             annotation(experiment(StopTime = 1)); end B;",
+        )
+        .unwrap(),
+    )
+    .unwrap()
+    .simulate()
+    .expect("the swing is shortened and reaches the root");
+    let dp = result.columns.iter().position(|c| c == "dp").unwrap();
+    let last = result.rows.last().unwrap()[dp];
+    assert!((last - 2.25).abs() < 1e-6, "dp = {last}");
+}

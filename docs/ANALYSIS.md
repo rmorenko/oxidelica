@@ -44719,3 +44719,25 @@ is a solver knob in the same sense as the damping above.
 `SMPM_CurrentSource` swings across the machine's phase quantities with
 |f| between 175 and 450. That is the machine family m406 already maps
 (`OXIDELICA_SUPPLY_ONCE`), not a loop of its own.
+
+**The circling tolerance, measured and taken.** The pair from one
+binary (`/tmp/m417/ox3`, the probe's `OX_PROBE_CIRCLE`) under 18 GB caps,
+1e-6 against 1e-2 (`/tmp/m417/circ_off.txt`, `circ_on.txt`, peak 12.0
+GB):
+
+```text
+off   953 flatten, 760 run, runnable 836 / 717
+on    953 flatten, 763 run, runnable 836 / 720
+victims 0   bought 3
+```
+
+The three bought are `TankWithEmptyingPipe2`, `TanksWithEmptyingPipe1`
+and `TestDensity`. `TanksWithEmptyingPipe2` and `Bend` do not move. The
+tolerance is now 1e-2, and `OXIDELICA_TIGHT_CIRCLE` keeps 1e-6. The
+test `a_swing_across_a_root_is_read_as_a_circle` solves a signed square
+root from dp = 1000. It refuses under the switch and gives dp = 2.25 at
+t = 1, which is 1.5 squared. The floors were not moved. The pair is a
+desk measurement, and a floor rises to what the runner prints, so the
+three models wait for the runner's number. `TestDensity`'s full run is
+slow (more than nine minutes of CPU for 1.01 s under the probe), which
+the runner's time band will show if it matters.

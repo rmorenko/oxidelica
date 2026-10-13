@@ -215,6 +215,15 @@ fn descent_guard_off() -> bool {
     *OFF.get_or_init(|| std::env::var_os("OXIDELICA_NO_DESCENT_GUARD").is_some())
 }
 
+/// Whether a Newton iteration is said to have returned to a point only
+/// when it agrees with it to a millionth, as it was before the
+/// tolerance was widened to a hundredth. Off by default; the switch
+/// exists so that the two halves of a measurement come from one binary.
+fn tight_circle() -> bool {
+    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ON.get_or_init(|| std::env::var_os("OXIDELICA_TIGHT_CIRCLE").is_some())
+}
+
 /// Whether a step the line search had to cut to a sliver counts as a
 /// step. Off by default; the switch exists so that the two halves of
 /// a measurement come from one binary.
@@ -1968,10 +1977,27 @@ impl CompiledModel {
             // out. Nothing about the residual gives this away - it is
             // as large at one rail as at the other - so what is watched
             // for is the return itself.
+            //
+            // A return is a return to within a hundredth, not to within
+            // a millionth. A swing between the two sides of a root does
+            // not come back to the same point: each pass lands a little
+            // closer, so the points it alternates between agree in the
+            // third or fourth digit and never in the sixth, and a test
+            // at 1e-6 read fifty such swings as fifty fresh steps. The
+            // orifice of `TestDensity` swings its pressure between
+            // 102650 and 100034 that way, the emptying pipes of the
+            // batch plant their flows between zero and -89 kg/s, and a
+            // signed square root solved from 1000 does it in one line.
+            // Measured as a pair over the whole library from one binary
+            // (`/tmp/m417/circ_on.txt`, `circ_off.txt`): 760 run at
+            // 1e-6 and 763 at 1e-2, with no model lost.
+            // `OXIDELICA_TIGHT_CIRCLE` keeps the old tolerance so that one
+            // binary gives both halves of a measurement.
+            let return_within = if tight_circle() { 1e-6 } else { 1e-2 };
             let circling = seen.iter().any(|old: &Vec<f64>| {
                 old.iter()
                     .zip(&full)
-                    .all(|(a, b)| (a - b).abs() <= 1e-6 * (1.0 + a.abs()))
+                    .all(|(a, b)| (a - b).abs() <= return_within * (1.0 + a.abs()))
             });
             seen.push(v.clone());
             if seen.len() > 4 {
