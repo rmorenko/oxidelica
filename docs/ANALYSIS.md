@@ -44587,8 +44587,10 @@ row's rounding hides it.** The null vector of the singular block at
 t = 0 (`state/m417/cccv_trail.txt`, `state/nullspace_m344.py`) lies on
 `heatFlowSensor.port_a.Q_flow` and `cellBus[1,1].lossPower`, equal and
 opposite. In the printed Jacobian, the `Q_flow` column is zero in row
-5, the heat balance `cell.heatPort.Q_flow + heatFlowSensor.port_a.Q_flow
-+ temperatureSensor.port.Q_flow = 0`, where its coefficient is one.
+5, the heat balance of the sensor's port with the cell's and the
+temperature sensor's (`cell.heatPort.Q_flow`,
+`heatFlowSensor.port_a.Q_flow` and `temperatureSensor.port.Q_flow`
+summed to zero), where its coefficient is one.
 That row's residual at the start point is 3.5e9, and the textbook step
 of 1e-8 moves nothing a double can hold there. The column still moves
 cleanly in row 4 (`lossPower = Q_flow`), so neither existing ladder
@@ -44650,3 +44652,49 @@ rewritten from `Raised` to `Outside` after the raise, so it cannot tell
 the model's words from the compiler's. A test on the message's spelling
 would be a guess. The structure should record which writer produced
 the text before the name is added.
+
+**The census after the alias fix (m417) against m416.** Counted by
+section bounds, the flatten half is 67 models in 39 rows in both
+censuses (`/tmp/m416/census.txt`, `/tmp/m417/census.txt`). The run half
+is 194 in 132 rows before and 193 in 132 rows after. The one model
+that left is `CompareLineTrunks`, bought by 1502900 before this shift.
+Two models changed rows without changing counts:
+`ThreePhaseTransformerWithRectifier` went from `initialization did not
+converge` to `initialization is not square: 21 initial equation(s) and
+4 fixed start(s) for 23 unknown(s)`, and `PointGravityWithPointMasses2`
+from `the equations of algebraic loop ... do not mention` to a named
+residual of the same loop. Neither comes from the alias fix: under
+`OXIDELICA_HEAD_AS_TEXT` both refuse with the new wording too. The m416
+census was taken on the tree before 1502900, so 1502900 is where they
+moved. As a result the `X of algebraic loop` row went from 7 to 8 and
+the `do not mention` row from 4 to 3.
+
+**The emptying pipes of the batch plant: a full Newton step taken
+whole from zero flow.** `TankWithEmptyingPipe2`, `TanksWithEmptyingPipe1`
+and `TanksWithEmptyingPipe2` (the three `did not converge` of
+`/tmp/m416/raw.txt:163-165`) are one family. Their loops of pipe mass
+flows start at zero, and the trail (`state/m417/twep2.txt`) shows the
+full step from there landing at -89 kg/s with |f| = 3e5 against 126.
+The next step comes back near zero, and the iteration alternates
+outward and back, a little shorter each time, for fifty iterations
+without returning to a point it has stood on, so the circling guard
+never fires. Damping from the first full step that raises |f| tenfold
+(`state/m417/damp_on_rise.patch`, `OXIDELICA_NO_DAMP_ON_RISE`) runs all
+three under `--only`. `TankWithEmptyingPipe2` then drains over its
+120 s from 2090 kg to 94 kg, with the level going from 2 m to -0.006 m.
+After the level is below the upper port, pipe 2 holds -0.11 kg/s,
+which the stiff empty-port characteristic should be checked against.
+`x^3 + 1e-9*x = 8 + time` from zero is the same failure in twelve
+lines: it refuses without the damping and gives the cube root of nine
+with it.
+
+The patch was parked, not committed. At tenfold it costs two tests of
+correctness that run today: `a_star_grounded_through_a_megohm_is_read_past_the_rounding_of_its_row`
+(the Newton direction no longer descends at t = 1.8e-3) and
+`a_divisor_that_reads_one_at_the_start_stays_an_explicit_assignment`
+(`R_m`, `Phi` no longer converge). At a thousandfold the divisor
+passes, but the star still fails and `TanksWithEmptyingPipe2` no longer
+runs. The threshold slides along a trade, so the rule is a different
+solver rather than a fix. The family wants a start for the flows that
+is off the flat of the pressure loss, or a damping rule the star can
+live with, and either one is a series of its own.
