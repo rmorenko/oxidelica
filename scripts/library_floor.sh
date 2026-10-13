@@ -2274,7 +2274,17 @@ WORK_DEAREST=12
 # alone, 1.120 of 234. The seven cost +28 on the runner and +16 on the
 # desk. The centre is set at the runner's print: ten percent around
 # it is 235.8 to 288.2, which holds the desk's 250.
-WORK_JACOBIANS=262
+#
+# Moved by the chain that lets SMEE_LoadDump run (c17026e). The runner
+# printed 485 for that tree (run 38321408977, job 115050181995) and
+# turned red on this line alone, 1.851 of 262, with every count right.
+# The rise is named model by model from one binary with the chain off
+# and on: SMEE_LoadDump 0 -> 190, the chain's win, and
+# ActuatorWithNoise 0 -> 28, which refuses both ways but runs 4292
+# points under the chain before it does. The desk prints 486. The
+# centre is set at the runner's print: ten percent around 485 is 436.5
+# to 533.5, which holds the desk's 486.
+WORK_JACOBIANS=485
 WORK_JACOBIANS_PPM=100000
 # The pair is held on a line of its own and to a band of its own, an
 # order of magnitude wide in either direction rather than five percent:
