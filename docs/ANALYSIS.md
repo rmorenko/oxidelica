@@ -44318,17 +44318,26 @@ is implied by the rest, as other tools do, which is a definition
 change and must be measured by victims. The second is the hysteresis
 Newton wall itself, which this probe did not reach.
 
-**`NAND` and `MNmos` are right to refuse.** Both refuse with
-"underdetermined algebraic loop" at `solvers/mod.rs:1510`, and the
-question was whether the rank test judges by start values that happen
-to be degenerate. They are not examples: `library check --only` counts
-both as "runnable examples: 0", they are the subcircuits the benchmark
-and the inverter are built from, with every pin left open. A potential
-nobody grounds is genuinely free, and the loop that holds `der(B.v)`,
-`der(Dinternal)` and `icBS` has no unique solution at any time, not
-only at the start. The same `MNmos` with its source and bulk grounded
-and two constant sources on drain and gate (`/tmp/s416/G.mo`) runs.
-No change is asked for, and the two models are not work.
+**`NAND` and `MNmos` refuse for two reasons, and only one of them is
+the open pins.** Both refuse with "underdetermined algebraic loop" at
+`solvers/mod.rs:1510`, and the question was whether the rank test
+judges by start values that happen to be degenerate. Neither is an
+example: `library check --only` counts both as "runnable examples: 0",
+they are the subcircuits the benchmark and the inverter are built
+from, with every pin left open, and a potential nobody grounds is
+genuinely free. That is the whole of `MNmos`: with only its bulk
+grounded the loop shrinks to `der(m.G.v)`, `der(m.Dinternal)` and
+`der(m.Sinternal)` and still has no unique solution (`/tmp/s416/M2.mo`),
+while with source and bulk grounded and constant sources on drain and
+gate it runs (`/tmp/s416/G.mo`).
+
+`NAND` is not settled by its pins. With supply, both inputs and a load
+connected (`/tmp/s416/N2.mo`) it refuses one floor up, at "do not
+mention `der(n.Q2.vbx)` at t = 0": the zero-capacitance wall of the
+pahan queue's item 30, where `capbx` is zero for `XCJC = 1.0` and the
+derivative it multiplies stays an unknown of the block. So the rank
+test is right in both models as they stand in the library, and the
+work `NAND` points at is item 30's, not a change to the rank test.
 
 **The pair, whole and by name.** Both halves on one binary
 (`/tmp/s415/ox_a`, built with both halves of the change), the off half
