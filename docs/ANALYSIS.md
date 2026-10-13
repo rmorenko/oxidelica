@@ -44531,3 +44531,22 @@ partial function closing over an array input. A twelve-line model of
 exactly that closure (`/tmp/s416/X.mo`) runs and gives T = 4 at h = 4,
 the right answer, so the closure alone is not the wall and the next
 probe is the real call's other arguments. Not walked further.
+
+Walked one step further on the same shift, the `IdealMixing1` wall is
+a medium lost by a call through a plain package alias.
+`IdealMixing1` writes `package Medium = FlueGasSixComponents` without
+`replaceable`. A five-line model with that alias calling
+`Medium.h_TX(300 + time, Medium.reference_X)` (`state/m416/F2.mo`)
+refuses with `unknown variable X`, and `oxidelica why` shows the call
+flattened to the base class's
+`Modelica.Media.IdealGases.Common.MixtureGasNasa.h_TX(...)`: the
+medium's `data`, `nX` and `fixedX` are gone, and the body is walked
+with nothing to read them from. The same model with `replaceable
+package Medium` (`state/m416/F5.mo`) runs and has the call expanded
+under the medium (h = 303510.78 J/kg at 301 K). Five smaller models
+without a medium package (`/tmp/s416/X.mo` to `X5.mo`: an `if` over
+arrays, a default bound by a package constant, a comprehension of
+calls, a constant array of records) all run, so the wall is the alias
+and not the body. Where a plain alias is resolved for a function call
+is the next probe; `flatten/scoping.rs` near line 49 is where the two
+kinds of alias part. Not built this shift.
