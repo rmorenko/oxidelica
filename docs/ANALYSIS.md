@@ -43553,13 +43553,17 @@ states. The map of the series, in order:
    or the Fluid row will run and blow the time band. The rule is
    there in the library: `rho_props_ph` says
    `derivative(noDerivative = properties) = rho_ph_der`, and the
-   inliner carries such a rule as `WithDerivative`. Whether it reaches
-   the volume this shift did not settle. `ox why` on `V1` shows
-   `volume1.medium.d` as `waterBaseProp_ph(p, h, phase, 0)[9]`, but
-   `describe` prints a `WithDerivative` as its value alone, so that
-   line cannot say whether the rule rode along. The sample says the
-   time goes to walking bodies; which body, the record's or the rule's,
-   is the first question of this item.
+   inliner carries such a rule as `WithDerivative`, and it does reach
+   the volume. `ox why` cannot show it, since `describe` prints a
+   `WithDerivative` as its value alone, so a probe counting the nodes
+   in the flat equations that name `volume1.medium.*` was asked (in
+   `state/state_swap_probe_m412.patch`): the equation of
+   `volume1.medium.d` holds one, `medium.T` one and `medium.phase`
+   two. So the derivative is not taken through the record's body for
+   want of a rule. What the sample's walking goes to is still to be
+   named, the rule's own body or the record it reads, which is
+   evaluated afresh in each of these equations; that is the first
+   question of this item.
 
 The twenty models of the Fluid rows (`state/families44_m411.txt`, ten
 `newton-direction` and ten `fluid-other`) under one binary: 0 run on
