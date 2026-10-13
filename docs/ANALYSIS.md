@@ -43224,3 +43224,123 @@ is at the start point. The flatten half is unchanged, led by functions
 written outside Modelica, C (6) and FORTRAN (3). The top of the next
 order is the loop layer, entered at the pipes, which the hand-over
 was measured not to reach.
+
+## The loop layer by name, and the floating star that is no longer there (m411)
+
+**Who moved between the two censuses.** The six loop rows of m409
+(`/tmp/m408/raw.txt`) against the same rows of m410
+(`/tmp/m410/raw.txt`), each model read by the opening words of its
+refusal, the lists in `/tmp/m411/old.txt` and `new.txt`. The layer
+went 48 to 44, and by name that is two wins, four departures and two
+arrivals, not two wins and two departures. Won, as the pair said:
+`Machines...SMEE_LoadDump` (singular Jacobian) and
+`QuasiStatic...SMPM_OpenCircuit` (the equations of a loop), both in
+m409's default list (`/tmp/m409/B_ran.txt`, `C_ran.txt`). Left the
+layer for structural singularity: `FundamentalWave...SMPM_CurrentSource`
+(singular Jacobian to a `der(smpm.flange.phi) - der(angleSensor.flange.phi)`
+row that constrains no state), `MultiBody...RollingWheel` (singular
+Jacobian to `wheel1.rollingWheel.v_0[1] - wheel1.body.v_0[1]`),
+`DoublePendulumInitTip` (the equations of a loop to a `world.frame_b.R.T`
+row) and `ModelicaTest.Rotational.TestBearingConversion` (the equations
+of a loop to `gear2_2.w_rel`). Entered the layer from structural
+singularity: `QuasiStatic...SMPM_FieldWeakening` (now a named unknown
+of a loop, the PID limiter's `if`) and `PointGravityWithPointMasses2`
+(now the equations of a loop). Moved inside the loop family only:
+`DoublePendulum` from structural singularity to the bare `algebraic
+loop ... on either side` row, and `IMC_DOL_CommonLeakage` the other
+way, from that row to structural singularity. Eight verdicts changed
+with two models won; a census that adds by rows sees four.
+
+**The 44 by family.** Read from the refusal's unknowns and, for the
+sixteen singular and underdetermined ones, from the block's own matrix
+(a probe printing the raw Jacobian of an underdetermined block, not
+kept: `state/star_dump_probe_m411.patch`; dumps in `/tmp/m411/dumps/`,
+null directions after row and column scaling in `/tmp/m411/ns16.txt`;
+the list by name in `state/families44_m411.txt`):
+
+```text
+10  Fluid, the Newton direction: two pumps (taken by EDGE_HANDOFF=1),
+    six pipes and volumes refusing at the start point
+10  Fluid, the rest: three AST_BatchPlant emptying pipes and Bend,
+    TestDensity (no convergence), PumpingSystem, RoomCO2WithControls,
+    IdealMixing1 (a named unknown), RoomCO2 (a NaN column at
+    volume.medium.p), TestMixingVolumesPressureStates (der(p) beside der(h))
+ 7  MultiBody: ThreeSprings, PendulumWithSpringDamper, the two wheel
+    sets, PointGravityWithPointMasses2, MovingActuatedDrive, GearType2
+ 6  Spice3, der() behind a capacitance of zero: MNmos, MPmos, NAND,
+    ONEBIT, RtlInverter, DifferentialPair
+ 3  Goff of an open switch: IMC_DOL_Polyphase, SMEE_DOL, SMEE_Rectifier
+ 2  machines with no null direction to name: SMEE_Generator,
+    SMEE_Generator_Polyphase (scaled singular values 1e-15 and 1e-16
+    on the air gap's rotation rows)
+ 2  SMPM_FieldWeakening, Machines SMPM_CurrentSource
+ 2  CCCV_Stack, CCCV_StackRC: one heat flow written twice
+ 1  QuasiStatic Rectifier, ideal diodes against load2.v
+ 1  LossyGearDemo2, the quadrants of two rigidly joined frictions
+```
+
+**The floating star is no longer a family of the layer.** The five the
+queue named in m344 have gone their ways: `DiodeBridge2mPulse`,
+`ThyristorBridge2mPulse_RLV` and `PolyphaseRectifier` run (one binary
+from 795b7ec, `--only` from the root), `SMEE_Generator_Polyphase`
+reads as a machine with no single null direction, and
+`IMC_DOL_Polyphase` is not a star at all. Its block of 59 has a null
+space of dimension two (singular values 1.4e-9 and 1.1e-9 against 3.9
+after scaling); the right null vectors lie on the derivatives of
+`aimc3`'s stator currents and air-gap potentials, and the left ones on
+the three rows of `idealCloser3`, the open switches feeding that
+machine, beside the stator's magnetic rows. No row and no direction
+names a star's potential. The two underdetermined `SMEE` machines read
+the same way: the left null vector on `switch.idealClosingSwitch[k]`
+(SMEE_DOL) and `idealDiode1.idealDiode[k]` (SMEE_Rectifier).
+
+**The small models say Goff.** Each of the three extended with the
+open conductance of those switches raised and nothing else changed
+(`state/G.mo`, `S.mo`, `R.mo`), simulated to 0.05 s on one binary:
+
+```text
+IMC_DOL_Polyphase  idealCloser3 Goff 1e-5, 3e-5, 1e-4  refused, underdetermined
+                                 Goff 3e-4, 1e-3, 0.1   runs
+SMEE_DOL           switch Goff 1e-5 refused, 1e-3 runs
+SMEE_Rectifier     both diode bridges Goff 1e-5 refused, 1e-3 runs
+```
+
+So the three are the Goff threshold that queue item 30 names, and the
+pin the probe was to try - fix the star's potential and solve on - has
+nothing to pin in this layer: no remaining victim has its null
+direction along one potential. The probe is parked as a map, not a
+patch. The three wait on the word about the rank threshold (which costs
+21 running models when moved), and the largest families of the layer
+are the Fluid pair, entered at the pipes' start point and at the
+batch plant's emptying pipes.
+
+**The row `der() outside a state equation`, probed.** Four models, all
+`FluxTubes.Examples.Hysteresis`, and one cause: the Tellinen branch of
+`GenericHysteresisTellinen` writes `dHyst = der(hystR - mu0*Hstat)`,
+the derivative of an expression rather than of a name, and the code
+generator refuses any `der` whose argument is not a name (a probe naming
+the argument, not kept, printed the same expression for all four). The
+smallest model is three lines: `der(x) = -x; a = x*x; y = der(a - 2*x);`
+refuses, and `y = der(a) - 2*der(x)` runs (`state/D1.mo`, `D3.mo` with
+the same inside an `if`). A second probe (`OX_PROBE_DER_LINEAR`,
+`state/der_linear_probe_m411.patch`, not kept) wrote `der` of a sum, a
+difference, a negation and a product or quotient by something that does
+not move as the same of the parts, before the plan is built. Under it
+the small models give `y = 0.465088` at t = 1, which is `2x - 2x^2` at
+`x = e^-1`, both spellings alike to the last digit; and three of the four
+run - `InductorWithHysteresis`, `SinglePhaseTransformerWithHysteresis1`
+and `...2`. In `InductorWithHysteresis` (`state/H.mo`) the flux density
+stays inside the limiting loop, `hystR <= B <= hystF`, on all 15903
+rows, between -0.975 and 1.601 T. What it does not do is pass a reversal
+of the field cleanly: `asc = der(Hstat) > 0` is an event, and at a
+turning point the two branches hand `der(Hstat)` back and forth, so
+`asc` flips up to 98 times at one instant (14903 flips over the run).
+The fourth, `ThreePhaseTransformerWithRectifier`, meets a wall of
+another kind behind the first: its initial equations
+`transformer.coreK.derHstat = 0` reach no unknown the initialisation
+holds, and the three cores' `B` and `MagRel` are left with no row
+(`OXIDELICA_INIT_PROBE`). So the row is one rule wide, the rule is the
+linear part of the derivative and true everywhere, and taking it is a
+series of its own: the chattering at a reversal wants measuring first,
+since a model that runs by flipping a Boolean a hundred times an
+instant is a model whose numbers have to be checked before it counts.
