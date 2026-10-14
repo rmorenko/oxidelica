@@ -45095,3 +45095,17 @@ a floor of 4.2e-12. So the floor norm does not cure it and the pair's
 expectation stays +2, not +3. What it wants is fewer slow iterations
 in the middle, or more of them, and that is the damping family's
 question, not this pair's.
+
+**The desk band on the preflight, read against itself.** The preflight's
+library step came out red on the ratio band alone, 1.106 against a desk
+edge of 1.10, while it shared the desk with the corpus pair. Run again
+alone on the final tree it printed 953 / 764 and 836 / 721, every floor
+held, and a ratio of 1.177 (`/tmp/m419/floor_alone.txt`). The same
+binary with both switches off, alone, printed 953 / 763, 836 / 720 and
+a ratio of 1.149 (`/tmp/m419/floor_alone_off.txt`). So the unchanged
+compiler is outside the desk band too, and the 0.03 between the halves
+is weather: in the corpus pair every model but the one bought counts the
+same Newton iterations both ways (`/tmp/m419/p2/won2.txt`, `woff2.txt`).
+The desk edges of 0.80 and 1.10 were set from one point (0.953) and
+this desk now runs above them on unchanged code. That is for the next
+reading of the runner's band, not a fault of this change.
