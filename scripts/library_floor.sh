@@ -1380,7 +1380,20 @@ FLATTEN_FLOOR=953
 # in the same list, and are left out:
 #
 #   763 printed - 1 SpringWithMass - 1 SMPM_VoltageSource = 761
-RUN_FLOOR=761
+#
+# And run 762 = 761 + Inverse_sh_TX of
+# Modelica.Media.Examples.SolveOneNonlinearEquation, which runs once a
+# body carries its medium's records (84f9f7f). The runner printed
+# 940 / 759 and runnable 825 / 717 in the main pass (job 115704078965)
+# and 13 / 5 and 11 / 4 in the dear pass (job 115704079559) of push run
+# 38518964308 for 8be7895, 953 / 764 and 836 / 721 together. Against
+# f07ab37 (push run 38497487843) the run list of both passes gained
+# exactly Inverse_sh_TX and lost nothing (/tmp/m420/ci/ran_f07.txt,
+# art/ran_8be.txt). The two swings ran, by name in the same list, and
+# are left out:
+#
+#   764 printed - 1 SpringWithMass - 1 SMPM_VoltageSource = 762
+RUN_FLOOR=762
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -1682,7 +1695,12 @@ RUNNABLE_FLATTEN_FLOOR=836
 # all runnable, by the same runner jobs as `RUN_FLOOR` (4be296e, push
 # run 38485358468), which printed 716 + 4 = 720; the two left out are
 # SpringWithMass and SMPM_VoltageSource, as there.
-RUNNABLE_RUN_FLOOR=718
+#
+# And runnable run 719 = 718 + Inverse_sh_TX, runnable, by the same
+# runner jobs as `RUN_FLOOR` (8be7895, push run 38518964308), which
+# printed 717 + 4 = 721; the two left out are SpringWithMass and
+# SMPM_VoltageSource, as there.
+RUNNABLE_RUN_FLOOR=719
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
