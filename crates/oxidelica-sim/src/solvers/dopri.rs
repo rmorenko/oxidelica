@@ -13,6 +13,15 @@ fn implicit_handoff_off() -> bool {
     *OFF.get_or_init(|| std::env::var_os("OXIDELICA_NO_IMPLICIT_HANDOFF").is_some())
 }
 
+/// Whether a step found to hold a crossing inside it is interpolated up
+/// to the crossing, as it was before such a step was taken again
+/// shorter. `OXIDELICA_NO_EVENT_RETAKE` keeps the old reading, so that
+/// one binary gives both numbers.
+fn event_retake_off() -> bool {
+    static OFF: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *OFF.get_or_init(|| std::env::var_os("OXIDELICA_NO_EVENT_RETAKE").is_some())
+}
+
 impl CompiledModel {
     /// Adaptive Dormand-Prince 5(4) integration with dense output.
     pub fn simulate_adaptive(&self) -> Result<SimResult, SimError> {
@@ -133,6 +142,28 @@ impl CompiledModel {
         let mut t = t0;
         let mut h = out_step.min(stop - t0).max(1e-9);
         let mut evals: u64 = 0;
+        // Whether the step about to be taken was cut to end at a crossing
+        // the longer one found inside it. A cut step that finds the
+        // crossing again, still inside it - its stages see a slightly
+        // different curve - is not cut a second time, or the run would
+        // creep up to the crossing by ever shorter steps; it is near
+        // enough by then for the cubic to be read. A cut step that ends
+        // short of the crossing is accepted like any other, and the flag
+        // clears with it: kept until the next event, it let a step much
+        // later interpolate straight through a kink of its own
+        // (`CCCV_Stack` on a 755 s horizon, cut at 750.21, then bowed
+        // past its limit by 753.85).
+        let mut retaken = false;
+        // Whether the step about to be taken is the one right after a
+        // cut step accepted short of its crossing. That one step is not
+        // cut again: the cut lands a little short, the next step finds
+        // the same crossing a few hundredths in, and cutting it too is
+        // how `ComparisonQuasiStatic`, whose relations sit within a
+        // rounding unit of zero from the start, was cut eight thousand
+        // times on the way to t = 1e-6 and refused with a step size
+        // underflow. It holds for that one step only; the one after is
+        // free to be cut.
+        let mut spared = false;
 
         self.eval_point(t, &y, &mut values, &mut k[0], &mut alg_guess)?;
 
@@ -394,7 +425,64 @@ impl CompiledModel {
                     event_theta = Some(event_theta.map_or(crossed, |c: f64| c.min(crossed)));
                 }
 
+                // A cut step whose far end reads a relation exactly on
+                // its threshold has arrived at the crossing it was cut
+                // for, and ends in the event there. Taken as a plain
+                // step, the next one starts from a reading of zero and
+                // finds the turn a hair in, again and again: `Z2`, a
+                // clamp let go when its input turns, raised ten thousand
+                // events at t = 5.1676. Only on an exact zero: a cut
+                // step that ends short with the relation unturned is no
+                // place for an event, and raising one there anyway kept
+                // `DiodeBridge2mPulse` handling events at t = 0.00167
+                // without the switch ever moving.
+                let landed_on_threshold = indicators_prev
+                    .iter()
+                    .zip(&indicators_new)
+                    .any(|(&before, &after)| before != 0.0 && after == 0.0);
+                if retaken && event_theta.is_none() && landed_on_threshold && !event_retake_off() {
+                    event_theta = Some(1.0);
+                }
                 if let Some(theta) = event_theta {
+                    // A crossing inside the step means the stages
+                    // straddled the switch, and the step's far end and its
+                    // slope there belong to the other branch. The cubic
+                    // through the two ends is then not the solution on
+                    // this side of the crossing: across the kink of a
+                    // clamped integrator, `der(y) = if y > outMax and
+                    // k*u > 0 then 0 else k*u`, it bowed a held battery
+                    // charge up past its limit before the switch was
+                    // reached (`CCCV_Stack`, a step of 14 s carrying
+                    // the cell to 1 + 1.06e-9 where the model's own
+                    // assert stops at 1 + 1e-9). So the step is taken
+                    // again, once, ending at the crossing, with every
+                    // stage on the side the run is on. What that shorter
+                    // step finds is then used as before. A crossing in
+                    // the first tenth of the step is not cut for: the bow
+                    // grows with the square of how far into the step the
+                    // cubic is read, so there it is a hundredth of what it
+                    // is at the middle. And cutting there is what never
+                    // ends - a cut step lands a little short of the
+                    // crossing, the next one finds it a few hundredths
+                    // in, is cut again, and the step falls tenfold a
+                    // round until it underflows (`CCCV_Stack` at
+                    // t = 679.629, twelve cuts from 4 s to 2e-13 s).
+                    if !retaken && !spared && theta > 0.1 && theta < 1.0 && !event_retake_off() {
+                        retaken = true;
+                        // The search put `theta` a hair past the
+                        // crossing; the cut step ends a hair before it,
+                        // so that none of its stages, nor its far end,
+                        // stands on the other branch. Ending on the
+                        // crossing itself still let the cubic bow by
+                        // 1.6e-13 over a value held at its limit (`K`).
+                        h *= theta - 2.0 * HAIR;
+                        if !reject_keeps_guess() {
+                            alg_guess.copy_from_slice(&footing_guess);
+                        }
+                        continue;
+                    }
+                    retaken = false;
+                    spared = false;
                     let t_event = t + theta * h;
                     // Grid points before the event still come from the
                     // smooth part of the step.
@@ -484,6 +572,8 @@ impl CompiledModel {
                     continue;
                 }
                 indicators_prev = indicators_new;
+                spared = retaken;
+                retaken = false;
 
                 // Dense output on the grid via cubic Hermite interpolation.
                 loop {

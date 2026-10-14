@@ -1109,3 +1109,47 @@ fn a_value_that_never_equals_its_pre_is_refused_by_name() {
         "{message}"
     );
 }
+
+/// A clamp held until a crossing, and a step long enough to reach past
+/// it. The step's far end and its slope there belong to the branch
+/// after the crossing, so the cubic through the two ends is not the
+/// solution before it: interpolated up to the crossing, it bowed the
+/// held value up by 6.9e-6 before the switch, which in `CCCV_Stack`
+/// carried a charge held at its limit past the model's own assert. The
+/// step is taken again ending at the crossing, and the held value is
+/// held to the last digit until the switch.
+#[test]
+fn a_held_value_is_not_bowed_by_a_step_reaching_past_the_switch() {
+    let source = "model K Real y(start = 1, fixed = true); Real u = 1 - time / 10; \
+         equation der(y) = if u > 0 then 0 else u; \
+         annotation(experiment(StopTime = 12, Interval = 0.001)); end K;";
+    let result = run_on(source, SolverMethod::Dopri45).expect("runs");
+    let y = result.columns.iter().position(|c| c == "y").unwrap();
+    let highest = result
+        .rows
+        .iter()
+        .map(|row| row[y])
+        .fold(f64::MIN, f64::max);
+    assert!(highest <= 1.0, "y rose to {highest}");
+    let last = result.rows.last().unwrap()[y];
+    assert!((last - 0.8).abs() < 1e-6, "y(12) = {last}");
+}
+
+/// A clamp let go when its input turns, the shape of a battery cell
+/// held at its limit. A step cut short of the crossing it found can
+/// end with the relation reading exactly zero, on its threshold; taken
+/// as a plain step, every step after it started from that zero, found
+/// the turn a hair in, and the run chattered at t = 5.1676 past ten
+/// thousand events, and past two hundred thousand when allowed. A cut
+/// step ending on the threshold now ends in the event there.
+#[test]
+fn a_step_cut_short_of_a_switch_does_not_creep_up_to_it() {
+    let source = "model Z2 parameter Real outMax = 1 - 1e-9; \
+         Real u = 1e-6*(1 - time/5); Real y(start = 1 - 1e-9 - 1e-6, fixed = true); \
+         equation der(y) = if y > outMax and u > 0 then 0 else u; \
+         annotation(experiment(StopTime = 10, Interval = 0.01)); end Z2;";
+    let result = run_on(source, SolverMethod::Dopri45).expect("runs");
+    let y = result.columns.iter().position(|c| c == "y").unwrap();
+    let last = result.rows.last().unwrap()[y];
+    assert!((last - 0.999998).abs() < 1e-6, "y(10) = {last}");
+}

@@ -45256,3 +45256,143 @@ which is rounding. `Essotherm650` is `Pr` over its max of 100000, which
 a Prandtl number of a thermal oil can honestly be, and is not within
 noise of its bound. A tolerance at the bound would buy one model, so it
 goes to Roman as a question priced at one model, without a pair.
+
+## A cut step that lands, Pr of a thermal oil, and the array of records in a body (m421)
+
+**The verdict on d4b707d was not waited for.** Push run 38540441259
+had its tests, coverage and linters green at 11:45, and the two
+library passes were still running. The commit touched only this file,
+so the passes judge the floors of 5b66a15 and the desk edges of
+e034095 for the first time, not the compiler.
+
+**The parked cut crept, and the third way of cutting does not.** The two FluxTubes victims
+of the parked patch (`ComparisonPullInStroke`, `ComparisonQuasiStatic`)
+were run by name from the root: with the patch both refused with
+`step size underflow at t = 0.000000` after 251 s and 194 s, and with
+`OXIDELICA_NO_EVENT_RETAKE` both ran in 5 to 6 s. A probe on the event
+branch of `ComparisonQuasiStatic` showed the shape: indicators 63 and
+65 sit within a rounding unit of zero from the start (-8.7e-19 against
++8.7e-19), a step finds a crossing at theta 0.27, is cut to it, the cut
+step lands without finding one, and the next step finds the same
+crossing again. 8057 cuts on the way to t = 9.6e-7 against 24 events
+without the patch. `state/m421/Z2.mo`, a clamp let go when its input
+turns, shows the same in nine lines: ten thousand events at t =
+5.1676 under the parked patch, fourteen without it.
+
+Three variants were tried, each judged by the same five witnesses:
+`K.mo`, `Z2.mo`, the two FluxTubes comparisons and, after the first
+pair, `DiodeBridge2mPulse`.
+
+- The cut ends two hairs before the crossing the search placed a hair
+  after, so that no stage and not the far end stand on the other
+  branch. On its own, this made `K.mo` exact, with no row over 1 and
+  the highest 1.0. Ending on the crossing itself had left 87 rows
+  over, the highest 1 + 1.55e-13. But `ComparisonQuasiStatic` still
+  underflowed, in 195 s. This part is in every variant below.
+- Variant A: any cut step that finds no crossing ends in an event at
+  its far end. All of `K`, `Z2` and the FluxTubes pair were green. Its
+  corpus pair (`/tmp/m421/pair/on.txt`, `off.txt`, binary `ox4`, from
+  the root, 1020 models) read 953 / 764 off, the runner's print for
+  d4b707d to the model, and 953 / 763 on. It bought nothing and lost
+  `PowerConverters.Examples.ACDC.RectifierBridge2mPulse.DiodeBridge2mPulse`.
+  Rechecked by name, the loss is real: `handled more than 10000 events`
+  at t = 0.0016667, against a clean run with the switch. A probe there
+  shows a cut step ending short with no relation turned. The event
+  raised at its end changes nothing, and the run stands there at h =
+  1e-12.
+- Variant B: no landing, and instead the one step right after a cut
+  step accepted short is not cut again. `DiodeBridge2mPulse`, both
+  FluxTubes models and `K` were green, but `Z2` chattered. With
+  `OXIDELICA_MAX_EVENTS_ONE_INTERVAL=200000` it ran into that ceiling
+  too, having moved t from 5.16762 to 5.16781, so the chatter is real
+  and does not just need a larger ceiling. Its cut step ends with the
+  indicator reading exactly 0.0, on the threshold, and every step after
+  starts from that zero and finds the turn a hair in.
+- Variant C: B, plus the landing only where the cut step's far end
+  reads a relation exactly on its threshold (nonzero before, zero
+  after). All five witnesses were green: `K` has no row over 1, `Z2`
+  has 16 events and runs to the end, and `DiodeBridge2mPulse` and both
+  FluxTubes models run in 1 to 6 s.
+
+The parked test `a_held_value_is_not_bowed_by_a_step_reaching_past_the_switch`
+is tightened to `y <= 1` exactly. Under C it is red with
+`OXIDELICA_NO_EVENT_RETAKE` (`y rose to 1.0000068675187581`). A
+second test on `Z2` is red with the landing disabled (ten thousand
+events) and green with it. The crate's 441 simulation tests pass.
+
+The corpus pair for C (`/tmp/m421/pair2/on.txt`, `off.txt`, binary
+`oxC`, one build, `OXIDELICA_NO_EVENT_RETAKE` the only difference,
+from the root, 1020 models) read 953 / 764 and 836 / 721 in both
+halves. The run lists and the flatten lists are identical, and the
+off list equals the runner's run list for 8be7895
+(`/tmp/m420/ci/art/ran_8be.txt`) name for name. Nothing bought,
+nothing lost, so C went into the tree, and the floors do not move.
+What it pays for is a wrong number: rows written before a switch were
+read off a cubic whose far end belonged to the other branch, and a
+value held at its limit printed above it. Variant A is not kept, and
+its cost is named above. The pair's times are not a measurement: both
+halves shared the desk with each other.
+
+Gate 4, the stack under the pair and C, was not taken. Started at
+11:45 on horizons 746.2, 755 and 760 with no output interval named,
+all three were stopped together by their own 10 GB ceiling at 256 s.
+The ceiling counts the footprint, and a run on a short output interval
+holds every row in memory: the 1200 s run of m420 was 1200001 steps
+and 145 s, and its 746.2 s rows took 9.4 GB on disk. With the corpus
+pair on the desk the horizons were not run again. They want naming
+of the step and the output interval when they are, and are the first
+thing the pair's unparking has to show.
+
+**The Zeno on the last bit, read on `Z2`.** At HEAD, `Z2` shows the
+stack's chatter in small: after the clamp is let go at t = 5.1676 the
+indicator `y - outMax` reads +1.1102e-16 at the start of eight steps
+running, each step falls tenfold and the crossing is found deeper in
+it each time (theta 0, 0, 2e-6, 1.3e-5, 1.5e-4, 1.6e-3, 0.013, 0.28),
+until the step is short enough for the curve to clear the bit. There
+it settles in fourteen events. The event is placed a hair past the
+crossing, `hi + 1e-9`, and the interpolated state there rounds back to
+one unit over the limit. Placing the event at `hi` itself, where the
+bisection saw the indicator strictly turned, changed nothing on `Z2`
+(the same fourteen events, rows equal to the last digit or two) and
+was not taken further: the stack, which is where it matters, can only
+be run under the parked pair, and the desk was full. The probe is
+parked as `state/m421/at_turn_probe.patch`. The rule that would be
+true everywhere is still to be found: the state an event leaves on a
+threshold it has just crossed must stand on the far side of it, and
+neither the hair in theta nor the point of the bisection guarantees
+that when the slope there is 1e-7.
+
+**Essotherm650: Pr is 1.95e7.** `P.mo` (`state/m421/`) asks the medium
+at its reference state, the one `PartialMediumFunctionsForIncompressible`
+asks at: T = 298.15 K, eta = 1345.53 Pa s, cp = 1863.89 J/(kg K),
+lambda = 0.128445 W/(m K), and Pr = 19525310.1. The product
+cp*eta/lambda by hand gives the same digits. The viscosity is
+`exp(poly(1/T))` fitted through the library's own table, whose rows
+are 1917 at 20 degC and 424 at 40 degC, so 1345 at 25 degC is what
+the table says. The assert fires at t = 0 because the first state the
+model asks for is already 195 times over the `max = 1e5` that
+`Modelica.Media.Incompressible.PrandtlNumber` declares. It is not a
+bound missed by rounding, and a tolerance at the bound would not buy
+this model. The question for Roman is now whether a `max` of a type
+that the library's own medium violates at its reference state is
+checked at all, priced at one model.
+
+**ReferenceAir, wall 1: the array of records in a body.** The smallest
+shape is `state/m421/T2.mo`: a function with `final Complex[2] t =
+{Complex(1, 2), Complex(3, 4)}` and `y := t[2].re + x`. It refuses
+with `an array of 2 written out`, and `why` shows the equation as `y =
+{3.re + time, 4.re + time}`. In `worked_body` a local array is worked
+out through the array layer before it is bound, and for an array of
+records that turns `{Complex(1, 2), Complex(3, 4)}` into `{{1, 2}, {3,
+4}}`. After that the element `t[2]` is the list `{3, 4}`, the record
+class of it is unknown, and `.re` is put on each of the numbers. Kept
+as the constructors for a local whose type is a record, `T2` and its
+`.im` twin `T5` run and give 4 and 5, the right numbers, and `T1`
+(`t[1] - Complex(x)`, which ran before) still gives 2. But `G8`, the
+verbatim copy of `Gibbs`, and `R1` refuse exactly as before: their
+array reaches the run by another road, and the walked body
+`ice09BaseProp_pT` still carries `{0.0368017112855051,
+0.0510878114959572}`. So the change is one link of a chain whose next
+link is not mapped. It is parked as
+`state/m421/body_record_arrays.patch` with `T2` and `T5` as its tests,
+and was not measured on the corpus.
