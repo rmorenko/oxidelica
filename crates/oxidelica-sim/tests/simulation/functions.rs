@@ -4309,3 +4309,128 @@ fn a_walked_body_writes_a_run_of_an_array_and_hands_one_over() {
     // At the end a = 2 and b = 4.
     assert_eq!(last_of(&result, "y"), 2442.0);
 }
+
+/// A residual handed to a bisection, whose body `g` is walked at run
+/// time and reads a list as `g_body` writes it. The root asked for is
+/// `0.5 T + 0.25 * 2 T = 3 + time`, which is 4 at the end of the run.
+fn walked_list_root(g_body: &str) -> f64 {
+    let source = format!(
+        "package P \
+           partial function Scalar input Real u; output Real y; end Scalar; \
+           constant Boolean fixedX = false; \
+           constant Real ref[2] = {{1, 1}}; \
+           constant Real c[2] = {{1, 2}}; \
+           function solve \
+             input Scalar f; input Real lo; input Real hi; output Real x; \
+           protected \
+             Real mid; Real step; \
+           algorithm \
+             x := lo; \
+             step := hi - lo; \
+             while abs(step) > 1e-9 loop \
+               step := step/2; \
+               mid := x + step; \
+               if f(mid) < 0 then x := mid; end if; \
+             end while; \
+           end solve; \
+           function g input Real T; input Real X[2]; output Real y; \
+           algorithm y := {g_body}; end g; \
+           function res extends Scalar; input Real h; input Real X[2]; \
+             algorithm y := g(u, X) - h; end res; \
+           model M \
+             Real T; \
+           equation \
+             T = solve(function res(h = 3 + time, X = {{0.5, 0.25}}), 0, 100); \
+             annotation(experiment(StopTime=1)); \
+           end M; \
+         end P;"
+    );
+    let result = run(&source);
+    result.rows.last().expect("a final row")[1]
+}
+
+/// An `if` choosing between two lists, inside a walked body, is the
+/// list its condition picks. The ideal gas mixtures write their
+/// enthalpy as `(if fixedX then reference_X else X) * {...}`, and read
+/// as one number the `if` handed the product a bare `X`, which the
+/// frame holds only element by element: `unknown variable X`.
+#[test]
+fn a_walked_body_takes_the_list_its_condition_picks() {
+    let root = walked_list_root("(if fixedX then ref else X) * {T, 2*T}");
+    assert!(
+        (root - 4.0).abs() < 1e-6,
+        "the root is 4, and this said {root}"
+    );
+}
+
+/// A comprehension in a walked body is its body once for each value
+/// of the range, the iterator standing for that value.
+#[test]
+fn a_walked_body_lays_out_a_comprehension() {
+    let root = walked_list_root("X * {i*T for i in 1:2}");
+    assert!(
+        (root - 4.0).abs() < 1e-6,
+        "the root is 4, and this said {root}"
+    );
+}
+
+/// A package constant reaches a walked body written out in place, so
+/// `c[1]` arrives as `{1, 2}[1]`, and that is subscripted where it
+/// stands rather than refused as a subscript on something not a name.
+#[test]
+fn a_walked_body_subscripts_a_list_written_in_place() {
+    let root = walked_list_root("X * {c[1]*T, c[2]*T}");
+    assert!(
+        (root - 4.0).abs() < 1e-6,
+        "the root is 4, and this said {root}"
+    );
+}
+
+/// A record with text among its fields, built by its constructor and
+/// handed to a body called inside a comprehension of a walked body.
+///
+/// The ideal gas mixtures write `{h_T(data[i], T, ...) for i in
+/// 1:nX}`, where `data[i]` is a `DataRecord` whose first field is the
+/// gas's name. Two things stood in the way: the body called inside the
+/// comprehension never travelled with the model, and the record went
+/// over with its name, which the walk refused as a String. The root of
+/// `0.5 T + 0.25 * 2 T = 3 + time` is 4 at the end of the run.
+#[test]
+fn a_walked_comprehension_hands_a_record_over_without_its_text() {
+    let result = run("package P \
+           partial function Scalar input Real u; output Real y; end Scalar; \
+           record Data String name; Real a; Real b[2]; end Data; \
+           constant Data data[2] = {Data(name = \"A\", a = 1, b = {0, 0}), \
+                                    Data(name = \"B\", a = 2, b = {0, 0})}; \
+           function solve \
+             input Scalar f; input Real lo; input Real hi; output Real x; \
+           protected \
+             Real mid; Real step; \
+           algorithm \
+             x := lo; \
+             step := hi - lo; \
+             while abs(step) > 1e-9 loop \
+               step := step/2; \
+               mid := x + step; \
+               if f(mid) < 0 then x := mid; end if; \
+             end while; \
+           end solve; \
+           function hi input Data d; input Real T; output Real y; \
+           algorithm y := d.a*T + d.b[1]; end hi; \
+           function g input Real T; input Real X[2]; output Real y; \
+           algorithm y := X * {P.hi(data[i], T) for i in 1:2}; end g; \
+           function res extends Scalar; input Real h; input Real X[2]; \
+             algorithm y := g(u, X) - h; end res; \
+           model M \
+             Real T; \
+           equation \
+             T = solve(function res(h = 3 + time, X = {0.5, 0.25}), 0, 100); \
+             annotation(experiment(StopTime=1)); \
+           end M; \
+         end P;");
+    let root = result.rows.last().expect("a final row")[1];
+    assert!(
+        (root - 4.0).abs() < 1e-6,
+        "the root is 4, and this said {root}"
+    );
+}

@@ -44741,3 +44741,172 @@ desk measurement, and a floor rises to what the runner prints, so the
 three models wait for the runner's number. `TestDensity`'s full run is
 slow (more than nine minutes of CPU for 1.01 s under the probe), which
 the runner's time band will show if it matters.
+
+**The m392 chain walked to its fourth link and taken whole (m418).**
+The three links parked by the last shift
+(`state/m417/walk_choice_lists_links1-3.patch`) were applied, and the
+fourth was probed rather than assumed. The refusal it stood behind,
+`"N2" is a String`, was not about the text. A print of the scalar the
+walk handed the evaluator showed `h_T(DataRecord(name = "N2", MM = ...,
+alow = {...}), T, ...)`, and a print of the walked bodies showed that
+`h_T` was not among them. The function called inside `{h_T(data[i],
+T, ...) for i in 1:nX}` never travelled with the model, because the
+gathering of carried bodies (`gather_calls`, `carried.rs`) did not
+look inside a comprehension. So the evaluator took `h_T` for a call it
+could compute itself and evaluated its arguments one by one, the name
+first. The synthetic `Q6.mo` of the last shift refused for the same
+reason, as `unknown function gi`.
+
+The fourth link is two pieces, each behind its own switch:
+
+1. a call inside a comprehension is gathered with the body that writes
+   it (`OXIDELICA_NO_CARRIED_COMPREHENSION_CALLS`);
+2. a call inside a walked body hands a record over as its numbers alone,
+   which the compiled road already does through `record_numbers`. A
+   constructor left whole with every argument named is read as its
+   fields in order (`OXIDELICA_NO_WALKED_RECORD_TEXT`).
+
+With both, the five-line flue gas model `state/m417/P1.mo` runs to
+T = 298.517855 at h = 301000. Handed back through `h_TX`, the same T
+gives h to the last printed digit (`state/m418/P2.mo`, error 0 at
+t = 1 and 1.2e-10 at t = 0). Each link has a test that fails under its
+switch, and the comprehension and record test fails under either of
+the two switches alone.
+
+Measured as a pair from one binary (`/tmp/ox418d`) over the whole
+library, all four links on against all four off (`/tmp/m418/on.txt`,
+`off.txt`):
+
+```text
+on    953 flatten, 763 run, runnable 836 / 720
+off   953 flatten, 763 run, runnable 836 / 720
+run lists identical (763 = 763), flatten lists identical (953 = 953)
+```
+
+That is the expected building step. Two models moved to a later wall.
+`IdealMixing1` gets through the walk and now stops at its own `assert`:
+`pipeFriction1.flowModel.states[2].X[2]` went below its min of 0 at
+t = 0. That is link five, unprobed. `SolveOneNonlinearEquation.Inverse_sh_TX`
+goes from `an array reached the evaluator` to `unknown variable
+data[1]`. That is the same breed one storey further on: a record
+named as a whole inside a walked body.
+
+**What the runner printed for 4be296e, and what it cost in time.**
+Push run 38485358468 is green. The main pass printed 940 / 758 and
+runnable 825 / 716, and the dear pass printed 13 / 5 and 11 / 4. The
+main pass's run list against
+2e2afe5fe5f09b072389069a296897d2aacf47cf (push run 38479447293, artifacts
+in `/tmp/m418/ci/a2` and `a4`) gained exactly `TankWithEmptyingPipe2`,
+`TanksWithEmptyingPipe1` and `TestDensity` and lost nothing, so the
+run floors rose to 761 and 718 in 30f9705. The main pass took 68.6
+minutes on 2e2afe5fe5f09b072389069a296897d2aacf47cf and 77.2 on 4be296e. Its summed run half went from
+5462 s to 6085 s, and `TestDensity` alone accounts for most of that:
+24.8 s refusing before, 305.4 s running now, at 583 points and 1239
+Newton iterations. It is now the dearest model of the main pass by
+run time. It is a candidate for `dear_models.txt`, which these notes
+leave to a decision rather than to a shift.
+
+**The did-not-converge remainder, traced with the circle at a
+hundredth (`/tmp/m418/tr_Bend.txt`, `tr_TWEP2.txt`).** There are three
+models: `TanksWithEmptyingPipe2`, `Bend` and `SMPM_CurrentSource`. The
+third is the machine family that m406 mapped.
+
+`Bend` is not missed by the circle. It is caught, and the damping that
+follows cannot shorten the step. The trail shows one unknown,
+`from_mflow.dp`, swinging 1000, -990, 1000. The return at the third
+iteration is caught, and the line search starts at that step. From
+there the unknown alternates in sign at about 2e-4 and shrinks by
+about 0.5% a pass (2.08e-4 at iteration 4, 1.61e-4 at 49). Every full
+step lowers |f| by a fraction of a percent, so the line search accepts
+the whole step with `lambda = 1` and the damping never bites. The root
+is at zero, where the swing is symmetric, and the slope there is what
+a signed square root has: infinite. Newton on `sign(x) sqrt|x|` jumps
+from x to about -x on every step. A circle test cannot help when each
+pass is a real descent, and neither can a damping that asks only for
+descent. What would help is a step taken against the swing itself,
+for example a bisection between the two sides once the sign has
+alternated three times. That is a solver decision and is parked here
+unbuilt.
+
+`TanksWithEmptyingPipe2` is the damping family (`damp_on_rise.patch`),
+not a third breed. Its five-unknown loop swings with |f| rising and
+falling every other step for 28 iterations (254, 2.1e5, 206, 3154,
+151, ...), with the period two of the other emptying pipes. The circle
+test sees no return at a hundredth because the swing drifts by more
+than that on each pass. Once it is caught at 28, the line search
+converges linearly and ends at |f| = 5.3e-7 on its last iteration,
+where 1e-10 is asked. It runs out of the fifty with the answer in
+sight. A damping on rise caught it at iteration 2, which is why it
+ran under that patch.
+
+**CCCV_Stack at t = 570: the floor that the line search does not
+know.** Under `loud_row_ladder.patch` the stack gets past t = 0 and
+stops at t = 570.019 (`/tmp/m418/s_p8.txt`, the floor probe). Row 6,
+`currentSensor.n.i + ocv.p.i = 0`, holds 1.68e-9, which does not move
+for 49 iterations. Its reach, the sum of |J x| over its unknowns, is
+3.4e7, so its rounding floor is eps times that, 7.6e-9. The row is
+on its floor. Row 5 holds -6.7e-10 against a reach of 6.7e4, a floor
+of 1.5e-11, so it is not. It descends by a step of 1/128 each time and
+converges linearly from -9.8e-10 to -6.7e-10 over the fifty. The
+cause is the line search's norm, which counts row 6's noise in full.
+A full step that settles row 5 is refused because row 6's rounding
+went up.
+
+So the convergence test is not the problem. `on_arithmetic_floor`
+already knows about reach. The line search, deciding whether a step
+descended, does not. A trial counts each row only above its own
+rounding floor in that norm (`state/m418/floor_norm.patch`, switch
+`OXIDELICA_NO_FLOOR_NORM`). Together with the ladder it takes the
+stack past t = 570 to t = 748.4, where the model's own `assert(SOC <
+SOCmax + SOCtolerance, "Battery overcharged!")` fires. The charger
+reaches its 12.6 V end voltage at about t = 640, and the current falls
+from 50 A to 4.4 A by t = 745. Four of the six cells move together.
+One reaches SOC 1.0 by t = 700 and one lags at 0.984. The stack is
+written with `kDegraded = [1, 1]`, so one cell has twice the internal
+resistance and the asymmetry is the model's. A cell sitting at 1.0
+while the stack is held at its end voltage, however, is the nonphysics
+the note asked about. Whether the reference does the same needs a
+reference, not a reading. The floor norm touches every damped loop
+of the library, so it is parked with the ladder for a pair rather
+than taken.
+
+**The "`X` of algebraic loop" row, name by name against the m411 map.**
+In the m417 census (`/tmp/m417/raw.txt`) the row holds eight models,
+and every one of them is already in `families44_m411.txt`, so none is
+unmapped. Read by the tail of each message, the eight fall into three
+groups:
+
+- A NaN before any Newton step, because a function the residual calls
+  could not be walked. `PumpingSystem` calls IF97 viscosity with a
+  density of NaN. In `RoomCO2WithControls`, `solveOneNonlinearEquation`
+  says its bracket holds no root. `IdealMixing1` read `unknown
+variable X`, the m392 chain that this shift took through its fourth
+  link, and it now stands at its own assert instead.
+- A NaN or an infinity from finite values: the MultiBody four,
+  `PointGravityWithPointMasses2`, `RollingWheelSetDriving`,
+  `RollingWheelSetPulling` and `ThreeSprings`. `ThreeSprings` gives
+  -inf from `e_rel_0 = r_rel_0 / s` with a spring length of zero at the
+  start. m411 files these as `multibody`. `PointGravityWithPointMasses2`
+  was filed there under `equations-of` and has since moved to this row,
+  so it is the same family at a later wall.
+- `SMPM_FieldWeakening`, a NaN that travels through the quasi-static
+  machine's terminal box. That is `machine-other` in m411.
+
+The row's own wording, "is NaN at t = 0, before any Newton step", is
+one kind that holds three families. It is the blind spot that
+`AGENTS.md` names, a count of kinds read as a count of causes.
+
+The main pass's length, measured against the two runs before it: 74
+minutes on 1502900, 68.6 on 2e2afe5fe5f09b072389069a296897d2aacf47cf and 77.2 on 4be296e (23:37 to
+00:54). The judge adds 4 and the dear pass runs alongside in 34, so
+push to verdict was 82 minutes. `TestDensity`'s 305 s of running sits
+on one thread of several, so it cost the pass about three minutes
+against 1502900 rather than five. That leaves more than an hour of
+margin under the 180-minute ceiling.
+
+One correction came up under the preflight. Link 3 first took a slice
+of a list written in place, `{...}[1:2]`, for an element. That only
+changes which refusal a held-back fold meets, since the index of a
+range never was a number, but it changed the wording that
+`a_fitted_medium_s_inverse_reads_the_fit_as_numbers` pins. Link 3 now
+leaves a range subscript to the road it took before.

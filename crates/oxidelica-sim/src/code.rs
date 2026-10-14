@@ -80,8 +80,49 @@ fn record_answer(expr: &Expr, ctx: &EvalCtx) -> Result<Option<Vec<f64>>, SimErro
     if !programs.contains_key(name.as_str()) {
         return Ok(None);
     }
+    let (given, lengths) = walked_arguments(&programs[name.as_str()], args, ctx)?;
+    let answer = crate::walk::walk(programs, name, &given, &lengths, ctx.time, ctx.depth + 1)?;
+    // A body that answers with one number is a scalar call and stays
+    // one: spreading it into a one-element array would tell the callee
+    // it was handed a vector where a number was meant.
+    Ok((answer.len() > 1).then_some(answer))
+}
+
+/// The numbers a call inside a walked body hands the body it calls,
+/// and the length each argument came to.
+///
+/// A record written out with text among its fields goes over as its
+/// numbers alone, the same as on the compiled road. The ideal gas
+/// mixtures solve for a temperature with a residual that hands
+/// `h_T(data = data[i], ...)` a `DataRecord` whose first field is the
+/// gas's name, and the walk refused for `"N2" is a String`.
+fn walked_arguments(
+    class: &ClassDef,
+    args: &[Expr],
+    ctx: &EvalCtx,
+) -> Result<(Vec<f64>, Vec<Vec<usize>>), SimError> {
     let (mut given, mut lengths) = (Vec::new(), Vec::new());
-    for arg in args {
+    for (position, arg) in args.iter().enumerate() {
+        if walked_record_text_open() {
+            // A constructor the flattening left whole -
+            // `DataRecord(name = "N2", MM = 0.028, ...)` - is the same
+            // record written another way: its fields in declared order.
+            let written_out;
+            let arg = match constructor_fields(arg, ctx) {
+                Some(fields) => {
+                    written_out = fields;
+                    &written_out
+                }
+                None => arg,
+            };
+            if let Some(numbers) = record_numbers(class, position, arg) {
+                for number in &numbers {
+                    given.push(eval(number, ctx)?);
+                }
+                lengths.push(vec![numbers.len()]);
+                continue;
+            }
+        }
         match several_numbers(arg, ctx)? {
             Some(fields) => {
                 lengths.push(vec![fields.len()]);
@@ -93,11 +134,41 @@ fn record_answer(expr: &Expr, ctx: &EvalCtx) -> Result<Option<Vec<f64>>, SimErro
             }
         }
     }
-    let answer = crate::walk::walk(programs, name, &given, &lengths, ctx.time, ctx.depth + 1)?;
-    // A body that answers with one number is a scalar call and stays
-    // one: spreading it into a one-element array would tell the callee
-    // it was handed a vector where a number was meant.
-    Ok((answer.len() > 1).then_some(answer))
+    Ok((given, lengths))
+}
+
+/// The fields of a record constructor written with every argument
+/// named, as one list in the order written, which is the order the
+/// flattening writes a constructor in: the record's own. Nothing for a
+/// call to a body the run walks, or one with any argument by position,
+/// whose order nothing here could vouch for.
+fn constructor_fields(arg: &Expr, ctx: &EvalCtx) -> Option<Expr> {
+    let Expr::Call(name, args) = arg else {
+        return None;
+    };
+    if args.is_empty()
+        || ctx
+            .programs
+            .is_some_and(|programs| programs.contains_key(name))
+    {
+        return None;
+    }
+    let fields: Option<Vec<Expr>> = args
+        .iter()
+        .map(|arg| match arg {
+            Expr::NamedArg(_, value) => Some(value.as_ref().clone()),
+            _ => None,
+        })
+        .collect();
+    fields.map(Expr::Array)
+}
+
+/// Whether a record's text is left behind on a call inside a walked
+/// body as it is on the compiled road. `OXIDELICA_NO_WALKED_RECORD_TEXT`
+/// keeps the old reading, which refused the text, so one binary gives
+/// both halves of a measurement.
+fn walked_record_text_open() -> bool {
+    !crate::walk::switch_set("OXIDELICA_NO_WALKED_RECORD_TEXT")
 }
 
 /// The several numbers an argument stands for, whether it is a call
@@ -394,19 +465,7 @@ pub(crate) fn eval(expr: &Expr, ctx: &EvalCtx) -> Result<f64, SimError> {
                     // number the reader's `bpro[1]` names nothing at
                     // all. So each argument is asked how many numbers
                     // it stands for before it is worked out.
-                    let (mut given, mut lengths) = (Vec::new(), Vec::new());
-                    for arg in args {
-                        match several_numbers(arg, ctx)? {
-                            Some(fields) => {
-                                lengths.push(vec![fields.len()]);
-                                given.extend(fields);
-                            }
-                            None => {
-                                given.push(eval(arg, ctx)?);
-                                lengths.push(Vec::new());
-                            }
-                        }
-                    }
+                    let (given, lengths) = walked_arguments(&programs[name.as_str()], args, ctx)?;
                     // A call inside a walked body asks for the one
                     // number a body written that way answers with.
                     return crate::walk::walk(

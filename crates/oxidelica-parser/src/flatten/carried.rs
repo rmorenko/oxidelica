@@ -1476,6 +1476,14 @@ pub(super) fn gather_calls(
         Expr::NamedArg(_, value) if carried_array_calls_open() => {
             gather_calls(value, registry, scope, imports, out)
         }
+        // `{h_T(data[i], T) for i in 1:nX}`: the ideal gas mixtures
+        // write their enthalpy as a comprehension, and the body inside
+        // it travelled with nothing - the run met `h_T` as a function it
+        // did not carry and refused the record handed to it as text.
+        Expr::Comprehension(body, _, range) if carried_comprehension_calls_open() => {
+            gather_calls(body, registry, scope, imports, out);
+            gather_calls(range, registry, scope, imports, out);
+        }
         _ => {}
     }
 }
@@ -1517,6 +1525,13 @@ fn package_lengths_open() -> bool {
 /// the road, so that one binary gives both numbers.
 fn carried_array_calls_open() -> bool {
     std::env::var_os("OXIDELICA_NO_CARRIED_ARRAY_CALLS").is_none()
+}
+
+/// Whether a call written inside a comprehension travels with the body
+/// that writes it. `OXIDELICA_NO_CARRIED_COMPREHENSION_CALLS` leaves it
+/// behind as before, so that one binary gives both numbers.
+fn carried_comprehension_calls_open() -> bool {
+    std::env::var_os("OXIDELICA_NO_CARRIED_COMPREHENSION_CALLS").is_none()
 }
 
 /// Whether an input left out of a carried call takes its default read

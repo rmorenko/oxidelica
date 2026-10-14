@@ -590,6 +590,27 @@ fn to_scalar(
     Ok(match expr {
         // `v[i]` where the body decides `i`: the element's own name.
         Expr::Index(base, subscripts) => {
+            // A constant written out in place - `c[i]` where the
+            // package's `c` reached the body as `{1, 2}` - is
+            // subscripted where it stands: the element the index
+            // names, once the index is a number. A slice, `{...}[1:2]`,
+            // is not an element and is left to the road below.
+            if let (Expr::Array(items), [subscript]) = (base.as_ref(), subscripts.as_slice()) {
+                if walked_choice_lists_open() && !matches!(subscript, Expr::Range(..)) {
+                    let at = index_of(subscript, frame, programs, time, depth)?;
+                    let item = usize::try_from(at)
+                        .ok()
+                        .and_then(|at| at.checked_sub(1))
+                        .and_then(|at| items.get(at))
+                        .ok_or_else(|| {
+                            SimError::from(format!(
+                                "index {at} is outside a list of {} in a walked body",
+                                items.len()
+                            ))
+                        })?;
+                    return recur(item);
+                }
+            }
             let Expr::Ref(name) = base.as_ref() else {
                 return err(format!(
                     "only a name is subscripted in a walked body, not {base:?}"
@@ -1100,8 +1121,54 @@ fn elements_of(
                     .collect(),
             )
         }
+        // A choice between two lists is the list the condition picks.
+        // The mixtures of ideal gases write their enthalpy as
+        // `(if fixedX then reference_X else X) * {h_T(...) for i in
+        // 1:nX}`; read as a scalar, the `if` handed the product a bare
+        // `X`, a name the frame holds only element by element, and the
+        // walk refused for `unknown variable X`. The condition is a
+        // number by the time a body is walked, so it is settled here
+        // and the branch taken laid out as any other list.
+        Expr::If(condition, then, otherwise) if walked_choice_lists_open() => {
+            let taken = if number_of(condition, frame, programs, time, depth)? != 0.0 {
+                then
+            } else {
+                otherwise
+            };
+            elements_of(taken, frame, programs, time, depth)?
+        }
+        // `{f(i) for i in 1:n}`: the body once for each value the
+        // range runs over, the name standing for that value.
+        Expr::Comprehension(body, name, over) if walked_choice_lists_open() => {
+            let values = loop_over(Some(over), frame, programs, time, depth)?;
+            let mut items = Vec::with_capacity(values.len());
+            for value in values {
+                let one = put_for(body, name, value);
+                items.push(to_scalar(&one, frame, programs, time, depth)?);
+            }
+            Some(items)
+        }
         _ => None,
     })
+}
+
+/// `expr` with every `name` it reads standing for `value`. A
+/// comprehension inside that binds the same name again is its own
+/// scope and is left alone.
+fn put_for(expr: &Expr, name: &str, value: f64) -> Expr {
+    match expr {
+        Expr::Ref(held) if held == name => Expr::Number(value),
+        Expr::Comprehension(_, inner, _) if inner == name => expr.clone(),
+        other => other.map_children(&mut |child| put_for(child, name, value)),
+    }
+}
+
+/// Whether a walked body lays out a choice between lists and a
+/// comprehension element by element. `OXIDELICA_NO_WALKED_CHOICE_LISTS`
+/// keeps the old reading, in which both were read as one number, so
+/// that one binary gives both halves of a measurement.
+fn walked_choice_lists_open() -> bool {
+    !switch_set("OXIDELICA_NO_WALKED_CHOICE_LISTS")
 }
 
 /// Whether an expression could stand for a list, read off its writing
