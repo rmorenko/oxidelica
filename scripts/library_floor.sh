@@ -1393,7 +1393,18 @@ FLATTEN_FLOOR=953
 # are left out:
 #
 #   764 printed - 1 SpringWithMass - 1 SMPM_VoltageSource = 762
-RUN_FLOOR=762
+#
+# And run 764 = 762 + CCCV_Stack and CCCV_StackRC of
+# Modelica.Electrical.Batteries.Examples, which run once a column a
+# loud row loses to rounding is read from further away and the line
+# search stops counting a row's rounding floor as distance. The
+# runner printed 764 / 721 for 0bf1b70 (job 38561302113). From one
+# desk binary against the tree of 8050fef, the run list gained
+# exactly those two and lost nothing (/tmp/m422/c/pf.txt against
+# on.txt), so the runner is expected to print 766:
+#
+#   766 expected - 1 SpringWithMass - 1 SMPM_VoltageSource = 764
+RUN_FLOOR=764
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -1700,7 +1711,11 @@ RUNNABLE_FLATTEN_FLOOR=836
 # runner jobs as `RUN_FLOOR` (8be7895, push run 38518964308), which
 # printed 717 + 4 = 721; the two left out are SpringWithMass and
 # SMPM_VoltageSource, as there.
-RUNNABLE_RUN_FLOOR=719
+#
+# And runnable run 721 = 719 + CCCV_Stack and CCCV_StackRC, both
+# runnable, by the same pair as `RUN_FLOOR`: 721 printed for 0bf1b70,
+# 723 expected, less the same two swings.
+RUNNABLE_RUN_FLOOR=721
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and

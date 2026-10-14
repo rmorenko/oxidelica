@@ -1556,3 +1556,27 @@ fn a_swing_across_a_root_is_read_as_a_circle() {
     let last = result.rows.last().unwrap()[dp];
     assert!((last - 2.25).abs() < 1e-6, "dp = {last}");
 }
+
+/// A loop whose first row carries two states of 3e8 beside its
+/// unknowns. A step of 1e-8 on `q` or `b` moves that row by less than
+/// the rounding of its loud terms, so both columns read as zero there
+/// and the matrix as singular, while the second row answers both
+/// cleanly. Each entry read as zero in a row that loud is now asked
+/// again from further away and kept where it reads the same from twice
+/// the distance; this is the shape that refused the battery stacks
+/// (`CCCV_Stack`). The answer is held to what the loud row's rounding
+/// leaves: `q` is read through a sum of 3e8, so a few millionths. Red
+/// with `OXIDELICA_NO_LOUD_ROW_LADDER=1` and `OXIDELICA_NO_FLOOR_NORM=1`
+/// set for the run, on a singular Jacobian.
+#[test]
+fn a_column_lost_in_a_loud_row_is_read_from_further_away() {
+    let source = "model L Real s1(start = 3e8, fixed = true); \
+         Real s2(start = 3e8 + 1, fixed = true); Real q(start = 0.1); Real b(start = 0.1); \
+         equation der(s1) = 0; der(s2) = 0; s1 + q = s2 + b*b; q*q + b = 2; \
+         annotation(experiment(StopTime = 1)); end L;";
+    let result = run_on(source, SolverMethod::Dopri45).expect("runs");
+    let b = result.columns.iter().position(|c| c == "b").unwrap();
+    let last = result.rows.last().unwrap()[b];
+    // (1 + b^2)^2 + b = 2, solved to the last digit outside.
+    assert!((last - 0.481_815_589_154_913_2).abs() < 1e-4, "b = {last}");
+}

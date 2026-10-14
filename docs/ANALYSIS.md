@@ -45622,3 +45622,104 @@ Complex(x, 1)`, is split into `o[1].re` and `o[1].im` the way a
 No corpus pass was run under links 1 to 3. The next shift builds the
 parked patch, takes link 4 on `R1`, and measures the series as one
 when `R1` runs or leaves the family.
+
+## The ladder and floor norm pair taken, and the walk that has no operators for a record (m423)
+
+**The pair, taken.** Nothing in `crates/` or `scripts/` moved between
+8050fef and the tree the pair went onto, so the corpus pair of m422
+stands (`/tmp/m422/c/pf.txt` against `on.txt`: the run list gains
+`CCCV_Stack` and `CCCV_StackRC` and loses nothing). The gates, on the
+binary of the final tree (`/tmp/m423/ox1`):
+
+- A test red without the pair: a loop of two unknowns whose first row
+  carries two states of 3e8, `s1 + q = s2 + b*b`, beside
+  `q*q + b = 2`. Under `OXIDELICA_NO_LOUD_ROW_LADDER=1` it refuses with
+  a singular Jacobian, with the ladder alone off as well; with the pair
+  it gives b = 0.481809 against 0.4818156 worked out outside, the
+  difference being what a sum of 3e8 leaves of `q`. At 1e8 both
+  halves solve it, at 1e9 the pair runs out of Newton iterations, so
+  the test sits where the ladder is what decides.
+- The stack on its own interval of 0.1 s, from the library class
+  itself: 755, 760 and 1200 run without an assert, the highest charge
+  1.06e-11, 1.26e-11 and 1.38e-14 over `1 - 1e-9`, the numbers of
+  m422 to the digit (`/tmp/m423/i*.log`).
+- The heavy models under the pair: 23 flatten and 2 run, runnable 21
+  and 2, the floors held (`/tmp/m423/heavy.txt`).
+
+The floors move to 764 and 721 in the same commit, the arithmetic
+beside them in `scripts/library_floor.sh`. The preflight of the final
+tree, the library step taken honestly rather than by the pair,
+printed 2671 files, 953 flatten and 766 run, runnable 836 and 723,
+with lines covered at 93.31% (`/tmp/m423/preflight2.txt`): the
+expected print to the model. One caveat on that pass: from 18:11:30
+to 18:18 it shared the desk with the orphaned library pass of a first
+preflight stopped at its top for a formatting fault, whose children
+lived on until they were killed by hand. The counts do not depend on
+the weather, and the time band read 1.045.
+
+**An observation, not a gate.** `S.mo`, which `extends` the stack,
+does not inherit its `experiment` annotation and runs on the default
+interval of 0.001 s. There, run to 755, the inner integrator of cell
+`[1,2]` stands at `1 - 1e-9 + 1.7e-15` until t = 743.295 and then
+reads `1 + 1.9e-14` for the rest of the run: one step of exactly the
+tolerance, still under the assert's `1 + 1e-9`. Run to 743.4 on the
+same interval it does not move at all (`/tmp/m423/jump.txt`), so it
+depends on the road the steps took rather than on the time. Mapped
+here and not chased: the assert's tolerance is the same 1e-9, and the
+library's own interval does not show it.
+
+**ReferenceAir, link 4 taken, and a fifth behind it.** Built over the
+links 1 to 3 of m422, behind `OX_WALK_RECORD_DIMS`
+(`state/m423/body_records_links1_4_probe.patch`, small models `V1` to
+`V6` beside it). An array of records reaching the walk keeps its
+dimension and gains one for the members, and the renaming table
+learns the spelling under a key of its own, `name.#member`:
+
+- `t[i].re` is written `t[i, 1]`;
+- `o[1] := Complex(x, 1)` and `o[2] := t[2]` are split member by
+  member;
+- `t[1]` read whole is the list `{t[1, 1], t[1, 2]}`.
+
+`V1`, three passes of a `while` over members of two arrays of
+`Complex`, gives 27 at t = 0, the number by hand. `R1` gets past
+`t[1]` and stops at `unknown function Complex`.
+
+That is the fifth link, and it is the walk itself: the walked road
+has no record operators at all. `V3`, eight lines, `real(a * b)` of
+two scalar `Complex` locals inside a `while`, refuses with `unknown
+variable c[1]` with or without links 1 to 4, because the body of
+`real` reaches the walk with its record input laid out and the
+product never went through `'*'`. And there is a hazard in it that
+link 4 opens: `V4` writes `o[1] := t[1] * t[2]`, which link 4 turns
+into the product of two lists, and the walk reads the product of two
+lists as a scalar product (`V5` shows it: 22 for `{1,2} * {3,4}`). The
+true real part is -5 and the scalar product is 11. Today the
+assignment is refused only because `o[1, 1]` is not a name the walk
+laid out, which is luck rather than a guard. Link 4 is therefore not
+safe to take without link 5, which must route an operator on a
+record the walk holds through the record's own `'*'`, or refuse it by
+name.
+
+The chain is now five links deep and not closed, so it goes to the
+next shift as a map rather than a series: links 1 to 3 measured and
+parked (m422), link 4 built and parked with the hazard named, link 5
+open. No corpus pass was run under any of them.
+
+**A wrong number on the walked road today, not only under link 4.**
+The hazard above is not something link 4 would bring: it stands on
+the tree as it is. `V8` (`state/m423/V8.mo`, thirty lines with its
+own record `C` and its `'*'`, no library) multiplies two record
+locals inside a `while`, so the body is walked, and reads `c.re`. On
+HEAD it answers 0 at every step, where the real part is -5 a pass and
+the answer at t = 0 is -10. The walk knows no record operator, reads
+`a * b` of the two lists as their scalar product, writes that one
+number on the name `c`, and reads `c.re` from `c[1]`, which nothing
+wrote and the layout left at zero. `V7` is the same with the
+library's `Complex`. A guard is built and parked beside it
+(`state/m423/whole_array_guard.patch`, key
+`OXIDELICA_NO_WHOLE_ARRAY_GUARD`, with a test red under the key on
+the silent zero): a name the walk holds element by element, given one
+number, is refused by name. It was not measured on the corpus in this
+shift, because the preflight of the pair held the desk; it wants a
+pair from one binary before it is taken, since a refusal where a
+number stood may cost a model that read a wrong one.

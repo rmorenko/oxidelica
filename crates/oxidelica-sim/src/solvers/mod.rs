@@ -215,6 +215,14 @@ fn descent_guard_off() -> bool {
     *OFF.get_or_init(|| std::env::var_os("OXIDELICA_NO_DESCENT_GUARD").is_some())
 }
 
+/// Whether the line search counts a row's residual whole, rounding
+/// floor included, as it did before. Off by default; the switch exists
+/// so that the two halves of a measurement come from one binary.
+fn floor_norm_off() -> bool {
+    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ON.get_or_init(|| std::env::var_os("OXIDELICA_NO_FLOOR_NORM").is_some())
+}
+
 /// Whether a Newton iteration is said to have returned to a point only
 /// when it agrees with it to a millionth, as it was before the
 /// tolerance was widened to a hundredth. Off by default; the switch
@@ -1131,6 +1139,9 @@ impl CompiledModel {
                 };
                 let n = v.len();
                 let reach: Vec<f64> = (0..n).map(reach).collect();
+                if newton_trail() {
+                    eprintln!("         reach={reach:?}");
+                }
                 let carried = jac.filter(|j| !carried_floor_off() && j.len() == n);
                 crate::linear::rows_on_floor(&f, &loud, &reach, carried)
             };
@@ -1820,6 +1831,75 @@ impl CompiledModel {
                 } else {
                     step
                 };
+            // A column may answer clearly in one row and be lost in the
+            // rounding of another. The ladders above grow a column's
+            // step only where *every* row it moved stayed inside the
+            // rounding, so a column that a quiet row answers cleanly
+            // keeps the textbook step for the loud row as well. The
+            // battery stacks are the case (`CCCV_Stack`): the heat
+            // flow of a cell's sensor sits with a coefficient of one in
+            // a balance whose terms reach 3.5e9 at the start, where a
+            // step of 1e-8 moves nothing a double can hold, and in a
+            // second row, `lossPower = Q_flow`, where it moves cleanly.
+            // Read that way the sensor's column and the bus's are the
+            // same column with the sign turned, and the loop was
+            // refused as singular. So, past a step that has already
+            // come back as nothing, each entry read as exactly zero in
+            // a row loud enough that a unit slope over the step would
+            // not show is asked again from further away, row by row,
+            // and kept only where it stands clear of the rounding and
+            // reads the same from twice the distance. A row that does
+            // not carry the unknown stays zero however far it is moved.
+            // `OXIDELICA_NO_LOUD_ROW_LADDER` keeps the old reading so
+            // that one binary can be measured against itself.
+            let step = step.or_else(|| {
+                if std::env::var_os("OXIDELICA_NO_LOUD_ROW_LADDER").is_some() {
+                    return None;
+                }
+                let mut patched = jac.clone();
+                let mut changed = false;
+                for j in 0..n {
+                    let base = fd_step_scale() * (1.0 + v[j].abs());
+                    let mut open: Vec<usize> = (0..n)
+                        .filter(|&i| {
+                            let floor = FD_NOISE_ULPS * f64::EPSILON * loud_rows[i].max(f[i].abs());
+                            jac[i][j] == 0.0 && floor.is_finite() && base < floor
+                        })
+                        .collect();
+                    let ceiling = 1e-3 * (1.0 + v[j].abs());
+                    let mut hh = base;
+                    while !open.is_empty() && hh * 10.0 <= ceiling {
+                        hh *= 10.0;
+                        let mut near = v.clone();
+                        near[j] += hh;
+                        let near = residual(values, &near);
+                        let mut far = v.clone();
+                        far[j] += hh * 2.0;
+                        let far = residual(values, &far);
+                        open.retain(|&i| {
+                            let floor = FD_NOISE_ULPS * f64::EPSILON * loud_rows[i].max(f[i].abs());
+                            if (near[i] - f[i]).abs() <= floor {
+                                return true;
+                            }
+                            let a = (near[i] - f[i]) / hh;
+                            let b = (far[i] - f[i]) / (hh * 2.0);
+                            if (a - b).abs() <= 0.25 * a.abs().max(b.abs()) {
+                                patched[i][j] = a;
+                                changed = true;
+                                return false;
+                            }
+                            true
+                        });
+                    }
+                }
+                residual(values, &v);
+                if !changed {
+                    return None;
+                }
+                let dv = solve_linear(&mut patched, &f)?;
+                rescued = dv.iter().all(|x| x.is_finite());
+                rescued.then_some(dv)
+            });
             let Some(dv) = step else {
                 // A column that is exactly zero is not a matrix that
                 // happened to come out ill conditioned: it is the
@@ -2022,7 +2102,39 @@ impl CompiledModel {
             let mut next = full;
             let mut taken = 1.0f64;
             if damped {
-                let norm = |r: &[f64]| r.iter().map(|x| x * x).sum::<f64>().sqrt();
+                // What a row holds below the rounding its unknowns carry
+                // into it is not a distance any step can shorten, and a
+                // norm that counts it is ruled by noise. `CCCV_Stack`
+                // stands at t = 570 with one row at 1.7e-9 against a
+                // reach of 3.4e7 - on its floor - and every full step
+                // that would settle the row beside it is cut to 1/128
+                // because the noise of the first went up.
+                let floors: Vec<f64> = if floor_norm_off() {
+                    vec![0.0; n]
+                } else {
+                    jac.iter()
+                        .map(|row| {
+                            f64::EPSILON
+                                * row.iter().zip(&v).map(|(a, x)| (a * x).abs()).sum::<f64>()
+                        })
+                        .collect()
+                };
+                // `max` drops a NaN, so it is kept by hand: a residual
+                // that is not a number has not descended.
+                let norm = |r: &[f64]| {
+                    r.iter()
+                        .zip(&floors)
+                        .map(|(x, floor)| {
+                            let over = x.abs() - floor;
+                            if over.is_nan() {
+                                over
+                            } else {
+                                over.max(0.0).powi(2)
+                            }
+                        })
+                        .sum::<f64>()
+                        .sqrt()
+                };
                 let before = norm(&f);
                 let mut lambda = 1.0f64;
                 let mut descended = false;
