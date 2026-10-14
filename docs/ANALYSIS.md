@@ -45738,3 +45738,144 @@ that flatten and that run are the same name for name. So no model of
 the library leaned on the zero, and the guard is taken for the wrong
 number it removes, not for a count. The heavy models were run under
 it as well (`/tmp/m423/heavy3.txt`).
+
+## The Newton direction row: a convergence test in the wrong units (m424, a map)
+
+**The row is one mechanism, nine models of ten.** The top of the run
+census, `the Newton direction of algebraic loop` (10 models in
+`/tmp/m423/census.txt`), was probed by name from the root with the
+Jacobian of every Newton step printed beside the equation of each row
+(a print in the tree for the probe only, `state/m424/tol_probe.patch`,
+traces `/tmp/m424/tr_*.txt`). Nine of the ten are the second kind of
+the m363 map: a block holding a liquid's pressure through
+`d = waterBaseProp_ph(p, h, ...)[9]`, whose slope in `p` is 4.5e-7, is
+asked for a pressure the water formulation does not reach, the
+residual is NaN, the retreat comes back to a finite point and the
+line search crawls. `SeriesPipes2` shows it whole: the solve at
+`t = 8e-4` starts from `|f| = 3270` with the row of
+`valveIncompressible1.dp_turbulent` at 3270 and the two density rows
+at -8.3 and 4.9, and the step it computes takes `pipe1.mediums[1].p`
+from 7.5e5 to -1.77e7. The tenth, `TestMultiPortTraceSubstances`,
+never meets an edge (`|f| = 1.2e6` at `t = 0`); it is the third kind
+of m363 and was left alone. The keys of the m423 pair,
+`OXIDELICA_NO_LOUD_ROW_LADDER` and `OXIDELICA_NO_FLOOR_NORM`, change
+nothing on `SeriesPipes2`: the three traces agree to the line.
+
+**The small model, and what it says.** `N1` (`state/m424/N1.mo`, a
+dozen lines) is a liquid volume whose density is
+`998 + 4.5e-7*(p - 1e5) + 1e-9*sqrt(p)` and whose outflow is
+`1e-3*(p - 1e5)`: a stiff state with a pressure read back from a
+density, and a law not defined below zero pressure. It refuses on the
+row of this chapter in one second, under `dopri45` at `t = 3e-4` and
+under `bdf` at `t = 1e-3`. Its BDF trail says why. The corrector's
+Jacobian is taken by moving the mass by `1e-7*(1 + m)`, which moves
+the density by 2e-4 kg/m3; the block holding `p` then starts from a
+residual of 2.0e-4 and accepts it without a step, because the test is
+`|f_i| <= 1e-10 * (1 + |v_i|)` and `v_i` is the pressure, 2.3e6 Pa,
+so the tolerance on a density row is 2.3e-4 kg/m3. The pressure does
+not move, the column of the state Jacobian reads zero, and the
+corrector steps the mass by -2.2 kg into a pressure of -4.9e9. The
+test compares the residual of row `i` with the size of unknown `i`,
+and in a torn block those are different quantities in different
+units: the row is a density and the unknown a pressure.
+
+**Probed three ways, none taken.**
+
+- `OX_PROBE_TOL=1e-13`, the same test three orders tighter: `N1` runs
+  under `bdf` and gives `p = 101000.00003`, the number by hand
+  (`1e5 + 1/1e-3`); under the default `auto` it still refuses, on the
+  explicit solver's stage, because a stage refused as `Outside` ends
+  the run unless `OXIDELICA_EDGE_HANDOFF` is set. `N1` runs only with
+  both: the tighter test and `OXIDELICA_EDGE_HANDOFF=all`. Neither
+  alone does.
+- `OX_PROBE_ROW_TOL`, the tolerance in the row's own units
+  (`|lhs| + |rhs|` in place of `|v_i|`): `N1` runs under `bdf` and
+  under `=all`, and both pumps pass the ten steps of the check without
+  any hand-over. Run to their own stop times they do not finish
+  (`TestWaterPumpPowerCharacteristic` refuses at `t = 0.031`,
+  `TestWaterPumpCheckValve` at `t = 0.156`), so this is a gate moved
+  rather than a run won. The `min` of the two scales, which can only
+  tighten, takes neither pump.
+- `OX_PROBE_DOPRI_OUTSIDE`, an explicit stage refused as `Outside` or
+  `Unconverged` taken as a step too long: `SeriesPipes2`,
+  `BranchingPipes14` and the pump each ground for more than five
+  minutes against nine seconds without it, and were stopped. This is
+  the m363 finding again (`OX_PROBE_OUTSIDE_MENDS`).
+
+**The pair of the tighter test, read as half a condition.** One
+binary (`/tmp/m424/pair/oxt`), from the root, under 20 GB caps, the
+default hand-over in both halves (`/tmp/m424/pair/off.txt`,
+`on.txt`, run lists `ran_off.lst`, `ran_on.lst`):
+
+```text
+base          953 flatten, 766 run, runnable 836 / 723, running 7575 s
+tol 1e-13     953 flatten, 763 run, runnable 836 / 720, running 9685 s
+lost    SinglePhaseTwoLevel_RL, TankWithEmptyingPipe2,
+        TanksWithEmptyingPipe1, PolyphaseInductance, HeatLosses,
+        TestWaterPumpStorage, LinearColdWater
+gained  AmplifierWithOpAmpDetailed, IMC_DOL_Polyphase, SMEE_DOL,
+        SMEE_Rectifier
+```
+
+No model of the ten is among the gains. That is not evidence that the
+units of the test are not the wall: by `N1`, the tighter test alone
+cannot win a model whose first refusal is on an explicit stage, and
+the pair measured the test with the default hand-over. The two halves
+also shared the desk with two probes left running from earlier in the
+shift, so the running times are comparable with each other and not
+with any other pass. What the pair does show is a second family
+moving: three of the eight `underdetermined algebraic loop` models run
+under the tighter test. `SMEE_DOL` converges its block of 26 at
+`t = 0` to `|f| = 7.5e-11` and is then judged underdetermined; with
+the tighter test the same initialization goes through
+(`/tmp/m424/smee_base.txt`, `smee_t13.txt`). The determinacy check of
+a converged block reads a point the test accepted loosely, and the
+row behind those three is the convergence test as well, not the
+matrix.
+
+**What the row wants is a decision, not a fix.** The candidate that
+the small model supports is the convergence test in the row's units
+together with the hand-over of an `Outside` stage, and the hand-over
+is queue item 38, which waits for Roman's word: measured in m408 it
+doubled the running half (3444 s to 6898 s) for four models. The
+numbers for that question are the pair above, the ten under the two
+conditions together (below), and the m408 price.
+
+**The other two items of the shift, for the record.** ReferenceAir's
+fifth link (record operators on the walked road) stands in front of
+one model of the corpus, `Modelica.Media.Examples.ReferenceAir.Inverse_sh_TX`,
+the only refusal in `/tmp/m423/raw.txt` that names a walked body with
+a record in it. `ModelicaTest.Media.TestAllProperties.MoistAir`,
+`IncompleteMedia.ReferenceMoistAir` and both `ModelicaTest.ComplexMath`
+tests refuse while flattening, in a different layer
+(`an array value cannot be used where a scalar is expected`,
+`an array cannot be a divisor`). So the chain of five links is priced
+at one model. Of the `underdetermined` row, `MNmos` and `MPmos` are
+the Spice3 transistors run as examples on their own, with pins
+nothing drives, and `Spice3BenchmarkRtlInverter` holds `der(Q1.vbx)`
+only through `Q1.icapbx = Q1.cc.capbx * der(Q1.vbx)`; neither moves
+under any probe of this shift.
+
+**The ten under both conditions.** Each model under `--only` from the
+root, one thread apiece, ten at once, a ceiling of ten minutes per
+setting (`/tmp/m424/ten.sh`, outputs in `/tmp/m424/ten_e1/` and
+`ten_all/`), with `OX_PROBE_TOL=1e-13`:
+
+```text
+hand-over        run   the models
+=1 (narrow)      1     TestWaterPumpCheckValve
+=all (wide)      3     SeriesPipes2 (227 s), both pumps
+=all, stopped    3     BranchingPipes2, BranchingPipes4, SeriesPipes1
+```
+
+Under the narrow hand-over the tighter test costs
+`TestWaterPumpPowerCharacteristic`, which the narrow hand-over alone
+runs (m409). Under the wide one the three it wins are the three the
+wide hand-over wins alone: `SeriesPipes2` in 187 s by the note on
+`EdgeHandoff` (m410), and the two pumps. So on the ten, the tighter
+test buys nothing over the hand-over, and `N1` is the only witness
+that both are needed together. The question that goes to Roman is
+therefore the hand-over's own (queue item 38), and nothing in this
+shift makes its price smaller: the convergence test in the wrong
+units is a fact about the solver worth keeping, not a lever on this
+row.
