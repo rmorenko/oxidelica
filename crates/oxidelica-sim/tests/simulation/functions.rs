@@ -4434,3 +4434,69 @@ fn a_walked_comprehension_hands_a_record_over_without_its_text() {
         "the root is 4, and this said {root}"
     );
 }
+
+/// A body of a base package that reads nothing of its medium but the
+/// records the medium writes out whole, walked under that medium.
+///
+/// The ideal gas mixtures solve for a temperature from an entropy with
+/// `s_TX`, which sums `s0_T(data[i], T) * X[i]` and reads nothing else
+/// of the medium. Whether a body is carried under its medium was asked
+/// of numbers and lists of numbers alone, so a list of `DataRecord`
+/// constructors - text, negative coefficients, `R / MM` - did not count,
+/// the body was walked under the base's name, and `data[1]` named
+/// nothing there. Under the medium, the element of the list went over
+/// as a constructor with its gas's name in it. The root of
+/// `1 * T * 0.5 + 3 * T * 0.5 = 8 + time`, with the medium's own data,
+/// is 4.5 at the end of the run; the base's data would give another
+/// number or none.
+#[test]
+fn a_walked_body_reads_the_records_its_medium_writes_out() {
+    let result = run("package P \
+           partial function Scalar input Real u; output Real y; end Scalar; \
+           record Data String name; Real a; Real b; end Data; \
+           function solve \
+             input Scalar f; input Real lo; input Real hi; output Real x; \
+           protected \
+             Real mid; Real step; \
+           algorithm \
+             x := lo; \
+             step := hi - lo; \
+             while abs(step) > 1e-9 loop \
+               step := step/2; \
+               mid := x + step; \
+               if f(mid) < 0 then x := mid; end if; \
+             end while; \
+           end solve; \
+           function one input Data d; input Real T; output Real y; \
+           algorithm y := d.a*T + d.b; end one; \
+           package Base \
+             constant Integer nX = 2; \
+             constant Data data[nX]; \
+             function s input Real T; input Real X[nX]; output Real y; \
+             algorithm y := sum(P.one(data[i], T)*X[i] for i in 1:size(X, 1)); \
+               annotation(Inline = true); end s; \
+             function sp input Real T; input Real X[nX]; output Real y; \
+             algorithm y := s(T, X); end sp; \
+             function T_s input Real h; input Real X[nX]; output Real T; \
+             protected \
+               function f extends P.Scalar; input Real h; input Real X[nX]; \
+               algorithm y := sp(u, X) - h; end f; \
+             algorithm T := P.solve(function f(h = h, X = X), 0, 100); end T_s; \
+           end Base; \
+           package Gas extends Base( \
+             data = {Data(name = \"A\", a = 2/2, b = -0.5 + 0.5), \
+                     Data(name = \"B\", a = 3, b = -0.0)}); \
+           end Gas; \
+           model M \
+             Real T; \
+           equation \
+             T = Gas.T_s(8 + time, {0.5, 0.5}); \
+             annotation(experiment(StopTime=1)); \
+           end M; \
+         end P;");
+    let root = result.rows.last().expect("a final row")[1];
+    assert!(
+        (root - 4.5).abs() < 1e-6,
+        "the root is 4.5, and this said {root}"
+    );
+}

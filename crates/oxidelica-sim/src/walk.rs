@@ -982,6 +982,18 @@ fn elements_of(
             let mut given = Vec::new();
             let mut shapes = Vec::new();
             for arg in args {
+                // A record written as its constructor - `data[i]` of a
+                // medium whose `data` reached the body as a list of
+                // `DataRecord(name = "N2", MM = ..., ...)` - goes over as
+                // its numbers in declared order, the gas's name left
+                // behind as on the compiled road.
+                if walked_list_records_open() {
+                    if let Some(numbers) = constructor_numbers(arg, frame, programs, time, depth)? {
+                        shapes.push(vec![numbers.len()]);
+                        given.extend(numbers);
+                        continue;
+                    }
+                }
                 match arg {
                     Expr::Ref(inner) if frame.lengths.contains_key(inner) => {
                         let length = frame.lengths[inner];
@@ -1737,4 +1749,78 @@ fn loop_over(
 /// numbers.
 fn tuple_arrays_open() -> bool {
     !switch_set("OXIDELICA_NO_WALKED_TUPLE_ARRAYS")
+}
+
+/// Whether a record handed on as its constructor goes over as its
+/// numbers. `OXIDELICA_NO_WALKED_LIST_RECORDS` keeps the old reading,
+/// in which the constructor's text reached the evaluator, so that one
+/// binary gives both halves of a measurement.
+fn walked_list_records_open() -> bool {
+    !switch_set("OXIDELICA_NO_WALKED_LIST_RECORDS")
+}
+
+/// The numbers of a record handed on as its constructor, in the order
+/// written - the record's own, as the flattening writes it - with its
+/// text left behind; nothing for anything else.
+///
+/// Only a call to no body the run walks, every argument named, and at
+/// least one String among its fields: the mark of a record constructor
+/// rather than of a function call whose answer happens to be a number.
+/// An element of a list written in place, `{N2, O2}[i]`, is the element
+/// the index names.
+fn constructor_numbers(
+    arg: &Expr,
+    frame: &Frame,
+    programs: &HashMap<String, ClassDef>,
+    time: f64,
+    depth: usize,
+) -> Result<Option<Vec<f64>>, SimError> {
+    let arg = match arg {
+        Expr::Index(base, subscripts) => match (base.as_ref(), subscripts.as_slice()) {
+            (Expr::Array(items), [one]) if !matches!(one, Expr::Range(..)) => {
+                let at = index_of(one, frame, programs, time, depth)?;
+                match usize::try_from(at)
+                    .ok()
+                    .and_then(|at| at.checked_sub(1))
+                    .and_then(|at| items.get(at))
+                {
+                    Some(item) => item,
+                    None => return Ok(None),
+                }
+            }
+            _ => return Ok(None),
+        },
+        other => other,
+    };
+    let Expr::Call(name, fields) = arg else {
+        return Ok(None);
+    };
+    if fields.is_empty() || programs.contains_key(name) {
+        return Ok(None);
+    }
+    let mut values = Vec::with_capacity(fields.len());
+    for field in fields {
+        let Expr::NamedArg(_, value) = field else {
+            return Ok(None);
+        };
+        values.push(value.as_ref());
+    }
+    fn leaves<'a>(expr: &'a Expr, out: &mut Vec<&'a Expr>) {
+        match expr {
+            Expr::Array(items) => items.iter().for_each(|item| leaves(item, out)),
+            other => out.push(other),
+        }
+    }
+    let mut all = Vec::new();
+    values.into_iter().for_each(|value| leaves(value, &mut all));
+    if !all.iter().any(|leaf| matches!(leaf, Expr::Str(_))) {
+        return Ok(None);
+    }
+    let mut numbers = Vec::with_capacity(all.len());
+    for leaf in all {
+        if !matches!(leaf, Expr::Str(_)) {
+            numbers.push(number_of(leaf, frame, programs, time, depth)?);
+        }
+    }
+    Ok(Some(numbers))
 }

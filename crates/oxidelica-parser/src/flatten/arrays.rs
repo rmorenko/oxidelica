@@ -3166,6 +3166,22 @@ fn medium_read_here(class: &ClassDef, registry: &HashMap<&str, &ClassDef>, mediu
         match expr {
             Expr::Number(_) | Expr::Bool(_) => true,
             Expr::Array(items) => items.iter().all(settled),
+            // A record the medium writes out whole - `data = {N2, O2}`,
+            // each a `DataRecord(name = "N2", MM = ..., ...)` - is as
+            // settled as a list of numbers: its text is the gas's name
+            // and its numbers are the medium's.
+            Expr::Str(_) if records_read_as_settled() => true,
+            // A coefficient written `-381.8` stands in the record as a
+            // negated number, which is as settled as the number.
+            Expr::Neg(inner) if records_read_as_settled() => settled(inner),
+            // And `R_s = R / MM` left as the division of two numbers.
+            Expr::Bin(_, a, b) if records_read_as_settled() => settled(a) && settled(b),
+            Expr::Call(_, args) if records_read_as_settled() && !args.is_empty() => {
+                args.iter().all(|arg| match arg {
+                    Expr::NamedArg(_, value) => settled(value),
+                    _ => false,
+                })
+            }
             _ => false,
         }
     }
@@ -3405,4 +3421,13 @@ fn statement_exprs<'a>(body: &'a [Statement], out: &mut Vec<&'a Expr>) {
             Statement::Break | Statement::Return => {}
         }
     }
+}
+
+/// Whether a body that reads nothing of its medium but a record the
+/// medium writes out whole - the gas data of an ideal gas mixture - is
+/// carried under the medium. `OXIDELICA_NO_MEDIUM_RECORDS_READ` keeps
+/// the old reading, in which only numbers and lists of them counted, so
+/// that one binary gives both halves of a measurement.
+fn records_read_as_settled() -> bool {
+    std::env::var_os("OXIDELICA_NO_MEDIUM_RECORDS_READ").is_none()
 }

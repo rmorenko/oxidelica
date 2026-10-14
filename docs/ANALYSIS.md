@@ -44944,3 +44944,151 @@ the stacks under `--only` run ten steps, while the full `CCCV_Stack`
 run ends at t = 748.4 on the model's own `Battery overcharged!`.
 A model that `library check` counts as running there would be an
 unverified number. Both patches stay parked.
+
+**The ladder and floor norm pair, priced again from one corrected
+binary (m419).** The parked patch was rebuilt with the NaN fault
+mended in both halves (`state/m419/ladder_plus_floor_norm.fixed.patch`,
+on HEAD c95bf8d). Both halves were run at once from one binary
+(`/tmp/ox419a`), six threads each under a 20 GB cap, with the ladder
+and the floor norm switched off together for the off half
+(`/tmp/m419/on.txt`, `off.txt`):
+
+```text
+on    953 flatten, 765 run, runnable 836 / 722, running 5130 s
+off   953 flatten, 763 run, runnable 836 / 720, running 5225 s
+run lists: on gains CCCV_Stack and CCCV_StackRC, loses nothing
+```
+
+The 7885 s against 4437 s of m418 was the NaN fault's price, and it is
+gone. Per model (`/tmp/m419/w_diff.txt`), 30 models count a different
+number of Newton iterations between the halves, and together they run
+208 s faster on. The quasi-static `IMC_Transformer` accounts for 183 s
+of that, and the two stacks cost 0.66 s each. The other 990 models
+count the same iterations, and their times differ by 113 s in sum
+(226 s in absolute value) out of 5130. That is two runs of the same
+work on a shared desk, not a cost. So the price is local, and if
+anything it is a saving.
+
+The physics is not clean, and that is what stops the pair. The full
+`CCCV_Stack` run under the pair (`S.mo`, `--stop 760`) ends at
+t = 746.069 on the model's own `Battery overcharged!`. The same binary
+run to `--stop 746.2` passes the same instant without a word. The
+assert fires because a clamp leaks. Cell `[1,2]` reaches its
+`LimIntegrator`'s `outMax = 1 - 1e-9` at t = 679.73 with 4.6 A still
+going in. From there the clamp holds it at 0.99999999900195,
+2e-12 over the limit, exactly, until t = 745.943. Then it starts
+growing again with no event in the trail (`/tmp/m419/s760e.txt`,
+`s760f.txt`). By t = 746.068 it is at 1.0000000010545, past the
+assert's `SOCmax + SOCtolerance` = 1 + 1e-9. The shape of the leak
+says it is not the clamp letting `k*u` through, which would move the
+cell by about 6e-9 per millisecond. Its derivative instead starts
+from zero at t = 745.943 and grows linearly: the step per millisecond
+rises by 2.6e-13 every millisecond, from 6.7e-14 at first to 3.2e-11
+at the assert. Something feeding `der(y)` drifts away from the zero
+the clamp chose. The charging current into
+that cell at the moment of release is 0.217 A and falling, still
+positive, so the model's `y > outMax and k*u > 0` is true throughout
+and `der(y)` should be zero. The cell's charge was not honestly
+exceeded. Our integration of a clamped integrator let go of it, and
+did so only on the longer horizon. A run that `library check` counts
+as ten good steps would be counted as running on a model whose full
+run is wrong for a reason of ours. So the pair stays parked, and the
+`+2` is an unverified number. A five-line `LimIntegrator` alone
+(`/tmp/m419/L1.mo`, same limits and gain, current falling through
+zero over 760 s) does not leak, so the cause needs the stack around
+it. Whether the ladder or the floor norm causes the leak is not
+settled. Without the pair the stack does not get past t = 0, so there
+is no run to compare against.
+
+**IdealMixing1, link five of the m392 chain: a zero that is not
+zero.** With the bound assertions switched off by a probe,
+`pipeFriction1.flowModel.states[2].X[2]` is -4.75e-26 at t = 0
+(`/tmp/m419/im/im.csv`). Every stream that mixes into it carries
+`Xi[2] = 0` exactly: the boundaries, both other pipes and the
+sensor's port all read 0. So the mixing's true value is 0, and the
+negative comes from rounding in the weighted sum
+`(sum max(-m_flow, 1e-10) * Xi_outflow[2]) / sum max(...)`. That makes
+it ours rather than the model's physics. A `min = 0` on a mass fraction
+is asserted strictly at a value that differs from the bound by 26
+orders less than its own scale. The fix is not the compiler's
+arithmetic. It is a decision about how strictly a `min`/`max` bound is
+held, for example a tolerance relative to the bound's nominal scale.
+That is a policy, so it is mapped and not taken.
+
+**Inverse_sh_TX: a body of the medium's base walked without the
+medium.** `SolveOneNonlinearEquation.Inverse_sh_TX` refused with
+`unknown variable data[1]`. Five lines reproduce it (`state/m419/Is.mo`:
+`Medium.temperature_psX` on `FlueGasLambdaOnePlus`), and the enthalpy
+road beside it (`Ih.mo`, `temperature_phX`) runs. A probe naming the
+walked body on the refusal said `MixtureGasNasa.s_TX`, the base's name
+with no medium mark, where the enthalpy road walks `h_TX@...`. This
+is the same breed as m392's link 4 and the AGENTS rule about names: a
+body that survives flattening carries the flat model's names, and this
+one carried the writer's.
+
+The cause is in `reads_its_medium` (`flatten/arrays.rs`). A body is
+carried under its medium only if some name it reads settles under the
+medium to numbers or lists of numbers. `s_TX` reads nothing of the
+medium but `data`, a list of `DataRecord(name = "N2", ...)`
+constructors with text, negated coefficients and `R_s = 8.31451 /
+0.0280134` left as a division. None of that counted as settled, so the
+copy was never made. Behind it stood a second link: in the walk, the
+copy's call `s0_T(data[i], T)` handed its callee the constructor as
+written, and the evaluator met `"N2"`. Both are behind switches,
+`OXIDELICA_NO_MEDIUM_RECORDS_READ` and
+`OXIDELICA_NO_WALKED_LIST_RECORDS`, with the test
+`a_walked_body_reads_the_records_its_medium_writes_out`, which goes red
+under either. `Is.mo` then solves to T = 300.797 for s = 6901, against
+6901.68 read forward at T = 301 (`Is3.mo`). Under `--only` the model
+runs. `ReferenceAir.Inverse_sh_TX` is unmoved, still at its own wall,
+`an array reached the evaluator`.
+
+Measured as a pair over the whole library from one binary built from
+the final tree (`/tmp/ox419s2`), both switches on against both off
+(`/tmp/m419/p2/on2.txt`, `off2.txt`):
+
+```text
+on    953 flatten, 764 run, runnable 836 / 721
+off   953 flatten, 763 run, runnable 836 / 720
+run lists: on gains SolveOneNonlinearEquation.Inverse_sh_TX, loses nothing
+flatten lists identical (953 = 953)
+```
+
+The off half's run list is the same, name for name, as the off half
+of the ladder pair taken an hour earlier (`/tmp/m419/ran_off.lst`), so
+the base did not move between the two. The floors are left for the
+runner's print to raise. A first pair of the same change, which also
+carried an arm of the walk that turned out to be unneeded, was stopped
+before it finished and is not counted.
+
+**SMPM_CurrentSource: neither the swing nor the damping family.** The
+Electrical `SMPM_CurrentSource` refuses at t = 0 with a loop of 14
+unknowns that does not converge (`/tmp/m419/tr_SMPM_CS.txt`, fresh
+binary). The trail is a third breed. Every attempt alternates between
+two shapes, `i_sr[1]` at -264.85 and then at about 0, while
+`dqToThreePhase.rotator.angle` walks down by 0.95 per iteration
+(-1.58, -0.95, -2.53, -1.90, -3.48, ...) and never settles. The angle
+is in the loop at all because reduction 4 demoted
+`smpm.inertiaRotor.phi` on a tie of zero weights
+(`OXIDELICA_VICTIM_PROBE`), while the model fixes `phiMechanical` and
+`wMechanical`. A rotor angle that the start fixes, demoted, leaves the
+current source's rotation solving for the angle it should have been
+handed. The two `SMPM_CurrentSource` of FundamentalWave and QuasiStatic
+refuse earlier, as structurally singular. `SMPM_VoltageSource`, the
+runner's swinging model, demotes `inertiaRotor.phi` too but at
+reduction 6 and after `sinCosEvaluation`, so the two share a victim
+and not a road. That is a weaker kinship than item 29 asks for, and
+it is the tie-break at index reduction, not the Newton circle, that
+they share.
+
+**TanksWithEmptyingPipe2 under the pair: the budget, not the floor.**
+Under the corrected pair (`/tmp/ox419a`, `--only`) it still refuses
+(`/tmp/m419/tr_TWEP2_on.txt`). In the solve that fails, the line search
+takes full steps from iteration 5 on and creeps linearly from 2.9 to
+0.36 over forty iterations. Then it turns quadratic, 8.9e-2, 2.0e-3,
+5.3e-7, and the fiftieth iteration is where the budget ends. The last
+residual is not a row on its floor: 2.3e-10 against a reach of 1.9e4,
+a floor of 4.2e-12. So the floor norm does not cure it and the pair's
+expectation stays +2, not +3. What it wants is fewer slow iterations
+in the middle, or more of them, and that is the damping family's
+question, not this pair's.
