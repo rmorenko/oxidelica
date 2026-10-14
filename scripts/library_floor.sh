@@ -1770,8 +1770,10 @@ UNREAD_CEILING=0
 # would have put every desk pass under the floor. Since the eight
 # refused giants left on 2026-10-12 the desk's edges are 0.80 and 1.10,
 # worked from the desk's own ratio after the carving (0.953, one point)
-# by the runner's room, and not as a factor of this band. The
-# arithmetic is in `scripts/preflight.sh`.
+# by the runner's room, and not as a factor of this band. On
+# 2026-10-14 two quiet desk passes of 1.149 and 1.177 fell above that,
+# and the edges were worked over all three points to 0.80 and 1.36.
+# The arithmetic is in `scripts/preflight.sh`.
 RATIO_LOW="${RATIO_LOW:-0.70}"
 RATIO_HIGH="${RATIO_HIGH:-1.50}"
 

@@ -147,6 +147,18 @@ library_floor() {
   # falls outside on right counts has the edges worked over all of them
   # rather than fitted to it.
   #
+  # Worked over on 2026-10-14, when two such passes fell outside. Both
+  # were alone on a quiet desk, the eight giants carved out, every count
+  # right: the compiler of 8be7895 with its two switches off printed
+  # 3747ms flattening and 4305ms running, 1.149
+  # (/tmp/m419/floor_alone_off.txt), and with them on 3675ms and 4324ms,
+  # 1.177 (/tmp/m419/floor_alone.txt). A third pass of 1.106 is left
+  # out: it shared the desk with a corpus pair, which is not this set's
+  # weather. Passes of 1.30..1.35 from before the carving are another
+  # set and left out too. Over the three points 0.953, 1.149 and 1.177
+  # the edges keep the same room: 0.953 / 1.189 = 0.80 under the lowest
+  # and 1.177 x 1.158 = 1.36 over the highest.
+  #
   # The two passes and the judge, one after the other, as CI runs them
   # side by side since 2026-10-13: the desk measures the same set and
   # judges the same sum, so a fault in the cut shows here first. The
@@ -156,7 +168,7 @@ library_floor() {
   ./scripts/library_floor.sh --pass main "$library" "$reports/main.txt" || return 1
   ./scripts/library_floor.sh --pass dear "$library" "$reports/dear.txt" || return 1
   echo "the two reports: $reports"
-  RATIO_LOW=0.80 RATIO_HIGH=1.10 ./scripts/library_floor.sh --judge "$library" \
+  RATIO_LOW=0.80 RATIO_HIGH=1.36 ./scripts/library_floor.sh --judge "$library" \
     "$reports/main.txt" "$reports/dear.txt"
 }
 
@@ -192,14 +204,15 @@ time_band_judges() {
   ./scripts/library_floor.sh --ratio-check 1000 1045 || return 1
   # And the desk's band, at the two ends of what the desk has measured
   # and past either end of it.
-  # Inside: the one desk point the edges stand on, 0.953, and the
-  # median of the runner's first 46 jobs. Outside: under the floor and
-  # past the top.
-  local desk="env RATIO_LOW=0.80 RATIO_HIGH=1.10 ./scripts/library_floor.sh --ratio-check"
+  # Inside: the lowest and the highest desk points the edges stand on,
+  # 0.953 and 1.177, and the median of the runner's first 46 jobs.
+  # Outside: under the floor and past the top.
+  local desk="env RATIO_LOW=0.80 RATIO_HIGH=1.36 ./scripts/library_floor.sh --ratio-check"
   $desk 1000 953 > /dev/null || return 1
+  $desk 1000 1177 > /dev/null || return 1
   $desk 1000 1045 > /dev/null || return 1
   $desk 1000 780 > /dev/null && return 1
-  $desk 1000 1130 > /dev/null && return 1
+  $desk 1000 1380 > /dev/null && return 1
   return 0
 }
 
