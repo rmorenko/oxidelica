@@ -44985,7 +44985,10 @@ cell by about 6e-9 per millisecond. Its derivative instead starts
 from zero at t = 745.943 and grows linearly: the step per millisecond
 rises by 2.6e-13 every millisecond, from 6.7e-14 at first to 3.2e-11
 at the assert. Something feeding `der(y)` drifts away from the zero
-the clamp chose. The charging current into
+the clamp chose. Both integrators of the cell leak together, the
+sensor's `limIntegrator` and the cell's own, the two a self-discharge
+current apart, which points at what they share rather than at either
+clamp. The charging current into
 that cell at the moment of release is 0.217 A and falling, still
 positive, so the model's `y > outMax and k*u > 0` is true throughout
 and `der(y)` should be zero. The cell's charge was not honestly
