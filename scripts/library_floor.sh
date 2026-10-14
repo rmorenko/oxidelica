@@ -1367,7 +1367,20 @@ FLATTEN_FLOOR=953
 # and are left out:
 #
 #   760 printed - 1 SpringWithMass - 1 SMPM_VoltageSource = 758
-RUN_FLOOR=758
+#
+# And run 761 = 758 + TankWithEmptyingPipe2, TanksWithEmptyingPipe1
+# and TestDensity, which run once a swing across a root is read as a
+# circle at a hundredth (4be296e). The runner printed 940 / 758 and
+# runnable 825 / 716 in the main pass (job 115597617788) and 13 / 5 and
+# 11 / 4 in the dear pass (job 115597617937) of push run 38485358468,
+# 953 / 763 and 836 / 720 together. Against
+# 2e2afe5fe5f09b072389069a296897d2aacf47cf (push run
+# 38479447293), the main pass's run list gained exactly those three
+# and lost nothing (/tmp/m418/ci/a2, a4). The two swings ran, by name
+# in the same list, and are left out:
+#
+#   763 printed - 1 SpringWithMass - 1 SMPM_VoltageSource = 761
+RUN_FLOOR=761
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -1664,7 +1677,12 @@ RUNNABLE_FLATTEN_FLOOR=836
 # And runnable run 715 = 714 + CompareLineTrunks, runnable, by the same
 # desk pair as `RUN_FLOOR`, which printed 717; the two left out are
 # SpringWithMass and SMPM_VoltageSource, as there.
-RUNNABLE_RUN_FLOOR=715
+#
+# And runnable run 718 = 715 + the three of the circle at a hundredth,
+# all runnable, by the same runner jobs as `RUN_FLOOR` (4be296e, push
+# run 38485358468), which printed 716 + 4 = 720; the two left out are
+# SpringWithMass and SMPM_VoltageSource, as there.
+RUNNABLE_RUN_FLOOR=718
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
