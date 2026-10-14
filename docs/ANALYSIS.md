@@ -46057,3 +46057,120 @@ rows, both the same as the m423 census. The counted rows of the two
 files are identical line for line, the seven rows of the
 algebraic-loop family included. That is what a free change should
 leave, and it does.
+
+## The `X of algebraic loop` row: three mechanisms in four models, and none of them a division (m426, a map)
+
+The row of seven read as one family by its wording, and the residual
+each refusal names - a component divided by the length of its own
+vector - made four of them look like one. Probed, the four
+MultiBody models of the row stand on three different walls, and the
+division by zero is in all of them a consequence rather than a
+cause. The two Fluid models and `SMPM_FieldWeakening` were not
+probed this shift: their refusals already name a value that came in
+from outside (`visc_dTp` with `d = NaN`, `pin_n.i.im = NaN`) or a
+bracket that does not change sign, three tails with nothing in
+common.
+
+### `ThreeSprings`: the start of a massless junction is lost to the plan
+
+Probed with `--only` and `OXIDELICA_NEWTON_TRAIL` from the root
+(`/tmp/m426/ts_trail.txt`). The block is 33 torn unknowns, and among
+them are `spring2.lineForce.length` and `spring2.lineForce.s`
+themselves. At the zero they start from, `s` is the denominator of
+`e_rel_0[1] = r_rel_0[1]/s`, which is `-inf`. The four blind restarts
+(1e-6, 1e-3, 1, 1e3) are all reached. From 1e-6 and 1e-3 Newton walks
+to the one point where spring 2 has length 4e-9, and stalls there
+with `|f|` near 2.8. From 1 and 1e3 it stalls at `|f|` near 10. The
+refusal reports the first attempt because none of the four solved.
+
+The physics is a massless junction held by three springs. Its
+equilibrium was computed outside the compiler by minimising the
+spring energy: the junction sits at `(0.3084, -0.1523, 0.0931)`.
+Plain Newton on those three coordinates, started from the start the
+model writes (`spring1.lineForce.r_rel_0(start = {-0.2,-0.2,0.2})`),
+converges in three steps. So does the compiler's 33-unknown block
+when the starts of `r_rel_0` for springs 1 and 2 are written at that
+equilibrium (`/tmp/m426/TS2.mo`, trail `/tmp/m426/tsS2.txt`).
+`|f|` goes 8.8, 1.7e-4, 1.0e-9, 1.4e-15, and the model runs 1000
+steps in 5.4 s. With only spring 2 given a start, and that start
+consistent with the bars but not with the equilibrium
+(`/tmp/m426/TS.mo`), the block still stalls at `|f|` near 10.
+
+Here is the mechanism. The start the model does write is on
+`spring1.lineForce.r_rel_0`, and the plan makes `r_rel_0[3]` an inner
+assignment, `r_rel_0[3] = frame_b.r_0[3] - frame_a.r_0[3]`. It is
+computed from torn positions, so the declared `start = 0.2` is never
+read. The block begins with every torn unknown at the same blind
+number, and that is not near any point of the junction's geometry.
+
+Two narrow fixes were built and measured on all four models of the
+group, the cheap gate before any corpus pair. Both bought nothing:
+
+- Seeding each torn unknown from a residual that defines it
+  (`s = max(length, s_small)` and the like), settled a few rounds
+  before Newton, as a last attempt after the blind ones: 0 of 4,
+  identical with the switch on and off (`/tmp/m426/famA.txt`). The
+  definitions only pass the blind numbers around the cycle. They
+  cannot invent the geometry.
+- Preferring unknowns with a stated non-zero start as tearing
+  victims: `ThreeSprings` still refuses with the same residual
+  (`/tmp/m426/ts5.txt`). The other three were not run, since the
+  one model this was aimed at did not move. The lever is also the
+  widest in the compiler, because it re-tears every block in the
+  corpus.
+
+Both are parked as
+`~/oxideflow/park/m426-torn-seed-and-tear-started.patch`, and the
+tree is unchanged. What would buy `ThreeSprings` is an initial
+point for the block that honours the starts the model writes on
+inner names, as initialisation does in other tools: solve the
+inner assignments backwards for the torn unknowns they read, or
+keep the started name as an unknown at initialisation only. That
+is a change to how the first point is found, not to tearing, and
+it is the next shift's question.
+
+### `PointGravityWithPointMasses2`: a fixed start on a name that is not a state
+
+The trail (`/tmp/m426/pg.txt`) starts the block at zeros, and every
+residual is `NaN` (`r_0/sqrt(r_0·r_0)` with `r_0 = 0`). The restarts
+evaluate but do not converge (`|f|` from 1e6 to 1e12). The model fixes
+`pointMass1.r_0(start = {3,0,0}, each fixed = true)`, but the state
+the selection keeps is `freeMotion.r_rel_a`, declared with `start = 0`
+(`oxidelica why ... freeMotion.r_rel_a[1]`). The fixed start belongs
+to a name the plan computes. Two small models
+(`/tmp/m426/FX.mo`, `/tmp/m426/FX2.mo`) show that a fixed start on
+a non-state does reach the state when one explicit equation links
+them: `y = x + 1` and `y = c*x + 1` both start at `y = 3`. Whether
+the initialisation reaches through `freeMotion`'s rotation and
+translation to `r_rel_a` is the open question, and it is a question
+about initialisation, not about the loop.
+
+### `RollingWheelSetDriving` and `RollingWheelSetPulling`: a dead row
+
+From zeros, `aux = cross(e_n_0, e_axis_0)` is zero and
+`e_long_0 = aux/length(aux)` is `NaN`. Every restart evaluates, so
+the zero start is no longer the problem. What stops them is the
+Jacobian: in the first one, row 38 (the frame balance through both
+prismatic joints) is zero across all 43 columns
+(`/tmp/m426/rw.txt`, 35 Newton starts, 1204 Jacobian rows printed).
+That belongs to the singular-Jacobian family. It is not a loop start,
+and Pulling refuses with the same residual and the same line.
+
+### What the row is worth
+
+| Model                        | Wall                                    | Series that would buy it            |
+| ---------------------------- | --------------------------------------- | ----------------------------------- |
+| ThreeSprings                 | start on an inner name never read       | first point from inner starts       |
+| PointGravityWithPointMasses2 | fixed start on a non-state, state at 0  | initialisation through a free joint |
+| RollingWheelSetDriving       | dead Jacobian row 38 after any restart  | singular-Jacobian family            |
+| RollingWheelSetPulling       | the same                                | the same                            |
+| PumpingSystem                | IF97 called with `d = NaN` from outside | not probed                          |
+| RoomCO2WithControls          | bracket of one sign                     | not probed                          |
+| SMPM_FieldWeakening          | `NaN` current read from outside         | not probed                          |
+
+No series in this row pays two models with one mechanism, except
+the wheel-set pair, and that pair belongs to another row's family.
+The row is parked with this map. The `ThreeSprings` question, whether
+the first point should honour starts written on inner names, goes to
+the queue as the cheapest wall, because one model shows it and two
+small models give a test.
