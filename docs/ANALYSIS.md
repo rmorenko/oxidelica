@@ -45396,3 +45396,169 @@ array reaches the run by another road, and the walked body
 link is not mapped. It is parked as
 `state/m421/body_record_arrays.patch` with `T2` and `T5` as its tests,
 and was not measured on the corpus.
+
+## A row read off the far branch, the pair that the corpus cannot judge, and the operator a body's record never reached (m422)
+
+**The verdict on 0bf1b70.** CI run 38561302113 finished green on
+every job, coverage included. The judge printed 953 flatten and 764
+run of 1020, and 836 and 721 of the 891 runnable, the numbers the
+pair and the preflight of m421 gave.
+
+**The census, against m417.** Counted by section bounds
+(`/tmp/m422/census.txt` against `/tmp/m417/census.txt`): the flatten
+half is 67 models in 39 rows in both, and the run half went from 193
+in 132 rows to 189 in 132 rows, which is 1020 - 953 and 953 - 764.
+Four rows moved: `algebraic loop did not converge in N Newton
+iterations` 6 to 3, `X of algebraic loop` 8 to 7, the single `an array
+reached the evaluator` over `sN_T(data[i], T) * X[i]` 1 to 0, and a new
+single, `assertion failed ...: X went below its min of N`, 0 to 1. The
+top of the run half is unchanged: `the Newton direction of algebraic
+loop` and `singular Jacobian in algebraic loop` at 10 each,
+`underdetermined algebraic loop` at 8, and `X of algebraic loop` at 7.
+At the top of the flatten half the external C functions still lead
+with 6.
+
+**The pair ladder+floor_norm on the stack, gate 4.** The parked patch
+went onto 0bf1b70 without a conflict. On `S.mo` (`CCCV_Stack`) with
+an output interval of 1 s, the pair ran the horizons 746.2, 755, 760
+and 1200 in about 4 s each at 0.2 GB, and the chatter at t = 754.946
+was gone. Three numbers belong here exactly as they were measured, as
+they decide what the pair's corpus verdict can mean:
+
+1. The chatter at 754.946 went away only with `--dt 1`, a step of one
+   whole second between rows.
+2. On the model's own interval of 0.1 s the stack under the pair stops
+   on its `Battery overcharged!` assert: at t = 741.5 on the 1200
+   horizon, 753.1 on 755 and 752.6 on 760.
+3. HEAD on those horizons refuses with `singular Jacobian in algebraic
+loop` and there is nothing to compare with. That is an honest gap,
+   not a measurement of the pair.
+
+`library check` runs a model for ten output intervals, so no corpus
+pass reaches t = 741 on this model, and the pair's corpus verdict
+cannot see this fault. Whatever the corpus prints, the pair is not
+unparked on it: "lost 0, bought N" on this judge means the corpus is
+blind here, not that the pair is clean.
+
+**What the overcharge was: a row read off the far branch.** With the
+assert turned into a print, cell `[1,2]` holds at 1 - 1e-9 + 3e-14
+until t = 740.8, then rises with no event to 1 + 2.2e-9 at 741.9 and
+falls back under the limit by 755. The state never left the clamp: a
+probe on every accepted step shows the state of the cell at
+0.99999999900004721 on both ends of every step around there, with a
+slope of zero. The rows rose because they were not read off the
+state. One step of 26.78 s left t = 740.827 and found the release of
+another switch 0.0599 of the way in. The rule from m421 leaves a
+crossing in the first tenth of a step uncut, because the bow of the
+cubic grows with the square of how far in it is read. That holds for
+reading the cubic at the crossing. It does not hold for the output
+points that lie before the crossing. Those fifteen rows, 740.9 to
+742.4, were read off a cubic whose far end was on the other branch,
+at whatever theta they fell. The same goes for a step taken right
+after a cut one (`spared`).
+
+The fault is on HEAD and is not the pair's. Eight lines show it
+(`/tmp/m422/k/K3.mo`): `der(y) = if y > ymax and u > 0 then 0 else
+0.01*u` with `ymax = 1 - 1e-9`, `u = 1 - time/60` and an interval of
+0.1 s. HEAD writes 487 rows over the limit, the highest 4.16e-6 over,
+before the switch at t = 60. The pair only carries the stack far
+enough to meet it.
+
+**The fix: neither exemption holds where a row lies before the
+crossing.** A step whose crossing comes after the next output point,
+inside the cut step, is now cut whatever theta is and whether or not
+it follows a cut step. Each such cut writes the row it was made for,
+so the next step has that row behind it, and there are no more such
+cuts than there are rows. `OXIDELICA_NO_CUT_BEFORE_ROW` gives the old
+reading from the same binary. The test
+`a_row_before_a_switch_is_not_read_off_the_far_branch` is `K3` held
+to less than 1e-9 over its limit: green with the fix, and red without
+it (`y rose to 1.0000041564459292`).
+
+What `K3` still writes, 4.2e-10 over at t = 60, is a different
+mechanism, and its arithmetic is exact. A cut step ends on the
+threshold of `u > 0` with the clamp read as released. The step from
+there starts at y = 1 - 1e-9 with the slope `0.01*u` still at
++8.77e-7 from the side just left. Its first stage carries y up by
+`35/384 * h * f0 = 35/384 * 5.26e-3 * 8.77e-7 = 4.20e-10` before the
+switch has turned it down. That is under the battery's tolerance of
+1e-9 and is mapped here, not fixed.
+
+On the stack, pair and fix together (`/tmp/m422/oxF`) run 755, 760 and
+1200 on the 0.1 s interval with no assert, the highest charge
+1.06e-11, 1.26e-11 and 1.4e-14 over the limit. HEAD with the fix
+alone still refuses there with `singular Jacobian`, as HEAD does.
+
+**The corpus, three halves from the root.** Taken together on one
+desk, with the fix built into `/tmp/m422/oxE` (the binary of the
+committed tree, `cmp` equal to `target/release/oxidelica`) and the
+pair over the fix in `/tmp/m422/oxF`. The files are
+`/tmp/m422/c/{on,off,pf}.txt`.
+
+| half                                 | flatten | run | runnable flatten / run |
+| ------------------------------------ | ------- | --- | ---------------------- |
+| `oxE`, `OXIDELICA_NO_CUT_BEFORE_ROW` | 953     | 764 | 836 / 721              |
+| `oxE`                                | 953     | 764 | 836 / 721              |
+| `oxF`, pair over the fix             | 953     | 766 | 836 / 723              |
+
+By name, the fix buys nothing and loses nothing in either list. The
+`off` half's lists equal the m421 pair's lists name for name
+(`/tmp/m421/pair2/ran_on.lst`, `flat_on.lst`). The pair over the fix
+buys `CCCV_Stack` and `CCCV_StackRC` in the run list and loses
+nothing in either list. All 22 FluxTubes that run do so in all three
+halves. So the fix is taken for the wrong number it removes and not
+for a count, and its price on the corpus is zero.
+
+The pair's two models are not taken. The corpus runs ten intervals,
+and the overcharge it would have to see is at t = 741. That the pair
+over the fix runs the stack to 1200 on its own interval is
+measured, on one model, above. What has not been measured is
+whether anything else the pair touches reaches past ten intervals
+into a fault of the same breed. The pair stays parked, with this
+table as its map, and its unparking wants a judge that runs the
+models it buys to their own `StopTime`.
+
+**Essotherm650: the factor of a thousand is not ours.** The suspicion
+was that `1.9525e7 = 1000 * 1.95e4` hides a lost `1e-3`. It does not.
+`TableBased.dynamicViscosity` is `exp(Polynomials.evaluate(poly_eta,
+1/state.T))` with nothing else in it, and `poly_eta` is
+`Polynomials.fitting(invTK, log(tableViscosity[:, 2]), npolViscosity)`.
+`why` shows the same expression in the flat model, with no scaling
+anywhere on the way. The fit done outside the compiler (numpy, the
+same eleven rows, degree 2 in 1/T) gives 1345.53 at 298.15 K, the
+compiler's digits. So the compiler reads the library's table as it is
+written. What the table holds, 14370 at 0 degC and 1917 at 20 degC,
+is the size of a thermal oil's viscosity in mPa s, written in a
+column that the medium reads as Pa s. That is a question about the
+library's data, priced at one model, and it goes to Roman. No
+tolerance at the bound is introduced.
+
+**ReferenceAir, wall 2: the operator a body's record never reached.**
+Walked further down from `G8`, the array of 2 in the equation is
+`y = {re, im}`: `ComplexMath.real` of a sum and product of records
+gets a whole record back. Shrunk, the wall stands at eight lines,
+with no array in it at all (`/tmp/m422/ra/`):
+
+| model | body                                   | HEAD                            |
+| ----- | -------------------------------------- | ------------------------------- |
+| `W7`  | `o := log(Complex(x)); y := real(o)`   | runs                            |
+| `W10` | `a := ...; b := ...; y := real(a + b)` | `unknown variable c.re`         |
+| `W11` | `a := ...; y := real(Complex(2,0)*a)`  | `y = (2 * a) - (0 * 0)`, refuse |
+| `W9`  | `o[1], o[2]` of `Complex[2]`, `+`      | `unknown variable c.re`         |
+
+`record_class_of` picks the operator by the record its operands are
+of, and for a name it asks `shapes.records`. A body's local `Complex
+a` is not in that table, so `a + b` is read as plain arithmetic and
+`2 * a` multiplies a number by a record's name. A record built in
+place (`Complex(2, 0)`) is found, as the `Call` arm says. That is the
+same hole the `in_view` half of `body_record_arrays.patch` (m421)
+fills. The chain as it stands:
+
+1. An array of records in a body is worked out to numbers (`T2`,
+   `T5`), closed by `body_record_arrays.patch`.
+2. A body's local record is not known to `record_class_of`, so the
+   operator of its record is never reached (`W10`, `W11`, `W9`).
+   Mapped here, not yet tried: the desk held the corpus pass.
+
+The next shift starts at link 2 with the parked patch built and `W9`
+to `W11` run under it, and keeps walking to `G8` and `R1`.

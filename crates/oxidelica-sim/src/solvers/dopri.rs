@@ -22,6 +22,16 @@ fn event_retake_off() -> bool {
     *OFF.get_or_init(|| std::env::var_os("OXIDELICA_NO_EVENT_RETAKE").is_some())
 }
 
+/// Whether a step holding a crossing is left uncut when the crossing is
+/// in its first tenth, or the step follows a cut one, even with an
+/// output point before the crossing, as it was before.
+/// `OXIDELICA_NO_CUT_BEFORE_ROW` keeps the old reading, so that one
+/// binary gives both numbers.
+fn cut_before_row_off() -> bool {
+    static OFF: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *OFF.get_or_init(|| std::env::var_os("OXIDELICA_NO_CUT_BEFORE_ROW").is_some())
+}
+
 impl CompiledModel {
     /// Adaptive Dormand-Prince 5(4) integration with dense output.
     pub fn simulate_adaptive(&self) -> Result<SimResult, SimError> {
@@ -467,7 +477,30 @@ impl CompiledModel {
                     // in, is cut again, and the step falls tenfold a
                     // round until it underflows (`CCCV_Stack` at
                     // t = 679.629, twelve cuts from 4 s to 2e-13 s).
-                    if !retaken && !spared && theta > 0.1 && theta < 1.0 && !event_retake_off() {
+                    //
+                    // Neither exemption holds where an output point lies
+                    // before the crossing. That row is read off the
+                    // cubic whatever theta is, and its error is not a
+                    // hundredth of anything: it is the bow at wherever
+                    // the row falls, and a step of 27 s crossing 1.6 s
+                    // in left fifteen rows of a held charge to be read
+                    // off a curve whose far end belongs to the other
+                    // branch (`CCCV_Stack` on its own interval of 0.1 s,
+                    // the cell at 1 + 2.2e-9 and the model's assert at
+                    // t = 741.5; `K3`, eight lines, 4.2e-6 over its
+                    // limit). Nor can it run away: the row is asked to
+                    // lie inside the cut step, which writes it, so the
+                    // next step has it behind and there are no more such
+                    // cuts than there are rows.
+                    let row_before = !cut_before_row_off() && {
+                        let next_out = out_i as f64 * out_step;
+                        next_out > t + 1e-12 && next_out < t + (theta - 2.0 * HAIR) * h
+                    };
+                    if !retaken
+                        && (row_before || (!spared && theta > 0.1))
+                        && theta < 1.0
+                        && !event_retake_off()
+                    {
                         retaken = true;
                         // The search put `theta` a hair past the
                         // crossing; the cut step ends a hair before it,

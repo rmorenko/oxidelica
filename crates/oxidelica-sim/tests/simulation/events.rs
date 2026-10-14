@@ -1135,6 +1135,31 @@ fn a_held_value_is_not_bowed_by_a_step_reaching_past_the_switch() {
     assert!((last - 0.8).abs() < 1e-6, "y(12) = {last}");
 }
 
+/// The same clamp read on an output interval shorter than the steps.
+/// A step reaching past the switch only a few hundredths in, or right
+/// after a cut one, was not cut, and every row before the switch was
+/// read off the cubic through the far branch: the held value printed
+/// 4.2e-6 over its limit, and `CCCV_Stack` on its own interval of
+/// 0.1 s stopped on its overcharge assert at t = 741.5. A row lying
+/// before the crossing is now always written from a step cut short of
+/// it. What is left, 4.2e-10, is the step that starts on the switch
+/// itself, and stays under the battery's tolerance of 1e-9.
+#[test]
+fn a_row_before_a_switch_is_not_read_off_the_far_branch() {
+    let source = "model K3 parameter Real ymax = 1 - 1e-9; Real u = 1 - time/60; \
+         Real y(start = 0.9, fixed = true); \
+         equation der(y) = if y > ymax and u > 0 then 0 else 0.01*u; \
+         annotation(experiment(StopTime = 100, Interval = 0.1)); end K3;";
+    let result = run_on(source, SolverMethod::Dopri45).expect("runs");
+    let y = result.columns.iter().position(|c| c == "y").unwrap();
+    let highest = result
+        .rows
+        .iter()
+        .map(|row| row[y])
+        .fold(f64::MIN, f64::max);
+    assert!(highest - (1.0 - 1e-9) < 1e-9, "y rose to {highest}");
+}
+
 /// A clamp let go when its input turns, the shape of a battery cell
 /// held at its limit. A step cut short of the crossing it found can
 /// end with the relation reading exactly zero, on its threshold; taken
