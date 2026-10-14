@@ -46047,3 +46047,13 @@ never be bought, and the other three stand on a capacitance the
 parameters make exactly zero, which is the m376/m377 question of why
 `der(vbx)` is an unknown at all, not a threshold. The series is parked
 with this map, and item 30 of the queue gets the note.
+
+### The census after the change (m425, a measurement)
+
+Taken at 4ff6c5d with `scripts/refusals.sh .msl both`
+(`/tmp/m425/census.txt`, raw half `/tmp/m425/raw.txt`) and counted
+between the section boundaries: flatten 67 in 39 rows, run 187 in 132
+rows, both the same as the m423 census. The counted rows of the two
+files are identical line for line, the seven rows of the
+algebraic-loop family included. That is what a free change should
+leave, and it does.
