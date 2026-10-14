@@ -45568,15 +45568,45 @@ with no array in it at all (`/tmp/m422/ra/`):
 of, and for a name it asks `shapes.records`. A body's local `Complex
 a` is not in that table, so `a + b` is read as plain arithmetic and
 `2 * a` multiplies a number by a record's name. A record built in
-place (`Complex(2, 0)`) is found, as the `Call` arm says. That is the
-same hole the `in_view` half of `body_record_arrays.patch` (m421)
-fills. The chain as it stands:
+place (`Complex(2, 0)`) is found, as the `Call` arm says. The
+`in_view` half of `body_record_arrays.patch` (m421) puts the locals in
+that table for the declarations only, and under it `W8` to `W11` still
+refuse the same way. The chain as first mapped:
 
 1. An array of records in a body is worked out to numbers (`T2`,
    `T5`), closed by `body_record_arrays.patch`.
-2. A body's local record is not known to `record_class_of`, so the
-   operator of its record is never reached (`W10`, `W11`, `W9`).
-   Mapped here, not yet tried: the desk held the corpus pass.
+2. A body's local record is not known to `record_class_of` while the
+   algorithm runs, so the operator of its record is never reached
+   (`W10`, `W11`, `W9`).
 
-The next shift starts at link 2 with the parked patch built and `W9`
-to `W11` run under it, and keeps walking to `G8` and `R1`.
+Walked on in the same shift, each link local and unrecorded, all of
+them behind switches, parked together as
+`state/m422/body_records_links1_3.patch`:
+
+- Link 2, taken: the body's local records, which link 1 puts in the table for
+  the declarations, are also kept in view while the algorithm runs
+  (`Records::in_view` around `statements::execute`). `W8`, `W10`,
+  `W11` and `W13` then run, and give `2 ln(1.01)`, `3.01`, `2.02` and
+  `3.01` at t = 0.01, the numbers by hand.
+- Link 3, taken: an element of an array of records assigned whole, `o[1] :=
+Complex(x, 1)`, is split into `o[1].re` and `o[1].im` the way a
+  whole record already is (`record_fields_named` reads the base name
+  of the element). With it `W9`, `W15`, `C7`, `C9`, `G5`, `H4` and
+  `G8` run. `G8`, the verbatim `Gibbs`, gives gT = 1398.82606396966
+  at t = 0, and the same sum done by hand in complex arithmetic gives
+  1398.82606396967. `H1` still refuses, honestly: its `r2` is never
+  assigned in that cut-down model.
+- Link 4, not taken, mapped: `R1` and `R3` reach the library by the walked
+  road, not the inlined one. `ice09BaseProp_pT` is carried to the
+  walk, and the walk's own reading of records (`records_as_arrays` in
+  `carried.rs`) lays a record of plain numbers out as an array and
+  sets the component's dimensions to the record's length. For a
+  local that is already an array of records, `Complex[2] t`, that
+  overwrites the `[2]` rather than adding to it. That is the reading
+  to test first, and it is a hypothesis, not a measurement: the
+  refusal is the same `{0.0368017112855051, 0.0510878114959572}`
+  reaching the evaluator, which is `t[1]` read as a list.
+
+No corpus pass was run under links 1 to 3. The next shift builds the
+parked patch, takes link 4 on `R1`, and measures the series as one
+when `R1` runs or leaves the family.
