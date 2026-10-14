@@ -45601,16 +45601,23 @@ Complex(x, 1)`, is split into `o[1].re` and `o[1].im` the way a
   at t = 0, and the same sum done by hand in complex arithmetic gives
   1398.82606396967. `H1` still refuses, honestly: its `r2` is never
   assigned in that cut-down model.
-- Link 4, not taken, mapped: `R1` and `R3` reach the library by the walked
-  road, not the inlined one. `ice09BaseProp_pT` is carried to the
-  walk, and the walk's own reading of records (`records_as_arrays` in
-  `carried.rs`) lays a record of plain numbers out as an array and
-  sets the component's dimensions to the record's length. For a
-  local that is already an array of records, `Complex[2] t`, that
-  overwrites the `[2]` rather than adding to it. That is the reading
-  to test first, and it is a hypothesis, not a measurement: the
-  refusal is the same `{0.0368017112855051, 0.0510878114959572}`
-  reaching the evaluator, which is `t[1]` read as a list.
+- Link 4, not taken, measured: `R1` and `R3` reach the library by the
+  walked road, not the inlined one. `ice09BaseProp_pT` is carried to
+  the walk, and the walk's own reading of records (`records_as_arrays`
+  in `carried.rs`) lays a record of plain numbers out as an array by
+  setting the component's dimensions to the record's length. A probe
+  printing what reaches it on `R1`
+  (`state/m422/body_records_links1_3_plus_link4_probe.patch`, key
+  `OX_WALK_RECORD_ARRAYS`) shows three locals of `Basic.Gibbs` arriving
+  already arrays: `t` with `[2]`, `r_2` with `[3]` and `o` with `[12]`,
+  each of `Complex`, two members. The line
+  `component.dimensions = vec![members]` then replaces their
+  dimensions instead of adding one, so twelve complex numbers become
+  one, and `t[1]` read afterwards is the list
+  `{0.0368017112855051, 0.0510878114959572}` the run refuses. The fix
+  is a second dimension: `t[i].re` as `t[i, 1]`, which the renaming
+  table, keyed on `name.member`, cannot spell yet. It is the next
+  link and it is not small.
 
 No corpus pass was run under links 1 to 3. The next shift builds the
 parked patch, takes link 4 on `R1`, and measures the series as one
