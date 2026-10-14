@@ -44910,3 +44910,37 @@ changes which refusal a held-back fold meets, since the index of a
 range never was a number, but it changed the wording that
 `a_fitted_medium_s_inverse_reads_the_fit_as_numbers` pins. Link 3 now
 leaves a range subscript to the road it took before.
+
+**The ladder and the floor norm as a pair, stopped at a fault of its
+own.** The two parked solver patches were measured together from one
+binary (`/tmp/ox418pair`, on HEAD f07ab37) under a 24 GB cap. The on
+half printed 953 flatten and 765 run, runnable 836 / 722
+(`/tmp/m418/p3/on.txt`), against 763 / 720 for HEAD. Its run list
+against the m418 pair (`/tmp/m418/ran_on.lst`) gained `CCCV_Stack`,
+`CCCV_StackRC` and `SeriesPipes2` and lost `TestWaterPumpStorage`. The
+run half took 7885 s against 4437 s, nearly double.
+
+The loss came from a fault in the floor norm, and the switch did not
+cover it: the victim refused under the same binary with both switches
+set. `x.abs() - floor` is NaN for a residual that is not a number, and
+`NaN.max(0.0)` is 0.0. A step landing where the residual is NaN
+therefore read as a perfect descent, and `TestWaterPumpStorage` walked
+its pressure to -4.6e5 (`/tmp/m418/wps_f.txt` against `wps_h.txt`, the
+first divergence at its second solve). The NaN branch of `if
+floor_norm_off()` is not reached, because the closure that drops the
+NaN is built either way. So the off half was not the old compiler, and
+the pair was stopped there.
+
+The patch in the park is corrected so that a NaN stays a NaN
+(`state/m418/floor_norm.patch`, with the faulty one beside it as
+`floor_norm.v1-nan-bug.patch`). Under `--only`, from one corrected
+binary (`/tmp/ox418pair2`): `TestWaterPumpStorage` runs both ways,
+`CCCV_Stack` and `CCCV_StackRC` run on and refuse off, and
+`SeriesPipes2` runs neither way. Its purchase was the NaN fault's
+doing, the same false descent landing somewhere better. The corrected
+pair is not taken. It needs a whole corpus run of two halves, about 50
+minutes, and the doubled run half has to be explained before then:
+the stacks under `--only` run ten steps, while the full `CCCV_Stack`
+run ends at t = 748.4 on the model's own `Battery overcharged!`.
+A model that `library check` counts as running there would be an
+unverified number. Both patches stay parked.
