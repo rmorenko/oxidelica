@@ -45109,3 +45109,150 @@ same Newton iterations both ways (`/tmp/m419/p2/won2.txt`, `woff2.txt`).
 The desk edges of 0.80 and 1.10 were set from one point (0.953) and
 this desk now runs above them on unchanged code. That is for the next
 reading of the runner's band, not a fault of this change.
+
+## The clamp that did not leak, a step that reached past its switch (m420)
+
+**The verdict on 8be7895, and the floors from its print.** Push run
+38518964308 came out green. The runner printed 940 / 759 and runnable
+825 / 717 in the main pass and 13 / 5 and 11 / 4 in the dear pass, so
+953 / 764 and 836 / 721 together. Against f07ab37 (push run 38497487843) the run list of the two passes gained exactly
+`SolveOneNonlinearEquation.Inverse_sh_TX` and lost nothing
+(`/tmp/m420/ci/ran_f07.txt`, `/tmp/m420/ci/art/ran_8be.txt`). The run
+floors went to 762 and 719, the two swings left out by name as before.
+The main pass took 63.6 minutes (05:52:26 to 06:56:03) against 80.2
+for f07ab37, and the runner's ratio was 1.473 against 1.452, both
+inside the band of 1.45..2.02 and still near its floor.
+
+**The desk band, worked over three points.** The desk's edges stood on
+one point, 0.953, and two quiet passes of the unchanged compiler since
+printed 1.149 and 1.177 (`/tmp/m419/floor_alone_off.txt`,
+`floor_alone.txt`). The same room as the runner's band, taken over the
+three, is 0.953 / 1.189 = 0.80 and 1.177 x 1.158 = 1.36. The pass of
+1.106, which shared the desk with a corpus pair, and those of
+1.30..1.35 from before the carving were left out.
+
+**The CCCV_Stack leak was not the clamp.** Under the pair of the ladder
+and the floor norm the stack's cell `[1,2]` sat at its
+`LimIntegrator` limit from t = 679.73 and then crept past it from
+745.943 without an event. A probe on accepted steps showed the
+integration itself to be honest. The step accepted at 745.943 ran to
+760, 14.06 s long, and its far end was on the other side of the
+switch: y = 0.99998395, slope -5.28e-6, because the charging current
+crosses zero inside that step and the clamp lets go. The rows between
+the two ends are a cubic Hermite through those ends. With a slope of
+zero at the start, the cubic bows upward before it falls. Evaluated
+by hand from the two ends, it gives 1 + 1.056562e-9 at 746.069, the
+digits the run printed when the model's own `assert(SOC <= SOCmax +
+SOCtolerance)` fired. The run on a 746.2 horizon did not cross the
+switch inside a step, which is why it passed. So a charge was never
+exceeded. The rows written between the start of the step and the
+crossing came from a curve that belongs to the other branch.
+
+The same breed in nine lines (`state/m420/K.mo`): `der(y) = if u > 0
+then 0 else u` with `u = 1 - time/10` and y starting at 1. Without the
+fix, 78 rows over 1 and a top of 1 + 6.87e-6, all before t = 10.
+
+**The fix tried: a step that holds a crossing is cut to end at it.** When the
+event search finds a crossing at a fraction theta of the step, the step
+is taken again with h times theta, so that every stage stands on the
+side the run is on, and the cubic is read only on a step that does not
+cross. Two guards came out of the stack, each from a probe:
+
+- Cutting once and keeping the flag until the next event let the next
+  step interpolate straight through the kink. On a 755 s horizon the
+  cut at 750.21 landed short, the following step was not cut, and the
+  assert fired at 753.852. The flag now clears on any accepted step.
+- Cutting whenever theta is small never ends. At 679.629 a cut step
+  landed a few hundredths short, the next found the crossing two
+  hundredths in, and twelve cuts took h from 4 s to 2.4e-13 s and an
+  underflow. A crossing in the first tenth of the step is not cut for:
+  the bow grows with theta squared, so there it is a hundredth of what
+  it is at the middle.
+
+The corpus pair for the fix alone (`/tmp/m420/c3/on.txt`, `off.txt`,
+one binary, the switch the only difference) was taken with 1043 models,
+not 1020: it was started from `/tmp/m420/c3`, and the carved-out giants
+are looked for relative to the working directory, so the 23 of
+`heavy_models.txt` came in. Both halves had the same set, so the run
+lists and the diff of victims are honest. Its counts and its times are
+not comparable with the floors, which stand over 1020, and were not
+used for them. A corpus pass is started from the root of the tree.
+With the 23 taken out of its lists, the off half reads 953 flatten and
+764 run, the runner's print for 8be7895 to the model.
+
+The lists say the fix buys nothing and costs two. On: 976 flatten, 764
+run. Off: 976 flatten, 766 run. Nothing gained, and lost exactly
+`FluxTubes.Examples.SolenoidActuator.ComparisonPullInStroke` and
+`ComparisonQuasiStatic`, both now `step size underflow at t = 0.000000`
+(`/tmp/m420/c3/ran_on.lst`, `ran_off.lst`). The refusal has the shape of
+the creep the stack showed at 0.00137 and 679.629, a cut step landing
+short of a crossing and the next one cut again, but that is read from
+the wording and was not probed on these two: the `--only` run was cut
+off for time. So the fix is not in the tree. The patch, its test and
+`K.mo` are parked in `state/m420/` (`event_retake.patch`). Before it
+can come back it needs a cut that cannot creep: place the step's end a
+hair past the crossing found by the search rather than on it, or cut
+at most once per accepted distance, and the two FluxTubes comparisons
+as its test alongside `K.mo`. The stack's leak is named and stays
+open.
+
+`OXIDELICA_NO_EVENT_RETAKE` kept the old reading in the parked patch.
+The test `a_held_value_is_not_bowed_by_a_step_reaching_past_the_switch`
+is green with the fix and red without it
+(`y rose to 1.0000068675187581`).
+
+Under the pair together with the fix the stack runs to its StopTime of
+1200 s in 145 s. Its last row has every cell at or under 1 - 1e-9 +
+5.2e-13 (0.9999999990005131 the highest). The maximum over the whole
+run was not taken: the 15 GB of rows was too dear to scan and was
+deleted. On the 755 and 760 horizons it now stops elsewhere: more than
+10000 events in one output interval at t = 754.946. So the leak is
+closed, and a chatter appears that depends on the horizon. A probe on
+the indicators (`/tmp/m420/ix760.txt`) names it: 10002 of the turns are
+indicator 205, `stack.cell[1,2].cell.limIntegrator.y - outMax`. It
+reads +1.110e-16 at the start of every step and below zero at its end,
+-2.2e-8 on a step of 0.155 s, then -9.0e-10, -7.7e-11 and so on as h
+falls tenfold each round. The crossing sits at the very start of the
+step, so the cut does not fire (theta under a tenth), the event is
+handled, and the state it leaves is again one rounding unit over the
+limit. That is an event that never moves the state across its own
+threshold, a Zeno on the last bit of `y` rather than a fault of the
+cut. It is seen only under the pair, since without it the stack does
+not run. The pair stays parked until that is closed too.
+
+**The half-pairs: no run to compare against.** Only the ladder: the
+stack refuses at its start (did not converge in 50 iterations, the bus
+loop of cell `[1,1]`). Only the floor norm: a singular Jacobian in the
+same loop. Neither half runs the stack at all, so the leak could not
+have belonged to one half. It belonged to the explicit solver's
+dense output, which only a run that reaches the switch can show.
+
+**ReferenceAir.Inverse_sh_TX: three walls of Complex in walked bodies,
+not one.** Cut down to four eight-line models (`state/m420/ra/R1..R4`),
+the two that go from properties to temperature (`temperature_phX`,
+`temperature_psX`) refuse and the two that go the other way run. The
+refusal is "an array reached the evaluator" in
+`Ice09_Utilities.ice09BaseProp_pT`, and the array is
+`{0.0368017112855051, 0.0510878114959572}`, the first element of
+`Complex[2] t` in `Ice09_Utilities.Basic.Gibbs` written out as its two
+fields. Calling that body directly from a wrapper (`G5`, and `G8`, a
+verbatim copy of `Gibbs`) refuses one layer earlier with
+`subscripts and arrays survive flattening only as scalars: an array
+of 2 written out` (`events.rs:398`). Cut further, there is a third:
+a `Complex` accumulated in a `for` loop, `r2 := r2 + r_2[k] *
+Complex(...)`, leaves `r2` unknown when the body is substituted (`H4`),
+and `Complex o[2]` assigned by element leaves `o[1].re` unknown (`C7`,
+`C9`). Smaller cases with Complex constants, arrays of them and
+`ComplexMath.log` run (`C1..C6`, `C8`, `D1..D5`, `H2`, `H3`, `H5`). So
+this is not the third entry of the walked-body family for medium
+records. It is an array of records, and a record accumulated, inside a
+body, and it wants its own series. Parked as small models with this
+map.
+
+**The strict bounds family counts one model.** The runner's print for
+8be7895 holds two refusals by a bound's assert. `IdealMixing1` is
+`pipeFriction1.flowModel.states[2].X[2]` = -4.75e-26 under a min of 0,
+which is rounding. `Essotherm650` is `Pr` over its max of 100000, which
+a Prandtl number of a thermal oil can honestly be, and is not within
+noise of its bound. A tolerance at the bound would buy one model, so it
+goes to Roman as a question priced at one model, without a pair.
