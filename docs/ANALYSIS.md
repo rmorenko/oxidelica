@@ -45510,6 +45510,11 @@ nothing in either list. All 22 FluxTubes that run do so in all three
 halves. So the fix is taken for the wrong number it removes and not
 for a count, and its price on the corpus is zero.
 
+The heavy models, which the main pass leaves out and a solver change
+reaches, were run on the same tree (`/tmp/m422/heavy.txt`, against
+`scripts/heavy_floor.sh`): 23 flatten and 2 run of 23, 21 and 2 of the
+runnable, the floors exactly.
+
 **The pair is now a measured candidate, ready to take.** The doubt
 that stopped it was the overcharge at t = 741, which the corpus's ten
 intervals cannot reach. That fault turned out to be on HEAD, not in
