@@ -4500,3 +4500,26 @@ fn a_walked_body_reads_the_records_its_medium_writes_out() {
         "the root is 4.5, and this said {root}"
     );
 }
+
+/// A record the walk lays out as a list, given the product of two such
+/// records. The walk knows no record operator: `a * b` of two lists
+/// is read as their scalar product, a single number, and that number
+/// landed on the name `c` while the walk reads `c.re` from `c[1]`,
+/// which was never written. The answer came out 0 every time, where
+/// the real part is 1*3 - 2*4 = -5 per pass. Until the walk can work
+/// the record's own `'*'`, the assignment is refused by name. Red with
+/// `OXIDELICA_NO_WHOLE_ARRAY_GUARD=1`, on a silent zero.
+#[test]
+fn a_walked_record_given_one_number_is_refused_and_not_left_at_zero() {
+    let source = "model V8 operator record C Real re; Real im; \
+         encapsulated operator function '*' input C a; input C b; output C c; \
+         algorithm c := C(a.re * b.re - a.im * b.im, a.re * b.im + a.im * b.re); end '*'; \
+         end C; \
+         function f input Real x; output Real y; \
+         protected C a = C(1, 2); C b = C(3, 4); C c; Integer k = 0; \
+         algorithm y := 0; while k < integer(x) + 1 loop k := k + 1; c := a * b; \
+         y := y + c.re; end while; end f; \
+         Real y = f(1 + time); end V8;";
+    let error = run_err(source);
+    assert!(error.contains("`c` is held element by element"), "{error}");
+}

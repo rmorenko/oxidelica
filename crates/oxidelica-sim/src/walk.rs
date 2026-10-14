@@ -1455,6 +1455,23 @@ fn run(
                         }
                         continue;
                     }
+                    // A name the frame holds element by element, given
+                    // something that is not a list, would land on a
+                    // name nobody reads while its elements kept what
+                    // they held. That is how `c := a * b` of two
+                    // `Complex` locals answered nothing: the record's
+                    // `'*'` is not something the walk knows, the two
+                    // lists multiplied read as a scalar product, and
+                    // `c.re`, laid out as `c[1]`, still stood at zero.
+                    if frame.lengths.contains_key(target)
+                        && !switch_set("OXIDELICA_NO_WHOLE_ARRAY_GUARD")
+                    {
+                        return err(format!(
+                            "`{target}` is held element by element and was given one \
+                             number: {}",
+                            value.describe()
+                        ));
+                    }
                 }
                 let worth = number_of(value, frame, programs, time, depth)?;
                 frame.numbers.insert(named, worth);

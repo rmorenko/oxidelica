@@ -45655,7 +45655,19 @@ expected print to the model. One caveat on that pass: from 18:11:30
 to 18:18 it shared the desk with the orphaned library pass of a first
 preflight stopped at its top for a formatting fault, whose children
 lived on until they were killed by hand. The counts do not depend on
-the weather, and the time band read 1.045.
+the weather. The time ratio of the library step printed 0.969 inside
+0.80..1.36 (line 2141 of that file; the 1.045 quoted in a3bfe6d is
+the self-test of the band, not the library's ratio, and is
+withdrawn). Taken with a neighbour in its first seven minutes, which
+swells flattening more than running, 0.969 is a lower estimate and is
+not a quiet point of the desk.
+
+**The census after the pair.** Counted by section bounds
+(`/tmp/m423/census.txt` against `/tmp/m422/census.txt`): the flatten
+half is 67 models in 39 rows in both, and the run half went from 189
+in 132 rows to 187 in 132 rows. One row moved, `singular Jacobian in
+algebraic loop` from 10 to 8, which is the two stacks, and nothing
+else.
 
 **An observation, not a gate.** `S.mo`, which `extends` the stack,
 does not inherit its `experiment` annotation and runs on the default
@@ -45715,11 +45727,14 @@ the answer at t = 0 is -10. The walk knows no record operator, reads
 `a * b` of the two lists as their scalar product, writes that one
 number on the name `c`, and reads `c.re` from `c[1]`, which nothing
 wrote and the layout left at zero. `V7` is the same with the
-library's `Complex`. A guard is built and parked beside it
-(`state/m423/whole_array_guard.patch`, key
-`OXIDELICA_NO_WHOLE_ARRAY_GUARD`, with a test red under the key on
-the silent zero): a name the walk holds element by element, given one
-number, is refused by name. It was not measured on the corpus in this
-shift, because the preflight of the pair held the desk; it wants a
-pair from one binary before it is taken, since a refusal where a
-number stood may cost a model that read a wrong one.
+library's `Complex`. A guard is built beside it, key `OXIDELICA_NO_WHOLE_ARRAY_GUARD`,
+with a test red under the key on the silent zero: a name the walk
+holds element by element, given one number, is refused by name. It
+was measured on the corpus after the preflight of the pair had left
+the desk, both halves from one binary built on a3bfe6d with the guard
+(`/tmp/m423/ox3`, `/tmp/m423/g/{on,off}.txt`): 953 flatten and 766
+run, runnable 836 and 723, in both halves, and the lists of models
+that flatten and that run are the same name for name. So no model of
+the library leaned on the zero, and the guard is taken for the wrong
+number it removes, not for a count. The heavy models were run under
+it as well (`/tmp/m423/heavy3.txt`).
