@@ -45919,3 +45919,131 @@ of the tree leaning on the skip, and three more that would lean on it
 under a tighter test. Closing it means running the determinacy check
 on the floor exits too, and that is a change to measure against these
 four by name before anything else.
+
+## The floor's side door closed, and the Spice3 half of `underdetermined` mapped (m425)
+
+### The door: the four that used it are determined
+
+The check of determinacy a validated block meets when it converges is
+now asked on both arithmetic-floor exits too, when the solve is a
+validated one (the plan's run at `t = 0`). It was moved, unchanged,
+into one closure that every exit of that solve calls, so the converged
+path asks exactly what it asked before.
+
+The four models that leaned on the skip were asked first, each by
+`--only` from the root `.msl` with a binary that printed the check's
+verdict at the floor (`/tmp/m425/ox1`, files
+`/tmp/m425/*_{Analog,Polyphase,Batteries}.probe.txt`). All four are
+determined at the point they were accepted at, `t = 0`, and the
+verdict is about that point: the residual there is the floor and not a
+zero.
+
+```text
+model                    n   max|f_i|   smallest pivot (both scalings)
+Analog Rectifier         7   9.3e-10    1.0,     6.0e-5
+Polyphase Rectifier      8   1.1e-9     0.75,    1.0
+CCCVcharging             3   5.3e-9     1.0,     1.0
+CCCV_Stack               8   1.1e-9     2.7e-4,  2.5e-6
+```
+
+All four run with the check in place. `CCCV_Stack` takes a different
+path afterwards (3507 points against 4372), because the check writes
+the accepted point back into the slots as the converged path does. Its
+1001 rows agree with the old run to a relative 1.2e-7 at worst
+(`energy.y` at `t = 0.371`, `/tmp/m425/st_base.csv` against
+`st_probe.csv`).
+
+What the door let through is shown by a small model, now a test
+(`a_block_accepted_on_the_arithmetic_floor_is_still_asked_whether_it_is_determined`).
+It has two equations that tell `x` from `y` only by a millionth, each
+carried beside 1e7. The iteration cannot get under the rounding of the
+sum and stops on the floor. Without the check it handed on x =
+1.0005768 where the answer is 1. With it, the block is refused as
+underdetermined. The old behaviour is kept behind
+`OXIDELICA_NO_FLOOR_DETERMINED` so that one binary measures both, and
+the test fails under that switch.
+
+The pair was taken as one binary on one desk, the two halves side by
+side, with the old behaviour under the switch (`/tmp/m425/ox2`,
+`/tmp/m425/p/base.txt` against `fix.txt`, lists `ran_base.lst` and
+`ran_fix.lst`). Both halves print 953 / 766, runnable 836 / 723, and
+the two run lists are identical name for name. The base half's list
+is also identical to the base half of the m424 floor pair. The counts
+of work agree to the digit (24099894 points, 35219702 Newton
+iterations). In time, the base half took 7773 s flattening and 6919 s
+running, and the half with the check took 7420 s and 6959 s. That is
+-4.5% and +0.6%, inside the weather of two passes sharing one desk, so
+the check costs no measurable time. As the rule of the day has it,
+these times are for comparing within this pair and not against the
+absolute times of another.
+
+That settles the question m424 left for Roman, whether to lower both
+run floors by two or keep the door. It was settled by measurement, not
+by a decision: closing the door costs nothing, so no floor moves.
+
+The caveat that keeps this honest: what is closed is one door, the
+validated solve at `t = 0`. The arithmetic floor is also asked outside
+that solve, and the rectifier's trail alone asks it 26 times at
+`t = 0` (m424). Those askings happen where no block is validated, so
+no determinacy check runs there before or after this change. They
+remain unchecked and wait for a shift of their own. Do not read this
+chapter as "the floor is closed".
+
+### The Spice3 half of `underdetermined`: what the 1x1 threshold would buy
+
+The small models of m372/m373 were gone from `/tmp`, so they were
+rebuilt from their descriptions (`state/m425/r5.mo`, `q1x.mo`,
+`qc_*.mo`: one `Q_NPNBJT` with a current source into the base,
+collector and emitter grounded). They refuse as recorded. With the
+default card (`r5`) the block `{der(Q1.vbx)}` does not mention its
+unknown. With `XCJC = 0.5` and `CJC` at 1e-8, 1e-9 or 1e-12 the same
+block is called underdetermined, and with `CJC = 1e-6` the model runs.
+`q1x` (`XCJC = 0.5` with the default `CJC`) does not mention its
+unknown, because the default `CJC` is zero.
+
+The road item 30 of the queue named, judging a 1x1 block by whether
+its unknown moves the residual above the rounding of the row rather
+than by a pivot against `1e-7*max(scale, 1)`, was probed
+(`OX_PROBE_ONE_SHIFT`, in `state/m425/floor_determined_with_spice_probes.patch`).
+It does what was expected on the small models: `qc` at 1e-8, 1e-9 and
+1e-12 all run, each column of about the capacitance against a noise of
+9e-20. But it does not reach a single model of the five, because none
+of the five stands on a small column. A second probe printed the raw
+columns of each refused block (`OX_PROBE_DEAD_COLS`,
+`/tmp/m425/sp/{NAND,ONEBIT,MNmos,MPmos}.d.txt`):
+
+```text
+model         block  exactly zero columns           zero rows
+RtlInverter     1    der(Q1.vbx)                      -
+NAND           15    der(Q2.vbx)                      0
+ONEBIT        113    der(X1..X9.Q2.vbx), nine         0
+MNmos           5    der(Dinternal), der(B.v),        1
+                     der(G.v), der(Sinternal)
+MPmos           5    the same four                    1
+```
+
+The three bipolar models stand on an exactly zero column: `capbx` is
+`CJC*(1 - XCJC)` with the default `XCJC = 1`, so the capacitance is
+zero whatever the voltage, and no threshold of any shape reads a zero
+as a slope. Their other faint columns (1e-12 to 6e-12, the picofarad
+capacitances of the card) would be the next wall under the old
+threshold, but they are not the first one.
+
+`MNmos` and `MPmos` are not circuits. They are the two transistor
+classes declared inside `InvertersExtendedModel`
+(`Spice3.mo:449` and `:459`), each extending `M_PMOS` or `M_NMOS`
+with a card that sets `CBD = CBS = 0`. The corpus counts them because
+they sit under `Examples`. Checked on their own, all four pins hang
+free with no ground, so every node potential is free and its
+derivative appears only behind a capacitance of zero (`CGSO`, `CGDO`
+and `CGBO` default to 0). The block has four zero columns and a zero
+row. That is an honestly underdetermined model, and it cannot be won
+by any change to the solver. The circuit that uses them,
+`InvertersExtendedModel` itself, is a separate example.
+
+So the price of the series is settled by measurement rather than by
+guess. A 1x1 threshold buys none of the five. Two of the five can
+never be bought, and the other three stand on a capacitance the
+parameters make exactly zero, which is the m376/m377 question of why
+`der(vbx)` is an unknown at all, not a threshold. The series is parked
+with this map, and item 30 of the queue gets the note.

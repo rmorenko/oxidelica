@@ -207,6 +207,15 @@ fn restore_validated_off() -> bool {
     *OFF.get_or_init(|| std::env::var_os("OXIDELICA_NO_RESTORE_VALIDATED").is_some())
 }
 
+/// Whether a validated block accepted on the arithmetic floor is let
+/// through without the check of determinacy a converged one is held
+/// to, as it was before. Off by default; the switch exists so that the
+/// two halves of a measurement come from one binary.
+fn floor_determined_off() -> bool {
+    static OFF: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *OFF.get_or_init(|| std::env::var_os("OXIDELICA_NO_FLOOR_DETERMINED").is_some())
+}
+
 /// Whether to take a Newton step whose direction the line search
 /// could not make descend. Off by default; the switch exists so that
 /// the two halves of a measurement come from one binary.
@@ -1148,6 +1157,185 @@ impl CompiledModel {
         let block_names =
             || -> Vec<&str> { block.iter().map(|&i| self.algebraics[i].as_str()).collect() };
 
+        // A block accepted at a validated solve still has to be
+        // *determined*: a singular Jacobian means the loop admits a
+        // whole family of solutions, and the one we landed on is an
+        // artifact of the initial guess. Asked of whatever point the
+        // block is accepted at, the converged one and the arithmetic
+        // floor alike.
+        let determined = |values: &mut [f64], v: &[f64]| -> Result<(), SimError> {
+            let f = residual(values, v);
+            let mut jac = vec![vec![0.0f64; n]; n];
+            for j in 0..n {
+                let mut h = fd_step_scale() * (1.0 + v[j].abs());
+                // A column that comes back all zeros is asked again with a
+                // larger step before it is believed. The textbook step is a
+                // compromise between the truncation error of a first
+                // difference and the cancellation of subtracting two nearby
+                // numbers, and it is the second half a switching loop walks
+                // into: an ideal diode's residual carries a term of the order
+                // of its off conductance, so at `d2.s` near zero a step of
+                // 1e-8 moves a residual of 1.4e4 by 1e-13 - a twentieth of an
+                // ulp of the number it is added to, which the subtraction
+                // gives straight back as zero. The coefficient is not zero,
+                // it is below what the residual can resolve at that step, and
+                // the cure is to move further rather than to read the
+                // rounding as a fact about the equations. Growing costs
+                // nothing where the column was already alive, because the
+                // loop stops at the first step that answers; a genuinely dead
+                // column stays zero however far it is moved and pays three
+                // extra residual evaluations to say so.
+                let mut fp = {
+                    let mut perturbed = v.to_vec();
+                    perturbed[j] += h;
+                    residual(values, &perturbed)
+                };
+                if !fd_growth_off() {
+                    let ceiling = 1e-3 * (1.0 + v[j].abs());
+                    while h < ceiling && fp.iter().zip(&f).all(|(a, b)| a == b) {
+                        h *= 100.0;
+                        let mut perturbed = v.to_vec();
+                        perturbed[j] += h;
+                        fp = residual(values, &perturbed);
+                    }
+                    // What a grown step answers has to be checked before it
+                    // is believed, because two different things read the
+                    // same at the base step. A coefficient too small for the
+                    // residual to resolve is a straight line whichever
+                    // distance it is measured over, so its slope comes back
+                    // the same from twice as far. A coefficient that is
+                    // genuinely zero *at this point* - `der(x)^2 = 4` where
+                    // the iteration stands at zero, the extremum of a square
+                    // - has a slope that is whatever distance was walked,
+                    // and halves when the distance doubles. So the answer is
+                    // kept only where the two agree: the first is a fact
+                    // about the equations, the second a fact about the step,
+                    // and believing the second hands back a step for a block
+                    // that really does admit two solutions.
+                    if h > fd_step_scale() * (1.0 + v[j].abs()) {
+                        let mut farther = v.to_vec();
+                        farther[j] += h * 2.0;
+                        let ff = residual(values, &farther);
+                        let steady = fp.iter().zip(&ff).zip(&f).all(|((near, far), base)| {
+                            let a = (near - base) / h;
+                            let b = (far - base) / (h * 2.0);
+                            (a - b).abs() <= 0.25 * a.abs().max(b.abs())
+                        });
+                        if !steady {
+                            fp = f.clone();
+                        }
+                    }
+                }
+                for (i, row) in jac.iter_mut().enumerate() {
+                    row[j] = (fp[i] - f[i]) / h;
+                }
+            }
+            // Judged on a matrix whose rows have each been
+            // divided through by their own largest entry. The
+            // spread between one equation of a block and
+            // another is a matter of the units they are
+            // written in, and the comparison below is against
+            // the whole matrix's largest entry, so without
+            // taking that spread out the test asks about the
+            // units as much as about the block. A magnetic
+            // circuit is where this bites: a permeance near
+            // `mu_0` and a reluctance near its reciprocal are
+            // in one block by construction, and read unscaled
+            // every such block is called underdetermined
+            // while being plainly invertible.
+            let raw = jac.clone();
+            if std::env::var_os("OXIDELICA_NO_ROW_SCALING").is_none() {
+                // Columns as well as rows, and for the same
+                // reason read along the other axis: a row's
+                // scale is the unit its equation is written
+                // in, and a column's is the unit its unknown
+                // is measured in. Neither is a fact about
+                // whether the block determines a solution, so
+                // a test that notices either is asking about
+                // the units. The flux tubes are where the
+                // column half bites - a reluctance near 1e6
+                // beside a flux near 1e-5 - and unscaled the
+                // flux's column read as dead.
+                //
+                // Rows first, and only then the columns. A
+                // column's largest entry, read before the rows
+                // are, is the unit of whichever equation shouts
+                // loudest in it, not the unit of the unknown.
+                // An induction machine at rest is the case: one
+                // row ties the air gap's voltage to the leakage
+                // inductance's with coefficients near 3e3, the
+                // two columns were divided by those, and every
+                // other row that told the two voltages apart was
+                // crushed to 3e-4 - a pivot of 7e-9 on a block
+                // whose own pivot, unscaled or by rows, is 7e-6.
+                // Six machines were refused as underdetermined
+                // for the order of two divisions.
+                if std::env::var_os("OXIDELICA_DIVISOR_BY_MENTION").is_none() {
+                    crate::linear::equilibrate_both(&mut jac, columns_first());
+                } else {
+                    equilibrate_rows(&mut jac);
+                }
+            }
+            // Judged against the Jacobian's own scale, not
+            // against zero. The matrix here is built by finite
+            // differences, and a column that cancels exactly in
+            // exact arithmetic comes back as noise of order
+            // 1e-8 rather than as a zero: `x = y + 1` beside
+            // `y = x - 1` is the same equation twice, and its
+            // Jacobian read absolutely looks invertible. What
+            // makes a block underdetermined is a direction the
+            // residual barely moves along *compared with the
+            // rest of the block*, which is what this asks.
+            let mut singular = crate::linear::reads_singular(&jac);
+            // And the other order of taking the units out
+            // before the block is called underdetermined
+            // (`reads_underdetermined` says why). Only where
+            // both halves of the scaling ran: the switches that
+            // take one away ask their own question.
+            if singular
+                && std::env::var_os("OXIDELICA_NO_ROW_SCALING").is_none()
+                && std::env::var_os("OXIDELICA_DIVISOR_BY_MENTION").is_none()
+            {
+                singular =
+                    crate::linear::reads_underdetermined(&raw, columns_first(), one_order_only());
+            }
+            if singular {
+                return err(format!(
+                    "underdetermined algebraic loop {:?}: the equations do not determine a unique solution",
+                    block_names()
+                ));
+            }
+            // The difference quotients above wrote each
+            // perturbed point into the slots, block and inner
+            // unknowns alike, and the last of them is what was
+            // left standing: the converged value plus one step
+            // of the quotient. A caller reading the block's
+            // answer read that instead - a medium's `T` fixed
+            // at 300 came back as 300.00000301, which is 300
+            // plus 1e-8 of (1 + 300), and the check of the
+            // declared start refused the model for it. So the
+            // answer is written back before it is handed on.
+            if !restore_validated_off() {
+                residual(values, v);
+            }
+            Ok(())
+        };
+        // A block accepted on the arithmetic floor at a validated
+        // solve is held to the same check as one that converged. The
+        // floor says the residual can go no lower; it says nothing
+        // about whether the point it stands at is the only one. Left
+        // unasked, a block whose equations stop telling two unknowns
+        // apart at the rounding of the numbers it adds up walked in by
+        // that door with whatever the iteration last held: `x + y` and
+        // `x + (1 + 1e-6) y` carried beside 1e7 came back as x =
+        // 1.00058 where the answer is 1. The four library models that
+        // used the door (both `Rectifier`s, `CCCVcharging`,
+        // `CCCV_Stack`) pass the check at their floor (`/tmp/m425`).
+        // This closes the door on the validated solve only: the floor
+        // is asked outside it too, where nothing validates a block,
+        // and those askings are still taken on the floor's word.
+        let floor_checked = !floor_determined_off();
+
         let mut seen: Vec<Vec<f64>> = Vec::new();
         let mut damped = false;
         let mut over_edge = false;
@@ -1383,167 +1571,7 @@ impl CompiledModel {
                     alg_guess[index] = v[j];
                 }
                 if validate {
-                    // A converged block still has to be *determined*:
-                    // a singular Jacobian means the loop admits a whole
-                    // family of solutions, and the one we landed on is
-                    // an artifact of the initial guess.
-                    let mut jac = vec![vec![0.0f64; n]; n];
-                    for j in 0..n {
-                        let mut h = fd_step_scale() * (1.0 + v[j].abs());
-                        // A column that comes back all zeros is asked again with a
-                        // larger step before it is believed. The textbook step is a
-                        // compromise between the truncation error of a first
-                        // difference and the cancellation of subtracting two nearby
-                        // numbers, and it is the second half a switching loop walks
-                        // into: an ideal diode's residual carries a term of the order
-                        // of its off conductance, so at `d2.s` near zero a step of
-                        // 1e-8 moves a residual of 1.4e4 by 1e-13 - a twentieth of an
-                        // ulp of the number it is added to, which the subtraction
-                        // gives straight back as zero. The coefficient is not zero,
-                        // it is below what the residual can resolve at that step, and
-                        // the cure is to move further rather than to read the
-                        // rounding as a fact about the equations. Growing costs
-                        // nothing where the column was already alive, because the
-                        // loop stops at the first step that answers; a genuinely dead
-                        // column stays zero however far it is moved and pays three
-                        // extra residual evaluations to say so.
-                        let mut fp = {
-                            let mut perturbed = v.clone();
-                            perturbed[j] += h;
-                            residual(values, &perturbed)
-                        };
-                        if !fd_growth_off() {
-                            let ceiling = 1e-3 * (1.0 + v[j].abs());
-                            while h < ceiling && fp.iter().zip(&f).all(|(a, b)| a == b) {
-                                h *= 100.0;
-                                let mut perturbed = v.clone();
-                                perturbed[j] += h;
-                                fp = residual(values, &perturbed);
-                            }
-                            // What a grown step answers has to be checked before it
-                            // is believed, because two different things read the
-                            // same at the base step. A coefficient too small for the
-                            // residual to resolve is a straight line whichever
-                            // distance it is measured over, so its slope comes back
-                            // the same from twice as far. A coefficient that is
-                            // genuinely zero *at this point* - `der(x)^2 = 4` where
-                            // the iteration stands at zero, the extremum of a square
-                            // - has a slope that is whatever distance was walked,
-                            // and halves when the distance doubles. So the answer is
-                            // kept only where the two agree: the first is a fact
-                            // about the equations, the second a fact about the step,
-                            // and believing the second hands back a step for a block
-                            // that really does admit two solutions.
-                            if h > fd_step_scale() * (1.0 + v[j].abs()) {
-                                let mut farther = v.clone();
-                                farther[j] += h * 2.0;
-                                let ff = residual(values, &farther);
-                                let steady =
-                                    fp.iter().zip(&ff).zip(&f).all(|((near, far), base)| {
-                                        let a = (near - base) / h;
-                                        let b = (far - base) / (h * 2.0);
-                                        (a - b).abs() <= 0.25 * a.abs().max(b.abs())
-                                    });
-                                if !steady {
-                                    fp = f.clone();
-                                }
-                            }
-                        }
-                        for (i, row) in jac.iter_mut().enumerate() {
-                            row[j] = (fp[i] - f[i]) / h;
-                        }
-                    }
-                    // Judged on a matrix whose rows have each been
-                    // divided through by their own largest entry. The
-                    // spread between one equation of a block and
-                    // another is a matter of the units they are
-                    // written in, and the comparison below is against
-                    // the whole matrix's largest entry, so without
-                    // taking that spread out the test asks about the
-                    // units as much as about the block. A magnetic
-                    // circuit is where this bites: a permeance near
-                    // `mu_0` and a reluctance near its reciprocal are
-                    // in one block by construction, and read unscaled
-                    // every such block is called underdetermined
-                    // while being plainly invertible.
-                    let raw = jac.clone();
-                    if std::env::var_os("OXIDELICA_NO_ROW_SCALING").is_none() {
-                        // Columns as well as rows, and for the same
-                        // reason read along the other axis: a row's
-                        // scale is the unit its equation is written
-                        // in, and a column's is the unit its unknown
-                        // is measured in. Neither is a fact about
-                        // whether the block determines a solution, so
-                        // a test that notices either is asking about
-                        // the units. The flux tubes are where the
-                        // column half bites - a reluctance near 1e6
-                        // beside a flux near 1e-5 - and unscaled the
-                        // flux's column read as dead.
-                        //
-                        // Rows first, and only then the columns. A
-                        // column's largest entry, read before the rows
-                        // are, is the unit of whichever equation shouts
-                        // loudest in it, not the unit of the unknown.
-                        // An induction machine at rest is the case: one
-                        // row ties the air gap's voltage to the leakage
-                        // inductance's with coefficients near 3e3, the
-                        // two columns were divided by those, and every
-                        // other row that told the two voltages apart was
-                        // crushed to 3e-4 - a pivot of 7e-9 on a block
-                        // whose own pivot, unscaled or by rows, is 7e-6.
-                        // Six machines were refused as underdetermined
-                        // for the order of two divisions.
-                        if std::env::var_os("OXIDELICA_DIVISOR_BY_MENTION").is_none() {
-                            crate::linear::equilibrate_both(&mut jac, columns_first());
-                        } else {
-                            equilibrate_rows(&mut jac);
-                        }
-                    }
-                    // Judged against the Jacobian's own scale, not
-                    // against zero. The matrix here is built by finite
-                    // differences, and a column that cancels exactly in
-                    // exact arithmetic comes back as noise of order
-                    // 1e-8 rather than as a zero: `x = y + 1` beside
-                    // `y = x - 1` is the same equation twice, and its
-                    // Jacobian read absolutely looks invertible. What
-                    // makes a block underdetermined is a direction the
-                    // residual barely moves along *compared with the
-                    // rest of the block*, which is what this asks.
-                    let mut singular = crate::linear::reads_singular(&jac);
-                    // And the other order of taking the units out
-                    // before the block is called underdetermined
-                    // (`reads_underdetermined` says why). Only where
-                    // both halves of the scaling ran: the switches that
-                    // take one away ask their own question.
-                    if singular
-                        && std::env::var_os("OXIDELICA_NO_ROW_SCALING").is_none()
-                        && std::env::var_os("OXIDELICA_DIVISOR_BY_MENTION").is_none()
-                    {
-                        singular = crate::linear::reads_underdetermined(
-                            &raw,
-                            columns_first(),
-                            one_order_only(),
-                        );
-                    }
-                    if singular {
-                        return err(format!(
-                            "underdetermined algebraic loop {:?}: the equations do not determine a unique solution",
-                            block_names()
-                        ));
-                    }
-                    // The difference quotients above wrote each
-                    // perturbed point into the slots, block and inner
-                    // unknowns alike, and the last of them is what was
-                    // left standing: the converged value plus one step
-                    // of the quotient. A caller reading the block's
-                    // answer read that instead - a medium's `T` fixed
-                    // at 300 came back as 300.00000301, which is 300
-                    // plus 1e-8 of (1 + 300), and the check of the
-                    // declared start refused the model for it. So the
-                    // answer is written back before it is handed on.
-                    if !restore_validated_off() {
-                        residual(values, &v);
-                    }
+                    determined(values, &v)?;
                 }
                 return Ok(());
             }
@@ -2209,6 +2237,9 @@ impl CompiledModel {
                             for (j, &index) in block.iter().enumerate() {
                                 alg_guess[index] = v[j];
                             }
+                            if validate && floor_checked {
+                                determined(values, &v)?;
+                            }
                             return Ok(());
                         }
                         // A block that went over the edge of its domain
@@ -2253,6 +2284,9 @@ impl CompiledModel {
         if on_arithmetic_floor(values, &v, last_jac.as_deref()) {
             for (j, &index) in block.iter().enumerate() {
                 alg_guess[index] = v[j];
+            }
+            if validate && floor_checked {
+                determined(values, &v)?;
             }
             return Ok(());
         }

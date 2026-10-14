@@ -41,6 +41,33 @@ fn degenerate_algebraic_cycle_is_rejected_at_compile_time() {
 }
 
 #[test]
+fn a_block_accepted_on_the_arithmetic_floor_is_still_asked_whether_it_is_determined() {
+    // Two equations that tell `x` from `y` only by a millionth, each
+    // carried beside 1e7 so that the residual cannot go under the
+    // rounding of the sum. The iteration stops on the arithmetic
+    // floor, and before the floor was held to the check a converged
+    // block is held to, it handed on x = 1.00058 where the answer is
+    // 1 - a wrong number in place of a refusal.
+    let source = "model T parameter Real B = 1e7; parameter Real e = 1e-6; \
+         Real x(start = 0.3); Real y(start = 0.4); \
+         equation (B + x + y) - B = 2; (B + x + (1 + e)*y) - B = 2 + e; \
+         annotation(experiment(StopTime=0.01, Interval=0.01)); end T;";
+    let model = parse_model(source).unwrap();
+    let outcome = compile(&model).and_then(|compiled| compiled.simulate());
+    match outcome {
+        Err(error) => assert!(error.0.contains("underdetermined"), "{}", error.0),
+        Ok(result) => {
+            let x = result.columns.iter().position(|c| c == "x").unwrap();
+            assert!(
+                (result.rows[0][x] - 1.0).abs() < 1e-6,
+                "x = {} handed on from the floor",
+                result.rows[0][x]
+            );
+        }
+    }
+}
+
+#[test]
 fn solves_linear_algebraic_loop() {
     // x = y/2 + 1, y = x/2 + 1  ->  x = y = 2.
     let result = run(
