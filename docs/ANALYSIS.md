@@ -45879,3 +45879,43 @@ therefore the hand-over's own (queue item 38), and nothing in this
 shift makes its price smaller: the convergence test in the wrong
 units is a fact about the solver worth keeping, not a lever on this
 row.
+
+**The three machines are won through a side door, and the door is
+open on HEAD.** The pair above won `SMEE_DOL`, `SMEE_Rectifier` and
+`IMC_DOL_Polyphase` from the `underdetermined` row. Read in the trail
+(`/tmp/m424/smee_v.txt`), the block of 26 at `t = 0` never meets the
+tighter test: it swings between `|f| = 2.5e-11` and `6.9e-11` for the
+whole budget of fifty iterations, and then `on_arithmetic_floor`
+accepts it and returns. That exit hands the block back without the
+determinacy check that the converged path runs when the plan is
+validated at `t = 0`, so the tighter test did not show the block to be
+determined: it skipped the question. A variant that gives the tighter
+test only three extra iterations and then accepts the loose answer
+(`OX_PROBE_POLISH`) wins none of the three, which says the same from
+the other side.
+
+How many models of the tree pass their check at `t = 0` that way
+today was measured with a probe that turns the two floor exits of a
+validated solve into a named refusal
+(`state/m424/floor_unvalidated_probe.patch`, key
+`OX_PROBE_FLOOR_UNVALIDATED`), as a pair from one binary
+(`/tmp/m424/fl/oxf2`, `/tmp/m424/fl/base.txt` against `floor.txt`,
+lists `ran_base.lst`, `ran_floor.lst`, `lost.lst`): 953 / 766 against
+953 / 762, runnable 836 / 723 against 836 / 719, and the four lost
+are exactly the four whose refusal names the floor exit:
+`Analog.Examples.Rectifier`, `Polyphase.Examples.Rectifier`,
+`Batteries.Examples.CCCV_Stack` and `CCCVcharging`, all through the
+exit taken after three stuck steps. The base half lists the same 766
+names as the base half of the earlier pair.
+
+Whether those four blocks are determined was asked once, not
+answered: with the validated solve's test loosened to 1e-8 or 1e-6
+all four still run, but the floor is asked 26 times at `t = 0` in the
+rectifier's trail under either setting, so the loosened test did not
+keep the solve on the converged path and proves nothing about the
+matrix. The probe is parked (`state/m424/validate_tol_probe.patch`).
+What stands is a guard that a validated block can skip, four models
+of the tree leaning on the skip, and three more that would lean on it
+under a tighter test. Closing it means running the determinacy check
+on the floor exits too, and that is a change to measure against these
+four by name before anything else.
