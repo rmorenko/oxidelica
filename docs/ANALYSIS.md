@@ -45436,9 +45436,10 @@ loop` and there is nothing to compare with. That is an honest gap,
 
 `library check` runs a model for ten output intervals, so no corpus
 pass reaches t = 741 on this model, and the pair's corpus verdict
-cannot see this fault. Whatever the corpus prints, the pair is not
-unparked on it: "lost 0, bought N" on this judge means the corpus is
-blind here, not that the pair is clean.
+cannot see this fault. So until the overcharge was explained, no
+corpus verdict could unpark the pair: "lost 0, bought N" on this judge
+would have meant the corpus is blind here, not that the pair is
+clean. How it was explained, and where that leaves the pair, follows.
 
 **What the overcharge was: a row read off the far branch.** With the
 assert turned into a print, cell `[1,2]` holds at 1 - 1e-9 + 3e-14
@@ -45509,14 +45510,31 @@ nothing in either list. All 22 FluxTubes that run do so in all three
 halves. So the fix is taken for the wrong number it removes and not
 for a count, and its price on the corpus is zero.
 
-The pair's two models are not taken. The corpus runs ten intervals,
-and the overcharge it would have to see is at t = 741. That the pair
-over the fix runs the stack to 1200 on its own interval is
-measured, on one model, above. What has not been measured is
-whether anything else the pair touches reaches past ten intervals
-into a fault of the same breed. The pair stays parked, with this
-table as its map, and its unparking wants a judge that runs the
-models it buys to their own `StopTime`.
+**The pair is now a measured candidate, ready to take.** The doubt
+that stopped it was the overcharge at t = 741, which the corpus's ten
+intervals cannot reach. That fault turned out to be on HEAD, not in
+the pair, and 8050fef removes it. With it
+gone the pair has a price measured the way the rules want it: one
+binary, from the root, by name in both lists.
+
+- The halves: `/tmp/m422/c/on.txt` is `oxE` (the tree of 8050fef)
+  as it is, `/tmp/m422/c/off.txt` is `oxE` under
+  `OXIDELICA_NO_CUT_BEFORE_ROW=1`, and `/tmp/m422/c/pf.txt` is `oxF`,
+  the same tree with
+  `state/m420/ladder_plus_floor_norm.fixed.patch` applied. The pair's
+  own keys are `OXIDELICA_NO_LOUD_ROW_LADDER` and
+  `OXIDELICA_NO_FLOOR_NORM`.
+- Against `on`: the pair buys `CCCV_Stack` and `CCCV_StackRC` in the
+  run list and loses nothing in the run list or the flatten list.
+- The floors it will want: the print becomes 953 / 766 and 836 / 723,
+  and by the rule of the print minus the named swings
+  (`SpringWithMass`, `SMPM_VoltageSource`) the run floors become 764
+  and 721. They move in the same commit as the pair, from the
+  runner's print, not from this desk.
+- The caveat that keeps these numbers true: the +2 was measured
+  against the tree of commit 8050fef plus nothing else. If 8050fef
+  is the only thing that lands before the pair, the measurement
+  stands. If anything else lands first, the pair is measured again.
 
 **Essotherm650: the factor of a thousand is not ours.** The suspicion
 was that `1.9525e7 = 1000 * 1.95e4` hides a lost `1e-3`. It does not.
