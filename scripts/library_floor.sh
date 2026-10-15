@@ -1414,7 +1414,17 @@ FLATTEN_FLOOR=953
 # pair_on.txt), and the desk printed 767:
 #
 #   767 printed - 1 SpringWithMass - 1 SMPM_VoltageSource = 765
-RUN_FLOOR=765
+#
+# And run 766 = 765 + SMPM_FieldWeakening of
+# Modelica.Electrical.Machines.Examples, which runs once a divisor with
+# no names in it at all - `sin(0)` from a rotation the parameters
+# folded away - is asked whether it is zero before an inner assignment
+# divides by it. From one desk binary, the switch on and off, the run
+# list gained exactly that model and lost nothing
+# (/tmp/m427/cd_off.txt, cd_on.txt), and the desk printed 768:
+#
+#   768 printed - 1 SpringWithMass - 1 SMPM_VoltageSource = 766
+RUN_FLOOR=766
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -1728,7 +1738,10 @@ RUNNABLE_FLATTEN_FLOOR=836
 #
 # And runnable run 722 = 721 + TanksWithEmptyingPipe2, runnable, by the
 # same pair as `RUN_FLOOR`: 724 printed, less the same two swings.
-RUNNABLE_RUN_FLOOR=722
+#
+# And runnable run 723 = 722 + SMPM_FieldWeakening, runnable, by the
+# same pair as `RUN_FLOOR`: 725 printed, less the same two swings.
+RUNNABLE_RUN_FLOOR=723
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
@@ -2434,6 +2447,11 @@ WORK_DEAREST=12
 # points under the chain before it does. The desk prints 486. The
 # centre is set at the runner's print: ten percent around 485 is 436.5
 # to 533.5, which holds the desk's 486.
+#
+# The divisor with no names in it (m428) takes the desk from 523 to 527
+# (/tmp/m427/cd_off.txt, cd_on.txt), which leaves 6.5 of the band's
+# 533.5. The next change that touches the Jacobians comes with the band
+# worked out again rather than spending what is left of it.
 WORK_JACOBIANS=485
 WORK_JACOBIANS_PPM=100000
 # The pair is held on a line of its own and to a band of its own, an

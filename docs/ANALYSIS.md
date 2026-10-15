@@ -46514,7 +46514,7 @@ folds to zero, and a medium function asked at the block's blind
 start. None is shared with the other two, and none is the run's start
 taken from the initialisation, which leaves all three where they were.
 
-### A divisor with no names in it (m427, parked)
+### A divisor with no names in it (m427, merged in m428)
 
 The guard that keeps a division by zero out of a block's inner
 assignments, `divides_by_any` in `symbolic.rs`, has two halves. One
@@ -46537,12 +46537,31 @@ test of that is red without the switch and green with it. Under
 to a run of 1346 points and 3370 Newton steps, from one binary
 (`/tmp/m427/ox9`).
 
-The change is one line, and it is parked with its test as
-`~/oxideflow/park/m427-const-divisor.patch`, because the shift ran out
-before the gate could be closed. The corpus pair from the same binary
-was started (`/tmp/m427/cd_off.txt` without the switch, `cd_on.txt`
-with it) and will not be read before the end of the shift. What
-remains is the gate as usual: the pair by name, the work bands, the
-floors in the same commit, and the preflight. The parked test names
-its two unknowns with abbreviations the spelling check reads as
-typos, so they want renaming before it goes in.
+The change is one line, and it went in as the default in m428, with
+the switch turned round: `OXIDELICA_NO_CONST_DIVISOR` turns it off,
+and it is set by the variable being present at all, not by its value,
+as every switch of the simulation crate is read - a `=0` turns the
+change off just as `=1` does. The test names its unknowns `real` and
+`imaginary` and is red with the switch set.
+
+The corpus pair is from one binary (`/tmp/m427/ox9`), the change off
+(`/tmp/m427/cd_off.txt`) and on (`/tmp/m427/cd_on.txt`):
+
+| measure       | off      | on       |
+| ------------- | -------- | -------- |
+| flatten / run | 953/767  | 953/768  |
+| runnable      | 836/724  | 836/725  |
+| points        | 24099432 | 24101271 |
+| Newton steps  | 35218112 | 35222769 |
+| Jacobians     | 523      | 527      |
+
+The run lists differ by exactly `SMPM_FieldWeakening` gained, none
+lost. The time per model on the change is 3884 ms flattening and
+4288 ms running. The floors rise to 766 run and 723 runnable run,
+the desk's 768 and 725 less the two models that swing between the
+runner and the desk.
+
+The Jacobians are where the margin is thin: after this change the
+desk counts 527 against a band that ends at 533.5 around the
+runner's 485. The next change that touches the Jacobians comes with
+the band worked out again.

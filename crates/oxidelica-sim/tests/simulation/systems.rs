@@ -68,6 +68,34 @@ fn a_block_accepted_on_the_arithmetic_floor_is_still_asked_whether_it_is_determi
 }
 
 #[test]
+fn an_inner_assignment_does_not_divide_by_a_sine_folded_to_zero() {
+    // A rotation by an angle the parameters fold to zero: solved for
+    // `real` from the second row, the plan divides by `sin(0)`, which
+    // no name in it can move, and the first residual is infinite.
+    let source = "model R Real real; Real imaginary; \
+         equation 1 + time = real*cos(0) - imaginary*sin(0); \
+         2 + time = real*sin(0) + imaginary*cos(0); \
+         annotation(experiment(StopTime = 1, Interval = 0.5)); end R;";
+    let model = parse_model(source).unwrap();
+    let result = compile(&model)
+        .and_then(|compiled| compiled.simulate())
+        .expect("a rotation by zero is the identity");
+    let real = result.columns.iter().position(|c| c == "real").unwrap();
+    let imaginary = result
+        .columns
+        .iter()
+        .position(|c| c == "imaginary")
+        .unwrap();
+    let last = result.rows.last().unwrap();
+    assert!((last[real] - 2.0).abs() < 1e-9, "real = {}", last[real]);
+    assert!(
+        (last[imaginary] - 3.0).abs() < 1e-9,
+        "imaginary = {}",
+        last[imaginary]
+    );
+}
+
+#[test]
 fn a_block_the_initialisation_solved_starts_where_it_was_left() {
     // The initialisation moves `x` from its start of 1e-6 to 1e6,
     // and the block `z^3 + z = 1e12*x` is solved there from the start

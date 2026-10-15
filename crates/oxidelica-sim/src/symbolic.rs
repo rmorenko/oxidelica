@@ -469,8 +469,12 @@ pub(crate) fn divides_by_any(expr: &Expr, names: &[&str], settled: &HashMap<Stri
                 // wrong; the plan chose to assign through a quotient
                 // that has no value at the point it is first asked
                 // for, so the equation belongs in the tearing set with
-                // the rest.
-                let settled_zero = !refs.is_empty()
+                // the rest. A divisor with no names at all - `sin(0)`
+                // from a rotation the parameters folded away - is the
+                // same quotient with nothing left to move it, and is
+                // asked about the same way.
+                let settled_zero = (!refs.is_empty()
+                    || !crate::walk::switch_set("OXIDELICA_NO_CONST_DIVISOR"))
                     && refs.iter().all(|name| !guarded.contains(name))
                     && divisor_is_zero_at_starts(divisor, settled);
                 unguarded
