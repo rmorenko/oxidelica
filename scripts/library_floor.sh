@@ -1449,7 +1449,19 @@ FLATTEN_FLOOR=953
 # (/tmp/m432/p_off.txt against p_on.txt, 953 / 770 against 953 / 771):
 #
 #   768 + 1 = 769
-RUN_FLOOR=769
+#
+# And run 771 = 769 + 2, the narrow handover made the default on
+# Roman's word of 2026-10-15: a stage refused as outside what a medium
+# answers hands an `Auto` run to the implicit solver once the explicit
+# one has taken a step. From one desk binary, OXIDELICA_EDGE_HANDOFF=off
+# against unset, the run list gained TestWaterPumpCheckValve and
+# TestWaterPumpPowerCharacteristic and lost nothing, the flattened list
+# the same line for line, Jacobians 527 to 529, one for each model
+# gained (/tmp/m433/pair/off.txt against on.txt, 953 / 771 against
+# 953 / 773):
+#
+#   769 + 2 = 771
+RUN_FLOOR=771
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -1773,7 +1785,10 @@ RUNNABLE_FLATTEN_FLOOR=836
 #
 # And runnable run 726 = 725 + IdealSteam, runnable, by the same pair
 # as `RUN_FLOOR`: 727 against 728 printed.
-RUNNABLE_RUN_FLOOR=726
+#
+# And runnable run 728 = 726 + 2, the narrow handover, both pumps
+# runnable, by the same pair as `RUN_FLOOR`: 728 against 730 printed.
+RUNNABLE_RUN_FLOOR=728
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and

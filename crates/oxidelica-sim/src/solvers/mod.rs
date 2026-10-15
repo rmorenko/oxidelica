@@ -170,15 +170,18 @@ fn stale_complaints_kept() -> bool {
 
 /// Whether a stage refused as outside what the equations answer hands
 /// an `Auto` run to the implicit solver, with the refused stage's
-/// complaint forgotten on the way. Off by default: the two go together
-/// as one switch, since the handover alone ends the run at its start
-/// on the complaint the abandoned stage left.
+/// complaint forgotten on the way. The two go together as one switch,
+/// since the handover alone ends the run at its start on the complaint
+/// the abandoned stage left.
 pub(crate) fn edge_handoff_on() -> bool {
     edge_handoff() != EdgeHandoff::Off
 }
 
-/// What `OXIDELICA_EDGE_HANDOFF` asks for. Any value but `all` is the
-/// narrow reading, `all` the wide one the switch had first.
+/// What `OXIDELICA_EDGE_HANDOFF` asks for. Unset, or any value but the
+/// two below, is the narrow reading, the default since 2026-10-15;
+/// `all` is the wide one the switch had first, and `off` is the old
+/// default, no handover at all, kept so that a pair can still be
+/// measured against what ran before.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum EdgeHandoff {
     Off,
@@ -197,9 +200,9 @@ pub(crate) enum EdgeHandoff {
 impl EdgeHandoff {
     fn read(said: Option<&str>) -> Self {
         match said {
-            None => EdgeHandoff::Off,
+            Some("off") => EdgeHandoff::Off,
             Some("all") => EdgeHandoff::Always,
-            Some(_) => EdgeHandoff::AfterAStep,
+            None | Some(_) => EdgeHandoff::AfterAStep,
         }
     }
 
@@ -2647,10 +2650,12 @@ mod edge_handoff_tests {
     // The narrow reading hands an edge over only once the explicit
     // solver has moved off the start; a refusal at the start point is
     // where the implicit solver was found to grind for minutes and win
-    // one pipe in five. `all` is the wide reading, kept for pairs.
+    // one pipe in five. It is the default; `all` is the wide reading
+    // and `off` the old default, both kept for pairs.
     #[test]
     fn the_narrow_handover_waits_for_a_step() {
-        assert_eq!(EdgeHandoff::read(None), EdgeHandoff::Off);
+        assert_eq!(EdgeHandoff::read(None), EdgeHandoff::AfterAStep);
+        assert_eq!(EdgeHandoff::read(Some("off")), EdgeHandoff::Off);
         assert_eq!(EdgeHandoff::read(Some("1")), EdgeHandoff::AfterAStep);
         assert_eq!(EdgeHandoff::read(Some("all")), EdgeHandoff::Always);
         assert!(!EdgeHandoff::AfterAStep.takes(false));

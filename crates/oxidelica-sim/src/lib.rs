@@ -119,7 +119,8 @@ impl SimError {
 
     /// Whether the explicit solver hands an `Auto` run over to the
     /// implicit one on this refusal of a stage. `edge` is the
-    /// `OXIDELICA_EDGE_HANDOFF` switch: with it an `Outside` refusal is
+    /// reading of `OXIDELICA_EDGE_HANDOFF`, on by default once the
+    /// explicit solver has taken a step: with it an `Outside` refusal is
     /// handed over too, because a stage of an explicit step that leaves
     /// what a medium can answer is the stage being too long for a stiff
     /// state, and the implicit solver does not ask there
