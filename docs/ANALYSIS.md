@@ -46686,3 +46686,21 @@ model. What `ThreeSprings` lacks is globalisation. What
 `PumpingSystem` lacks is a run past its first event that does not
 crawl, and before that a reading of starts that does not lose the
 batch plant.
+
+### The row of calls of several arguments, checked again (m428)
+
+The census of m428 holds four models at `structurally singular model:
+cannot differentiate a call of several arguments`: `MixtureGases`,
+`TestPressureLossDerivatives`, `TestRegRoot2Derivatives` and
+`TestRegRoot2ZeroDerivative` (`/tmp/m428/raw.txt`). The wall is named
+twice above, in "Derivatives of calls of several arguments, probed"
+(m293) and in the `regRoot2` chapter before it. It is the expression
+depth ceiling, `MAX_DEPTH = 32`, which leaves `regRoot2`,
+`evaluatePoly3_derivativeAtZero` and `h_T` standing as calls, and a
+call left standing has no derivative. At 48 two of the four move on
+to the derivative of `abs`, which this project declines on purpose,
+and 48 is the ceiling that killed a corpus pass by memory. The m293
+ten-line model, run again on e8c7e4c (`/tmp/m428/p4/G.mo`), refuses
+with the same words on `regRoot2(x, 0.01, 1, 0)`. Nothing has moved,
+and the row stays with the depth decision rather than becoming a
+series of its own.
