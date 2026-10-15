@@ -47597,3 +47597,215 @@ That makes the mapped chain four links:
    singular (`Rrr1.mo` under 2 and 3).
 
 The probes are out of the tree again.
+
+## The singular-Jacobian row asked again, and the narrow handover made the default (m433)
+
+### The eight of the row, by layer
+
+The census of m432 (`/tmp/m432c/raw.txt`) holds eight models at
+`singular Jacobian in algebraic loop`. All eight print from one place,
+`solvers/mod.rs:2163` (`Refusal::Singular`), after the dead-column
+and either-side tests have both declined. Five were asked under
+`--only` from the root with `OXIDELICA_NEWTON_TRAIL` and
+`OXIDELICA_DEAD_PROBE` on one binary (`/tmp/m433/ox`, trails
+`/tmp/m433/trail_*.txt`, the null spaces of each last Jacobian in
+`/tmp/m433/sj_null.txt`); the three synchronous machines of
+FundamentalWave were named and not asked, item 30 waiting for word.
+Every one refuses at t = 0, and every one is a member the m405b and
+m416 maps already name:
+
+```text
+1  QuasiStatic Rectifier            rank 11 of 12: diode 1's current row and load2's, 0.707 each
+1  LossyGearDemo2                   rank 4 of 5: the gear's a_a row and the bearing's, 0.707 each
+1  RoomCO2                          a NaN entry, d(states[1].T)/d(volume.medium.p), no decomposition
+1  TestMixingVolumesPressureStates  rank 23 of 24: der(mixingVolume1.medium.p) against an IF97 density row
+1  Engine1a                         rank 27 of 30: three zero rows of crank1's frame translation
+3  SMEE_Generator, _Polyphase, SMEE_LoadDump   FundamentalWave, not asked (item 30)
+```
+
+So the row is eight models in at least five layers, and none of the
+five is new by name. `Engine1a` is now three zero rows where m416 read
+one: the position row of `crank1.frameTranslation.frame_b.r_0[3]` and
+its first and second derivatives, every entry of which multiplies
+`crank1.frameTranslation.r[2]` or `r[3]`, both zero in
+`r = {0.1, 0, 0}`. The rows read only names the parameters fold to
+nothing, which is the folded orientation of m416 seen three times. It
+is not the analytic loops' link 4: no member of the eight is an
+analytic loop, and the overlap the review asked to name is empty.
+
+What `Engine1a` says about link 4 is a question rather than an answer:
+a dummy derivative whose row is zero for a reason that does not move
+with the time, because the zero is in a parameter. If `Rrr1p` is
+refused the same way as `Rrr1`, the question for link 4 is whether its
+two zero rows are also zero by a parameter rather than by the dead
+point. Measured below: neither, they are a copy of an inner
+assignment.
+
+### The rows of algebraic loops added up, and what they hold
+
+The run half of `/tmp/m432c/census.txt` names algebraic loops in four
+rows outside the singular, Newton-direction and underdetermined ones:
+`` `X` of algebraic loop `` 5, `the equations of algebraic loop` 4,
+`algebraic loop did not converge` 2 and `algebraic loop` 2, thirteen
+models. Read by the place in `solvers/mod.rs` that prints each one
+and by the maps that already name them, the four rows are not one
+family and not four:
+
+| Row (census)          | Model                        | Prints at       | Family, and where mapped                                            |
+| --------------------- | ---------------------------- | --------------- | ------------------------------------------------------------------- |
+| `X` of algebraic loop | ThreeSprings                 | 1639, `-inf`    | a start written on a name the block does not begin from (m426)      |
+| `X` of algebraic loop | PumpingSystem                | 1629, a walk    | the same: the reservoir's mass and energy start at 0 (m427, m428)   |
+| the equations of      | PointGravityWithPointMasses2 | 2170, dead col. | the same: a fixed start on a name that is not a state (m426)        |
+| `X` of algebraic loop | RollingWheelSetDriving       | 1639            | the wheel set's dead row 38 (m426, m429)                            |
+| `X` of algebraic loop | RollingWheelSetPulling       | 1639 via 1608   | the same                                                            |
+| the equations of      | RollingWheel                 | 2170, dead col. | `der(delta_0[3])`, never mentioned (m391)                           |
+| `X` of algebraic loop | RoomCO2WithControls          | 1629, a walk    | the walked `T_phX` of moist air, a bracket of one sign (m416, m427) |
+| the equations of      | GearType2                    | 2170, dead col. | the friction solved under the template's mode (m360, m429)          |
+| the equations of      | Spice3 DifferentialPair      | 2170, dead col. | `der(vbx)` behind a zero capacitance (item 30, not touched)         |
+| did not converge      | SMPM_CurrentSource           | 2392            | a rotor angle demoted on a tie, walking by 0.95 (m419)              |
+| did not converge      | PressureLoss.Bend            | 2392            | a square root at zero flow, swinging over `dp` (m426, m427)         |
+| algebraic loop        | TestSuddenExpansion          | 2145            | the same breed: flat at zero flow, a solution each way (m427)       |
+| algebraic loop        | AST_BatchPlant OneTank       | 1530            | stepped outside its domain on `tank.ports[1].m_flow`; not mapped    |
+
+So thirteen models, four rows, and eight families once the rows are
+added; the largest, a start that the block never reads, is three
+models spread over two rows, and the second, flat at zero flow, is two
+models over two rows. Twelve of the thirteen are named in earlier
+chapters; `OneTank` is the one whose present refusal no chapter names
+(the last, in m293, had it at an assertion on the medium's range).
+Nothing in the four rows is the analytic loops of the chain. The
+wording of the refusal follows the moment the solver noticed the
+trouble - before the first step, at a dead column, after fifty steps -
+and not the cause, which is why the census splits each family.
+
+### Link 4 asked again: not the dead point
+
+The version of m432 was that the crank tip's height had been picked as
+a dummy derivative and that the choice is singular at the crank's
+dead point, where `sin(rev.phi)` and `rev.w` are both zero. Asked with
+the chain probes put back in a separate tree for the measurement only
+(`/tmp/m433/wt`, binary `/tmp/m433/oxp`, trails in `/tmp/m433/j/`):
+
+- `Rrr1` and its phase copy `Rrr1p` print the same block of 22, rank
+  20, the same two zero rows (`der(jointUSR.rod1.rRod_0[2])` and its
+  second derivative), and every one of the seven Newton starts stands
+  at `rev.phi = 0`, `rev.w = 0` in both. The phase of the sine never
+  reaches the block: `Position` with `exact = false` fixes
+  `phi = phi_ref` only through its filter's initial equation, and the
+  block is solved before that is read. So the copy was not a test of
+  the version.
+- `Rrr1ps`, the phase copy with `rev.phi(start = 0.336)`, the angle
+  the shifted sine starts at, starts the block at `rev.phi = 0.336`.
+  The block grows to 25, rank 23, and the row of
+  `der(jointUSR.rod1.rRod_0[2])` is still zero in every column. Its
+  coefficient on `rev.w`, read off the equation with `rev.e = {0,0,1}`
+  and `rod1.r = {0, 0.5, 0}`, is `-0.5*sin(rev.phi)*rev.frame_a.R.T[2,2]`,
+  which is -0.165 at that angle if the orientation is the identity.
+- The residual of both zero rows is `-0.0` at every one of the seven
+  starts of both models: the rows are satisfied whatever the block's
+  unknowns are.
+
+So the dead point is excluded: the row is dead away from it. A
+throwaway print at the refusal (in the separate tree, binary
+`/tmp/m433/oxp3`, `/tmp/m433/j/rrr1ps_inner.txt`, `rrr1_inner.txt`)
+named what the row reads from outside and the block's inner
+assignments. Outside it reads only parameters, all finite and with
+the orientation at the identity (`rev.frame_a.R.T[2,2] = 1`,
+`rod1.r = {0, 0.5, 0}`), so no factor is zero there either. What the
+row is, is a copy. Among the inner assignments of the same block is
+
+```text
+der(jointUSR.rod1.rRod_0[2]) = der(jointUSR.rod1.frame_b.r_0[2]) - der(jointUSR.rod1.frame_a.r_0[2])
+```
+
+and its second derivative beside it. Followed down the aliases
+(`rod1.frame_a.r_0` to `jointUSR.frame_a`, to `jointRRR1.frame_a`, to
+the outer `rod1.frame_b`, whose derivative is the `sin(rev.phi)*rev.w`
+term; `rod1.frame_b.r_0` to `frame_im`, to `rod2.frame_b`, whose
+derivative is the `revolute.R_rel.w[3]` term) the inner assignment
+is, term for term, the residual of the zero row. The residual
+evaluates the same expression the inner assignment just wrote into
+`der(rRod_0[2])`, so it is zero for every value of every unknown, at
+every restart (`revolute.angle` 0, 1e-6, 1e-3, 1, 1000 in `Rrr1`). Its
+row of the Jacobian is zero because the equation has been counted
+twice: once as the inner assignment that defines the derivative and
+once as a residual written out through `rev`. The same shape the
+point masses and `RollingWheel` showed in m405b, a row the block
+already holds, met here in the analytic loop.
+
+The probes are out of the main tree; the separate tree that carried
+them is not committed. The chain is not taken. Link 4 now reads: the
+derivative of the rod's relative position is both an inner assignment
+of the block and, differentiated a second way through the driven
+revolute, a residual of the same block, so the block holds one
+equation twice and is singular at every point.
+
+### The narrow handover made the default
+
+On Roman's word of 2026-10-15 the narrow reading of
+`OXIDELICA_EDGE_HANDOFF` is the default (c0e2c67): `off` gives the
+old default back and `all` the wide reading. The pair, one binary,
+the halves run one after the other (`/tmp/m433/pair/off.txt`,
+`on.txt`): 953 / 771 to 953 / 773, runnable 836 / 728 to 836 / 730,
+flattened lists identical, `TestWaterPumpCheckValve` and
+`TestWaterPumpPowerCharacteristic` gained, none lost, Jacobians 527 to
+529, one for each pump (each 0 to 1 under `--only`). Running 3178 s to
+3028 s, 4.7% less, against the +1.4% recorded for the switch earlier
+from halves that ran side by side. Floors run 771, runnable run 728.
+
+### Two rows further down, by name and layer
+
+Read from `/tmp/m432c/raw.txt` against the chapters that mapped them,
+no run and no change:
+
+- `unbalanced model: ... nothing is left for ... inPort.occupied` (4
+  on the census, of which the review counted 3 under one wording):
+  `CompositeStep`, `CompositeStep1`, `CompositeStep2` and
+  `MakeProduct`, all four `StateGraph.Examples.Utilities`, none a
+  runnable example. Two equations over in each: a part checked alone,
+  whose `cardinality(inPort) < 2` default and its inside connection
+  both stand, the m307 reading. The library means them as parts that
+  something connects; the refusal is right and the row is noise.
+- `der(volume.medium.T): volume.medium.T is not a state` (3): `MoistAir`,
+  `SimpleNaturalGasFixedComposition` and `LinearWater_pT`, the
+  `ClosedVolume` rig under `SteadyStateInitial` with
+  `der(medium.T) = 0` written among the initial equations, raised by
+  `substitute_derivatives_with` when neither the states nor the
+  dummies hold `medium.T` (m307, m310). The fourth member of the m307
+  row, `WaterIF97_pT`, now runs (`/tmp/m433/pair/on.txt`), so the
+  three are what is left of the same family.
+
+The full preflight on c0e2c67 (`/tmp/m433/pf.txt`) printed 953 / 773
+and 836 / 730, every step green but the library's, which was red on
+the desk band alone at 0.781 against its 0.80, the known red. Nothing
+ran on the desk during it but the formatter of this chapter. The
+heavy floors were run apart, since the change is in the solver
+(`/tmp/m433/heavy.txt`).
+
+quiet desk point: 0.781, compiler c0e2c67
+
+The same reading of `Engine1a`'s three zero rows, from the trail of
+item 1 (`/tmp/m433/trail_Engine1a.txt`): rows 11 and 16, the
+velocity and acceleration of `crank2.body`, have a residual of zero at
+all seven starts, the copy's signature; row 3, the position, has a
+residual equal to the restart value each time (0, 1e-6, 1e-3, 1,
+1000), so it is a row that reads none of the block's unknowns but
+not a copy. So `Engine1a` may hold the analytic loop's link 4 in two
+of its three rows. Not probed further.
+
+`OneTank`, the one member of the four rows no chapter names, asked on
+the default binary with `OXIDELICA_NEWTON_TRAIL`
+(`/tmp/m433/onetank.txt`): the loop is the single unknown
+`tank.ports[1].m_flow`, its residual 89.1 at the zero it starts from,
+and Newton's first step goes to -89.1, the tank filling from the
+pipe below. Every point from there, halved twenty times down to
+-1.7e-4, is NaN. The residual `pipe.port_a.m_flow + tank.ports[1].m_flow`
+reads the pipe's flow through the walked
+`WallFriction.Detailed.massFlowRate_dp_staticHead`, so the NaN is on
+the side of a reversed flow into a tank from its bottom port, at any
+size of reversal. Which value inside the walk goes first was not
+traced; it is a single model and a layer of its own, not a member of
+the eight families above.
+
+The heavy floors on c0e2c67 (`/tmp/m433/heavy.txt`): 23 flatten, 2
+run, runnable 21 / 2, both at their floors.
