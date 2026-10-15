@@ -47309,3 +47309,44 @@ prismatic joint carries along its axis (`f_rod` in `JointUSP` /
 `JointSSP` is solved from it analytically) and the accelerations the
 bodies read go undetermined, which is the dynamic half of the analytic
 loop and not the kinematic one.
+
+Read, not yet measured: in `JointSSP` the rod's own constraint is
+switched off (`kinematicConstraint = false`) and replaced by
+`constraintResidue = rod1.f_rod - f_rod`, and `oxidelica why` shows
+both halves of that standing in the flat model, so the replacement is
+not where the two equations went. What the undetermined names share
+is that they are derivatives of algebraic quantities the model reads
+directly: `j2_v = der(jointSSP.prismatic.distance)` in the example
+itself, and the `der(frame_*.r_0)`, `der(axis.s)` and `der(bearing.s)`
+of the power check. A tool that differentiates the equations behind
+them supplies those; whether the count falls short exactly there is
+the first thing the next walk should measure, with `checkTotalPower`
+set false in a copy of the example as the cheapest probe.
+
+Measured at the end of the shift, the probe answers it. A copy of
+`Fourbar_analytic` with `checkTotalPower = false`
+(`/tmp/m431/j/FbOff.mo`; the copy with it true, `FbOn.mo`, refuses
+exactly as the library model does) passes the count, so the two
+missing equations are the power check's derivatives of frame
+positions and nothing else. It then stops on the next link: the
+initialisation is not square, 0 equations for 1 parameter left to it,
+`jointSSP.prismatic.positiveBranch`. That is the wall the one-assembly
+`Rrp.mo` met, so the cylinder side and the four-bar meet the same
+second link.
+
+Its cause, read from the code and not yet proven by a switch, is in
+`discrete_layer` (`compile.rs`, the loop over
+`model.initial_equations`): an initial equation whose left side is a
+Boolean is taken as the start of a discrete variable and put in
+`spent`, so the initialisation never sees it, even when its right side
+could not be worked out before the run. `positiveBranch` is a
+`parameter Boolean (fixed = false)` whose initial equation reads
+`r_a` and `r_b`, which only the initialisation knows; the parameter is
+then carried to the initialisation as an unknown with its equation
+gone. Thirteen lines show the refusal in under a second
+(`/tmp/m431/j/Pb.mo`:
+`parameter Boolean b(fixed = false)` with `initial equation b = r >
+0;` and `r = 1 + time`), refused in the same words. That small model
+is where the next series starts. The chain is not taken here: past
+this link stand the dynamic links of the cylinders, and its end is not
+known.
