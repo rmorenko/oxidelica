@@ -3454,19 +3454,61 @@ fn zero_variables(
     }
 }
 
-/// Replace `v * der(x)` by zero where `v` is a variable held at zero
-/// for the whole run. Only a derivative is quenched this way: the
-/// equation that sets `v` still stands, and a variable is no
-/// structural symbol the way a parameter's name is, so a product with
-/// an ordinary unknown is left for the solver.
-fn quench_zero_var_der(expr: &Expr, zeros: &std::collections::HashSet<String>) -> Expr {
+/// Whether a variable held at zero quenches whatever it multiplies, or
+/// only a derivative. Set, `OXIDELICA_ZERO_VAR_DER_ONLY` gives the old
+/// reach - a derivative only - for the other half of a measurement
+/// from one binary; its value is not read, only whether it is there.
+fn quench_zero_variable_terms() -> bool {
+    !crate::walk::switch_set("OXIDELICA_ZERO_VAR_DER_ONLY")
+}
+
+/// Replace `v * y` by zero where `v` is a variable held at zero for the
+/// whole run. The equation that sets `v` still stands, and `v` is zero
+/// at every instant whichever unknown the matching gives it to, so the
+/// product is zero over the run and not only where it was read - the
+/// same reason a parameter at zero quenches the unknown it scales.
+///
+/// It was first done for a derivative only, on the grounds that a
+/// variable is no structural symbol the way a parameter's name is. That
+/// left the product standing in the structure while saying nothing
+/// about its other factor: the rolling wheel's frame rotation is the
+/// identity by `nullRotation()`, written as equations, so `R.T[1,3] *
+/// a` names the joint's acceleration in a row whose value never reads
+/// it, and the matching built a block on it whose Jacobian has a row
+/// of zeros. `DoublePendulum` stood behind the same shape.
+///
+/// Beyond a derivative, the zero has to be carried by a variable and
+/// not by a literal written into the product: `zero_throughout` reads
+/// `x * 0.0` as zero too, and the quasi-static machines write exactly
+/// that for the real part of `j*omega*L`. The parameter rule leaves such
+/// a literal standing on purpose (`named_zero`), and taking it here cost
+/// `IMC_Transformer` twenty-five Jacobians it did not need.
+fn quench_zero_var(expr: &Expr, zeros: &std::collections::HashSet<String>, any: bool) -> Expr {
     if let Expr::Bin(BinOp::Mul, a, b) = expr {
         let zero = |e: &Expr| zero_throughout(e, &HashMap::new(), zeros);
-        if (zero(a) && b.contains_der()) || (zero(b) && a.contains_der()) {
+        if (zero(a) && (b.contains_der() || (any && carried_zero(a, zeros))))
+            || (zero(b) && (a.contains_der() || (any && carried_zero(b, zeros))))
+        {
             return Expr::Number(0.0);
         }
     }
-    expr.map_children(&mut |child| quench_zero_var_der(child, zeros))
+    expr.map_children(&mut |child| quench_zero_var(child, zeros, any))
+}
+
+/// Is this zero because of a variable held at zero, and not because of
+/// a literal written into it? The same reading as `zero_throughout`
+/// with the literals and the parameters taken out.
+fn carried_zero(expr: &Expr, zeros: &std::collections::HashSet<String>) -> bool {
+    match expr {
+        Expr::Ref(name) => zeros.contains(name.as_str()),
+        Expr::Neg(inner) => carried_zero(inner, zeros),
+        Expr::Bin(BinOp::Add | BinOp::Sub, a, b) => {
+            carried_zero(a, zeros) && carried_zero(b, zeros)
+        }
+        Expr::Bin(BinOp::Mul, a, b) => carried_zero(a, zeros) || carried_zero(b, zeros),
+        Expr::Bin(BinOp::Div, a, _) => carried_zero(a, zeros),
+        _ => false,
+    }
 }
 
 /// Does the expression name anything that is not a parameter? A
@@ -5380,10 +5422,13 @@ pub(crate) fn compile_at(
         } else {
             quenched
                 .iter()
-                .map(|item| EquationItem {
-                    lhs: quench_zero_var_der(&item.lhs, &zeros),
-                    rhs: quench_zero_var_der(&item.rhs, &zeros),
-                    origin: item.origin.clone(),
+                .map(|item| {
+                    let any = quench_zero_variable_terms();
+                    EquationItem {
+                        lhs: quench_zero_var(&item.lhs, &zeros, any),
+                        rhs: quench_zero_var(&item.rhs, &zeros, any),
+                        origin: item.origin.clone(),
+                    }
                 })
                 .collect::<Vec<_>>()
         }

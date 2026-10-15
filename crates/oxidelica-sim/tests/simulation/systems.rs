@@ -1500,6 +1500,27 @@ fn a_zero_carried_by_a_variable_quenches_the_derivative_it_scales() {
 }
 
 #[test]
+fn a_zero_carried_by_a_variable_quenches_the_unknown_it_scales() {
+    // `i*R = vs - vC` with `R = 0` set by an equation rather than a
+    // parameter. Read with the product standing, the equation names `i`
+    // for the matching while saying nothing about it, the block took it
+    // for `i`, and Newton was handed a row of zeros: refused as an
+    // underdetermined loop. `R` is zero over the whole run, so the term
+    // is too, and the relation the model meant is `0 = vs - vC`, a
+    // constraint index reduction can see. The current then comes from
+    // the capacitor, `i = C*der(vC) = cos(t)`.
+    let result = run(
+        "model ZV parameter Real C = 1; Real R; Real i; Real vC(start = 0, fixed = true); \
+         equation R = 0; C*der(vC) = i; i*R = sin(time) - vC; \
+         annotation(experiment(StopTime = 1, Interval = 0.1)); end ZV;",
+    );
+    let i = last_of(&result, "i");
+    assert!((i - 1f64.cos()).abs() < 1e-6, "i = {i}");
+    let v = last_of(&result, "vC");
+    assert!((v - 1f64.sin()).abs() < 1e-6, "vC = {v}");
+}
+
+#[test]
 fn a_record_redeclared_by_an_extends_comes_apart_into_its_own_fields() {
     // A stack declares its data as the interface record and narrows it
     // in an `extends`: `extends BaseStack(redeclare CellData

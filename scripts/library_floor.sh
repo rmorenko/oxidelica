@@ -1424,7 +1424,20 @@ FLATTEN_FLOOR=953
 # (/tmp/m427/cd_off.txt, cd_on.txt), and the desk printed 768:
 #
 #   768 printed - 1 SpringWithMass - 1 SMPM_VoltageSource = 766
-RUN_FLOOR=766
+#
+# And run 768 = 766 + 2, the narrowed quench: a variable held at zero
+# takes any product it carries to zero, and not only a derivative,
+# where the zero is the variable's and not a literal written into the
+# product. From one desk binary, OXIDELICA_ZERO_VAR_DER_ONLY on and
+# off, the run list gained DoublePendulum, DoublePendulumInitTip and
+# IdealMixing1 and lost IdealSteam (/tmp/m430/p_off.txt against
+# p_B.txt, 953 / 768 against 953 / 770, 527 Jacobians in both). The
+# loss was taken on Roman's word of 2026-10-15; IdealSteam's wall is
+# in the solver, not in the quench. The floor is the old floor plus
+# the net gain, not the desk's print:
+#
+#   766 + 3 - 1 = 768
+RUN_FLOOR=768
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -1741,7 +1754,11 @@ RUNNABLE_FLATTEN_FLOOR=836
 #
 # And runnable run 723 = 722 + SMPM_FieldWeakening, runnable, by the
 # same pair as `RUN_FLOOR`: 725 printed, less the same two swings.
-RUNNABLE_RUN_FLOOR=723
+#
+# And runnable run 725 = 723 + 2, the narrowed quench, by the same pair
+# as `RUN_FLOOR`: 725 against 727 printed, the three gained and the one
+# lost all runnable.
+RUNNABLE_RUN_FLOOR=725
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
