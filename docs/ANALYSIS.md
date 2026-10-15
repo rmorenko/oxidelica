@@ -47809,3 +47809,246 @@ the eight families above.
 
 The heavy floors on c0e2c67 (`/tmp/m433/heavy.txt`): 23 flatten, 2
 run, runnable 21 / 2, both at their floors.
+
+## The analytic loops' first link named, the orientation wall read, and a start for the batch plant (m434)
+
+### The census on the new default
+
+`/tmp/m434/census.txt` (raw `/tmp/m434/raw.txt`), taken on c0e2c67's
+default, against `/tmp/m432c/census.txt`, each counted between its
+section marks: would not flatten 67 in 39 rows on both; flattened and
+would not run 180 in 130 rows against 182 in 130. The one row that
+moved is `the Newton direction of algebraic loop`, 10 to 8, and the
+raw lists by name differ by exactly `TestWaterPumpCheckValve` and
+`TestWaterPumpPowerCharacteristic`, the two pumps c0e2c67 bought.
+Nothing else moved, row or name.
+
+### Link 1: the power check names the flanges, and the flanges lose their zero
+
+The m431 reading of `Fourbar_analytic` was that its two missing
+equations are the power check's derivatives of frame positions. A
+throwaway count at the balance check (`compile.rs`, before
+`unbalanced_because`; the probes are parked as
+`~/oxideflow/park/m434-probes.diff`) says otherwise. The copy with the
+check on (`FbOn.mo`) enters the split with 1741 equations, the copy
+with it off (`FbOff.mo`) with 1743, for the same 1743 continuous
+names. The two lists, sorted and compared
+(`/tmp/m434/j/e_On.txt`, `e_Off.txt`), differ by the power equation
+itself and by two rows only the off copy has:
+
+```text
+jointSSP.axis.f = 0
+jointSSP.bearing.f = 0
+```
+
+`JointSSP` connects `prismatic.axis` to its own `axis` and
+`prismatic.bearing` to its own `bearing`, and the example leaves both
+open, so each is owed a zero on its flow. With the check on, the power
+sum reads `axis.f*der(axis.s) + bearing.f*der(bearing.s)` in an
+equation written in `jointSSP`, and the rule for half seams
+(`flatten/mod.rs`, where `spoken_for` is gathered) takes any equation
+naming a port's flow as the port spoken for from inside, so the zero
+is withheld. A print there (`OXPROBE_SPOKEN`,
+`/tmp/m434/j/FbOn_spoken.txt`) shows `jointSSP.axis` and
+`jointSSP.bearing` marked by `jointSSP.axis.f` and `jointSSP.bearing.f`
+from origin `jointSSP`; the off copy marks neither. The comment above
+that rule says what it means to catch: "the flow itself being named,
+since that is the equation a zero would duplicate". A flow read inside
+a product duplicates nothing. The `der(frame_*.r_0)` names the m431
+balance print listed were what the matching left over, not what was
+missing, which is the blind spot the matching's own comment already
+records.
+
+Under a throwaway switch that counts a flow as spoken for only where
+it stands alone on one side of the equation (`OXPROBE_FLOW_DEFINES`,
+binary `/tmp/m434/oxp4`):
+
+- `FbOn.mo` balances at 1709 for 1709 and stops on link 2, the Boolean
+  start; with link 2's switch as well it runs its five seconds, 5000
+  steps in 17.5 s (`/tmp/m434/j/fbon.csv`). The power the check
+  measures stays under 1.24e-9 W in magnitude over the whole run, which
+  is the check passing, and `j1.phi` ends at 40.242 rad, the value the
+  check-off copy reached in m431.
+- `Modelica.Mechanics.MultiBody.Examples.Loops.Fourbar_analytic` itself,
+  under `--only` from the root with both switches, runs: 53 points, 112
+  Newton steps, 0 Jacobians. With link 1's switch alone it stops on
+  link 2 as the copy does.
+- The small model is `Pw2.mo` (34 lines,
+  `~/oxideflow/park/m434-models/`): a part whose open flange is joined
+  inside to a spring and read in `p = axis.f*der(axis.s)`. Without the
+  switch it is refused as `8 algebraic equation(s) for 9 unknown(s);
+nothing determines part.p`; with it it runs, with `part.axis.f = 0`.
+
+So `Fourbar_analytic` is exactly two links from running, both named
+and each with a small model: this one (`Pw2.mo`) and the Boolean start
+(`Pb.mo`, m431).
+
+### The orientation wall of `PlanarLoops_analytic` is the power check's
+
+Under the m432 switches (sibling member, own inside, link 2) the
+library model stops as m432 left it:
+`structurally singular model: equation rod1.frame_a.R.T[2,2] =
+rev.frame_b.R.T[2,2] constrains no state ... nor did the 31 other
+equations of its singular subset`, printed at `compile.rs:2698`
+(`/tmp/m434/pl_ol.txt`). Link 1's switch does not move it
+(`pl_fol.txt`).
+
+The equation is the connection `connect(rod1.frame_a, rev.frame_b)`,
+one element of the orientation of the frame the driven revolute hands
+the first rod. `oxidelica why` on each side (`/tmp/m434/why_rod1.txt`,
+`why_rev.txt`) shows nothing unusual: `rev.frame_b.R` is the
+revolute's own product, the rod passes it on. What differs is the
+walk that reaches it. A count at the balance check
+(`/tmp/m434/pl_count.txt`) shows the library model entering index
+reduction with 57 derivatives named inside equations, every one of
+them a `der(frame_*.r_0)`, `der(axis.phi)`, `der(bearing.phi)` or
+`der(rod1.rRod_0)` of the three `jointUSR`s, which is what the three
+power sums read. The victim print (`OXIDELICA_VICTIM_PROBE`,
+`/tmp/m434/pl_victim.txt`) shows the walk take 77 reductions, nearly
+all demoting those names, until `rev.phi` is demoted at reduction 67
+and `position.phi` at 76 and 77; at reduction 78 the orientation
+equation has no state left to reach and every one of the 31 members
+of its subset is refused the same way.
+
+The copy with all three power checks off (`PlOff.mo`, from m432) has
+6 such derivatives, the `rRod_0` of the assemblies' own definitions,
+and walks 29 reductions (`/tmp/m434/j/ploff_victim.txt`): the
+orientation equation is taken at reduction 28 with `rev.phi` as its
+victim, and the walk stops at 30 on
+
+```text
+der(jointRRR2.jointUSR.rod1.rRod_0[2]) - (... jointRRR1.jointUSR.revolute.angle, R_rel.w[3] ...) - body3.v_0[2] = 0
+```
+
+refused as constraining no state. That is the shape of link 4 met in
+`Rrr1`: the derivative of the rod's relative position written out a
+second way, through another assembly's revolute. The single loop
+under the same switches with its check turned on (`Rrr1on.mo`) is
+also refused as structurally singular, on
+`jointUSR.revolute.R_rel.w[3]` against `der(revolute.ksin_angle)`,
+where with the check off (`Rrr1.mo`) it reaches link 4's singular
+Jacobian.
+
+So the orientation wall is not a link of its own. It is what the power
+check's derivatives do to the reduction walk: they spend the drive's
+angle before the connection reaches it. With the checks off,
+`PlanarLoops_analytic` meets link 4 as `Rrr1` does, one level up, as
+a structurally singular equation rather than a singular Jacobian.
+Whether the power check also needs a change of its own in the walk,
+or only link 1 and link 4 taken, is not answered here: link 1's
+switch leaves 57 named derivatives in the library model, since in
+`JointRRR` the frames the sums read are connected and owe no zero.
+
+The mapped chain, now with no link marked unmapped:
+
+1. a flow read inside an equation of its owner withholds the open
+   port's zero (`Pw2.mo`; in `Fourbar_analytic` the power check's
+   `axis.f*der(axis.s)`);
+2. the Boolean start spent before the run can work it out (`Pb.mo`);
+3. a port marked as spoken for by a binding inside its own owner
+   (`Rrr1.mo`, short twelve);
+4. one equation held twice by a block, as an inner assignment and as
+   a residual differentiated through the driven revolute (`Rrr1.mo`
+   under 2 and 3; in `PlanarLoops_analytic` with the power checks off,
+   the same derivative refused as constraining no state).
+
+The orientation wall of `PlanarLoops_analytic` with the checks on is
+the power check spending the drive's angle in the reduction walk,
+seen through links 3 and 4; it is recorded beside the chain, not as a
+fifth link. The probes are out of the main tree; the separate tree
+(`/tmp/m434/wt`) is not committed.
+
+### `OneTank`: the tank's mass and energy start at zero
+
+m433 left which value inside `massFlowRate_dp_staticHead` goes NaN
+first. None does: a print at the end of every walked body
+(`OXPROBE_WALK_NAN`, `/tmp/m434/onetank_nan2.txt`) fires zero times.
+A print at the first inner assignment of the block that is not a
+number (`OXPROBE_INNER_NAN`, `/tmp/m434/onetank_inner3.txt`) names
+inner assignment 1 of 19 at every one of the 44 points,
+
+```text
+tank.port_b_H_flow_bottom[1] = tank.ports[1].m_flow * (if tank.ports[1].m_flow > 0 then pipe.port_a.h_outflow else tank.ports[1].h_outflow)
+```
+
+and at those points `tank.ports[1].h_outflow`, `tank.medium.h` and
+`tank.medium.T` are NaN, with the states `tank.m = 0` and
+`tank.U = 0`. Zero flow takes the other branch, which is why the
+start itself was finite and every reversed flow, however small, was
+not. So the NaN is not on the side of a reversal through the pipe; it
+is the tank's temperature worked out from an energy and a mass that
+both start at zero.
+
+That is the first wall of `PumpingSystem` (m428) in another model: a
+vessel's mass and energy are states without starts, the level is
+what the model starts, and the reading of silent states' starts stops
+one equation short of it. The m428 switch that grows that reading one
+step through a bare alias (`OXIDELICA_READ_THROUGH_ALIAS`, parked in
+`~/oxideflow/park/m428-backward-column-and-alias.patch`) applied on the
+same binary (`/tmp/m434/oxp10`): `OneTank` under `--only` runs (57
+points, 142 Newton steps) with it and refuses as before without it.
+Run two seconds from a copy that extends the example (`OT.mo`), the
+tank starts at `m = 896.03 kg`, which is the 0.8 m of level over a
+square metre plus the base volume `V0 = 0.1` m3, 0.9 m3 at the medium's
+995.586 kg/m3, and drains through the bottom pipe at 43.2 kg/s
+falling to 42.1 kg/s as the level falls to 0.714 m, with the medium at
+293.15 K throughout. The model's inlet is a time table that holds
+zero until t = 10 s, so draining is the expected motion. A run of the full
+100 s crawled past five minutes and was stopped; that is not read here.
+
+m428 measured that switch to cost `TanksWithEmptyingPipe2`. Asked again
+on the same binary (`/tmp/m434/te_on.txt`, `te_off_trail.txt`): without
+the switch it runs, 80 points; with it the first block at t = 0, five
+torn flows, starts from residuals of 109.6, 89.1 and 211.8 where the
+run without it starts from 89.1 on all three, that is from the tanks'
+written levels rather than from empty ones. Newton then alternates
+between residuals near 1e2 and near 1e3 for 28 steps, settles, and is
+at 5.3e-7 on its fiftieth step, one short of the tolerance, when the
+iteration cap refuses it. So the cost is a block that converges slowly
+from the right start, not a wrong start. Whether `OneTank` changes that
+account is in the pair below.
+
+### Two rows asked again on the new default
+
+- `parameter T has no value` (3): `OpAmpCircuits.FirstOrder`, `PI`,
+  `Derivative`, the same three m416 named. `--only` on the default
+  binary still counts `FirstOrder` as "runnable examples: 0"; the
+  refusal is right and the row waits on the queue's item 34, as before.
+- `initialization is not square` (3): `NonCircularPipes` (8 for 6) and
+  `ThreePhaseTransformerWithRectifier` (21 and 4 for 23) carry their
+  m432c wording to the character, the m416 layers (a surplus a
+  matching cannot see through the medium, and the transformer's
+  flags). `InitSpringConstant` (0 and 2 for 3) is the m416 chain of
+  two links, a parameter with no column in the matching and then a
+  folded binding. It is not link 2 of the analytic loops, though the
+  refusal reads the same: under link 2's switch it does not move.
+
+### The pair of the two switches, one binary
+
+One binary (`/tmp/m434/oxp10`, the probe tree, every switch off by
+default), the main pass three times in a row under a 20 GB ceiling
+(`/tmp/m434/pair/off.txt`, `alias.txt`, `flow.txt`):
+
+| half                 | flatten / run | runnable  | Jacobians | apart |
+| -------------------- | ------------- | --------- | --------- | ----- |
+| off                  | 953 / 773     | 836 / 730 | 529       | 1974  |
+| READ_THROUGH_ALIAS   | 953 / 773     | 836 / 730 | 529       | 143   |
+| link 1, flow defines | 953 / 773     | 836 / 730 | 529       | 1974  |
+
+The off half is the desk reference to the digit, so the probes are
+inert with their switches off. The flattened lists are identical in
+all three. Link 1 alone moves no run list, which is what a link in the
+middle of a chain measures: `Fourbar_analytic` waits on link 2 as
+well. The alias switch moves four names and no count: it buys
+`OneTank` and `RoomCO2` and costs `TanksWithEmptyingPipe2` (above) and
+`InverseParameterization`, which under it is refused by the Newton
+direction guard in a block of the pump and the pipe. `RoomCO2` is the
+model the m433 row of singular Jacobians had at a NaN entry,
+`d(states[1].T)/d(volume.medium.p)`; that it runs once the volume's
+silent starts are read suggests the NaN came from the same zero mass
+and energy, which was not probed. The counter `jacobians apart` falls
+from 1974 to 143 under it, and which models carry that fall was not
+read. None of this is taken: two for two is
+not a change, and the reading of starts it grows is the first wall of
+a chain (m428) whose other walls are not mapped. It is the place a
+series on silent starts begins, with `OneTank` the smallest member.
