@@ -46482,8 +46482,17 @@ non-finite row of the block, the values it reads from outside
   algebraic here, and `m = fluidVolume * d` reads them only once the
   block has been solved, which the zero mass stops it from doing. This
   is the shape the m426 table gave `ThreeSprings`: a start written on
-  a name that is not the one the solver begins from. Why the zero step
-  leaves the two slots at zero was not traced.
+  a name that is not the one the solver begins from. A third print
+  (not kept) showed what the zero step does with it. The states are
+  `pumps.U`, `pumps.m`, `reservoir.U`, `reservoir.m`, `PT1.y`, and
+  only the last three start at zero. The step tries 1e-6, 1e-3, 1 and
+  1e3 for all three at once. Each of those trials fails too, but on
+  `singular Jacobian` in the same block rather than on a NaN. Setting
+  mass and energy to one number gives the reservoir a specific energy
+  of one joule per kilogram, which is no state of liquid water, but
+  why that point is singular was not traced. No trial passes, so the
+  start stays at zero, and the NaN evaluations counted above are the
+  ones made from there.
 - `SMPM_FieldWeakening` is its own NaN, not one carried in. The
   block's inner assignment for `dqToThreePhase.singleToMultiPhase.u.re`
   is solved from the row of `y[1].im`, and with the rotation angle
