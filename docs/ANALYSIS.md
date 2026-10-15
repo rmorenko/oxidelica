@@ -46299,3 +46299,20 @@ check and hands nothing on, and leave `begin_segment` as it was.
 That would not buy `TanksWithEmptyingPipe2`, because its first
 event is the second cold start. The point is still to measure
 before arguing about it.
+
+The `--slow` pair from the same binary (`/tmp/m426/slow_off.txt`,
+`/tmp/m426/slow_on.txt`) moved little in time. Two models grew:
+`Dimmer_RL` from 96.4 to 120.3 s and the quasi-static `IMC_Transformer`
+from 163.6 to 194.5 s. Measured alone with `--only`
+(`/tmp/m426/two.txt`), `Dimmer_RL` owns the corpus's point count. It
+takes 23 662 451 points with the switch off and 29 979 269 with it
+on, and 34.3M against 43.0M Newton iterations. Of the 7.06M points the
+corpus grew by, 6.32M are this one model. `IMC_Transformer` goes from
+1134 to 1557 points. So the growth is not spread over the corpus. It
+is one switching converter that starts its run from a different
+algebraic point and then takes more, smaller steps. The open question
+is whether `Dimmer_RL` ends at the same numbers either way: compare
+its final points from the two settings. If it does, the change costs
+one model's speed and the work centres would be moved with the
+arithmetic written down. If it does not, the different trajectory is
+the finding. The patch stays parked until that is answered.
