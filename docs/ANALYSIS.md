@@ -46565,3 +46565,19 @@ The Jacobians are where the margin is thin: after this change the
 desk counts 527 against a band that ends at 533.5 around the
 runner's 485. The next change that touches the Jacobians comes with
 the band worked out again.
+
+### The census after the divisor (m428, a measurement)
+
+Taken on the tree of e8c7e4c (`/tmp/m428/census.txt`, raw half
+`/tmp/m428/raw.txt`), against the census of m427
+(`/tmp/m427/census.txt`), each half summed between its own section
+markers:
+
+| half                     | m427 | m428 | rows m427 | rows m428 |
+| ------------------------ | ---- | ---- | --------- | --------- |
+| would not flatten        | 67   | 67   | 39        | 39        |
+| flattened, would not run | 186  | 185  | 132       | 132       |
+
+The only row that moved is `` `X` of algebraic loop ``, 7 to 6, which
+is `SMPM_FieldWeakening` leaving it. No row split or merged on the
+way.
