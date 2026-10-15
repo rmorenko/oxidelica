@@ -46390,11 +46390,17 @@ the digit. The guess pays none of them:
   nothing (`OXIDELICA_NO_INIT_STALL`, `OXIDELICA_INIT_DRIFT_GUESS`,
   `OXIDELICA_NO_INIT_ZERO_STEP`). It is the `SteadyStateInitial` of a
   one-node water pipe, and it belongs with the steady-state
-  initialisation, not with the run's loops. Which physical quantity
-  the ratio 998.25 is was not measured. It is close to the density of
-  water near 20 °C, which would make the energy row the mass row
-  times a density, but that reading is a guess until the probe prints
-  `pipe.mediums[1].d` beside it.
+  initialisation, not with the run's loops. The ratio is the node's
+  density: the probe's own `pipe.ms[1]` = 80.284113 kg over the
+  pipe's volume, pi x 0.32^2 / 4 x 1 m = 0.0804248 m^3, is
+  998.25105 kg/m^3, the ratio of the residuals to all eight printed
+  digits. So one steady row is the other times the density.
+  `OXIDELICA_INIT_PROBE` names the two
+  rows: the written `der(pipe.mediums[1].h) = 0`, which took
+  `pipe.Us[1]`, and `der(pipe.mediums[1].p) = 0`, which took
+  `pipe.ms[1]` (`/tmp/m427/valve_init_probe.txt`). So the steady
+  pressure and the steady enthalpy each read the two states through
+  nearly the same combination at this point.
 - `PressureLoss.Bend` is the m426 trail unchanged: the square root
   at zero flow, swinging over `dp`.
 - `DoublePendulum` (`revolute1.phi`), `MotorWithCurrentControl`
@@ -46438,3 +46444,11 @@ change taken, and the run floors rise by the one model: 767 - 2 =
 765, 724 - 2 = 722. Both lie below what the runner already printed
 for a3bfe6d, 766 and 723 (push run 38599991646, job 116017404201), so
 they hold even if the runner buys nothing from the change.
+
+The register after the push (`/tmp/m427/census.txt`, counted between
+the section marks) gives 67 in 39 rows that would not flatten and 186
+in 132 rows that flattened and would not run, against 67 / 39 and
+187 / 132 for m425. The row `algebraic loop did not converge in N
+Newton iterations` went from 3 to 2. By name the run half's refusals
+(`/tmp/m427/raw.txt` against `/tmp/m425/raw.txt`) differ by exactly
+`TanksWithEmptyingPipe2`, and nothing moved between rows.
