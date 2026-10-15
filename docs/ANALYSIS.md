@@ -46174,3 +46174,58 @@ The row is parked with this map. The `ThreeSprings` question, whether
 the first point should honour starts written on inner names, goes to
 the queue as the cheapest wall, because one model shows it and two
 small models give a test.
+
+### The floor's other doors, counted over the corpus (m426, a probe)
+
+The m425 change asks a block accepted on the arithmetic floor whether
+it is determined, but only inside a validated solve. The floor is
+also asked where nothing validates, at both of its exits: after
+three steps that did not descend, and after fifty iterations. A probe
+behind `OXIDELICA_FLOOR_DOOR_PROBE` ran the same determinacy check at
+both exits when `validate` was false. It printed the verdict and
+refused nothing. It is parked as
+`~/oxideflow/park/m426-floor-door-probe.patch`, and the tree does not
+carry it.
+
+The corpus was taken in one pass with the probe on
+(`/tmp/m426/door_corpus.txt`, probe lines in
+`/tmp/m426/door_corpus_err.txt`). It counted 953 flatten and 766 run,
+which is the desk's usual pair, so the probe moved nothing. Over that
+pass:
+
+- 12939 acceptances went through the unvalidated doors, in 32 models.
+  12439 came at the stuck exit and 500 at the exit after fifty
+  iterations. None were inside a validated solve, as expected.
+- The doors are concentrated in a few models.
+  `DifferenceAmplifier` alone has 7085, the three `IMC_Transformer`s
+  have 1324, 957 and 957, `Analog.Examples.Rectifier` has 822 and
+  `CCCV_Stack` has 637.
+- 30 of the 32 models run. The two that do not are
+  `ActuatorWithNoise` and `TanksWithOverflow`.
+- Three acceptances were undetermined, one each in three models:
+  - `ActuatorWithNoise` at t = 0.001, n = 17, with `|f|` = 2.3e5. A
+    residual that large is not a floor in any useful sense, and the
+    model is refused later in the run anyway.
+  - `PolyphaseRectifier` at t = 4e-5, n = 19, on the ideal diodes'
+    `s`, with `|f|` = 2.5e-3. It is that model's only door, and the
+    model runs.
+  - `ThyristorBridge2mPulse_RLV` at t = 2e-4, n = 8, on the
+    thyristors' `s`, at the exit after fifty iterations with `|f|` =
+    3.1e-3. It is one of the model's two doors, and the model runs.
+
+On the four models the m425 note named (both `Rectifier`s,
+`CCCVcharging`, `CCCV_Stack`), all 1622 unvalidated acceptances
+(11 + 822 + 39 + 750) were determined. That count is from the runs
+under `--only` (`/tmp/m426/door.txt`). The corpus pass gives
+`CCCV_Stack` 637 instead of 750 and leaves the other three
+unchanged, and every one of those was determined too. Of the models that run, `PolyphaseRectifier` and
+`ThyristorBridge2mPulse_RLV` are the two that pass through an
+undetermined point on the floor. In each case it is one point,
+between switching events of ideal semiconductors, where a family of
+switch states fits the equations. These two are the candidates for a
+silent wrong number. Whether the point they took changes the result
+is the next question, and it can be answered by comparing their
+trajectories with a reference. Following the instructions for this
+shift, the doors stay open. Closing them, or refusing at them,
+is Roman's decision, and the numbers above are what it would be
+made on.
