@@ -46586,3 +46586,103 @@ markers:
 The only row that moved is `` `X` of algebraic loop ``, 7 to 6, which
 is `SMPM_FieldWeakening` leaving it. No row split or merged on the
 way.
+
+### The first point and the starts of inner names, mapped (m428, parked)
+
+The question m426 and m427 left was whether a run's first point
+should honour starts the model writes on names the plan does not
+begin from. It was asked of `ThreeSprings` and `PumpingSystem` by
+small models first and then by `--only` from the root, and in both
+the start turned out not to be the wall. Nothing was merged. Probes
+are parked as `~/oxideflow/park/m428-first-point-probes.patch` (all
+of them) and `m428-backward-column-and-alias.patch` (the two
+switches the ladder measured), with the small models in
+`~/oxideflow/park/m428-models/`.
+
+**`ThreeSprings`: the start is reached, the iteration is not.** Two
+ways of honouring the model's geometry were tried. With spring 2
+given a start consistent with the bars (`/tmp/m426/TS.mo`), every
+direction residual of the block is zero at the first point and only
+the force balance is not, and Newton still stalls at `|f|` near 10
+for fifty steps from every one of the five starts
+(`/tmp/m428/s/ts.txt`). Seeding each torn unknown from the residual
+that defines it, first rather than last (`OXIDELICA_SEED_FIRST`, the
+m426 seed moved ahead of the blind attempt), gives the same picture
+on the model as written: the seeded point has the directions
+consistent and the balance at 2.9, 7.9 and 2.1, and Newton walks off
+it to a stall at 2.19 (`/tmp/m428/s/tsf.txt`). The line search takes
+steps of 2.4e-4 for forty iterations, which is a direction that does
+not descend, not a start that cannot be evaluated. With the starts at
+the equilibrium (`/tmp/m426/TS2.mo`) the block converges in three
+steps, so what `ThreeSprings` lacks is a globalisation that reaches
+the equilibrium from a consistent but distant point. Of the two roads
+m426 named, "solve the inner assignments backwards" is the one the
+seed already is, and it ends here.
+
+**`PumpingSystem`: a chain of three walls.**
+
+1. The reservoir's mass and energy are states without starts, and
+   the existing reading of silent states' starts (`read_starts` in
+   `compile.rs`) stops one equation short: it grows the names it
+   wants by one equation from the silent state, so `m` wants
+   `fluidVolume`, and `fluidVolume = V` is the equation that would
+   have led to `V = crossArea*level`. Grown one step further through
+   a bare alias (`OXIDELICA_READ_THROUGH_ALIAS`), the reading gives
+   `m = 109802.67 kg` and `U = 9.21e9 J`, which is 110 cubic metres
+   of water at 998.2 kg/m3: the reservoir as written. The NaN of
+   m427 is gone (`/tmp/m428/s/pump_read2.txt`).
+2. Behind it the block is refused as `singular Jacobian`. Its column
+   for the pump's curvilinear abscissa `s` is dead because the pump
+   starts stopped (`PT1.y_start = 0`, so `N = 0`), `s` starts at 0 on
+   the check valve's knee, and the forward difference steps into the
+   `s > 0` branch where `V_flow_single*N_nominal/N` is `0/0`. A
+   12-line model (`K4.mo`: a stopped pump against a positive head)
+   refuses the same way, `diverged`, and with the column taken as a
+   backward difference wherever the forward one is not a number
+   (`OXIDELICA_BACKWARD_COLUMN`) it solves to `s = -0.5` in two steps,
+   which is the closed valve. On `PumpingSystem` the backward column
+   alone does not clear the block (`/tmp/m428/s/ps2.txt`): the head
+   row reads only the pressure column, and its entries for `s` and
+   `V_flow_single` come back zero rather than not a number, so the
+   switch never fires there. Taking every column backwards
+   (`OXIDELICA_ALL_BACKWARD`, a probe only) does clear it
+   (`/tmp/m428/s/ps3.txt`).
+3. Past t = 0 the run crawls. After fifteen minutes of processor time
+   it had reached t = 0.00027 of a 2000-second experiment, with
+   Newton taking steps of `|f|` 4.8e3 at each new point, and it was
+   stopped. That is a third wall, and it was not walked.
+
+**What the ladder said.** `--only` from the root of `.msl`, one binary
+(`/tmp/m428/oxp1`), each model with neither switch, the backward
+column, and both (`/tmp/m428/ladder.txt`, `ladder2.txt`):
+
+| model                        | neither   | backward  | both        |
+| ---------------------------- | --------- | --------- | ----------- |
+| ThreeSprings                 | refused   | refused   | refused     |
+| DoublePendulum               | refused   | refused   | refused     |
+| PointGravityWithPointMasses2 | refused   | refused   | refused     |
+| HeatingSystem                | refused   | refused   | refused     |
+| EmptyTanks                   | 89 points | 89 points | 63 points   |
+| InverseParameterization      | 45 points | 45 points | 45 points   |
+| TanksWithEmptyingPipe2       | 80 points | 80 points | **refused** |
+| SMPM_FieldWeakening (FW)     | 1346      | 1346      | 1346        |
+
+The alias growth costs `TanksWithEmptyingPipe2`, which the last
+shift won (`algebraic loop did not converge in 50 Newton
+iterations` with the alias alone, 80 points without). `EmptyTanks`
+changes its point count but not its answer: the final row is the same
+to every printed digit either way. The backward column alone moves
+none of the eight. So neither switch is a candidate: the one that
+moves something costs a guarded model, and the other buys nothing
+the corpus can see. The `K4.mo` shape, a check valve closed against
+a stopped pump, is a correct small fix that has no corpus model of
+its own yet.
+
+Of the two roads m426 named, both ended. Solving backwards is the
+seed, and the seed reaches a consistent geometry that Newton then
+cannot converge from. Keeping the started name as an unknown was not
+built, because the start was never the missing piece in either
+model. What `ThreeSprings` lacks is globalisation. What
+`PumpingSystem` lacks is a run past its first event that does not
+crawl, and before that a reading of starts that does not lose the
+batch plant.
