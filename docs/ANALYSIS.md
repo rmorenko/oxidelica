@@ -47246,7 +47246,9 @@ pipe models much further before they still refuse, and `SeriesPipes1`
 alone went from 32 seconds of run to 2305, which is the tail the
 solver-only half spent its last hour on. So the defect of the solver
 change is not that it slows what works but that it lets a refused
-model walk for a long time to the same refusal.
+model walk for a long time to the same refusal: it spends some forty
+minutes of the desk on `SeriesPipes1`, which refuses anyway. That is
+the strongest case against taking it as it stands.
 
 ### What was taken, and what was not
 
