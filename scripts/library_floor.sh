@@ -2448,12 +2448,18 @@ WORK_DEAREST=12
 # centre is set at the runner's print: ten percent around 485 is 436.5
 # to 533.5, which holds the desk's 486.
 #
-# After the divisor with no names in it (m428) the desk's main pass
-# counts 505 (/tmp/m428/preflight.txt, the main pass's work line; the
-# 527 of /tmp/m427/cd_on.txt is that plus the dear pass's 22, which this
-# band does not read). That leaves 28.5 of the band's 533.5, the
-# narrowest of the work bands, so the next change that touches the
-# Jacobians is measured against it beforehand.
+# After the divisor with no names in it (m428) the band judges 527, the
+# sum of the two passes: 505 for the main pass and 22 for the dear one
+# (/tmp/m428/preflight.txt, the two `work` lines and the judge's own
+# line after them). The judge adds the passes before it judges, as the
+# note on the cut says, so the margin is 6.5 of 533.5 and not 28.5. A
+# note set here in m428 read the band as the main pass's alone, and
+# that reading was the consultant's mistake, not the band's. It was
+# measured the hard way in m429: a change that left the main pass at
+# 505 and took the dear pass from 22 to 47 was refused by this band at
+# 552 (/tmp/m429/preflight.txt, `WORK: jacobians is 552 against 485`).
+# So the next change that touches the Jacobians is measured against the
+# sum, beforehand.
 WORK_JACOBIANS=485
 WORK_JACOBIANS_PPM=100000
 # The pair is held on a line of its own and to a band of its own, an

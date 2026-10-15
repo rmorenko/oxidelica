@@ -19481,6 +19481,26 @@ of a sibling's declared dimension from its class, taken with a pair
 over the loop family. Not started: the shift had less time left than a
 pair and a preflight take together.
 
+That count was one short (m429). The family is six models in four
+rows of the census, and the rows differ only by the prefix of the
+instance path: `jointRRP.` (3: `Engine1b_analytic`, `CylinderBase`,
+`Cylinder_analytic_CAD`), `engine.cylinderN.jointRRP.`
+(`EngineV6_analytic`), `cylinderN.jointRRP.` (its utility twin) and
+`jointRRRN.jointUSR.` (`PlanarLoops_analytic`, `/tmp/m428/raw.txt`
+line 214). The sixth was a single row and was left out when the rows
+were read one at a time. It refuses on the same names as the other
+five (`e2_ia`, `rod1.e2_ia`, `rod1.eRod_ia`, `rod1.rodLength`, and
+`revolute.e` where the others have `prismatic.e`), so it has the same
+decision point in `spread_over_elements`. It also has one gate the
+others lack: `nothing gives a value to jointRRRN.n_b[1..3]`.
+`JointRRR` declares `n_b` as a `fixed = false` parameter and sets it
+by an initial equation (`n_b = Frames.resolve2(frame_b.R,
+Frames.resolve1(frame_a.R, n_a))`, `JointRRR.mo:156`). So a sibling's
+dimension read from its class would take `PlanarLoops_analytic` to a
+parameter solved at initialisation, not to a run, and the verdict on
+that fix is counted over all four rows with that sixth model expected
+to stay.
+
 ### The m269 census
 
 This census was taken after the series (`/tmp/m269/census.txt`, raw in
@@ -46571,14 +46591,13 @@ the desk's 768 and 725 less the two models that swing between the
 runner and the desk.
 
 The 527 in the table is the corpus summed whole, the main pass and
-the pass of the dear models together, and it is not the number the
-band judges. The band of `WORK_JACOBIANS` reads the main pass alone,
-which the preflight of the merged tree printed as 505
-(`/tmp/m428/preflight.txt`, the main pass's `work` line; the dear
-pass counts 22 more, and 505 + 22 = 527). So the Jacobians of the
-main pass stand at 505 of 533.5, a margin of 28.5, five and a half
-percent. That is the narrowest of the work bands, and the next change
-that touches the Jacobians is measured against it beforehand.
+the pass of the dear models together, and that sum is what the band
+judges. The preflight of the merged tree printed 505 for the main
+pass and 22 for the dear one (`/tmp/m428/preflight.txt`, the two
+`work` lines). The judge adds them before it compares, so the margin
+is 6.5 of 533.5. A correction here in m428 read the band as the main
+pass's alone, with a margin of 28.5. That was wrong, and m429 measured
+it: see "The zero quench, measured and parked".
 
 ### The census after the divisor (m428, a measurement)
 
@@ -46730,3 +46749,264 @@ parked with a test (`a_stopped_pump_against_its_closed_check_valve_is_solved`,
 red without the switch and green with it) in
 `~/oxideflow/park/m428-backward-column-and-alias.patch`. It is worth
 taking when a model of the library first needs it, and not before.
+
+## The wheel set, the double pendulum and a zero carried by a variable (m429)
+
+### `RollingWheelSetDriving` and `RollingWheelSetPulling`, walked to the end
+
+m426 found the pair's block with a dead row 38 after every restart
+and gave it to the singular-Jacobian family. On today's tree the
+probe gives the same picture (`/tmp/m429/rwd_trail.txt`, 28 Jacobians
+over 35 Newton starts): rank 41 of 43, row 38 zero in every one of
+them, and the residual of that row exactly zero at every start. The
+smallest model is the wheel set on its own (`/tmp/m429/W1.mo`,
+`Parts.RollingWheelSet` with the example's parameters, nothing
+driving it), and it refuses with the same words. The chain has four
+links.
+
+1. **Row 38 is a product the structure reads and the value does not.**
+   It is the second derivative of `body1`'s height, through
+   `prismatic1`, `prismatic2` and `revolute`. Each term carries
+   `prismatic1.frame_a.R.T[i,3] * e[j] * a`. `R` is the identity,
+   because `fixed.frame_b.R = nullRotation()` is written as equations
+   and not as a parameter, and `e = {1,0,0}` is the element of an array
+   parameter. So every coefficient of every unknown in the row is zero.
+   The parameter quench leaves elements of arrays alone on purpose (the
+   `GearConstraint` note above `named_zero`). `OXIDELICA_QUENCH_ELEMENTS`
+   does not help either: the block shrinks from 43 to 37 and its row 35
+   is still the dead one, because the zero that remains is `R.T[1,3]`,
+   a variable.
+2. **The zero-variable quench reached only derivatives.**
+   `zero_variables` already knows `R.T[1,3]` is zero for the whole run,
+   but `quench_zero_var_der` replaced `v * y` only where `y` held a
+   derivative. With it replacing any product (probe
+   `OXIDELICA_ZERO_VAR_ANY`, `/tmp/m429/ox2`), the NaN start and the
+   dead row go away. The next wall is a `singular Jacobian` whose left
+   null vector is the two rolling constraints
+   `0 = vContact_0 * e_long_0`, one per wheel, proportional to each
+   other.
+3. **The victims are the same both ways** (32 = 32 in W1, by name).
+   What makes the two rows dependent is a choice made in both: at
+   reduction 31 or 32, the constraint reaches `revolute.phi` (the
+   heading) and `revolute.w` (its rate), both weighing exactly 0, both
+   `prefer`. The tie goes to the walk and takes `phi`. Demoted, the
+   heading has to be solved from the non-holonomic constraint
+   `0 = vContact_0 * e_long_0`, which at rest says nothing about the
+   heading: any heading satisfies it.
+4. **A tie rule settles it.** A probe (`OXIDELICA_TIE_DERIVATIVE`,
+   `/tmp/m429/ox3`) puts aside, in a tie where every candidate weighs
+   zero, a candidate whose own `der` equation names another candidate,
+   so the derivative is demoted and not its integral. Alone it moves
+   W1 to `singular Jacobian` (link 1 still stands). With link 2's
+   probe as well, W1 runs one second at rest, which is right for an
+   undriven set, and `RollingWheelSetDriving` runs from the root
+   (74 points). `RollingWheelSetPulling` moves on to a further wall,
+   a structurally singular model whose equation on
+   `rolling1.v_0[2]` constrains no state, which was not walked.
+
+This is the answer m387 left open: what else tells apart two
+`prefer` candidates of weight zero. The rule is "in a tie of zeros,
+demote the derivative and not its integral". Its physics is that a
+velocity-level constraint at rest says nothing about the position it
+integrates but does fix the rate. What it does not settle is whether
+the degeneracy is structural or one of configuration. The wheel set
+at rest makes the heading row zero only because `v = 0`. The rule
+fires on weights read at the start point, so at a start in motion the
+same tie would not arise and the walk would decide as before. It is a
+rule about the start point, as the rest of victim choice is.
+
+The ladder (`/tmp/m429/ladder.txt`, `ladder_b.txt`, files per model
+and mode in `/tmp/m429/lad/`), one binary `/tmp/m429/ox3`, four modes:
+head, the tie rule alone, the zero quench alone, both.
+
+| model                        | head    | tie     | zero     | both     |
+| ---------------------------- | ------- | ------- | -------- | -------- |
+| RollingWheelSetDriving       | refused | refused | refused  | **runs** |
+| RollingWheelSetPulling       | refused | refused | refused  | refused  |
+| PendulumWithSpringDamper     | runs    | runs    | runs     | runs     |
+| ThreeSprings                 | refused | refused | refused  | refused  |
+| DoublePendulum               | refused | refused | **runs** | **runs** |
+| PointGravityWithPointMasses2 | refused | refused | refused  | refused  |
+| MechanicalStructure          | runs    | runs    | runs     | runs     |
+| TanksWithEmptyingPipe2       | runs    | runs    | runs     | runs     |
+
+The victims, diffed by name against head: the tie rule moves one in
+`RollingWheelSetDriving` (`revolute.phi` becomes `revolute.w`) and
+none in the other seven. The zero quench moves victims in four:
+`DoublePendulum` (`revolute1.phi` out, `boxBody2.body.w_a[2]` in),
+`PendulumWithSpringDamper` (`body1.frame_a.r_0[3]` out, 14 to 13),
+`PointGravityWithPointMasses2` (about twenty rearranged, 90 to 86,
+still refused at a later wall) and the wheel set. So both switches
+have a reach. Counted, the victims of `DoublePendulum` are 33 = 33;
+by name they are not the same list.
+
+The two were taken apart. The zero quench buys `DoublePendulum` on its
+own and the tie rule buys nothing on its own, so the quench was
+measured by itself below and the tie rule is parked with this map, in
+`~/oxideflow/park/m429-tie-derivative-and-zero-var-any.patch`. Its
+judge is the victim diff over the whole corpus. In the eight models
+above it moves only the wheel set's heading.
+`PendulumWithSpringDamper` and `MechanicalStructure` have ties of
+zero (m387), and the ladder shows the rule leaving them alone,
+because there neither candidate's `der` equation names the other.
+
+### `DoublePendulum`: the same shape, in a row of the census
+
+`DoublePendulum` was in the row `has a solution on either side` that
+m427 named and did not probe (`revolute1.phi` at t = 0, "flat here
+only"). Under the zero quench it runs, so that row's wall for it is
+the same product the wheel set has, and not the flat angle. Its
+answer was checked
+against physics and not taken because it ran (`/tmp/m429/dp/DP.mo`,
+three seconds): both links keep their length of 0.5 to the printed
+digit, and the mechanical energy plus what the damper `d = 0.1` on
+`revolute1` has dissipated (`0.1 * w^2` integrated) stays within 0.07
+of its start over the run while the damper takes out 4.4. The last
+point reads 0.17 off, which is the one-sided difference the check
+takes there. The box inertia was
+estimated by hand, which is where most of the 0.07 comes from. The
+library's own reference signals (`revolute1.phi`, `revolute1.w`,
+`revolute2.phi`, `revolute2.w`,
+`.msl/Modelica/Resources/Reference/.../DoublePendulum/comparisonSignals.txt`)
+name what to compare, but the reference values themselves are not
+in the tree.
+
+### The zero quench, measured and parked
+
+Built as the default (`quench_zero_var_der` replacing any product
+whose factor is a variable held at zero, with
+`OXIDELICA_ZERO_VAR_DER_ONLY` restoring the old reach), it came with
+a test: `i*R = sin(t) - vC` with `R = 0` set by an equation. With the
+old reach that is refused as `underdetermined algebraic loop ["i"]`,
+and with the new one it gives `i = cos(1) = 0.540302` and
+`vC = sin(1)`. That is the shape of `ZRY` above with the zero carried
+by a variable. The whole suite passed with it, 1131 tests.
+
+The corpus pair, one binary built from that tree (`/tmp/m429/ox4`),
+main pass without the heavy models, the old reach
+(`/tmp/m429/p_off.txt`) against the new (`p_on.txt`):
+
+| count             | old reach  | new reach  |
+| ----------------- | ---------- | ---------- |
+| flatten / run     | 953 / 768  | 953 / 770  |
+| runnable          | 836 / 725  | 836 / 727  |
+| Jacobians         | 527        | 552        |
+| ms each, two half | 5537, 5292 | 4428, 3352 |
+
+The flattened lists are identical, and the run lists gain
+`DoublePendulum`, `DoublePendulumInitTip` and
+`ModelicaTest.Fluid.TestComponents.Pipes.IdealMixing1` and lose
+`ModelicaTest.Media.TestsWithFluid.MediaTestModels.Water.IdealSteam`.
+The off half's run list is the same line for line as the head of
+`/tmp/m429/ox3` (`c_head.txt`), so the switch gives the old compiler
+back. The times are not comparable: the off half shared the desk
+with a preflight.
+
+`IdealSteam` has no index reduction either way, so it is not a
+victim. The quench takes three products in it (a print behind a
+throwaway switch, `/tmp/m429/ox5`). One is
+`g * dheights[1] * (if m_flows[1] > 0 then rhos[1] else rhos[2])` in
+the short pipe's flow model. The other two are
+`ports[i].m_flow * (v^2/2 + g*height)` in the volume's energy
+balance, one for each port. Those flows are zero because the test closes
+the ports. Taken out, the matching hands the medium's temperature to
+another equation, and the run stops at t = 0 in the walked
+`solveOneNonlinearEquation`: `T` between 200 and 6000 K does not
+bracket the root, `f(200) = 6.7e6`. With the products standing it
+runs, 92 points.
+
+Two more things are red in the preflight on that tree
+(`/tmp/m429/preflight.txt`). The victim witness of
+`tests/small/a_derivative_name_weighed_at_the_start.mo` moves:
+reduction 86 demotes `b3.body.v_0[2]` instead of `b4.body.v_0[2]`, so
+the quench reaches the tie that witness holds, and the witness would
+need the old reach in its `before` set. And the Jacobians leave their
+band. The judge sums the two passes and printed
+`WORK: jacobians is 552 against 485 written here (1.138144x)`, outside
+its band of 100000 per million. The main pass holds 505 either way, and the dear
+pass goes from 22 to 47. The whole 25 is one model: the dear pass
+taken with the work by model, the old reach and then the new
+(`/tmp/m429/dear_off.txt`, `dear_on.txt`, `OXIDELICA_WORK_EACH`),
+moves only the quasi-static
+`FundamentalWave...InductionMachines.IMC_Transformer`, from 3
+Jacobians to 28, and its run list is the same both ways. Without this change that sum is 527 against a
+band ending at 533.5, a margin of 6.5. The m428 note that put the
+margin at 28.5 read the band as the main pass's alone. The judge's
+line above shows it reads the sum. The mistake was the consultant's
+(pakhan's), twice running and both times the same one: a summed number
+taken where the split one was meant, or the reverse. The note beside
+`WORK_JACOBIANS` is put back to the sum in this commit.
+
+So the change is not taken. It buys three models and costs one, it
+moves a victim the witness was written to hold, and it spends the
+Jacobian band. It is parked with its test in
+`~/oxideflow/park/m429-zero-variable-quenches-any-product.patch`. A
+narrower form would quench only where the other factor is not itself
+a sum carrying a flow. That would keep `IdealSteam`, but it is a rule
+written against one model's shape, and it was not built. The tie
+rule is parked separately
+(`m429-tie-derivative-and-zero-var-any.patch`, both probes), and the
+wheel set needs both.
+
+**Narrowing it, three roads, none built (m429, a map).** Roman's word
+at 11:52 was to narrow the quench rather than take it whole. The
+target is in numbers: `IdealSteam` keeps running, and the judge's sum
+of Jacobians stays under 533.5. The shift ended before a narrowed form
+could be built, measured by a ladder and a pair, and taken through the
+preflight. So these are the roads and what is known about each.
+
+1. Attribution. This one is done. The 25 Jacobians are all one model,
+   the quasi-static `IMC_Transformer` (3 to 28), which still runs
+   either way. `IdealSteam` is a different model and loses for a
+   different reason (the temperature handed to another equation). So
+   no single narrowing is shown by the attribution: the band and the
+   victim have to be met separately.
+2. By need: quench only where, with the product standing, the row
+   names an unknown its value never reads, so the matching could take
+   it for that unknown. `ZV`, the wheel set's row 38 and, by its wall,
+   `DoublePendulum` are of this kind. Whether `IdealSteam`'s energy
+   balance is (`ports[i].m_flow * (...)` with the flow held at zero)
+   was not asked. If it is, this road does not keep it.
+3. By the nature of the zero: quench only a zero that folding knows,
+   not a variable that is zero at the point. This does not separate
+   anything here. `zero_variables` already takes only names an
+   equation sets to an expression of parameters and literals at zero
+   (`zero_throughout`), so every zero it quenches is structural
+   already. The wheel set's `R.T[1,3]` from `nullRotation()` and
+   `IdealSteam`'s closed-port flows are both of that kind. This road
+   is closed by reading the code, and needs no measurement.
+
+So road 2 is the open one. Its judge is the same as for the wide
+form: `ZV` red and green, a ladder over the two wheel sets,
+`DoublePendulum`, `DoublePendulumInitTip`, `IdealMixing1` and
+`IdealSteam`, the victim diff by name, and the judge's own `WORK`
+line for the Jacobians, read from a preflight and not worked out by
+subtraction.
+
+### The row `the equations of algebraic loop ... do not mention`, its two (m429, a map)
+
+`Spice3BenchmarkDifferentialPair` is parked with item 30 and was not
+touched. The other two were asked on today's tree (`/tmp/m429/ox1`).
+Both stand where their maps left them.
+
+- `GearType2` refuses on `bearingFriction.sa` at t = 0, and the one
+  Newton point prints `f = [21.8]` (`/tmp/m429/g2_trail.txt`): `Rv0`,
+  the sliding branch of the torque equation, the one without `sa`.
+  The block is solved under `locked` at its
+  template, false, when the definitions settle it to true. That is
+  the m360 map ("a loop through a discrete definition") unchanged.
+  The small model is one `BearingFriction` with free flanges
+  (`/tmp/m429/g/B1.mo`), refused in the same words. Driven through an
+  inertia by a sine torque (`B2.mo`) it runs, because the start leaves
+  the locked mode at once. This is not the zero column of item 30
+  (`der(vbx)` behind a zero capacitance). There the column is dead in
+  every mode. Here it is dead only in the mode the template picks, and
+  the fix is to solve the block under the mode the definitions settle
+  to.
+- `MovingActuatedDrive` refuses at t = 0.005, in the run, on
+  `bodyCylinder.body.z_a[3]`, as in m399: the monitor's rebuild breaks
+  a tie of 1.8e-15 between `bodyCylinder.w_a[2]` and `r1.w`, a speed
+  `position1` already drives. The tie rule of the wheel set does not
+  reach it, since neither weight is zero.
+
+No change for either. Both maps stand as written.
