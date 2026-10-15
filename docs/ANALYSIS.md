@@ -47197,3 +47197,115 @@ losses and the two other gains. The solver-only half (`p_A.txt`) had
 read 918 of 1020 models when the shift ended. It is the first number
 for the next series, together with the dear pass of the narrowed
 quench, which the main pass does not hold `IMC_Transformer` in.
+
+## The narrowed quench taken, the solver change left, and the assemblies' six (m431)
+
+### The solver-only half, read
+
+The half that outlived m430 finished (`/tmp/m430/p_A.txt`, the solver
+change alone, `OXIDELICA_ZERO_VAR_DER_ONLY=1` on `ox15`): 953 / 768,
+runnable 836 / 725, and 622 Jacobians in the main pass. Against the
+old half its run list gains `TestWaterPumpCheckValve` and
+`SeriesPipes2` and loses `TestWaterPumpStorage` and
+`TestValvesIncompressibleReverse` (`/tmp/m431/A.ran` against
+`/tmp/m430/off.ran`). `IdealSteam` runs. So alone it buys nothing net.
+
+The three halves add up. By Jacobians: (622 - 527) + (527 - 527) = 95
+= 622 - 527, the pair's own. By names, the pair's run list is the
+solver-only list plus the three the narrowing buys
+(`DoublePendulum`, `DoublePendulumInitTip`, `IdealMixing1`), with one
+term that does not add: `IdealSteam` is lost by the narrowing alone
+and runs in the pair, because the solver change repairs exactly the
+wall the narrowing uncovers.
+
+### Where the ninety-five Jacobians are
+
+Asked one model at a time under `--only` with the four switch settings
+(`/tmp/m431/attr1.txt`, `attr2.txt`, and `/tmp/m430/attr.txt`), the
+models that move take 21 of them: `SeriesPipes2` 20 and
+`TestWaterPumpCheckValve` 1 where they run, and the two the solver
+change loses 0 where they ran. `IdealSteam`, `IdealMixing1` and both
+pendulums take none under any setting. The rest are spent on models
+whose verdict the change does not move, and the per-model work of one
+binary on both settings names them (`/tmp/m431/e_off.txt` against
+`e_A.txt`, `OXIDELICA_WORK_EACH=1`, the diff in `jdiff.txt`). Exactly
+six models differ in Jacobians and they sum to 95:
+
+| model                     | Jacobians, old to A | points, old to A |
+| ------------------------- | ------------------- | ---------------- |
+| `SeriesPipes1`            | 0 to 35             | 64 to 6182       |
+| `BranchingPipes4`         | 0 to 32             | 57 to 935        |
+| `SeriesPipes2`            | 0 to 20             | 46 to 1002       |
+| `BranchingPipes2`         | 0 to 6              | 51 to 234        |
+| `BranchingPipes1`         | 0 to 1              | 64 to 83         |
+| `TestWaterPumpCheckValve` | 0 to 1              | 55 to 80         |
+
+The four that are not bought refuse in both halves. No model that ran
+before pays anything: the 74 are the price of carrying four refused
+pipe models much further before they still refuse, and `SeriesPipes1`
+alone went from 32 seconds of run to 2305, which is the tail the
+solver-only half spent its last hour on. So the defect of the solver
+change is not that it slows what works but that it lets a refused
+model walk for a long time to the same refusal.
+
+### What was taken, and what was not
+
+The narrowing alone went into the tree on Roman's word of 2026-10-15:
+953 / 770 and 527 Jacobians, gaining the pendulums and `IdealMixing1`
+and losing `IdealSteam`. The parked patch was split: the quench, its
+test and the witness line were taken, and the solver half
+(`solvers/mod.rs` and the `NE2` / `NE3` tests) stays in
+`~/oxideflow/park/m430-zero-var-carried-and-inner-nan-edge.patch`.
+
+What was not taken is a known defect, and it is written down here so
+that it is not read later as closed. A torn block whose inner
+assignment comes out not a number still calls the point a solution
+when no residual reads the lost value. That is why `IdealSteam`
+refuses now, and `NE2` still hands on `y = NaN` as an answer with
+nothing said. The fix exists and works on both, but alone it costs
+about seventy-four Jacobians on models it does not move and breaks
+the band. Narrowing it is a series of its own, and it starts from the
+four refused pipe models above: what the retreat from an inner edge
+lets them do for thousands of points that it did not before, with
+`SeriesPipes1` (35 Jacobians, 2305 seconds) as the one to shrink.
+
+### The assemblies' six equations (a map, not a fix)
+
+The m430 probe was put back for the measurement only and taken out
+again. A small model with one `JointRRP` (`/tmp/m431/j/Rrp.mo`, a
+crank on a revolute driving the assembly against a fixed cylinder)
+does not reproduce the deficit: without the probe it stops at the
+parameters, as the corpus models do, and with it the initialisation
+is not square (3 conditions and 2 fixed starts for 6 unknowns, 4 of
+them the assembly's `fixed = false` parameters). With a body hung on
+`frame_ia` as `CylinderBase` hangs the connecting rod (`Rrp2.mo`) it
+is structurally singular instead. So the small model reaches another
+wall and is not yet the reproduction.
+
+Two things were measured on the real models. The connection graph is
+whole: a throwaway print of `choose_roots` shows `CylinderBase` in
+two parts of 21 and 24 nodes (the crank side and the cylinder side,
+each with its own root as the model's four open frames allow) and
+`PlanarLoops_analytic` in one part of 79 under `world`, plus the two
+`frame_resolve` nodes of each `relativePosition`. The assembly does
+not break the tree into extra roots. And the deficit has a sibling one
+storey smaller that needs no probe: `Fourbar_analytic` (one `JointSSP`)
+is unbalanced at 1707 equations for 1709 unknowns on the tree as it
+stands. The names nothing determines there are the accelerations of
+the two bodies (`b1.a_0`, `b2.a_0`, `z_a`), every
+`der(jointSSP.frame_*.r_0)` the power check reads, and
+`jointSSP.prismatic.f`, `bearing.f`, `frame_b.t`
+(`/tmp/m431/j/fb_bal.txt`). `checkTotalPower` is bound `true` there,
+so the power sum is a written equation and its derivatives of frame
+positions are new unknowns. In `PlanarLoops_analytic` the same shape
+repeats per assembly: the `der(frame_*.r_0)` of every `jointUSR`
+frame, `revolute.frame_b.f`, `rod2.frame_b.f`, `rod1.t_ia_a`
+(`/tmp/m431/j/pl_bal.txt`).
+
+So the next walk starts at `Fourbar_analytic`, not at the cylinder:
+it is the smallest model of the family that refuses in the same words
+on the unchanged tree. The question it puts is why the force the
+prismatic joint carries along its axis (`f_rod` in `JointUSP` /
+`JointSSP` is solved from it analytically) and the accelerations the
+bodies read go undetermined, which is the dynamic half of the analytic
+loop and not the kinematic one.
