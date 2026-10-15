@@ -46452,3 +46452,44 @@ in 132 rows that flattened and would not run, against 67 / 39 and
 Newton iterations` went from 3 to 2. By name the run half's refusals
 (`/tmp/m427/raw.txt` against `/tmp/m425/raw.txt`) differ by exactly
 `TanksWithEmptyingPipe2`, and nothing moved between rows.
+
+### Three walls of the "not probed" rows, by where the NaN starts (m427, a probe)
+
+The m426 table left three models of the `X of algebraic loop` row
+unprobed. Each refuses at t = 0, before any Newton step, on a residual
+that is not a number. A local print (not kept) named, for every
+non-finite row of the block, the values it reads from outside
+(`/tmp/m427/pump_probe.txt`, `room_probe.txt`, `fw_probe.txt`).
+
+- `PumpingSystem` is refused with an IF97 viscosity called at a
+  density of NaN, but IF97 is only where the NaN is noticed. The
+  reservoir's energy row reads `reservoir.m = 0` and `reservoir.U = 0`
+  from outside the block, and its inner `medium.h = medium.u + p / d`
+  is NaN from there. `OXIDELICA_INIT_PROBE` shows that the written
+  initial conditions `reservoir.level = level_start_eps` and
+  `reservoir.medium.T = T_start` took `reservoir.m` and `reservoir.U`
+  as their unknowns. All 15 evaluations of the block read zero for
+  both, including the five that the zero step adds (10 with
+  `OXIDELICA_NO_INIT_ZERO_STEP`). So the zero is not only the blind
+  start of a state vector that the zero step would move. Where it
+  comes from was not traced further.
+- `SMPM_FieldWeakening` is its own NaN, not one carried in. The
+  block's inner assignment for `dqToThreePhase.singleToMultiPhase.u.re`
+  is solved from the row of `y[1].im`, and with the rotation angle
+  folded to zero that is a division by `-sin(-0)`, which is zero. The
+  matching chose a row where the unknown's coefficient vanishes at
+  the parameters the model has. The PID limiter's `if`, which the
+  refusal names, only reads it. This is the folded-zero shape of m391
+  again, in a quasi-static rotation instead of a derivative.
+- `RoomCO2WithControls` is the m416 wall unchanged: the walked
+  `T_phX` of moist air, `solveOneNonlinearEquation` over 190 to 647 K,
+  is called from inside the block (`ductOut.state_a.T`, with the
+  block's own `ductOut.port_a.p` and `volume.ports[3].h_outflow`) and
+  finds no root in its bracket. The values it was called with are
+  the block's starting unknowns and were not printed.
+
+So the three are three walls: a reservoir whose mass reads zero at
+the start, an inner assignment matched to a row whose coefficient
+folds to zero, and a medium function asked at the block's blind
+start. None is shared with the other two, and none is the run's start
+taken from the initialisation, which leaves all three where they were.
