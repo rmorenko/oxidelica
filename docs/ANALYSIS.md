@@ -47558,3 +47558,15 @@ So the chain as far as it is now mapped:
 
 The probes are parked as `~/oxideflow/park/m432-chain-probes.diff` and
 are out of the tree. The chain is not taken.
+
+### Taken on the review's word, and a point of the desk
+
+The review took the narrowed change on 2026-10-15, since it buys a
+model and loses none, with the Jacobians on the base. The floors went
+with it, run 768 + 1 = 769 and runnable run 725 + 1 = 726. The full
+preflight on the final tree (`/tmp/m432/pf.txt`) printed 953 / 771,
+836 / 728 and 527 Jacobians from the judge, every witness where it
+stands, coverage over its floor, and was red on the desk band alone at
+0.768, the known red. Nothing else ran on the desk during it.
+
+quiet desk point: 0.768, compiler 208bc9e
