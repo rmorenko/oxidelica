@@ -47352,3 +47352,31 @@ gone. Thirteen lines show the refusal in under a second
 is where the next series starts. The chain is not taken here: past
 this link stand the dynamic links of the cylinders, and its end is not
 known.
+
+### The narrowing makes the mechanics cheaper to run, and the desk band reads it
+
+The full preflight on the tree with the narrowing printed the counts
+and the Jacobians exactly (953 / 770, 836 / 727, 527) and was red on
+the time band alone: 0.775, then 0.786 on a rerun of the library step
+(`/tmp/m431/pf_full.txt`, `/tmp/m431/lib2.log`), against the desk's
+0.80. Read as weather at first, it was not. The same binary and the
+same step with `OXIDELICA_ZERO_VAR_DER_ONLY=1`, taken straight after
+on the same desk (`/tmp/m431/lib3.log`), printed 1.016 and passed.
+Flattening is the same on both sides (4363 s); running fell from 4142
+s to 3204 s, with the work in points and Newton steps unchanged.
+
+The time went out of the MultiBody models and one pipe check, model
+by model from the per-model lines of the two runs: `MechanicalStructure`
+of the robot 227 s to 22 s, `DynamicPipeEnergyConservationCheck` 200 s
+to 21 s, `Engine1a` 206 s to 120 s, `PointGravityWithPointMasses2`
+154 s to 75 s, `GyroscopicEffects` 89 s to 32 s, and the constraint
+examples and `RollingWheel` by thirty to forty seconds each. The
+mechanics carry the frames' identity rotations that the quench takes
+out of the products, so what runs has fewer terms to evaluate; why the
+pipe check gains as much is not yet asked. It is a
+gain the band sees as a regression because the band holds a ratio and
+only one of its halves moved.
+
+The runner's band is 0.70 to 1.50 and its last full run of the main
+tree printed 1.407 (push run 38718393073); scaled by what the desk
+measured, 1.407 x 0.786 / 1.016 is about 1.09, inside it.
