@@ -47409,3 +47409,152 @@ ready to test it; the first is not mapped. The switch was taken out
 again and the chain is not taken, by the rule for chains: past the
 four-bar stand the cylinders and the engines, whose links after these
 two have not been walked.
+
+## The inner edge narrowed to its own, and the analytic loops' third link (m432)
+
+### What the solver change paid for on the refused pipes
+
+The solver half of m430 was split out onto the current tree as it
+stood (`~/oxideflow/park/m432-solver-inner-nan-edge.patch`, switch
+`OXIDELICA_NO_INNER_NAN_EDGE`; `NE2` and `NE3` green with it, red
+without). `SeriesPipes1` under `--only` from the root, one binary,
+answers where its forty minutes went. Without the change it runs 64
+points and 107 Newton steps and is refused at t = 0.0008 by the
+Newton-direction guard, in 25 s. With it the explicit solver hands the
+run to the implicit one at t = 0, stage 3 of the first step, on
+`algebraic loop did not converge in 50 Newton iterations` - the
+`Unconverged` refusal, which the implicit solver always takes for a
+step too long. So the Jacobians were not a longer walk but a change of
+solver, as the review guessed.
+
+The Newton trails of the two settings (`/tmp/m432/trail_on.txt`,
+`trail_off.txt`) say why the block stopped converging. At the point
+that goes wrong, a full step takes three pressures negative, where
+the water formulation answers NaN, and the residuals are NaN
+themselves. The old retreat halves back to a finite point and marks
+the solve damped, and the damped line search then creeps to the
+guard. With the change, the same point also had an inner value that
+was not a number, so it was read as an edge of the inner assignments
+alone, and that branch skips the damping. Every retreat was followed
+by a full step over the same edge: ten NaN points and one finite one,
+four times running, until the fifty iterations ran out.
+
+### Two rules that make the edge the inner assignments' own
+
+The edge is the inner assignments' own only where the residuals did
+not see it. Where a residual is NaN too, the ordinary retreat, the
+one that damps the rest of the solve, is what is owed. That rule
+alone (`/tmp/ox432b`, ten pipe models, `/tmp/m432/ten_narrow.txt`)
+took the Jacobians to 0 and the run of `SeriesPipes1` back to 32 s,
+kept `IdealSteam`, and lost `TestValvesIncompressibleReverse`. That
+model runs honestly without the change (1001 steps, no NaN in the
+output, every temperature 293.15 K) and is refused with it before its
+first Newton step: its block starts with a temperature that a walked
+`solveOneNonlinearEquation` cannot bracket. No step was taken to get
+there, so there is no edge to retreat from. The second rule: an inner
+value that is not a number counts as an edge only after the solve has
+stood on a point where every inner value was a number.
+
+With both (`/tmp/ox432c`, `/tmp/m432/ten_c.txt`), the ten models run
+`IdealSteam`, `TestValvesIncompressibleReverse`, `IdealMixing1` and
+`TestWaterPumpStorage`, with no Jacobians, and the refused pipes are
+back to their old times. The switch `OXIDELICA_INNER_EDGE_WIDE` gives
+the reading of m430 back. Four small judges carry it, and each was
+seen red:
+
+| test  | what it holds                                  | red under                     |
+| ----- | ---------------------------------------------- | ----------------------------- |
+| `NE2` | a root that leaves an inner value NaN refuses  | `OXIDELICA_NO_INNER_NAN_EDGE` |
+| `NE3` | a step over an inner edge is taken back        | `OXIDELICA_NO_INNER_NAN_EDGE` |
+| `NE4` | a block starting past an inner edge still runs | `OXIDELICA_INNER_EDGE_WIDE`   |
+| `NE5` | an edge the residual sees damps the solve      | `OXIDELICA_INNER_EDGE_WIDE`   |
+
+### What the change bought, against the handover that is waiting
+
+`TestWaterPumpCheckValve` and `SeriesPipes2` were the change's
+purchases in m431. Under `--only`, one binary and three settings
+(`/tmp/m432/two_A.txt`, `two_edge.txt`, `two_none.txt`): the change
+as m430 wrote it runs both, for 21 Jacobians, 251 s of them on
+`SeriesPipes2`; the narrow handover of an `Outside` refusal to the
+implicit solver (`OXIDELICA_EDGE_HANDOFF`, queue item 38) runs
+`TestWaterPumpCheckValve` alone for 1 Jacobian; neither runs either.
+So the change as written buys `SeriesPipes2` over what the handover
+buys, and that one model costs twenty Jacobians. Narrowed, it buys
+neither: both were reached through the implicit solver, and the
+narrowing is exactly what keeps the refused pipes away from it.
+
+### The pair of the narrowed change
+
+One binary (`/tmp/ox432c`), the main pass without the heavy set,
+`OXIDELICA_WORK_EACH=1`, the change on against
+`OXIDELICA_NO_INNER_NAN_EDGE=1` (`/tmp/m432/p_on.txt` against
+`/tmp/m432/p_off.txt`):
+
+| half | flatten / run | runnable  | Jacobians | running |
+| ---- | ------------- | --------- | --------- | ------- |
+| off  | 953 / 770     | 836 / 727 | 527       | 3421 s  |
+| on   | 953 / 771     | 836 / 728 | 527       | 3412 s  |
+
+The run lists differ by one name, `IdealSteam`, gained. No model
+loses, and no model's Jacobian count moves. `IdealSteam` with the
+change runs 1000 steps with no NaN in the output and every
+temperature at 293.15 K, its start. So narrowed, the change buys back
+the model the quench lost in m431, costs nothing on the band, and
+stops a torn block from handing on a value that is not a number as an
+answer, which `NE2` showed it doing in silence. It is parked as
+`~/oxideflow/park/m432-solver-inner-edge-narrowed.patch` and is not
+taken in this shift.
+
+### The third link of the analytic loops: a port spoken for by its own insides
+
+`Fourbar_analytic` stands on the power check, which is its own. The
+three-loop `PlanarLoops_analytic` does not: a copy with
+`checkTotalPower = false` in all three assemblies
+(`/tmp/m432/j/PlOff.mo`) is still short, 3951 equations for 3975
+unknowns, with and without the second link. So the `JointRRR` side
+has a deficit of its own, and one loop shows it: `Rrr1.mo` (29 lines,
+`/tmp/m432/j/`) is a single `JointRRR` on a driven revolute with one
+body, the power check off, and it is short twelve - 1935 equations
+for 1947 unknowns. The names nothing determines are the forces and
+torques of `jointUSR.revolute.frame_b` and `jointUSR.rod2.frame_b`
+and what hangs on them.
+
+Twelve is the force and torque of two frames. `jointRRR1.frame_ib`
+and `frame_im` are not connected from outside, and an unconnected
+frame's flows are owed a zero - the axis and the bearing of the same
+assembly get their `tau = 0`, the frames get nothing. A throwaway
+print in the rule for half seams (`join_the_connections`, where
+`spoken_for` is gathered) names why: the frame is marked as spoken for
+from above by `jointRRR1.frame_im.r_0[i]`, in a binding written in
+`jointRRR1.shape_rev2`. That is the visualizer's
+`r = frame_im.r_0`, a component inside the frame's own owner, read
+as the level above because the test asks whether the equation's
+origin is the owner itself and not whether it lies inside it.
+
+Under a throwaway switch that counts an origin inside the owner as the
+owner, `Rrr1` balances and stops on the initialisation, which is the
+second link. With both switches it stops on a singular Jacobian in the
+`jointUSR` loop at t = 0 - the third storey. The four-bar copy with
+the power check off runs as in m431 under the same two switches.
+`PlanarLoops_analytic` with this switch stops as structurally
+singular, on an equation equating the orientations of `rod1` and
+`rev` that constrains no state; `Fourbar_analytic` does not move,
+since its deficit is the power check. The `Engine` analytic models and
+the cylinder base still refuse at the parameters, because the
+sibling-member probe of m430 is what moves them past that, and they
+were not walked further here (`/tmp/m432/c3_*.txt`).
+
+So the chain as far as it is now mapped:
+
+1. the power check's derivatives of frame positions (`Fourbar_analytic`
+   only; not mapped);
+2. a Boolean start the discrete layer spends before the run can work it
+   out (`/tmp/m431/j/Pb.mo`);
+3. a port marked as spoken for by a binding inside its own owner
+   (`Rrr1.mo`, short twelve);
+4. after 2 and 3: a singular Jacobian in the `jointUSR` loop of `Rrr1`,
+   and a structurally singular orientation equation in
+   `PlanarLoops_analytic`; not walked.
+
+The probes are parked as `~/oxideflow/park/m432-chain-probes.diff` and
+are out of the tree. The chain is not taken.
