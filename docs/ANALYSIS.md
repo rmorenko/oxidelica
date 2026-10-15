@@ -19472,6 +19472,15 @@ below has not been instantiated, so its member's declared dimension
 sibling's class in the registry is the measurement the paragraph above
 asks for, and it wants a pair over the whole MultiBody loop family.
 
+Still standing on e8c7e4c (m428): the census row holds five models now,
+`Engine1b_analytic`, `EngineV6_analytic` and its utility twin,
+`CylinderBase` and `Cylinder_analytic_CAD` (`/tmp/m428/raw.txt`), and
+`/tmp/s416/Asm.mo` refuses in the same words (`a.e1[1] = a.rod1.e`).
+The decision point is unchanged, and the fix is still the measurement
+of a sibling's declared dimension from its class, taken with a pair
+over the loop family. Not started: the shift had less time left than a
+pair and a preflight take together.
+
 ### The m269 census
 
 This census was taken after the series (`/tmp/m269/census.txt`, raw in
