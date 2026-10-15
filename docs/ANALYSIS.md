@@ -47570,3 +47570,30 @@ stands, coverage over its floor, and was red on the desk band alone at
 0.768, the known red. Nothing else ran on the desk during it.
 
 quiet desk point: 0.768, compiler 208bc9e
+
+### The fourth link, named (m432, after the list)
+
+With the probes put back for the measurement only, the Newton trail of
+`Rrr1` under both switches (`/tmp/m432/j/rrr1_trail.txt`) prints the
+block's matrix at the refusal: 154 rows, and two of them are zero in
+every column. Row 12 is the equation for
+`der(jointRRR1.jointUSR.rod1.rRod_0[2])` and row 21 its second
+derivative, both the derivative of the crank tip's height written out
+through `rev.phi` and `rev.w`. In the block's own unknowns the first
+row's entries are `-cos(rev.phi)*rev.w` and `-sin(rev.phi)`, and the
+trail starts the block at zero angle and zero speed, where both are
+zero. So the index reduction has picked the crank tip's height as a
+dummy derivative, and that choice is singular at the crank's dead
+point. A copy with the driving sine shifted in phase (`Rrr1p.mo`) is
+refused the same way, which this measurement does not explain yet.
+
+That makes the mapped chain four links:
+
+1. the power check's derivatives of frame positions (`Fourbar_analytic`);
+2. the Boolean start spent before the run can work it out (`Pb.mo`);
+3. a port marked as spoken for by a binding inside its own owner
+   (`Rrr1.mo`, short twelve);
+4. a dummy derivative chosen where the crank's dead point makes it
+   singular (`Rrr1.mo` under 2 and 3).
+
+The probes are out of the tree again.
