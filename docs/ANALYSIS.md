@@ -47387,3 +47387,25 @@ again on the new one. That number is Roman's and is not moved here.
 Until it is, a preflight red on the desk band alone, with the counts
 and the Jacobians as the judge expects them, is this known and named
 red, and not a red to walk past.
+
+### The second link of the four-bar, proven by a switch (m431)
+
+The cause read from the code above was put under a throwaway switch:
+an initial equation whose right side could not be worked out before
+the run is left to the initialisation instead of being spent as a
+discrete start. `Pb.mo` then runs to `x = 1` with `b` true, which is
+right, and refuses without the switch. And the four-bar copy with the
+power check off (`/tmp/m431/j/FbOff.mo`) runs its five seconds, 5000
+steps in 14 s (`/tmp/m431/j/fboff.csv`). The crank turns 40.2 rad, the
+prismatic distance stays between -0.2 and -0.42, `b1.a_0` is zero
+because `b1.frame_a` sits on the revolute axis at the origin, and
+`b2.a_0` has only its sliding component. That is plausible and not yet
+checked against a reference.
+
+So `Fourbar_analytic` is two links from running: the power check's
+derivatives of frame positions, which the count lacks, and this
+Boolean start. The second is a one-line change with a small model
+ready to test it; the first is not mapped. The switch was taken out
+again and the chain is not taken, by the rule for chains: past the
+four-bar stand the cylinders and the engines, whose links after these
+two have not been walked.
