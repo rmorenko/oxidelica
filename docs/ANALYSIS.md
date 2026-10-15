@@ -46966,7 +46966,14 @@ preflight. So these are the roads and what is known about each.
    it for that unknown. `ZV`, the wheel set's row 38 and, by its wall,
    `DoublePendulum` are of this kind. Whether `IdealSteam`'s energy
    balance is (`ports[i].m_flow * (...)` with the flow held at zero)
-   was not asked. If it is, this road does not keep it.
+   was not asked. If it is, this road does not keep it. Asked after
+   the push, on `/tmp/m429/ox7`: it is. The closed ports' products take
+   out of their rows a name nothing else in the row holds, so road 2
+   quenches them, and `IdealSteam` is refused at the same bracket as
+   under the wide form. `DoublePendulum` runs and `ZV` is green. The
+   patch and a note are in
+   `~/oxideflow/park/m429-zero-var-by-need-road2.patch` and `.README`.
+   m430 below found that the bracket was never the quench's fault.
 3. By the nature of the zero: quench only a zero that folding knows,
    not a variable that is zero at the point. This does not separate
    anything here. `zero_variables` already takes only names an
@@ -47010,3 +47017,171 @@ Both stand where their maps left them.
   reach it, since neither weight is zero.
 
 No change for either. Both maps stand as written.
+
+## The quench narrowed by who carries the zero, and the steam's real wall (m430)
+
+Roman's word on the m429 change was to narrow it. Before narrowing,
+the consultant asked for the two causes `IdealSteam` might have had to
+be told apart: the quench, or what the matching did with the name the
+quench took out. They were, and it was neither.
+
+**The steam: the matching is not the cause.** A throwaway print of
+the matching after reduction (`/tmp/m430/is_off.match`,
+`is_on.match`, 128 lines each) differs in two lines only:
+`volume.ports_E_flow[i]` is matched to the same row either way, read
+as the product before and as `0` after. The plans
+(`/tmp/m430/plan_off.txt`, `plan_on.txt`) differ in one block's
+tearing. And of the three products the wide form takes, the closed
+ports' two are harmless: skipped by a throwaway switch, the model
+still refused, while skipping the third alone, `g * dheights[1] * (if
+m_flows[1] > 0 then rhos[1] else rhos[2])` in the short pipe, let it
+run. `dheights` is zero for the run, so the quench is exact. What it
+changed is that `dps_fg[1]` became linear in `m_flows[1]`, so the
+flow left the torn set (four torn to three) and `rhos[1]` left every
+residual. The temperature of the pipe's medium is an inner
+assignment, `T_h` through `solveOneNonlinearEquation`.
+
+The Newton trail (`/tmp/m430/nt_on_full.txt`, `nt_off_full.txt`)
+then says it. Both forms take a first step that diverges, with
+`|f|` near `3e5`. With the product standing, the walk's refusal at a
+temperature below 200 K reached a residual through `rhos[1]` as a
+`NaN`, and the edge retreat shortened the step back. Quenched, no
+residual read the lost value, the block took the point for an
+ordinary one, walked the temperature to 97 K and 20 K, and the walk's
+refusal stood as the reason for the run. So the wall was in the
+solver: an inner assignment that is not a number left the point
+looking finite.
+
+**The solver: an inner value lost is the point lost.** A residual
+that is not a number already sends the step back; now an inner
+assignment that is not a number does the same, since the block hands
+every one of its unknowns on (`OXIDELICA_NO_INNER_NAN_EDGE=1` gives
+the old reading). The small model `NE3` (`y = sqrt(x)` inner, read by
+no residual while `x < 100`) was refused as an underdetermined loop
+and now runs to `x = 1.01`. `NE2`, whose only root is at `x = -1`, ran
+before and handed on `y = NaN` as an answer, a wrong number with
+nothing said. Now the block is refused. Both are tests in
+`tests/simulation/solvers.rs`, red with the switch and green without.
+
+The first form of this held the shortened step for the rest of the
+solve, as the residual edge does. `IdealMixing1` then crossed one
+such edge (`pipeFriction2.flowModel.mus[1]`, once, on the first step)
+and crept fifty iterations short of a root, refused on the Newton
+direction. An edge only an inner assignment found is now retreated
+from and not held against the rest of the solve, and both models run.
+
+**The Jacobians: who carries the zero.** The twenty-five Jacobians of
+`IMC_Transformer` came from the quench reading a literal as a zero
+carried by a variable. `zero_throughout` falls through to
+`zero_parameter`, which takes `Number(0.0)`, so the wide form quenched
+`(...) * 0.0` and `0 * N.re`, the real parts of `j*omega*L` the
+quasi-static machines write out. The parameter rule leaves exactly
+that literal standing on purpose (`named_zero`), and a print of what
+the wide form took in the model shows thirty such products. Beyond a
+derivative, the quench now asks that the zero be carried by a name of
+`zero_variables` and not by a literal (`carried_zero`). On its own,
+`IMC_Transformer` is back at 3 Jacobians and 1134 points, the same as
+the derivative-only reach (`/tmp/m430/imc_off.txt`, and the m430
+runs of `ox8`).
+
+Road 2 (by need) was measured beside it on the ladder and adds
+nothing the narrowing does not do: `DoublePendulum` and
+`DoublePendulumInitTip` run under both, the wheel sets under neither,
+`IMC_Transformer` holds 3 Jacobians under both. It is not taken.
+
+**The witness.** The narrowed quench still takes the frames' identity
+rotations out of the cone of the eighty-sixth reduction of
+`tests/small/a_derivative_name_weighed_at_the_start.mo`, which then
+demotes `b3.body.v_0[2]` before the weighing at the start is asked.
+In the parked patch the witness holds the quench off in its `before`
+set, as it holds the constant candidates and stateSelect, and all
+twelve of its checks pass on `ox15`.
+
+### The analytic engines' rod, one storey further (m430, a map)
+
+The five models of the row (`Engine1b_analytic`, `EngineV6_analytic`,
+`PlanarLoops_analytic`, `CylinderBase`, `Cylinder_analytic_CAD`) were
+asked again from the decision point the m269 and m416 maps name. A
+throwaway switch in `spread_over_elements` measured a single name
+`sibling.member` by the sibling's class
+(`collect_member_shapes_named`), and the sixteen-line `Asm` ran to
+`x = 0.6`. In the library all five then stood one link on, at
+`jointRRP.e_b[k] = jointRRP.jointUSP.prismatic.e`: a member two
+components down. Its small model `/tmp/m430/Pe.mo` (`e_b =
+jointUSP.prismatic.e` above `Usp jointUSP`) refuses in the same words
+and runs at `x = 0.6` with the line moved below the component, so it
+is the same declaration-order link at depth two.
+`jointUSP.rod1.rodLength`, the other name in the refusal, is a
+`fixed = false` parameter set by an initial equation. Its small model
+`/tmp/m430/Rl.mo` runs as it is, so it fell with `e_b` and is not a
+wall of its own.
+
+A second throwaway walk followed a dotted name down plain components
+(not replaceable, not redeclared, not arrayed) to a member declared
+with literal lengths. Under it all five pass the parameters
+(`/tmp/m430/j2_*.txt`):
+
+| model                   | where it stands now                                |
+| ----------------------- | -------------------------------------------------- |
+| `CylinderBase`          | unbalanced, 2031 equations for 2037 unknowns       |
+| `Cylinder_analytic_CAD` | unbalanced, 2101 for 2107                          |
+| `PlanarLoops_analytic`  | unbalanced, 3951 for 3975                          |
+| `EngineV6_analytic`     | unbalanced, 8751 for 8787                          |
+| `Engine1b_analytic`     | structurally singular at `der(world.frame_b.R.T…)` |
+
+The deficit is six equations per assembly: one cylinder six, four
+loops twenty-four (the m269 number, met then with a guessing switch),
+six cylinders thirty-six. So the next link is one link in all four,
+the six equations a `JointRRP`/`JointRRR` owes and does not deliver,
+with the frames and accelerations of the bodies it holds left without
+a determining equation (`OXIDELICA_BALANCE_PROBE` on `CylinderBase`).
+`Engine1b_analytic` took 295 seconds of run to reach its refusal, most
+of it in index reduction. None of the five runs, so the probe is
+parked (`~/oxideflow/park/m430-sibling-member-shape-probe.patch`) and
+the chain is not taken: by the rule for chains, it is taken whole or
+not at all, and its end has not been reached. The next walk starts at
+the six equations of one `JointRRP` in `CylinderBase`.
+
+### The pair, and why neither change is taken yet (m430)
+
+Both changes were measured as one, then the consultant asked for them
+apart. One binary (`/tmp/m430/ox15`), the main pass without the heavy
+models, the old compiler (`OXIDELICA_ZERO_VAR_DER_ONLY=1
+OXIDELICA_NO_INNER_NAN_EDGE=1`, `/tmp/m430/p_off.txt`) against both
+changes (`p_on.txt`):
+
+| count         | old        | both       |
+| ------------- | ---------- | ---------- |
+| flatten / run | 953 / 768  | 953 / 771  |
+| runnable      | 836 / 725  | 836 / 728  |
+| Jacobians     | 527        | 622        |
+| s, two halves | 6426, 5830 | 5186, 9298 |
+
+The off half is the old compiler line for line: the same counts and
+the same 527 Jacobians as the m429 off half. The flattened lists are
+identical. The run lists gain `DoublePendulum`,
+`DoublePendulumInitTip`, `IdealMixing1`, `TestWaterPumpCheckValve` and
+`SeriesPipes2`, and lose `TestWaterPumpStorage` and
+`TestValvesIncompressibleReverse`. `IdealSteam` runs in both. The
+times shared the desk with a preflight and are weather, but the
+Jacobians are not: 622 is outside the band in the main pass alone,
+so the preflight was stopped and nothing was merged.
+
+Asked one at a time under `--only` with the switches
+(`/tmp/m430/attr.txt`), all four of the models that moved besides the
+pendulums and `IdealMixing1` move with the solver change and not with
+the quench. Both losses run with `OXIDELICA_NO_INNER_NAN_EDGE=1` and
+refuse without it, whatever the quench: `TestWaterPumpStorage` on
+fifty Newton iterations, `TestValvesIncompressibleReverse` on the
+walked `solveOneNonlinearEquation` of `V2.state_b.T` at the first
+point. `TestWaterPumpCheckValve` is bought by the solver change the
+same way. So the solver change is not neutral on the corpus. It buys
+and costs on its own, and the run lists of each half alone are what
+says how much. The two halves alone were started from the same binary
+(`p_A.txt` solver only, `p_B.txt` quench only). Where the 95
+Jacobians come from is the first thing to read off them.
+
+Both changes, their tests and the witness line are parked together in
+`~/oxideflow/park/m430-zero-var-carried-and-inner-nan-edge.patch`, and
+the next series takes them as two commits, the solver first, each
+with its own pair.
