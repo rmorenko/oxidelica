@@ -2448,10 +2448,12 @@ WORK_DEAREST=12
 # centre is set at the runner's print: ten percent around 485 is 436.5
 # to 533.5, which holds the desk's 486.
 #
-# The divisor with no names in it (m428) takes the desk from 523 to 527
-# (/tmp/m427/cd_off.txt, cd_on.txt), which leaves 6.5 of the band's
-# 533.5. The next change that touches the Jacobians comes with the band
-# worked out again rather than spending what is left of it.
+# After the divisor with no names in it (m428) the desk's main pass
+# counts 505 (/tmp/m428/preflight.txt, the main pass's work line; the
+# 527 of /tmp/m427/cd_on.txt is that plus the dear pass's 22, which this
+# band does not read). That leaves 28.5 of the band's 533.5, the
+# narrowest of the work bands, so the next change that touches the
+# Jacobians is measured against it beforehand.
 WORK_JACOBIANS=485
 WORK_JACOBIANS_PPM=100000
 # The pair is held on a line of its own and to a band of its own, an

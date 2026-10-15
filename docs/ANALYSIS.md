@@ -46561,10 +46561,15 @@ lost. The time per model on the change is 3884 ms flattening and
 the desk's 768 and 725 less the two models that swing between the
 runner and the desk.
 
-The Jacobians are where the margin is thin: after this change the
-desk counts 527 against a band that ends at 533.5 around the
-runner's 485. The next change that touches the Jacobians comes with
-the band worked out again.
+The 527 in the table is the corpus summed whole, the main pass and
+the pass of the dear models together, and it is not the number the
+band judges. The band of `WORK_JACOBIANS` reads the main pass alone,
+which the preflight of the merged tree printed as 505
+(`/tmp/m428/preflight.txt`, the main pass's `work` line; the dear
+pass counts 22 more, and 505 + 22 = 527). So the Jacobians of the
+main pass stand at 505 of 533.5, a margin of 28.5, five and a half
+percent. That is the narrowest of the work bands, and the next change
+that touches the Jacobians is measured against it beforehand.
 
 ### The census after the divisor (m428, a measurement)
 
