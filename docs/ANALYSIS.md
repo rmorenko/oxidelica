@@ -47185,3 +47185,15 @@ Both changes, their tests and the witness line are parked together in
 `~/oxideflow/park/m430-zero-var-carried-and-inner-nan-edge.patch`, and
 the next series takes them as two commits, the solver first, each
 with its own pair.
+
+The quench-only half came in before the end of the shift
+(`/tmp/m430/p_B.txt`, `OXIDELICA_NO_INNER_NAN_EDGE=1` on `ox15`):
+953 / 770, runnable 836 / 727, and 527 Jacobians in the main pass, the
+old number exactly. Against the old half its run list gains
+`DoublePendulum`, `DoublePendulumInitTip` and `IdealMixing1` and loses
+`IdealSteam`, the m429 exchange with the Jacobians taken out of it. So
+the 95 Jacobians of the pair are the solver change's, and so are both
+losses and the two other gains. The solver-only half (`p_A.txt`) had
+read 918 of 1020 models when the shift ended. It is the first number
+for the next series, together with the dear pass of the narrowed
+quench, which the main pass does not hold `IMC_Transformer` in.
