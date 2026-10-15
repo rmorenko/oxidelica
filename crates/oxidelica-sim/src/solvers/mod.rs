@@ -18,6 +18,26 @@ fn fd_step_scale() -> f64 {
     })
 }
 
+/// Whether an inner assignment of a torn block that comes out not a
+/// number makes the whole point one that is not, as a residual that is
+/// not a number does. On by default; `OXIDELICA_NO_INNER_NAN_EDGE=1`
+/// gives the old reading, for both halves of a measurement from one
+/// binary.
+fn inner_nan_edge() -> bool {
+    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ON.get_or_init(|| std::env::var_os("OXIDELICA_NO_INNER_NAN_EDGE").is_none())
+}
+
+/// Whether an inner value that is not a number counts as an edge of
+/// the inner assignments' own even where a residual is not a number
+/// too, as it did first. Off by default; `OXIDELICA_INNER_EDGE_WIDE=1`
+/// gives the wide reading back, for both halves of a measurement from
+/// one binary.
+fn inner_edge_wide() -> bool {
+    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ON.get_or_init(|| std::env::var_os("OXIDELICA_INNER_EDGE_WIDE").is_some())
+}
+
 /// Whether to leave a finite-difference column that came back all
 /// zeros alone instead of asking it again with a larger step. Off by
 /// default; the switch exists so that the two halves of a measurement
@@ -1060,18 +1080,59 @@ impl CompiledModel {
         // difference: how large a residual has to be before it means
         // anything is a question about the numbers it was subtracted
         // from, and the difference alone no longer remembers them.
+        // Whether the last point was lost only in an inner assignment.
+        let inner_only = std::cell::Cell::new(false);
+        // Whether this solve has stood on a point where every inner
+        // value was a number. An edge is something stepped over, and
+        // a block that starts on the far side of one has not stepped
+        // anywhere: `TestValvesIncompressibleReverse` starts with a
+        // temperature its walked bracket cannot answer, and read as
+        // an edge there it was refused before its first step, where
+        // the residuals alone walk it to a run with every value a
+        // number.
+        let stood = std::cell::Cell::new(false);
         let residual_parts = |values: &mut [f64], v: &[f64]| -> Vec<(f64, f64)> {
+            inner_only.set(false);
             for (j, &index) in block.iter().enumerate() {
                 values[self.algebraic_slots[index]] = v[j];
             }
             // Torn values fixed: the inner unknowns follow explicitly.
+            let mut lost = false;
             for (var, code) in inner {
-                values[self.algebraic_slots[*var]] = code.run(values, t);
+                let value = code.run(values, t);
+                lost |= !value.is_finite();
+                values[self.algebraic_slots[*var]] = value;
             }
-            residuals
+            // An inner value that is not a number puts the point over
+            // the edge of a domain whether or not a residual reads it:
+            // the block hands every one of its unknowns on, and a
+            // residual that does not happen to read the lost one would
+            // otherwise call the point a solution.
+            let parts: Vec<(f64, f64)> = residuals
                 .iter()
                 .map(|(lhs, rhs)| (lhs.run(values, t), rhs.run(values, t)))
-                .collect()
+                .collect();
+            // Only an edge the residuals did not see is the inner
+            // assignments' own. Where a residual is not a number too,
+            // the residuals found the edge themselves and the ordinary
+            // retreat, which damps the rest of the solve, is the one
+            // owed: `SeriesPipes1` read every such point as an inner
+            // edge, took a full step over the same edge after each
+            // retreat for fifty iterations, and handed the run to the
+            // implicit solver, which ground on for forty minutes to the
+            // refusal it had in thirty seconds before.
+            if !lost {
+                stood.set(true);
+            }
+            if lost
+                && inner_nan_edge()
+                && (inner_edge_wide()
+                    || (stood.get() && parts.iter().all(|(l, r)| (l - r).is_finite())))
+            {
+                inner_only.set(true);
+                return residuals.iter().map(|_| (f64::NAN, 0.0)).collect();
+            }
+            parts
         };
         let residual = |values: &mut [f64], v: &[f64]| -> Vec<f64> {
             residual_parts(values, v)
@@ -1402,6 +1463,15 @@ impl CompiledModel {
                         v = (0..n).map(|j| from[j] - lambda * dv[j]).collect();
                         footing = Some((from, dv, lambda));
                         over_edge = true;
+                        // An edge only an inner assignment found is
+                        // shortened back to and not held against the
+                        // rest of the solve: the residuals never saw
+                        // it, and `IdealMixing1` crossed one such edge
+                        // once on its first step and then, damped for
+                        // good, crept fifty iterations short of a root.
+                        if inner_only.get() {
+                            continue;
+                        }
                         // A block that has once been over the edge
                         // keeps the shortened step for the rest of
                         // this solve. Without that it walks back to

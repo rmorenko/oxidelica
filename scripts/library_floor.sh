@@ -1437,7 +1437,19 @@ FLATTEN_FLOOR=953
 # the net gain, not the desk's print:
 #
 #   766 + 3 - 1 = 768
-RUN_FLOOR=768
+#
+# And run 769 = 768 + IdealSteam, the inner edge narrowed to its own:
+# an inner value of a torn block that is not a number puts the point
+# over an edge only where no residual saw it, and only once the solve
+# has stood on a point with every inner value a number. That gives
+# back the model the quench took, and its temperature is no longer
+# walked to 97 K inside an assignment no residual reads. From one desk
+# binary, OXIDELICA_NO_INNER_NAN_EDGE on and off, the run list gained
+# exactly IdealSteam and lost nothing, with 527 Jacobians in both
+# (/tmp/m432/p_off.txt against p_on.txt, 953 / 770 against 953 / 771):
+#
+#   768 + 1 = 769
+RUN_FLOOR=769
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -1758,7 +1770,10 @@ RUNNABLE_FLATTEN_FLOOR=836
 # And runnable run 725 = 723 + 2, the narrowed quench, by the same pair
 # as `RUN_FLOOR`: 725 against 727 printed, the three gained and the one
 # lost all runnable.
-RUNNABLE_RUN_FLOOR=725
+#
+# And runnable run 726 = 725 + IdealSteam, runnable, by the same pair
+# as `RUN_FLOOR`: 727 against 728 printed.
+RUNNABLE_RUN_FLOOR=726
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and

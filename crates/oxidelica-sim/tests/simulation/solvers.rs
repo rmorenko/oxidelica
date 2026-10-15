@@ -1407,3 +1407,85 @@ fn a_row_reading_a_voltage_through_a_nanohenry_stops_at_the_rounding_it_carries(
     let w = last[column("w")];
     assert!((w - 2.0007977391698297).abs() < 1e-4, "w = {w}");
 }
+
+#[test]
+fn an_inner_value_that_is_not_a_number_sends_the_step_back() {
+    // `y = sqrt(x)` is an inner assignment of the torn block, and no
+    // residual reads `y` while `x` stays below a hundred. The first
+    // Newton step from `x = 3` overshoots to a negative `x`, where the
+    // square root is not a number. Read only through the residuals the
+    // point looked finite, the walk went on from there and the block
+    // was refused as underdetermined. The block hands `y` on as well,
+    // so the point is over an edge and the step is shortened back.
+    // This is what `IdealSteam` met once a zero carried by a closed
+    // port took the density out of the pipe's residual: the
+    // temperature walked to 97 K inside an inner assignment and the
+    // block called that a solution.
+    let result = run("model NE3 Real x(start = 3); Real y; Real z; equation \
+         y = sqrt(x); z = if x > 100 then y else 0; \
+         0 = atan(x - 1 - 0.01*time) + z; \
+         annotation(experiment(StopTime = 1, Interval = 0.5)); end NE3;");
+    let x = last_of(&result, "x");
+    assert!((x - 1.01).abs() < 1e-9, "x = {x}");
+    assert!(last_of(&result, "y").is_finite());
+}
+
+#[test]
+fn a_root_that_leaves_an_inner_value_not_a_number_is_refused() {
+    // `x^3 + 1 = 0` has its root at -1, where the inner `y = sqrt(x)`
+    // is not a number. Read only through the residual, the root was
+    // taken and the run handed on `y = NaN` as an answer. It is a
+    // point over the edge of a domain, and a refusal of the block is
+    // owed, whichever words the solver finds for it.
+    let refusal = refused(
+        "model NE2 Real x(start = 0.5); Real y; Real z; equation \
+         y = sqrt(x); z = if x > 100 then y else 0; \
+         0 = x^3 + 1 + z + 0.01*sin(time); \
+         annotation(experiment(StopTime = 1, Interval = 0.5)); end NE2;",
+    );
+    assert!(refusal.contains("[\"x\"]"), "{refusal}");
+}
+
+fn last_of(result: &oxidelica_sim::SimResult, name: &str) -> f64 {
+    let at = result.columns.iter().position(|c| c == name).unwrap();
+    result.rows.last().unwrap()[at]
+}
+
+#[test]
+fn a_block_that_starts_with_an_inner_value_not_a_number_is_not_over_an_edge() {
+    // `y = sqrt(x)` is an inner assignment of the torn block and the
+    // block starts at `x = -1`, where it is not a number. No step was
+    // taken to get there, so there is no edge to retreat from: read as
+    // one, the block was refused before its first Newton step. The
+    // residual alone walks it to `x = 4`, where `y` is a number again.
+    // `TestValvesIncompressibleReverse` starts so, with a temperature
+    // its walked bracket cannot answer at the starting point.
+    let result = run("model NE4 Real x(start = -1); Real y; Real z; equation \
+         y = sqrt(x); z = if x > 100 then y else 0; \
+         0 = x - 4 - 0.01*time + z; \
+         annotation(experiment(StopTime = 1, Interval = 0.5)); end NE4;");
+    let x = last_of(&result, "x");
+    assert!((x - 4.01).abs() < 1e-9, "x = {x}");
+    assert!((last_of(&result, "y") - 4.01f64.sqrt()).abs() < 1e-9);
+}
+
+#[test]
+fn an_edge_the_residual_sees_too_damps_the_rest_of_the_solve() {
+    // `x^2 + 1` has no root, and Newton from `x = 3` walks towards the
+    // bottom of the parabola and over it into negative `x`, where the
+    // square root is not a number - and the residual reads it, so the
+    // residual is not a number either. That edge is the residuals' own,
+    // and the retreat owed keeps the shortened step for the rest of the
+    // solve, which ends on a block with no way down. Read as an edge of
+    // the inner assignment alone, the walk took the full step over it
+    // again after every retreat until its fifty iterations ran out,
+    // which is the refusal the explicit solver hands to the implicit
+    // one: `SeriesPipes1` was handed over so and ground for forty
+    // minutes to the refusal it had in thirty seconds before.
+    let refusal = refused(
+        "model NE5 Real x(start = 3); Real y; equation \
+         y = sqrt(x); 0 = x^2 + 1 + 1e-9*y + 0.01*sin(time); \
+         annotation(experiment(StopTime = 1, Interval = 0.5)); end NE5;",
+    );
+    assert!(!refusal.contains("did not converge in 50"), "{refusal}");
+}
