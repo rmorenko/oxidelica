@@ -46704,3 +46704,20 @@ ten-line model, run again on e8c7e4c (`/tmp/m428/p4/G.mo`), refuses
 with the same words on `regRoot2(x, 0.01, 1, 0)`. Nothing has moved,
 and the row stays with the depth decision rather than becoming a
 series of its own.
+
+**The backward column, measured on the corpus.** The `K4.mo` shape is
+right in itself, so the switch was given a corpus pair before being
+left: one binary (`/tmp/m428/oxp1`), the main pass without the heavy
+models, under a memory ceiling of 24 GB, off (`/tmp/m428/bc_off.txt`)
+and on (`/tmp/m428/bc_on.txt`). Both print 953/768 and 836/725 with
+527 Jacobians, and the two run lists of 768 are identical line for
+line. The work moved by +500 points and +1417 Newton steps on, and
+the time per model by +3% each half. The census's eight
+`singular Jacobian` models, asked one at a time under `--only` with
+and without the switch (`/tmp/m428/sing.txt`), stay refused: only
+`RoomCO2` moves, from `singular Jacobian` to `did not converge in 50
+Newton iterations`. So the column is a zero on the corpus, and it is
+parked with a test (`a_stopped_pump_against_its_closed_check_valve_is_solved`,
+red without the switch and green with it) in
+`~/oxideflow/park/m428-backward-column-and-alias.patch`. It is worth
+taking when a model of the library first needs it, and not before.
