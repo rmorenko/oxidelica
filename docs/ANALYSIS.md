@@ -46469,10 +46469,21 @@ non-finite row of the block, the values it reads from outside
   initial conditions `reservoir.level = level_start_eps` and
   `reservoir.medium.T = T_start` took `reservoir.m` and `reservoir.U`
   as their unknowns. All 15 evaluations of the block read zero for
-  both, including the five that the zero step adds (10 with
-  `OXIDELICA_NO_INIT_ZERO_STEP`). So the zero is not only the blind
-  start of a state vector that the zero step would move. Where it
-  comes from was not traced further.
+  both (10 evaluations with `OXIDELICA_NO_INIT_ZERO_STEP`, so the zero
+  step adds five, and none of them reads anything but zero either). A
+  second print (not kept) answered
+  where the zero comes from. After index reduction `reservoir.m` and
+  `reservoir.U` are states (numbers 3 and 2), neither has a start of
+  its own, and the value in each one's slot is 0.0 at every one of
+  the 15 evaluations. All 15 are asked from inside
+  `solve_initialization`, through the residual's `eval_point`. The
+  starts the model writes are on `reservoir.level`
+  (`level_start_eps`) and `reservoir.medium.T` (`T_start`), which are
+  algebraic here, and `m = fluidVolume * d` reads them only once the
+  block has been solved, which the zero mass stops it from doing. This
+  is the shape the m426 table gave `ThreeSprings`: a start written on
+  a name that is not the one the solver begins from. Why the zero step
+  leaves the two slots at zero was not traced.
 - `SMPM_FieldWeakening` is its own NaN, not one carried in. The
   block's inner assignment for `dqToThreePhase.singleToMultiPhase.u.re`
   is solved from the row of `y[1].im`, and with the rotation angle
