@@ -47380,3 +47380,10 @@ only one of its halves moved.
 The runner's band is 0.70 to 1.50 and its last full run of the main
 tree printed 1.407 (push run 38718393073); scaled by what the desk
 measured, 1.407 x 0.786 / 1.016 is about 1.09, inside it.
+
+The desk's band, 0.80 to 1.36, was set on the old compiler, and from
+this commit on it is red on every full preflight until it is measured
+again on the new one. That number is Roman's and is not moved here.
+Until it is, a preflight red on the desk band alone, with the counts
+and the Jacobians as the judge expects them, is this known and named
+red, and not a red to walk past.
