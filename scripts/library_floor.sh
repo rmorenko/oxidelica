@@ -1404,7 +1404,17 @@ FLATTEN_FLOOR=953
 # on.txt), so the runner is expected to print 766:
 #
 #   766 expected - 1 SpringWithMass - 1 SMPM_VoltageSource = 764
-RUN_FLOOR=764
+#
+# And run 765 = 764 + TanksWithEmptyingPipe2 of
+# Modelica.Fluid.Examples.AST_BatchPlant.Test, which runs once a run
+# whose first event is refused from the declared starts is taken again
+# from where the initialisation left its unknowns. From one desk
+# binary, the switch OXIDELICA_NO_INIT_GUESS on and off, the run list
+# gained exactly that model and lost nothing (/tmp/m427/pair_off.txt,
+# pair_on.txt), and the desk printed 767:
+#
+#   767 printed - 1 SpringWithMass - 1 SMPM_VoltageSource = 765
+RUN_FLOOR=765
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -1715,7 +1725,10 @@ RUNNABLE_FLATTEN_FLOOR=836
 # And runnable run 721 = 719 + CCCV_Stack and CCCV_StackRC, both
 # runnable, by the same pair as `RUN_FLOOR`: 721 printed for 0bf1b70,
 # 723 expected, less the same two swings.
-RUNNABLE_RUN_FLOOR=721
+#
+# And runnable run 722 = 721 + TanksWithEmptyingPipe2, runnable, by the
+# same pair as `RUN_FLOOR`: 724 printed, less the same two swings.
+RUNNABLE_RUN_FLOOR=722
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and

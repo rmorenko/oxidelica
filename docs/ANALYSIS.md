@@ -46316,3 +46316,125 @@ its final points from the two settings. If it does, the change costs
 one model's speed and the work centres would be moved with the
 arithmetic written down. If it does not, the different trajectory is
 the finding. The patch stays parked until that is answered.
+
+### Where `Dimmer_RL` ends, and the start taken only on a refusal (m427)
+
+The open question of m426 was whether `Dimmer_RL` ends at the same
+numbers with the initialisation's guess as without it. It does not.
+A full `simulate` of the model stops on the evaluation budget near
+t = 1.1e-3 in both settings, so the comparison is taken over the
+horizon the library check runs, ten steps of 1e-4, with one binary
+(`/tmp/m427/ox`, `/tmp/m427/dim_{on,off}.csv`):
+
+| at t = 1e-3                | guess off      | guess on       |
+| -------------------------- | -------------- | -------------- |
+| `loadInductor.i`           | 9.6222e-8      | 9.7188e-8      |
+| `triac.v`                  | 48.110887      | 46.394121      |
+| `triac.thyristor1.i`       | 4.8111e-8      | 4.6394e-8      |
+| `loadInductor.v`           | -0.039126      | 1.677640       |
+| `vRMS.mean.x`              | 6.2012e-3      | -1.3664e-3     |
+| points / Newton (`--only`) | 23.66M / 34.3M | 29.98M / 43.0M |
+
+The two triac thyristors are off, each a conductance of 1e-9 S, so
+the current through the pair is 2e-9 times the voltage across it.
+With the guess off that holds to the digit: 2e-9 x 48.110887 =
+9.6222e-8, the inductor's current. With the guess on it does not:
+2e-9 x 46.394121 = 9.279e-8 against 9.719e-8, a current of 4.4e-9 A
+that goes nowhere. The block was accepted on an absolute tolerance
+at currents of 1e-7, where 4e-9 is four percent. So the run that
+starts from the initialisation's guess is the worse of the two, and
+it is a different trajectory and not only a slower one. The work it
+adds (26.7% on `Dimmer_RL`, inside that model's own band of 20%
+around 27.37M, but 2.6 times the 10% band of the rest) buys nothing.
+
+Two narrower forms were measured under `--only`, each from its own
+binary:
+
+- (a) the guess for the regularity check only, the run's first event
+  cold as before (`/tmp/m427/ox2`). `Dimmer_RL` comes back to
+  23 662 451 points and ends exactly where the guess-off run ends.
+  `TanksWithEmptyingPipe2` is not won: it is refused one step later,
+  in the run's first event, by the same five-unknown block
+  (`valveDiscrete.V_flow`, the three pipes' `m_flows[1]`,
+  `tank3.ports[1].m_flow`) after 43 points.
+- (b) the same, and `begin_segment` cold as before, taken again from
+  the initialisation's guess only when the cold start is refused
+  (`/tmp/m427/ox3`). `TanksWithEmptyingPipe2` runs (80 points,
+  281 Newton), and `Dimmer_RL` takes 23 662 451 points and
+  34 340 320 Newton iterations, the guess-off numbers. A retry
+  changes nothing for a model whose first event already succeeded,
+  so the trajectory of every model that ran before is the one it had.
+
+The test of m426 stays as it was: red with `OXIDELICA_NO_INIT_GUESS`
+set, green without it, under (b).
+
+The neighbours, each with the switch off and on under (b)
+(`/tmp/m427/probe.txt`), print the same refusal and the same work to
+the digit. The guess pays none of them:
+
+- `DynamicPipeClosingValve` refuses in the initialisation. A local
+  print of the conditions' rows (not kept, `/tmp/m427/valve_probe2.txt`)
+  shows four conditions, two of them `pipe.flowModel.dp_small` and
+  `dp_nominal`, settled after two steps. The other two are the
+  steady rows on `pipe.ms[1]` and `pipe.Us[1]`. On the first
+  iteration the one row is the other times 998.251 in both of its
+  coefficients and in its residual, to six digits (`-8.040e14`
+  against `-8.054e11` on `ms`, `-4.898e8` against `-4.907e5` on `Us`,
+  `-2.468e8` against `-2.473e5` of residual), and on the third the
+  three ratios still agree to 5e-5. Two unknowns are held by what is
+  one condition said twice, and the step is taken through the small
+  difference between the two. Newton swings with `|r|` between 5.6e5
+  and 6.3e5 on the larger row, 7.9e-9 of the row's terms against the
+  1e-12 that would hold, and its swing narrows a little each step.
+  The stall cut, the drift guess and the zero step each change
+  nothing (`OXIDELICA_NO_INIT_STALL`, `OXIDELICA_INIT_DRIFT_GUESS`,
+  `OXIDELICA_NO_INIT_ZERO_STEP`). It is the `SteadyStateInitial` of a
+  one-node water pipe, and it belongs with the steady-state
+  initialisation, not with the run's loops. Which physical quantity
+  the ratio 998.25 is was not measured. It is close to the density of
+  water near 20 °C, which would make the energy row the mass row
+  times a density, but that reading is a guess until the probe prints
+  `pipe.mediums[1].d` beside it.
+- `PressureLoss.Bend` is the m426 trail unchanged: the square root
+  at zero flow, swinging over `dp`.
+- `DoublePendulum` (`revolute1.phi`), `MotorWithCurrentControl`
+  (`dqToThreePhase.rotator.angle`) and `TestSuddenExpansion`
+  (`suddenExpansion1.m_flow`, `|f|` = 1e4 at zero) are the row
+  `has a solution on either side`. The dead-column probe
+  (`OXIDELICA_DEAD_PROBE`) calls each one "flat here only" at t = 0:
+  an angle at zero where its cosine has no slope, and a square at
+  zero flow. These are the layers m411 and m383 named, unmoved.
+- `GearType2` (`bearingFriction.sa`) and `MovingActuatedDrive`
+  (`bodyCylinder.body.z_a[3]` at t = 0.005) are the row `do not
+mention`, the m360 map of a friction `if` whose only branch with
+  `sa` is the locked one, and the m399 map of the monitor's rebuild.
+  `GearType2` is a utility with both flanges free and no inertia, so
+  there is no example behind it to run.
+
+So the seven names are five layers, none of them new and none of
+them the start of the run's blocks.
+
+The corpus pair for (b) was taken from one binary, `/tmp/m427/ox3`,
+one half after the other. The file names follow the change, not the
+switch, whose sense is negative: `/tmp/m427/pair_off.txt` is the
+change off (`OXIDELICA_NO_INIT_GUESS=1` set), `/tmp/m427/pair_on.txt`
+the change on (the switch not set):
+
+| Count                        | Change off | Change on  |
+| ---------------------------- | ---------- | ---------- |
+| flatten / run                | 953 / 766  | 953 / 767  |
+| runnable flatten / run       | 836 / 723  | 836 / 724  |
+| points                       | 24 099 894 | 24 099 932 |
+| Newton iterations            | 35 219 703 | 35 219 432 |
+| Jacobians                    | 523        | 523        |
+| Jacobians taken column-apart | 1974       | 1974       |
+
+By name the run list gains `TanksWithEmptyingPipe2` and loses
+nothing. Its 80 points come in where its 43 refused ones were, and
+nothing else moves: the work bands, the rest's 10% and `Dimmer_RL`'s
+own 20%, are both untouched. The change-off half is the change-off
+half of m426 (`/tmp/m426/pair_off.txt`) to the digit. Form (b) is the
+change taken, and the run floors rise by the one model: 767 - 2 =
+765, 724 - 2 = 722. Both lie below what the runner already printed
+for a3bfe6d, 766 and 723 (push run 38599991646, job 116017404201), so
+they hold even if the runner buys nothing from the change.

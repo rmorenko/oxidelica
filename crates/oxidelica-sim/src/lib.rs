@@ -425,6 +425,11 @@ pub struct CompiledModel {
     pub algebraics: Vec<String>,
     /// Initial Newton guesses for algebraic variables (start attributes).
     algebraic_start: Vec<f64>,
+    /// Where the initialisation left the algebraic unknowns, when it
+    /// ran: the point the regularity check starts its blocks from, and
+    /// the one a run's first event is taken again from when its start
+    /// from the declared starts is refused.
+    init_guess: Option<Vec<f64>>,
     /// Algebraic variables declared `fixed = true`: their start value is
     /// an initial condition, not a guess, so the solution must match it.
     fixed_starts: Vec<(String, usize, f64)>,

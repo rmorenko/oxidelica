@@ -68,6 +68,33 @@ fn a_block_accepted_on_the_arithmetic_floor_is_still_asked_whether_it_is_determi
 }
 
 #[test]
+fn a_block_the_initialisation_solved_starts_where_it_was_left() {
+    // The initialisation moves `x` from its start of 1e-6 to 1e6,
+    // and the block `z^3 + z = 1e12*x` is solved there from the start
+    // `z = 1`, which takes it to about 1e6. Then the regularity check
+    // asked the block again from `z = 1`. At 1e6 the cube is so steep
+    // that a difference step on one reads no slope at all, and the
+    // check refused a block the initialisation had already solved.
+    let source = "model W Real x(start = 1e-6); Real z(start = 1); \
+         initial equation x = 1e6; \
+         equation der(x) = -x; z^3 + z = 1e12 * x; \
+         annotation(experiment(StopTime = 1, Interval = 0.5)); end W;";
+    let model = parse_model(source).unwrap();
+    let result = compile(&model)
+        .and_then(|compiled| compiled.simulate())
+        .expect("the block was solved once and is regular where it was solved");
+    let x = result.columns.iter().position(|c| c == "x").unwrap();
+    let z = result.columns.iter().position(|c| c == "z").unwrap();
+    let last = result.rows.last().unwrap();
+    let (x, z) = (last[x], last[z]);
+    assert!(
+        (z * z * z + z - 1e12 * x).abs() <= 1e-9 * 1e12 * x,
+        "z = {z} does not solve the block at x = {x}"
+    );
+    assert!((x - 1e6 * (-1.0f64).exp()).abs() < 1e-3 * x, "x = {x}");
+}
+
+#[test]
 fn solves_linear_algebraic_loop() {
     // x = y/2 + 1, y = x/2 + 1  ->  x = y = 2.
     let result = run(

@@ -6459,6 +6459,7 @@ pub(crate) fn compile_at(
         profiles: std::cell::RefCell::new(vec![Vec::new(); model.transports.len()]),
         algebraics: ordered_algs,
         algebraic_start,
+        init_guess: None,
         fixed_starts,
         stages: compiled_stages,
         stop_time: model.experiment.stop_time.unwrap_or(1.0),
@@ -7081,7 +7082,17 @@ impl CompiledModel {
     /// Run the plan once at time zero, every implicit block validated,
     /// from the algebraic starts.
     fn solve_plan_once(&self, values: &mut [f64]) -> Result<(), SimError> {
-        let mut alg_guess = self.algebraic_start.clone();
+        // The initialisation has already solved every block at this
+        // instant, from the declared starts, and where it left the
+        // unknowns is where the run's first point stands. Asked again
+        // from the declared starts, the check repeats that walk and may
+        // run out of iterations one step short of where it already
+        // arrived: `TanksWithEmptyingPipe2` converged twice in the
+        // initialisation and was refused here at 5e-7 on iteration 49.
+        let mut alg_guess = match &self.init_guess {
+            Some(guess) if std::env::var_os("OXIDELICA_NO_INIT_GUESS").is_none() => guess.clone(),
+            _ => self.algebraic_start.clone(),
+        };
         for stage in &self.stages {
             match stage {
                 AlgStage::Explicit { var, code } => {
@@ -8316,6 +8327,7 @@ impl CompiledModel {
         }
         y.truncate(states);
         self.initial = y;
+        self.init_guess = Some(alg_guess);
         Ok(())
     }
 

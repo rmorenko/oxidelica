@@ -481,7 +481,31 @@ impl CompiledModel {
 
     /// Set a segment up to its first output point: the initial event if
     /// this is the beginning, the resumed truth if it is not.
+    ///
+    /// The blocks start from the declared starts, as they always have,
+    /// and only a start refused there is taken again from where the
+    /// initialisation left the unknowns. Starting every run from that
+    /// point instead buys `TanksWithEmptyingPipe2` and sends
+    /// `Dimmer_RL` down another trajectory: a quarter more points, and
+    /// at t = 1e-3 a current through the triac that no longer matches
+    /// its off-conductance by 4e-9 A, where the cold start matches it
+    /// to the digit. A retry changes nothing for a model that already
+    /// started.
     pub(crate) fn begin_segment(&self, method: SolverMethod) -> Result<SegmentStart, SimError> {
+        let cold = self.begin_segment_from(method, self.algebraic_start.clone());
+        match (&cold, &self.init_guess) {
+            (Err(_), Some(guess)) if std::env::var_os("OXIDELICA_NO_INIT_GUESS").is_none() => {
+                self.begin_segment_from(method, guess.clone())
+            }
+            _ => cold,
+        }
+    }
+
+    fn begin_segment_from(
+        &self,
+        method: SolverMethod,
+        mut alg_guess: Vec<f64>,
+    ) -> Result<SegmentStart, SimError> {
         let mut values = self.values_template.clone();
         let mut columns = vec!["time".to_string()];
         columns.extend(self.states.iter().cloned());
@@ -489,7 +513,6 @@ impl CompiledModel {
         columns.extend(self.discretes.iter().cloned());
         let mut rows: Vec<Vec<f64>> = Vec::new();
         let mut y = self.initial.clone();
-        let mut alg_guess = self.algebraic_start.clone();
         let mut scratch = Vec::new();
 
         // A segment remembers its own past, from its own beginning.
