@@ -46513,3 +46513,36 @@ the start, an inner assignment matched to a row whose coefficient
 folds to zero, and a medium function asked at the block's blind
 start. None is shared with the other two, and none is the run's start
 taken from the initialisation, which leaves all three where they were.
+
+### A divisor with no names in it (m427, parked)
+
+The guard that keeps a division by zero out of a block's inner
+assignments, `divides_by_any` in `symbolic.rs`, has two halves. One
+asks about divisors that read a zero-start unknown of the block. The
+other, added for the rolling wheel's `sin(angles[3])`, asks whether a
+divisor built only of settled names comes to exactly zero at the
+starts. That second half begins with `!refs.is_empty()`, so a divisor
+with no names in it at all is never asked. `SMPM_FieldWeakening`'s
+`-sin(-0)` is one: the rotation angle `-((1 - 1)*2*pi)/m` folds to a
+literal before the plan is made, and what is left names nothing.
+
+A two-equation model shows it alone, a rotation by `sin(0)` and
+`cos(0)` solved for its real and imaginary parts. Without the change it is refused
+with an infinite residual before any Newton step. With the divisor
+asked whether it is zero whatever names it has
+(`OXIDELICA_CONST_DIVISOR`), the row joins the tearing set and the
+model runs to 2 and 3 at t = 1, the identity it is. A
+test of that is red without the switch and green with it. Under
+`--only` from the root, `SMPM_FieldWeakening` goes from the refusal
+to a run of 1346 points and 3370 Newton steps, from one binary
+(`/tmp/m427/ox9`).
+
+The change is one line, and it is parked with its test as
+`~/oxideflow/park/m427-const-divisor.patch`, because the shift ran out
+before the gate could be closed. The corpus pair from the same binary
+was started (`/tmp/m427/cd_off.txt` without the switch, `cd_on.txt`
+with it) and will not be read before the end of the shift. What
+remains is the gate as usual: the pair by name, the work bands, the
+floors in the same commit, and the preflight. The parked test names
+its two unknowns with abbreviations the spelling check reads as
+typos, so they want renaming before it goes in.
