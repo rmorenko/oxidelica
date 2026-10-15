@@ -46229,3 +46229,73 @@ trajectories with a reference. Following the instructions for this
 shift, the doors stay open. Closing them, or refusing at them,
 is Roman's decision, and the numbers above are what it would be
 made on.
+
+### The neighbours of the row, and a start the regularity check threw away (m426)
+
+There are four models in `did not converge in N Newton iterations`.
+Probed one at a time with `--only` and the Newton trail:
+
+- `Dissipation.TestCases.PressureLoss.Bend` swings `dp` between
+  plus and minus 1.6e-4 around zero, with `|f|` stuck near 2e-8. The
+  floor test does not accept it, because `reach` is 8.8e-9. This is
+  a square root near zero, where the slope is infinite
+  (`/tmp/m426/bend.txt`).
+- `DynamicPipeClosingValve` refuses inside the initialisation, not
+  in a block of the run (`/tmp/m426/nb_valve.txt`).
+- `TanksWithEmptyingPipe2` was refused by the regularity check. The
+  initialisation solves the five-unknown block twice at t = 0, and
+  converges both times. Then `check_block_regularity` solves the plan
+  again, starting every block from the declared starts (all zero
+  here) instead of from where the initialisation left it. Newton
+  walks the whole way back and is still `5.3e-7` off on its last
+  iteration, one step short of the tolerance it was converging to
+  quadratically (`/tmp/m426/nb_tanks.txt`). A backtrace taken at
+  every block that starts at all zeros found two such cold starts
+  after the initialisation: the check, and the first event of
+  `begin_segment`.
+
+The fix starts both from the algebraic guess the initialisation
+leaves behind. `OXIDELICA_NO_INIT_GUESS` restores the old start.
+The fix comes with a twelve-line test: `z^3 + z = 1e12*x` with `x`
+moved by the initial equation from 1e-6 to 1e6. The test is red with
+the switch on and green without it. The corpus pair was taken from
+one binary, `/tmp/m426/oxpair`, run one half after the other
+(`/tmp/m426/pair_off.txt`, `/tmp/m426/pair_on.txt`):
+
+| Count                        | Switch off | Switch on  |
+| ---------------------------- | ---------- | ---------- |
+| flatten / run                | 953 / 766  | 953 / 767  |
+| runnable flatten / run       | 836 / 723  | 836 / 724  |
+| running, total seconds       | 4033       | 4148       |
+| points                       | 24 099 894 | 31 163 447 |
+| Newton iterations            | 35 219 702 | 44 936 427 |
+| Jacobians                    | 523        | 456        |
+| Jacobians taken column-apart | 1974       | 5098       |
+
+By name, it gains one model, `TanksWithEmptyingPipe2`, and loses
+none. But the work grew far beyond what one model pays.
+`TanksWithEmptyingPipe2` costs 79 points and 231 Newton iterations
+on its own. Points grew by 29% and Newton iterations by 28%, while
+the band the floor holds them to is 10%. The probe pass of
+unchanged code earlier in the shift (`/tmp/m426/door_corpus.txt`)
+gives 24 099 894 points and 35 219 703 Newton iterations, the switch-off
+numbers to within one iteration, so the weather is ruled out and
+the change is the cause. A different first guess for the run's
+blocks changes where some models go from there. More points means
+smaller steps over a run that already ran, and that may be a
+different trajectory, not only a slower one. Under the rule for a
+change that moves which states a run settles on, that is a
+different compiler and not a fix, until it is known which models
+changed and whether their numbers did.
+
+So the change is parked as `~/oxideflow/park/m426-init-guess.patch`
+(the fix and the test), and the tree does not carry it. The next
+instrument is already running: `library check --slow 25` with each
+setting of the switch, from the same binary (`/tmp/m426/slow_off.txt`,
+`/tmp/m426/slow_on.txt`). Those two lists name the models whose
+run grew. A narrower version of the change would apply the
+initialisation's guess to the regularity check only, which is a
+check and hands nothing on, and leave `begin_segment` as it was.
+That would not buy `TanksWithEmptyingPipe2`, because its first
+event is the second cold start. The point is still to measure
+before arguing about it.
