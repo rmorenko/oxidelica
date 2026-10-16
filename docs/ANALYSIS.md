@@ -49103,6 +49103,25 @@ trajectory-zero family of `Sc6` above. So `Cyl1i` walks one link, on
 two written zeros the rows did not see, and joins the wall of the
 uninclined cylinder. Why those two and not one is not mapped.
 
+And the angle kept is only half of the bearing. Under every fold that
+keeps `bearing.phi` in `Cyl1i` (the 411, the minimal pair), the
+bearing's speed `bearing.w` is still demoted, at reduction 32 in both,
+on the `RelativePosition` sensor's velocity row - the same sensor
+again. In `Pl1` under the axis fold and in the `Sc6` runs that keep
+the angle, neither half is demoted. So for the inclined cylinder
+"keeps `bearing.phi`" above means one level of the bearing's two, and
+the count of what the fold bought there is half of what it reads.
+
+The array `stateSelect` of the section on the rod's spin, followed to
+its place on a nine-line model (`SS1.mo`: `x[2](stateSelect =
+{never, prefer})` under `x[1] + x[2] = 1`): every element of the flat
+model is handed the whole array, and the evaluator refuses it with
+"an array reached the evaluator", so the weight falls to the default
+for both. A start written the same way is split per element where
+the component is flattened (`components.rs`, beside the start); the
+`stateSelect` beside it is not. `each stateSelect = never` (`SS2.mo`)
+is read as it should be. Recorded, not fixed.
+
 `Engine1b_analytic` under the broad fold (the 411-name kind, which is
 what the comma made of it), with the m436 sibling probes
 beside it (`sib_Engine1b_analytic.txt`), no longer stops on
