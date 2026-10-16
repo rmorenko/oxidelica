@@ -296,8 +296,9 @@ other string. `spatialDistribution()` carries a profile along a coordinate rathe
 than holding a value for a time: what enters at one end leaves at the
 other once the coordinate has moved by one, in either direction and
 across a reversal, from whatever profile the model started with. It is
-exact between output points, since the profile remembers the position
-each value entered at rather than sampling a grid. Its arguments but
+not exact between output points: what leaves depends on the output
+grid, so a coarse interval gives a coarse answer (the probes at the
+end of this map). Its arguments but
 the two inflows are checked before the run.
 
 Zero is the one number that fits a unit of any kind: a rate of change
@@ -427,7 +428,9 @@ Of the options the specification allows beside it, `zeroDerivative` is
 read: `derivative(zeroDerivative = delta) = f_der` says the rule holds
 wherever `delta` does not change with time, which is how the fluid
 library writes its smoothing functions, and the inputs it names are
-carried so the rule is taken only where they stand still. That is what
+carried beside the rule. They are not yet checked to stand still: a
+rule taken over an input that moves gives a wrong derivative (the
+probes at the end of this map). That is what
 lets a body with an `abs` in it carry a model needing its Jacobian
 built. `noDerivative = aux` is read too: the rule is handed that input
 as it stands and no derivative beside it, since the caller worked it
@@ -704,69 +707,77 @@ Each statement above was checked on 16 October against the 1141 tests
 of the tree, by searching test bodies for the construct and reading
 the test that came up. Most hold. These are the places where the map
 says something and nothing in the test suite would turn red if it
-stopped being true. Each is a probe for a later shift, with the
-chapter it belongs to.
+stopped being true, each with its chapter. Each was then put to the
+binary with a small model, and what came back is said beside it; the
+models are kept outside the repository with the shift's notes. A probe
+is not a test, so every one of these is still owed one.
 
-1. Ch. 12: `zeroDerivative`. The annotation is read
-   (`crates/oxidelica-parser/src/parser/classes.rs`) and carried
-   (`crates/oxidelica-parser/src/flatten/inlining.rs`), and no test
-   writes it. It is the change [AGENTS.md](../AGENTS.md) names as one
-   only the corpus can witness, since a body simple enough for a test
-   is simple enough to differentiate. A test with a body the
-   differentiator refuses - a `while` - would hold it.
-2. Ch. 12: ten million rounds of one loop. The ceiling stands in
+Three came back as wrong numbers, with no refusal, and are first:
+
+1. Ch. 12: `zeroDerivative` is taken where the input it names moves.
+   `f(x, d) = (1 + d)*x` with a body only the run can walk, a rule
+   `f_der = (1 + d)*x_der` under `derivative(zeroDerivative = d)`, and
+   `f(x, d) = 2 + time` with `d = 1 + time` makes `x` one and its rate
+   zero; the run answers a rate of 0.5 falling to 0.33. With `d` a
+   parameter, and with the annotation taken away, it answers correctly.
+   The sentence above saying the rule "is taken only where they stand
+   still" is therefore not what the compiler does, and is corrected.
+2. Ch. 3: `spatialDistribution` is not exact between output points. A
+   profile fed `time^2` and moved at unit speed gives `(t - 1)^2` at the
+   far end; the run answers 1.12 at `t = 2` on an interval of 0.7 and
+   1.00 on an interval of 0.1, so the answer depends on the output
+   grid. Corrected above.
+3. Ch. 8: a run-time `if` whose condition an algebraic loop settles
+   runs its `else` until the first output point. With `x + y = 3`,
+   `x - y = 1` and `if x > 1.5 then der(z) = 1 else der(z) = -1`, `z`
+   falls for one output interval and then climbs, so `z(1)` is 0 on an
+   interval of 0.5 where it should be 1. The sentence above says the
+   condition "falls back to the `else`", which is true and is the
+   defect: a silent branch is a wrong number, and a refusal is owed.
+
+The rest came back as the map says:
+
+4. Ch. 12: ten million rounds of one loop. The ceiling stands in
    `crates/oxidelica-sim/src/walk.rs` (`MAX_ROUNDS`) and no test reaches
-   it; the 64-call ceiling beside it is tested.
-3. Ch. 3: `spatialDistribution` exact between output points, "since
-   the profile remembers the position each value entered at". Four tests
-   hold the transport, both directions and the starting profile; none
-   holds a value between two output points against a grid.
-4. Ch. 8: `delay` starting its memory over after a re-compilation. No
-   test re-compiles a model holding a `delay`.
-5. Ch. 8: a run-time `if` condition that only an algebraic loop could
-   produce "falls back to the `else`". The bound is
-   `MAX_DEFINITION_PASSES` in `crates/oxidelica-sim/src/lib.rs`; no test
-   writes such a condition. A silent choice of branch is the kind of
-   answer this project prefers to refuse, so the test may find a
-   refusal is owed rather than confirm the sentence.
-6. Ch. 9: a connection set matches connectors "by shape - same member
-   names, same `flow` and `stream` prefixes - rather than by class
-   name". No test connects two connectors of different classes with
-   the same members, or refuses two of the same class name with
-   different ones.
-7. Ch. 9: a bus member connected only to another bus member has
-   nowhere to get its type. The refusal is written
-   (`crates/oxidelica-parser/src/flatten/connections.rs`, "a bus member
-   takes its type from the other side") and no test raises it; nor does
-   any test hold that `each`-style array members of a bus are refused.
+   it; the 64-call ceiling beside it is tested. Not probed: a probe
+   costs ten million rounds.
+5. Ch. 8: `delay` starting its memory over after a re-compilation. No
+   test re-compiles a model holding a `delay`. Not probed.
+6. Ch. 9: a connection set matches connectors by shape. Two connector
+   classes with the same members connect and run; two with different
+   members are refused, naming both classes.
+7. Ch. 9: a bus member connected only to another bus member is refused
+   with "a bus member takes its type from the other side", and an array
+   handed to a bus member is refused as a connection between two and one
+   connectors.
 8. Ch. 13: a library tree without `within` headers is read as though
-   it were flat. No test loads such a tree.
-9. Ch. 4: the count of 10 627 instances down to 3 428 is a measurement
-   with no file beside it and no script that prints it, so it cannot be
-   taken again as it stands.
-10. Ch. 18: `connectorSizing`, `Protection`, `uses` and `conversion`
-    are said to be read and carried. No test names any of them;
-    `Dialog` and `Evaluate` are tested
+   it were flat: `L.Sub.K` is not found, a bare `K` is.
+9. Ch. 14: an operator whose result is a different record than its
+   operands is said to be misread. `A * A` answering a `B` came out
+   right in the one shape probed, so the sentence is not confirmed and
+   not refuted: a test is wanted that either shows the misreading or
+   lets the sentence go.
+10. Ch. 18: `Protection` and `uses` are read without complaint. Whether
+    they are carried is not visible from a run; `connectorSizing` and
+    `conversion` were not probed. `Dialog` and `Evaluate` are tested
     (`crates/oxidelica-parser/tests/flattening/names.rs`).
-11. Ch. 6: structural subtyping is said to have "cost nothing
+11. Ch. 4: the count of 10 627 instances down to 3 428 is a measurement
+    with no file beside it and no script that prints it, so it cannot be
+    taken again as it stands.
+12. Ch. 6: structural subtyping is said to have "cost nothing
     measurable" on the standard library. Nothing measures it: no
     refusal in the census is tagged as a type relation, so the claim
     is unfalsifiable as written.
-12. Ch. 14: "an operator whose result is a different record than its
-    operands would be misread". A known gap with no test that shows it,
-    and so no test to turn green when it closes. A gap that misreads,
-    rather than refuses, is a wrong number, and is the first of these
-    to probe.
 
 Two sentences were found false against tests and are corrected above
 rather than listed: functions handed as arguments (said to be absent,
 tested since 31 August) and a walked body answering with several
-outputs (said to be refused, tested since 26 September). Five more
-were narrower than the tree: `nominal`, `stateSelect`, `noDerivative`,
-`der` of an expression, the joined `assert` message and the string
+outputs (said to be refused, tested since 26 September). Six more were
+narrower than the tree: `nominal`, `stateSelect`, `noDerivative`, `der`
+of an expression, the joined `assert` message and the string
 functions.
 
-One defect turned up on the way, written here rather than fixed: a
+One more defect turned up on the way, written here rather than fixed: a
 tuple `(p, q) = f(u)` among the continuous equations, where `f` holds
 a `while` only the run can end, is refused with `the trip count of a
 loop is not settled here`, though the same call inside a `when`, or
