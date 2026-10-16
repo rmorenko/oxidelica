@@ -757,10 +757,9 @@ binary with a small model, and what came back is said beside it; the
 models are kept outside the repository with the shift's notes. A probe
 is not a test, so every one of these is still owed one.
 
-Six came back as wrong answers, with no refusal, and are first. The
-last three were found by putting the chapters marked Full to the binary
-as well, and moved chapters 3 and 13 to Mostly and chapter 17 to
-Partial:
+Seven came back as wrong answers, with no refusal, and are first. The
+last four were found by putting the chapters to the binary as well, and
+moved chapters 3 and 13 to Mostly and chapter 17 to Partial:
 
 1. Ch. 12: `zeroDerivative` is taken where the input it names moves.
    `f(x, d) = (1 + d)*x` with a body only the run can walk, a rule
@@ -797,6 +796,18 @@ Partial:
    too. A flow held at zero integrates the error: with `a = 2`, `b = 5`
    and `m = 0` until `t = 0.5`, an integral of `y` ends at -1.25 where
    0.25 is owed. Chapter 3 moved from Full to Mostly on this.
+7. Ch. 8: a `when` on a condition that rises more than once misses
+   crossings on the adaptive solvers whenever the model has a
+   continuous state. `when sin(20*time) > 0.5` beside `der(x) = 1`
+   fires once in a second where it rises four times, and
+   `cos(20*time) < -0.5` fires never where it falls three times.
+   Without the state, or
+   on `rk4`, every crossing is found, and a bouncing ball, whose
+   condition is a state of its own, bounces the right number of times.
+   The step taken again short of a crossing (`0bf1b70`, 14 October) took
+   it from three crossings of four to one; the commit before it already
+   lost one, and the `cos` case is older still. Chapter 8 stays at
+   Mostly, where it already stood.
 
 The rest came back as the map says:
 
