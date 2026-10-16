@@ -836,6 +836,10 @@ moved chapters 3 and 13 to Mostly and chapter 17 to Partial:
    interval of 0.5 where it should be 1. The sentence above says the
    condition "falls back to the `else`", which is true and is the
    defect: a silent branch is a wrong number, and a refusal is owed.
+   The layer, by reading: `settle_modes` in
+   `crates/oxidelica-sim/src/compile.rs` follows only equations of the
+   form `name = expr` over the start values, so a loop's unknown keeps
+   its start of zero when its condition is asked.
 4. Ch. 17: a state entered on a tick does not run its equations on
    that tick, and `ticksInState()` answers zero there. 17.1's own
    example is active from 10 ms through 15 where it should stop at 14.

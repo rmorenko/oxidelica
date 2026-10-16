@@ -49410,8 +49410,13 @@ value (`back_to`, around line 553) where 17.3.7's equivalent model puts
 the start in place of `previous` and runs the equation; and the tick
 counter is written to answer 0 on that tick rather than 1. One shape in
 two places, so the lag is the machine's and one repair covers both.
-The `if` whose condition a loop settles is left for a probe that reads
-`settle_modes`. The
+The `if` whose condition a loop settles is named by reading too:
+`settle_modes` in `compile.rs` follows `name = expr` equations to a
+fixpoint over the start values and then asks each condition; `x + y =
+3` and `x - y = 1` have no `name =` side, so `x` keeps its start of
+zero, `x > 1.5` reads false, and the `else` is taken with no word that
+the condition was never worked out. The mode is then corrected at the
+first output point, where the run has `x`. The
 same holds for a `zeroDerivative` rule over a moving input and for a
 parameter bound to `time`: no switch moves either, so neither is a
 rule that was added and can be taken back, but a check that was never
