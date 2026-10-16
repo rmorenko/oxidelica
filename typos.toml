@@ -19,3 +19,6 @@ Analysator = "Analysator"
 # `commutated` is the power electronics term for a bridge whose current
 # is handed from one switch to the next, not a misspelling of `commuted`.
 commutated = "commutated"
+# `OT.mo` is the name of a parked small model in the analysis notes (a
+# copy of the OneTank example), not a misspelling.
+OT = "OT"
