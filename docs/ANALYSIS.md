@@ -50542,3 +50542,87 @@ thyristor rectifiers, which alternate 31 and 34 the same way. Whether
 it explains the converters whose counts wander by tens
 (`SinglePhaseTwoLevel_RL` 318, 331, 307, 308) is not known; nothing
 was mended, and none of the ten was admitted.
+
+Probed on four more of the ten with the same trail
+(`/tmp/m443/q6.txt`, `q8.txt` per model): `DiodeBridge2Pulse`,
+`DiodeCenterTap2Pulse`, `ThyristorCenterTap2Pulse_R` and
+`HalfControlledBridge2Pulse`. In every one the instants where the two
+tolerances differ are 0.03, 0.05, 0.06, 0.07 and 0.09 and a hair after
+them - the zeros of the 50 Hz source, where the firing pulse or the
+diode's own threshold meets the zero of the load current. Away from
+those instants the events fall at the same moments in the same number.
+So five of the ten are this one reading, the two diode rectifiers
+included, which have no pulse: there the coincidence is of the
+source's zero with the diode's knee. `SinglePhaseTwoLevel_R` is not:
+191 event instants against 171, 38 of them differing, spread over the
+run. It and the other converters whose counts wander by tens stay
+unexplained.
+
+### A candidate for the next series: the set of instants, not the count
+
+The probes above say what the count of events measures on these
+models: how two crossings that fall on one instant are grouped, which
+the error of the step decides. The rule a later series could take,
+named here and not taken, since a reference measured by a rule changed
+in the middle of a shift is a reference nobody can say what it was
+measured by: compare the set of instants at which events fall, within
+a tolerance in time, rather than their number. Two merged events and
+two separate ones at the same moment give the same set, and defect 7
+loses crossings that lie apart in time, which thins the set itself.
+
+Measured at no cost on what this shift already held, `dopri45` at 1e-6
+against 1e-8 with `OXIDELICA_EVENT_TRAIL`, distinct instants on each
+side and how many of each find no partner within tau on the other
+(`/tmp/m443/sets.py`):
+
+```text
+model                          count    instants  tau 1e-6  1e-4   1e-3
+ThyristorBridge2Pulse_R        31/34    24/24     3+3       3+0    0+0
+ThyristorCenterTap2Pulse_R     31/34    24/24     3+3       3+0    0+0
+HalfControlledBridge2Pulse     32/35    24/26     3+1       3+0    0+0
+DiodeBridge2Pulse              19/21    14/14     3+3       2+0    1+0
+DiodeCenterTap2Pulse           19/21    14/14     3+3       2+0    1+0
+SinglePhaseTwoLevel_R          286/296  287/297   128+134   0+0    0+0
+with defect 7 back:
+RisesBesideDecay               1/4      3/9       0+6       0+6    0+6
+RisesBesideSwing               2/4      5/9       0+4       0+4    0+4
+ThresholdBesideLag             1/7      3/9       0+6       0+6    0+6
+```
+
+The witnesses stay apart at every tau, as a lost crossing must. Three
+of the five rectifiers agree at 1e-3; the two diode rectifiers keep one
+instant 1.1 ms apart (0.0511 at 1e-6 against 0.0500 at 1e-8), which is
+a crossing located that far off at the coarse tolerance and is worth
+knowing on its own account. `SinglePhaseTwoLevel_R`, which the probes
+had left unexplained, agrees at 1e-4: its counts differ by ten and its
+instants do not. Read with care: the partner test is not one to one,
+so 297 instants all within 1e-4 of the 287 still hide ten that sit
+close beside another, and a series that takes the rule must decide
+whether a pair that close is one event or two. What tau to take is the question the series would
+measure - here 1e-4 frees the converter and 1e-3 the thyristors, while
+the witnesses lose nothing up to 1e-3 - and it would have to be taken
+against the length of the run, a millisecond being nothing on a run of
+a thousand seconds and most of one on these. The five rectifiers are
+the test set it starts from; until then the ten stay out of the
+reference by name, a pile of their own beside the ceiling and the
+refusals.
+
+### The top of the census, probed
+
+The order's last item with time left: the census on the head
+(`/tmp/m443c/census.txt`), 67 refusals in 39 rows that do not flatten
+and 179 in 129 rows that flatten and do not run. The run half is headed
+by three rows of eight on algebraic loops - underdetermined, a Newton
+direction that does not reduce the residual, a singular Jacobian. The
+Newton row is six `ModelicaTest.Fluid.TestPipesAndValves` models, and
+four of them refuse at t = 0.0008, 0.0008, 0.0008 and 0.0002: four
+fifths of the first output interval, the fourth stage of `dopri45`
+(`c = 0.8`). `SeriesPipes2` moves with the grid and not with the
+tolerance - 0.00024 at `--dt 0.0003`, 0.0016 at `--dt 0.002`, 0.0008 at
+both 1e-4 and 1e-8 - so the first step is the output interval and the
+loop is first asked at its fourth stage, from a guess carried there
+from the start. The other two, `BranchingPipes1` and `2`, outlast 60 s
+of CPU; `bdf` on `SeriesPipes2` did not finish in six minutes. A map,
+not a mend: the next question is why a first step is the whole
+interval on a fluid model that starts from rest, and whether the loop
+is solved at all stages before the fourth.
