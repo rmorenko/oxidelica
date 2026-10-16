@@ -3,7 +3,12 @@
 # solvers and print, one line per model and solver, what the run ended
 # in: the count of events that changed something and the final point.
 #
-#   scripts/solver_pair.sh <list-of-classes> <out.tsv> [solver-a] [solver-b]
+#   scripts/solver_pair.sh <list-of-classes> <out.tsv> [side-a] [side-b]
+#
+# A side is a solver (`dopri45`, `rk4`) or a solver at a tolerance that
+# overrides the model's own (`dopri45@1e-8`): the second form holds one
+# solver against itself, which catches what depends on the size of the
+# step where two solvers are not both able to run the model.
 #
 # A model that runs and prints a wrong number passes the floors, the
 # census and the diff of run lists: it runs, it does not refuse, it does
@@ -50,7 +55,14 @@ one() {
     log=$(mktemp -t pairlog)
     started=$(date +%s)
     set +e
-    (ulimit -t "$PAIR_CPU"; exec "$OX" simulate "$class" --solver "$solver" -o /dev/null) \
+    # A side is a solver, or a solver at a tolerance - `dopri45@1e-8` -
+    # so that one solver can be held against itself. The side keeps its
+    # whole name in the output, because the reader sorts the lines of a
+    # model into sides by that column, and two sides named `dopri45`
+    # would be one side.
+    local name="${solver%%@*}" flags=()
+    case "$solver" in *@*) flags=(--tolerance "${solver#*@}") ;; esac
+    (ulimit -t "$PAIR_CPU"; exec "$OX" simulate "$class" --solver "$name" ${flags[@]+"${flags[@]}"} -o /dev/null) \
         > "$log" 2>&1
     code=$?
     set -e

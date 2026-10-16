@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Two solvers agreeing on a model is the witness that it does not lie.
 
-    scripts/solver_pair.py <pair.tsv> <reference-out> <second-list-out>
+    scripts/solver_pair.py <pair.tsv> <reference-out> <second-list-out> [road]
+    scripts/solver_pair.py --merge <reference-a> <reference-b> <reference-out>
     scripts/solver_pair.py --check <reference> <run.tsv>
 
 The first form reads what `scripts/solver_pair.sh` printed for two
@@ -27,8 +28,28 @@ The second form holds one solver's run against the reference by the
 same rule and names every model whose fingerprint moved, or that no
 longer runs. It is the instrument; the pair is only its admission.
 
-The reference holds, per model, the count of events and the first
-REFERENCE_COLUMNS values of the final point. The columns are printed
+There are two roads into the reference, and they catch different
+faults. Two solvers - `dopri45` against `rk4` - agreeing is blind to
+an error both share, a wrong equation giving the same wrong answer on
+either. One solver against itself at a finer tolerance - `dopri45`
+against `dopri45@1e-8` - is blind to whatever does not depend on the
+size of the step, and catches what does, which is the class a lost
+crossing belongs to and the class the second solver most often fails
+to run at all. Neither replaces the other. The pair's sides are named
+by the column `solver_pair.sh` writes, so the two sides of the second
+road must carry different names - `dopri45` and `dopri45@1e-8` - or
+they read as one side.
+
+The optional fourth argument names the road a reference row was
+admitted by: `solvers`, `tolerance`. `--merge` puts two references
+together, a model admitted by both roads marked `both`, the stronger
+guarantee; a row that both hold keeps the first reference's
+fingerprint, so a row of the older road is never rewritten by the
+newer one. The check runs the side that sorts first, the solver at
+the model's own tolerance, which is the side both roads fingerprint.
+
+The reference holds, per model, the count of events, the first
+REFERENCE_COLUMNS values of the final point, and the road it came by. The columns are printed
 states first, so the first of them are what the run carried; the rest
 are algebraics and discretes worked out from them.
 """
@@ -104,7 +125,47 @@ def read_runs(path):
     return runs, order
 
 
-def admit(pair_path, reference_path, second_path):
+ROADS = ("solvers", "tolerance", "both")
+HEADER = "# class\tevents\tfinal point (first columns, states first)\troad\n"
+
+
+def read_reference(path):
+    """The rows of a reference as (class, events, point, road). A row
+    without four columns is not read around: a check that skipped it
+    would hold the reference on fewer models than it names."""
+    rows = []
+    for line in open(path):
+        if line.startswith("#") or not line.strip():
+            continue
+        parts = line.rstrip("\n").split("\t")
+        if len(parts) != 4 or parts[3] not in ROADS:
+            sys.exit(f"solver_pair.py: a reference row without a named road: {line[:120]!r}")
+        rows.append(tuple(parts))
+    return rows
+
+
+def merge(a_path, b_path, out_path):
+    a, b = read_reference(a_path), read_reference(b_path)
+    b_by = {row[0]: row for row in b}
+    rows, both = [], 0
+    for cls, events, point, road in a:
+        if cls in b_by and b_by[cls][3] != road:
+            road = "both"
+            both += 1
+        rows.append((cls, events, point, road))
+    held = {row[0] for row in a}
+    rows += [row for row in b if row[0] not in held]
+    with open(out_path, "w") as out:
+        out.write(HEADER)
+        for row in sorted(rows):
+            out.write("\t".join(row) + "\n")
+    print(f"reference {len(rows)}: {len(a)} from {a_path}, "
+          f"{len(rows) - len(a)} added from {b_path}, {both} by both roads")
+
+
+def admit(pair_path, reference_path, second_path, road="solvers"):
+    if road not in ROADS[:2]:
+        sys.exit(f"solver_pair.py: road `{road}` is neither of {ROADS[:2]}")
     runs, order = read_runs(pair_path)
     agreed, second, no_check, ceiling = [], [], [], []
     for cls in sorted(order):
@@ -130,9 +191,10 @@ def admit(pair_path, reference_path, second_path):
             agreed.append((cls, ea, point))
 
     with open(reference_path, "w") as out:
-        out.write("# class\tevents\tfinal point (first columns, states first)\n")
+        out.write(HEADER)
         for cls, events, point in agreed:
-            out.write(f"{cls}\t{events}\t" + ", ".join(f"{n} = {v}" for n, v in point) + "\n")
+            out.write(f"{cls}\t{events}\t" + ", ".join(f"{n} = {v}" for n, v in point)
+                      + f"\t{road}\n")
     with open(second_path, "w") as out:
         out.write("# class\tevents a\tevents b\tvalues apart\tworst: relative, name, a, b\n")
         for cls, ea, eb, parted, (rel, name, xa, xb) in sorted(
@@ -152,15 +214,12 @@ def admit(pair_path, reference_path, second_path):
 def check(reference_path, run_path):
     runs, _ = read_runs(run_path)
     held, moved = 0, []
-    for line in open(reference_path):
-        if line.startswith("#") or not line.strip():
-            continue
-        cls, events, point = line.rstrip("\n").split("\t")
+    for cls, events, point, _road in read_reference(reference_path):
         sides = runs.get(cls)
         if not sides:
             moved.append(f"{cls}: not in the run")
             continue
-        status, _, got_events, rest = next(iter(sides.values()))
+        status, _, got_events, rest = sides[sorted(sides)[0]]
         if status != "ran":
             moved.append(f"{cls}: {status} - {rest[:160]}")
             continue
@@ -181,7 +240,10 @@ def check(reference_path, run_path):
 def main():
     if len(sys.argv) == 4 and sys.argv[1] == "--check":
         sys.exit(check(sys.argv[2], sys.argv[3]))
-    if len(sys.argv) == 4:
+    if len(sys.argv) == 5 and sys.argv[1] == "--merge":
+        merge(*sys.argv[2:])
+        return
+    if len(sys.argv) in (4, 5):
         admit(*sys.argv[1:])
         return
     sys.exit(__doc__)
