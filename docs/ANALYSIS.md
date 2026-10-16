@@ -49407,7 +49407,11 @@ than in a corner of one chapter:
    leaves ten ticks of eleven over a second, on a `when sample` and on
    a `Clock` alike - and refuses a `spatialDistribution` as unbalanced,
    its boundary equations written twice. A change of mode is one layer
-   under three faults, and the place to start.
+   under three faults, and the place to start. What it carries across
+   is narrower than what it drops: states and discrete values come
+   through right (`x = 1`, `d = 5` after a switch), and what is lost is
+   what is kept against time - the delay's history and the time of the
+   next sample.
 
 The same sweep of every `OXIDELICA_NO_*` switch in the two crates (185)
 was run on the two wrong answers whose layer is still unnamed. Nothing
