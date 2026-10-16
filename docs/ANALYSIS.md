@@ -49298,9 +49298,9 @@ outside an array gives `NaN` and the run ends as a success; factorial
 as an `if` expression is refused as 64 deep where the `if` statement
 gives a hundred and twenty.
 
-Two more came back the same way after those, and they are the dearest
-of the shift because they sit under every model rather than in a corner
-of one chapter:
+Three more came back the same way after those, and the first two are
+the dearest of the shift because they sit under every model rather
+than in a corner of one chapter:
 
 1. `semiLinear(m, a, b)` with named slopes reads `a - b` at zero flow
    (`semilinear_at_zero`, `flatten/mod.rs`, `5484c9f`). The guard there
@@ -49355,19 +49355,26 @@ of one chapter:
    `rk4` was thrown away because its wrapper dropped each model's
    `StopTime` and measured all of them at one second.
 
-Eight tests in `~/oxideflow/park/m439-red-tests.diff`, one for each of
-the seven wrong answers and a second for the sticking relation, all
-seen red on `b423286`. None is in the tree: the shift was documentary,
+3. A parameter or a constant bound to `time` is accepted and holds the
+   start-time value for the whole run: `parameter Real m = 2*time`
+   gives `m + 1 = 1` at every output point. 3.8 says a binding is no
+   more variable than its name, so a refusal is owed; a parameter bound
+   to a plain variable is refused, so the check exists and does not
+   count `time` as a variable. Red test parked with the rest.
+
+Nine tests in `~/oxideflow/park/m439-red-tests.diff`, one for each of
+the eight wrong answers and a second for the sticking relation, all
+seen red on the tree of the shift. None is in the tree: the shift was documentary,
 and a red test in the tree is a red CI.
 
 What the shift says about the map rather than about the compiler: each
-of the seven wrong answers sat under a statement the map made in the
+of the eight wrong answers sat under a statement the map made in the
 present tense, and four of them in chapters marked Full. A status was
 read as a measurement for a month while nothing measured it. Reading
 330 test names against the map, about twenty-five minutes, found seven
 passages narrower than the tree and no wrong answer; putting the map's
 sentences to the binary as small models with a number worked by hand
-beside each, about forty minutes, found all seven. The second is the
+beside each, about an hour, found all eight. The second is the
 instrument for this question, and the first only says where to aim it.
 
 A last defect names the wrong wall: `(p, q) = f(u)` in the

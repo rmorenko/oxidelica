@@ -787,8 +787,8 @@ binary with a small model, and what came back is said beside it; the
 models are kept outside the repository with the shift's notes. A probe
 is not a test, so every one of these is still owed one.
 
-Seven came back as wrong answers, with no refusal, and are first. The
-last four were found by putting the chapters to the binary as well, and
+Eight came back as wrong answers, with no refusal, and are first. The
+last five were found by putting the chapters to the binary as well, and
 moved chapters 3 and 13 to Mostly and chapter 17 to Partial:
 
 1. Ch. 12: `zeroDerivative` is taken where the input it names moves.
@@ -857,6 +857,13 @@ moved chapters 3 and 13 to Mostly and chapter 17 to Partial:
    sees every turn but takes each at the next output point, 0.140 for a
    crossing at 0.131 on an interval of 0.01. Chapter 8
    stays at Mostly, where it already stood.
+8. Ch. 3: a parameter or a constant bound to `time` -
+   `parameter Real m = 2*time`, `constant Real m = 2*time`,
+   `parameter Real m = sin(time)` - is accepted and holds its value at
+   the start time for
+   the whole run, where 3.8 says a binding may be no more variable than
+   the name it binds and a refusal is owed. One bound to a plain
+   variable is refused, naming it. Chapter 3 is already at Mostly.
 
 The rest came back as the map says:
 
