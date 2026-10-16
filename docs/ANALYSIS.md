@@ -49101,7 +49101,16 @@ next link is `der(piston.body.frame_a.r_0[1]) = 0`, reached through
 `der_rRod_a_L[1]`: the rod's rate along the bearing's axis, the
 trajectory-zero family of `Sc6` above. So `Cyl1i` walks one link, on
 two written zeros the rows did not see, and joins the wall of the
-uninclined cylinder. Why those two and not one is not mapped.
+uninclined cylinder. Why those two and not one is answered by setting
+the three walks side by side (`C_be`, `C_r1`, `C_pft1`). With the
+piston's offset folded, reduction 8 takes `piston.body.frame_a.r_0[1]`
+instead of `rRod_0[1]`, and the walk is sent at reductions 9 and 10 to
+the member `bearing.R_rel.T[1,1] = e[1]^2 + (1 - e[1]^2)*cos(phi)` -
+`Pl1`'s fault exactly - which spends `bearing.phi` at 10. With the axis
+folded as well, that member is the constant 1 and drops out, and the
+walk goes on to keep the angle. So the offset alone uncovers the
+fault of `Pl1`, and the axis closes it; the two are one family, a
+written zero the rows did not see, met twice.
 
 And the angle kept is only half of the bearing. Under every fold that
 keeps `bearing.phi` in `Cyl1i` (the 411, the minimal pair), the
@@ -49168,8 +49177,8 @@ Neither was run on the corpus. The pair for the minimal set of
    Folding every array parameter costs two running models of 23
    (above), folding the axes alone costs none, so the rule wanted lies
    between, and `DoublePendulumInitTip` and `MechanicalStructure` are
-   its guard. Why `Cyl1i` needs the offset as well is the first
-   question.
+   its guard. In `Cyl1i` the offset only uncovers `Pl1`'s fault, so
+   the axis is the first rule to try, and the offset second.
 2. The `RelativePosition` sensor's row: where the folded `Engine1b` and
    `EngineV6`, the numerically guarded `Sc6` and link 4 all end. The
    second road of m437, now the common wall of the cylinders. Behind
