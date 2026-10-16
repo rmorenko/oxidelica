@@ -326,6 +326,13 @@ model is being built, so the first pass is kept for its connections
 alone and everything is built again with the counts in hand - the same
 two passes `Connections.isRoot` already needed.
 
+Two forms the grammar gives a primary are refused as syntax errors: a
+parenthesised expression followed by subscripts or by a member,
+`(g(3))[1]` and `(f(3)).a`, and with them a subscript on an array
+written in place, `{1, 2, 3}[2]`, which the grammar reaches only through
+the parentheses. A call subscripted directly, `pair(2)[2]`, is read
+(`a_call_may_be_subscripted_where_it_is_written`).
+
 Chapter 3 is complete but for one wrong answer: `semiLinear` with
 slopes that are names reads their difference at zero flow, where it
 is zero, from a rewrite that supplies a stream's missing equation there
@@ -748,7 +755,9 @@ function writes rather than by the equality a tree connection takes.
 `delay(u, T)` keeps what `u` was at each output point and reads
 between them in a straight line, so the shift is as exact as
 `Interval` is fine and the step is never longer than the delay; `T`
-must be known before the run, and a continuation after a
+must be known before the run - one that moves, `delay(u, T, Tmax)` with
+`T = 0.1 + 0.1*time`, is refused, though as "unknown variable `T`"
+rather than by the rule it breaks - and a continuation after a
 re-compilation starts its memory over. Subtype
 compatibility (ch. 6) is approximated by the `extends` chain for
 `constrainedby`, though a connection set matches its connectors by
