@@ -795,7 +795,9 @@ between them in a straight line, so the shift is as exact as
 must be known before the run - one that moves, `delay(u, T, Tmax)` with
 `T = 0.1 + 0.1*time`, is refused, though as "unknown variable `T`"
 rather than by the rule it breaks - and a continuation after a
-re-compilation starts its memory over. Subtype
+re-compilation starts its memory over, which a run-time `if` changing
+mode causes: the delay then reads the present value for one delay's
+length (the tenth wrong answer of the probes below). Subtype
 compatibility (ch. 6) is approximated by the `extends` chain for
 `constrainedby`, though a connection set matches its connectors by
 shape — same member names, same `flow` and `stream` prefixes — rather
@@ -812,8 +814,8 @@ binary with a small model, and what came back is said beside it; the
 models are kept outside the repository with the shift's notes. A probe
 is not a test, so every one of these is still owed one.
 
-Nine came back as wrong answers, with no refusal, and are first. The
-last six were found by putting the chapters to the binary as well, and
+Ten came back as wrong answers, with no refusal, and are first. The
+last seven were found by putting the chapters to the binary as well, and
 moved chapters 3 and 13 to Mostly and chapter 17 to Partial:
 
 1. Ch. 12: `zeroDerivative` is taken where the input it names moves.
@@ -917,6 +919,14 @@ moved chapters 3 and 13 to Mostly and chapter 17 to Partial:
    with such a parameter, `HeatTransfer.Examples.TwoMasses`, settles
    `T_final_K` at 323.15 as it should and reads it nowhere, which is why
    no floor met this.
+10. Ch. 8: a `delay` loses its history at a change of mode. A run-time
+    `if` equation - an ideal switch - re-compiles the model when its
+    condition turns, and the delay starts its memory over there: with
+    `y = delay(time, 0.3)` and a switch at 0.5, `y` reads 0.6 from 0.6
+    to 0.9 where it is 0.3 to 0.6. Without the switch, or across a
+    `reinit`, the delay is right. The map stated the restart as a
+    property; it is a wrong answer for every model whose switch sits
+    beside a delay.
 
 The rest came back as the map says:
 
@@ -926,8 +936,8 @@ The rest came back as the map says:
    `while` that never ends is refused at `t = 0` with "took more than
    10000000 rounds", in two and a half seconds and 190 MB, which is
    cheap enough to be a test.
-2. Ch. 8: `delay` starting its memory over after a re-compilation. No
-   test re-compiles a model holding a `delay`. Not probed.
+2. Ch. 8: `delay` starting its memory over after a re-compilation is
+   true, and is the tenth wrong answer above rather than a property.
 3. Ch. 9: a connection set matches connectors by shape. Two connector
    classes with the same members connect and run; two with different
    members are refused, naming both classes.

@@ -49308,7 +49308,7 @@ outside an array gives `NaN` and the run ends as a success; factorial
 as an `if` expression is refused as 64 deep where the `if` statement
 gives a hundred and twenty.
 
-Four more came back the same way after those, and the first two are
+Five more came back the same way after those, and the first two are
 the dearest of the shift because they sit under every model rather
 than in a corner of one chapter:
 
@@ -49396,6 +49396,13 @@ than in a corner of one chapter:
    known yet. `oxidelica why` on `TwoMasses.T_final_K`, the library's one
    running example with such a parameter, says "settled as: a parameter
    worth 323.15", which is correct, and nothing in that model reads it.
+5. A `delay` loses its history at a change of mode. A run-time `if`
+   equation switching at 0.5 re-compiles the model, and
+   `y = delay(time, 0.3)` reads 0.6 from 0.6 to 0.9 where it is 0.3 to
+   0.6; without the switch, or across a `reinit`, it is right. The map
+   stated the restart as a property of the continuation. It is the one
+   unprobed item of the first list, and probing it turned it into a
+   wrong answer, which is the case for probing the rest.
 
 The same sweep of every `OXIDELICA_NO_*` switch in the two crates (185)
 was run on the two wrong answers whose layer is still unnamed. Nothing
@@ -49429,21 +49436,23 @@ second: the evaluator in `crates/oxidelica-sim/src/code.rs` answers
 `time` with the context's time, which when parameters are settled is
 the start time, so `2*time` settles to zero like any constant
 expression; the check on variability (`check.rs`) types `time` as a
-`Real` and nothing more. All nine wrong answers now have a named layer.
+`Real` and nothing more. Nine of the ten wrong answers now have a named
+layer; the delay's is the re-compilation at a change of mode, and where
+inside it the history is dropped is left to a reading of the code.
 
-Ten tests in `~/oxideflow/park/m439-red-tests.diff`, one for each of
-the nine wrong answers and a second for the sticking relation, all
+Eleven tests in `~/oxideflow/park/m439-red-tests.diff`, one for each of
+the ten wrong answers and a second for the sticking relation, all
 seen red on the tree of the shift. None is in the tree: the shift was documentary,
 and a red test in the tree is a red CI.
 
 What the shift says about the map rather than about the compiler: each
-of the nine wrong answers sat under a statement the map made in the
+of the ten wrong answers sat under a statement the map made in the
 present tense, and four of them in chapters marked Full. A status was
 read as a measurement for a month while nothing measured it. Reading
 330 test names against the map, about twenty-five minutes, found seven
 passages narrower than the tree and no wrong answer; putting the map's
 sentences to the binary as small models with a number worked by hand
-beside each, about an hour and a half, found all nine. The second is the
+beside each, about an hour and a half, found all ten. The second is the
 instrument for this question, and the first only says where to aim it.
 
 A last defect names the wrong wall: `(p, q) = f(u)` in the
