@@ -85,6 +85,42 @@ constants and parameters, built from literals, from each other and
 from `String(number)`, compared with `==` and `<>`, and settled before
 the run.
 
+Arrived since this map was last revised on 18 September, each named by
+the test that holds it: a function handed to another with its inputs
+filled in, specialized one call deeper and inside a walked body
+(`a_function_handed_on_is_specialized_one_call_deeper`,
+`a_hand_over_inside_a_walked_body_is_specialized`); a walked body
+that answers with a number and an array together
+(`a_walked_answer_of_a_number_and_an_array_fills_both_targets`), with
+an array as long as an input says
+(`a_walked_answer_as_long_as_its_input_is_taken_element_by_element`),
+with a record built by its constructor, with comprehensions, `linspace`
+grids and lists written in place; least-squares fits, singular value
+decompositions and the rank of a matrix answered here rather than by
+LAPACK (`a_least_squares_fit_is_answered_here`,
+`a_rank_is_worked_out_of_the_singular_values_of_a_written_matrix`);
+tables read from comma-separated text and from compressed MATLAB
+files (`a_comma_separated_table_is_read_past_its_header`,
+`compressed_matlab_elements_are_read_one_after_another`); a `for`
+equation inside an `if` branch only the run decides
+(`a_loop_in_a_branch_the_run_chooses_is_written_out_into_it`) and a
+loop among a model's statements left by a `break` the run decides
+(`a_loop_left_on_a_condition_the_run_decides_is_written_out_with_a_flag`);
+`der` of an expression linear in its moving names
+(`der_of_a_linear_expression_is_the_same_of_the_derivatives`); index
+reduction through `min`, `max`, `atan2` and an `abs` whose sign the
+branch settles (`index_reduction_differentiates_min_and_max_as_the_branch_they_are`,
+`index_reduction_differentiates_atan2_by_both_of_its_arguments`,
+`a_branch_that_settles_a_sign_differentiates_the_abs_inside_it`); a
+`when` over a Boolean vector named whole
+(`a_when_over_a_vector_named_whole_fires_on_each_element`); `fixed`
+handed down over arrays and as a parameter element
+(`a_fixed_written_over_an_array_pins_each_element`,
+`a_fixed_handed_down_as_a_parameter_element_pins_the_state`); and an
+initial section one or two conditions over, solved where the
+conditions agree and named where they do not
+(`a_section_two_conditions_over_is_solved_if_they_agree_and_named_if_not`).
+
 Chapter 2 is complete: every reserved word is reserved, quoted
 identifiers, the escape sequences, numbers with the digits missing on
 either side of the point (`13.`, `.13E2`), non-nesting block comments,
@@ -103,8 +139,11 @@ a call to it becomes a call to the operator.
 contradictions between declarations: a variable with no unit, a call
 the checker does not know, or a unit spelled in a symbol outside its
 table all pass unexamined, and everything is still carried as a
-floating-point number at runtime. `nominal`, `quantity` and `stateSelect`
-are parsed and ignored; numeric literals never carry units, so `x = 5`
+floating-point number at runtime. `quantity` is parsed and ignored;
+`nominal` is read in one place only, as the first guess for an unknown
+that has no `start` (`a_nominal_on_the_type_is_where_an_unknown_begins`),
+and `stateSelect` is read by index reduction, below; numeric literals
+never carry units, so `x = 5`
 is accepted whatever `x` is declared in. `min` and `max` are the assertions the specification says
 they are: a value settled before the run is refused by the checker,
 and one the run produces stops it where it left the bounds. An
@@ -197,7 +236,8 @@ partial in one direction only. `if`, `for`, `while`, `when`, `break`,
 `return`, `assert` and `terminate` are all worked, in functions and in
 algorithm sections alike, and an algorithm section settles the
 variables it assigns the way an equation section settles the ones it
-names. Eighty-four tests hold that behaviour. What is missing is the
+names. Eighty-eight tests in `tests/flattening/algorithms.rs` hold
+that behaviour. What is missing is the
 other direction: an algorithm is a list of assignments carried out in
 order, and where the specification allows a tool to treat a tick as
 something to be solved rather than executed - an implicit method on a
@@ -234,9 +274,12 @@ or parameter may be built from literals, from another string and from
 which is how a model names a medium or a mode and reads it in an `if`.
 A comparison becomes the Boolean it comes to and the declaration
 disappears. What is missing: a `String` that only a run could produce
-(`String(x)` of a variable), string variables in results, the string
-functions of ch. 12, and `assert`/`terminate` messages built by
-joining - those still take a literal.
+(`String(x)` of a variable), string variables in results, and most of
+the string functions of ch. 12 - `length`, `substring`, `compare` and
+`skipWhiteSpace` are answered (`the_string_bodies_written_outside_are_answered_here`).
+An `assert` message built by joining keeps the parts that are text
+and writes `?` for a number only the run knows
+(`a_check_inside_a_branch_holds_only_while_the_branch_does`).
 
 **Operators and expressions** (ch. 3): the precedence and the
 non-associativity of `^` and of the relations are as written, every
@@ -294,9 +337,14 @@ declared type at the point the subscript is worked out, though a
 Boolean _expression_ - `x[a > b]` - is read correctly; the dimension
 `Real x[Boolean]` itself is built either way.
 
-**Functions** (ch. 12): no functions as arguments. A body written
+**Functions** (ch. 12): a function may be handed to another as an
+argument, `solve(function f(a = 2), 0, 1)`, which is how the standard
+library asks for a root; the receiver is specialized into a copy that
+calls the target directly rather than carrying a function value
+(`a_function_may_be_handed_over_with_its_inputs_filled_in`). A body written
 outside Modelica is answered where this compiler has an answer of its
-own - the strings, the tables, the generators and `dgesv` - and
+own - the strings, the tables, the generators, the files, and of
+LAPACK `dgesv`, `dgelsy`, `dgesvd`, `dgetrf` and `dgetri` - and
 refused by name where it has none; [EXTERNAL.md](EXTERNAL.md) says
 which and why. A function is inlined symbolically
 wherever it can be, which is what lets the compiler differentiate
@@ -314,14 +362,20 @@ run is what the leaving decides. So recursion and a data-dependent
 loop both run, and `5!` written the obvious way comes out at 120.
 
 A walked body carries arrays, and records written out as their
-members at the boundary. What it may not do is answer with more than
-one output, or with an array whose length the compiler cannot see, or
-hold a `String` - a `when` has no meaning there either, since there is
-no event inside a call. A walk that will not end is stopped and named
-— 64 calls deep, or ten million rounds of one loop. And a walked body
-is opaque to everything the symbolic layer does: it cannot be
-differentiated except through a `derivative` annotation, and it is not
-folded where its arguments are known.
+members at the boundary. It may answer with more than one output, laid
+end to end, where the targets are filled inside a `when`
+(`a_walked_answer_of_a_number_and_an_array_fills_both_targets`), and
+with an array as long as an input says
+(`a_local_array_as_long_as_an_input_says_is_walked_to_its_value`).
+What it may not do is answer with an array whose length the compiler
+cannot see, or hold a `String` - a `when` has no meaning there either,
+since there is no event inside a call. A walk that will not end is
+stopped and named - 64 calls deep
+(`a_body_nothing_could_inline_is_walked_by_the_run`), or ten million
+rounds of one loop. And a walked body is opaque to everything the
+symbolic layer does: it cannot be differentiated except through a
+`derivative` annotation, and it is not folded where its arguments are
+known.
 
 A record is built by naming its fields or by giving them in order, and
 a field left out takes the value its own declaration gives it; a
@@ -375,9 +429,14 @@ wherever `delta` does not change with time, which is how the fluid
 library writes its smoothing functions, and the inputs it names are
 carried so the rule is taken only where they stand still. That is what
 lets a body with an `abs` in it carry a model needing its Jacobian
-built. The other two - an order, and `noDerivative` - change which
-arguments the named function takes and what it answers, so an
-annotation carrying either is read past and not kept: the call stands
+built. `noDerivative = aux` is read too: the rule is handed that input
+as it stands and no derivative beside it, since the caller worked it
+out from the other arguments - how the water library carries its
+property record from one call into the next
+(`an_auxiliary_the_caller_worked_out_is_handed_on_without_a_derivative`).
+The remaining option, an order, changes what the named function
+answers, so an annotation carrying one is read past and not kept
+(`a_function_may_say_how_to_differentiate_itself`): the call stands
 with no derivative rule of its own rather than a wrong one, and a
 derivative asked of it is refused by name. Reading one wrong would give
 a wrong derivative and nothing downstream could catch it.
@@ -568,17 +627,16 @@ version. `Inline`, `LateInline`, `smoothOrder`, `singleInstance` and
 them.
 
 **The standard library** is the measure this map is checked against:
-every one of the Modelica Standard Library's 2671 files parses, and 502
-of its 1043 example models flatten, 140 of them running. Of the 912
-written to be run - marked by an `experiment` annotation or the Example
-icon - 412 flatten and 137 run. What stands in the way of the rest is
-measured rather than guessed - `oxidelica library check` ranks the
-reasons - and the list is in [MSL.md](MSL.md). The largest of them: a
-local a body assigns in one branch only, which is 46 models and is not
-a rule but a runaway expansion, measured twice over in
-[EXPANSION.md](EXPANSION.md); an array of records given a value of a
-shape this compiler cannot line up; a component left out by a
-condition; and a `size` of something whose shape was lost.
+every one of the Modelica Standard Library's 2671 files parses, and of
+its 1020 example models 953 flatten and 774 run. Of the 891 written to
+be run - marked by an `experiment` annotation or the Example icon - 836
+flatten and 731 run. Those are the numbers CI's library job printed
+on 16 October (run 38837611219); [MSL.md](MSL.md) keeps them current.
+What stands in the way of the rest is measured rather than guessed -
+`oxidelica library check` ranks the reasons - and the list is in
+MSL.md: the wall has moved from flattening to running, and the
+families at it are structurally singular systems, algebraic loops,
+unbalanced models and parameters with no value.
 
 **Structure**: an `expandable connector` takes each member's
 type from the other side of the connection that names it, so a member
@@ -595,12 +653,18 @@ answer is answered where this compiler has an answer of its own, and
 refused by name where it has none - never quietly given a number that
 came from nowhere.
 
-**Semantics**: `StateSelect` is the language's own enumeration and a
-model may declare with it and read its literals, but what it asks for
-is not acted on: `never` and `always` are demands about which variables
-are integrated, and the states here are chosen by where `der` appears
-and by index reduction. `der()` only of a plain variable, though the
-equation holding one need not state it: `der(x) + der(y) = 1` says
+**Semantics**: `StateSelect` is the language's own enumeration, and
+index reduction reads it where the weights it measures leave a choice
+open: a tie goes against `never` first and `prefer` last
+(`a_tie_between_positions_keeps_the_one_the_model_prefers`), and an
+`always` stands aside from demotion wherever another candidate is
+constrained (`a_state_the_model_says_is_always_one_is_not_demoted_while_another_can_be`).
+It is not a demand the compiler enforces: where only the `always`
+candidate is determined at all, it is demoted rather than leaving a
+block nothing can solve, and the weights come before the attribute.
+`der()` of a plain variable, or of an expression linear in its moving
+names (`der(k*x + 3)`), though the equation holding one need not state
+it: `der(x) + der(y) = 1` says
 something about two derivatives at once and neither can be got out of
 it, so each is solved for like any other unknown, which is what a DAE
 is. A condition of a
@@ -633,3 +697,81 @@ compatibility (ch. 6) is approximated by the `extends` chain for
 `constrainedby`, though a connection set matches its connectors by
 shape — same member names, same `flow` and `stream` prefixes — rather
 than by class name.
+
+## What this map says that no test holds
+
+Each statement above was checked on 16 October against the 1141 tests
+of the tree, by searching test bodies for the construct and reading
+the test that came up. Most hold. These are the places where the map
+says something and nothing in the test suite would turn red if it
+stopped being true. Each is a probe for a later shift, with the
+chapter it belongs to.
+
+1. Ch. 12: `zeroDerivative`. The annotation is read
+   (`crates/oxidelica-parser/src/parser/classes.rs`) and carried
+   (`crates/oxidelica-parser/src/flatten/inlining.rs`), and no test
+   writes it. It is the change [AGENTS.md](../AGENTS.md) names as one
+   only the corpus can witness, since a body simple enough for a test
+   is simple enough to differentiate. A test with a body the
+   differentiator refuses - a `while` - would hold it.
+2. Ch. 12: ten million rounds of one loop. The ceiling stands in
+   `crates/oxidelica-sim/src/walk.rs` (`MAX_ROUNDS`) and no test reaches
+   it; the 64-call ceiling beside it is tested.
+3. Ch. 3: `spatialDistribution` exact between output points, "since
+   the profile remembers the position each value entered at". Four tests
+   hold the transport, both directions and the starting profile; none
+   holds a value between two output points against a grid.
+4. Ch. 8: `delay` starting its memory over after a re-compilation. No
+   test re-compiles a model holding a `delay`.
+5. Ch. 8: a run-time `if` condition that only an algebraic loop could
+   produce "falls back to the `else`". The bound is
+   `MAX_DEFINITION_PASSES` in `crates/oxidelica-sim/src/lib.rs`; no test
+   writes such a condition. A silent choice of branch is the kind of
+   answer this project prefers to refuse, so the test may find a
+   refusal is owed rather than confirm the sentence.
+6. Ch. 9: a connection set matches connectors "by shape - same member
+   names, same `flow` and `stream` prefixes - rather than by class
+   name". No test connects two connectors of different classes with
+   the same members, or refuses two of the same class name with
+   different ones.
+7. Ch. 9: a bus member connected only to another bus member has
+   nowhere to get its type. The refusal is written
+   (`crates/oxidelica-parser/src/flatten/connections.rs`, "a bus member
+   takes its type from the other side") and no test raises it; nor does
+   any test hold that `each`-style array members of a bus are refused.
+8. Ch. 13: a library tree without `within` headers is read as though
+   it were flat. No test loads such a tree.
+9. Ch. 4: the count of 10 627 instances down to 3 428 is a measurement
+   with no file beside it and no script that prints it, so it cannot be
+   taken again as it stands.
+10. Ch. 18: `connectorSizing`, `Protection`, `uses` and `conversion`
+    are said to be read and carried. No test names any of them;
+    `Dialog` and `Evaluate` are tested
+    (`crates/oxidelica-parser/tests/flattening/names.rs`).
+11. Ch. 6: structural subtyping is said to have "cost nothing
+    measurable" on the standard library. Nothing measures it: no
+    refusal in the census is tagged as a type relation, so the claim
+    is unfalsifiable as written.
+12. Ch. 14: "an operator whose result is a different record than its
+    operands would be misread". A known gap with no test that shows it,
+    and so no test to turn green when it closes. A gap that misreads,
+    rather than refuses, is a wrong number, and is the first of these
+    to probe.
+
+Two sentences were found false against tests and are corrected above
+rather than listed: functions handed as arguments (said to be absent,
+tested since 31 August) and a walked body answering with several
+outputs (said to be refused, tested since 26 September). Five more
+were narrower than the tree: `nominal`, `stateSelect`, `noDerivative`,
+`der` of an expression, the joined `assert` message and the string
+functions.
+
+One defect turned up on the way, written here rather than fixed: a
+tuple `(p, q) = f(u)` among the continuous equations, where `f` holds
+a `while` only the run can end, is refused with `the trip count of a
+loop is not settled here`, though the same call inside a `when`, or
+written as `p = f(u)`, runs. The refusal names the wrong wall.
+
+What this pass does not see is the other half. Tests added in a month
+show what arrived; what narrowed or broke shows in the census and in
+the families of refusals, which this pass did not read.
