@@ -373,7 +373,10 @@ fn simulate(args: &[String]) -> Result<(), String> {
         i += 1;
     }
 
-    let model = load(path)?;
+    // A class of the libraries as well as a file: a wrapper file
+    // `model W extends M; end W;` loses `M`'s experiment annotation, and
+    // the stop time a comparison of solvers must run to is that one.
+    let model = load_named(path)?;
     let mut compiled = compile(&model).map_err(|e| e.to_string())?;
     if let Some(t) = stop {
         compiled.stop_time = t;
@@ -423,6 +426,10 @@ fn simulate(args: &[String]) -> Result<(), String> {
     // solvers agreeing on a model agree on exactly: the sharpest half of
     // comparing them, since a lost crossing is a missing unit here.
     eprintln!("events: {}", result.events);
+    let [relations, on_time, samples, whens] = compiled.event_sources();
+    eprintln!(
+        "event sources: {relations} relations, {on_time} on time, {samples} samples, {whens} when"
+    );
     Ok(())
 }
 

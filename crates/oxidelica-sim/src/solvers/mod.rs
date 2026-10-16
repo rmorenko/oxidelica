@@ -2401,6 +2401,24 @@ impl CompiledModel {
         )
     }
 
+    /// How many places in the model can raise an event, by kind:
+    /// relations whose sign is watched, relations on `time`,
+    /// `sample(...)` clocks, and `when` clauses. This is how a
+    /// comparison of solvers picks the models where a crossing can be
+    /// lost, since a relation inherited from a library block does not
+    /// show in the text of the example that uses it. The relations are
+    /// counted apart because they include every comparison of every
+    /// function body the model inlines - a double pendulum holds tens
+    /// of thousands - where the other three are what the model wrote.
+    pub fn event_sources(&self) -> [usize; 4] {
+        [
+            self.indicators.len(),
+            self.clocks.len(),
+            self.samples.len(),
+            self.when_clauses.len(),
+        ]
+    }
+
     /// Integrate over `[start_time, stop_time]` with the selected
     /// method, re-selecting the states and continuing whenever the
     /// current selection stalls the run.

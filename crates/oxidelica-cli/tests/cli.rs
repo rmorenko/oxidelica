@@ -1739,3 +1739,31 @@ fn a_parameter_is_read_at_its_value_and_not_at_its_start() {
     assert!(!old.status.success(), "{}", stdout(&old));
     assert!(stderr(&old).contains("on either side"), "{}", stderr(&old));
 }
+
+#[test]
+fn simulate_takes_a_class_of_the_libraries_at_its_own_stop_time() {
+    // Comparing two solvers runs each model to its own stop time, and a
+    // wrapper `model W extends M; end W;` loses M's experiment
+    // annotation: the class is named outright instead. The run also
+    // says how many events changed something and where events can
+    // come from, which is what the comparison reads.
+    let library = TempDir::new("by-name");
+    std::fs::write(
+        library.0.join("Tiny.mo"),
+        "package Tiny model Pulse Real x(start = 0, fixed = true); \
+         discrete Real m(start = 0, fixed = true); \
+         equation der(x) = 1; when sample(0.5, 1) then m = pre(m) + 1; end when; \
+         annotation(experiment(StopTime = 3, Interval = 0.1)); end Pulse; end Tiny;",
+    )
+    .unwrap();
+    let out = bin()
+        .args(["simulate", "Tiny.Pulse", "--solver", "dopri45"])
+        .env("OXIDELICA_LIB", library.0.to_str().unwrap())
+        .output()
+        .unwrap();
+    assert!(out.status.success(), "{}", stderr(&out));
+    let err = stderr(&out);
+    assert!(err.contains("final point: time = 3.000000"), "{err}");
+    assert!(err.contains("events: 3"), "{err}");
+    assert!(err.contains("1 samples, 1 when"), "{err}");
+}
