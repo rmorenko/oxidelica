@@ -408,7 +408,12 @@ A record is built by naming its fields or by giving them in order, and
 a field left out takes the value its own declaration gives it; a
 record that declares a `'constructor'` is built by that instead. A
 handle to something outside Modelica - a table's data - is built the
-same way, by name or in order.
+same way, by name or in order. One shape is refused that should not
+be: a variable record, not a parameter, whose fields have defaults and
+which is bound by its constructor, `R r1 = R(b = 5)`, is refused as
+unbalanced, the field's default and the binding both written as
+equations. The same record bound as a parameter, or modified as
+`R r1(b = 5)`, or with no defaults, comes out right.
 
 A body reads its own locals before they leave it: `Integer m = size(x,
 1)` is written in terms of an input, and left to be read later it
@@ -836,7 +841,10 @@ moved chapters 3 and 13 to Mostly and chapter 17 to Partial:
    the standard library's own blocks: `Sources.Sine` into
    `Logical.GreaterThreshold(threshold = 0.5)` through `BooleanToReal`
    into `Continuous.Integrator` ends at 0.974 on `dopri45` and 0.136 on
-   `bdf` where 0.346 is owed, and `rk4` gives 0.340. Chapter 8
+   `bdf` where 0.346 is owed, and `rk4` gives 0.340. A run-time `if`
+   equation on the same relation - the ideal switch of chapter 8 -
+   sees every turn but takes each at the next output point, 0.140 for a
+   crossing at 0.131 on an interval of 0.01. Chapter 8
    stays at Mostly, where it already stood.
 
 The rest came back as the map says:
