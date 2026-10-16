@@ -841,7 +841,11 @@ moved chapters 3 and 13 to Mostly and chapter 17 to Partial:
    the standard library's own blocks: `Sources.Sine` into
    `Logical.GreaterThreshold(threshold = 0.5)` through `BooleanToReal`
    into `Continuous.Integrator` ends at 0.974 on `dopri45` and 0.136 on
-   `bdf` where 0.346 is owed, and `rk4` gives 0.340. A run-time `if`
+   `bdf` where 0.346 is owed, and `rk4` gives 0.340; through
+   `Logical.Hysteresis(uLow = -0.5, uHigh = 0.5)` the same integral is
+   0.974 on `dopri45` where 0.503 is owed. A `BooleanPulse`, whose
+   switches are time events known in advance, integrates exactly. A
+   run-time `if`
    equation on the same relation - the ideal switch of chapter 8 -
    sees every turn but takes each at the next output point, 0.140 for a
    crossing at 0.131 on an interval of 0.01. Chapter 8
