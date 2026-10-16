@@ -50256,3 +50256,50 @@ held on 335, moved on 0. The two links of the tables together
 11, the same eleven `CombiTimeTable` tests by one event each that the
 first link alone moved in m441. The second link moves nothing in the
 reference on its own; its two victims are in the tests of the tree.
+
+### The two faults that stand in front of the second link (m442, a map)
+
+With the order's list done, the two victims of the second link were
+probed at HEAD (`dae0c80`), on `time` itself, to name what has to be
+mended before the alias is the small step it looks like. No code.
+
+1. A clocked guard read as a clock. A state machine whose transition
+   is `sample(time, c) > 2.5` with `c = Clock(1)` is lowered to
+   `when sample(0, 1): $state0 = ... (time > 2.5) ...`
+   (`oxidelica why sm.mo '$state0'`): the clocked sample of `time` is
+   replaced by `time` itself inside the `when`, and the event rewrite
+   then takes `time > 2.5` as a scheduled relation (the run prints
+   `0 relations, 1 on time, 1 samples, 1 when`). The result has two rows
+   at t = 2.5, an event at an instant where nothing ticks. With
+   `u = time` and `sample(u, c)` it is `0 on time` and no such row,
+   which is why the test of the tree was green until the alias made
+   `u` a clock too. The clocked sample is the fault: its value is
+   what `time` was at the tick, and a relation on it can only turn at
+   a tick. The obvious mend, keeping `clock_of` closed inside a `when`
+   body, was probed (`inside_a_when`, condition rewritten outside the
+   flag) and is wrong: `sm.mo` loses its row at 2.5, but
+   `a_branch_of_a_when_that_says_nothing_leaves_the_value_it_had`
+   turns red, because `if time > 0.8 then y := 9` in the body of a
+   `when` that fires on `time > 0.8` must read true at that instant,
+   and only the clock makes it. So the mend belongs where the state
+   machine lowers `sample(time, c)` to `time`: the sampled value is a
+   discrete taken at the tick, and lowered as one it is no relation
+   on `time` at all.
+2. A clock the sign proof cannot read. In `ab2.mo`, five lines,
+   `y = if time >= x_small then sqrt(abs(time)) else 0` beside
+   `yd = der(y)` is refused at HEAD as structurally singular,
+   `cannot differentiate function abs`, and runs with
+   `OXIDELICA_NO_TIME_CONDITION_EVENTS`:
+   the event rewrite turns the condition into `$clock0` before index
+   reduction differentiates the equation, and `resolve_abs_under`
+   (`symbolic.rs:1185`) proves a sign only from an `Expr::Rel` it can
+   see. The mend is to hand the differentiator the relation a clock
+   stands for - the threshold and direction are in
+   `EventRewrite::clocks` - or to differentiate before the rewrite.
+   `DiffTarget::Time` is built in 12 places, so the table has to be
+   carried rather than threaded.
+
+Both are faults of the clocks on `time` itself, older than the alias,
+each with a reproduction under five lines in
+`~/oxideflow/park/m442-table-link2/` (`sm.mo`, `ab2.mo`). Mended
+first, they are what would let the parked chain be taken whole.
