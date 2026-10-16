@@ -49289,7 +49289,13 @@ hand-stepped tableau, a rational clock super-sampled, an inferred
 factor of 2.5 refused with the number, `getInstanceName`, `terminal`,
 `cardinality`, `mustBeConnected`, `HideResult`, a negative
 `StartTime`, connections in a `for` over component arrays, an
-enumeration as a dimension, `inner`/`outer`.
+enumeration as a dimension, `inner`/`outer`. And after those: a
+three-branch resistor node, chained `when`s settling in one event
+iteration, `div`/`mod`/`rem`/`integer`, `edge` in an algorithm, a `for`
+over an array of states, `A * x = b`, a `[:]` length, a hysteresis on a
+state with `elsewhen`, a clocked `previous`, outward lookup and
+shadowing, an index-3 pendulum holding its energy to five digits, and a
+sliding mode refused by name as its test requires.
 
 Narrower than the map, and corrected by name in `e6494d8` and
 `b423286`: `Clock` takes two of its seven argument names; a `min` or
