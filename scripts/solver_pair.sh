@@ -38,6 +38,9 @@ case "$usage" in *"oxidelica simulate"*) ;; *)
     ;;
 esac
 export OXIDELICA_LIB="${OXIDELICA_LIB:-$here/.msl}"
+# The witnesses - small models where a lost crossing shows - are named
+# beside the library classes as `Witnesses.*`.
+export MODELICAPATH="$here/scripts/solver_pair_witnesses${MODELICAPATH:+:$MODELICAPATH}"
 export OX="$ox" PAIR_CPU="${PAIR_CPU:-60}"
 jobs="${PAIR_JOBS:-6}"
 
@@ -76,7 +79,10 @@ export -f one
 : > "$out"
 while read -r class; do
     [ -n "$class" ] || continue
-    printf '%s %s\n%s %s\n' "$class" "$solver_a" "$class" "$solver_b"
+    printf '%s %s\n' "$class" "$solver_a"
+    # `-` as the second solver runs the first alone: the reference is
+    # checked by one run, the pair is needed only to admit to it.
+    [ "$solver_b" = "-" ] || printf '%s %s\n' "$class" "$solver_b"
 done < "$list" | xargs -P "$jobs" -n 2 bash -c 'one "$0" "$1"' >> "$out"
 
 lines=$(wc -l < "$out")

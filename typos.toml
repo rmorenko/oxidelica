@@ -1,6 +1,8 @@
 # typos - a fast source-code spell checker (Latin script only)
 [files]
-extend-exclude = ["target/", "Cargo.lock"]
+# The solver-pair reference holds the standard library's own variable
+# names verbatim (`airGapDC.vai`), which are the library's spelling.
+extend-exclude = ["target/", "Cargo.lock", "scripts/solver_pair_reference.tsv"]
 
 [default.extend-words]
 # The JetBrains theme really is named Darcula (a deliberate pun).

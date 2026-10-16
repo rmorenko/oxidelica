@@ -49690,3 +49690,210 @@ layers at least, and the two largest single families are Spice3's
 vanishing capacitance (6) and the machines' switches (6). Neither has
 a twelve-line twin yet; the next series starts by shrinking
 `Spice3BenchmarkRtlInverter` rather than growing `zc7`.
+
+## An instrument for numbers that lie, and the Spice3 twin (m441)
+
+### Why
+
+A model that runs and prints a wrong number passes the floors (it
+runs), the census (it does not refuse) and the diff of run lists (it
+does not drop out). That is how `0bf1b70` was judged clean while the
+hysteresis chain printed 0.974 for 0.503 for two days. Roman's word of
+16 October: a ratchet on the numbers, admitted only where two solvers
+agree today, so that no known lie is frozen as truth. The gate was the
+CI verdict on `04d936e`, the mending of defect 7; run 38933438776 came
+back green on every job before anything below was written down.
+
+### What was built
+
+- `SimResult::events` (`d87fd2e`): the events of a run that changed
+  something, a discrete value or a state through `reinit`. Raised
+  events are the solver's (`rk4` raises one at every grid point and
+  finds nothing moved at most of them), the changed ones are the
+  model's. `simulate` prints the count. A test holds `dopri45` and
+  `rk4` to four on `when sin(20 t) > 0.5`, red under
+  `OXIDELICA_NO_STAGE_CROSSINGS`.
+- `simulate` takes a class of the libraries by name (`d1dfdff`), so a
+  model runs to its own `experiment` stop time. The m439 harness
+  wrapped each model in `model W extends M; end W;`, which loses the
+  annotation, and took the stop time back by grepping the first
+  `StopTime` in the file. Measured before mending: 36 files of `.msl`
+  hold more than one `experiment(`, so the first match is often
+  another class's. Nothing is grepped now.
+- `simulate` prints where events can come from by kind: relations,
+  relations on `time`, samples, `when` clauses. The relations count
+  every comparison of every inlined function, 42417 on
+  `DoublePendulum`.
+- `scripts/event_models.sh` reads those counts for a list at t = 0;
+  `scripts/solver_pair.sh` runs each model to its stop time on two
+  solvers (or one, for the check) and names a run past the CPU ceiling
+  as `timeout`, where the m439 harness let it print an empty line that
+  read as "no difference"; `scripts/solver_pair.py` sorts the pair into
+  four outcomes and, with `--check`, holds one solver's run against
+  the reference.
+- `scripts/solver_pair_reference.tsv`: per admitted model, the count
+  of events and the first 24 values of the final point;
+  `scripts/solver_pair_models.txt` names them. Of the same breed as
+  the floors: a fingerprint that moves is explained in the commit that
+  moves it.
+- `scripts/solver_pair_witnesses/Witnesses.mo`: the five small models
+  of defect 7, named `Witnesses.*` beside the library classes.
+
+### The subset and the price
+
+From one binary, `/tmp/m441/ox5`, built from `d1dfdff`. The run list,
+`/tmp/m441/list.txt`, came out as m440's: 953 flatten, 774 run. None
+of the heavy set runs, so the subset was taken from all 774.
+`event_models.sh` (`/tmp/m441/src.tsv`): 713 models with at least one
+event source, 57 with none, 4 that did not compile within 60 s of CPU
+(`MomentumBalanceFittings`, `DynamicPipeEnergyConservationCheck`,
+`IdealMixing1`, `BranchingPipes17`). Pure relations with nothing else:
+249 of the 713.
+
+The pair, `dopri45` against `rk4`, each to its own stop time, a
+ceiling of 60 s of CPU per run, six at a time, under `cap.sh`
+(`/tmp/m441/pair.tsv`, `/tmp/m441/cap.out`): 39 minutes of wall
+clock, 8.0 GB peak, 1426 runs. A single solver over the 330 library
+models of the reference took 98 seconds (`/tmp/m441/sw_off.tsv`).
+
+### Four outcomes
+
+The pair and the five witnesses, `/tmp/m441/second_all.tsv`:
+
+```text
+outcome                                   models
+1 agreed, in the reference                335   (330 library, 5 witnesses)
+2 apart, both ran and disagree            73    (10 on events, 63 on the final point)
+3 no check, a side refused                193
+4 ceiling, a side past 60 s of CPU        117
+                                          718
+```
+
+The third outcome is not a disagreement, and it is the largest number
+here after the first: **193 of 718 models, 27 percent, have no
+reference side**. 142 of them are `dopri45` running and `rk4`
+refusing, 130 of those for one reason: `sample() needs a solver that
+steps onto the event`. The examples do not write `sample` themselves:
+of the 25 files under `.msl/Modelica` holding `sample(`, none is a
+file of examples, so they inherit it from components. With
+`rk4` as the reference side, the clocked and sampled part of the
+library cannot be admitted at all. 20 are `rk4` running and `dopri45`
+refusing, 31 both refusing.
+
+The fourth: 117 models in which either side outlasted 60 s of CPU,
+42 of them both. By library, Fluid test components 27, MultiBody 16,
+Machines 14, FundamentalWave 11.
+
+And one finding outside the four. 55 models of the run list, which
+`library check` counts as running after ten steps, are refused by
+`dopri45` before their stop time. Ten steps are not a run, and these
+are the models the run list overstates. Not probed.
+
+### The second list
+
+Its size is 73. Of the 63 that part on the final point only, the
+worst value parts by more than 100 percent in 55: these are largely a
+value at zero on one side, which a relative tolerance cannot read
+(`PID_Controller`'s `integrator.y`, -0.0 against -0.000167, is `rk4`
+on a grid of 1 ms against a step the error estimate chose), and
+chaotic or switching circuits (`ChuaCircuit`). The ten that part on
+the count of events are the sharpest and head the queue:
+
+```text
+model                                         dopri45  rk4
+DemonstrateContinuousSignalExtrema            31       23
+NandGate                                      6        3
+Clocked...RotationalSample                    50       48
+Rotational.Examples.OneWayClutch              14       17
+Translational.Examples.Brake                  3        4
+Translational.Examples.Friction               18       21
+Tables.CombiTimeTable.Test75                  9        10
+Tables.CombiTimeTable.Test79                  9        10
+Translational.Examples.HeatLosses             40       114
+Tables.CombiTimeTable.Test83                  1        3
+```
+
+Neither side is assumed right: `rk4` on its fixed grid finds a
+crossing late and can find one that a located event would not. Not
+probed, by the order of the shift; this is the queue of the next
+series.
+
+### What the reference catches, measured
+
+The question the instrument has to answer is whether it would have
+caught defect 7. One binary, `OXIDELICA_NO_STAGE_CROSSINGS=1` putting
+the defect back, `dopri45` alone, `--check` against the reference:
+
+```text
+set                       held   moved
+330 library models        330    0      (/tmp/m441/sw_off.tsv)
+5 witnesses               0      5      (/tmp/m441/wit_off.tsv)
+```
+
+The library examples do not show the defect, as m439 and m440 found,
+and so the library half of the reference alone would have let it
+through. The witnesses moved on the integer half, every one: `Rises`
+4 to 1, `Dips` 3 to 0, `RisesLonger`, `Threshold` and `Hysteresis` 7
+to 1. That is why they stand in the reference beside the library: a
+reference over the library only is a ratchet with nothing on the
+tooth this defect would have caught.
+
+### What it costs and where it goes
+
+Admission is the pair, 39 minutes on six cores. The check is one
+solver over the reference, 98 seconds for its 330 library models.
+Not wired into CI and no decision taken, as the order of the shift
+said; the place Roman named is a job of its own in the daily cron
+slot.
+
+### The Spice3 twin
+
+`Spice3BenchmarkRtlInverter` refuses with `underdetermined algebraic
+loop ["der(Q1.vbx)"]`. Shrunk rather than grown: one `Q_NPNBJT` with
+`RB = 100` between a resistor from a constant source and a collector
+resistor to `VCC` reproduces it, and the refusal survives with
+`XCJC = 0.5`, so the capacitance does not have to be zero - the
+m440 reading, a capacitance that vanishes at the operating point, was
+not the layer. Twelve lines, `/tmp/m441/tw/z8.mo`:
+
+```modelica
+model Z8
+  constant Boolean m_bInit = false;
+  parameter Real C0 = 1e-12;
+  Real u = sin(1e7*time);
+  Real v(start = 0, fixed = true);
+  Real b, vbx, icx;
+equation
+  vbx = u - b;
+  icx = if m_bInit then 0 else C0*der(vbx);
+  0 = (b - v)/1e3 - icx;
+  1e-12*der(v) = (b - v)/1e3 - v/1e3;
+end Z8;
+```
+
+It refuses with the same words, raised at the same line
+(`OXIDELICA_WHERE=1`: `solvers/mod.rs:1396` for both), on `dopri45`,
+`bdf` and `rk4`. The map:
+
+- without the `if` - `icx = C0*der(vbx)` - `vbx` is taken as a state
+  and the model runs; with it, `der(vbx)` is left as a one-unknown
+  algebraic block. `if false`, `if time < 0` and a parameter in place
+  of the constant all refuse alike, so it is the `if` around the
+  derivative and not what it tests;
+- with the `if`, `C0` of 1e-7 and below refuses and 2e-7 and above
+  runs, and `C0 = 0` runs;
+- the judgement is `reads_singular` on a 1x1 Jacobian. Equilibration
+  returns at once for `n < 2` (`linear.rs`, both halves), so the one
+  entry, `C0`, is compared unscaled against `1e-7 * max(scale, 1)`:
+  a capacitance under 1e-7 F is called underdetermined because of
+  its unit.
+
+Two layers, then, one behind the other: an `if` that hides a
+derivative from the state selection, and a 1x1 block judged against
+an absolute floor. The m439 rows hold 6 Spice3 models; probed now,
+`RtlInverter` and the `NAND` of the four-bit adder refuse as
+underdetermined, `DifferentialPair` with "do not mention", three
+others (`InvertersExtendedModel`, `Nor`, `MosfetCharacterization`)
+moved to `no equation determines vin.T0`, and `ONEBIT` did not finish
+within 60 s. This is the material of the next order; no code was
+written for it.

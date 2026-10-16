@@ -1,16 +1,31 @@
 #!/usr/bin/env python3
-"""Read what `scripts/solver_pair.sh` printed and say where two solvers agree.
+"""Two solvers agreeing on a model is the witness that it does not lie.
 
     scripts/solver_pair.py <pair.tsv> <reference-out> <second-list-out>
+    scripts/solver_pair.py --check <reference> <run.tsv>
 
-A model enters the reference only if both solvers ran it to its stop
-time and agree on it today: the same count of events, to the unit, and
-the same final point within a relative 5 percent with an absolute
-floor of 1e-6 (the final point is printed to six decimals). A model the
-two disagree on goes to the second list with the size of the
-disagreement: those are the models about which nobody knows yet
-whether they lie. A model either solver did not finish - the CPU
-ceiling or a refusal - is named on its own, never counted as agreeing.
+The first form reads what `scripts/solver_pair.sh` printed for two
+solvers and sorts every model into one of four outcomes, each counted
+and named on its own:
+
+1. agreed - both ran it to its stop time and agree today: the same
+   count of events, to the unit, and the same final point within a
+   relative 5 percent with an absolute floor of 1e-6 (the final point
+   is printed to six decimals). These go to the reference.
+2. apart - both ran it and they disagree. Named with the size of the
+   disagreement: the models about which nobody knows yet whether they
+   lie, and the queue of work.
+3. no check - neither ran into the CPU ceiling, and one side or both
+   refused, so there was nothing to compare. Named with the refusal.
+4. ceiling - either side outlasted the CPU ceiling. Named, with the
+   ceiling that stood.
+
+Three and four are not disagreements, and counting them as such would
+swell the second outcome and hide why a model is not covered.
+
+The second form holds one solver's run against the reference by the
+same rule and names every model whose fingerprint moved, or that no
+longer runs. It is the instrument; the pair is only its admission.
 
 The reference holds, per model, the count of events and the first
 REFERENCE_COLUMNS values of the final point. The columns are printed
@@ -24,21 +39,60 @@ import sys
 REL = 0.05
 ABS = 1e-6
 REFERENCE_COLUMNS = 24
-PAIR = re.compile(r"([^,=\s][^,=]*?) = (-?[0-9.eE+-]+|NaN|-?inf)")
+PAIR = re.compile(r"(\S.*?) = (-?[0-9.eE+-]+|NaN|nan|-?inf)")
 
 
 def final_point(text):
-    if not text.startswith("final point: "):
-        return None
-    return PAIR.findall(text[len("final point: "):])
+    """The `name = value` pairs of a final point. A name may hold a
+    comma inside its subscript - `frame.R.T[1, 3]` - so the pairs are
+    split on the commas outside brackets, not on every comma."""
+    prefix = "final point: "
+    if text.startswith(prefix):
+        text = text[len(prefix):]
+    pairs, depth, start = [], 0, 0
+    for at, ch in enumerate(text + ","):
+        if ch == "[":
+            depth += 1
+        elif ch == "]":
+            depth -= 1
+        elif ch == "," and depth == 0:
+            item = text[start:at].strip()
+            start = at + 1
+            name, sep, value = item.rpartition(" = ")
+            if sep and PAIR.fullmatch(item):
+                pairs.append((name, value))
+    return pairs
 
 
-def main():
-    if len(sys.argv) != 4:
-        sys.exit(__doc__)
-    runs = {}
-    order = []
-    for line in open(sys.argv[1]):
+def apart(pa, pb):
+    """How many values of `pa` the other side holds and disagrees on,
+    and the worst of them as (relative, name, a, b)."""
+    db = dict(pb)
+    worst = (0.0, "", 0.0, 0.0)
+    parted = 0
+    for name, x in pa:
+        if name == "time" or name not in db:
+            continue
+        try:
+            xa, xb = float(x), float(db[name])
+        except ValueError:
+            continue
+        if xa != xa or xb != xb:
+            if (xa != xa) != (xb != xb):
+                parted += 1
+                worst = max(worst, (float("inf"), name, xa, xb))
+            continue
+        gap = abs(xa - xb)
+        rel = gap / max(abs(xa), abs(xb), ABS)
+        if rel > REL and gap > ABS:
+            parted += 1
+            worst = max(worst, (rel, name, xa, xb))
+    return parted, worst
+
+
+def read_runs(path):
+    runs, order = {}, []
+    for line in open(path):
         parts = line.rstrip("\n").split("\t")
         if len(parts) != 6:
             sys.exit(f"solver_pair.py: a line without six columns: {line[:120]!r}")
@@ -47,63 +101,90 @@ def main():
             runs[cls] = {}
             order.append(cls)
         runs[cls][solver] = (status, int(seconds), events, rest)
+    return runs, order
 
-    agreed, second, unfinished = [], [], []
+
+def admit(pair_path, reference_path, second_path):
+    runs, order = read_runs(pair_path)
+    agreed, second, no_check, ceiling = [], [], [], []
     for cls in sorted(order):
         sides = runs[cls]
         if len(sides) != 2:
             sys.exit(f"solver_pair.py: {cls} has {len(sides)} solver line(s), not 2")
         (sa, a), (sb, b) = sorted(sides.items())
+        if a[0] == "timeout" or b[0] == "timeout":
+            ceiling.append((cls, f"{sa} {a[0]}, {sb} {b[0]}",
+                            a[3] if a[0] == "timeout" else b[3]))
+            continue
         if a[0] != "ran" or b[0] != "ran":
-            unfinished.append((cls, f"{sa} {a[0]}, {sb} {b[0]}",
-                               a[3] if a[0] != "ran" else b[3]))
+            no_check.append((cls, f"{sa} {a[0]}, {sb} {b[0]}",
+                             a[3] if a[0] != "ran" else b[3]))
             continue
         pa, pb = final_point(a[3]), final_point(b[3])
-        if pa is None or pb is None:
-            unfinished.append((cls, "no final point", ""))
-            continue
         ea, eb = int(a[2]), int(b[2])
-        db = dict(pb)
-        worst = (0.0, "", 0.0, 0.0)
-        parted = 0
-        for name, x in pa:
-            if name == "time" or name not in db:
-                continue
-            try:
-                xa, xb = float(x), float(db[name])
-            except ValueError:
-                continue
-            if xa != xa or xb != xb:
-                if (xa != xa) != (xb != xb):
-                    parted += 1
-                    worst = max(worst, (float("inf"), name, xa, xb))
-                continue
-            gap = abs(xa - xb)
-            rel = gap / max(abs(xa), abs(xb), ABS)
-            if rel > REL and gap > ABS:
-                parted += 1
-                worst = max(worst, (rel, name, xa, xb))
+        parted, worst = apart(pa, pb)
         if ea != eb or parted:
             second.append((cls, ea, eb, parted, worst))
         else:
-            agreed.append((cls, ea, [(n, v) for n, v in pa if n != "time"][:REFERENCE_COLUMNS]))
+            point = [(n, v) for n, v in pa if n != "time"][:REFERENCE_COLUMNS]
+            agreed.append((cls, ea, point))
 
-    with open(sys.argv[2], "w") as out:
+    with open(reference_path, "w") as out:
         out.write("# class\tevents\tfinal point (first columns, states first)\n")
         for cls, events, point in agreed:
             out.write(f"{cls}\t{events}\t" + ", ".join(f"{n} = {v}" for n, v in point) + "\n")
-    with open(sys.argv[3], "w") as out:
+    with open(second_path, "w") as out:
         out.write("# class\tevents a\tevents b\tvalues apart\tworst: relative, name, a, b\n")
         for cls, ea, eb, parted, (rel, name, xa, xb) in sorted(
                 second, key=lambda s: (s[1] == s[2], -s[4][0])):
             out.write(f"{cls}\t{ea}\t{eb}\t{parted}\t{rel:.3g} {name} {xa} {xb}\n")
-        for cls, why, detail in unfinished:
-            out.write(f"{cls}\tunfinished\t{why}\t{detail[:200]}\n")
+        for cls, why, detail in no_check:
+            out.write(f"{cls}\tno check\t{why}\t{detail[:200]}\n")
+        for cls, why, detail in ceiling:
+            out.write(f"{cls}\tceiling\t{why}\t{detail[:200]}\n")
 
     events_apart = sum(1 for s in second if s[1] != s[2])
     print(f"models {len(order)}: agreed {len(agreed)}, apart {len(second)} "
           f"(events apart {events_apart}, final point only {len(second) - events_apart}), "
-          f"unfinished {len(unfinished)}")
+          f"no check {len(no_check)}, ceiling {len(ceiling)}")
+
+
+def check(reference_path, run_path):
+    runs, _ = read_runs(run_path)
+    held, moved = 0, []
+    for line in open(reference_path):
+        if line.startswith("#") or not line.strip():
+            continue
+        cls, events, point = line.rstrip("\n").split("\t")
+        sides = runs.get(cls)
+        if not sides:
+            moved.append(f"{cls}: not in the run")
+            continue
+        status, _, got_events, rest = next(iter(sides.values()))
+        if status != "ran":
+            moved.append(f"{cls}: {status} - {rest[:160]}")
+            continue
+        if int(got_events) != int(events):
+            moved.append(f"{cls}: {got_events} events where the reference holds {events}")
+            continue
+        parted, (rel, name, xa, xb) = apart(final_point(point), final_point(rest))
+        if parted:
+            moved.append(f"{cls}: {parted} value(s) moved, worst {name} {xa} -> {xb} ({rel:.3g})")
+            continue
+        held += 1
+    for item in moved:
+        print(item)
+    print(f"reference held on {held}, moved on {len(moved)}")
+    return 1 if moved else 0
+
+
+def main():
+    if len(sys.argv) == 4 and sys.argv[1] == "--check":
+        sys.exit(check(sys.argv[2], sys.argv[3]))
+    if len(sys.argv) == 4:
+        admit(*sys.argv[1:])
+        return
+    sys.exit(__doc__)
 
 
 if __name__ == "__main__":
