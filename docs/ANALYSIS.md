@@ -49404,7 +49404,14 @@ sits in no switched rule; for the state machine only
 `OXIDELICA_NO_TIME_CONDITION_EVENTS` changes the run, and it makes the
 lag worse (active through 16 ms) rather than mending it, so the late
 arrival is in the machine's own bookkeeping and not in the clock's
-events. Both layers are left for a probe that reads the code. The
+events. Reading `flatten/machines.rs` then named it: on the tick a
+state is entered with a reset, its equation is replaced by the start
+value (`back_to`, around line 553) where 17.3.7's equivalent model puts
+the start in place of `previous` and runs the equation; and the tick
+counter is written to answer 0 on that tick rather than 1. One shape in
+two places, so the lag is the machine's and one repair covers both.
+The `if` whose condition a loop settles is left for a probe that reads
+`settle_modes`. The
 same holds for a `zeroDerivative` rule over a moving input and for a
 parameter bound to `time`: no switch moves either, so neither is a
 rule that was added and can be taken back, but a check that was never

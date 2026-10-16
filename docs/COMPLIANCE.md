@@ -628,6 +628,12 @@ for the first written and failing):
 4. A state may not be empty: 17.1's own `block State end State;` is
    refused as "not a component with anything in it".
 
+The first two have one layer, by reading: on the tick of arrival
+`crates/oxidelica-parser/src/flatten/machines.rs` replaces a reset
+state's equation with the start value instead of running it on the
+start in place of `previous`, and writes the tick counter as zero
+there.
+
 The tests that hold `reset`, `immediate` and the hierarchy were
 written against this compiler's counts, so a repair of the first
 defect has to read them again against 17.3.4 rather than trust them.
