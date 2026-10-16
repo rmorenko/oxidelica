@@ -48255,3 +48255,42 @@ the nested `if` should write its branches out the way the two-way one
 does. Neither was built here. The cylinder is one model, and the
 `Engine*` analytic models that hold the same `FixedRotation` stop
 earlier, so a pair would show what the fix buys.
+
+### The row `two equations for der(...)`, one cause in five rows
+
+The m434 census holds this wording in five single rows: the RobotR3
+gearbox `GearType1`, the axis `AxisType1`, `OneAxis`, `FullRobot`, and
+the clocked example's `ThrottleBody`. All five come from one place,
+`split_equations` (`compile.rs`), and one shape: the model names the
+same derivative twice as a definition. `GearType1` declares
+`a_rel = der(spring.w_rel)` beside the spring damper's own
+`a_rel = der(w_rel)`, and the split takes both as the equation for
+`der(spring.w_rel)`. Ten lines reproduce it (`Twoder.mo`: `a = der(w)`,
+`b = der(w)`, `a = -w`).
+
+Under a throwaway switch (`OX435_DER_ALIAS`, binary `/tmp/m435/oxda`,
+not in the tree), a second definition whose value is a bare name goes
+to the algebraic side as `b = der(w)`, an alias of the first.
+`Twoder` then runs with `a = b = -w`, and of the four library models
+asked under `--only-from` (`/tmp/m435/twoder.txt`) `ThrottleBody`
+runs. The robot's models stop one storey further. `GearType1` and
+`AxisType1` are utility classes with open flanges (initialisation not
+square, and 289 equations for 291 unknowns), so their refusals are
+not the compiler's to take. `OneAxis` is refused as 531 equations for
+476, with 64 bare connection aliases of the gear's flanges left over.
+So the switch is one link and the robot's chain has at least one
+more, in how the alias of the derivative reaches index reduction. It
+is not walked here.
+
+The switch was measured over the main pass from one binary
+(`/tmp/m435/pair4/off.txt` against `on.txt`): 953 / 774 against
+953 / 775, runnable 731 in both, 529 Jacobians in both, the flattened
+list the same line for line. The run list gained `ThrottleBody`, a
+utility class and not a runnable example, and lost nothing. The five
+`two equations` rows empty. `GearType1` moves to a row of
+`initialization is not square` and `FullRobot` to a structurally
+singular equation of its first motor's flange; `OneAxis` and
+`AxisType1` go to the unbalanced rows above. It is a candidate for a
+series of its own, buying one model and moving the robot one storey,
+and it is not taken here. The switch is parked in
+`~/oxideflow/park/m435-der-alias.diff`.
