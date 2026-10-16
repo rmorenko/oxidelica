@@ -803,8 +803,8 @@ binary with a small model, and what came back is said beside it; the
 models are kept outside the repository with the shift's notes. A probe
 is not a test, so every one of these is still owed one.
 
-Eight came back as wrong answers, with no refusal, and are first. The
-last five were found by putting the chapters to the binary as well, and
+Nine came back as wrong answers, with no refusal, and are first. The
+last six were found by putting the chapters to the binary as well, and
 moved chapters 3 and 13 to Mostly and chapter 17 to Partial:
 
 1. Ch. 12: `zeroDerivative` is taken where the input it names moves.
@@ -880,6 +880,12 @@ moved chapters 3 and 13 to Mostly and chapter 17 to Partial:
    the whole run, where 3.8 says a binding may be no more variable than
    the name it binds and a refusal is owed. One bound to a plain
    variable is refused, naming it. Chapter 3 is already at Mostly.
+9. Ch. 8: a parameter left free by `fixed = false` and settled by an
+   initial equation that reads a state is solved and then not used. With
+   `initial equation p = 2 * x` and `der(x) = -p * x`, a variable
+   `q = p` reads 2 and `x` stays at 1 where `exp(-2)` is owed: the state
+   equation runs on zero. Settled by `p = 2`, with no state in the
+   equation, it is right.
 
 The rest came back as the map says:
 

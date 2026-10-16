@@ -49298,7 +49298,7 @@ outside an array gives `NaN` and the run ends as a success; factorial
 as an `if` expression is refused as 64 deep where the `if` statement
 gives a hundred and twenty.
 
-Three more came back the same way after those, and the first two are
+Four more came back the same way after those, and the first two are
 the dearest of the shift because they sit under every model rather
 than in a corner of one chapter:
 
@@ -49361,20 +49361,27 @@ than in a corner of one chapter:
    more variable than its name, so a refusal is owed; a parameter bound
    to a plain variable is refused, so the check exists and does not
    count `time` as a variable. Red test parked with the rest.
+4. A parameter left free by `fixed = false` and settled by an initial
+   equation reading a state - `p = 2 * x` - is solved, and a variable
+   bound to it reads the solved value, but the state equation it
+   appears in runs on zero: `der(x) = -p * x` leaves `x` at 1 where
+   `exp(-2)` is owed, on all three solvers. Settled by `p = 2` it is
+   right, which puts the fault where the solved value is handed to the
+   run rather than in the initial solve.
 
-Nine tests in `~/oxideflow/park/m439-red-tests.diff`, one for each of
-the eight wrong answers and a second for the sticking relation, all
+Ten tests in `~/oxideflow/park/m439-red-tests.diff`, one for each of
+the nine wrong answers and a second for the sticking relation, all
 seen red on the tree of the shift. None is in the tree: the shift was documentary,
 and a red test in the tree is a red CI.
 
 What the shift says about the map rather than about the compiler: each
-of the eight wrong answers sat under a statement the map made in the
+of the nine wrong answers sat under a statement the map made in the
 present tense, and four of them in chapters marked Full. A status was
 read as a measurement for a month while nothing measured it. Reading
 330 test names against the map, about twenty-five minutes, found seven
 passages narrower than the tree and no wrong answer; putting the map's
 sentences to the binary as small models with a number worked by hand
-beside each, about an hour, found all eight. The second is the
+beside each, about an hour and a half, found all nine. The second is the
 instrument for this question, and the first only says where to aim it.
 
 A last defect names the wrong wall: `(p, q) = f(u)` in the
