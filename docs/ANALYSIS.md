@@ -50245,3 +50245,14 @@ re-selected states name different variables      4
 None of the 51 is a model's own check calling it wrong; the four that
 were are the tables. Twelve are ceilings of the run, not refusals of the
 model, and the sixteen in the Newton rows are the largest family.
+
+### Both parked series against the reference
+
+Checked with `solver_pair.py --check`, `dopri45` alone over the 335
+models of the reference. The narrow judgement of the block of one
+(`/tmp/m442/ox7`, table links held off, `/tmp/m442/ref/n_on.check`):
+held on 335, moved on 0. The two links of the tables together
+(`/tmp/m442/ox3`, `/tmp/m442/ref/t_on.check`): held on 324, moved on
+11, the same eleven `CombiTimeTable` tests by one event each that the
+first link alone moved in m441. The second link moves nothing in the
+reference on its own; its two victims are in the tests of the tree.
