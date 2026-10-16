@@ -49272,8 +49272,12 @@ wrong answers came back, each with its own red test in the same diff:
    package for classes only; a constant of the enclosing package is
    read inside the wall, in an equation and in a function body.
 
-Both chapters moved from Full to Mostly on that evidence, the only two
-status moves of the shift. The rest held to the number: inheritance
+On that evidence chapter 13 moved from Full to Mostly, and chapter 17
+from Full to Partial on Roman's word of the same day, after a first
+move to Mostly (`0f21a18`) that his word overruled: an arrival a tick
+late shifts every state machine's timing, which is the core of 17.3
+rather than a corner of it. Those are the only status moves of the
+shift. The rest held to the number: inheritance
 (`final`, `protected`, `constrainedby`, `break`), units (`m(1/2)`,
 a mismatch refused), stream mixing and reversal, `sum` over operator
 records, the sampled and shifted clocks, array algebra.

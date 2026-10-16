@@ -22,7 +22,7 @@ under a chapter works as specified for the subset this project covers.
 | 14  | Overloaded operators          | Full    |
 | 15  | Stream connectors             | Full    |
 | 16  | Synchronous language elements | Full    |
-| 17  | State machines                | Mostly  |
+| 17  | State machines                | Partial |
 | 18  | Annotations                   | Mostly  |
 | 19  | Unit expressions              | Full    |
 
@@ -558,32 +558,50 @@ machine on an event clock is refused it and keeps `ticksInState`. A
 state's equations count only while it is in force, the rest hold what
 they had, and an arrival puts a state's variables back to their start
 values as `reset = true` asks.
-A transition is judged on this tick's condition and the state it names
-takes over at the next tick, which is what 17.3.4 calls
-`immediate = true` — the default; `immediate = false` keeps the answer
-for a tick and is taken on what it kept, so everything happens one tick
-later. `reset` belongs to the arrow rather than to the state it arrives
+A transition is judged on this tick's condition, and an immediate one
+is taken on that tick, as 17.3.4 says; `immediate = false` keeps the
+answer for a tick and is taken on what it kept. What 17.3.4 also says,
+and this compiler does not do, is run the equations of the state that
+is active on the tick it becomes so - which is the first of the four
+defects below. `reset` belongs to
+the arrow rather than to the state it arrives
 at, so a state reached by two arrows starts over by the one that asked
 and carries on by the one that did not. Two arrows out of one state
 saying the same thing about which goes first are refused, as the
 chapter requires.
 
-A model may hold several machines, each in a class of its own: two
-`initialState`s in one class are refused as "one initial state too
-many" (`crates/oxidelica-parser/src/parser/classes.rs`), so the
-parallel machines of 17.3.7's own example, written side by side in
-`State1`, do not read. And a state's equations do not run on the tick
-it is entered on, and `ticksInState()` answers zero there where 17.1
-says one: the chapter's example of a state entered at 10 ms and left
-on `ticksInState() >= 5` by a delayed arrow is active here through
-15 ms where it should stop at 14. The tests that hold `reset` and
-`immediate` were written against this compiler's counts, and a repair
-here will have to read them again against 17.3.4 rather than trust
-them. And a state may not be empty: the example's own
-`block State end State;` is refused as "not a component with anything
-in it". Those are why the chapter is not Full.
+The chapter is Partial, on Roman's word of 16 October, for four defects
+found by probes on that day (models parked with the m439 notes, a test
+for the first written and failing):
 
-A state of one machine may hold others:
+1. A state's equations do not run on the tick it becomes active, the
+   first tick of the initial state included, and `ticksInState()`
+   answers zero there where 17.1 counts one. 17.1's own example - `A1`
+   entered at 10 ms, left on `ticksInState() >= 5` by a delayed arrow -
+   is active here from 10 through 15 ms where the chapter says 10
+   through 14.
+2. The same defect seen from inside the state: a counter
+   `n = previous(n) + 1` with `start = 0` reads 0 on the tick its state
+   is entered, where 17.3.7's equivalent model, which writes
+   `i_previous = if activeReset then 0 else previous(i)`, gives 1, and
+   where the same counter outside any machine reads 1 on its first
+   tick. Every state value is a tick behind what the chapter computes.
+3. Two machines in one class are refused: a second `initialState` is
+   "one initial state too many"
+   (`crates/oxidelica-parser/src/parser/classes.rs`), so 17.3.7's own
+   example, two parallel machines side by side in `State1`, does not
+   read. Machines in separate components do run.
+4. A state may not be empty: 17.1's own `block State end State;` is
+   refused as "not a component with anything in it".
+
+The tests that hold `reset`, `immediate` and the hierarchy were
+written against this compiler's counts, so a repair of the first
+defect has to read them again against 17.3.4 rather than trust them.
+The nesting, `synchronize` and the merging of definitions below are
+what works, judged on this compiler's own tick.
+
+A model may hold several machines, each in a class of its own, and a
+state of one machine may hold others:
 the arrows say which, since a machine is a set of states joined by
 arrows and nothing joins one machine to another. A machine whose states
 all live under one state of another is inside it, and runs only while
@@ -734,7 +752,7 @@ is not a test, so every one of these is still owed one.
 
 Five came back as wrong answers, with no refusal, and are first. The
 last two were found by putting the chapters marked Full to the binary
-as well, and moved two of them to Mostly:
+as well, and moved chapter 13 to Mostly and chapter 17 to Partial:
 
 1. Ch. 12: `zeroDerivative` is taken where the input it names moves.
    `f(x, d) = (1 + d)*x` with a body only the run can walk, a rule
