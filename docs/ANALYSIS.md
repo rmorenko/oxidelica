@@ -48482,16 +48482,23 @@ taken at all. That is the m433 reading again - one equation counted
 twice - located now at the reduction that counts it. It is not walked
 further here.
 
-A last switch in the probe tree (`OX436_REJECT_COPY`, binary
-`/tmp/m436/ox19`, `/tmp/m436/v21.txt`) declines a member whose
-demotion turns a row that held a derivative, and was independent
-before the attempt, into a copy. On `Rrr1` it did not fire at
-reduction 10, where `OX436_AFTER` saw the copy made. It fired once, at
-reduction 14 on `rev.w`, and the walk then ended in
-`constrains no state` on the derivative of `rod1.frame_a.R.T[2,2]`.
-Why the check is silent at reduction 10 is not known: the "before"
-half of the test reads the state equations after the victim's has been
-removed, which may make the row look implied before the demotion as
-well. That is the first thing to settle before the switch is read as
-evidence either way. All m436 switches are in
+A last switch in the probe tree (`OX436_REJECT_COPY`) declines a member
+whose demotion turns a row that held a derivative, and was independent
+before the attempt, into a copy. Its first build read the "before"
+half with the victim's state equation already removed and fired only at
+reduction 14 (`/tmp/m436/ox19`, `/tmp/m436/v21.txt`); that reading
+was discarded. With the state equation and the unknowns of the moment
+before the demotion restored (`/tmp/m436/ox21`, `/tmp/m436/v23.txt`)
+it fires where `OX436_AFTER` saw the copy made: reduction 10, member
+`eq 1950`, victim `body1.v_0[2]`, row 2036. Declined there, reduction
+10 has nothing else to take - the ten members tried after it each end
+with no victim - and the walk is refused as structurally singular on the
+constraint of `body1.v_0[2]` itself.
+
+So with the instrument right, the reading stands: the demotion at
+reduction 10 is the only one the walk has, and the copy it makes was
+already set up by reduction 7. Whether reduction 7 should differentiate
+the rod's relative position at all is the next question, and it is a
+question about which equations a reduction supplies rather than about
+victims. All m436 switches are in
 `~/oxideflow/park/m436-link4-probe.diff`.
