@@ -822,6 +822,9 @@ moved chapters 3 and 13 to Mostly and chapter 17 to Partial:
    `f(x, d) = 2 + time` with `d = 1 + time` makes `x` one and its rate
    zero; the run answers a rate of 0.5 falling to 0.33. With `d` a
    parameter, and with the annotation taken away, it answers correctly.
+   The layer, by reading: the one use of the held inputs, in
+   `crates/oxidelica-parser/src/flatten/inlining.rs`, removes their
+   seeds so the rule's arity fits, and nothing asks whether they move.
    The sentence above saying the rule "is taken only where they stand
    still" is therefore not what the compiler does, and is corrected.
 2. Ch. 3: `spatialDistribution` is not exact between output points. A

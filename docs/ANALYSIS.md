@@ -49421,7 +49421,10 @@ same holds for a `zeroDerivative` rule over a moving input and for a
 parameter bound to `time`: no switch moves either, so neither is a
 rule that was added and can be taken back, but a check that was never
 written - whether the held input moves, and whether `time` counts as
-varying.
+varying. For the first, reading confirms it: the one use of
+`derivative_needs_still` (`flatten/inlining.rs`, the `differentiable`
+filter) takes the named input's seed away so the rule's arity fits, and
+nothing anywhere asks whether that input is a parameter.
 
 Ten tests in `~/oxideflow/park/m439-red-tests.diff`, one for each of
 the nine wrong answers and a second for the sticking relation, all
