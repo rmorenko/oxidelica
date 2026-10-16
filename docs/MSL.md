@@ -41,8 +41,8 @@ writing, against MSL 4.1.0:
 
 ```text
 files: 2671 read, 0 not read
-classes: 7631; example models: 1043, of which 502 flatten and 140 run
-runnable examples (experiment or Example icon): 912, of which 412 flatten and 137 run
+classes: 7640; example models: 1020, of which 953 flatten and 774 run
+runnable examples (experiment or Example icon): 891, of which 836 flatten and 731 run
 ```
 
 Four numbers, and they mean different things. **Read** is the parser:
@@ -144,27 +144,53 @@ they live here.
 
 ## What it does not
 
-The 25 files that will not parse, and the example models that will not
-flatten, are not a long tail of small things. They are a handful of
-features, each used widely:
+Of 1020 example models, 67 do not flatten and a further 179 flatten but
+will not run. The wall has moved. For a long time flattening was where
+models were lost; now nine in ten get through it, and what is left is
+two piles of different kinds. The counts below are from the census of
+16 October, which ranks every refusal by how often it came up.
 
-- **External C bodies** — the time tables above all, then the random
-  generators, the LAPACK bindings, the file reading. The strings and
-  the one-dimensional tables are answered here now; the rest parse and
-  are refused where they are called, naming what was asked for.
+**The 67 that will not flatten** fall into 39 rows, and a handful of
+features hold the top of them:
+
+- **External C and FORTRAN bodies** — 9 models in 2 rows. The strings
+  and the one-dimensional tables are answered here now; the rest parse
+  and are refused where they are called, naming what was asked for.
   [EXTERNAL.md](EXTERNAL.md) says how that is to change.
-- **A local assigned in one branch only** — 41 models, the water
-  properties of the media library among them.
-- **A record component's declaration value** — `Complex v[m] = ...`
-  says nothing to the model, where an equation of the same shape
-  does.
-- **The multibody library** — on a chain of lengths and shapes its
-  visual parts are drawn with.
+- **A partial function or class nothing redeclared with a body** — 8
+  models in 2 rows.
+- **A subscript the compiler cannot see as a whole number** — 5
+  models, and a flexible size with nothing to read its length from is
+  3 more.
+- **A loop whose trip count is not settled**, and **branches that
+  disagree on units** — 2 models each. What was measured about work
+  that does not finish, and what two measurements said wrongly, is in
+  [EXPANSION.md](EXPANSION.md).
 
-Two groups of models, 73 between them, are refused for none of those
-reasons: working them out does not finish. What was measured about that,
-and what two measurements said wrongly, is in
-[EXPANSION.md](EXPANSION.md).
+The other 29 rows hold one or two models apiece. This half used to be
+the work; it is now the smaller of the two.
+
+**The 179 that flatten and will not run** are the work today. Four
+families hold most of them:
+
+- **Structurally singular models** — 46 in 41 rows: a name no equation
+  determines.
+- **Algebraic loops** — 37 in 7 rows, and the densest family in the
+  library: loops that are underdetermined, loops with a singular
+  Jacobian, loops whose Newton direction goes nowhere.
+- **Unbalanced models** — 35 in 33 rows: equations and unknowns that
+  do not match.
+- **A parameter with no value** — 25 in 20 rows.
+
+Named and smaller: 7 where a variable is asked to be a state it is
+not, 6 where the parameters cannot be worked out at all, 3 whose
+initialisation is not square.
+
+The multibody library is where the hardest of these sit together. Its
+analytic loop joints choose a branch from positions only the
+initialisation knows, and its planar mechanisms hand the matching a
+pivot that is structurally non-zero and numerically zero for the whole
+run. Those are mapped model by model rather than guessed at.
 
 The list is measured rather than guessed: `library check` ranks the
 reasons by how often each came up, and that ranking is what the work
@@ -177,5 +203,5 @@ A library is a pile a model uses a corner of. A file of it that will
 not parse is set aside rather than made everyone's problem: the model
 beside it still loads, and one that needed something from the file it
 could not read fails by name further in. That is what makes a number
-like "419 of 767" mean anything — without it, one unparsed file would
+like "774 of 1020" mean anything — without it, one unparsed file would
 make the whole library unusable and the number would be zero.
