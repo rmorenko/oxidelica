@@ -713,7 +713,15 @@ unbalanced models and parameters with no value.
 **Structure**: an `expandable connector` takes each member's
 type from the other side of the connection that names it, so a member
 connected only to another bus member has nowhere to get one, and
-`each`-style array members of a bus are not supported. A library may be a directory tree, but
+`each`-style array members of a bus are not supported. A member the bus
+does not declare is also refused when what connects to it is a short
+connector, `connector RealOutput = output Real` as the standard library
+writes its signals: `connect(s.y, b.sig); connect(b.sig, k.u)` on an
+empty bus is "unknown variable `b.sig`", on the bus itself, through a
+joined sub-bus and across two components alike. Declared in the bus,
+`expandable connector Bus Real sig; end Bus;`, or carried by a connector
+with a field inside it, the same wiring runs; the library's own
+`ControlBus` declares its members, which is why `BusUsage` runs. A library may be a directory tree, but
 a file's place in it comes from its `within` clause rather than from
 where the file sits, so a tree without `within` headers is read as
 though it were flat.
