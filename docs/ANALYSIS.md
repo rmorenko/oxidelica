@@ -48481,3 +48481,17 @@ member, but whether the reduction of reduction 7 should have been
 taken at all. That is the m433 reading again - one equation counted
 twice - located now at the reduction that counts it. It is not walked
 further here.
+
+A last switch in the probe tree (`OX436_REJECT_COPY`, binary
+`/tmp/m436/ox19`, `/tmp/m436/v21.txt`) declines a member whose
+demotion turns a row that held a derivative, and was independent
+before the attempt, into a copy. On `Rrr1` it did not fire at
+reduction 10, where `OX436_AFTER` saw the copy made. It fired once, at
+reduction 14 on `rev.w`, and the walk then ended in
+`constrains no state` on the derivative of `rod1.frame_a.R.T[2,2]`.
+Why the check is silent at reduction 10 is not known: the "before"
+half of the test reads the state equations after the victim's has been
+removed, which may make the row look implied before the demotion as
+well. That is the first thing to settle before the switch is read as
+evidence either way. All m436 switches are in
+`~/oxideflow/park/m436-link4-probe.diff`.
