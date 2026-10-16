@@ -146,7 +146,10 @@ and `stateSelect` is read by index reduction, below; numeric literals
 never carry units, so `x = 5`
 is accepted whatever `x` is declared in. `min` and `max` are the assertions the specification says
 they are: a value settled before the run is refused by the checker,
-and one the run produces stops it where it left the bounds. An
+and one the run produces stops it at the first output point past where
+it left the bounds - the check is made where a row is written, so a
+variable crossing its `max` at 0.5 on an interval of 0.1 is stopped at
+0.6 and on 0.07 at 0.56. An
 `Integer` is refused a value that works out to a fraction, in a
 binding, a `start` or an assignment - though `Integer i = 3.0` passes,
 since a whole number spelled with a point contradicts nothing.
@@ -340,7 +343,9 @@ is given.
 A subscript the compiler cannot settle is read at the run instead, by
 asking which place the index names: this is how the logic tables read
 `NotTable[x]` off a signal. An index outside the array gives no number
-at all rather than the nearest element. Two things are missing. Such a
+at all rather than the nearest element - a `NaN` that is written to the
+results, the run carrying on and ending as a success, rather than a
+refusal naming the subscript. Two things are missing. Such a
 subscript may be read but not assigned, so `v[k] = 9` with a `k` only
 the run knows is refused, where the specification allows it. And an
 index that is a `Boolean` _variable_ is refused for want of its
@@ -370,7 +375,11 @@ bottom to unroll to; a `while` whose trip count the model decides
 rather than the compiler; and a body that leaves by a `break` or a
 `return` on a condition only the run settles, since which statements
 run is what the leaving decides. So recursion and a data-dependent
-loop both run, and `5!` written the obvious way comes out at 120.
+loop both run, and `5!` written with an `if` statement comes out at
+a hundred and twenty. Written as an `if` expression,
+`r := if n <= 1 then 1 else n * f(n - 1)`, it is refused as calling
+itself 64 deep: the walk works out both branches of an expression
+before choosing, so the recursion has no bottom.
 
 A walked body carries arrays, and records written out as their
 members at the boundary. It may answer with more than one output, laid
