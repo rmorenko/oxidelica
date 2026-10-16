@@ -62,4 +62,51 @@ package Witnesses
     connect(b2r.y, integ.u);
     annotation(experiment(StopTime = 1, Interval = 0.01));
   end Hysteresis;
+
+  // The five above stand on der(x) = 1, whose error estimate is zero:
+  // the step grows the same at every tolerance, so a model held against
+  // itself at a finer one loses the same crossings twice and agrees.
+  // They witness the pair of solvers and not the pair of tolerances.
+  // A state with an error of its own ties the step to the tolerance,
+  // and then the defect gives one count at 1e-6 and another at 1e-8.
+  model RisesBesideDecay "when sin(20 t) > 0.5 beside der(x) = -x: four rises"
+    Real x(start = 1, fixed = true);
+    discrete Real m(start = 0, fixed = true);
+  equation
+    der(x) = -x;
+    when sin(20*time) > 0.5 then
+      m = pre(m) + 1;
+    end when;
+    annotation(experiment(StopTime = 1, Interval = 0.01));
+  end RisesBesideDecay;
+
+  model RisesBesideSwing "when sin(20 t) > 0.5 beside an oscillator: four rises"
+    Real x(start = 1, fixed = true);
+    Real v(start = 0, fixed = true);
+    discrete Real m(start = 0, fixed = true);
+  equation
+    der(x) = v;
+    der(v) = -x;
+    when sin(20*time) > 0.5 then
+      m = pre(m) + 1;
+    end when;
+    annotation(experiment(StopTime = 1, Interval = 0.01));
+  end RisesBesideSwing;
+
+  model ThresholdBesideLag "Threshold beside a first-order lag: 0.3455, seven events"
+    // The final point carries the defect here, not only the count: the
+    // integral reads 0.9738 where a crossing is lost and 0.3455 where none is.
+    Modelica.Blocks.Sources.Sine sine(f = 20/(2*3.141592653589793), amplitude = 1);
+    Modelica.Blocks.Logical.GreaterThreshold gt(threshold = 0.5);
+    Modelica.Blocks.Continuous.Integrator integ(k = 1);
+    Modelica.Blocks.Math.BooleanToReal b2r;
+    Modelica.Blocks.Continuous.FirstOrder lag(T = 1, y_start = 1,
+      initType = Modelica.Blocks.Types.Init.InitialOutput);
+  equation
+    connect(sine.y, gt.u);
+    connect(gt.y, b2r.u);
+    connect(b2r.y, integ.u);
+    lag.u = 0;
+    annotation(experiment(StopTime = 1, Interval = 0.01));
+  end ThresholdBesideLag;
 end Witnesses;

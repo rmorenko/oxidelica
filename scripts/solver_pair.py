@@ -149,9 +149,9 @@ def merge(a_path, b_path, out_path):
     b_by = {row[0]: row for row in b}
     rows, both = [], 0
     for cls, events, point, road in a:
-        if cls in b_by and b_by[cls][3] != road:
+        if cls in b_by and road != "both" and b_by[cls][3] != road:
             road = "both"
-            both += 1
+        both += road == "both"
         rows.append((cls, events, point, road))
     held = {row[0] for row in a}
     rows += [row for row in b if row[0] not in held]
@@ -160,7 +160,7 @@ def merge(a_path, b_path, out_path):
         for row in sorted(rows):
             out.write("\t".join(row) + "\n")
     print(f"reference {len(rows)}: {len(a)} from {a_path}, "
-          f"{len(rows) - len(a)} added from {b_path}, {both} by both roads")
+          f"{len(rows) - len(a)} added from {b_path}, {both} of them by both roads")
 
 
 def admit(pair_path, reference_path, second_path, road="solvers"):

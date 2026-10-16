@@ -83,11 +83,19 @@ one() {
         last="exit $code: $(grep -v '^note: ' "$log" | tail -1 | cut -c1-300)"
     fi
     rm -f "$scratch" "$log"
+    # Each run writes its line to a file of its own and the files are put
+    # together at the end. Six writers on one pipe interleave a line
+    # longer than the pipe writes at once: a final point of six
+    # kilobytes came out spliced into its neighbour's, and the reader
+    # refused the whole pass at the end of forty-five minutes.
     printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$class" "$solver" "$status" \
-        "$((ended - started))" "$events" "$last"
+        "$((ended - started))" "$events" "$last" > "$(mktemp "$PAIR_LINES/line.XXXXXX")"
 }
 export -f one
 
+PAIR_LINES=$(mktemp -d -t pairlines)
+export PAIR_LINES
+trap 'rm -rf "$PAIR_LINES"' EXIT
 : > "$out"
 while read -r class; do
     [ -n "$class" ] || continue
@@ -95,7 +103,8 @@ while read -r class; do
     # `-` as the second solver runs the first alone: the reference is
     # checked by one run, the pair is needed only to admit to it.
     [ "$solver_b" = "-" ] || printf '%s %s\n' "$class" "$solver_b"
-done < "$list" | xargs -P "$jobs" -n 2 bash -c 'one "$0" "$1"' >> "$out"
+done < "$list" | xargs -P "$jobs" -n 2 bash -c 'one "$0" "$1"'
+find "$PAIR_LINES" -type f -name 'line.*' -exec cat {} + >> "$out"
 
 lines=$(wc -l < "$out")
 echo "solver_pair.sh: $lines lines for $(grep -c . "$list") classes into $out"
