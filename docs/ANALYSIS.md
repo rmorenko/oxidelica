@@ -50313,3 +50313,207 @@ So no model of the library stands today on a sign proof the clocks
 hide: the fault is real on `ab2.mo` and costs the corpus nothing until
 something like the alias makes more relations into clocks. That puts
 it behind the first fault in the queue for the chain, not in front.
+
+## A second road into the reference: one solver against itself (m443)
+
+The reference of m441 admitted a model one way, `dopri45` and `rk4`
+agreeing, and m442 measured what that road cannot see: under the switch
+that puts defect 7 back, the 330 library models of the reference did not
+move at all. The admitted half has a median of no events and the
+rejected half a median of eleven, because a model a second solver
+struggles with and a model a lost crossing hurts are the same model.
+Roman chose the third of three roads: hold `dopri45` against itself at a
+finer tolerance. This is an addition and not a replacement, and the two
+roads catch different things. Two solvers agreeing is blind to an error
+both share - a wrong equation gives the same wrong answer on either -
+and catches an error peculiar to one solver. One solver at two
+tolerances is blind to whatever does not depend on the size of the
+step, and catches what does, which is the class a lost crossing belongs
+to. Neither is the senior one, and a row admitted by both is the
+strongest guarantee the reference holds.
+
+### The knob
+
+`simulate` took a solver, a stop time and a step, and its tolerance
+came from the experiment annotation alone
+(`crates/oxidelica-sim/src/compile.rs:6537`). It now takes
+`--tolerance X`, which beats the annotation and refuses anything that is
+not a positive number, and the run prints the tolerance it used beside
+its count of events. The test runs a decay whose annotation asks for
+1e-1: without the flag it reads `x = 0.367896`, with `--tolerance 1e-10`
+`0.367879` against e^-1 = 0.3678794. Red without the change, by an
+unknown flag.
+
+A side of the pair is now a solver or a solver at a tolerance,
+`dopri45@1e-8`, and keeps that whole name in the output column: the
+reader sorts a model's lines into sides by that column, and two sides
+both called `dopri45` would silently have been one.
+
+### The witnesses could not see it, and why
+
+The first probe ran the five witnesses of defect 7 at 1e-6 and 1e-8,
+with and without `OXIDELICA_NO_STAGE_CROSSINGS`. Mended, both
+tolerances count 3, 7, 4, 7, 7. With the defect back, both count 0, 1,
+1, 1, 1: the same crossings lost twice, and the pair agrees with itself
+on all five.
+
+The cause is in the witnesses and not in the idea. Each stands on
+`der(x) = 1` or on an integrator of a piecewise constant, and the error
+estimate of such a state is zero: the step grows fivefold a round
+whatever the tolerance says. `Witnesses.Rises` under the switch counts
+one event at every tolerance from 1e-3 to 1e-12, and only a smaller
+output interval moves it (two at `--dt 1e-4`). They are witnesses of
+the pair of solvers, which is what they were written for.
+
+Three more stand beside a state with an error of its own, which ties
+the step to the tolerance (`Witnesses.mo`): `RisesBesideDecay`
+(`der(x) = -x`), `RisesBesideSwing` (an oscillator) and
+`ThresholdBesideLag` (the `Threshold` chain beside a `FirstOrder`).
+Mended, all three count the same at both tolerances and agree with
+`rk4`, so they enter by both roads. With the defect back:
+
+```text
+witness              1e-6  1e-7  1e-8   final point at 1e-6 / 1e-8
+RisesBesideDecay     1     2     4      m 1 / 4
+RisesBesideSwing     2     2     4      m 2 / 4
+ThresholdBesideLag   1     3     7      integ.y 0.97382 / 0.345502
+```
+
+Swept over the fine side for the first two: 1e-5 to 3e-8 counts between
+one and three, 1e-8 and 1e-10 count four. The hundredfold step Roman
+proposed catches all three; tenfold catches two, missing the
+oscillator (2 against 2). A hundred stays.
+
+### The two clouds
+
+Cloud 1, the 330 library models of the old reference at 1e-6 and 1e-8
+(`/tmp/m443/pair_full.tsv`, `/tmp/m443/cloud1.tsv`): not one count of
+events moved. The worst relative shift of a final-point value, over
+gaps above the print floor of 1e-6, is 0.0339 (`DCPM_Start`,
+`dcpm.la.v`), then 0.0256 (`DCEE_Start`) and 0.0126
+(`ElasticBearing`); 285 of the 330 do not move at all, the 99th
+percentile is 0.0061, and none is above 0.05. At tenfold
+(`/tmp/m443/pair10.tsv`) the same: no count moved, worst 0.0339.
+
+Cloud 2, the witnesses with the defect back: every one that moves moves
+its count of events, and the final points move by 0.5 (`m` 2 to 4),
+0.645 (the integral) and 0.75 (`m` 1 to 4).
+
+The gap runs from 0.034 to 0.5, and the 5 percent of the old road sits
+inside it with room on both sides. So the threshold is not changed: the
+same rule, the same count to the unit and 5 percent with a floor of
+1e-6, admits by both roads. The counter of events does the sharp half
+on every witness; the final point agrees with it on all three and
+would have caught the lag alone.
+
+### The pass, and what it cost
+
+One binary, `/tmp/m443/ox1`, over 720 classes: the 330 of the reference,
+the 383 the old pair had refused (`/tmp/m441/second_all.tsv`) and seven
+witnesses, `dopri45` against `dopri45@1e-8`, 60 s of CPU per run, six
+at a time, under `cap.sh`: 45 minutes of wall clock, 1440 runs, 8.0 GB
+peak (`/tmp/m443/cap.out`). The 330 of the reference cost 1214 s of
+summed wall clock and none of it in the ceiling; the 383 cost 14950 s,
+11417 of them in the ceiling.
+
+```text
+models 720: agreed 532, apart 36 (events apart 10, final point only 26),
+            no check 53, ceiling 99
+```
+
+All 330 of the old reference were admitted by the new road as well.
+Of the 383 the old road refused, 195 enter now - the gate below takes
+none of them, its twelve all being rows of the old reference - and 188
+stay out:
+
+- 99 in the ceiling, both sides or one: 27 `ModelicaTest.Fluid`
+  components, 13 machines, 9 digital, 8 fundamental-wave, 7 MultiBody,
+  7 quasi-static, and fewer elsewhere;
+- 53 with nothing to compare, 49 refused on both sides; four refuse at
+  1e-6 and run at 1e-8 (`HeatingRectifier`, a Newton loop;
+  `CCCV_StackRC` and `DiodeCenterTapmPulse`, ten thousand events in a
+  stretch; `PreLoad`, a step underflow), which is a defect the run
+  half has, not a reason to admit;
+- 26 apart on the final point only. Seventeen of them are apart by an
+  absolute gap under 1e-4 on a value near zero (`-1e-06` against
+  `2e-06`, a current at rest): the 5 percent rule reads that as wholly
+  apart, and they are named and left out rather than admitted by
+  widening the floor. The other nine are real: `TwoTanks` (a flow of
+  2007 against nothing), `EddyCurrentLosses` (an angle at -pi against
+  +pi, the same angle), `ChuaCircuit` (chaotic, as it should be),
+  `DemoSignalCharacteristic`, `TestInitialization`, `LCOscillator`,
+  `LinearColdWater`, `SinCosEncoder`, `Modulation`;
+- 10 apart in their count of events, every one of them a power
+  converter with diodes or thyristors that `rk4` refused in m441.
+
+### The ten whose count depends on the tolerance
+
+Named with their counts at four tolerances, `dopri45`
+(`/tmp/m443/zeno.txt`):
+
+```text
+model                                     1e-6  1e-8  1e-9  1e-10
+DiodeBridge2Pulse                         19    21    20    21
+ThyristorBridge2Pulse_R                   31    34    31    34
+DiodeCenterTap2Pulse                      19    21    21    21
+ThyristorCenterTap2Pulse_R                31    34    31    34
+HalfControlledBridge2Pulse                32    35    35    35
+SinglePhaseTwoLevel_RL                    318   331   307   308
+SinglePhaseTwoLevel_R                     286   296   291   291
+ChopperStepDown_RL                        293   289   296   290
+ThyristorCenterTap2mPulse_RLV_Character.  9002  9000  9000  -
+PolyphaseTwoLevel_RL                      855   850   846   857
+```
+
+Not the Zeno pile the order expected - a count that climbs as the
+tolerance tightens - but counts that wander both ways and do not settle
+at 1e-10. Three of them settle (`DiodeCenterTap2Pulse` and
+`HalfControlledBridge2Pulse` from 1e-8, `SinglePhaseTwoLevel_R` from
+1e-9), and those are the cleanest candidates for a fault that a coarse
+tolerance commits and a fine one does not. The two thyristor rectifiers
+alternate 31 and 34 with the tolerance, which no physics does. This is
+the next queue of the instrument, and nothing in it was admitted or
+mended.
+
+### The gate of the tables
+
+None of the time-table chain enters by either road. `Test10`, `11`,
+`12` and `14` refuse on their own assert at both tolerances.
+`Test13` and the eleven tests the first link moves by one event (`Test6`,
+`16`, `18`, `43`, `44`, `47`, `48`, `52`, `53`, `62`, `63`) agreed by
+both roads and are taken out: twelve rows of the old reference leave it
+for that reason, and the gate is named in `/tmp/m443/excl.txt`.
+
+### The reference, and what it now catches
+
+```text
+rows 521:  both roads 326, tolerance only 195, solvers only 0
+```
+
+`--check` holds the new reference against its own pass, 521 held. Under
+`OXIDELICA_NO_STAGE_CROSSINGS` it moves on 13, where the old reference
+of 330 library models moved on none: the eight witnesses and five
+library models, every one of the five admitted by the new road alone -
+`DemonstrateContinuousSignalExtrema` (30 events for 31, old road apart
+31 against 23), `DemoPowerSupplyWithBuffer` (2000 for 2001),
+`ChopperStepDown_R` (266 for 264), `LossyGearDemo1` (5 for 6), and
+`CCCV_Cell` by its final point alone (`multiSensor.pc.i` 0.001055 to
+0.002401). The last three the old road could not check at all, `rk4`
+refusing.
+
+The format grew a fourth column, the road, which `--check` refuses to
+read past when missing, and `--merge` joins two references, a model in
+both marked as both and a row of the older reference never rewritten by
+the newer one. The check runs the side that sorts first, the solver at
+the model's own tolerance.
+
+Along the way the pass found a fault of the pair itself: six runs
+writing one pipe spliced a final point of six kilobytes into its
+neighbour's (`Counter3` into `DFF`), two lines of 1440 torn, and the
+reader refused the pass at its end. Each run now writes its line to a
+file of its own; the two models were run again on the mended script.
+
+Not wired into CI, as the order said: the price is 45 minutes for the
+whole admission pass, 330 models of it 20 minutes of summed wall clock,
+and the check of 521 is one solver, four minutes on six cores
+(`/tmp/m443/sw_on.tsv`).
