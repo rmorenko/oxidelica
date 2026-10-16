@@ -49995,3 +49995,253 @@ So the first link is parked whole, with its test, in
 about the instrument: on its first outing the reference named the
 eleven models a change true in itself moved, by name and by the unit,
 in 98 seconds.
+
+## The 1x1 block of Spice3, the second link of the tables, and a model that ran and lied (m442)
+
+### The 1x1 block: two layers, one fixed and one that buys nothing
+
+The twin of m441 (`Z8`, twelve lines, rebuilt from the map above and
+kept in `~/oxideflow/park/m442-one-by-one/z8.mo`) refuses as recorded.
+The judgement was mended in two halves, both under
+`OXIDELICA_NO_ONE_BY_ONE`:
+
+1. A block of one is no longer called underdetermined for its unit.
+   Where the bare judgement (`reads_singular`, pivot against
+   `1e-7 * max(scale, 1)`) says singular and `n == 1`, the block is
+   asked instead whether its unknown moves its own row above four ulps
+   of the loudest number the row adds up, and a coefficient that is
+   exactly zero is still refused. `C0*(1 - X)*der(vbx)` with `X = 1`,
+   the bipolar card's default, refuses as before.
+2. Letting the block through was not enough, and the twin said so in
+   numbers before the corpus did. With the first half alone, `Z8` ran
+   and was wrong: `icx` at t = 1e-7 came out 2.0e-4 with the `if`
+   around `C0*der(vbx)` and 5.6e-6 without it, on `dopri45`, and
+   `bdf` and `rk4` disagreed with both. The block's convergence test
+   reads a residual in the units of its unknown
+   (`|f| <= 1e-10 * (1 + |v|)`), so a slope of a picofarad turned a
+   residual of 1.6e-7 A into a "distance" small enough, and the block
+   was taken as solved on the iteration it started from
+   (`OXIDELICA_NEWTON_TRAIL`: `newton 0 ... v=[40004.16]` and nothing
+   after). Asked as the step Newton would still take, `f/slope`, the
+   two forms agree on all three solvers to the sixth digit. The test
+   (`systems.rs`, with the `if` against without it, and the exact zero
+   refused) was seen red without the switch and red again with only
+   the convergence half taken away.
+
+What it buys of the six Spice3 models of the m439 rows: none.
+`RtlInverter` and `DifferentialPair` stand on a column that is exactly
+zero - `capbx = CJC*(1 - XCJC)` with the default `XCJC = 1` - which is
+the m425 finding and which no judgement may read as a slope; with
+`XCJC = 0.5` written in, `RtlInverter` goes one wall further, to
+`singular Jacobian in algebraic loop ["der(Q1.vbc)", "der(Q1.vcs)"]`.
+`InvertersExtendedModel`, `Nor` and `MosfetCharacterization` stand on
+`no equation determines vin.T0` (`VGS.T0` for the last), set and unset
+alike. The two parts of the four-bit adder that flatten, `NAND` and
+`ONEBIT`, are refused as underdetermined on blocks of two and more
+(`["der(Q1.vbc)", "der(D1CLAMP...` and `["der(X1.Q1.vbe)", ...`),
+which a judgement of the block of one does not reach. So the order's
+expectation of six was the m440 reading, and the m441 twin had already
+shown the capacitance does not have to be zero for the refusal - but
+the library's own cards do make it zero.
+
+### The corpus pair, and the victim the run list called a win
+
+From one binary (`/tmp/m442/ox1`, the convergence half asked of every
+block of one), the switch set and unset (`/tmp/m442/off.txt` against
+`on.txt`, both kept in the park as `wide_off.txt`, `wide_on.txt`):
+
+```text
+                         off          on
+flatten / run            953 / 774    953 / 775
+runnable flatten / run   836 / 731    836 / 732
+jacobians (main pass)    529          565
+gained                   Modelica.Electrical.Analog.Examples.AmplifierWithOpAmpDetailed
+lost                     none
+```
+
+By every instrument that guards the tree, a clean win: the floors
+would rise, the census would lose a row, the run lists gained one and
+lost none. The Jacobian count was the one number out of place, +36 in
+the main pass, which with the dear pass's 22 is about 587 against a
+band whose ceiling is 533.5 (`WORK_JACOBIANS=485`, ten percent). Laid
+out model by model with `--only`: `AmplifierWithOpAmpDetailed` 0 to 3,
+and `ControlledSwitchWithArc` 32 to 65.
+
+`ControlledSwitchWithArc` runs both ways. It is not in the reference
+of the pair (no line in `solver_pair_reference.tsv`), so the pair
+could not have caught it either. Run on its own on the default solver
+(`bdf` by the handover), it ends at the same final point both ways,
+but with the switch on it counts 3 events where it counted 13, and
+`switch1.off` turns twice instead of twelve times: the closing switch
+of the comparison is driven by a sine of 1 Hz over six seconds and
+must turn twice a second-period. `dopri45` counts 13 with the switch
+set and unset. The trajectories differ by 3e-4 at most, because the
+missing switchings happen where the current through the off branch is
+already near nothing - which is exactly why a final point does not
+see it. Split by a probe switch per half: the judgement leaves it
+alone (the arc's off-conductance `Goff = 1e-5` is above the floor),
+the convergence half moves it, by taking an extra Newton iteration on
+a block of one that converged before.
+
+Narrowing the convergence half to the slopes the bare judgement would
+have refused, `|slope| <= 1e-7` - the blocks the first half admits for
+the first time - gives the arc back its 13 events and loses the one
+model gained: `AmplifierWithOpAmpDetailed` was not a block the old
+judgement refused. Its old refusal was at the initialisation (`the
+equations do not pin down [opAmp.v_in]`), and what let it through was
+one extra Newton step on the block `opAmp.v_out` with a slope of
+1.3e-2. That model is also no witness on its own: it does not reach
+its stop time on `dopri45`, `rk4` or `bdf` (10000 events within one
+output interval at t = 3.9e-4 on `dopri45` and at 1.05e-4 on `bdf`, a
+residual that is not a number at t = 3.78e-5 on `rk4`), so the pair
+would have filed it under "no check".
+
+The narrow form measured from one binary (`/tmp/m442/ox7`, the table
+links held off in both halves, `n_off.txt` against `n_on.txt`): the
+run lists the same line for line at 953 / 774, runnable 836 / 731,
+529 Jacobians in both. It buys nothing and costs nothing.
+
+The change was not taken, on Roman's word of 16 October, and the
+reasons are the numbers above: it buys none of the six Spice3 models
+it was built for; the one model it buys is paid for with a model that
+lies; and it takes the Jacobian band about 20.7% over its centre,
+which could be made green only by weakening the guard. The series is
+parked (`~/oxideflow/park/m442-one-by-one/`: `one_by_one_wide_ox1.patch`
+with the corpus pair above, `one_by_one_narrow.patch` with its test
+and pair, the twins, the events on three solvers).
+
+The ruling left one question open, and it was the one that decided
+which way any further work would go: of 13 events and 3, which is
+physically right? If 3, the change was a repair and the old count the
+lie. It is answered by the model's own equation rather than by a
+reading of the circuit. `switch1` is
+`off = control.v < level` with `level = 0.5`, and its control is the
+sine source, `V = 1`, `f = 1`, over a `StopTime` of 6. `sin(2 pi t)`
+crosses 0.5 at `t = k + 1/12` and `k + 5/12`, so the switch must turn
+twelve times. Read from the two results, row by row against that
+equation: without the change `switch1.off` turns twelve times and
+disagrees with `control.v < 0.5` on no row; with it, twice, and on
+6655 rows (the first at t = 1.08375, control 0.502, `off` still
+true). Thirteen is right. The change does not uncover an old lie, it
+makes the run break the model's own equation, and only on BDF.
+
+### What caught it, and what did not
+
+This is written down on its own because it is the argument for the
+instrument, made once. The change passed every guard of the tree:
+
+- the floors would have risen, 953 / 775 above 953 / 772;
+- the census would have shed a row and gained none;
+- the diff of run lists showed one model gained and none lost;
+- the reference of the pair did not hold the model at all.
+
+What caught it was a count of work out of place - Jacobians 529 to
+565 - and then the count of events of one model, on and off, from one
+binary: 13 against 3. A model whose switch turns twice where it turns
+twelve times does not run, it lies, and a wrong number is the worst
+thing this compiler can do. Merged on the run list, it would have gone
+on lying the way `Hysteresis` did for two days. The count of events
+was the instrument that saw it, and the reference by agreement is
+where that count lives: a model like this one belongs in it, and the
+reason it was not is the admission rule's measured blind spot, the
+models rich in events (median 11 among those refused admission).
+
+### The second link of the tables: two victims in the tests
+
+`clock_of` now sees `time` through a name an equation defines as
+`a*time + b` with `a` and `b` known before the run, on the narrow form
+the order asked for: the name alone on one side of the equation, and
+on the other only `time`, numbers and parameters by sums, products
+with one factor free of `time` and quotients by something free of it
+(`OXIDELICA_NO_TIME_ALIAS_CLOCKS`). With the first link
+(`OXIDELICA_NO_TABLE_START`) it closes the chain on the twins: `TT`
+and `TT2` integrate to exactly 0 on `dopri45`, `rk4` and `bdf`, where
+they read 6.8e-9 and 1.7e-4; the four `CombiTimeTable` tests 10, 11,
+12 and 14 run under `--only`; a new test is red with the switch set.
+
+But two tests of the tree turn red with it, and both for a reason
+that was there before on `time` itself - the link only carries it to
+more relations:
+
+1. `an_arrow_may_wait_a_tick_and_may_ask_for_a_reset_of_its_own`: a
+   state machine with `u = time` and `sample(u, c) > 2.5` takes the
+   relation as a clock and gets an event row at t = 2.5, so the
+   per-tick column has one entry too many. Written with `time` in
+   place of `u` (`sm.mo` in the park) the same extra row appears
+   without the change. A relation on a sampled value is not a
+   relation on `time`, and `clock_of` does not look under `sample`.
+2. `a_branch_that_settles_a_sign_differentiates_the_abs_inside_it`:
+   `x = time - 2` makes `x >= x_small` a clock, `$clock0`, and the
+   proof that settles `abs(x)` inside the branch no longer sees the
+   relation it reads the sign from, so the model is refused as
+   structurally singular. Written with `time - 2.0 >= x_small` in the
+   condition directly (`ab.mo`) it is refused the same way without
+   the change.
+
+By the order, victims mean no merge, and the corpus does not name any
+others: from one binary (`/tmp/m442/ox3`), both links set against
+both unset (`/tmp/m442/t_on.txt` against `t_off.txt`), the run lists
+are the same line for line at 953 / 775, runnable 836 / 732, and the
+Jacobians 565 in both. The two victims are the tests'. The chain is
+parked whole
+(`~/oxideflow/park/m442-table-link2/link1_and_link2.patch`, with the
+twins and both reproductions). What it needs first is the two older
+faults mended on `time` itself - `clock_of` keeping out of `sample`,
+and the sign proof reading through a clock to the relation it stands
+for - after which the alias is the small step it looks like.
+
+### The 51 that the run list counts and `dopri45` does not finish
+
+Sorted by the refusal each printed in m441 (`/tmp/m441/dopri_refused.tsv`,
+55 lines, `dopri45` alone to each model's stop time; the classes are
+in `/tmp/m442/p3.tsv`). The four `CombiTimeTable` tests 10, 11, 12 and
+14 are the table chain above and are left out, which leaves 51. No
+code was written for any of these; this is the queue, by mechanism.
+
+```text
+mechanism                                   models
+step size underflow, probable singularity       10
+algebraic loop did not converge in 50 steps      9
+Newton direction does not reduce                 7
+loop dead column / singular Jacobian             3
+output-row ceiling                               6
+event-density ceiling (10000 in one interval)    4
+evaluation budget                                2
+structurally singular on dopri45's compile       6
+re-selected states name different variables      4
+                                                --
+                                                51
+```
+
+- Step underflow: `LightningSegmentedTransmissionLine`,
+  `SinglePhaseTransformerWithHysteresis1`, `HeatLosses`,
+  `LossyGearDemo3`, `SimpleGearShift`, `PreLoad`, `Media.Examples.MoistAir`,
+  `FluidHeatFlow.Examples.WaterPump`, `HeatTransfer.Examples.Motor`,
+  `TestWaterPumpRecirculation`. Friction and clutches make five of
+  the ten.
+- Newton, not converged: `HeatingNPN_NORGate`, `HeatingPNP_NORGate`,
+  `HeatingRectifier`, `OpAmps.ControlCircuit`, `PolyphaseRectifier`,
+  `TanksWithEmptyingPipe1`, `CurvedBend`, `EdgedBend`,
+  `TestDelayedValve`.
+- Newton direction does not reduce: `InvertingSchmittTrigger`,
+  `Multivibrator`, `SchmittTrigger`, `ThreeTanks`,
+  `TestWaterPumpCheckValve`, `TestWaterPumpPowerCharacteristic`,
+  `TestWaterPumpStorage`. The three op-amp circuits are switching
+  hysteresis on a saturating amplifier.
+- Dead column or singular: `ThyristorBridge2mPulse_RLV_Characteristic`,
+  `ParallelPumpDropOut`, `TwoMass`.
+- Output rows: `CombiTimeTable.Test67` to `Test72`, six tables.
+- Event density: `Dimmer_R`, `DiodeBridge2mPulse`,
+  `DiodeCenterTap2mPulse`, `DiodeCenterTapmPulse`, all diode or
+  thyristor bridges.
+- Evaluation budget: `CurrentControlledDCPM`, `SpeedControlledDCPM`.
+- Structural on `dopri45`: `DemonstrateLightning`, `IMC_Conveyor` and
+  both `SMPM_Inverter` (a non-constant exponent to differentiate);
+  `SMEE_Generator` and `SMPM_VoltageSource` (`der(terminalBox.starpoint.i)
+= 0` constrains no state). `SMPM_VoltageSource` is one of the two
+  swings the floors already name.
+- State re-selection: `SMEE_DOL`, both `SMR_Inverter`, `ForceAndTorque`.
+
+None of the 51 is a model's own check calling it wrong; the four that
+were are the tables. Twelve are ceilings of the run, not refusals of the
+model, and the sixteen in the Newton rows are the largest family.
