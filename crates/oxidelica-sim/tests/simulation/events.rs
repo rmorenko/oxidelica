@@ -1178,3 +1178,107 @@ fn a_step_cut_short_of_a_switch_does_not_creep_up_to_it() {
     let last = result.rows.last().unwrap()[y];
     assert!((last - 0.999998).abs() < 1e-6, "y(10) = {last}");
 }
+
+/// A `when` on a condition that rises four times in the run fires four
+/// times beside a continuous state. With nothing but `der(x) = 1` to
+/// hold it back the step grows past half the period of `sin(20 t)`, and
+/// a crossing that turns and turns back inside one step reads the same
+/// at both ends: the adaptive solver fired once.
+#[test]
+fn a_condition_that_rises_four_times_fires_four_times() {
+    let source = "model W Real x(start = 0, fixed = true); \
+         discrete Real m(start = 0, fixed = true); Real z; \
+         equation der(x) = 1; z = sin(20 * time); \
+         when z > 0.5 then m = pre(m) + 1; end when; \
+         annotation(experiment(StopTime = 1, Interval = 0.01)); end W;";
+    for method in [SolverMethod::Dopri45, SolverMethod::Auto] {
+        let result = run_on(source, method).expect("runs");
+        let at = result.columns.iter().position(|c| c == "m").unwrap();
+        let m = result.rows.last().unwrap()[at];
+        assert_eq!(
+            m, 4.0,
+            "sin(20 t) rises through 0.5 at 0.026, 0.340, 0.654 and 0.969"
+        );
+    }
+}
+
+/// The same over a longer run, where the step grows wider still and a
+/// pair of crossings falls between two stages, so that no reading inside
+/// the step is on the other side. `sin(10 t) > 0.5` rises seven times
+/// in four seconds; the adaptive solver fired once, and with only the
+/// stages' signs read, six times.
+#[test]
+fn a_pair_of_crossings_between_two_stages_is_not_lost() {
+    let source = "model W10 Real x(start = 0, fixed = true); \
+         discrete Real m(start = 0, fixed = true); \
+         equation der(x) = 1; \
+         when sin(10 * time) > 0.5 then m = pre(m) + 1; end when; \
+         annotation(experiment(StopTime = 4, Interval = 0.01)); end W10;";
+    let result = run_on(source, SolverMethod::Dopri45).expect("runs");
+    let at = result.columns.iter().position(|c| c == "m").unwrap();
+    assert_eq!(result.rows.last().unwrap()[at], 7.0);
+}
+
+/// A Boolean relation on a smooth signal, integrated: what the
+/// integrator gathers is the time the relation held, which is exact.
+/// `sin(20 t) > 0.5` holds on [pi/120, 5 pi/120] and every pi/10 after,
+/// three whole stretches of pi/30 and the start of a fourth from 0.9687
+/// to 1, so 0.34550. The relation stuck at true after its first rise
+/// integrated to 0.974; this is what `Sine` through `GreaterThreshold`
+/// and `BooleanToReal` into an `Integrator` printed too.
+#[test]
+fn a_relation_beside_a_state_turns_back_after_its_first_rise() {
+    let source = "model E Real x(start = 0, fixed = true); Boolean b; \
+         Real c(start = 0, fixed = true); \
+         equation der(x) = 1; b = sin(20 * time) > 0.5; der(c) = if b then 1 else 0; \
+         annotation(experiment(StopTime = 1, Interval = 0.01)); end E;";
+    let pi = std::f64::consts::PI;
+    // Rises at (pi/6 + 2 pi k)/20, falls at (5 pi/6 + 2 pi k)/20.
+    let owed = 3.0 * (4.0 * pi / 120.0) + (1.0 - (pi / 6.0 + 6.0 * pi) / 20.0);
+    let result = run_on(source, SolverMethod::Dopri45).expect("runs");
+    let at = result.columns.iter().position(|c| c == "c").unwrap();
+    let c = result.rows.last().unwrap()[at];
+    assert!((c - owed).abs() < 1e-6, "c(1) = {c}, owed {owed}");
+}
+
+/// The hysteresis of `Modelica.Blocks.Logical.Hysteresis`, written out,
+/// on `sin(20 t)` between -0.5 and 0.5 and integrated. It is on from
+/// each rise through 0.5 to the next fall through -0.5; the adaptive
+/// solver kept it on from the first rise and printed 0.974 for 0.503.
+#[test]
+fn a_hysteresis_on_a_smooth_signal_lets_go_each_time() {
+    let source = "model H Real x(start = 0, fixed = true); Real u; \
+         Boolean y(start = false, fixed = true); Real c(start = 0, fixed = true); \
+         equation der(x) = 1; u = sin(20 * time); \
+         y = not pre(y) and u > 0.5 or pre(y) and u >= -0.5; \
+         der(c) = if y then 1 else 0; \
+         annotation(experiment(StopTime = 1, Interval = 0.01)); end H;";
+    let pi = std::f64::consts::PI;
+    // On from (pi/6 + 2 pi k)/20 to (7 pi/6 + 2 pi k)/20: half a period
+    // of pi/10 each, three whole ones, then from the fourth rise to 1.
+    let owed = 3.0 * pi / 20.0 + (1.0 - (pi / 6.0 + 6.0 * pi) / 20.0);
+    let result = run_on(source, SolverMethod::Dopri45).expect("runs");
+    let at = result.columns.iter().position(|c| c == "c").unwrap();
+    let c = result.rows.last().unwrap()[at];
+    assert!((c - owed).abs() < 1e-6, "c(1) = {c}, owed {owed}");
+}
+
+/// A relation that dips past its threshold just after a crossing the
+/// step was cut short of. The step after a cut one grew fivefold, and
+/// `cos(20 t) < -0.5`, below its threshold for a tenth of a second every
+/// third of one, fell wholly before that step's first stage: one fall
+/// found of three, where the indicators read at the ends found none.
+#[test]
+fn a_dip_right_after_a_cut_step_is_not_stepped_over() {
+    let source = "model CS Real x(start = 0, fixed = true); \
+         discrete Real m(start = 0, fixed = true); \
+         equation der(x) = 1; when cos(20 * time) < -0.5 then m = pre(m) + 1; end when; \
+         annotation(experiment(StopTime = 1, Interval = 0.01)); end CS;";
+    let result = run_on(source, SolverMethod::Dopri45).expect("runs");
+    let at = result.columns.iter().position(|c| c == "m").unwrap();
+    assert_eq!(
+        result.rows.last().unwrap()[at],
+        3.0,
+        "cos(20 t) falls through -0.5 at 0.105, 0.419 and 0.733"
+    );
+}

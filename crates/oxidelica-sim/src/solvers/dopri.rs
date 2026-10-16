@@ -32,6 +32,91 @@ fn cut_before_row_off() -> bool {
     *OFF.get_or_init(|| std::env::var_os("OXIDELICA_NO_CUT_BEFORE_ROW").is_some())
 }
 
+/// Whether the event indicators are read only at the two ends of a
+/// step, as they were before the stages inside it were read too.
+/// `OXIDELICA_NO_STAGE_CROSSINGS` keeps the old reading, so that one
+/// binary gives both numbers.
+fn stage_crossings_off() -> bool {
+    static OFF: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *OFF.get_or_init(|| std::env::var_os("OXIDELICA_NO_STAGE_CROSSINGS").is_some())
+}
+
+/// Where inside a step an event indicator that reads the same sign at
+/// both ends nonetheless turned, as a fraction of the step, read off the
+/// values it took at the stages. `None` when nothing between the ends
+/// says it turned.
+///
+/// Two things say so. A stage reading the other sign from the start
+/// is the plain one, and the step is to end there. The other is a pair
+/// of crossings that falls between two stages, so that every reading
+/// keeps its sign: the readings then come close to the threshold and go
+/// away again, and the parabola through the three around the closest
+/// one reaches past it. The step is to end where that parabola turns,
+/// which is where the indicator stands farthest on the other side if it
+/// went there at all; if it did not, the shorter step costs one step and
+/// finds nothing.
+///
+/// A reading counts as on the other side only past `floor`: an
+/// indicator resting on zero - the velocity of a stuck friction element -
+/// changes sign on rounding alone, at 1e-16 and below, and reading that
+/// as a turn cut `Translational.Examples.Friction` into eleven times its
+/// points.
+fn hidden_crossing(
+    before: &[f64],
+    stages: &[(f64, Vec<f64>)],
+    after: &[f64],
+    floor: f64,
+) -> Option<f64> {
+    let mut earliest: Option<f64> = None;
+    let mut take = |theta: f64| {
+        if theta > 0.0 && theta < 1.0 {
+            earliest = Some(earliest.map_or(theta, |e: f64| e.min(theta)));
+        }
+    };
+    for (index, (&start, &end)) in before.iter().zip(after).enumerate() {
+        // Ends that differ are the search's to find, and a zero at either
+        // end is a relation on its threshold, which the search reads too.
+        if start * end <= 0.0 {
+            continue;
+        }
+        let side = start.signum();
+        // The readings in the order they stand inside the step, each
+        // measured as how far it is on the starting side.
+        let mut points: Vec<(f64, f64)> = Vec::with_capacity(stages.len() + 2);
+        points.push((0.0, start * side));
+        points.extend(
+            stages
+                .iter()
+                .map(|(c, reading)| (*c, reading[index] * side)),
+        );
+        points.push((1.0, end * side));
+        points.sort_by(|a, b| a.0.total_cmp(&b.0));
+        if let Some(&(c, _)) = points.iter().find(|&&(_, v)| v < -floor) {
+            take(c);
+            continue;
+        }
+        for window in points.windows(3) {
+            let [(x0, v0), (x1, v1), (x2, v2)] = [window[0], window[1], window[2]];
+            if !(v1 <= v0 && v1 <= v2) || x0 == x1 || x1 == x2 {
+                continue;
+            }
+            // The parabola through the three, by its divided differences.
+            let d01 = (v1 - v0) / (x1 - x0);
+            let d12 = (v2 - v1) / (x2 - x1);
+            let curvature = (d12 - d01) / (x2 - x0);
+            if curvature <= 0.0 {
+                continue;
+            }
+            let vertex = 0.5 * (x0 + x1) - d01 / (2.0 * curvature);
+            let lowest = v1 + d01 * (vertex - x1) + curvature * (vertex - x0) * (vertex - x1);
+            if lowest < -floor && vertex > x0 && vertex < x2 {
+                take(vertex);
+            }
+        }
+    }
+    earliest
+}
+
 impl CompiledModel {
     /// Adaptive Dormand-Prince 5(4) integration with dense output.
     pub fn simulate_adaptive(&self) -> Result<SimResult, SimError> {
@@ -174,6 +259,12 @@ impl CompiledModel {
         // underflow. It holds for that one step only; the one after is
         // free to be cut.
         let mut spared = false;
+        // Whether the step about to be taken was already shortened for a
+        // crossing its stages saw and its ends did not.
+        let mut stage_cut = false;
+        // Where the step cut short of a crossing would have ended, and
+        // what the indicators read there, until a step has passed it.
+        let mut long_end: Option<(f64, Vec<f64>)> = None;
 
         self.eval_point(t, &y, &mut values, &mut k[0], &mut alg_guess)?;
 
@@ -217,6 +308,10 @@ impl CompiledModel {
             // nothing behind.
             let footing_guess = alg_guess.clone();
             let mut stage_failed = false;
+            // What the event indicators read at the stages inside the
+            // step, by the fraction of the step each stands at.
+            let mut stage_readings: Vec<(f64, Vec<f64>)> = Vec::new();
+            let read_stages = !self.indicators.is_empty() && !stage_crossings_off();
             for s in 1..7 {
                 for j in 0..n {
                     let mut acc = 0.0;
@@ -241,7 +336,12 @@ impl CompiledModel {
                     &mut tail[0],
                     &mut alg_guess,
                 ) {
-                    Ok(()) => {}
+                    Ok(()) => {
+                        if read_stages && C[s] < 1.0 {
+                            stage_readings
+                                .push((C[s], self.indicator_values(t + C[s] * h, &values)));
+                        }
+                    }
                     // A dying algebraic loop on a model whose states were
                     // *chosen* is likely the choice failing, not the
                     // model: treat the step as rejected and let the step
@@ -292,6 +392,66 @@ impl CompiledModel {
             err_norm = (err_norm / n as f64).sqrt();
 
             let accepted = err_norm.is_finite() && err_norm <= 1.0;
+            // A relation that turns and turns back inside one step reads
+            // the same at both ends, and a search that only compares the
+            // ends never learns it turned. On a smooth state the step
+            // grows past half the period of whatever the relation reads,
+            // and from then on whole pairs of crossings fall inside
+            // steps: `der(x) = 1` beside `when sin(20*time) > 0.5` fired
+            // once in a second where it rises four times, and a Boolean
+            // read through `BooleanToReal` into an integrator stuck at
+            // true and integrated to 0.974 where the answer is 0.340.
+            // The stages inside the step already stand at points between
+            // its ends, and `hidden_crossing` reads them for a turn the
+            // ends cannot see; the step is then taken again ending where
+            // the indicator reads the other sign, so that the two ends
+            // differ and the search below finds the crossing. Once per
+            // step: the shorter try is accepted whatever its stages say,
+            // or a curve that only grazes its threshold would be chased
+            // by ever shorter steps.
+            if accepted && !stage_readings.is_empty() && !stage_cut {
+                let indicators_end = self.indicator_values(t + h, &values);
+                let mut retake =
+                    hidden_crossing(&indicators_prev, &stage_readings, &indicators_end, atol)
+                        .map(|theta| h * theta);
+                // A step cut short of a crossing ends two hairs before
+                // it, and the step after starts there with the crossing a
+                // hair in. Grown fivefold, its first stage can stand past
+                // the whole of a dip that begins there: `cos(20*time) <
+                // -0.5` beside `der(x) = 1` was cut 3e-9 short of its
+                // second fall, the step after grew to 0.58 with its first
+                // stage at 0.12, and the dip, 0.10 long, lay before it.
+                // The long step that was cut saw the crossing at its far
+                // end; a step that passes that end without seeing it is
+                // taken again ending there, where the long step saw it.
+                // Holding every step after a cut to the cut one's length
+                // instead cost `ActuatorWithNoise` eight times its points.
+                if retake.is_none() {
+                    if let Some((t_end, ends)) = &long_end {
+                        let missed = t + h > *t_end + 1e-12
+                            && *t_end > t
+                            && indicators_prev.iter().zip(ends).zip(&indicators_end).any(
+                                |((&now, &there), &after)| {
+                                    now * there < 0.0 && there.abs() > atol && !turned(now, after)
+                                },
+                            );
+                        if missed {
+                            retake = Some(*t_end - t);
+                        }
+                    }
+                }
+                if let Some(shorter) = retake {
+                    stage_cut = true;
+                    h = shorter;
+                    if !reject_keeps_guess() {
+                        alg_guess.copy_from_slice(&footing_guess);
+                    }
+                    continue;
+                }
+            }
+            if accepted {
+                stage_cut = false;
+            }
             if accepted {
                 // FSAL: the derivative at t+h.
                 match self.eval_point(t + h, &y5, &mut values, &mut k[6], &mut alg_guess) {
@@ -502,6 +662,7 @@ impl CompiledModel {
                         && !event_retake_off()
                     {
                         retaken = true;
+                        long_end = Some((t + h, indicators_new.clone()));
                         // The search put `theta` a hair past the
                         // crossing; the cut step ends a hair before it,
                         // so that none of its stages, nor its far end,
@@ -559,6 +720,7 @@ impl CompiledModel {
                         &mut state,
                     ));
                     t = t_event;
+                    long_end = None;
                     or_stall!(self.eval_point(t, &y, &mut values, &mut k[0], &mut alg_guess));
                     indicators_prev = self.indicator_values(t, &values);
                     handled_at = t;
@@ -629,6 +791,12 @@ impl CompiledModel {
                 t += h;
                 y.copy_from_slice(&y5);
                 k.swap(0, 6);
+                if long_end
+                    .as_ref()
+                    .is_some_and(|(t_end, _)| *t_end <= t + 1e-12)
+                {
+                    long_end = None;
+                }
 
                 // The pivot that chose the states would choose otherwise
                 // here: hand the run back for a re-selection while the
@@ -737,5 +905,67 @@ impl CompiledModel {
             },
             SolverMethod::Dopri45,
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::hidden_crossing;
+
+    fn stages(readings: &[(f64, f64)]) -> Vec<(f64, Vec<f64>)> {
+        readings.iter().map(|&(c, v)| (c, vec![v])).collect()
+    }
+
+    #[test]
+    fn a_stage_on_the_other_side_ends_the_step_there() {
+        let inside = stages(&[(0.2, 0.5), (0.3, -0.1), (0.8, -0.4), (8.0 / 9.0, 0.2)]);
+        assert_eq!(hidden_crossing(&[1.0], &inside, &[1.0], 0.0), Some(0.3));
+    }
+
+    #[test]
+    fn a_dip_between_two_stages_is_found_by_its_parabola() {
+        // (x - 0.55)^2 - 0.01: below zero on 0.45..0.65, no stage there.
+        let f = |x: f64| (x - 0.55f64).powi(2) - 0.01;
+        let inside = stages(&[
+            (0.2, f(0.2)),
+            (0.3, f(0.3)),
+            (0.8, f(0.8)),
+            (8.0 / 9.0, f(8.0 / 9.0)),
+        ]);
+        let theta = hidden_crossing(&[f(0.0)], &inside, &[f(1.0)], 0.0).unwrap();
+        assert!((theta - 0.55).abs() < 1e-9, "{theta}");
+    }
+
+    #[test]
+    fn a_curve_that_only_comes_near_says_nothing() {
+        let f = |x: f64| (x - 0.55f64).powi(2) + 0.01;
+        let inside = stages(&[
+            (0.2, f(0.2)),
+            (0.3, f(0.3)),
+            (0.8, f(0.8)),
+            (8.0 / 9.0, f(8.0 / 9.0)),
+        ]);
+        assert_eq!(hidden_crossing(&[f(0.0)], &inside, &[f(1.0)], 0.0), None);
+        // Ends that differ are the end search's to find.
+        assert_eq!(hidden_crossing(&[1.0], &inside, &[-1.0], 0.0), None);
+    }
+
+    #[test]
+    fn a_sign_turned_by_rounding_alone_is_not_a_crossing() {
+        // The velocity of a stuck friction element, at rest on zero.
+        let inside = stages(&[
+            (0.2, -3.6e-18),
+            (0.3, -7.9e-18),
+            (0.8, 3.0e-16),
+            (8.0 / 9.0, 9.1e-16),
+        ]);
+        assert_eq!(
+            hidden_crossing(&[-3.6e-18], &inside, &[-3.6e-17], 1e-9),
+            None
+        );
+        assert_eq!(
+            hidden_crossing(&[-3.6e-18], &inside, &[-3.6e-17], 0.0),
+            Some(0.8)
+        );
     }
 }
