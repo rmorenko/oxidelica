@@ -49196,3 +49196,106 @@ floors stay where the runner set them.
    `PlanarLoops_analytic` already called a wall.
 3. A `stateSelect` written as an array of literals is read as the
    default for every element (`Sc6n2`).
+
+## The coverage map read against the tests that arrived since it was written (m439)
+
+A documentary shift, on Roman's word of 2026-10-16: bring
+[COMPLIANCE.md](COMPLIANCE.md) to the tree by evidence. Nothing in the
+compiler changed and no floor moves. Files below are under `/tmp/m439/`;
+the probe models are parked in `~/oxideflow/park/m439-models/`, the
+tests sorted by chapter in `~/oxideflow/park/m439-tests-by-chapter.tsv`.
+
+### How many tests arrived
+
+The map was last revised in `fef9a92` on 18 September; 796 commits
+stand between it and the shift's start (795 to `4e2a9e3`, the order
+quoted 790). The order's own command, a diff grepped for added `fn`
+lines over the test directories, prints 276 and was reproduced. It is
+not the number of tests: it misses the parser's `tests/flattening/`
+files and every unit test in the crates' sources, and it counts fifteen
+helpers (`last_of`, `pendulum_states`, `fitted_inverse` and others).
+Counted by `#[test]` marks, the tree went from 810 to 1141 named tests,
+330 new (`tests_old.txt`, `tests_new.txt`, `final2.tsv`), none removed.
+
+Sorted by chapter, 223 are about the language: 85 functions and
+records, 44 initialisation, 23 events, 29 arrays, 19 lookup and
+flattening, 8 connections, 6 clocks, 5 algorithms, 2 classes, 2
+streams. The other 107 are about the solver and numerics (56), index
+reduction (29), refusals (13) and the tools (9). The sort reads names
+and, where the name did not say, the body; a test can sit in two
+chapters and has been put in one.
+
+### What the map said wrongly
+
+Read against the tests, seven passages said less than the tree or the
+opposite, and were corrected in `d39ee3d`, each naming its test:
+functions as arguments (said absent, tested since `368318e`, 31
+August), a walked body with several outputs (said refused, tested since
+26 September), `nominal` and `stateSelect` (said ignored, both read),
+`noDerivative` (said read past, honoured), `der` of a linear
+expression, joined `assert` messages and four string functions. The
+library paragraph still said 502 flatten and 140 run of 1043. No status
+in the table moved: every one stands on a wall that is still there.
+
+Then each statement nothing tested was put to the binary with a small
+model, and three came back as wrong numbers without a refusal, which
+the map had stated as working (`06e7417`, `e9e8ea1`):
+
+1. `spatialDistribution` remembers its profile only at output points
+   (`remember_delays` from `record_row`, `solvers/mod.rs`), and reads
+   between them in a straight line. A profile fed `time^2` gives 1.12
+   at `t = 2` where 1.00 is owed on an interval of 0.7, and 1.00 on 0.1.
+   `delay` is built the same way and says so honestly; the map claimed
+   the profile was exact.
+2. A `zeroDerivative` rule is put in place without asking whether the
+   input it names stands still (`inlining.rs`, the `differentiable`
+   filter). Over `d = 1 + time` the rate comes out 0.5 to 0.33 where
+   it is zero; with `d` a parameter it is right.
+3. A run-time `if` equation whose condition an algebraic loop settles
+   runs its `else` until the first output point (`settle_modes` in
+   `compile.rs` follows plain definitions, not loops): `z(1)` is 0
+   where it is 1. The `if` expression of the same shape is right.
+
+The three are written as tests that fail today, parked as
+`~/oxideflow/park/m439-red-tests.diff`, seen red and taken out of the
+tree. Then the chapters marked Full were put to the binary the same
+way - 7, 13, 14, 15, 16, 17, 19 and the lexer of 2 - and two more
+wrong answers came back, each with its own red test in the same diff:
+
+1. Ch. 17: a state entered on a tick does not run its equations on
+   it, and `ticksInState()` answers zero there. 17.1's own example
+   (`A1` entered at 10 ms, left on `ticksInState() >= 5` by a delayed
+   arrow) is active through 15 ms where the chapter says 14. Beside it,
+   two `initialState`s in one class are refused, so 17.3.7's parallel
+   machines do not read, and an empty state block is refused.
+2. Ch. 13: `walk_out` in `flatten/lookup.rs` stops at an `encapsulated`
+   package for classes only; a constant of the enclosing package is
+   read inside the wall, in an equation and in a function body.
+
+Both chapters moved from Full to Mostly on that evidence, the only two
+status moves of the shift. The rest held to the number: inheritance
+(`final`, `protected`, `constrainedby`, `break`), units (`m(1/2)`,
+a mismatch refused), stream mixing and reversal, `sum` over operator
+records, the sampled and shifted clocks, array algebra.
+
+A sixth defect names the wrong wall: `(p, q) = f(u)` in the
+continuous equations, `f` holding a `while`, is refused for a trip
+count, though the same call runs inside a `when` or as `p = f(u)`.
+
+### Roads not taken
+
+The negative half - what narrowed or broke in a month - is not visible
+in added tests and was not read. `COMPLIANCE.md` alone among the
+project's documents has no Russian mirror; translating it is a shift of
+its own and was not begun.
+
+### The census, fresh
+
+`/tmp/m439/census.txt`, counted by section boundaries: 67 models in 39
+rows would not flatten, 179 in 129 rows flattened and would not run,
+against 180 in 130 in `/tmp/m434/census.txt`. The densest family of the
+run half is the algebraic loop: 37 models in 7 rows (underdetermined,
+Newton direction, singular Jacobian 8 each, then 5, 4, 2, 2), the rows
+added because they share a layer. Structurally singular is larger in
+models (47) but spread over 42 rows. The pass took 1114 seconds where
+six minutes was expected, against 1089 for m434's: the same weather.
