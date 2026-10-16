@@ -572,7 +572,14 @@ number of those. Nothing left to work a clock out from is refused too:
 an unsettled clock would have nothing lifted onto it, and the equations
 meant to tick would quietly stay continuous.
 
-Chapter 16 is complete.
+Chapter 16 is complete in what it computes. One form is refused: the
+constructors by argument name -
+`Clock(condition = c, startInterval = 0.1)`,
+`Clock(intervalCounter = 3, resolution = 10)`,
+`Clock(c = k, solverMethod = "ExplicitEuler")` - since only `interval`
+and `resolution` are known by name; every one of them works written by
+position. Probed on 16 October with a count of ticks and an interval
+worked by hand for each form, and those held.
 
 **State machines** (ch. 17) are built on the clock: states are block
 instances, `initialState` and `transition` declare the graph, and
