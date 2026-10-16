@@ -49937,3 +49937,50 @@ others (`InvertersExtendedModel`, `Nor`, `MosfetCharacterization`)
 moved to `no equation determines vin.T0`, and `ONEBIT` did not finish
 within 60 s. This is the material of the next order; no code was
 written for it.
+
+### The reference on its first outing: a chain in the time tables
+
+With the order's list done, the 55 models the run list counts and
+`dopri45` does not run to their stop time were sorted by refusal
+(`/tmp/m441/dopri_refused.tsv`). Four of them are a model's own check
+saying the model is wrong: `ModelicaTest.Tables.CombiTimeTable.Test10`,
+`11`, `12` and `14` stop on `assert(err1.y <= threshold)` on `dopri45`
+and `rk4` alike, and run on `bdf`. A model that is wrong by its own
+check on two solvers is the kind of number this instrument is for.
+
+Shrunk to eight lines (`TT.mo` in the park below): a `CombiTimeTable`
+of one row `{1, 1}` with `startTime = 1` beside a `Step` with the same
+start, the integral of their squared difference. `dopri45` writes two
+rows at t = 1, the table already 1 and the step still 0 in the first,
+and the integral picks up 6.8e-9.
+
+1. The table's next event is answered from its rows alone, 2, where
+   the library's C code answers its start time while `t < startTime`
+   (`ModelicaStandardTables.c`, the `nextTimeEvent` of the time
+   table). So the jump at 1 was not announced. Mended in
+   `flatten/tables.rs` with a test, red before (`nextT` read 2) and
+   green after. The four models did not move.
+2. Behind it: the table's value reads `if timeScaled < 1`, with
+   `timeScaled = time/timeScale` an algebraic variable, while the step
+   reads `if time < 1`. A relation on `time` itself is held until its
+   scheduled event; the same relation through an algebraic copy of
+   `time` is read live, at every stage. Eight lines, `TT2.mo`:
+   `s = time`, `a = if time < 1 ...`, `b = if s < 1 ...` turn in
+   different rows at t = 1 on `dopri45` and on `rk4`, and together on
+   `bdf`. Not mended.
+
+The first link, checked against the reference with one binary (`ox7`,
+`/tmp/m441/ox7_check.tsv`): 324 held, 11 moved, all
+`CombiTimeTable` tests, each by one event more (3 to 4, 4 to 5, and 9
+to 10) - the table's start, now announced. The change is true by the
+library's own C code and moves no number of the final points. But a
+fingerprint that moves is explained in the commit that moves it, and
+a chain that has not been walked to its end is not taken a link at a
+time; the second link is a question of how a relation on `time` is
+recognised through an algebraic alias, which is a layer of its own.
+So the first link is parked whole, with its test, in
+`~/oxideflow/park/m441-table-start/` (`link1.patch`, `TT.mo`,
+`TT2.mo`, `ox7_check.tsv`), and the tree is as it was. What it shows
+about the instrument: on its first outing the reference named the
+eleven models a change true in itself moved, by name and by the unit,
+in 98 seconds.
