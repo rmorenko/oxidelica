@@ -832,7 +832,11 @@ moved chapters 3 and 13 to Mostly and chapter 17 to Partial:
    four, and the `cos` case is older still. The indicators are compared
    at the two ends of a step only, and a smooth state lets the step grow
    past half the signal's period, so two crossings inside one step
-   cancel; a state that forces short steps finds all seven. Chapter 8
+   cancel; a state that forces short steps finds all seven. It reaches
+   the standard library's own blocks: `Sources.Sine` into
+   `Logical.GreaterThreshold(threshold = 0.5)` through `BooleanToReal`
+   into `Continuous.Integrator` ends at 0.974 on `dopri45` and 0.136 on
+   `bdf` where 0.346 is owed, and `rk4` gives 0.340. Chapter 8
    stays at Mostly, where it already stood.
 
 The rest came back as the map says:

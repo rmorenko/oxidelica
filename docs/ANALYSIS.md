@@ -49331,6 +49331,17 @@ of one chapter:
    relation. The output interval does not bound the step, which is why
    a finer grid does not help.
 
+   And it is not only a small model's fault. Four standard-library
+   blocks - `Sources.Sine(f = 20/(2*pi))` into
+   `Logical.GreaterThreshold(threshold = 0.5)` through
+   `Math.BooleanToReal` into `Continuous.Integrator` - integrate the
+   time the sine spends above a half, which is 0.3455 over the first
+   second. `dopri45` answers 0.974, nearly three times as much, `bdf`
+   0.136, and `rk4` 0.340; the commit before `0bf1b70` gave 0.136 on
+   `dopri45` as well. Any library model whose threshold reads a signal
+   that oscillates faster than the states move is exposed, and the
+   floors cannot see it.
+
 Eight tests in `~/oxideflow/park/m439-red-tests.diff`, one for each of
 the seven wrong answers and a second for the sticking relation, all
 seen red on `b423286`. None is in the tree: the shift was documentary,
