@@ -48231,8 +48231,27 @@ The same model runs with a two-way `if` (`Fr3d.mo`), with no `if`
 (`Fr3e.mo`), with the matrix field written as a literal, and with the
 condition settled as a constant it still fails. So the layer is the
 record value of a nested `if` whose branches go through a body with
-`if`-valued locals, most likely in `record_value_per_field`
-(`components.rs`) or the `If` arm of `expand` (`arrays.rs`). It was
-not taken further. It is a wrong number waiting to happen as much as
-a refusal, because the binding vanishes without a word, and it is
-worth a shift of its own.
+`if`-valued locals.
+
+A throwaway print in `record_value_per_field` (`components.rs`, after
+the value is worked out; parked as `~/oxideflow/park/m435-probes.diff`)
+names the layer. For `Fr3b` the worked value has two entries, one per
+field, and four leaves: the matrix field comes back whole, as
+`If(k == 1, from_nxy(n_x, n_y), If(k == 2, from_nxy(...), ...))`, one
+leaf where nine numbers belong. For the two-way `Fr3d` the same print
+shows twelve leaves, the nine of the matrix and the three of `w`. So
+the `If` arm of `expand` (`arrays.rs`) writes the two-way choice out
+element by element, and the nested one, whose inner branch is a call
+answering with a matrix, stays a scalar. Four leaves fit none of the
+lengths `record_value_per_field` accepts, and the value is dropped
+without a word, leaving every field `bound to: nothing`. A
+record-valued variable goes the same way (`Fr3f.mo`: zero equations
+for twelve unknowns).
+
+Two things to take, separately. The drop is silent where it should
+refuse, naming the field whose value did not come apart: that alone
+turns the message from a parameter with no value into the cause. And
+the nested `if` should write its branches out the way the two-way one
+does. Neither was built here. The cylinder is one model, and the
+`Engine*` analytic models that hold the same `FixedRotation` stop
+earlier, so a pair would show what the fix buys.
