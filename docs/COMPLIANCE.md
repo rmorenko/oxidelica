@@ -846,9 +846,12 @@ moved chapters 3 and 13 to Mostly and chapter 17 to Partial:
 4. Ch. 17: a state entered on a tick does not run its equations on
    that tick, and `ticksInState()` answers zero there. 17.1's own
    example is active from 10 ms through 15 where it should stop at 14.
+   The layer is in `crates/oxidelica-parser/src/flatten/machines.rs`,
+   named in the chapter's own passage above.
 5. Ch. 13: the `encapsulated` wall stops classes and not constants: a
    constant of the enclosing package is read inside the wall, `y = 3`
-   where a refusal is owed.
+   where a refusal is owed. The two lookup roads are named in the
+   chapter's passage above.
 6. Ch. 3: `semiLinear(m, a, b)` with slopes that are names - a
    parameter or a variable, not a literal - reads `a - b` at zero flow
    where it is zero. The rewrite that supplies a stream's missing
@@ -895,7 +898,10 @@ moved chapters 3 and 13 to Mostly and chapter 17 to Partial:
    the start time for
    the whole run, where 3.8 says a binding may be no more variable than
    the name it binds and a refusal is owed. One bound to a plain
-   variable is refused, naming it. Chapter 3 is already at Mostly.
+   variable is refused, naming it. Parameters are settled with the
+   evaluator's time at the start (`crates/oxidelica-sim/src/code.rs`),
+   and the type check reads `time` as a `Real` with no variability.
+   Chapter 3 is already at Mostly.
 9. Ch. 8: a parameter left free by `fixed = false` and settled by an
    initial equation that reads a state is solved and then not used
    except as an alias. With `initial equation p = 2 * x`, a variable
@@ -955,6 +961,14 @@ outputs (said to be refused, tested since 26 September). Six more were
 narrower than the tree: `nominal`, `stateSelect`, `noDerivative`, `der`
 of an expression, the joined `assert` message and the string
 functions.
+
+Narrowed later by probes and said in their passages: `Clock` takes two
+of its argument names, a `min` or `max` is checked at output points, an
+index outside an array writes `NaN` and the run succeeds, factorial as
+an `if` expression is refused, and three forms are refused that should
+not be - `(g(3))[1]` and its kin, a variable record bound by its
+constructor over field defaults, and an undeclared bus member reached
+through a short connector.
 
 One more defect turned up on the way, written here rather than fixed: a
 tuple `(p, q) = f(u)` among the continuous equations, where `f` holds
