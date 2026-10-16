@@ -881,11 +881,14 @@ moved chapters 3 and 13 to Mostly and chapter 17 to Partial:
    the name it binds and a refusal is owed. One bound to a plain
    variable is refused, naming it. Chapter 3 is already at Mostly.
 9. Ch. 8: a parameter left free by `fixed = false` and settled by an
-   initial equation that reads a state is solved and then not used. With
-   `initial equation p = 2 * x` and `der(x) = -p * x`, a variable
-   `q = p` reads 2 and `x` stays at 1 where `exp(-2)` is owed: the state
-   equation runs on zero. Settled by `p = 2`, with no state in the
-   equation, it is right.
+   initial equation that reads a state is solved and then not used
+   except as an alias. With `initial equation p = 2 * x`, a variable
+   `q = p` reads 2, while `y = p * x` reads 0 and `der(x) = -p * x`
+   leaves `x` at 1 where `exp(-2)` is owed. Settled by `p = 2`, with no
+   state in the equation, it is right. The library's one running example
+   with such a parameter, `HeatTransfer.Examples.TwoMasses`, settles
+   `T_final_K` at 323.15 as it should and reads it nowhere, which is why
+   no floor met this.
 
 The rest came back as the map says:
 

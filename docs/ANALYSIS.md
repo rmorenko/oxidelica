@@ -49362,12 +49362,13 @@ than in a corner of one chapter:
    to a plain variable is refused, so the check exists and does not
    count `time` as a variable. Red test parked with the rest.
 4. A parameter left free by `fixed = false` and settled by an initial
-   equation reading a state - `p = 2 * x` - is solved, and a variable
-   bound to it reads the solved value, but the state equation it
-   appears in runs on zero: `der(x) = -p * x` leaves `x` at 1 where
-   `exp(-2)` is owed, on all three solvers. Settled by `p = 2` it is
-   right, which puts the fault where the solved value is handed to the
-   run rather than in the initial solve.
+   equation reading a state - `p = 2 * x` - is solved, and `q = p`
+   reads the solved 2, but `y = p * x` reads 0 and `der(x) = -p * x`
+   leaves `x` at 1 where `exp(-2)` is owed, on all three solvers. The
+   value reaches an alias and not an expression. Settled by `p = 2` it
+   is right. `oxidelica why` on `TwoMasses.T_final_K`, the library's one
+   running example with such a parameter, says "settled as: a parameter
+   worth 323.15", which is correct, and nothing in that model reads it.
 
 Ten tests in `~/oxideflow/park/m439-red-tests.diff`, one for each of
 the nine wrong answers and a second for the sticking relation, all
