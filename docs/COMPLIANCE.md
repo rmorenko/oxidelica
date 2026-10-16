@@ -261,7 +261,10 @@ quoted operator symbol excepted, since they exist to serve their
 record and still see it
 (`an_encapsulated_package_does_not_see_out_of_itself`). The wall
 stands for classes only: `walk_out` in
-`crates/oxidelica-parser/src/flatten/lookup.rs` stops there, and a
+`crates/oxidelica-parser/src/flatten/lookup.rs` stops there, while
+constants are found by a second road, `enclosing_constant_at` in
+`crates/oxidelica-parser/src/flatten/constants.rs`, which walks out
+through every enclosing package and asks nothing about the wall. So a
 constant of the enclosing package is still read by its simple name
 inside an encapsulated one, in an equation and in a function body
 alike, where 13.2.1.1 asks for a refusal. That is why the chapter is

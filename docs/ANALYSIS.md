@@ -49271,6 +49271,10 @@ wrong answers came back, each with its own red test in the same diff:
 2. Ch. 13: `walk_out` in `flatten/lookup.rs` stops at an `encapsulated`
    package for classes only; a constant of the enclosing package is
    read inside the wall, in an equation and in a function body.
+   Constants are found by a second road, `enclosing_constant_at` in
+   `flatten/constants.rs`, which walks out through every enclosing
+   package with no test of the wall - the same breed AGENTS.md names,
+   two lookups answering one question, the rule written into one.
 
 On that evidence chapter 13 moved from Full to Mostly, and chapter 17
 from Full to Partial on Roman's word of the same day, after a first
