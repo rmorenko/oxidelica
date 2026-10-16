@@ -48455,3 +48455,29 @@ and was declined for a constant with nothing to be, turned
 `a_constant_a_constructor_says_nothing_about_is_refused_not_zeroed`
 red; the refusal is now for a count that fits no length at all, and
 the layer that names the missing constant keeps its case.
+
+### What reduction 10 of `Rrr1` chose from
+
+A further switch in the probe tree (`OX436_AFTER`, binary
+`/tmp/m436/ox18`, `/tmp/m436/v20.txt`) asks after every demotion which
+rows holding a derivative now follow from the rest. Leaving aside the
+bare aliases of connection sets, which the class reading counts as
+implied by construction, exactly one row is ever turned into a copy:
+`eq 2036`, at reduction 10, by the demotion of `body1.v_0[2]`. The
+weighing at reduction 10 held one candidate, `body1.v_0[2]`, with
+`rev.w` reached at weight zero and `rev.phi` already spent by the
+retreat from reduction 8. So the walk had no choice to get wrong at
+reduction 10 either: once `body1.v_0[2]` stops being free, the
+velocity row supplied at reduction 7 through the rod's relative
+position and the constraint differentiated at reduction 10 through the
+driven revolute say the same thing.
+
+`Rrr1` is driven by a position source, so it has no degree of freedom
+left, and every state it declares has to be demoted. What the trail
+shows is that the loop's two position constraints reach the same
+velocity row by two roads, and the walk differentiates both. The
+question for the series is therefore not which victim, nor which
+member, but whether the reduction of reduction 7 should have been
+taken at all. That is the m433 reading again - one equation counted
+twice - located now at the reduction that counts it. It is not walked
+further here.
