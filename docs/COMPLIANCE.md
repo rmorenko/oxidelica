@@ -726,7 +726,10 @@ layer, by reading: `expand_buses` in
 `crates/oxidelica-parser/src/flatten/connections.rs` mints a member by
 instantiating the other side's class under the prefix `b.sig.`, which
 makes `b.sig.y` of a connector with a field and nothing at all of a
-short one, whose value is the connector itself. A library may be a directory tree, but
+short one, whose value is the connector itself. Every bus of the
+standard library declares the members it carries, so no library model
+meets this; a model of one's own that leaves the bus empty, as 9.1.3
+allows, does. A library may be a directory tree, but
 a file's place in it comes from its `within` clause rather than from
 where the file sits, so a tree without `within` headers is read as
 though it were flat.
