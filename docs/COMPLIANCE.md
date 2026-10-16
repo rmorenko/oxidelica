@@ -18,11 +18,11 @@ under a chapter works as specified for the subset this project covers.
 | 10  | Arrays                        | Mostly  |
 | 11  | Statements and algorithms     | Partial |
 | 12  | Functions                     | Mostly  |
-| 13  | Packages                      | Full    |
+| 13  | Packages                      | Mostly  |
 | 14  | Overloaded operators          | Full    |
 | 15  | Stream connectors             | Full    |
 | 16  | Synchronous language elements | Full    |
-| 17  | State machines                | Full    |
+| 17  | State machines                | Mostly  |
 | 18  | Annotations                   | Mostly  |
 | 19  | Unit expressions              | Full    |
 
@@ -252,10 +252,17 @@ instance to own a value. The imports are all four forms (`import A.B;`,
 reaching a package's constants as well as its classes but outranked by
 a component of the model with the same name; `extends` merges a base
 package's constants into the derived one, later declarations winning;
-and `encapsulated` is a wall a simple name inside a package does not
-reach past, so it must be imported or built in - the overloads under a
+and `encapsulated` is a wall a class named simply inside a package does
+not reach past, so it must be imported or built in - the overloads under a
 quoted operator symbol excepted, since they exist to serve their
-record and still see it.
+record and still see it
+(`an_encapsulated_package_does_not_see_out_of_itself`). The wall
+stands for classes only: `walk_out` in
+`crates/oxidelica-parser/src/flatten/lookup.rs` stops there, and a
+constant of the enclosing package is still read by its simple name
+inside an encapsulated one, in an equation and in a function body
+alike, where 13.2.1.1 asks for a refusal. That is why the chapter is
+not Full.
 
 **Unit expressions** (ch. 19) follow the grammar in full: the SI base
 and derived units with every prefix, the non-SI units the chapter names
@@ -561,7 +568,22 @@ and carries on by the one that did not. Two arrows out of one state
 saying the same thing about which goes first are refused, as the
 chapter requires.
 
-A model may hold several machines, and a state of one may hold others:
+A model may hold several machines, each in a class of its own: two
+`initialState`s in one class are refused as "one initial state too
+many" (`crates/oxidelica-parser/src/parser/classes.rs`), so the
+parallel machines of 17.3.7's own example, written side by side in
+`State1`, do not read. And a state's equations do not run on the tick
+it is entered on, and `ticksInState()` answers zero there where 17.1
+says one: the chapter's example of a state entered at 10 ms and left
+on `ticksInState() >= 5` by a delayed arrow is active here through
+15 ms where it should stop at 14. The tests that hold `reset` and
+`immediate` were written against this compiler's counts, and a repair
+here will have to read them again against 17.3.4 rather than trust
+them. And a state may not be empty: the example's own
+`block State end State;` is refused as "not a component with anything
+in it". Those are why the chapter is not Full.
+
+A state of one machine may hold others:
 the arrows say which, since a machine is a set of states joined by
 arrows and nothing joins one machine to another. A machine whose states
 all live under one state of another is inside it, and runs only while
@@ -582,8 +604,6 @@ here. Writing it both inside a state and outside every state is
 refused, since a variable has one definition. Every equation carries
 the instance it was written inside, which is what tells one state's say
 from another's when what they define lives outside them both.
-
-Chapter 17 is complete.
 
 **Annotations** (ch. 18) are read rather than stepped over. An
 annotation is a tree of `name = value` where a value is an expression -
@@ -712,7 +732,9 @@ binary with a small model, and what came back is said beside it; the
 models are kept outside the repository with the shift's notes. A probe
 is not a test, so every one of these is still owed one.
 
-Three came back as wrong numbers, with no refusal, and are first:
+Five came back as wrong answers, with no refusal, and are first. The
+last two were found by putting the chapters marked Full to the binary
+as well, and moved two of them to Mostly:
 
 1. Ch. 12: `zeroDerivative` is taken where the input it names moves.
    `f(x, d) = (1 + d)*x` with a body only the run can walk, a rule
@@ -734,13 +756,21 @@ Three came back as wrong numbers, with no refusal, and are first:
    interval of 0.5 where it should be 1. The sentence above says the
    condition "falls back to the `else`", which is true and is the
    defect: a silent branch is a wrong number, and a refusal is owed.
+4. Ch. 17: a state entered on a tick does not run its equations on
+   that tick, and `ticksInState()` answers zero there. 17.1's own
+   example is active from 10 ms through 15 where it should stop at 14.
+5. Ch. 13: the `encapsulated` wall stops classes and not constants: a
+   constant of the enclosing package is read inside the wall, `y = 3`
+   where a refusal is owed.
 
 The rest came back as the map says:
 
 1. Ch. 12: ten million rounds of one loop. The ceiling stands in
    `crates/oxidelica-sim/src/walk.rs` (`MAX_ROUNDS`) and no test reaches
-   it; the 64-call ceiling beside it is tested. Not probed: a probe
-   costs ten million rounds.
+   it; the 64-call ceiling beside it is tested. Probed, it fires: a
+   `while` that never ends is refused at `t = 0` with "took more than
+   10000000 rounds", in two and a half seconds and 190 MB, which is
+   cheap enough to be a test.
 2. Ch. 8: `delay` starting its memory over after a re-compilation. No
    test re-compiles a model holding a `delay`. Not probed.
 3. Ch. 9: a connection set matches connectors by shape. Two connector
