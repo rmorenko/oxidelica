@@ -48052,3 +48052,140 @@ read. None of this is taken: two for two is
 not a change, and the reading of starts it grows is the first wall of
 a chain (m428) whose other walls are not mapped. It is the place a
 series on silent starts begins, with `OneTank` the smallest member.
+
+## The analytic loops' first two links taken (m435)
+
+### Link 1: a flow counts as given only where it stands alone
+
+The rule that gathers the ports spoken for (`join_the_connections`,
+`flatten/mod.rs`) now counts a flow named from inside its owner only
+where it stands alone on one side of an equation. That is the equation
+a zero would duplicate. A flow read in a product, as the power check's
+`axis.f*der(axis.s)` reads it, has been used and not given, and the
+open port's zero is still owed. `Pw2.mo` (m434) is the test:
+`8 algebraic equation(s) for 9 unknown(s)` without the rule, and with
+it the model runs with `part.axis.f = 0` throughout.
+
+### Link 2, and why it is narrower than m431 wrote it
+
+The rule as m431 wrote it leaves to the initialisation any initial
+equation whose left side is kept between events and whose right side
+cannot be worked out before the run. One binary (`/tmp/ox435k`,
+both links behind throwaway switches), three main passes side by side
+under a 14 GB ceiling (`/tmp/m435/pair/off.txt`, `l1.txt`,
+`l12.txt`):
+
+| half              | flatten / run | runnable  | Jacobians | apart |
+| ----------------- | ------------- | --------- | --------- | ----- |
+| off               | 953 / 773     | 836 / 730 | 529       | 1974  |
+| link 1            | 953 / 773     | 836 / 730 | 529       | 1974  |
+| links 1, 2 (wide) | 953 / 762     | 836 / 719 | 499       | 1974  |
+
+The off half is the m434 reference line for line. Link 1 moves no
+list, as a link in the middle of a chain should not. The wide link 2
+bought `Fourbar_analytic` and cost twelve models: seven of the noise
+examples of `Blocks` (`AutomaticSeed`, `Distributions`,
+`DrydenContinuousTurbulence`, `NormalNoiseProperties`, `UniformNoise`,
+`UniformNoiseProperties`, and `DemonstrateContinuousSignalExtrema`)
+and five of the batch plant's tests (`TankWithEmptyingPipe1` and `2`,
+`TanksWithEmptyingPipe1` and `2`, `TwoTanks`). All twelve are refused
+as `initialization is not square` with more initial equations than
+unknowns, and the equations left over name the same kind of thing:
+`uniformNoise1.r_raw = ... xorshift128plus($pre.uniformNoise1.state)`
+for a noise generator's first draw, `$pre.tank1.aboveLevel[1] =
+tank1.level_start >= ...` for a tank, `signalExtrema3.y_min =
+signalExtrema3.u` for the extremum block. None of those is a
+parameter. They are discrete variables and memories started from a
+signal, for which the initialisation holds no unknown, so kept there
+their equations claim nothing. `positiveBranch` is a
+`parameter Boolean (fixed = false)`, which the initialisation does
+carry as an unknown.
+
+So the rule taken is narrower: only a parameter whose start cannot be
+worked out is left to the initialisation; every other start is spent
+as before. `Dx.mo`, a discrete extremum started from `u = 1 + time`
+and updated in a `when`, is the guard test: it runs under the narrow
+rule and is refused as not square under the wide one. Under the
+narrow rule the twelve and the four-bar ran 13 of 13 under
+`--only-from` (`/tmp/m435/narrow13.txt`), and the pair taken again from
+one binary (`/tmp/ox435n`, `/tmp/m435/pair2/l1.txt` against
+`l12n.txt`):
+
+| half                | flatten / run | runnable  | Jacobians | apart |
+| ------------------- | ------------- | --------- | --------- | ----- |
+| link 1              | 953 / 773     | 836 / 730 | 529       | 1974  |
+| links 1, 2 (narrow) | 953 / 774     | 836 / 731 | 529       | 1974  |
+
+The run list gained exactly `Fourbar_analytic` and lost nothing, and
+the flattened list is the same line for line. The rows of
+`cannot evaluate parameters` for `jointRRP` and `jointRRRN` did not
+move, since the engines and cylinders still stop at the parameters
+that only the sibling-member probe of m430 moves. The floors went with
+it: run 771 + 1 = 772, runnable run 728 + 1 = 729.
+
+### Links 3 and 4: a map for the series, not a change
+
+Measured on the new default, in a separate tree (`/tmp/m435/wt`,
+binary `/tmp/m435/oxw3`) holding the two links above, the m430
+sibling-member probe and link 3 behind a switch: a port counts as
+spoken for from above only where the equation's origin lies outside
+its owner, not merely where it differs from the owner.
+
+Link 3 alone is inert in the corpus. The main pass with and without
+its switch (`/tmp/m435/pair3/base.txt` against `l3.txt`) prints
+953 / 774, 836 / 731 and 529 Jacobians in both, with the flattened
+list, the run list and every refusal row the same line for line. The
+models it acts on stop earlier, at `cannot evaluate parameters` for
+`jointRRP` (three) and `jointRRR` (one), which is the m430 wall. So
+the honest order of the series is that wall first, then link 3.
+
+Under the sibling probe the five models of those two rows were read
+with and without link 3 (`--only-from`, `/tmp/m435/j/rrx_sib.txt`):
+
+| model                   | sibling only                                | sibling and link 3                      |
+| ----------------------- | ------------------------------------------- | --------------------------------------- |
+| `PlanarLoops_analytic`  | unbalanced, 3951 for 3975                   | structurally singular, orientation      |
+| `EngineV6_analytic`     | unbalanced, 8751 for 8787                   | structurally singular, a cylinder frame |
+| `CylinderBase`          | unbalanced, 2031 for 2037                   | structurally singular, piston frame     |
+| `Cylinder_analytic_CAD` | unbalanced, 2101 for 2107                   | structurally singular, piston frame     |
+| `Engine1b_analytic`     | singular, `der(world.frame_b.R.T[2,2]) = 0` | the same                                |
+
+Link 3 balances four of the five, and every one of them then stops
+in the reduction walk, which is where link 4 stands. `Engine1b`
+stops before link 3 on an equation of the world's own frame and is a
+different wall, not mapped here.
+
+Link 4 has an address. The victim print of `Rrr1` under links 1 to 3
+(`/tmp/m435/j/rrr1_victim.txt`) shows reduction 7 demote
+`jointUSR.rod1.rRod_0[2]` on the alias
+`rod2.frame_b.r_0[2] = jointRRR1.frame_b.r_0[2]`, and reduction 13
+take the same derivative a second time, as
+`der(rRod_0[2]) - (... sin(rev.phi)*rev.w ...)`. The reduction already
+asks whether a supplied row is one the system holds
+(`dependent_row_check`, `compile.rs`, before the victim is chosen),
+and the check said nothing because it reads rows linearly with
+numeric coefficients only (`read_real`, `hidden.rs`): a product of two
+unknowns, `sin(rev.phi)*rev.w`, gives up the row as unreadable rather
+than as independent. The copy m433 found in `Rrr1` is such a row;
+whether the copies in the cylinders are too was not read.
+
+What would take link 4 is a dependence check that sees nonlinear
+copies: substitute the system's own definitions into the supplied row
+(the inner assignment
+`der(rRod_0[2]) = der(frame_b.r_0[2]) - der(frame_a.r_0[2])` and the
+aliases down to `rev`), and refuse the member when what is left is
+identically zero, tested at a few random points of its names rather
+than symbolically. Its price is the substitution per member of a
+singular subset, bounded by the subset's size, and its danger is a
+row that vanishes at the random points by coincidence; three points
+make that a measure-zero risk. It is measured the way links 1 and 2
+were: `Rrr1.mo` as the small model, then a pair over the main pass.
+
+So the plan for the series, in order, each with its own pair:
+the m430 sibling member (moves four models from the parameter rows
+into balance checks), link 3 (balances them), link 4 (the nonlinear
+dependent row). With all three the estimate is that
+`PlanarLoops_analytic` and the cylinders reach the run, but it is an
+estimate: link 4 was not built here, and past it lies the power
+check's spending of the drive's angle (m434), which may still stand
+in `PlanarLoops_analytic` with its checks on.
