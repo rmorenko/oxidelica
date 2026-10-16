@@ -49424,7 +49424,12 @@ written - whether the held input moves, and whether `time` counts as
 varying. For the first, reading confirms it: the one use of
 `derivative_needs_still` (`flatten/inlining.rs`, the `differentiable`
 filter) takes the named input's seed away so the rule's arity fits, and
-nothing anywhere asks whether that input is a parameter.
+nothing anywhere asks whether that input is a parameter. For the
+second: the evaluator in `crates/oxidelica-sim/src/code.rs` answers
+`time` with the context's time, which when parameters are settled is
+the start time, so `2*time` settles to zero like any constant
+expression; the check on variability (`check.rs`) types `time` as a
+`Real` and nothing more. All nine wrong answers now have a named layer.
 
 Ten tests in `~/oxideflow/park/m439-red-tests.diff`, one for each of
 the nine wrong answers and a second for the sticking relation, all
