@@ -49342,6 +49342,19 @@ of one chapter:
    that oscillates faster than the states move is exposed, and the
    floors cannot see it.
 
+   Whether a running library example is hit was asked and not answered.
+   Of the 774 the runner ran, nine name a threshold, a hysteresis or a
+   comparator in their source; each was run to its own `StopTime` on
+   `dopri45` and on `bdf` under a 40 second ceiling and the final points
+   compared (`/tmp/m439/cmp/out2.tsv`). Three agree to 5 percent -
+   `OpAmps.Comparator`, `Utilities.SwitchedCapacitor`,
+   `ControlledTemperature` - and in the other six one solver or the
+   other did not finish. Agreement of two solvers that share the
+   fault is no evidence either way; the instrument for it is a third,
+   `rk4` against a hand-worked number, and an earlier screen against
+   `rk4` was thrown away because its wrapper dropped each model's
+   `StopTime` and measured all of them at one second.
+
 Eight tests in `~/oxideflow/park/m439-red-tests.diff`, one for each of
 the seven wrong answers and a second for the sticking relation, all
 seen red on `b423286`. None is in the tree: the shift was documentary,
