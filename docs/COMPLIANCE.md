@@ -820,8 +820,11 @@ moved chapters 3 and 13 to Mostly and chapter 17 to Partial:
    at output points, with no event at the crossing. The step taken
    again short of a crossing (`0bf1b70`, 14 October) took the Boolean
    from three turns of seven to one; the commit before it already lost
-   four, and the `cos` case is older still. Chapter 8 stays at Mostly,
-   where it already stood.
+   four, and the `cos` case is older still. The indicators are compared
+   at the two ends of a step only, and a smooth state lets the step grow
+   past half the signal's period, so two crossings inside one step
+   cancel; a state that forces short steps finds all seven. Chapter 8
+   stays at Mostly, where it already stood.
 
 The rest came back as the map says:
 
