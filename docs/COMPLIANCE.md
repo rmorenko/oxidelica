@@ -814,8 +814,8 @@ binary with a small model, and what came back is said beside it; the
 models are kept outside the repository with the shift's notes. A probe
 is not a test, so every one of these is still owed one.
 
-Ten came back as wrong answers, with no refusal, and are first. The
-last seven were found by putting the chapters to the binary as well, and
+Eleven came back as wrong answers, with no refusal, and are first. The
+last eight were found by putting the chapters to the binary as well, and
 moved chapters 3 and 13 to Mostly and chapter 17 to Partial:
 
 1. Ch. 12: `zeroDerivative` is taken where the input it names moves.
@@ -931,6 +931,11 @@ moved chapters 3 and 13 to Mostly and chapter 17 to Partial:
     algebraic equation(s) for 6 unknown(s)", its two boundary equations
     written a second time in the re-compiled model. Without the switch,
     or with one that never turns, it runs.
+11. Ch. 8 and 16: the same change of mode costs the sample tick after
+    it. A run-time `if` turning at 0.45 beside `when sample(0, 0.1)`,
+    or beside a `Clock(0.1)` counter, gives ten ticks over `[0, 1]`
+    where there are eleven: the tick at 0.5 is lost. Without the switch
+    both count eleven.
 
 The rest came back as the map says:
 
