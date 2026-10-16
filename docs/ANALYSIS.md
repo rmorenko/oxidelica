@@ -48910,3 +48910,234 @@ row for its own series.
    `Sc12` and `Sc13` still running is the acceptance.
 2. The chain as m436 left it, links 3 to 5 in the park, not taken.
 3. The four calls, by a rule for a walked `smoothOrder` body.
+
+## The desk's band moved, and the cylinder's chain walked to two walls (m438)
+
+One change to the tree, on Roman's word of 2026-10-16: the desk's band
+on the ratio of the two halves' times went from 0.80..1.36 to
+0.64..0.91 (`da41043`), in a commit of its own so that it can be taken
+back alone. The rest of the shift is probes, in a separate tree,
+parked as `~/oxideflow/park/m438-probes.diff` over the m437 diff, with
+the small models in `~/oxideflow/park/m438-models/`. Files below are
+under `/tmp/m438/`. No floor moves.
+
+### The desk's band on five quiet passes
+
+The edge of 0.80 had gone red on every quiet preflight since the
+compiler changed, which made the guard dead. Five quiet passes on the
+new compiler stand under the new edges, read again from their
+preflight files: m431/lib2 at 0.786, m431/pf_full at 0.775, m432/pf at
+0.768, m433/pf at 0.781 and m435/pf at 0.769. Two were left out as a
+busy desk, m431/pf_quick at 0.673 and m429/pf at 0.635. What sorts the
+two groups is flattening, not the ratio: the quiet five flatten at
+4142..4295 ms per model, the busy two at 5034 and 6592. The room is the
+one kept on 2026-10-12 and 2026-10-14, made the same way, by division
+under and multiplication over: 0.768 / 1.189 = 0.6459, written 0.64,
+and 0.786 x 1.158 = 0.9102, written 0.91. The band's self-test moved
+with it, since four of its five probes broke under the new edges; it
+now holds 0.768, 0.786 and 0.775 inside and 0.600 and 0.953 outside,
+the last being the old compiler's quiet point.
+
+The first preflight on the new edges, quiet, printed
+(`/tmp/m438/pf.txt`):
+
+```text
+ratio: run/flatten is 0.787, inside 0.64..0.91
+OK: 4272ms per model flattening, 3360ms running
+```
+
+A sixth quiet point, flattening at 4272 inside the quiet group's
+4142..4295, and just above the highest of the five. What the band no
+longer sees: a busy desk of 0.673 now passes and only one as bad as
+0.635 stays red. Catching a busy desk is not the band's work, but
+whoever reads a green ratio on the desk should know it.
+
+### The reversed rows, taken as a family
+
+m437 left one pair forbidden (`w_rel_ia1[1]` solved for
+`der_rRod_a_L[2]`) and the reversed road moved to a neighbour. The
+family probe (`OX438_AVOID_FAMILY`, a row and a name by substring) and
+the run on `Sc6`:
+
+| run        | pairs forbidden           | how       | victims | `bearing.phi` | where it stops                          |
+| ---------- | ------------------------- | --------- | ------- | ------------- | --------------------------------------- |
+| `Sc6`      | none                      |           | 24      | demoted       | singular Jacobian                       |
+| `Sc6_fams` | every row to every `[*]`  | rank      | 24      | demoted       | singular Jacobian, 943 now backwards    |
+| `Sc6_fam`  | every row to every `[*]`  | taken out | 4       | kept          | reduction 4, `der(rRod_0[3])` unmade    |
+| `Sc6_p2s`  | rows 941 and 943 to `[2]` | rank      | 24      | demoted       | a loop not naming `der(..._L[2])`       |
+| `Sc6_p2`   | rows 941 and 943 to `[2]` | taken out | 20      | kept          | reduction 21, through `der_rRod_a_L[1]` |
+
+Rows are `w_rel_ia1[1..3]` (equations 941 to 943), names are
+`der_rRod_a_L[1..3]`.
+
+Ranked last, the forbidden pairing is still the one an augmenting path
+takes: with 941 kept forward the road goes through 943, whose pivot
+`e2_a[2]` is not zero, and the singularity is the same. Taken out of
+the matching, the walk breaks earlier, and on something of another
+kind: the alias for the rod's spin, `rod1.frame_ia.R.w[1] =
+frame_ia.R.w[1]`, asks for `der(rRod_0[3])` before any reduction has
+supplied it. So a ban on pairs is either too weak or too strong, and
+neither ends the chain.
+
+A ban by number rather than by name (`OX438_PIVOT_CSV`): every pairing
+whose slope reads zero at a point of the running twin `Sc13`'s
+trajectory is ranked last. It is a blunt instrument and the chapter
+says so: it flagged 134 distinct pairs in `Sc6` (`j/Sc6_zp.out`),
+among them 942 against `der_rRod_a_L[2]`, `e3_a[1]` and `e3_a[3]` as
+expected, but also 943 against `der_rRod_a_L[2]`, whose slope
+`e2_a[2]` reads 0.84 in that row of `Sc13.csv`, so it judges more than
+the zero pivots and why was not chased. With that said: the controls
+do not move under it (`Sc1` runs with 23 victims, `Sc13` with 20), and
+`Sc6` takes 44 victims with a retreat at reduction 12, still demotes
+`bearing.phi`, and stops on the `RelativePosition` sensor's row
+`der(r_rel[3]) = frame_a.R.T[3,3]*der(rRod_0[3])`, the second road of
+m437. Rows 1, 50 and 500 of `Sc13.csv` give the same 44.
+
+The rod's spin, the second road of the brief. `rod.w_a(each
+stateSelect = never)` (`Sc6n.mo`) changes nothing: at reduction 22 the
+tie is `rod.w_a[2]` against `rod.w_a[1]`, both at the weight never
+gives, and the walk takes `[1]`. Writing the attribute per element,
+`w_a(stateSelect = {avoid, never, avoid})` (`Sc6n2.mo`), is read as
+nothing at all: every element weighs 3.0, the default, which is a
+separate small fault in how an array attribute is read, recorded here
+and not chased. Forcing the weight by name (`OX438_SELECT`,
+`rod.w_a[2]=0.5`, `Sc6s2`) demotes the spin at reduction 22, and
+`bearing.phi` is spent at 23 regardless. And `oxidelica why` on
+`rod1.frame_ia.R.w[2]` prints the same two equations in `Sc1` and
+`Sc6`, as m437 found; what differs is when the walk reaches the alias.
+In `Sc1` it is the fifth reduction, before the rod's positions are
+supplied; in `Sc6` no reduction ever stands on it. So the spin is not
+a free degree the walk can be told to drop: dropping it late leaves
+the bearing to pay at the next reduction.
+
+The chain, as walked:
+
+1. `w_rel_ia1[1]` solved for `der_rRod_a_L[2]` through `e3_a[3]`, zero
+   on the whole trajectory (m437).
+2. Forbidden by rank, the same road through `w_rel_ia1[3]` (pivot
+   `e2_a[2]`, not zero), and the same singularity.
+3. Forbidden outright, the rod's spin alias needs `der(rRod_0[3])`
+   before it exists: a question of the walk's order, not of pivots.
+4. Ranked last by number (with the caveat above), the walk reaches
+   the `RelativePosition` sensor's row, which is the doubled supply
+   m437 named as the second road.
+
+So the chain ends in two walls, and both are of another family than
+the one it started in: the order in which the walk supplies a
+derivative (link 3), and the two differences of the same frame
+positions both differentiated (link 4). Neither is a pivot. Nothing in
+this section is a fix, and none of it was measured on the corpus.
+
+### `Cyl4` and a small model that is not it
+
+`Loops.Utilities.Cylinder` is not itself a model of the register: it
+is the utility behind `EngineV6` and `Engine1b`, which is what makes
+its wall worth mapping. `Cyl4` (the utility in the bearing wrapper) on the
+probe binary: 47 victims, `bearing.phi` demoted at reduction 23 and the
+refusal on `cyl.crank_a.R.T[2,3] = cyl.crankAngle1.frame_a.R.T[2,3]`
+at reduction 48. Reductions 21 to 24 all stand on the orientation
+alias `mid.frame_a.R.T[3,2..3] = crank2.frame_b.R.T[3,2..3]`, and at
+22 the tie is wide: ten candidates, `cylinder.s` and `b2.phi` among
+them. The walk takes `connectingRod.v_0[2]`; at 23 only `bearing.phi`
+is in reach. Three nudges by weight leave it where it was: the two
+loop coordinates made cheaper (`Cyl4_s`, `cylinder.s` is taken at 22
+and `bearing.phi` still at 23), the bearing made dearer (`Cyl4_b`), the
+connecting rod's frame positions made `always` (`Cyl4_cr`, 49 victims,
+`piston.r_0[2]` taken at 22). Every time the 23rd reduction has only
+the bearing to give. `why` on both sides of the refusal shows two
+aliases of the crank's orientation and nothing of the loop: the walk
+reaches the crank frame from the loop's orientation rows and never
+from `b1`, the `RevolutePlanarLoopConstraint`, whose rows are not named
+in the 48 reductions at all.
+
+A small model of the same loop (`Pl1.mo`, 26 lines: bearing, crank,
+cylinder top, `Prismatic`, piston, `Revolute`, `BodyShape` rod and the
+planar loop constraint) refuses as well, with 61 victims and the
+bearing's angle demoted twice. With the pin off the axis (`Pl2.mo`) it
+is the same 61. Its cause is not `Cyl4`'s: reduction 16 takes the
+member `bearing.R_rel.T[1,1] = e[1]^2 + (1 - e[1]^2)*cos(phi)`, which
+for `n = {1, 0, 0}` is the constant 1, and the parameter `e` is not
+folded into the row, so `phi` stands in it. Folding the axis
+parameters `e[1..3]` into the rows before reduction (`OX438_FOLD`)
+keeps `bearing.phi` in `Pl1` (24 victims) and the walk stops on the
+`Prismatic`'s row instead, with `cylinder.s` and `b2.phi` both demoted.
+The same fold leaves `Cyl4` exactly where it was (47 victims) and
+`PlanarFourbar` too, whose axes are `{0, 0, 1}` and whose `cos(phi)` is
+real. So `Pl1` is a small model of its own fault, an unfolded parameter
+that keeps a name in a row that does not depend on it, and not of
+either library model.
+
+### `Cyl1i`: the inclined cylinder
+
+`Cyl1i` (`CylinderBase` at -30 degrees) is refused on
+`der(der(piston.frameTranslation.frame_b.R.T[3,3])) = 0`, with
+`bearing.phi` spent at reduction 36 on the first derivative of that
+row, after a retreat at 29. Asking the matching where the row's name
+comes from (`OX437_WATCH_VAR` over the chain) walks it back alias by
+alias: the piston's frame, the joint's `frame_ib`, the prismatic's two
+frames, `jointRRP.frame_b`, and `cylinderInclination.frame_b =
+R_rel.T[3,3]*frame_a.R.T[3,3]`, where `frame_a` is the world's frame
+by aliases and `R_rel.T` is a parameter. At 0 degrees that parameter
+is the identity and folds away; at -30 it is a number that stays a
+name. So the orientation of the cylinder is a constant the rows do not
+know is constant, and the walk differentiates it twice and reaches the
+bearing through it.
+
+Folding the rotation parameters `R_rel.T[*]` into the rows
+(`OX438_FOLD`, 411 names) keeps `bearing.phi` in `Cyl1i` (64 victims)
+and `Sc1` running. The next link is `der(piston.body.frame_a.r_0[1]) =
+0`, reached through `der_rRod_a_L[1]`: the rod's rate along the
+bearing's axis, which is the trajectory-zero family of `Sc6` above. So
+`Cyl1i` walks one link and joins the wall of the uninclined cylinder.
+
+`Engine1b_analytic` under the same fold, with the m436 sibling probes
+beside it (`sib_Engine1b_analytic.txt`), no longer stops on
+`der(world.frame_b.R.T[...]) = 0`, the wall m435 recorded; it is
+refused on `relativePosition.relativePosition.r_rel[3] =
+relativePosition.r_rel[3]`, the sensor of link 4 above. Without the
+sibling probes it does not reach the walk at all and stops on `cannot
+evaluate parameters [jointRRP.e_ia[1] = ...]` (`e1b_fold.txt`), the
+wall m436 lifted only behind its switch.
+
+### What the fold costs, measured on the MultiBody examples
+
+The two folds as a pair from one binary (`oxq4`), over the 54 MultiBody
+examples the main pass reads (`mb.txt`), each half run with `--list`:
+
+| half                         | file         | flatten | run |
+| ---------------------------- | ------------ | ------- | --- |
+| no fold                      | `mb_off.txt` | 54      | 23  |
+| axes `e[*]` and `R_rel.T[*]` | `mb_on.txt`  | 54      | 21  |
+| axes `e[*]` alone            | `mb_e.txt`   | 54      | 23  |
+
+The run lists diffed: the wide fold loses
+`Elementary.DoublePendulumInitTip` (a loop that does not mention
+`boxBody2.body.a_0[3]` at the start) and
+`Systems.RobotR3.Utilities.MechanicalStructure` (refused on `r5.frame_b.r_0[2]
+= b5.frame_a.r_0[2]`), and wins nothing. The axes alone lose nothing
+and win nothing, and both lost models run under the axes alone when
+asked one by one. So folding the rotation parameters changes which
+states reduction keeps in two running models, as the note on
+definitions in `AGENTS.md` warns, and is a different compiler rather
+than a fix; folding the axes is free on this set and moves no library
+model either, since what it changes (`Pl1`) has no library twin here.
+Neither was run on the corpus, and the `Cyl1i` result rests on the wide
+fold.
+
+### What the cylinders ask next
+
+1. A constant orientation that the rows do not know is constant. Two
+   small models (`Pl1`, `Cyl1i`) lose the bearing's angle to a
+   parameter that stands in a row as a name, and keep it when the
+   parameter is folded in. Folding every `R_rel.T` costs two running
+   models of 23 (above), so the rule wanted is narrower: which
+   parameters, and folded where, so that `DoublePendulumInitTip` and
+   `MechanicalStructure` keep their states. Those two are the guard.
+2. The `RelativePosition` sensor's row: where the folded `Engine1b` and
+   `EngineV6`, the numerically guarded `Sc6` and link 4 all end. The
+   second road of m437, now the common wall of the cylinders. Behind
+   it in the register's queue by name stand `EngineV6_analytic` and
+   `Engine1b_analytic`: the line is worth those two, with
+   `PlanarLoops_analytic` already called a wall.
+3. A `stateSelect` written as an array of literals is read as the
+   default for every element (`Sc6n2`).
