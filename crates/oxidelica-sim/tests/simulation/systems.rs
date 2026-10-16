@@ -1683,3 +1683,38 @@ fn a_column_lost_in_a_loud_row_is_read_from_further_away() {
     // (1 + b^2)^2 + b = 2, solved to the last digit outside.
     assert!((last - 0.481_815_589_154_913_2).abs() < 1e-4, "b = {last}");
 }
+
+/// A port left open by the level above is owed a zero for its flow,
+/// and a part that reads that flow in a product - the power through
+/// the axis, `axis.f*der(axis.s)` - has used the flow, not given it.
+/// Counted as spoken for, the zero was withheld and the model was one
+/// equation short.
+#[test]
+fn a_flow_read_in_a_product_still_takes_the_open_ports_zero() {
+    let result = run("model Pw2 \
+           connector Flange Real s; flow Real f; end Flange; \
+           model Spring Flange a; Flange b; \
+           equation a.f = 10*(a.s - b.s); 0 = a.f + b.f; end Spring; \
+           model Mass Flange a; Real v(start = 0, fixed = true); \
+           equation der(a.s) = v; der(v) = a.f; end Mass; \
+           model Part Flange axis; Flange b; Spring spring; Real p; \
+           equation connect(spring.a, axis); connect(spring.b, b); \
+             p = axis.f*der(axis.s); end Part; \
+           Part part; \
+           Mass m(a.s(start = 1, fixed = true)); \
+         equation connect(part.b, m.a); \
+           annotation(experiment(StopTime = 1)); \
+         end Pw2;");
+    let f = result
+        .columns
+        .iter()
+        .position(|c| c == "part.axis.f")
+        .unwrap();
+    let s = result.columns.iter().position(|c| c == "m.a.s").unwrap();
+    for row in &result.rows {
+        assert!(row[f].abs() < 1e-12, "part.axis.f = {}", row[f]);
+    }
+    // Nothing pulls on the open axis, so the mass does not move.
+    let last = result.rows.last().unwrap();
+    assert!((last[s] - 1.0).abs() < 1e-9, "m.a.s(1) = {}", last[s]);
+}

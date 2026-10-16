@@ -1080,7 +1080,17 @@ fn join_the_connections(registry: &HashMap<&str, &ClassDef>, acc: &mut Flat) -> 
                 Some((owner, _)) => equation.origin != owner,
                 None => true,
             };
-            if from_above || flow_members.contains(&(path.to_string(), member.to_string())) {
+            // The flow is spoken for from inside only where it stands
+            // alone on one side of the equation, since that is an
+            // equation for the flow and a zero would be a second one.
+            // Read in a product - the power `axis.f*der(axis.s)` that
+            // a part reports through an open axis - it is used and
+            // not given, and the zero is still the equation it is
+            // owed.
+            let flow_named = flow_members.contains(&(path.to_string(), member.to_string()))
+                && (matches!(&equation.lhs, Expr::Ref(n) if n == name)
+                    || matches!(&equation.rhs, Expr::Ref(n) if n == name));
+            if from_above || flow_named {
                 spoken_for.insert(path.to_string());
             }
         }
