@@ -49366,7 +49366,18 @@ than in a corner of one chapter:
    reads the solved 2, but `y = p * x` reads 0 and `der(x) = -p * x`
    leaves `x` at 1 where `exp(-2)` is owed, on all three solvers. The
    value reaches an alias and not an expression. Settled by `p = 2` it
-   is right. `oxidelica why` on `TwoMasses.T_final_K`, the library's one
+   is right, and from a state it is right too once the parameter
+   declares a nonzero `start` of its own. The layer, found with the one
+   switch of 185 that moves it, `OXIDELICA_NO_ZERO_DER`: the rule that
+   quenches a term scaled by a parameter of exactly zero
+   (`quench_zero_derivatives`, `compile.rs`, `99be4a8`, there so that
+   `L * der(i) = v` with `L = 0` means a short) reads the parameters
+   before the initial solve, takes the default start of zero of a free
+   parameter for its value, and drops every term it scales. With the
+   switch, `exp(-2)` to every digit. This is the shape AGENTS.md
+   names - a rule true where it is read and false for the pass that
+   outlives it: `fixed = false` is the declaration that the value is not
+   known yet. `oxidelica why` on `TwoMasses.T_final_K`, the library's one
    running example with such a parameter, says "settled as: a parameter
    worth 323.15", which is correct, and nothing in that model reads it.
 

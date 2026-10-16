@@ -885,7 +885,13 @@ moved chapters 3 and 13 to Mostly and chapter 17 to Partial:
    except as an alias. With `initial equation p = 2 * x`, a variable
    `q = p` reads 2, while `y = p * x` reads 0 and `der(x) = -p * x`
    leaves `x` at 1 where `exp(-2)` is owed. Settled by `p = 2`, with no
-   state in the equation, it is right. The library's one running example
+   state in the equation, it is right, and so it is from a state when
+   the parameter declares a nonzero `start` of its own. The rule that
+   drops a term scaled by a parameter of exactly zero - there so that
+   `L * der(i) = v` with `L = 0` means a short - reads a free
+   parameter's default start of zero as its value before the initial
+   solve has given it one, and quenches every product it is in;
+   `OXIDELICA_NO_ZERO_DER` gives `exp(-2)` exactly. The library's one running example
    with such a parameter, `HeatTransfer.Examples.TwoMasses`, settles
    `T_final_K` at 323.15 as it should and reads it nowhere, which is why
    no floor met this.
