@@ -49411,7 +49411,12 @@ than in a corner of one chapter:
    is narrower than what it drops: states and discrete values come
    through right (`x = 1`, `d = 5` after a switch), and what is lost is
    what is kept against time - the delay's history and the time of the
-   next sample.
+   next sample. Reading names the place: `begin_segment_from` in
+   `crates/oxidelica-sim/src/solvers/mod.rs` clears every delay's
+   history at the start of each segment ("a segment remembers its own
+   past, from its own beginning"), and on a resumed segment it skips
+   `raise_time_events`, which is where a pending sample would be put
+   back. The probe for the lost tick should start at the second.
 
 The same sweep of every `OXIDELICA_NO_*` switch in the two crates (185)
 was run on the two wrong answers whose layer is still unnamed. Nothing
@@ -49447,7 +49452,7 @@ the start time, so `2*time` settles to zero like any constant
 expression; the check on variability (`check.rs`) types `time` as a
 `Real` and nothing more. Nine of the eleven wrong answers now have a
 named layer; the other two, the delay's lost history and the lost
-sample tick, share one - the re-compilation at a change of mode - and
+sample tick, share one - `begin_segment_from`, the start of the segment a change of mode re-compiles into - and
 where inside it each is dropped is left to a reading of the code.
 
 Twelve tests in `~/oxideflow/park/m439-red-tests.diff`, one for each of
