@@ -8,7 +8,7 @@ under a chapter works as specified for the subset this project covers.
 | Ch. | Area                          | Status  |
 | --- | ----------------------------- | ------- |
 | 2   | Lexical structure             | Full    |
-| 3   | Operators and expressions     | Full    |
+| 3   | Operators and expressions     | Mostly  |
 | 4   | Classes, types, declarations  | Mostly  |
 | 5   | Scoping, lookup, flattening   | Partial |
 | 6   | Type relationships            | Minimal |
@@ -323,7 +323,10 @@ model is being built, so the first pass is kept for its connections
 alone and everything is built again with the counts in hand - the same
 two passes `Connections.isRoot` already needed.
 
-Chapter 3 is complete.
+Chapter 3 is complete but for one wrong answer: `semiLinear` with
+slopes that are names reads their difference at zero flow, where it
+is zero, from a rewrite that supplies a stream's missing equation there
+(the sixth entry of the probes at the end of this map).
 
 **Arrays** (ch. 10) are nearly complete: literals, ranges, slicing with `end`,
 comprehensions, elementwise operators and the matrix algebra
@@ -717,10 +720,14 @@ a model's algorithm section, but only at the top of one - inside it
 may hold an algorithm of its own. `homotopy` takes the real problem and goes
 straight at it, which the specification permits and which means no
 continuation is run. The operators with declared argument names -
-`homotopy`, `Clock`, `smooth`, `delay`, `semiLinear`, the clocked
+`homotopy`, `smooth`, `delay`, `semiLinear`, the clocked
 conversions and `spatialDistribution` among them - take their arguments
 by name as well as by position, and a name none of them declares, or one
-given twice, is refused by that name. `Connections.root`, `potentialRoot`, `branch`,
+given twice, is refused by that name. `Clock` knows two of its names,
+`interval` and `resolution` (`crates/oxidelica-parser/src/flatten/names.rs`);
+`intervalCounter`, `condition`, `startInterval`, `c` and
+`solverMethod`, which 16.3 also names, are refused, so those clocks
+must be written by position. `Connections.root`, `potentialRoot`, `branch`,
 `isRoot` and `rooted` decide the roots of an overconstrained graph and
 refuse one with no root or with two. `rooted(a)` answers by depth in
 the spanning tree - whether `a` is the end of its branch nearer the
@@ -750,9 +757,10 @@ binary with a small model, and what came back is said beside it; the
 models are kept outside the repository with the shift's notes. A probe
 is not a test, so every one of these is still owed one.
 
-Five came back as wrong answers, with no refusal, and are first. The
-last two were found by putting the chapters marked Full to the binary
-as well, and moved chapter 13 to Mostly and chapter 17 to Partial:
+Six came back as wrong answers, with no refusal, and are first. The
+last three were found by putting the chapters marked Full to the binary
+as well, and moved chapters 3 and 13 to Mostly and chapter 17 to
+Partial:
 
 1. Ch. 12: `zeroDerivative` is taken where the input it names moves.
    `f(x, d) = (1 + d)*x` with a body only the run can walk, a rule
@@ -780,6 +788,15 @@ as well, and moved chapter 13 to Mostly and chapter 17 to Partial:
 5. Ch. 13: the `encapsulated` wall stops classes and not constants: a
    constant of the enclosing package is read inside the wall, `y = 3`
    where a refusal is owed.
+6. Ch. 3: `semiLinear(m, a, b)` with slopes that are names - a
+   parameter or a variable, not a literal - reads `a - b` at zero flow
+   where it is zero. The rewrite that supplies a stream's missing
+   equation at zero flow (`semilinear_at_zero` in
+   `crates/oxidelica-parser/src/flatten/mod.rs`) guards against exactly
+   this with a test for plain names, and a parameter is a plain name
+   too. A flow held at zero integrates the error: with `a = 2`, `b = 5`
+   and `m = 0` until `t = 0.5`, an integral of `y` ends at -1.25 where
+   0.25 is owed. Chapter 3 moved from Full to Mostly on this.
 
 The rest came back as the map says:
 
