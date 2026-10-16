@@ -49388,7 +49388,12 @@ sits in no switched rule; for the state machine only
 `OXIDELICA_NO_TIME_CONDITION_EVENTS` changes the run, and it makes the
 lag worse (active through 16 ms) rather than mending it, so the late
 arrival is in the machine's own bookkeeping and not in the clock's
-events. Both layers are left for a probe that reads the code.
+events. Both layers are left for a probe that reads the code. The
+same holds for a `zeroDerivative` rule over a moving input and for a
+parameter bound to `time`: no switch moves either, so neither is a
+rule that was added and can be taken back, but a check that was never
+written - whether the held input moves, and whether `time` counts as
+varying.
 
 Ten tests in `~/oxideflow/park/m439-red-tests.diff`, one for each of
 the nine wrong answers and a second for the sticking relation, all
