@@ -49169,6 +49169,15 @@ model either, since what it changes (`Pl1`) has no library twin here.
 Neither was run on the corpus. The pair for the minimal set of
 `Cyl1i` (an axis and an offset) was not taken.
 
+The axes alone were then taken over the whole corpus as a pair from
+one binary (`oxq6`, every probe switch off but the fold):
+`/tmp/m438/c_off.txt` and `/tmp/m438/c_e.txt` both print 1020 models,
+953 flatten and 774 run, runnable 836 and 731, and the two run lists
+diffed are identical. So folding the joint axes into the rows moves
+no library model either way: free, and by itself worth nothing to the
+count. The desk pass is two above the floors of 772 and 729; the
+floors stay where the runner set them.
+
 ### What the cylinders ask next
 
 1. Written zeros the rows do not see. Two small models lose the
