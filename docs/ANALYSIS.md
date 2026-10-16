@@ -49079,18 +49079,32 @@ frames, `jointRRP.frame_b`, and `cylinderInclination.frame_b =
 R_rel.T[3,3]*frame_a.R.T[3,3]`, where `frame_a` is the world's frame
 by aliases and `R_rel.T` is a parameter. At 0 degrees that parameter
 is the identity and folds away; at -30 it is a number that stays a
-name. So the orientation of the cylinder is a constant the rows do not
-know is constant, and the walk differentiates it twice and reaches the
-bearing through it.
+name. That was the suspicion: an orientation the rows do not know is
+constant. It was not borne out, and how it first looked borne out is
+worth recording. The probe takes its list of names split on commas,
+and `R_rel.T[1,1]` holds a comma, so the list asked for every
+parameter ending in `1]`, `2]` or `3]`: 411 names in `Cyl1i`, every
+array parameter of the model. That fold keeps `bearing.phi` (64
+victims, `Cyl1i_fr`). Split on semicolons, the fold of `R_rel.T`
+alone takes 18 names and changes nothing (66 victims, `bearing.phi`
+demoted, `Cyl1i_r6`).
 
-Folding the rotation parameters `R_rel.T[*]` into the rows
-(`OX438_FOLD`, 411 names) keeps `bearing.phi` in `Cyl1i` (64 victims)
-and `Sc1` running. The next link is `der(piston.body.frame_a.r_0[1]) =
-0`, reached through `der_rRod_a_L[1]`: the rod's rate along the
-bearing's axis, which is the trajectory-zero family of `Sc6` above. So
-`Cyl1i` walks one link and joins the wall of the uninclined cylinder.
+Bisected from the 411 (`cyl1i_names.txt`, the groups `g*.txt`), the
+smallest set that keeps the angle is two things together: the
+bearing's axis `bearing.e[1..3]` and the piston's offset
+`cyl.piston.frameTranslation.r[1]`, which is zero. Either alone does
+not: the axis alone leaves the walk as it was (`C_be`, 66), the offset
+alone stops it at reduction 19 on the `RelativePosition` sensor's row
+with `bearing.phi` still demoted (`C_r1`). Neither group of
+orientations, offsets or axes does it alone either. With both, the
+next link is `der(piston.body.frame_a.r_0[1]) = 0`, reached through
+`der_rRod_a_L[1]`: the rod's rate along the bearing's axis, the
+trajectory-zero family of `Sc6` above. So `Cyl1i` walks one link, on
+two written zeros the rows did not see, and joins the wall of the
+uninclined cylinder. Why those two and not one is not mapped.
 
-`Engine1b_analytic` under the same fold, with the m436 sibling probes
+`Engine1b_analytic` under the broad fold (the 411-name kind, which is
+what the comma made of it), with the m436 sibling probes
 beside it (`sib_Engine1b_analytic.txt`), no longer stops on
 `der(world.frame_b.R.T[...]) = 0`, the wall m435 recorded; it is
 refused on `relativePosition.relativePosition.r_rel[3] =
@@ -49101,38 +49115,42 @@ wall m436 lifted only behind its switch.
 
 ### What the fold costs, measured on the MultiBody examples
 
-The two folds as a pair from one binary (`oxq4`), over the 54 MultiBody
-examples the main pass reads (`mb.txt`), each half run with `--list`:
+The folds as a pair from one binary (`oxq4`), over the 54 MultiBody
+examples the main pass reads (`mb.txt`), each half run with `--list`.
+The middle row is the comma's fold: asked for `e[*]` and `R_rel.T[*]`,
+it folded every array parameter. The axes alone were spelled without
+a matrix entry and are what they say.
 
-| half                         | file         | flatten | run |
-| ---------------------------- | ------------ | ------- | --- |
-| no fold                      | `mb_off.txt` | 54      | 23  |
-| axes `e[*]` and `R_rel.T[*]` | `mb_on.txt`  | 54      | 21  |
-| axes `e[*]` alone            | `mb_e.txt`   | 54      | 23  |
+| half                          | file         | flatten | run |
+| ----------------------------- | ------------ | ------- | --- |
+| no fold                       | `mb_off.txt` | 54      | 23  |
+| every array parameter (comma) | `mb_on.txt`  | 54      | 21  |
+| axes `e[*]` alone             | `mb_e.txt`   | 54      | 23  |
 
-The run lists diffed: the wide fold loses
+The run lists diffed: the broad fold loses
 `Elementary.DoublePendulumInitTip` (a loop that does not mention
 `boxBody2.body.a_0[3]` at the start) and
 `Systems.RobotR3.Utilities.MechanicalStructure` (refused on `r5.frame_b.r_0[2]
 = b5.frame_a.r_0[2]`), and wins nothing. The axes alone lose nothing
 and win nothing, and both lost models run under the axes alone when
-asked one by one. So folding the rotation parameters changes which
+asked one by one. So folding every array parameter changes which
 states reduction keeps in two running models, as the note on
 definitions in `AGENTS.md` warns, and is a different compiler rather
 than a fix; folding the axes is free on this set and moves no library
 model either, since what it changes (`Pl1`) has no library twin here.
-Neither was run on the corpus, and the `Cyl1i` result rests on the wide
-fold.
+Neither was run on the corpus. The pair for the minimal set of
+`Cyl1i` (an axis and an offset) was not taken.
 
 ### What the cylinders ask next
 
-1. A constant orientation that the rows do not know is constant. Two
-   small models (`Pl1`, `Cyl1i`) lose the bearing's angle to a
-   parameter that stands in a row as a name, and keep it when the
-   parameter is folded in. Folding every `R_rel.T` costs two running
-   models of 23 (above), so the rule wanted is narrower: which
-   parameters, and folded where, so that `DoublePendulumInitTip` and
-   `MechanicalStructure` keep their states. Those two are the guard.
+1. Written zeros the rows do not see. Two small models lose the
+   bearing's angle to parameters that stand in rows as names: `Pl1` to
+   the axis alone, `Cyl1i` to the axis and one zero offset together.
+   Folding every array parameter costs two running models of 23
+   (above), folding the axes alone costs none, so the rule wanted lies
+   between, and `DoublePendulumInitTip` and `MechanicalStructure` are
+   its guard. Why `Cyl1i` needs the offset as well is the first
+   question.
 2. The `RelativePosition` sensor's row: where the folded `Engine1b` and
    `EngineV6`, the numerically guarded `Sc6` and link 4 all end. The
    second road of m437, now the common wall of the cylinders. Behind
