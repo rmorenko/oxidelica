@@ -4280,8 +4280,33 @@ fn discrete_layer(
                     programs,
                     depth: 0,
                 };
-                if let Ok(value) = eval(&equation.rhs, &now) {
-                    known.insert(named.clone(), value);
+                // A parameter whose start cannot be worked out before
+                // the run - a branch chosen by a value only the
+                // initialisation knows, as `positiveBranch` of the
+                // analytic loops is - stays with the initialisation,
+                // which carries it as an unknown and is the one place
+                // able to answer it. Spent here, it left that unknown
+                // with its equation gone.
+                //
+                // Only a parameter. A discrete variable started from a
+                // signal - an extremum from its input, a noise
+                // generator's first draw - is spent as before: the
+                // initialisation holds no unknown for it, and kept
+                // there its equation claims none. Taken for every name,
+                // the rule bought the four-bar and cost twelve models
+                // of the standard library (m435).
+                match eval(&equation.rhs, &now) {
+                    Ok(value) => {
+                        known.insert(named.clone(), value);
+                    }
+                    Err(_)
+                        if model.components.iter().any(|c| {
+                            &c.name == named && c.variability == Variability::Parameter
+                        }) =>
+                    {
+                        continue
+                    }
+                    Err(_) => {}
                 }
                 spent.push(at);
             }

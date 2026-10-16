@@ -1461,7 +1461,18 @@ FLATTEN_FLOOR=953
 # 953 / 773):
 #
 #   769 + 2 = 771
-RUN_FLOOR=771
+#
+# And run 772 = 771 + Fourbar_analytic, the second link of the analytic
+# loops: a parameter whose initial equation cannot be worked out before
+# the run is left to the initialisation instead of being spent as a
+# discrete start. From one desk binary, the link off against on, the
+# run list gained exactly Fourbar_analytic and lost nothing, the
+# flattened list the same line for line, 529 Jacobians in both
+# (/tmp/m435/pair2/l1.txt against l12n.txt, 953 / 773 against
+# 953 / 774):
+#
+#   771 + 1 = 772
+RUN_FLOOR=772
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -1788,7 +1799,10 @@ RUNNABLE_FLATTEN_FLOOR=836
 #
 # And runnable run 728 = 726 + 2, the narrow handover, both pumps
 # runnable, by the same pair as `RUN_FLOOR`: 728 against 730 printed.
-RUNNABLE_RUN_FLOOR=728
+#
+# And runnable run 729 = 728 + Fourbar_analytic, runnable, by the same
+# pair as `RUN_FLOOR`: 730 against 731 printed.
+RUNNABLE_RUN_FLOOR=729
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and

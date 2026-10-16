@@ -2006,3 +2006,42 @@ fn a_fixed_array_handed_down_pins_its_own_element() {
     assert!((first[r] - 2.0).abs() < 1e-9, "a.r[2](0) = {}", first[r]);
     assert!((first[y] - 1.0).abs() < 1e-9, "y(0) = {}", first[y]);
 }
+
+/// A Boolean parameter whose initial equation reads a value only the
+/// initialisation knows - the branch of a joint chosen by where the
+/// joint stands - is left to the initialisation. Spent before the run
+/// as a discrete start, it left the initialisation an unknown with its
+/// equation gone, and the model was refused as not square.
+#[test]
+fn a_boolean_start_read_from_the_initialisation_is_left_to_it() {
+    let result = run("model Pb \
+           parameter Boolean b(fixed = false); \
+           Real r; Real y; Real x(start = 0, fixed = true); \
+         initial equation b = r > 0; \
+         equation r = 1 + time; y = if b then 1 else -1; der(x) = y; \
+           annotation(experiment(StopTime = 1)); \
+         end Pb;");
+    let x = result.columns.iter().position(|c| c == "x").unwrap();
+    let last = result.rows.last().unwrap();
+    assert!((last[x] - 1.0).abs() < 1e-6, "x(1) = {}", last[x]);
+}
+
+/// Only a parameter is left to the initialisation that way. A discrete
+/// variable whose initial equation reads a continuous value - the
+/// extremum a block starts from its input - is still spent as a start:
+/// left to the initialisation, its equation found no unknown to claim,
+/// and twelve models of the standard library were refused as not
+/// square, the noise generators and the batch plant's tanks among them.
+#[test]
+fn a_discrete_start_read_from_a_signal_is_still_spent() {
+    let result = run("model Dx \
+           Real u; discrete Real y_max; Real x(start = 0, fixed = true); \
+         initial equation y_max = u; \
+         equation u = 1 + time; der(x) = 1; \
+           when sample(0.5, 0.5) then y_max = max(pre(y_max), u); end when; \
+           annotation(experiment(StopTime = 1)); \
+         end Dx;");
+    let y = result.columns.iter().position(|c| c == "y_max").unwrap();
+    let last = result.rows.last().unwrap();
+    assert!((last[y] - 2.0).abs() < 1e-9, "y_max(1) = {}", last[y]);
+}
