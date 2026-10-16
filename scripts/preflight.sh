@@ -159,6 +159,26 @@ library_floor() {
   # the edges keep the same room: 0.953 / 1.189 = 0.80 under the lowest
   # and 1.177 x 1.158 = 1.36 over the highest.
   #
+  # Worked over again on 2026-10-16, on Roman's word, because the edge
+  # of 0.80 had gone red on every quiet preflight since the compiler
+  # changed, which made the guard dead: a true fall of the ratio could
+  # no longer be told from the normal. Five quiet passes on the new
+  # compiler, each read from its preflight file (flattening ms, running
+  # ms, ratio): m431/lib2 4278 3362 0.786, m431/pf_full 4295 3329
+  # 0.775, m432/pf 4234 3251 0.768, m433/pf 4142 3236 0.781, m435/pf
+  # 4227 3252 0.769. Two passes are left out as a busy desk:
+  # m431/pf_quick 5034 3387 0.673 and m429/pf 6592 4186 0.635. The sign
+  # that sorts them is flattening: the quiet five sit at 4142..4295, a
+  # spread of 3.6%, and a busy desk swells flattening by 19% and 56%
+  # while barely moving the run. Two of the five came after the
+  # question was put on three and fell inside the old spread, so the
+  # base will not grow firmer. The room is the same, kept by dividing
+  # and multiplying as both precedents did: 0.768 / 1.189 = 0.6459,
+  # written 0.64, and 0.786 x 1.158 = 0.9102, written 0.91. A busy desk
+  # of 0.673 now passes and one of 0.635 stays red; catching a busy desk
+  # is not this band's work. The runner's band of 0.70..1.50 is not
+  # touched.
+  #
   # The two passes and the judge, one after the other, as CI runs them
   # side by side since 2026-10-13: the desk measures the same set and
   # judges the same sum, so a fault in the cut shows here first. The
@@ -168,7 +188,7 @@ library_floor() {
   ./scripts/library_floor.sh --pass main "$library" "$reports/main.txt" || return 1
   ./scripts/library_floor.sh --pass dear "$library" "$reports/dear.txt" || return 1
   echo "the two reports: $reports"
-  RATIO_LOW=0.80 RATIO_HIGH=1.36 ./scripts/library_floor.sh --judge "$library" \
+  RATIO_LOW=0.64 RATIO_HIGH=0.91 ./scripts/library_floor.sh --judge "$library" \
     "$reports/main.txt" "$reports/dear.txt"
 }
 
@@ -204,15 +224,17 @@ time_band_judges() {
   ./scripts/library_floor.sh --ratio-check 1000 1045 || return 1
   # And the desk's band, at the two ends of what the desk has measured
   # and past either end of it.
-  # Inside: the lowest and the highest desk points the edges stand on,
-  # 0.953 and 1.177, and the median of the runner's first 46 jobs.
-  # Outside: under the floor and past the top.
-  local desk="env RATIO_LOW=0.80 RATIO_HIGH=1.36 ./scripts/library_floor.sh --ratio-check"
-  $desk 1000 953 > /dev/null || return 1
-  $desk 1000 1177 > /dev/null || return 1
-  $desk 1000 1045 > /dev/null || return 1
-  $desk 1000 780 > /dev/null && return 1
-  $desk 1000 1380 > /dev/null && return 1
+  # Inside: the lowest and the highest quiet desk points the edges of
+  # 2026-10-16 stand on, 0.768 and 0.786, and one between, 0.775.
+  # Outside: 0.600 under the floor, and 0.953, the quiet point of the
+  # old compiler - should the ratio go back to that shape, the band has
+  # to go red.
+  local desk="env RATIO_LOW=0.64 RATIO_HIGH=0.91 ./scripts/library_floor.sh --ratio-check"
+  $desk 1000 768 > /dev/null || return 1
+  $desk 1000 786 > /dev/null || return 1
+  $desk 1000 775 > /dev/null || return 1
+  $desk 1000 600 > /dev/null && return 1
+  $desk 1000 953 > /dev/null && return 1
   return 0
 }
 
