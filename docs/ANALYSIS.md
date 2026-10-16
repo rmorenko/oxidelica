@@ -49280,9 +49280,73 @@ rather than a corner of it. Those are the only status moves of the
 shift. The rest held to the number: inheritance
 (`final`, `protected`, `constrainedby`, `break`), units (`m(1/2)`,
 a mismatch refused), stream mixing and reversal, `sum` over operator
-records, the sampled and shifted clocks, array algebra.
+records, the sampled and shifted clocks, array algebra. Later probes
+held too: a four-port junction (200 against 200), a junction at zero
+flow, a constructor dispatched by arity, a record operator over a
+`Complex[2]` and a function taking records vectorized over it,
+clocked `ExplicitEuler` and `ExplicitRungeKutta4` to every digit of a
+hand-stepped tableau, a rational clock super-sampled, an inferred
+factor of 2.5 refused with the number, `getInstanceName`, `terminal`,
+`cardinality`, `mustBeConnected`, `HideResult`, a negative
+`StartTime`, connections in a `for` over component arrays, an
+enumeration as a dimension, `inner`/`outer`.
 
-A sixth defect names the wrong wall: `(p, q) = f(u)` in the
+Narrower than the map, and corrected by name in `e6494d8` and
+`b423286`: `Clock` takes two of its seven argument names; a `min` or
+`max` is checked at output points rather than at the crossing; an index
+outside an array gives `NaN` and the run ends as a success; factorial
+as an `if` expression is refused as 64 deep where the `if` statement
+gives a hundred and twenty.
+
+Two more came back the same way after those, and they are the dearest
+of the shift because they sit under every model rather than in a corner
+of one chapter:
+
+1. `semiLinear(m, a, b)` with named slopes reads `a - b` at zero flow
+   (`semilinear_at_zero`, `flatten/mod.rs`, `5484c9f`). The guard there
+   asks whether the slopes are plain names, to keep exactly this wrong
+   number out, and a parameter is a plain name. Found with
+   `OXIDELICA_NO_SEMILINEAR_CHAIN`, the one switch of 185 that moves
+   it. Chapter 3 moved from Full to Mostly.
+2. A relation on a smooth signal that is not a state stops turning
+   after its first switch or two on `dopri45` and `bdf` once the model
+   has a continuous state. `Boolean b = sin(20*time) > 0.5` beside
+   `der(x) = 1` turns true at 0.026 and stays true, where it turns
+   seven times in the second; a `when` on it fires once where it rises
+   four times, and `cos(20*time) < -0.5` never where it falls three
+   times. `rk4` finds all of them, a bouncing ball is right, and the
+   same relation inline in an `if` expression turns every time but only
+   at output points. The commit before `0bf1b70` (14 October, "Cut a
+   step that reaches past a switch"), built in a worktree from
+   `d4b707d` and run on the same model, turns the Boolean three times
+   of seven; with the retake switched off (`OXIDELICA_NO_EVENT_RETAKE`)
+   the tree does the same. So `0bf1b70` made a fault that was already
+   there worse, and the `cos` case predates both. No floor saw it,
+   since a model whose mode sticks still runs. The layer, by reading
+   and one probe: `dopri.rs` compares each indicator's sign at the two
+   ends of a step only, and with a state as smooth as `der(x) = 1` the
+   step grows wider than half the indicator's period, so two crossings
+   inside one step cancel and neither is seen. A state that forces short
+   steps, `der(x) = cos(100*time)`, gives all seven turns on the same
+   relation. The output interval does not bound the step, which is why
+   a finer grid does not help.
+
+Eight tests in `~/oxideflow/park/m439-red-tests.diff`, one for each of
+the seven wrong answers and a second for the sticking relation, all
+seen red on `b423286`. None is in the tree: the shift was documentary,
+and a red test in the tree is a red CI.
+
+What the shift says about the map rather than about the compiler: each
+of the seven wrong answers sat under a statement the map made in the
+present tense, and four of them in chapters marked Full. A status was
+read as a measurement for a month while nothing measured it. Reading
+330 test names against the map, about twenty-five minutes, found seven
+passages narrower than the tree and no wrong answer; putting the map's
+sentences to the binary as small models with a number worked by hand
+beside each, about forty minutes, found all seven. The second is the
+instrument for this question, and the first only says where to aim it.
+
+A last defect names the wrong wall: `(p, q) = f(u)` in the
 continuous equations, `f` holding a `while`, is refused for a trip
 count, though the same call runs inside a `when` or as `p = f(u)`.
 
