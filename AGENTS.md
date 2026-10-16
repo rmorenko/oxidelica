@@ -528,6 +528,44 @@ a family by its wording, and the wording is not the family - which is
 the same blind spot named above, seen now from the other side. It is
 worth stating twice because the first statement did not stop it.
 
+## A document may be lowered on one counterexample
+
+A claim this repository makes about itself - a chapter marked Full in
+the coverage map, a sentence in a document saying what the compiler
+does - is a claim like any other, and a single probe that contradicts
+it settles the matter. Lower it in the same shift, name the probe
+beside the new wording, and say so in the chapter. No word from Roman
+is needed for that, and waiting for one leaves a known untruth standing
+in a document the outside reads.
+
+Raising a claim is not the same act and still goes through him. The
+asymmetry is not caution but logic: one counterexample refutes "this
+works", and no number of passing examples proves it. A probe that
+passes shows that one case passed; a chapter is a statement about all
+of them. So a status may fall on evidence a shift holds in its hand,
+and may rise only on a judgement somebody else makes.
+
+Three bounds on the lowering. The evidence is a probe or a test named
+in place, small enough that the next reader can run it - not "measured
+and found wanting". The correction is a correction and not work: a
+status moved and a defect named is a correction, a chapter rewritten is
+a shift of its own. And nothing that changes behaviour travels with it
+
+- floors, bands, ceilings, model lists and code are untouched by this
+  rule, which is about what a document says and never about what the
+  compiler does.
+
+Measured on 16 October. Chapter 17, state machines, had stood at Full
+since the map was written. Four probes in twenty minutes found parallel
+automata in one class refused with "one initial state too many", an
+empty state block refused, a state entered with a reset reading its
+start rather than its previous value, and the specification's own
+example 17.1 failing. The status had survived a month and 790 commits
+because nobody's work was steered by it, and the first hour anybody
+spent probing it brought it down. Probe the confident chapters first:
+"Partial" says honestly that something is missing, while "Full" closes
+the question and stops it being asked.
+
 ## A cancelled run is not a passed run
 
 CI's verdict is read from a run that finished, not from the absence of
