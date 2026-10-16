@@ -48502,3 +48502,411 @@ the rod's relative position at all is the next question, and it is a
 question about which equations a reduction supplies rather than about
 victims. All m436 switches are in
 `~/oxideflow/park/m436-link4-probe.diff`.
+
+## The cylinder's wall is the loop's, the copy is not surplus, and four calls left for the walk (m437)
+
+A shift of probes. Nothing in the tree changed, so no floor moves: the
+compiler that measured here is the one at `b91d14c`, and the probes
+stand in a separate tree, parked as `~/oxideflow/park/m437-probes.diff`
+over the m436 diff, with the small models in
+`~/oxideflow/park/m437-models/`. Files below are under `/tmp/m437/`.
+
+### `CylinderBase` asked whole, and then given a crank to turn
+
+On the main binary (`ox1`, `cb.txt`) `CylinderBase` stops where m430
+left the family: `cannot evaluate parameters` for `jointRRP.e_ia`,
+raised at `compile.rs:4992`. Under the m430 sibling probe and the own
+inside switch (`oxp1`, `cb_v.txt`) it is refused as
+
+```text
+structurally singular model: equation piston.frame_b.R.T[3,3] =
+piston.frameTranslation.frame_b.R.T[3,3] constrains no state ...
+nor did the 31 other equations of its singular subset
+```
+
+at `compile.rs:2885`, a subset of 32. The walk takes nine reductions
+(the two bodies' `Q[4]`, then the frame positions) and from reduction
+10 every member weighs nothing. `oxidelica why` (`why1.txt`) says why
+nothing is left to weigh: `cylinder_a`, `crank_a` and the other two
+frames are open, held by a connection on one side and `f = 0` on the
+other. `CylinderBase` is a utility whose crank and cylinder hang in the
+air, and its refusal is about the frame it was cut out of, not about
+the loop inside it.
+
+So the probe gave it a world (`Cyl1.mo`, thirteen lines with the
+library): a revolute `bearing` from the world to `crank_a`, the
+cylinder fixed to the world, an inertia on the bearing's flange. One
+degree of freedom. It passes index reduction and is refused at the run,
+`NaN at t = 0, before any Newton step` in an algebraic loop of 31 names
+(`cyl1.txt`). The victim print (`cyl1_v.txt`) is the finding: 37
+reductions demote all 37 states, `bearing.phi` at reduction 30 (member
+3 of 32, `world.frame_b.r_0[3] = 0`) and `bearing.w` at 37. A mechanism
+with one degree of freedom left with none. Asking for the bearing with
+`stateSelect = always` (`Cyl1s.mo`) changes nothing: the same 37 in the
+same order.
+
+`OX436_AFTER` (`cyl1_after2.txt`) names what reduction 30 does. Before
+it, row 2109, the derivative of `jointUSP.relativePosition.r_rel[3]`
+written out through the crank's revolute, is independent; from it on,
+the row follows from the rest (`OX436_WATCH=2109`, `cyl1_w.txt`:
+`implied=false` at 12 to 30, `true` at 31 to 37). Two more rows of the
+same road, 2161 and 2167 (`mid.frame_b.r_0[3]` through `crankAngle`),
+turn with it. `OX436_REJECT_COPY` declines exactly that demotion,
+member `eq 678`, victim `bearing.phi`, and the walk is then refused on
+row 2109 itself (`cyl1_rc.txt`).
+
+`EngineV6_analytic` under the same switches (`e6_v.txt`, 325 seconds)
+walks 123 reductions, retreats once at reduction 123 from
+`engine.bearing.phi`, and is refused on
+`der(engine.cylinder1.jointRRP.jointUSP.relativePosition.r_rel[3])`
+written as cylinder 1's relative velocity, constraining no state: the
+same row as 2109 in `Cyl1`.
+
+So the first answer to the brief's question was that it is the breed
+of `Rrr1`, one constraint counted by two roads (corrected below, once
+the small model was in hand), and that the family is
+the cylinder's loop rather than the piston's orientation, which was
+only the shape it took in a utility with open frames. What the
+cylinder adds to `Rrr1` is the price: `Rrr1` is driven and has no
+degree of freedom to lose, so its demoting every state is right and
+only the copy is wrong; `Cyl1` has one, and the doubled constraint
+spends it. That makes the cylinder the sharper small model of the two,
+because "every state demoted in a model with a free crank" is wrong
+however the walk got there.
+
+Two neighbours were read and not walked. Inclined by 30 degrees
+(`Cyl1i.mo`) the same wrapper stops at
+`der(der(piston.frameTranslation.frame_b.R.T[3,3])) = 0`, after
+`bearing.phi` was demoted at reduction 36 (`Cyl1i_v.txt`): the shape of
+the `Engine1b_analytic` wall m435 recorded (`der` of a constant
+orientation set to zero), reached by the same spending of the crank's
+angle. Two cylinders on one crank (`Cyl3.mo`) stop earlier, on
+`cannot differentiate through algebraic variable
+cyl1.jointRRP.jointUSP.rod1.der_rRod_a_L[1]`. The body of
+`CylinderBase` is cut down below, to twenty lines.
+
+### Dropping the copy: the row is not surplus, it stands for a lost one
+
+The brief's probe for the second question: where a demotion turns a
+row into a copy, take the row out of the system instead of declining
+the demotion. `OX437_DROP_COPY` (and `OX437_DROP_AT=N` for one
+reduction alone) removes the row after the attempt succeeds, and a
+second probe names the unknowns the matching then leaves free, where
+the compiler would panic on `maximum matching covers every unknown`.
+
+| model         | dropped                | what is left                                                       |
+| ------------- | ---------------------- | ------------------------------------------------------------------ |
+| `Rrr1`, both  | 2036 at 10, 2045 at 13 | free: `der(body1.v_0[2])`, `der(der(revolute.kcos_angle))`         |
+| `Rrr1`, at 10 | 2036                   | free: `der(der(jointUSR.revolute.kcos_angle))`, in rows 2111, 2135 |
+| `Rrr1`, at 13 | 2045                   | the singular Jacobian of m436, unchanged                           |
+| `Cyl1`        | 2109 at 30             | free: `der(cyl.piston.body.v_0[2])`                                |
+
+(`j/rrr1_drop2.txt`, `rrr1_at10b.txt`, `rrr1_at13.txt`,
+`cyl1_drop.txt`.) Each drop leaves exactly one column with no row. The
+system was square with the copy in it, so a copy in a square system
+is the sign of a row that is missing elsewhere, not of one too many:
+the walk differentiated the same constraint twice and so failed to
+differentiate one it needed, here the second derivative of the
+revolute's `kcos_angle` and the piston's acceleration.
+
+The guard says the same from the other side, and says it about models
+that run. The 23 running MultiBody models of the pair3 run list
+(`mb23.txt`), one binary (`oxp6`), switch off and on under
+`--only-from` (`guard_off.txt` against `guard_on.txt`): 23 run against
+21, 72 seconds against 153. `BevelGear1D` loses its run when row 1758,
+`der(inertia1.rotorWith3DEffects.w) - bevelGear.ratio*inertia2.a`, is
+dropped at reduction 22 and `der(inertia2.w)` is left free;
+`RobotR3.Utilities.MechanicalStructure` loses its run when three rows
+of `load.v_0` are dropped at reductions 130 to 132. And `OX436_AFTER`
+on `BevelGear1D` as it runs (`j/bevel_after.txt`) prints copies after
+nearly every reduction. A row that follows from the rest after a
+demotion is the ordinary state of a model that runs right, not a fault
+to be removed. The replacement is a wrong number waiting to happen and
+is not a candidate. Since `Rrr1` did not run, `PlanarLoops_analytic`
+and the four were not asked under it.
+
+What both probes leave standing is the question m436 ended on, now
+with a sharper witness: which equations a reduction supplies. In
+`Cyl1` the doubled road is reduction 11's `r_rel[3]` of the
+`relativePosition` sensor against the crank's chain at reduction 30;
+in `Rrr1` it is the rod's relative position at reduction 7 against
+the drive at reduction 10. The fix belongs where the second road is
+taken, and `Cyl1` measures it: a crank that keeps its angle.
+
+Three reads of that place, taken before the chapter closed. Row 2109
+exists from reduction 12 on, so reduction 11 supplied it; rows 2161
+and 2167 are first seen at reduction 30, attempt 3 (`OX436_WATCH`), so
+they are what the member `world.frame_b.r_0[3] = 0` supplied when it
+was differentiated: the same relative velocity, reached from the world
+through `mid` and `crankAngle`. Reduction 30 had no other member to
+take: under `OX436_REJECT_COPY` the nine members tried after it weigh
+nothing (`cyl1_rc.txt`). And the supply ledger is not the cause:
+with `OXIDELICA_SUPPLY_ONCE=0` or `=4` (`j/cyl1_so0.txt`,
+`cyl1_so4.txt`) the walk is different, 83 victims with a retreat, and
+`bearing.phi` goes earlier, at reduction 11 on the alias
+`relativePosition.relativePosition.r_rel[3] = relativePosition.r_rel[3]`,
+whose reach holds `bearing.phi` beside the rod's `rRod_0[2]`. The
+model is then refused at the run on a loop through `rod1.e2_a`. So the
+relative position sensor inside `JointUSP` is what joins the two
+roads: its `r_rel` is the prismatic's `position_a`, and its frames are
+the assembly's own `frame_a` and `frame_b`, which the crank and the
+cylinder already place.
+
+### The cylinder cut to twenty lines
+
+`Cyl1` was then cut down without the utility (`Sc*.mo`, parked in
+`~/oxideflow/park/m437-models/`, run under the same switches). `Sc1`
+is a bearing from the world, a crank `FixedTranslation(r = {0, 0.05,
+0})`, one `JointRRP` with the cylinder's parameters and its `frame_b`
+on the world, and two bodies on `frame_ia` and `frame_ib`. It runs: 23
+victims, `bearing.phi` kept, the angle advancing at the bearing's
+speed. Four additions one at a time leave it running: a
+`FixedRotation` before the cylinder (`Sc2`) or after the crank
+(`Sc3`), a spring on the prismatic axis (`Sc4`), `BodyShape` for the
+two bodies (`Sc5`).
+
+| model  | added to `Sc1`                                 | outcome                                          |
+| ------ | ---------------------------------------------- | ------------------------------------------------ |
+| `Sc6`  | crank pin and cylinder offset `0.09` along `x` | `bearing.phi` demoted at 23, singular Jacobian   |
+| `Sc7`  | `GasForce2` on the prismatic axis              | `bearing.phi` demoted, the relative position row |
+| `Sc9`  | the crank pin offset alone                     | `bearing.phi` demoted, NaN in the loop           |
+| `Sc10` | the cylinder offset alone                      | the same                                         |
+| `Sc11` | the crank pin offset `1e-6`                    | the same                                         |
+| `Sc12` | a crank pin offset `0.001` along `z` instead   | runs, `bearing.phi` kept                         |
+
+`x` is the bearing's axis, `n = {1, 0, 0}`. So the wall does not
+depend on how far the pin sits along the axis, only on whether that
+component is written as zero: `1e-6` falls exactly as `0.09` does. A
+literal zero takes terms out of the differentiated rows, and with them
+a road.
+
+`Sc6` gives the whole of `Cyl1`'s mechanism in one screen
+(`j/Sc6.out`, `Sc6_after.txt`, `Sc6_rc.txt`). Reduction 21
+differentiates the rod's row for `der(jointUSP.rod1.rRod_0[2])` and
+takes `piston.v_0[2]`. At reduction 23 the row through the sensor
+`relativePosition` reaches the same `piston.v_0[2]`, already spent,
+and the walk goes on to the member `world.frame_b.r_0[3] = 0` and
+spends `bearing.phi` on it. Its demotion turns row 1877, the sensor's
+relative velocity written out through the bearing, into a copy, and
+`OX436_REJECT_COPY` declining it leaves the walk refused on 1877
+itself. In `Sc1` the rod's row is never differentiated for `rRod_0[2]`
+(reductions 21 and 22 take `rRod_a_L[1]` and `rRod_0[3]`) and the
+sensor's row takes `piston.v_0[2]` at reduction 23 for itself: one
+road, and the bearing keeps its angle.
+
+So the two roads of `Rrr1` and `Cyl1` are named in the assembly: the
+rod's relative position `rRod_0 = frame_b.r_0 - frame_a.r_0` of the
+`UniversalSpherical`, and the `RelativePosition` sensor whose `r_rel`
+is the prismatic's `position_a`. Both are differences of the same two
+frame positions, both reach the slider's velocity, and the walk
+differentiates both. `Sc6` is the small model for the series, and the
+acceptance is `bearing.phi` kept there with `Sc1` to `Sc5` and `Sc12`
+still running.
+
+The surviving states say the same from the other end. `Sc1` ends its
+23 reductions with `bearing.phi` and `bearing.w`, the one degree of
+freedom. `Sc6` ends its 24 with one state, `rod.w_a[2]`: the
+connecting rod's angular velocity about its own axis, which the
+universal joint does not leave free. In `Sc1` it is demoted at
+reduction 5 on the alias `jointUSP.rod1.frame_ia.R.w[2] =
+jointUSP.frame_ia.R.w[2]`; in `Sc6` the matching never stumbles on
+that alias, so the constraint that pins the rod's spin is not in any
+singular subset, and the walk that needs one more victim at reduction
+23 finds only the bearing. Asking for the bearing with
+`stateSelect = always` (`Sc6s.mo`) gets `has only always to demote:
+bearing.phi` at reduction 23 and the same refusal: the victim choice
+had nothing else in front of it. `oxidelica why` on
+`rod1.frame_ia.R.w[2]` and on `rod1.R_rel_ia.w[2]` prints the same
+equations in both models, so what differs is the matching's road
+through them, not the flat model. The question for the series is
+therefore narrower than m436 left it: why the rod's spin constraint
+stops being a structural singularity once the crank pin is off the
+bearing's axis.
+
+A print of the final matching (`OX437_MATCH_OF`, in the parked diff)
+answers it. The universal joint's relative angular velocity is written
+as `w_rel_ia1[1] = (e3_a[1]*(n1_a[2]*der_rRod_a_L[3] -
+n1_a[3]*der_rRod_a_L[2]) + e3_a[2]*(...) + ...)/length_n2_a`. In `Sc1`
+the terms with `e3_a[2]` and `e3_a[3]` are folded to zero, because the
+`x` components the bearing's axis leaves untouched are literal zeros,
+and the matching solves the equation forwards, for `w_rel_ia1[1]`. In
+`Sc6` they stand, and the matching solves the same equation backwards,
+for `der_rRod_a_L[2]`, with `R_rel_ia.w[2]` solved from `R_rel_ia1.w[1]`
+and the rod's own spin `rod.frame_a.R.w[2]` fed in from the state
+`rod.w_a[2]`. With the spin a state the joint's kinematics have one
+road too many and the walk has one victim too few. Turning the
+matching's cost order off (`OXIDELICA_NO_MATCH_ORDER=1`) does not
+change it (`Sc6`: 65 victims, `bearing.phi` demoted; `Sc1` still
+runs). Making the rod a `PointMass` (`Sc13.mo`), which has no spin to
+carry, makes `Sc6` run: 20 victims, `bearing.phi` kept, the angle
+advancing at the bearing's speed (`j/Sc13.out`, `Sc13.csv`). Its
+answer is checked by a number and not only by its running: the rod's
+length `|rRod_0|` holds at 0.175 to sixteen digits over all 1001
+output points, and `bearing.w` falls from 10 to 9.983 as the crank
+does the work of throwing the two masses.
+
+So the mapped cause, for the series to take: a body's angular velocity
+that the joint it hangs on determines through a rate-of-change formula
+(`w_rel_ia1` from `der_rRod_a_L`) is kept as a state, and the final
+matching reads that formula in reverse. Which of the two is the cause
+and which the consequence was not separated here: the print is of the
+matching after the walk, not of the walk's choices. `Sc6` against `Sc13` is
+the pair that says whether a change has reached it. The library
+wrapper agrees: of `Cyl1`'s candidates the one never demoted is
+`cyl.connectingRod.body.w_a[2]` (`j/cyl1_v.txt`), the same spin.
+`EngineV6_analytic` stops before its walk ends, so its survivors are
+not comparable.
+
+Three more reads on `Sc6`, none of which moves it. The rod with Cardan
+angles instead of quaternions (`Sc14.mo`, `useQuaternions = false`)
+stops in the same singular Jacobian with `rod.w_a[2]` the survivor:
+the rod is not a root of the connection graph, its orientation comes
+from the joint, and `w_a` is a state only through `z_a = der(w_a)`.
+Link 4 of m436 (`OX436_LINK4`) fires nowhere on it (`j/Sc6_l4.txt`),
+and with `OX436_REJECT_COPY` beside it the walk takes 32 victims and is
+refused on the relative position row (`Sc6_l4r.txt`). `Rrr1` has the
+same shape one level up: its body's `w_a[1..3]` are among its
+candidates. So the series' next probe is the rod's `z_a = der(w_a)`
+against the joint's `w_rel_ia1`, which is where the two reach the same
+angular velocity.
+
+A last print, per reduction (`OX437_WATCH_VAR`, parked), follows the
+matching of that chain through the walk (`oxp9`). In `Sc1`,
+`der(rod.w_a[2])` is an unknown from reduction 6 on, matched to
+`der(rod.w_a[2]) = rod.z_a[2]`: the spin was demoted at reduction 5,
+and `w_rel_ia1[1]` is solved forwards at every one of the 23
+reductions. In `Sc6`, `der(rod.w_a[2])` is never an unknown, and from
+the fifth reduction on the matching hands the joint's formula for
+`w_rel_ia1[1]` to `der_rRod_a_L[2]` and solves `w_rel_ia1[1]` from
+`R_rel_ia1.w[1] = w_rel_ia1[1]`, the chain that ends in the rod's spin.
+That reversed chain is in the failed search at five reductions and
+the walk never differentiates through it. So the rod's angular
+velocity, which the joint determines from the derivatives of
+positions, is given a road by which the matching covers it without a
+singular subset, and the velocity constraint it stands for is never
+found. That is where the series should start.
+
+And the reversed road has a pivot of value zero. With `n1_a = {1, 0, 0}`
+(the joint's `n_a`), the coefficient of `der_rRod_a_L[2]` in the
+formula for `w_rel_ia1[1]` is `e3_a[3]*n1_a[1] - e3_a[1]*n1_a[3]`, which
+is `e3_a[3]`. In a planar slider crank `e3_a[3]` is zero at every
+instant: in the running twin `Sc13`, `max |e3_a[2]|` and
+`max |e3_a[3]|` over the 1001 output points are both `0.0`, against
+`max |e3_a[1]| = 1` (`j/Sc13.csv`). In `Sc1` the same coefficient is a
+literal zero and the term is folded away, so the matching cannot take
+that road. In `Sc6` it is a product of unknowns, structurally present,
+and the matching solves a row for a name whose coefficient there is
+always zero. That is the singularity: structural matching chose a pivot
+the numbers can never give, and everything after it - the rod's spin
+kept as a state, the bearing's angle spent - follows from that one
+choice. The question for the series is no longer which road is doubled
+but how the matching is kept from a pivot that is zero on the whole
+trajectory, and `Sc6` against `Sc13` measures it.
+
+The zero pivot is the first link, not the whole chain. A probe that
+takes that one pairing out of the matching (`OX437_AVOID` with
+`OX437_AVOID_HARD`, parked; `oxp11`, `j/Sc6_avoidh.txt`) does not make
+`Sc6` run: 51 victims, `bearing.phi` still demoted, and the walk
+refused on `der_rRod_a_L[1]*rodLength/frame_a.R.T[1,1] = 0`
+constraining no state, with `rod.w_a[2]` again the one survivor. The
+`w_rel_ia1[1]` row goes back to solving `R_rel_ia1.w[1]`, and
+`der_rRod_a_L[2]` is taken by `w_rel_ia1[3]` instead, whose coefficient
+`e2_a[2]` is not zero (it swings from -1 to 1 in `Sc13.csv`). So the
+pivot is real and is not enough: the next link is the row for
+`der_rRod_a_L[1]`, the rate of the rod's component along the bearing's
+axis, which `eRod_a[1] = 0` on the whole trajectory makes another
+quantity the numbers never move. A rule over zero pivots would have to
+see both, and the chain is to be walked to its end before anything is
+built.
+
+One more print closes the loop on why the matching reverses the row.
+In the running `Sc13` the same equation, `w_rel_ia1[1] = ...` (eq 941
+in both), is solved forwards for `w_rel_ia1[1]`. In `Sc6` there is one
+row more that names `der_rRod_a_L[1]`: eq 1896, the rod's spin
+differentiated, solved for `rod.z_a[2]` (`OX437_MATCH_OF`, same
+binary). With `n1_a = {1, 0, 0}` the row reads `w_rel_ia1[1] =
+(e3_a[3]*der_rRod_a_L[2] - e3_a[2]*der_rRod_a_L[3])/length_n2_a`,
+which is zero on the whole planar trajectory: it is the universal
+joint's spin about the rod, which the joint's geometry fixes. A rigid
+body hung on it with three angular velocity states asks that spin to
+be a state as well, and the structure can grant it by solving the row
+backwards, through a coefficient that is never anything but zero.
+`Sc1` cannot (the coefficients are literal zeros and fold away),
+`Sc13` does not need to (a point mass has no spin), and `Sc6` does
+both. So the wall is the shape the textbooks call a structurally
+regular, numerically singular matching, and the answer to it is either
+a numerical look at the pivot during index reduction or a structure
+that knows a planar joint's spin is not free. Either is a series of
+its own, and this chapter only maps it.
+
+The third model on the wall, `Loops.Utilities.Cylinder`, is not this
+shape. It closes its loop with a `RevolutePlanarLoopConstraint` and a
+`Prismatic`, with no universal joint. In the same wrapper (`Cyl4.mo`,
+`j/Cyl4.out`) it demotes `bearing.phi` after 69 victims and is refused
+on the crank's frame, `cyl.crank_a.R.T[2,3] =
+cyl.crankAngle1.frame_a.R.T[2,3]`, with twelve candidates never
+demoted, among them `crank4.body.w_a[1]`, `b2.phi` and `cylinder.s`.
+So it shares the outcome, the bearing's angle spent, and not the
+mechanism; it is recorded beside the two analytic cylinders and not
+mapped.
+
+Nor is `Rrr1` this shape, which corrects the start of this chapter.
+In `Rrr1` the same universal joint row `w_rel_ia1[1]` (eq 803) is
+solved forwards, for `w_rel_ia1[1]`, with or without its body as a
+point mass (`Rrr1p.mo`, `j/Rrr1p.out`); and the point mass does not
+make it run, it stops in the singular Jacobian of m436. The two share
+the word "copy" in `OX436_AFTER` and the place, the relative velocity
+of a closed loop, but `Rrr1`'s copy is the doubled supply m436 mapped
+and the cylinder's is what a zero pivot leaves behind. The brief's
+question - the same breed as `Rrr1` or a wall of its own - has
+therefore a two-part answer: the same symptom, a different cause, and
+the cylinders' cause is the one with a small model that runs on one
+side of it and not on the other.
+
+### The row `cannot differentiate a call`: four calls left for the walk
+
+The pair3 register's row of four (`/tmp/m436/pair3/on.txt:1945`), on
+the main binary (`call4_out.txt`), all raised at `compile.rs:2389`:
+
+| model                         | the call                               | why it stands                                           |
+| ----------------------------- | -------------------------------------- | ------------------------------------------------------- |
+| `Media.Examples.MixtureGases` | `IdealGases.Common.Functions.h_T(...)` | nesting ceiling over the data record's arrays           |
+| `TestPressureLossDerivatives` | `regRoot2.regRoot2_utility(dp, ...)`   | a `return` under a condition the compiler cannot decide |
+| `TestRegRoot2Derivatives`     | `regRoot2.regRoot2_utility(x, ...)`    | the same `return`: `k1`, `k2` move with time            |
+| `TestRegRoot2ZeroDerivative`  | `regRoot2(x, x_small, 1, 0)`           | nesting ceiling inside `evaluatePoly3_derivativeAtZero` |
+
+The reasons come from a print where `inline_function`
+(`inlining.rs`) leaves a call standing (`OX437_STANDING`, in the
+parked diff). One mechanism under all four: the call is left for the
+run to walk, and the differentiator has no rule for a walked body, so
+the first index reduction that reaches it refuses. None of the four
+functions carries a `derivative` annotation; all carry
+`smoothOrder = 2`, which the compiler does not read. `MixtureGases`
+also meets `PartialMedium.specificEnthalpy_pTX` standing as a
+recursion with no bottom here.
+
+Small models, library-bound (`R1.mo`, `R5.mo`): `y =
+regRoot2(x, 0.01, 1.0, 0.0)` with `yd = der(y)` is refused in the same
+words, and the same call with `use_yd0 = true` is inlined whole and
+differentiates. So in `TestRegRoot2ZeroDerivative` it is the branch
+that works out `y0d` that runs into the ceiling, not the polynomial.
+
+Two roads, neither taken: a derivative for a walked body that
+promises `smoothOrder >= 1`, which is the general one and would serve
+all four; or reaching the inliner past the two blocks, the ceiling and
+the undecidable `return`, which serves them one at a time. The note on
+`MAX_DEPTH = 32` in `AGENTS.md` says what raising a ceiling has
+already cost once, before the second is tried. A
+row for its own series.
+
+### Order of the next questions
+
+1. The zero pivot: in `Sc6` the matching solves the universal joint's
+   `w_rel_ia1[1]` row for `der_rRod_a_L[2]`, whose coefficient
+   `e3_a[3]` is zero on the whole trajectory, and the rod's spin then
+   survives the walk; `Sc13` (the rod as a point mass) is the control
+   that runs. `Cyl1.mo` is the library witness, `Sc6.mo`
+   the small model, and `bearing.phi` kept there with `Sc1` to `Sc5`,
+   `Sc12` and `Sc13` still running is the acceptance.
+2. The chain as m436 left it, links 3 to 5 in the park, not taken.
+3. The four calls, by a rule for a walked `smoothOrder` body.
