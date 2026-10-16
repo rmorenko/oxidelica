@@ -48189,3 +48189,13 @@ dependent row). With all three the estimate is that
 estimate: link 4 was not built here, and past it lies the power
 check's spending of the drive's angle (m434), which may still stand
 in `PlanarLoops_analytic` with its checks on.
+
+### The preflight of the series
+
+The full preflight on the final tree (`/tmp/m435/pf.txt`) printed
+953 / 774, 836 / 731 and 529 Jacobians, every witness where it stands,
+coverage over its floor, and was red on the desk band alone at 0.769,
+the known red. Two `--only` probes in the separate tree ran on the
+desk beside it.
+
+quiet desk point: 0.769, compiler 42e1c6e
