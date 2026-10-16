@@ -48199,3 +48199,40 @@ the known red. Two `--only` probes in the separate tree ran on the
 desk beside it.
 
 quiet desk point: 0.769, compiler 42e1c6e
+
+### `Engine1b_analytic` stands beside the chain
+
+Under the sibling probe `Engine1b_analytic` walks 95 reductions with
+four retreats and stops on `der(world.frame_b.R.T[2,2]) = 0`
+(`/tmp/m435/j/e1b_victim.txt`). A copy with the assembly's power check
+off (`E1bOff.mo`) stops in the same words with and without link 3
+(`/tmp/m435/j/e1boff.txt`). So neither link 1's family nor link 3
+reaches it. It is a wall of its own, recorded here and not mapped.
+
+### The row `parameter X has no value`, by layer
+
+The m434 census holds this wording in fourteen rows over 25 models
+(`/tmp/m434/raw.txt`). Asked with `oxidelica why`, 24 of them are
+utility classes whose parameter has no binding in the class itself:
+`mu` of `NormalDensity`, `T` of the op-amp circuits, `length` of
+`BasicHX`, and so on. Their refusal is right, since they are given
+values only by the models that use them. The one model where the
+compiler is at fault is `Loops.Utilities.Cylinder`:
+`cylinderInclination.R_rel` is a `final parameter Frames.Orientation`
+bound by a three-way `if` over `rotationType`, and in the flat model
+every field of it is `bound to: nothing`.
+
+The fault is reproduced in 13 lines (`Fr3b.mo`, parked in
+`~/oxideflow/park/m435-models/`): a record `{T[3,3], w[3]}` bound to
+`if k == 1 then f(n_x, n_y) else if k == 2 then f(n_x, n_y) else
+f(n_x, n_y)`, where `f` builds the record from
+`TransformationMatrices.from_nxy(a, b)`. The binding drops silently.
+The same model runs with a two-way `if` (`Fr3d.mo`), with no `if`
+(`Fr3e.mo`), with the matrix field written as a literal, and with the
+condition settled as a constant it still fails. So the layer is the
+record value of a nested `if` whose branches go through a body with
+`if`-valued locals, most likely in `record_value_per_field`
+(`components.rs`) or the `If` arm of `expand` (`arrays.rs`). It was
+not taken further. It is a wrong number waiting to happen as much as
+a refusal, because the binding vanishes without a word, and it is
+worth a shift of its own.
