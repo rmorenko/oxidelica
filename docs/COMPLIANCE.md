@@ -54,7 +54,9 @@ algorithm; event iteration; `if` equations, structural on a
 compile-time condition and balanced-branch on a run-time one — each
 mode is matched, torn and solved as its own model and rebuilt when the
 condition flips, so branches may constrain different unknowns, which
-is how an ideal switch is written;
+is how an ideal switch is written (though the rebuild loses a delay's
+history and the next sample tick, and refuses a `spatialDistribution`,
+which are the tenth and eleventh wrong answers below);
 `initial equation`; runtime
 `assert` with its message, among the equations or among the actions of
 a `when`, where it is made at the moment the event fires rather than at
