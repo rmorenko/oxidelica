@@ -49359,7 +49359,13 @@ than in a corner of one chapter:
    fault is no evidence either way; the instrument for it is a third,
    `rk4` against a hand-worked number, and an earlier screen against
    `rk4` was thrown away because its wrapper dropped each model's
-   `StopTime` and measured all of them at one second.
+   `StopTime` and measured all of them at one second. For the one of
+   the three whose answer turns on its switching, `ControlledTemperature`,
+   `rk4` was run as well: its OnOffController turns at the same instants
+   as on `dopri45` to within a few milliseconds over ten seconds (18
+   turns, `rk4` adding a blip at the start), so that example is not hit.
+   Its threshold reads a state, the temperature, which is the case the
+   fault spares.
 
 3. A parameter or a constant bound to `time` is accepted and holds the
    start-time value for the whole run: `parameter Real m = 2*time`
