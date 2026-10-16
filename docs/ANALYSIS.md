@@ -49416,7 +49416,14 @@ than in a corner of one chapter:
    history at the start of each segment ("a segment remembers its own
    past, from its own beginning"), and on a resumed segment it skips
    `raise_time_events`, which is where a pending sample would be put
-   back. The probe for the lost tick should start at the second.
+   back. The probe for the lost tick should start at the second. As
+   for reach: the standard library writes its ideal switch with a
+   curve parameter and `if` expressions -
+   `v = (s*unitCurrent)*(if off then 1 else Ron)` in
+   `Interfaces/IdealSwitch.mo` - not as a run-time `if` equation, so
+   it never changes mode and the floors cannot meet these three. A
+   model of one's own that writes the switch the way chapter 8 shows it
+   does.
 
 The same sweep of every `OXIDELICA_NO_*` switch in the two crates (185)
 was run on the two wrong answers whose layer is still unnamed. Nothing
