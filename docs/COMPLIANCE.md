@@ -895,7 +895,15 @@ moved chapters 3 and 13 to Mostly and chapter 17 to Partial:
    equation on the same relation - the ideal switch of chapter 8 -
    sees every turn but takes each at the next output point, 0.140 for a
    crossing at 0.131 on an interval of 0.01. Chapter 8
-   stays at Mostly, where it already stood.
+   stays at Mostly, where it already stood. Since m440 `dopri45` reads
+   the indicators at the stages inside a step as well, and finds every
+   crossing of the cases above: four rises of four, seven of seven for
+   `sin(10*time)` over four seconds, three falls of three for the `cos`
+   case, and the two library chains at 0.3455 and 0.5026 (tests in
+   `crates/oxidelica-sim/tests/simulation/events.rs`). `bdf` is
+   untouched and still loses them - two rises of four, 0.136 for the
+   `GreaterThreshold` chain - and so is the run-time `if` that takes a
+   turn at the next output point; both stand as written here.
 8. Ch. 3: a parameter or a constant bound to `time` -
    `parameter Real m = 2*time`, `constant Real m = 2*time`,
    `parameter Real m = sin(time)` - is accepted and holds its value at

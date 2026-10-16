@@ -49498,3 +49498,195 @@ Newton direction, singular Jacobian 8 each, then 5, 4, 2, 2), the rows
 added because they share a layer. Structurally singular is larger in
 models (47) but spread over 42 rows. The pass took 1114 seconds where
 six minutes was expected, against 1089 for m434's: the same weather.
+
+## Defect 7 mended on the explicit solver, and the algebraic loops probed (m440)
+
+### What was wrong
+
+Defect 7 of the m439 chapter, as the coverage map states it: a relation
+on a smooth signal beside a continuous state stops turning after its
+first switch or two. Reproduced on `b32ce4a`, the head the shift began on, with the parked
+models, `/tmp/m440/*.mo`:
+
+```text
+model                                  dopri45  bdf     rk4 (control)
+when sin(20 t) > 0.5, rises            1        2       4
+when sin(10 t) > 0.5 over 4 s, rises   1        3       7
+when cos(20 t) < -0.5, falls           0        0       3
+integral of sin(20 t) > 0.5            0.974    0.241   0.340
+Sine -> GreaterThreshold -> Integrator 0.974    0.136   0.340
+Sine -> Hysteresis -> Integrator       0.974    0.503   0.500
+```
+
+The exact integral of the first relation over the second is 0.3455 and
+of the hysteresis 0.5026; `rk4` on a grid of 0.01 lands on the grid,
+which is why it reads 0.340 and 0.500.
+
+### The layer, and what was done there
+
+`dopri.rs` compared the sign of every indicator at the two ends of an
+accepted step. With `der(x) = 1` as the only state the error estimate
+is zero, the step grows fivefold a round, and once it is wider than the
+time a relation spends on the other side of its threshold, both
+crossings fall inside one step and cancel. Three faults, found one
+behind the other on the small models:
+
+1. A stage of the step reads the other sign. The six stages are already
+   evaluated; reading the indicators there costs one pass over them per
+   stage. The step is taken again ending at that stage. This alone took
+   the first model to four of four and both library chains to the exact
+   answer, and `sin(10 t)` to six of seven.
+2. The pair falls between two stages, so every reading keeps its sign.
+   The lost seventh rise of `sin(10 t)`: a step from 1.663 of 0.432 had
+   its readings at 0.3 and 0.8 on the same side. The parabola through
+   the three readings around the lowest one reaches past the threshold
+   there; the step is taken again ending at its vertex. Once per step,
+   so that a curve grazing its threshold cannot be chased.
+3. The step after one cut short of a crossing grew fivefold. The cut of
+   `0bf1b70` ends two hairs before the crossing, the next step starts
+   a hair from it and grew to 0.58 with its first stage at 0.12, and the
+   whole dip of `cos(20 t) < -0.5` (0.10 long) lay before that stage.
+   The long step that was cut saw the crossing at its far end; a later
+   step that passes that end without seeing the turn is taken again
+   ending there. The first form of this held every step after a cut to
+   the cut one's length, which the preflight's work band refused: see
+   below.
+4. Not a fault of the defect but of the remedy: an indicator resting on
+   zero turns sign on rounding alone. The velocity of a stuck friction
+   element read -3.6e-18 at the start of a step and 3.0e-16 at a stage,
+   and each such reading cut the step. Only a reading past the absolute
+   tolerance counts as the other side.
+
+`OXIDELICA_NO_STAGE_CROSSINGS` switches all of it off. After:
+
+```text
+model                                  dopri45  bdf (untouched)
+when sin(20 t) > 0.5, rises            4        2
+when sin(10 t) > 0.5 over 4 s, rises   7        3
+when cos(20 t) < -0.5, falls           3        0
+integral of sin(20 t) > 0.5            0.3455   0.241
+Sine -> GreaterThreshold -> Integrator 0.3455   0.136
+Sine -> Hysteresis -> Integrator       0.5026   0.503
+```
+
+The proof that the defect is mended on `dopri45` is these numbers and
+the five tests in `tests/simulation/events.rs`, each seen red under the
+switch and green without it, and three unit tests of the parabola in
+`dopri.rs`. `0bf1b70`'s two tests stay green. The corpus pair below
+measures something else: whether the change is safe. They are two
+claims with two witnesses and are kept apart here.
+
+`bdf` loses the same crossings by the same reading of the ends only,
+but its steps have no stages standing between the ends to read; its
+mending is a series of its own (a step-length ceiling from the
+indicators' own rate, or a dense-output check at a few points), and
+was not begun. `Auto` runs `dopri45` until stiffness hands it over, so
+a stiff model with a relation on a smooth signal can still lose turns.
+
+### The corpus pair
+
+The first form of the change (`ox4`, the step after a cut held to the
+cut's length, no floor on the sign) passed a pair of whole-corpus runs
+with identical lists, `/tmp/m440/off.txt` and `/tmp/m440/on.txt`, and
+3.3% more points in all. That 3.3% was taken over a total that
+`Dimmer_RL` owns with 24 million points. The work band judges the
+total without it, and over that sum the preflight printed 498733
+against a centre of 415001, x1.20, red. Two percentages over two
+denominators. The runner had printed 438211 for `da41043`, so the
+growth was this change's.
+
+Per model, `OXIDELICA_WORK_EACH=1`, the judged sum went from 439321 to
+498733: `ActuatorWithNoise` 4848 to 38882, `HeatLosses` 1329 to 9637,
+`Translational.Examples.Friction` 759 to 6423, `IMS_Start` 1438 to
+5117, and a tail of machines. Switched apart, the hold after a cut
+cost `ActuatorWithNoise` all of its rise. The stage reading cost
+`Friction` and the machines theirs, through rounding-level sign flips
+of indicators resting on zero. The narrowed change (items 3 and 4
+above), one binary `ox8`, the heavy set carved out, both halves
+`--list` with work per model, `/tmp/m440/e8_off.txt` and
+`/tmp/m440/e8_on.txt`:
+
+```text
+            flatten  run  runnable  judged points  judged newton
+switch off  953      774  836 / 731  439321         888689
+switch on   953      774  836 / 731  440539         890998
+```
+
+The flatten and run lists are identical name by name. The judged
+points rose by 1218, 1333 of them `ActuatorWithNoise` (4848 to 6181),
+x1.062 of the band's centre where the runner already stood at x1.056.
+No victims and no wins, as the m439 screen expected: defect 7 was not
+shown on a running example of the library, and this pair does not show
+it either. The floors and the band stay.
+
+### A hole in the instruments, as a candidate
+
+Not work of this shift and not measured: a proposal for Roman. The
+floors count the models that run, the census counts refusals, and the
+diff of run lists catches a scattered loss. A model that runs and
+prints a wrong number passes all three, which is how `0bf1b70` was
+judged clean while it took the hysteresis chain from 0.503 to 0.974
+for two days. The cheapest witness that seems plausible is the one
+that found defect 7: run a subset of the running examples on two
+solvers - `rk4` on a fine grid was the control of truth here - and
+compare their trajectories, naming the models where they part. Its
+price and its noise (models where the two legitimately part, chaotic
+ones, stiff ones `rk4` cannot take) are not measured.
+
+### The algebraic loops: one family or several
+
+The densest run-half family of the m439 census, 37 models in 7 rows of
+`/tmp/m439/census.txt`, sorted by library from `/tmp/m439/raw.txt` (36
+lines name a model; one row's first line is a continuation):
+
+```text
+underdetermined     Spice3 5, FundamentalWave 3
+Newton direction    ModelicaTest.Fluid 8
+singular Jacobian   FundamentalWave 3, QuasiStatic 1, Fluid 2,
+                    MultiBody 1, Rotational 1
+`X` of              Fluid 2, MultiBody 3
+the equations of    Spice3 1, MultiBody 3
+did not converge    Machines 1, Fluid.Dissipation 1
+algebraic loop      Fluid 2 (outside the domain, two solutions)
+```
+
+The rows are not the families. Probed by `why` and by reading the
+loops' members, at least four layers, cutting across the rows:
+
+1. Spice3, 6 models in two rows (underdetermined 5, "the equations
+   of" 1). `Spice3BenchmarkRtlInverter` refuses on
+   `["der(Q1.vbx)"]`; `why Q1.vbx` names
+   `icapbx = if m_bInit then 0 else cc.capbx * der(vbx)`, and
+   `cc.capbx` comes out of `bjtNoBypassCode`, a function. A capacitance
+   that is zero at the operating point makes `der(vbx)` vanish from the
+   only equation that names it. Smallest model so far, `zc7.mo`: a
+   capacitance from a function that answers 0, `i = c*der(v)`, beside
+   one state. It does not refuse as Spice3 does: it dies of a step
+   size underflow at t = 0 on `dopri45` and of Newton on `bdf`, with
+   and without the m440 change, so it is the same layer reached by a
+   different road and not yet the family's twin.
+2. Ideal switches in the machines, FundamentalWave 6 across two rows
+   (underdetermined and singular Jacobian). Every loop holds
+   `idealClosingSwitch[k].s` beside the air gap's `V_mss` and `Phi_ss`.
+   The switch's own equation `v = s*(if off then 1 else Ron)`,
+   `i = s*(if off then Goff else 1)` is a parameterised curve, and a
+   loop solved through `s` with `Ron = Goff = 1e-5` beside an
+   inductance is near singular. A small `IdealClosingSwitch` into an
+   inductor and resistor (`sw.mo`) runs on `dopri45`; on `rk4` with a
+   step of 1e-6 it refuses with `S.s` infinite at 4.75e-5. Not this
+   family's twin either; a lead.
+3. Friction modes, Rotational and RobotR3, 2 models in two rows.
+   `bearingFriction.sa` and `gear.sa` stand in a loop whose equations,
+   in the mode the start picks, do not name them. A small
+   `BearingFriction` on an inertia runs and agrees with `rk4` to 3e-5;
+   the fault is in the mode chosen at the start, not the element.
+4. Fluid media, 8 Newton direction plus most of the Fluid singular and
+   "`X` of" rows: loops over `medium.p`, `portInDensities`, `state.h`
+   that leave the residual unreduced in the first milliseconds, from
+   residuals of 1e4 to 5e11. Not probed beyond the refusals.
+
+So: the count of rows (7) is the lower bound, the probe says four
+layers at least, and the two largest single families are Spice3's
+vanishing capacitance (6) and the machines' switches (6). Neither has
+a twelve-line twin yet; the next series starts by shrinking
+`Spice3BenchmarkRtlInverter` rather than growing `zc7`.
