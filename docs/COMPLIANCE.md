@@ -805,18 +805,23 @@ moved chapters 3 and 13 to Mostly and chapter 17 to Partial:
    too. A flow held at zero integrates the error: with `a = 2`, `b = 5`
    and `m = 0` until `t = 0.5`, an integral of `y` ends at -1.25 where
    0.25 is owed. Chapter 3 moved from Full to Mostly on this.
-7. Ch. 8: a `when` on a condition that rises more than once misses
-   crossings on the adaptive solvers whenever the model has a
-   continuous state. `when sin(20*time) > 0.5` beside `der(x) = 1`
-   fires once in a second where it rises four times, and
-   `cos(20*time) < -0.5` fires never where it falls three times.
-   Without the state, or
-   on `rk4`, every crossing is found, and a bouncing ball, whose
-   condition is a state of its own, bounces the right number of times.
-   The step taken again short of a crossing (`0bf1b70`, 14 October) took
-   it from three crossings of four to one; the commit before it already
-   lost one, and the `cos` case is older still. Chapter 8 stays at
-   Mostly, where it already stood.
+7. Ch. 8: a relation on a smooth signal that is not a state stops
+   turning after its first switch or two, on the adaptive solvers,
+   whenever the model has a continuous state. A Boolean
+   `b = sin(20*time) > 0.5` beside `der(x) = 1` turns true at 0.026 and
+   stays true to the end, where it should be false again at 0.131 and
+   turn three more times; anything read through `b` is wrong for the
+   rest of the run. A `when` on the same condition fires once where it
+   rises four times, and `cos(20*time) < -0.5` fires never where it
+   falls three times. Without the state, or on `rk4`, every crossing is
+   found; a condition that is itself a state - a bouncing ball - is
+   found too. The same relation written inline,
+   `z = if sin(20*time) > 0.5 then 1 else 0`, turns every time but only
+   at output points, with no event at the crossing. The step taken
+   again short of a crossing (`0bf1b70`, 14 October) took the Boolean
+   from three turns of seven to one; the commit before it already lost
+   four, and the `cos` case is older still. Chapter 8 stays at Mostly,
+   where it already stood.
 
 The rest came back as the map says:
 
