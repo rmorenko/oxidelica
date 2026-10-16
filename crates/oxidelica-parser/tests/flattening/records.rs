@@ -1467,3 +1467,30 @@ fn an_empty_constructor_takes_what_the_extends_said() {
     .expect_err("a call short of the fields");
     assert!(short.message.contains("is built from"), "{}", short.message);
 }
+
+/// A record value that comes apart into a count no record of the class
+/// can have is refused, naming the record and its fields.
+///
+/// Dropped without a word, as it was, every field was left bound to
+/// nothing and the model was refused layers later for a parameter with
+/// no value - a symptom, not the cause - or, where the field had a
+/// default, ran with a number the model never chose.
+#[test]
+fn a_record_value_that_fits_no_length_of_the_record_is_refused_by_name() {
+    let err = parse_model(
+        "model M \
+           record Rr Real a; Real b; end Rr; \
+           record Ss Real a; Real b; Real c; end Ss; \
+           parameter Rr R = Ss(a = 1, b = 2, c = 3); \
+           Real x(start = 0, fixed = true); \
+         equation der(x) = R.a; end M;",
+    )
+    .expect_err("three numbers are not a record of two fields");
+    let said = err.to_string();
+    assert!(said.contains("`R`"), "names the record: {said}");
+    assert!(said.contains("`a`, `b`"), "names its fields: {said}");
+    assert!(
+        said.contains("3 numbers") && said.contains("is 2"),
+        "{said}"
+    );
+}

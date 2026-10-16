@@ -489,7 +489,10 @@ pub(super) fn instantiate_components(
         // The same value where the declaration is a parameter, which
         // may not become an equation: a parameter has to stay a value
         // the run works out at the start.
-        let per_field = |value: &Expr, of: &ClassDef, prefixed: bool| -> Vec<Vec<(String, Expr)>> {
+        let per_field = |value: &Expr,
+                         of: &ClassDef,
+                         prefixed: bool|
+         -> Result<Vec<Vec<(String, Expr)>>, String> {
             record_value_per_field(
                 value,
                 of,
@@ -526,8 +529,8 @@ pub(super) fn instantiate_components(
             handed_down(&component.name),
             &component.binding,
         ) {
-            (Some(of), Some(value), _) => per_field(&value, of, true),
-            (Some(of), None, Some(binding)) => per_field(binding, of, false),
+            (Some(of), Some(value), _) => per_field(&value, of, true)?,
+            (Some(of), None, Some(binding)) => per_field(binding, of, false)?,
             _ => Vec::new(),
         };
         let element_bindings: Option<Vec<Expr>> = match (
@@ -1185,7 +1188,7 @@ fn record_value_per_field(
     local_consts: &HashMap<String, f64>,
     records_wider_for_fields: &HashMap<String, String>,
     sizes: &[i64],
-) -> Vec<Vec<(String, Expr)>> {
+) -> Result<Vec<Vec<(String, Expr)>>, String> {
     // The value comes apart into every field the record has,
     // final ones among them, because that is what the record
     // is. Which of them may be handed on is a separate
@@ -1223,7 +1226,7 @@ fn record_value_per_field(
         .map(|(field, constant)| !field.is_final && !constant)
         .collect();
     if fields.is_empty() || !settable.iter().any(|may| *may) {
-        return Vec::new();
+        return Ok(Vec::new());
     }
     let shapes = Shapes {
         sizes: sizes_here,
@@ -1253,7 +1256,7 @@ fn record_value_per_field(
         })
     });
     let Ok(worked) = worked else {
-        return Vec::new();
+        return Ok(Vec::new());
     };
     // One record is its fields, and a field may be an array of
     // its own, so what is counted here is fields rather than
@@ -1339,6 +1342,44 @@ fn record_value_per_field(
         },
     }
     .unwrap_or_default();
+    // A field whose value is a call the run walks arrives as one name
+    // standing for the whole of it - `T = from_nxy(n_x, n_y)` is nine
+    // numbers the walk will answer with, written once - so the count
+    // of numbers says nothing about it. Where the value comes apart
+    // into one entry per field, each a whole field's worth of numbers
+    // or such a call, it is the record's fields, one apiece.
+    let per_element = if per_element.is_empty()
+        && element_names.len() == 1
+        && reads_a_walked_field()
+    {
+        match &worked {
+            Value::Array(items) if items.len() == fields.len() => {
+                let fits = items.iter().zip(&held).all(|(item, field)| {
+                    let mut leaves = Vec::new();
+                    item.flatten_into(&mut leaves);
+                    let numbers: Option<usize> = field
+                        .dimensions
+                        .iter()
+                        .map(|d| match d {
+                            Expr::Number(n) if *n >= 0.0 && n.fract() == 0.0 => Some(*n as usize),
+                            _ => None,
+                        })
+                        .product();
+                    // One expression for a whole array field: a call kept
+                    // whole for the run, or a choice between such calls.
+                    let walked = matches!(item, Value::Scalar(_)) && !field.dimensions.is_empty();
+                    walked || numbers == Some(leaves.len())
+                });
+                match fits {
+                    true => one(&worked).map(|whole| vec![whole]).unwrap_or_default(),
+                    false => per_element,
+                }
+            }
+            _ => per_element,
+        }
+    } else {
+        per_element
+    };
     // A value taken apart by count is taken apart by the class that
     // wrote it, and matched against the fields of the class that
     // receives it. Those are the same class most of the time and not
@@ -1371,12 +1412,49 @@ fn record_value_per_field(
                     })
                     .collect();
                 if !by_name.is_empty() {
-                    return vec![by_name; element_names.len()];
+                    return Ok(vec![by_name; element_names.len()]);
                 }
             }
         }
     }
-    per_element
+    // A value that fits none of the lengths a record of this class can
+    // have is not a value for it, and dropping it leaves every field to
+    // whatever its declaration said - nothing, or a default the model
+    // never chose. Either is a wrong answer given quietly. Refused
+    // instead, naming the record and the count that did not fit.
+    if per_element.is_empty() && refuses_a_value_that_fits_nothing() {
+        if let Some(each) = of_one.filter(|each| *each > 0) {
+            // A count that fits and was declined anyway - a constant
+            // with nothing to be - is said by the layer that names the
+            // field, so only a count that fits no length is refused.
+            let n = element_names.len();
+            let fits = [each, each + constants]
+                .iter()
+                .any(|one| leaves.len() == *one || leaves.len() == one * n);
+            if !leaves.is_empty() && !fits {
+                let named = fields
+                    .iter()
+                    .zip(&settable)
+                    .filter(|(_, may)| **may)
+                    .map(|(field, _)| format!("`{field}`"))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                return Err(format!(
+                    "the value of `{prefix}{}` comes apart into {} numbers where one `{}` \
+                     is {each}{}, so its fields {named} cannot be given the value the model \
+                     wrote",
+                    element_names.first().map(String::as_str).unwrap_or(""),
+                    leaves.len(),
+                    of.name,
+                    match element_names.len() {
+                        1 => String::new(),
+                        n => format!(" and {n} of them are {}", each * n),
+                    },
+                ));
+            }
+        }
+    }
+    Ok(per_element
         .into_iter()
         .map(|given| {
             fields
@@ -1388,7 +1466,23 @@ fn record_value_per_field(
                 .map(|(field, _)| field)
                 .collect()
         })
-        .collect()
+        .collect())
+}
+
+/// Whether a field whose value is one expression standing for a whole
+/// array - a call the run walks, or a choice between such calls - is
+/// taken as that field's value. On by default;
+/// `OXIDELICA_NO_WALKED_FIELD=1` counts numbers alone, as before.
+fn reads_a_walked_field() -> bool {
+    std::env::var_os("OXIDELICA_NO_WALKED_FIELD").is_none()
+}
+
+/// Whether a record value that fits none of the record's lengths is
+/// refused rather than dropped. On by default;
+/// `OXIDELICA_DROP_UNFIT_RECORD=1` drops it without a word, as before,
+/// so that one binary gives both halves of a measurement.
+fn refuses_a_value_that_fits_nothing() -> bool {
+    std::env::var_os("OXIDELICA_DROP_UNFIT_RECORD").is_none()
 }
 
 /// Instantiate one component element (a scalar, or one element of an

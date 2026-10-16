@@ -4523,3 +4523,51 @@ fn a_walked_record_given_one_number_is_refused_and_not_left_at_zero() {
     let error = run_err(source);
     assert!(error.contains("`c` is held element by element"), "{error}");
 }
+
+/// A record field whose value is a call the run walks takes that call
+/// as its value, even where the record is chosen by an `if`.
+///
+/// The analytic loops' `Cylinder` orients itself with
+/// `if rotationType == ... then from_nxy(...) else if ...`, a three-way
+/// choice of records whose matrix field is a body the run walks. That
+/// value comes apart into one expression per field - the choice of
+/// calls for the matrix, three zeros for the vector - which is four
+/// things where the record holds twelve numbers, and counted by numbers
+/// it fitted nothing and was dropped: every field bound to nothing.
+/// One expression standing for a whole array field is that field's
+/// value. The orientation here is not the identity, so a field taken
+/// from the wrong place, or left at zero, shows in the number.
+#[test]
+fn a_record_chosen_by_an_if_hands_its_walked_matrix_field_on() {
+    let r = run("model M \
+           function length input Real v[:]; output Real r; algorithm r := sqrt(v*v); end length; \
+           function normalize input Real v[:]; output Real r[size(v, 1)]; \
+             algorithm r := smooth(0, if length(v) >= 1e-13 then v/length(v) else v/1e-13); \
+           end normalize; \
+           function from_nxy input Real n_x[3]; input Real n_y[3]; output Real T[3,3]; \
+           protected \
+             Real e_x[3] = normalize(n_x); \
+             Real e_y[3] = normalize(n_y); \
+             Real n_z_aux[3] = cross(e_x, e_y); \
+             Real n_y_aux[3] = if n_z_aux*n_z_aux > 1e-6 then e_y \
+               else if abs(e_x[1]) > 1e-6 then {0,1,0} else {1,0,0}; \
+             Real e_z[3] = normalize(cross(e_x, n_y_aux)); \
+           algorithm T := {e_x, cross(e_z, e_x), e_z}; \
+           end from_nxy; \
+           record Rr Real T[3,3]; Real w[3]; end Rr; \
+           function f input Real a[3]; input Real b[3]; output Rr r; \
+             algorithm r := Rr(T = from_nxy(a, b), w = zeros(3)); end f; \
+           parameter Integer k = 2; \
+           parameter Real n_x[3] = {0,2,0}; \
+           parameter Real n_y[3] = {-3,0,0}; \
+           final parameter Rr R = if k == 1 then f(n_y, n_x) \
+             else if k == 2 then f(n_x, n_y) else f(n_y, n_x); \
+           Real x(start = 0, fixed = true); \
+         equation der(x) = R.T[1,2] + 10*R.T[2,1] + 100*R.T[3,3]; \
+         annotation(experiment(StopTime = 1)); end M;");
+    // e_x = {0,1,0}, e_y = {-1,0,0}, e_z = {0,0,1}: T[1,2] = 1,
+    // T[2,1] = -1, T[3,3] = 1, so x grows at 1 - 10 + 100 = 91.
+    let x = r.columns.iter().position(|c| c == "x").unwrap();
+    let last = r.rows.last().unwrap();
+    assert!((last[x] - 91.0).abs() < 1e-9, "x = {}", last[x]);
+}

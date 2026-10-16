@@ -48294,3 +48294,164 @@ singular equation of its first motor's flange; `OneAxis` and
 series of its own, buying one model and moving the robot one storey,
 and it is not taken here. The switch is parked in
 `~/oxideflow/park/m435-der-alias.diff`.
+
+## Link 4 walked to its end, and a record value that fits nothing refused (m436)
+
+### Link 4 built behind a switch: it fires, and the chain does not end
+
+Built in a separate tree (`/tmp/m436/wt`, binaries `/tmp/m436/ox*`,
+parked as `~/oxideflow/park/m436-link4-probe.diff`) over the m430
+sibling probe and link 3, both behind their switches as before. The
+check is the one m435 planned: before a member's victim is chosen, its
+differentiated row is evaluated with every name a row of the system
+defines worked out from that definition, every other name drawn at
+random, at three points; a row that vanishes at all three is refused
+as one the system already holds.
+
+Three things had to be true before the check could see anything, each
+found with a print in the probe tree:
+
+1. The definitions a differentiation supplies come back as
+   `der(x) - e = 0`, not as `der(x) = e`, so they are read in that
+   shape too.
+2. A connection set names one value through many aliases written in
+   no particular direction. Read as definitions one at a time, the
+   set's root (`jointRRR1.frame_a.r_0[2]`) was drawn at random while
+   its real definition sat on another member. The aliases are taken as
+   one class, and the class's derivatives with it.
+3. A state's derivative is defined by its state equation, which is
+   not a row of `algebraic_eqs`.
+
+With all three, the check fires on `Rrr1` at reduction 13: the member
+`eq 2036`, whose differentiated row is the doubled
+`der(der(jointUSR.rod1.rRod_0[2]))` m433 named, is refused, and the
+walk takes member 11 of 32 instead (`/tmp/m436/v14.txt`). The model
+still stops on the same singular block of 22. The Newton trail of
+that block (`OXIDELICA_NEWTON_TRAIL`) has two zero rows, row 12 and
+row 21: row 12 is `eq 2036` itself, the first-order copy, and row 21
+its second derivative, now supplied by member 11 rather than taken as
+a member.
+
+A watch on `eq 2036` through the walk (`OX436_WATCH`, same file
+family) says when the row became a copy: it is independent at
+reductions 7 to 9 and implied by the rest from reduction 10 on, when
+`body1.v_0[2]` is demoted. So the copy is made three reductions before
+link 4 can see it, by a demotion that is right on its own terms, and
+refusing the member that differentiates it does not remove it. A
+further switch refusing any member whose supply would differentiate a
+row the rest already hold (`OX436_SUPPLY_CHECK`) refuses every member
+of reduction 13 in turn and ends in `constrains no state` on `eq 2036`
+itself (`/tmp/m436/v19.txt`). Reading states as definable too
+(`OX436_STATES_DEFINABLE`) is wrong rather than strong: every
+kinematic row then follows from the others and the walk refuses
+everything it is offered.
+
+### The four library models, with and without link 4
+
+`--only` from the root `.msl`, under the sibling probe and link 3,
+link 4 off and on, one binary (`/tmp/m436/ox17`, files
+`/tmp/m436/four_{off,on}_<model>.txt`, times in
+`/tmp/m436/four_times.txt`):
+
+| model                   | off                                      | on       | seconds off / on |
+| ----------------------- | ---------------------------------------- | -------- | ---------------- |
+| `PlanarLoops_analytic`  | singular, `rod1.frame_a.R.T[2,2]` (m434) | the same | 156 / 360        |
+| `CylinderBase`          | singular, `piston.frame_b.R`             | the same | 34 / 70          |
+| `Cylinder_analytic_CAD` | singular, `piston.frame_b.R`             | the same | 32 / 71          |
+| `EngineV6_analytic`     | singular, a long residual                | the same | 365 / 594        |
+
+Link 4 moves none of the four. `PlanarLoops_analytic` stands on the
+wall m434 named as the power check spending the drive's angle, the
+cylinders on the orientation of the piston's frame, and the check
+doubles the time of each without reaching either. `EngineV6_analytic`
+takes 365 seconds with the check off, 338 of them in the run half,
+and 594 with it on: a giant in its own right before any link is
+added, and one the check makes dearer still.
+
+So the end of the chain is not reached by link 4. Its map, numbered:
+
+1. link 1, a flow counted as given only where it stands alone - taken
+   (m435);
+2. link 2, a parameter's unworkable start left to the initialisation -
+   taken, narrow (m435);
+3. the m430 sibling member - measured in m435, not taken;
+4. link 3, a port spoken for from above only from outside its owner -
+   measured corpus-inert in m435, not taken;
+5. link 4, the nonlinear copy - built here behind a switch, fires on
+   the right member, buys nothing: the copy is made by an earlier
+   demotion (reduction 10 in `Rrr1`), so the question is the victim
+   at reduction 10, not the member at reduction 13;
+6. the power check's spending of the drive's angle (m434) and the
+   piston frame's orientation stand in the four library models with
+   or without 5.
+
+The chain is not taken. Links 3 to 5 stay in the park. The next
+question for the series is what at reduction 10 makes `body1.v_0[2]`
+the victim when its demotion turns `eq 2036` into a copy, which is a
+question about the victim choice and not about dependence checks.
+
+### A record field whose value is a walked call, and a refusal for the rest
+
+The Fr3b layer m435 named, in `record_value_per_field`
+(`components.rs`). The small model is library-free: the body of
+`TransformationMatrices.from_nxy` copied into the model with its two
+helpers (`Fr3nG.mo`, parked in `~/oxideflow/park/m436-models/`).
+Taking any of three things away lets it run: the nested `if` of
+`n_y_aux`, the `smooth(0, if ...)` of `normalize`, or the outer
+three-way `if`. The `each final unit` modifiers are not part of it.
+
+A throwaway print at the record and in the `If` arm of `expand` named
+the layer more exactly than m435 could. The outer `if` is not where the
+value is lost: its branches have the same structure, two entries each,
+and are zipped as they should be. What differs is what a branch is.
+Where `from_nxy` can be written out (`Fr3nE`, no outer `if`; or a body
+without the nested choices), the matrix field comes back as nine
+expressions and the record as twelve. Where the body is one the run
+walks, the matrix field is one call standing for all nine, and the
+record is two entries, four numbers: the call and the three zeros of
+`w`. Counted by numbers, four fits neither twelve nor any multiple of
+it, and the value was dropped.
+
+Two things were taken, each behind a switch that gives the old reading
+back:
+
+1. One expression standing for a whole array field - a call kept for
+   the run, or a choice between such calls - is that field's value,
+   where the value comes apart into one entry per field and every other
+   entry has its field's count. `OXIDELICA_NO_WALKED_FIELD=1` counts
+   numbers alone. The test
+   `a_record_chosen_by_an_if_hands_its_walked_matrix_field_on` runs the
+   copy of `from_nxy` with an orientation that is not the identity
+   (`n_x = {0,2,0}`, `n_y = {-3,0,0}`) and checks the slope 91 worked
+   out by hand from `T`; it is refused with the switch set.
+2. What still fits nothing is refused, naming the record, its fields
+   and both counts, instead of being dropped:
+   `the value of R comes apart into 3 numbers where one M.Rr is 2`.
+   `OXIDELICA_DROP_UNFIT_RECORD=1` drops it as before. The test
+   `a_record_value_that_fits_no_length_of_the_record_is_refused_by_name`
+   hands a record of two fields a constructor of three.
+
+The refusal alone was measured first over the main pass, one binary
+(`/tmp/m436/oxfr2`, `/tmp/m436/pair/off.txt` against `on.txt`): 953 /
+774 against 952 / 774, runnable 836 / 731 in both, 529 Jacobians in
+both, the run list the same line for line. The one model to leave the
+flattened list was `Loops.Utilities.Cylinder`, now refused with
+`the value of cylinderInclination.R_rel comes apart into 4 ...` in
+place of the parameter with no value - the cause named, and a floor
+that would have fallen by one. That is what sent the work on to the
+first change rather than taking the refusal by itself.
+
+The two together were then measured from one binary
+(`/tmp/m436/oxif6`, `/tmp/m436/pair3/off.txt` with both switches set
+against `on.txt`): 953 / 774 in both, runnable 836 / 731 in both, 529
+Jacobians in both, and the flattened list and the run list the same
+line for line. The register differs in one row:
+`Loops.Utilities.Cylinder` moves from
+`parameter cylinderInclination.R_rel.T[1,1] has no value` to a
+structurally singular equation of its `mid` frame, the wall the
+cylinders of the analytic loops already stand at. No floor moves. A
+first build that refused on any declined count, including one that fits
+and was declined for a constant with nothing to be, turned
+`a_constant_a_constructor_says_nothing_about_is_refused_not_zeroed`
+red; the refusal is now for a count that fits no length at all, and
+the layer that names the missing constant keeps its case.
