@@ -50517,3 +50517,28 @@ Not wired into CI, as the order said: the price is 45 minutes for the
 whole admission pass, 330 models of it 20 minutes of summed wall clock,
 and the check of 521 is one solver, four minutes on six cores
 (`/tmp/m443/sw_on.tsv`).
+
+### One of the ten probed: two events that fall on one instant
+
+`ThyristorBridge2Pulse_R`, 31 events at 1e-6 and 34 at 1e-8, probed
+with `OXIDELICA_EVENT_TRAIL` (`/tmp/m443/trail6.txt`, `trail8.txt`).
+The trajectories agree to four places on every printed row, and the
+instants at which events fall are the same 24 at both tolerances
+except three: 0.05, 0.06 and 0.07. At each of them two causes meet - a
+resistive load whose current reaches zero exactly where the source
+voltage does, and the edge of the firing pulse, timed to the same
+zero. At 1e-6 the iteration at t = 0.05 takes both in one event: the
+pulse turns and `thyristor_p1.off` and `thyristor_n2.off` go to 1 in
+the same pass. At 1e-8 the pulse turns first, and the current's zero is
+found a moment later as an event of its own that turns the two
+thyristors off. The same states, reached in one event or in two.
+
+So for this model the count is not a lost crossing but the grouping of
+two crossings that coincide by design, and which side of the pulse edge
+the zero of the current is found on is decided by the error of the
+step. That is a fault of the counter as a fingerprint rather than of
+the run, and it is the reading to try first on the other two
+thyristor rectifiers, which alternate 31 and 34 the same way. Whether
+it explains the converters whose counts wander by tens
+(`SinglePhaseTwoLevel_RL` 318, 331, 307, 308) is not known; nothing
+was mended, and none of the ten was admitted.
