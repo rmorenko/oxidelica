@@ -721,7 +721,12 @@ empty bus is "unknown variable `b.sig`", on the bus itself, through a
 joined sub-bus and across two components alike. Declared in the bus,
 `expandable connector Bus Real sig; end Bus;`, or carried by a connector
 with a field inside it, the same wiring runs; the library's own
-`ControlBus` declares its members, which is why `BusUsage` runs. A library may be a directory tree, but
+`ControlBus` declares its members, which is why `BusUsage` runs. The
+layer, by reading: `expand_buses` in
+`crates/oxidelica-parser/src/flatten/connections.rs` mints a member by
+instantiating the other side's class under the prefix `b.sig.`, which
+makes `b.sig.y` of a connector with a field and nothing at all of a
+short one, whose value is the connector itself. A library may be a directory tree, but
 a file's place in it comes from its `within` clause rather than from
 where the file sits, so a tree without `within` headers is read as
 though it were flat.
