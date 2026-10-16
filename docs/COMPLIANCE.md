@@ -737,37 +737,37 @@ Three came back as wrong numbers, with no refusal, and are first:
 
 The rest came back as the map says:
 
-4. Ch. 12: ten million rounds of one loop. The ceiling stands in
+1. Ch. 12: ten million rounds of one loop. The ceiling stands in
    `crates/oxidelica-sim/src/walk.rs` (`MAX_ROUNDS`) and no test reaches
    it; the 64-call ceiling beside it is tested. Not probed: a probe
    costs ten million rounds.
-5. Ch. 8: `delay` starting its memory over after a re-compilation. No
+2. Ch. 8: `delay` starting its memory over after a re-compilation. No
    test re-compiles a model holding a `delay`. Not probed.
-6. Ch. 9: a connection set matches connectors by shape. Two connector
+3. Ch. 9: a connection set matches connectors by shape. Two connector
    classes with the same members connect and run; two with different
    members are refused, naming both classes.
-7. Ch. 9: a bus member connected only to another bus member is refused
+4. Ch. 9: a bus member connected only to another bus member is refused
    with "a bus member takes its type from the other side", and an array
    handed to a bus member is refused as a connection between two and one
    connectors.
-8. Ch. 13: a library tree without `within` headers is read as though
+5. Ch. 13: a library tree without `within` headers is read as though
    it were flat: `L.Sub.K` is not found, a bare `K` is.
-9. Ch. 14: an operator whose result is a different record than its
+6. Ch. 14: an operator whose result is a different record than its
    operands is said to be misread. `A * A` answering a `B` came out
    right in the one shape probed, so the sentence is not confirmed and
    not refuted: a test is wanted that either shows the misreading or
    lets the sentence go.
-10. Ch. 18: `Protection` and `uses` are read without complaint. Whether
-    they are carried is not visible from a run; `connectorSizing` and
-    `conversion` were not probed. `Dialog` and `Evaluate` are tested
-    (`crates/oxidelica-parser/tests/flattening/names.rs`).
-11. Ch. 4: the count of 10 627 instances down to 3 428 is a measurement
-    with no file beside it and no script that prints it, so it cannot be
-    taken again as it stands.
-12. Ch. 6: structural subtyping is said to have "cost nothing
-    measurable" on the standard library. Nothing measures it: no
-    refusal in the census is tagged as a type relation, so the claim
-    is unfalsifiable as written.
+7. Ch. 18: `Protection` and `uses` are read without complaint. Whether
+   they are carried is not visible from a run; `connectorSizing` and
+   `conversion` were not probed. `Dialog` and `Evaluate` are tested
+   (`crates/oxidelica-parser/tests/flattening/names.rs`).
+8. Ch. 4: the count of 10 627 instances down to 3 428 is a measurement
+   with no file beside it and no script that prints it, so it cannot be
+   taken again as it stands.
+9. Ch. 6: structural subtyping is said to have "cost nothing
+   measurable" on the standard library. Nothing measures it: no
+   refusal in the census is tagged as a type relation, so the claim
+   is unfalsifiable as written.
 
 Two sentences were found false against tests and are corrected above
 rather than listed: functions handed as arguments (said to be absent,
