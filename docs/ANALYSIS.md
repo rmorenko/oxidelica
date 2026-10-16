@@ -49381,6 +49381,15 @@ than in a corner of one chapter:
    running example with such a parameter, says "settled as: a parameter
    worth 323.15", which is correct, and nothing in that model reads it.
 
+The same sweep of every `OXIDELICA_NO_*` switch in the two crates (185)
+was run on the two wrong answers whose layer is still unnamed. Nothing
+moves the `if` whose condition an algebraic loop settles, so that fault
+sits in no switched rule; for the state machine only
+`OXIDELICA_NO_TIME_CONDITION_EVENTS` changes the run, and it makes the
+lag worse (active through 16 ms) rather than mending it, so the late
+arrival is in the machine's own bookkeeping and not in the clock's
+events. Both layers are left for a probe that reads the code.
+
 Ten tests in `~/oxideflow/park/m439-red-tests.diff`, one for each of
 the nine wrong answers and a second for the sticking relation, all
 seen red on the tree of the shift. None is in the tree: the shift was documentary,
