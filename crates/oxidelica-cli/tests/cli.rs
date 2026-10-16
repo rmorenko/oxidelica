@@ -270,6 +270,75 @@ fn the_solver_may_be_chosen_on_the_command_line() {
 }
 
 #[test]
+fn the_tolerance_on_the_command_line_beats_the_annotation() {
+    // The model asks for a coarse tolerance; the flag asks for a fine
+    // one, and the fine one is what the run used - both by its own word
+    // and by an answer that lands on e^-1 where the coarse one does not.
+    let model = TempFile::new(
+        "tolerance-flag.mo",
+        "model D Real x(start = 1, fixed = true); equation der(x) = -x; \
+         annotation(experiment(StopTime = 1, Tolerance = 1e-1)); end D;",
+    );
+    let final_x = |out: &Output| -> f64 {
+        let text = stderr(out);
+        let line = text
+            .lines()
+            .find(|l| l.starts_with("final point:"))
+            .unwrap_or_else(|| panic!("{text}"));
+        line.split("x = ").nth(1).unwrap().trim().parse().unwrap()
+    };
+    let exact = (-1.0f64).exp();
+
+    let coarse = bin()
+        .args([
+            "simulate",
+            model.path(),
+            "--solver",
+            "dopri45",
+            "-o",
+            "/dev/null",
+        ])
+        .output()
+        .unwrap();
+    assert!(coarse.status.success(), "{}", stderr(&coarse));
+    assert!(
+        stderr(&coarse).contains("tolerance: 1e-1"),
+        "{}",
+        stderr(&coarse)
+    );
+
+    let fine = bin()
+        .args([
+            "simulate",
+            model.path(),
+            "--solver",
+            "dopri45",
+            "--tolerance",
+            "1e-10",
+            "-o",
+            "/dev/null",
+        ])
+        .output()
+        .unwrap();
+    assert!(fine.status.success(), "{}", stderr(&fine));
+    assert!(
+        stderr(&fine).contains("tolerance: 1e-10"),
+        "{}",
+        stderr(&fine)
+    );
+    assert!((final_x(&fine) - exact).abs() < 1e-6, "{}", final_x(&fine));
+
+    for bad in ["0", "-1", "nan", "abc"] {
+        let out = bin()
+            .args(["simulate", model.path(), "--tolerance", bad])
+            .output()
+            .unwrap();
+        assert!(!out.status.success(), "{bad}");
+        assert!(stderr(&out).contains("--tolerance"), "{bad}");
+    }
+}
+
+#[test]
 fn a_run_that_stops_early_says_so() {
     // `terminate` ends the run, and the message reaches the terminal.
     let ball = example("bouncing_ball.mo");

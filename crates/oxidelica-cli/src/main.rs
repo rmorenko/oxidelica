@@ -20,8 +20,10 @@ fn main() -> ExitCode {
 const USAGE: &str = "Oxidelica M0 - a Modelica subset simulator
 
 Usage:
-  oxidelica simulate <file.mo> [--stop T] [--dt H] [--solver NAME] [-o result.csv]
+  oxidelica simulate <file.mo> [--stop T] [--dt H] [--solver NAME] [--tolerance X]
+                            [-o result.csv]
                             solvers: auto (default), dopri45, bdf (stiff), rk4
+                            --tolerance overrides the model's experiment annotation
   oxidelica parse <file.mo>
   oxidelica why <file.mo|Library.Class> <variable>
                             where a variable's value comes from
@@ -336,6 +338,7 @@ fn simulate(args: &[String]) -> Result<(), String> {
     let mut dt: Option<f64> = None;
     let mut out: Option<String> = None;
     let mut solver: Option<oxidelica_sim::SolverMethod> = None;
+    let mut tolerance: Option<f64> = None;
 
     let mut i = 1;
     while i < args.len() {
@@ -367,6 +370,17 @@ fn simulate(args: &[String]) -> Result<(), String> {
                         .ok_or_else(|| format!("unknown solver `{name}`"))?,
                 );
             }
+            "--tolerance" => {
+                let value: f64 = take_value(&mut i)?
+                    .parse()
+                    .map_err(|e| format!("--tolerance: {e}"))?;
+                // A tolerance of zero or below asks the step control for
+                // the impossible, and NaN for nothing at all.
+                if !(value > 0.0 && value.is_finite()) {
+                    return Err(format!("--tolerance: {value} is not a positive number"));
+                }
+                tolerance = Some(value);
+            }
             "-o" | "--out" => out = Some(take_value(&mut i)?),
             other => return Err(format!("unknown flag `{other}`\n\n{USAGE}")),
         }
@@ -386,6 +400,12 @@ fn simulate(args: &[String]) -> Result<(), String> {
     }
     if let Some(method) = solver {
         compiled.method = method;
+    }
+    // The command line beats the model's own experiment annotation: a
+    // model run against itself at a finer tolerance is the comparison
+    // that shows an answer depending on the size of the step.
+    if let Some(t) = tolerance {
+        compiled.tolerance = t;
     }
 
     let started = std::time::Instant::now();
@@ -426,6 +446,7 @@ fn simulate(args: &[String]) -> Result<(), String> {
     // solvers agreeing on a model agree on exactly: the sharpest half of
     // comparing them, since a lost crossing is a missing unit here.
     eprintln!("events: {}", result.events);
+    eprintln!("tolerance: {:e}", compiled.tolerance);
     let [relations, on_time, samples, whens] = compiled.event_sources();
     eprintln!(
         "event sources: {relations} relations, {on_time} on time, {samples} samples, {whens} when"
