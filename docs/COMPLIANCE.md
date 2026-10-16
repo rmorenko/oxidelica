@@ -926,7 +926,11 @@ moved chapters 3 and 13 to Mostly and chapter 17 to Partial:
     to 0.9 where it is 0.3 to 0.6. Without the switch, or across a
     `reinit`, the delay is right. The map stated the restart as a
     property; it is a wrong answer for every model whose switch sits
-    beside a delay.
+    beside a delay. A `spatialDistribution` meets the same change of
+    mode and is refused rather than wrong: "unbalanced model: 8
+    algebraic equation(s) for 6 unknown(s)", its two boundary equations
+    written a second time in the re-compiled model. Without the switch,
+    or with one that never turns, it runs.
 
 The rest came back as the map says:
 
