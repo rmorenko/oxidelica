@@ -936,6 +936,7 @@ fn stretch(columns: &[&str], rows: &[&[f64]]) -> SimResult {
         terminated: None,
         method: SolverMethod::Dopri45,
         reselections: 0,
+        events: 0,
     }
 }
 

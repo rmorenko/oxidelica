@@ -529,6 +529,9 @@ impl CompiledModel {
         method: SolverMethod,
         mut alg_guess: Vec<f64>,
     ) -> Result<SegmentStart, SimError> {
+        // A segment begun again - the cold start refused, or the run
+        // handed to the implicit solver - counts its events afresh.
+        self.events_changed.set(0);
         let mut values = self.values_template.clone();
         let mut columns = vec!["time".to_string()];
         columns.extend(self.states.iter().cloned());
@@ -569,6 +572,7 @@ impl CompiledModel {
                     terminated: Some(message),
                     method,
                     reselections: 0,
+                    events: self.events_changed.get(),
                 }));
             }
         }
@@ -799,6 +803,7 @@ impl CompiledModel {
             terminated,
             method,
             reselections: 0,
+            events: self.events_changed.get(),
         }))
     }
 
@@ -861,6 +866,7 @@ impl CompiledModel {
             terminated,
             method,
             reselections: 0,
+            events: self.events_changed.get(),
         }))
     }
     /// Evaluate algebraic variables and derivatives at point (t, y).

@@ -6593,6 +6593,7 @@ pub(crate) fn compile_at(
         ),
         newton_window: std::cell::Cell::new((f64::NAN, 0)),
         newton_peak: std::cell::Cell::new((0, f64::NAN)),
+        events_changed: std::cell::Cell::new(0),
     };
     // States the model pins down itself: `fixed = true` says the start
     // value is an initial condition, not a guess Newton may move.

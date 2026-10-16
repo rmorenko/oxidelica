@@ -419,6 +419,10 @@ fn simulate(args: &[String]) -> Result<(), String> {
             .collect();
         eprintln!("final point: {}", summary.join(", "));
     }
+    // The events that changed something, a whole number that two
+    // solvers agreeing on a model agree on exactly: the sharpest half of
+    // comparing them, since a lost crossing is a missing unit here.
+    eprintln!("events: {}", result.events);
     Ok(())
 }
 

@@ -5,6 +5,7 @@ use crate::*;
 impl CompiledModel {
     /// Classic fixed-step RK4 integration over `[0, stop_time]`.
     pub fn simulate_rk4(&self) -> Result<SimResult, SimError> {
+        self.events_changed.set(0);
         let n = self.states.len();
         let steps = (self.stop_time / self.step).ceil() as usize;
         let mut y = self.initial.clone();
@@ -132,6 +133,7 @@ impl CompiledModel {
             terminated,
             method: SolverMethod::Rk4,
             reselections: 0,
+            events: self.events_changed.get(),
         })
     }
 }

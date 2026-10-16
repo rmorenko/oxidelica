@@ -1282,3 +1282,28 @@ fn a_dip_right_after_a_cut_step_is_not_stepped_over() {
         "cos(20 t) falls through -0.5 at 0.105, 0.419 and 0.733"
     );
 }
+
+/// The count of events that changed something is the model's and not
+/// the solver's: `rk4` raises an event at every grid point and finds
+/// nothing moved at most of them, and those are not counted. The
+/// relation `sin(20 t) > 0.5` beside a state rises four times and
+/// falls three times in a second, and a `when` on it fires on each
+/// rise, so both solvers count four - the number a lost crossing
+/// shows as a missing unit, which is what comparing two solvers
+/// leans on.
+#[test]
+fn events_that_changed_something_are_counted_alike_on_two_solvers() {
+    let source = "model W Real x(start = 0, fixed = true); \
+         discrete Real m(start = 0, fixed = true); \
+         equation der(x) = 1; when sin(20 * time) > 0.5 then m = pre(m) + 1; end when; \
+         annotation(experiment(StopTime = 1, Interval = 0.01)); end W;";
+    for method in [SolverMethod::Dopri45, SolverMethod::Rk4] {
+        let result = run_on(source, method).expect("runs");
+        assert_eq!(result.events, 4, "{method:?}");
+    }
+    // A model with no event at all counts none, the initial event that
+    // moves nothing included.
+    let quiet = "model Q Real x(start = 0, fixed = true); equation der(x) = 1; \
+         annotation(experiment(StopTime = 1, Interval = 0.01)); end Q;";
+    assert_eq!(run_on(quiet, SolverMethod::Rk4).expect("runs").events, 0);
+}

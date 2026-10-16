@@ -517,6 +517,9 @@ pub struct CompiledModel {
     /// The most Newton iterations any one output interval has held in
     /// this segment, for the instrument that chooses the ceiling.
     newton_peak: std::cell::Cell<(usize, f64)>,
+    /// How many events of this segment changed something - a discrete
+    /// value or a state through `reinit`. See `SimResult::events`.
+    events_changed: std::cell::Cell<usize>,
 }
 
 /// What the adaptive solver came back with: either the finished run, or
@@ -1032,4 +1035,10 @@ pub struct SimResult {
     /// every model whose selection holds; a Cartesian pendulum swinging
     /// through the horizontal counts one per crossing.
     pub reselections: usize,
+    /// How many events changed something: moved a discrete value or
+    /// restarted a state. An event raised and found to change nothing -
+    /// which a fixed-step solver does on every grid point - is not
+    /// counted, so the number is the model's and not the solver's. Two
+    /// solvers that agree on a model agree on it to the unit.
+    pub events: usize,
 }

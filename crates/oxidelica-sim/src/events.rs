@@ -851,6 +851,9 @@ impl CompiledModel {
                 }
             }
         }
+        if outcome.changed {
+            self.events_changed.set(self.events_changed.get() + 1);
+        }
         Ok(outcome)
     }
 }

@@ -100,6 +100,7 @@ pub(crate) fn append_segment(
     }
     merged.terminated = segment.terminated;
     merged.method = segment.method;
+    merged.events += segment.events;
     Ok(merged)
 }
 
@@ -409,6 +410,7 @@ impl CompiledModel {
                 terminated: None,
                 method,
                 reselections: 0,
+                events: self.events_changed.get(),
             },
             time,
             values,
