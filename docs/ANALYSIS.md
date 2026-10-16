@@ -49838,6 +49838,46 @@ to 1. That is why they stand in the reference beside the library: a
 reference over the library only is a ratchet with nothing on the
 tooth this defect would have caught.
 
+Why the library half saw nothing, asked of the piles with the count
+of events the instrument already has (`dopri45` events where it ran,
+event sources from `/tmp/m441/src.tsv`, library models only):
+
+```text
+pile        models  dopri45 ran  events median  mean   with events
+agreed      330     330          0              2.5    105 (32%)
+apart       73      73           1              4.9    45 (62%)
+no check    193     142          11             785    133 (94%)
+ceiling     117     18           0              0.4    2 (11%)
+```
+
+The suspicion that admission by agreement throws out the very models
+a lost crossing lives in holds for one pile and not the other. The
+models with no reference side are the eventful ones, an order of
+magnitude above the admitted on the median and two on the mean: they
+are the sampled and clocked models `rk4` refuses, and they are out of
+the reference for the reason they are eventful. The models past the
+ceiling are not eventful at all - median zero - but dear: Fluid,
+MultiBody, machines. So the reference is blind to the eventful third
+of the subset by construction, and to the dear sixth by price.
+
+That is not the whole reason. 105 admitted models do have events, and
+81 of them have no relation on `time` and no sample, so their events
+are crossings of the kind defect 7 lost - and none moved under the
+switch. Defect 7 needs a relation on a smooth signal beside a state
+whose error estimate lets the step grow past the time spent on the
+other side of the threshold; a library model with real dynamics keeps
+its step short by its own error estimate, and the crossing is seen.
+The witnesses are built with `der(x) = 1` for exactly that reason.
+
+So the library reference is written down as it is: it does not catch
+defect 7, and it does catch what moves the count of events or the
+final point of 330 models, which is a regression of a different
+kind. The five witnesses are what catch defect 7, in the reference
+and as tests: `tests/simulation/events.rs` holds all five since m440
+(four rises, seven rises, three dips, the integral of the relation and
+the hysteresis), and the count of events alike on two solvers since
+this shift.
+
 ### What it costs and where it goes
 
 Admission is the pair, 39 minutes on six cores. The check is one
