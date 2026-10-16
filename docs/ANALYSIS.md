@@ -49978,6 +49978,17 @@ fingerprint that moves is explained in the commit that moves it, and
 a chain that has not been walked to its end is not taken a link at a
 time; the second link is a question of how a relation on `time` is
 recognised through an algebraic alias, which is a layer of its own.
+Walked one step further with a local probe, not kept: the table's
+value is asked with `Ref("t_new.timeScaled")` as its abscissa
+(`ModelicaStandardTables_CombiTimeTable_getValue`, `flatten/tables.rs`),
+and `clock_of` in `events.rs` takes a relation as a clock only where
+one side is `Expr::Time` itself and the other names parameters alone.
+`time/1 < 1` and `s < 1` with `s = time` both stay live relations;
+`time < 1*1` becomes a clock. Mending the second link means seeing
+through an algebraic alias of `time` before the event rewrite, which
+gives a name a definition and changes what the run treats as
+scheduled: by the house rule a change to be measured by its victims
+over the corpus, not one to be slipped in at the end of a shift.
 So the first link is parked whole, with its test, in
 `~/oxideflow/park/m441-table-start/` (`link1.patch`, `TT.mo`,
 `TT2.mo`, `ox7_check.tsv`), and the tree is as it was. What it shows
