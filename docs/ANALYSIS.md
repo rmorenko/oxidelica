@@ -50303,3 +50303,13 @@ Both are faults of the clocks on `time` itself, older than the alias,
 each with a reproduction under five lines in
 `~/oxideflow/park/m442-table-link2/` (`sm.mo`, `ab2.mo`). Mended
 first, they are what would let the parked chain be taken whole.
+
+What the second fault costs the corpus today, from one binary built at
+`d6b86f6` (`/tmp/m442/ox12`) with the clocks on time set and unset
+(`/tmp/m442/c_on.txt` against `c_off.txt`): with the clocks taken away
+the run list loses `NormalNoiseProperties` and `UniformNoiseProperties`
+and gains nothing, 953 / 774 against 953 / 772, 529 Jacobians in both.
+So no model of the library stands today on a sign proof the clocks
+hide: the fault is real on `ab2.mo` and costs the corpus nothing until
+something like the alias makes more relations into clocks. That puts
+it behind the first fault in the queue for the chain, not in front.
