@@ -1954,8 +1954,8 @@ fn an_outside_port_pushes_out_what_its_inside_pushes_in() {
 /// The wrapper's port is outside in its own class and inside in the
 /// set of three at the top, where it pushes 2 kg/s out to the sinks.
 /// Weighed as an outside connector there, its flow of -2 counted as
-/// nothing coming in, and each sink heard the other sink's own outflow
-/// - 4 and 5 where the source inside pushes 3. Both sinks hear 3, to
+/// nothing coming in, and each sink heard the other sink's own outflow:
+/// 4 and 5 where the source inside pushes 3. Both sinks hear 3, to
 /// the floor of the weights. `OXIDELICA_NO_STREAM_SIDE_BY_SET` gives
 /// back the wrong mix, which is what shows the test can tell.
 #[test]

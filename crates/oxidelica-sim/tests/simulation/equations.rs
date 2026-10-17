@@ -1264,9 +1264,19 @@ fn a_port_of_the_model_pushes_the_other_way() {
         "{P} {SRC} \
          model Sub P c; Src a(hv = 10, mv = -1); Src b(hv = 20, mv = -1); Real heard; \
          equation connect(a.c, c); connect(b.c, c); heard = inStream(a.c.h); end Sub; \
-         model M Sub sub; Real z; equation sub.c.h = 500; sub.c.p = 0; z = sub.heard; \
+         model M Sub sub; Real z; equation sub.c.p = 0; z = sub.heard; \
          annotation(experiment(StopTime = 1, Interval = 1)); end M;"
     ));
+    // The port's own outflow is not the model's to write: MLS 15.2
+    // makes it the mix of what the inside pushes in, a's 10 and b's 20
+    // at a weight of 1 each. This test used to write `sub.c.h = 500`
+    // to stand in for that equation, which the connection now owes.
+    let outflow = result.columns.iter().position(|c| c == "sub.c.h").unwrap();
+    assert!(
+        (result.rows.last().unwrap()[outflow] - 15.0).abs() < 1e-6,
+        "sub.c.h {}",
+        result.rows.last().unwrap()[outflow]
+    );
     let index = result.columns.iter().position(|c| c == "z").unwrap();
     // b pushes 20 with weight 1, and the outside port brings nothing:
     // a flow variable passes through a port rather than being summed
