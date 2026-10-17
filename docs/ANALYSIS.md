@@ -51753,3 +51753,45 @@ the emptying pipes by a damping that switches on too late, the inverse
 pump by a block that crosses NaN on either road. The fix that would
 make the reach of two a clean +2 is in the solver, not in the reading,
 and it is a series of its own. Nothing here was changed.
+
+### The row `min of an empty array`: two models, two causes, one of them a silent wrong number
+
+The row holds `LogicalSample` and `TestBooleanFunctions`
+(`/tmp/m450/pair/all.txt`). Probed one at a time from `.msl`, they are
+two different layers.
+
+`LogicalSample` met an empty array that should not have been empty.
+`PartialLogicalClock` declares its combinator as `replaceable
+PartialBooleanMISO combinator constrainedby PartialBooleanMISO(nu =
+nu)`, and `ConjunctiveClock` redeclares it as `MathBoolean.And`. MLS
+7.3.2 applies the modifiers of a constraining clause to the declaration
+and to every later redeclaration. The parser read the modifier list
+after `constrainedby` and threw it away (`parser/declarations.rs`, the
+`Token::ConstrainedBy` arm), so `combinator.nu` took the default of 0
+where the model says 2, `u[nu]` was empty, and `andTrue` reduced
+nothing. Twelve lines show it (`/tmp/m450/ea/C.mo`): refused as it
+stands, and run to `y = true` with the modifiers kept. This is the only
+constraining clause with modifiers in the standard library (`rg` over
+`.msl/Modelica` and `.msl/ModelicaTest`). The repair, keeping the
+constraint's modifiers where the declaration names nothing of its own,
+is parked (`~/oxideflow/park/m450-constraint-modifiers-probe.diff`,
+switch `OXPROBE_CONSTRAINT_MODS`). Measured as a pair of one binary
+(`/tmp/m450/cm/off.txt`, `on.txt`): 955 / 783 and runnable 838 / 739 on
+both sides, the lists of what flattens and runs identical, and in the
+census `LogicalSample` moves from this row to `X is a Clock, so it
+needs an interval the compiler can see` (2 to 3). It wins no model, and
+it is worth taking anyway: a size read as 0 where the model wrote 2 is
+a wrong number, and here it was only the empty reduction that turned it
+into a refusal.
+
+`TestBooleanFunctions` asks for the empty reduction on purpose:
+`allTrue(fill(true, 0)) == false`, with `allTrue` written as
+`size(b, 1) > 0 and min(b)`. The reduction is expanded while
+flattening, before the guard is evaluated, and the array layer refuses
+an empty `min` (`flatten/builtins.rs`, the arm for `min` and `max` of
+one argument). MLS table 10.3 gives the answer: the greatest value of
+the element type for `min` and the least for `max`, so `true` and
+`false` for a Boolean. A three-line model shows it
+(`/tmp/m450/ea/E2.mo`). The repair needs the element type at that arm,
+which the array layer does not carry there, so it is a change of its
+own and was not made.
