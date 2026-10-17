@@ -1827,3 +1827,52 @@ fn simulate_takes_a_class_of_the_libraries_at_its_own_stop_time() {
     assert!(err.contains("events: 3"), "{err}");
     assert!(err.contains("1 samples, 1 when"), "{err}");
 }
+
+/// One derivative defined twice, once by a bare name: the gear of the
+/// RobotR3 writes `a_rel = der(spring.w_rel)` beside the spring's own
+/// `a_rel = der(w_rel)`. The bare definition is an alias of the other
+/// whichever of the two comes first. Worked out by hand: `der(w) = -w`
+/// from `w = 1` gives `w = exp(-1)` at one second, and the aliases are
+/// `-w`. `OXIDELICA_NO_DER_ALIAS` gives back the refusal, so the same
+/// binary shows both sides.
+#[test]
+fn a_second_definition_of_a_derivative_by_a_bare_name_is_an_alias() {
+    let alias_second = TempFile::new(
+        "der_alias_second.mo",
+        "model A Real w(start = 1, fixed = true); Real a; Real b; \
+         equation a = der(w); b = der(w); a = -w; end A;",
+    );
+    let alias_first = TempFile::new(
+        "der_alias_first.mo",
+        "model B Real w(start = 1, fixed = true); Real b; \
+         equation b = der(w); der(w) = -w; end B;",
+    );
+    let run = |file: &TempFile, off: bool| {
+        let mut command = bin();
+        if off {
+            command.env("OXIDELICA_NO_DER_ALIAS", "1");
+        }
+        command
+            .args(["simulate", file.path(), "--stop", "1", "--dt", "0.5"])
+            .output()
+            .unwrap()
+    };
+    for (file, aliases) in [(&alias_second, &["a", "b"][..]), (&alias_first, &["b"][..])] {
+        let out = run(file, false);
+        assert!(out.status.success(), "{}", stderr(&out));
+        let csv = stdout(&out);
+        let w = at_time(&csv, "w", 1.0);
+        assert!((w - (-1.0f64).exp()).abs() < 1e-4, "w = {w}");
+        for name in aliases {
+            let value = at_time(&csv, name, 1.0);
+            assert!((value + w).abs() < 1e-4, "{name} = {value}, w = {w}");
+        }
+        let refused = run(file, true);
+        assert!(!refused.status.success());
+        assert!(
+            stderr(&refused).contains("two equations for der(w)"),
+            "{}",
+            stderr(&refused)
+        );
+    }
+}

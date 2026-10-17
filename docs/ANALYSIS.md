@@ -51243,3 +51243,193 @@ differentiate function` without the `structurally singular` prefix.
 Two are left, neither of this row: `HeatingSystem`, a subscript that
 survived flattening inside `waterBaseProp_ph`, and `AdvancedSolenoid`,
 `abs` outside a walked body.
+
+## A second definition of a derivative by a bare name (m448)
+
+### The series: one derivative named twice, the bare one an alias
+
+The row `two equations for der(...)` of the m447 census
+(`/tmp/m447/census/raw.txt`) held five models, all with one shape
+(mapped in m435 above): the model defines the same derivative twice,
+once by a bare name. `GearType1` writes `a_rel = der(spring.w_rel)`
+beside the spring damper's own `a_rel = der(w_rel)`. `split_equations`
+(`compile.rs`) now reads a second definition as an alias when either
+of the two is a bare name: the definition that is an expression stays
+the one a solver steps with, and the bare one goes to the algebraic
+side as `name = der(x)`. The parked m435 switch caught only the alias
+that came second; this rule does not depend on the order the two were
+met in. `OXIDELICA_NO_DER_ALIAS` gives back the refusal, so one binary
+measures itself.
+
+Both orders are covered by the test
+`a_second_definition_of_a_derivative_by_a_bare_name_is_an_alias`
+(`cli.rs`): `a = der(w); b = der(w); a = -w` and
+`b = der(w); der(w) = -w`. Both give `w = exp(-1)` at one second and
+the aliases `-w`, and both are refused under the switch. In the
+corpus only the first order occurs. A throwaway print on each branch
+(binary `/tmp/m448/oxprobe`, not in the tree), asked under `--only`
+from the root, fired on the second-alias branch every time and on the
+first-alias branch never: once in `ThrottleBody`, `OneAxis`,
+`AxisType1` and `GearType1`, and on three axes in `FullRobot`.
+
+The five, off and on (`/tmp/m448/ox1`, `--only` from `.msl`, files
+`/tmp/m448/five/{off,on}_<model>.txt`), stop where m435 found them:
+
+| model          | on                                                     |
+| -------------- | ------------------------------------------------------ |
+| `ThrottleBody` | runs                                                   |
+| `GearType1`    | initialisation is not square (a utility, open flanges) |
+| `AxisType1`    | unbalanced, 289 equations for 291 unknowns (a utility) |
+| `OneAxis`      | unbalanced, 531 equations for 476 unknowns             |
+| `FullRobot`    | structurally singular on `axis1.motor.flange...`       |
+
+The pair from one binary (`/tmp/m448/oxf`, `--list`, the switch set
+for `/tmp/m448/pair/off.txt` and unset for `on.txt`): 953 / 780
+against 953 / 781, runnable 836 / 737 in both, 529 Jacobians in both,
+the flattened list the same line for line. The run list gained
+`ThrottleBody`, a Clocked utility class that is not a runnable example,
+and lost nothing. Because the change decides which equation defines a
+derivative, the run lists were diffed and not just counted, and the
+diff is that one name. The run floor goes 778 to 779 (the pair's 781
+less the swinging `SpringWithMass` and `SMPM_VoltageSource`); the
+runnable floors do not move.
+
+The robot's chain has more links. `OneAxis` is now 55 equations over
+its unknowns, and m435 counted 64 bare connection aliases of the gear's
+flanges left over. That is the next storey, and it is not walked here.
+
+### The loop block of the census, by name, against the m344 map
+
+The run half of the m447 census (`/tmp/m447/census/census.txt`, raw
+`/tmp/m447/census/raw.txt`) holds 37 models in seven rows that name an
+algebraic loop: underdetermined 8, the Newton direction 8, singular
+Jacobian 8, `` `X` of algebraic loop `` 5, the equations of 4, did not
+converge 2, algebraic loop 2. Every one by name, regrouped by cause
+rather than wording, with the chapter that maps it:
+
+| family                                                              | n   | models                                                                                                                                                                                        |
+| ------------------------------------------------------------------- | --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Spice3, a derivative behind a capacitance a function writes as zero | 6   | `MNmos`, `MPmos`, `NAND`, `ONEBIT`, `Spice3BenchmarkRtlInverter` (underdetermined), `Spice3BenchmarkDifferentialPair` (the equations of); item 30, m372, m388                                 |
+| FundamentalWave machines                                            | 6   | `SMEE_DOL`, `SMEE_Rectifier`, `IMC_DOL_Polyphase` (underdetermined, the open switch's `Goff`, item 30); `SMEE_Generator`, `SMEE_Generator_Polyphase`, `SMEE_LoadDump` (singular, item 30)     |
+| water pipes thrown out of the domain on a first step                | 8   | `SeriesPipes1`, `SeriesPipes2`, `BranchingPipes1`, `2`, `4`, `14` (the Newton direction, m444), `TestTemperature1`, `TestMultiPortTraceSubstances` (the same row, near-singular at zero flow) |
+| a start the block never reads                                       | 3   | `ThreeSprings`, `PumpingSystem`, `PointGravityWithPointMasses2` (m426 to m428)                                                                                                                |
+| flat at zero flow                                                   | 2   | `PressureLoss.Bend`, `TestSuddenExpansion` (m426, m427)                                                                                                                                       |
+| the rolling wheels                                                  | 3   | `RollingWheel`, `RollingWheelSetDriving`, `RollingWheelSetPulling` (m391, m426, m429)                                                                                                         |
+| single causes                                                       | 9   | `Engine1a`, `LossyGearDemo2`, `GearType2`, `QuasiStatic` `Rectifier`, `RoomCO2`, `RoomCO2WithControls`, `TestMixingVolumesPressureStates`, `SMPM_CurrentSource`, `OneTank`                    |
+
+Thirty-seven, by name. The m344 row of twenty singular Jacobians, set
+against it (the twenty taken from the m344 chapter's own lists, its
+raw file `/tmp/m342/raw.txt` being gone): eight run now, one is carved
+out, and eleven stay. `DiodeBridge2mPulse` runs
+since 61533d5 (a column that moves only by rounding read as unmoved),
+`ThyristorBridge2mPulse_RLV` since eb5c473 (a singular loop inside an
+implicit step taken for a step too long, floors 70d3cb1),
+`PolyphaseRectifier` since d481752 (floors raised by the step's own
+refusal), `SMPM_Inverter_Polyphase` and `SMR_Inverter_Polyphase` since
+7d0b4ab (the star a five-phase machine hides in a sum, floors
+eb67d46), the Machines `SMEE_Rectifier` since 714ae75
+(floors 902420f), the Machines `SMEE_LoadDump` with b8c47d2, and
+`CCCV_Stack` since a3bfe6d (floors 1397 of `library_floor.sh`).
+`DynamicPipesAndFittings` is carved out into the heavy set and is not
+counted here. The eleven that stay are each in the table above under
+their present wording; `IMC_DOL_Polyphase`, `SMEE_DOL` and `SMEE_Rectifier` of
+FundamentalWave changed rows, singular to underdetermined.
+
+The floating star as a family is gone. Of the five star points m344
+named, three run (the two bridges and `PolyphaseRectifier`) and the
+other two, `IMC_DOL_Polyphase` and `SMEE_Generator_Polyphase`, stand
+under item 30 with the FundamentalWave machines, which waits for
+Roman's word. Of the five machines m344 put past a condition of 1e17,
+two run (`SMPM_Inverter_Polyphase`, `SMR_Inverter_Polyphase`) and
+three stand under item 30.
+So the subfamily still free to take is chosen by count among what
+item 30 does not hold: the eight pipes are the largest, and m444 has
+priced them already: a first step fixed by the derivative's scale
+turns a refusal in a second into a run of hours, and buys nothing
+that `run_a_little` could honestly count. The Spice3 six are the next
+largest, and they are item 30's too. What is left without a word
+standing over it is three families of three or fewer and nine singles.
+The next series from this block is therefore not chosen by size. It is
+whichever single has the cheapest mapped road, and the cheapest named
+is `OneTank`, the one model no chapter maps (m433).
+
+`fd_step_scale` and `reach` are in `solvers/mod.rs` (lines 10 and
+142), as the brief asked to check before building on the star's
+candidate. The star's candidate is moot now that the star runs.
+
+### `Inverse_sh_TX` changed its wording, not its model
+
+Item 45 of the queue stays parked. One line for the record: in the
+m447 census (`/tmp/m447/census/raw.txt`, line 231) the same single
+model, `Modelica.Media.Examples.ReferenceAir.Inverse_sh_TX`, is now
+refused at t = 0 by `an array reached the evaluator` inside the walked
+body `ReferenceMoistAir.Utilities.Ice09_Utilities.ice09BaseProp_pT`.
+After m446 and m447 it stands one floor further on, and it is still
+one model.
+
+### Reserve: the fold of `MoistAir` and `ComplexMath`, probed small
+
+`ModelicaTest.ComplexMath.TestComplexFunctions` and
+`TestComplexOperations` are refused while flattening by `an array
+cannot be a divisor` (`flatten/arrays.rs`, the `Div` arm of the
+combiner). Small models, binary `/tmp/m448/oxf`, under
+`/tmp/m448/cx/`: `Complex(1,2) / Complex(3,-1)` written in a model runs
+(`Cx1`), and so do `sin(a) / Complex(3,1)` and `s / cos(a)` in a model
+(`Cx4`, `Cx5`). `Modelica.ComplexMath.tan(a)` is refused (`Cx2`), and
+so is a function of one line `y := sin(x) / cos(x)`, inlined or not
+(`Cx10`, `Cx11`). Inside a body, then, a Complex divided by a Complex
+that a Complex function returned reaches the array combiner as two
+arrays of two, where the model's own equation goes through the
+operator record. A second fault shows itself on the way:
+`y := x / Complex(3, 1)` in a function body is refused with `unknown
+variable x` (`Cx7`, `Cx12`), the input's name left standing in the
+flat equation. That is a name surviving flattening without the flat
+model's prefix, the fault the notes on names describe.
+
+`ModelicaTest.Media.TestAllProperties.MoistAir` and
+`IncompleteMedia.ReferenceMoistAir` are refused by `an array value
+cannot be used where a scalar is expected: Array([state.X[1],
+state.X[2]])` (`flatten/names.rs`). One function of the test at a time
+(`/tmp/m448/ma/M_*.mo`, a `setState_pTX` state and one call) puts the
+wall in three places, not one. `isentropicEnthalpy` gives the refusal
+itself, through `T_psX(p, s, refState.X)`, a record field that is an
+array handed on as an argument. `T_psX` with a plain array (`N1`)
+gets past the fold and is refused in the run by the bounds of its
+inner nonlinear solve. `velocityOfSound` and `h_pTX` (`N4`) are
+refused by `unknown variable steam`, a package constant of the ideal
+gas left unresolved inside an inlined body. And `density_derX` into a
+vector is refused because the subscript of `dddX` is not a whole
+number the compiler can see. The rest of the test's sixteen functions
+run on their own. So the two `MoistAir` models are three walls deep,
+and taking the first only shows the second.
+
+### Reserve: `stateSelect` written for elements, counted
+
+Counted with grep over `.msl` (no build): 418 lines name
+`stateSelect`. Of these, 45 give it for the elements of an array, and
+all 45 do it with `each`, a scalar spread over every element:
+`Body.r_0`, `v_0`, `phi`, `Q` and the like in MultiBody (34 lines),
+`idq_sr`, `idq_rr` and the synchronous machines' currents in
+Electrical, `Xi` of three media, the pipe flows of `Fluid.Interfaces`.
+None writes an array literal or a `fill` as the value, and no
+parameter of type `StateSelect[...]` exists. `each` is read right
+already: `x[2](each stateSelect = StateSelect.prefer)` is settled as a
+state (`/tmp/m448/ss/E.mo`, `oxidelica why`). So the defect m447
+named (`Sc6n2`, an array literal read as the default for every
+element) has no witness in the standard library, and a series on it
+would buy nothing that could be counted. It is a correction for a
+user's model, and its price is the victim diff over the corpus
+anyway, since a weight that had no effect would start having one only
+where the literal is written.
+
+### Reserve: `function X is partial and nothing redeclared it`
+
+The row holds five models: `TankWithTopPorts` and the four
+`PartialMediumFunctions*` of `ModelicaTest.Media`. The four are
+templates. Each declares `replaceable package Medium =
+Modelica.Media.Interfaces.PartialMedium` and is meant to be extended
+with a real medium, which is what `TestAllProperties.MoistAir` and its
+siblings do. The refusal is owed to them. `TankWithTopPorts` is a
+component of the batch plant, which is passed its medium by the plant.
+So the row is not a family for a series. It is five models the
+library does not mean to run on their own.

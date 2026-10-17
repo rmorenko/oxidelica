@@ -3599,6 +3599,14 @@ fn quench_zero_der(
 /// each is carried as an algebraic unknown of its own.
 type SortedEquations = (HashMap<String, Expr>, Vec<(Expr, Expr)>, Vec<String>);
 
+/// Whether a second definition of a derivative by a bare name is read
+/// as an alias of the first. `OXIDELICA_NO_DER_ALIAS` keeps the old
+/// reading, which refused it as two equations for one derivative, so
+/// one binary can be measured against itself.
+fn der_alias_open() -> bool {
+    !crate::walk::switch_set("OXIDELICA_NO_DER_ALIAS")
+}
+
 /// The name an unstated derivative is carried under.
 ///
 /// It is spelled the way the model writes it, which no identifier can
@@ -3694,9 +3702,29 @@ fn split_equations(
                     "der({state}): {state} is not a continuous variable"
                 ));
             }
-            if state_rhs.insert(state.to_string(), value.clone()).is_some() {
+            // A second definition is an alias when either of the two is
+            // a bare name: the gear's `a_rel = der(spring.w_rel)` beside
+            // the spring's own `a_rel = der(w_rel)`. The definition that
+            // is an expression stays the one a solver steps with, and the
+            // bare one is an equation of the algebraic side saying what
+            // that name is worth. The order they were met in does not
+            // decide it.
+            if let Some(first) = state_rhs.get(state).cloned() {
+                if der_alias_open() {
+                    if matches!(value, Expr::Ref(_)) {
+                        algebraic_eqs.push((lhs.clone(), rhs.clone()));
+                        continue;
+                    }
+                    if matches!(first, Expr::Ref(_)) {
+                        let der = Expr::Call("der".into(), vec![Expr::Ref(state.to_string())]);
+                        algebraic_eqs.push((der, first));
+                        state_rhs.insert(state.to_string(), value.clone());
+                        continue;
+                    }
+                }
                 return err(format!("two equations for der({state})"));
             }
+            state_rhs.insert(state.to_string(), value.clone());
             continue;
         }
         algebraic_eqs.push((lhs.clone(), rhs.clone()));

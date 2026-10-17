@@ -1495,7 +1495,18 @@ FLATTEN_FLOOR=953
 # (/tmp/m447/pair/off.txt against on.txt, 953 / 778 against 953 / 780):
 #
 #   776 + 2 = 778
-RUN_FLOOR=778
+#
+# And run 779 = 778 + ThrottleBody, a second definition of one
+# derivative by a bare name read as an alias of the first. From one
+# desk binary, OXIDELICA_NO_DER_ALIAS set against unset, the run list
+# gained exactly the Clocked utility class ThrottleBody, which is not a
+# runnable example, and lost nothing, the flattened list the same line
+# for line, 529 Jacobians in both (/tmp/m448/pair/off.txt against
+# on.txt, 953 / 780 against 953 / 781, less the swinging SpringWithMass
+# and SMPM_VoltageSource):
+#
+#   778 + 1 = 779
+RUN_FLOOR=779
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
