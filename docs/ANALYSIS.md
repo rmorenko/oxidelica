@@ -51064,3 +51064,8 @@ flattening at 4799 ms per model while the pair's second half shared the
 desk - the busy-desk reading m438 named, not a slower compiler: the
 main pass's own pair printed 4021 and 5789 ms flattening on the same
 binary as the desk filled up.
+
+The library step taken again alone on a quiet desk, on the committed
+tree (`/tmp/m446/lib_quiet.txt`): 2671 read, 953 / 778, runnable 836 /
+735, ratio 0.809, 3891 ms per model flattening and 3146 running, all
+floors held.
