@@ -50692,6 +50692,21 @@ run and will not finish". The floors are not raised on such models,
 and any mend of the first step is measured against this before it
 goes in.
 
+The price was measured before any mend, as a pair from one binary
+(`/tmp/ox444c`, the probe switch `OXIDELICA_PROBE_FIRST_STEP=0.01`
+against none, both under `cap.sh`). The plain half finished in 1984 s
+with 953 flattened and 774 run (`/tmp/m444p/base.txt`). The half with
+the short first step stopped printing at 918 of 1020 models after
+1970 s and was taken down by the cap's own limit of 45 minutes without
+a line, 77 minutes in (`/tmp/m444p/fs.txt`). So the short first step
+does not cost a few seconds per pipe: some model in the last hundred
+goes from a refusal to a run that the ten steps of the check do not
+end inside three quarters of an hour, and the whole pass goes with
+it. Two forgotten single-model probes shared the machine with the
+pair for its first fifty minutes, so its times are not read; the stop
+is a count that did not move for 45 minutes, which they cannot
+explain.
+
 The other two probed are other breeds. `BranchingPipes4` refuses at
 0.8 of the first step like `SeriesPipes2`. `TestTemperature1` enters
 its stage c = 0.2 with |f| = 0.28 (a pressure off by 0.2 Pa) and the
