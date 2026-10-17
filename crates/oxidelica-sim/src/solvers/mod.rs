@@ -874,9 +874,12 @@ impl CompiledModel {
     /// Check every `assert` at an evaluated point; a violated one stops
     /// the run with its own message and the time.
     pub(crate) fn check_asserts(&self, t: f64, values: &[f64]) -> Result<(), SimError> {
-        for (condition, message) in &self.asserts {
+        for (condition, message, reads) in &self.asserts {
             if condition.run(values, t) == 0.0 {
-                return err(format!("assertion failed at t = {t:.6}: {message}"));
+                return err(format!(
+                    "assertion failed at t = {t:.6}: {message}{}",
+                    crate::events::values_read(reads, values)
+                ));
             }
         }
         Ok(())

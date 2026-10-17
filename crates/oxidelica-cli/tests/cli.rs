@@ -1876,3 +1876,24 @@ fn a_second_definition_of_a_derivative_by_a_bare_name_is_an_alias() {
         );
     }
 }
+
+/// A check whose message joins a value with `String(x)` has its message
+/// made text when it is parsed, before the value exists, and printed
+/// `x (= ? K)`. The refusal now says what the condition read when it
+/// failed: here `x` is 300 plus the time and the check fails at once.
+#[test]
+fn a_failed_assert_names_the_values_its_condition_read() {
+    let file = TempFile::new(
+        "assert_values.mo",
+        "model A Real x = 300 + time; parameter Real limit = 100; \
+         equation assert(x < limit, \"x (= \" + String(x) + \" K)\"); end A;",
+    );
+    let out = bin()
+        .args(["simulate", file.path(), "--stop", "1", "--dt", "0.5"])
+        .output()
+        .unwrap();
+    assert!(!out.status.success());
+    let err = stderr(&out);
+    assert!(err.contains("assertion failed at t = 0.000000"), "{err}");
+    assert!(err.contains("[\"x\" = 300, \"limit\" = 100]"), "{err}");
+}

@@ -4457,6 +4457,24 @@ fn names_an_array_maker(expr: &Expr) -> bool {
     }
 }
 
+/// The names a check reads that the run holds a value for, each once,
+/// in the order written. Asked with `existing_slot`, so reading about a
+/// name never gives it a place.
+fn names_read(table: &SlotTable, condition: &Expr) -> Vec<(String, Slot)> {
+    let mut names = Vec::new();
+    condition.collect_refs(&mut names);
+    let mut out: Vec<(String, Slot)> = Vec::new();
+    for name in names {
+        if out.iter().any(|(had, _)| had == name) {
+            continue;
+        }
+        if let Some(slot) = table.existing_slot(name) {
+            out.push((name.to_string(), slot));
+        }
+    }
+    out
+}
+
 /// The `min` and `max` attributes, as the assertions Modelica says they
 /// are. A bound that is settled before the run is already refused by the
 /// checker; these are for the values that only a run produces - a level
@@ -6423,7 +6441,11 @@ pub(crate) fn compile_at(
                     }
                     // A check made when the event fires.
                     WhenAction::Assert(condition, message) => {
-                        CompiledAction::Assert(table.compile(condition)?, message.clone())
+                        CompiledAction::Assert(
+                            table.compile(condition)?,
+                            message.clone(),
+                            names_read(&table, condition),
+                        )
                     }
                     WhenAction::TupleAssign(..)
                     | WhenAction::Loop(_)
@@ -6605,12 +6627,15 @@ pub(crate) fn compile_at(
         asserts: model
             .asserts
             .iter()
-            .map(|(condition, message)| Ok((table.compile(condition)?, message.clone())))
-            .chain(
-                bound_asserts(model)
-                    .iter()
-                    .map(|(condition, message)| Ok((table.compile(condition)?, message.clone()))),
-            )
+            .cloned()
+            .chain(bound_asserts(model))
+            .map(|(condition, message)| {
+                Ok((
+                    table.compile(&condition)?,
+                    message,
+                    names_read(&table, &condition),
+                ))
+            })
             .collect::<Result<Vec<_>, SimError>>()?,
         flat: model.clone(),
         jacobian_groups,
