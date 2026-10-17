@@ -1875,6 +1875,31 @@ fn worked_body(
                     &class.imports,
                     depth + 1,
                 );
+                // A single local of a record type is a record, and a
+                // record is read field by field: `Complex b = Complex(2,
+                // 3)` was bound whole as a list of two, the body then
+                // read `b.im`, and nothing answered for that name. Its
+                // fields are bound the way an input's are.
+                let record_local = component.dimensions.is_empty()
+                    && std::env::var_os("OXIDELICA_NO_RECORD_LOCAL_VALUES").is_none()
+                    && lookup(registry, &component.type_name, &class.name, &class.imports)
+                        .is_some_and(|of| of.kind == ClassKind::Record);
+                if record_local {
+                    let of = lookup(registry, &component.type_name, &class.name, &class.imports)
+                        .expect("looked up above");
+                    let fields = super::operators::record_fields_of(registry, of, 0);
+                    if let Ok(Value::Array(items)) = &worked {
+                        if items.len() == fields.len() {
+                            for (field, item) in fields.iter().zip(items) {
+                                let value = substitute_refs(&item.clone().into_expr(), &bindings);
+                                let here = format!("{}.{field}", component.name);
+                                handed.insert(here.clone(), value.clone());
+                                bindings.insert(here, value);
+                            }
+                            continue;
+                        }
+                    }
+                }
                 let bound = match (component.dimensions.is_empty(), worked) {
                     (false, Ok(value)) => substitute_refs(&value.into_expr(), &bindings),
                     _ => bound,

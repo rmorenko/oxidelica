@@ -4748,3 +4748,15 @@ fn a_check_in_a_body_compares_records_with_the_records_own_relation() {
     let refused = compile(&model).unwrap().simulate().unwrap_err().to_string();
     assert!(refused.contains("differ"), "{refused}");
 }
+
+#[test]
+fn a_record_local_given_a_value_on_its_declaration_is_read_by_field() {
+    // `C b = C(2, 3)` of a body was bound whole, as a list of two, and
+    // the body's `b.im` then reached the flat model as a name nothing
+    // declares.
+    let result = run("record C Real re; Real im; end C; \
+         function t output Real r; protected C b = C(2, 3); algorithm r := b.re + 10 * b.im; end t; \
+         model M Real result; algorithm when initial() then result := t(); end when; \
+         annotation(experiment(StopTime = 0)); end M;");
+    assert_eq!(last_of(&result, "result"), 32.0);
+}
