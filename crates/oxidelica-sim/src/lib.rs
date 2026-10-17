@@ -315,7 +315,7 @@ enum CompiledAction {
     /// stop the run with the message where it does not. A check among
     /// the equations is made at every step; this one is made when the
     /// event happens, which is what a model means by writing it here.
-    Assert(Code, String, Vec<(String, Slot)>),
+    Assert(Code, String, Reads),
 }
 
 /// One `delay(u, T)`: where its value is read from, what to remember,
@@ -471,7 +471,7 @@ pub struct CompiledModel {
     /// Beside each, the names its condition reads and their slots, so
     /// that a check that fails says what the values were: a message
     /// joined with `String(T)` is made text before any value exists.
-    asserts: Vec<(Code, String, Vec<(String, Slot)>)>,
+    asserts: Vec<(Code, String, Reads)>,
     /// The flat model this was compiled from, kept so a continuation
     /// can compile itself at a new point.
     flat: Model,
@@ -772,6 +772,10 @@ fn eval_at_starts(expr: &Expr, table: &HashMap<String, f64>) -> Option<f64> {
 
 /// Where a variable sits in the value array a run carries.
 type Slot = usize;
+
+/// The names a check reads that the run holds a value for, each with
+/// its slot, so that a check that fails can say what it read.
+type Reads = Vec<(String, Slot)>;
 
 /// The unary functions a model may call, resolved while compiling so
 /// that evaluating one is a jump rather than a string comparison.

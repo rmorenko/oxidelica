@@ -925,6 +925,24 @@ fn picked<'a>(base: &'a Expr, subscripts: &[Expr]) -> Option<&'a Expr> {
     Some(at)
 }
 
+/// What a failed check read, by name: ` ["T" = NaN, "T_max" = 403.15]`,
+/// or nothing where it read no value the run holds. A message written
+/// as `"T (= " + String(T) + " K)"` is made text when it is parsed,
+/// before any value exists, so without this the refusal of a medium's
+/// range names no temperature at all. The names are quoted in a list
+/// the way the loops' refusals list theirs, so the census folds the
+/// values away and one check stays one kind whatever model it is in.
+pub(crate) fn values_read(reads: &[(String, Slot)], values: &[f64]) -> String {
+    if reads.is_empty() {
+        return String::new();
+    }
+    let read: Vec<String> = reads
+        .iter()
+        .map(|(name, slot)| format!("\"{name}\" = {}", values[*slot]))
+        .collect();
+    format!(" [{}]", read.join(", "))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -944,22 +962,4 @@ mod tests {
         let table = Expr::Array(vec![list.clone(), Expr::Array(vec![n(5.0), n(6.0)])]);
         assert_eq!(picked(&table, &[n(2.0), n(1.0)]), Some(&n(5.0)));
     }
-}
-
-/// What a failed check read, by name: ` ["T" = NaN, "T_max" = 403.15]`,
-/// or nothing where it read no value the run holds. A message written
-/// as `"T (= " + String(T) + " K)"` is made text when it is parsed,
-/// before any value exists, so without this the refusal of a medium's
-/// range names no temperature at all. The names are quoted in a list
-/// the way the loops' refusals list theirs, so the census folds the
-/// values away and one check stays one kind whatever model it is in.
-pub(crate) fn values_read(reads: &[(String, Slot)], values: &[f64]) -> String {
-    if reads.is_empty() {
-        return String::new();
-    }
-    let read: Vec<String> = reads
-        .iter()
-        .map(|(name, slot)| format!("\"{name}\" = {}", values[*slot]))
-        .collect();
-    format!(" [{}]", read.join(", "))
 }
