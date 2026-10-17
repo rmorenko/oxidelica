@@ -51974,3 +51974,83 @@ converter's `vDC = sqrt(re^2 + im^2) * k` has two roots at zero
 current, and the iteration takes the one where the voltage is zero. A
 repair has to choose that root on purpose, which is a layer of its
 own, not a tolerance.
+
+### An outside stream connector gets no equation: a family of nine, mapped and parked
+
+Once both algebraic-loop rows were known to be mapped already, the
+next work was looked for among the run half's refusals that this
+document never names. Five `unbalanced` refusals each name an outflow
+nobody determines (`junctionIdeal.port_1.h_outflow`,
+`HEX.port_a1.h_outflow`, `junction.port_2.Xi_outflow[1]`): in
+`MeasuringTemperature`, `HeatExchangerSimulation`, `TestSources`,
+`BranchingPipes3` and `BranchingPipes13`. `TeeJunctionIdeal` has no
+equation of its own, only `connect(port_1, port_2)` and
+`connect(port_1, port_3)`. MLS 15.2 owes every stream variable of an
+outside connector an equation: its outflow is the mix of what the
+other members of its inside set push in. The flattener writes none of
+these (`flatten/mod.rs`, the `member_component.stream` branch, which
+skips every stream member). So a port joined only inside its own class
+has an outflow that nothing defines.
+
+Five small models (`~/oxideflow/park/m451-outside-stream/`) show it.
+`W1` is a wrapper whose port is joined to one source inside, and it
+is refused (`nothing determines a.hin`). `T2` is the tee, refused on
+its three outflows. `T3`, the same circuit with no tee, runs. `W2` is
+the wrapper's port in a set of three at the top, and `T4` a
+pass-through, and both are refused today. They are refused rather than
+answered wrongly, which is the right failure.
+
+The chain has two links, walked with a probe
+(`~/oxideflow/park/m451-outside-stream-probe.diff`, switches
+`OXPROBE_OUTSIDE_STREAM` and `OXPROBE_SIDE_BY_SET`, not committed):
+
+1. Write the 15.2 equation for each outside stream member. When one of
+   the other members is itself an outside port, what it carries into
+   the set is what it hears from its parent's set, not its own
+   outflow, which is the very equation being written. With this link
+   alone, `T2` closes into a loop and `W2` runs and lies: `b.hin = 4`
+   where 3 is right, a wrong number.
+2. `inStream` decides each neighbour's side by the list of paths that
+   were ever outside (`acc.outside`), not by the set the two share. A
+   wrapper's port is outside in its own class and inside at the top,
+   and the list cannot tell the two apart. The stock compiler never
+   meets this, because such a set is refused as unbalanced first. With
+   the side taken from the shared set, all five small models give the
+   right numbers: `W1` and `W2` hear 3, and `T2` and `T4` hear 1.
+
+The corpus pair from one probe binary (`/tmp/m451/oxprobe3`, switches
+unset against set, `/tmp/m451/sp/off.txt`, `on.txt`). The off half is
+the pushed tree line for line:
+
+| half | flatten / run | runnable  | Jacobians | run half refused |
+| ---- | ------------- | --------- | --------- | ---------------- |
+| off  | 956 / 784     | 839 / 740 | 529       | 172 in 122 rows  |
+| on   | 956 / 786     | 839 / 742 | 529       | 170 in 115 rows  |
+
+The run lists gain `TestJunctionIdeal` and `LumpedPipeInitialization`
+and lose nothing. Nine `unbalanced` rows empty, and the models behind
+them move one storey up, mostly to the algebraic loops: the Newton
+direction row goes 8 to 10 (`BranchingPipes3`, `BranchingPipes13`).
+`MeasuringTemperature` now stops on a loop that steps outside its
+domain at t = 0. `HeatExchangerSimulation` stops on a state that is
+not a state, `TestSources` on `boundary6.ports[1].Xi_outflow`, and
+`BatchPlant_StandardWater` on a structurally singular tank side.
+
+Of the two models gained, only one is a witness. `LumpedPipeInitialization`
+runs on `dopri45` and on `bdf` to its stop time of 4 s, and the two
+agree: the second pipe state's temperature reads 582.4131 against
+582.4135 and its flow 2.48849 against 2.48821. `TestJunctionIdeal` runs
+on the default solver only. On `dopri45` and on `bdf` it is refused in
+the Newton direction of the loop holding the junction's three outflows,
+so its run is not a checked number.
+
+Not taken, for three reasons. The order of the shift moves no floor
+beyond LogicalSample's. The change adds a definition to every
+outside stream member of the library, which by the house rule is
+measured by its victims and is a series of its own. And one of its two
+models has no second solver to vouch for it. The run took 3767 s
+against 3134 s, which is mostly BranchingPipes running where it used
+to be refused, and the ratio of the halves rose to 0.96. Taking it
+means a test for each link seen red under its switch, the switches
+named the project's way, and a corpus pair with the solver-pair
+reference over the two models.
