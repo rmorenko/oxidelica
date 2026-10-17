@@ -50663,7 +50663,17 @@ trail shows where the time goes: steps of about 1e-5 s, and nearly
 every one meets a crossing of the same five indicators (52, 68, 69,
 118, 119 of 134), each located by forty bisections and each an event
 that changes no mode. The steps of 1e-17 the Newton trail seemed to
-show are those bisections, not steps.
+show are those bisections, not steps. The five indicators are the
+signs of the mass flows of `pipe1` and `pipe3` (a probe printing the
+indicators' expressions), and those flows do not cross zero: the
+rows at a grid of 5e-6 show them falling smoothly from 0.49 to 0.066
+kg/s by t = 1e-4, and on a run to 6e-5 the ends of every accepted
+step read the same sign. In the longer trail each crossing is found on
+a step retaken because its stages read a turn (`stage_cut`), and the
+bisection places it between a hair and 0.32 into that step. Whether the flow does
+turn for an instant there, or the stages of a step too long for a
+stiff pipe invent the turn, is the open question of this map; it is
+not answered here.
 
 So choosing the first step from the derivative's scale, as a solver
 should, turns a refusal in a second into a run of hours. It is worth
