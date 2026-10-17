@@ -50626,3 +50626,65 @@ of CPU; `bdf` on `SeriesPipes2` did not finish in six minutes. A map,
 not a mend: the next question is why a first step is the whole
 interval on a fluid model that starts from rest, and whether the loop
 is solved at all stages before the fourth.
+
+### The Newton row: the wall is the price of a step, not a refusal
+
+The census on the head (`/tmp/m444c/census.txt`) is the one m443 read:
+67 refusals in 39 rows that do not flatten, 179 in 129 that flatten and
+do not run, the Newton row still eight. Probed with one binary on four
+of the six pipes, each by `simulate` at the library root.
+
+The first step of `dopri45` is the output interval (`dopri.rs:238`),
+and that is the step that kills them. `SeriesPipes2` refuses at 0.8 of
+it on the default grid and at 0.889 of it (the fifth stage) at
+`--dt 1e-4`; at `--dt 1e-5` it passes the first step and keeps going.
+A probe switch that shortened only the first step, leaving the grid
+alone, gives the same answer without the grid: a first step of a
+tenth of the interval still refuses, a hundredth and a thousandth do
+not. `BranchingPipes14` refuses at 0.889 of the step at both 1e-3 and
+1e-5 and runs at 1e-6. The trail says why: the loop is solved at the
+start and at the stages c = 0.2 and 0.3 (to 2e-7), and at the
+fourth stage the state handed to it has moved far enough that the
+first Newton step throws a pressure to -1.7e7 Pa (`SeriesPipes2`) or
+-4e5 Pa (`BranchingPipes14`), the water formulation answers NaN, and
+the line search crawls back without finding descent. So the root
+named by the consultant is right: the block is thrown out of the
+water's domain by a step too long for the problem, and the narrow
+handover is not the wall. `bdf` on `BranchingPipes14` refuses the same
+loop at t = 0.001, so the wide handover would not have saved that one
+either.
+
+And then the numbers take the value away. With the first step cut,
+`SeriesPipes2` runs and does not finish: 7.5 minutes of CPU did not
+reach t = 0.01 of a five second run. `BranchingPipes14` at
+`--dt 1e-6` took 351 s for its first 1e-4 s. `bdf` on `SeriesPipes2`
+reached 0.01 s in 274 s, some forty hours for the horizon. A step
+trail shows where the time goes: steps of about 1e-5 s, and nearly
+every one meets a crossing of the same five indicators (52, 68, 69,
+118, 119 of 134), each located by forty bisections and each an event
+that changes no mode. The steps of 1e-17 the Newton trail seemed to
+show are those bisections, not steps.
+
+So choosing the first step from the derivative's scale, as a solver
+should, turns a refusal in a second into a run of hours. It is worth
+doing for correctness alone - a first step tied to how often the rows
+are printed is a setting of the printer deciding the solver - but it
+buys no model, and it must not be counted as buying one.
+
+That is the finding about the instrument, stated on its own because
+it is the dangerous one: `library check` runs ten output steps
+(`run_a_little`, `main.rs:1367`). A model that runs ten steps and
+would take forty hours for its horizon counts there as run. With the
+first step mended, these pipes would pass ten steps, the floors would
+rise, the pair would show gains and no losses, and every one of them
+would be false. The ten-step check cannot tell "runs" from "began to
+run and will not finish". The floors are not raised on such models,
+and any mend of the first step is measured against this before it
+goes in.
+
+The other two probed are other breeds. `BranchingPipes4` refuses at
+0.8 of the first step like `SeriesPipes2`. `TestTemperature1` enters
+its stage c = 0.2 with |f| = 0.28 (a pressure off by 0.2 Pa) and the
+first Newton step sends pressures to -3.4e5 Pa and a mass flow to
+2.6e10: a thirteen-variable loop whose Jacobian at zero flow through
+the orifices is close to singular, not the water's edge.
