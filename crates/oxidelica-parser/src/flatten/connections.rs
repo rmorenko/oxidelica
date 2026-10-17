@@ -1140,3 +1140,125 @@ fn disabled_connects_open() -> bool {
 fn element_streams_open() -> bool {
     std::env::var_os("OXIDELICA_NO_ELEMENT_STREAMS").is_none()
 }
+
+/// Whether an outside connector's stream member is given the equation
+/// of MLS 15.2. `OXIDELICA_NO_OUTSIDE_STREAM` closes the road, so that
+/// one binary gives both numbers.
+pub(super) fn outside_stream_open() -> bool {
+    std::env::var_os("OXIDELICA_NO_OUTSIDE_STREAM").is_none()
+}
+
+/// The specification's mix of what a node's ports push in: each value
+/// weighed by `max(inflow, eps)` on both halves of the fraction, which
+/// is the same floor `inStream` keeps and for the same reason.
+fn weighted_mix(terms: Vec<(Expr, Expr)>) -> Expr {
+    let sum = |terms: Vec<Expr>| {
+        terms
+            .into_iter()
+            .reduce(|a, b| Expr::Bin(BinOp::Add, Box::new(a), Box::new(b)))
+            .expect("a mix of at least one")
+    };
+    let weight = |inflow: &Expr| {
+        Expr::Call(
+            "max".to_string(),
+            vec![inflow.clone(), Expr::Number(STREAM_EPS)],
+        )
+    };
+    let numerator = sum(terms
+        .iter()
+        .map(|(inflow, value)| {
+            Expr::Bin(
+                BinOp::Mul,
+                Box::new(weight(inflow)),
+                Box::new(value.clone()),
+            )
+        })
+        .collect());
+    let denominator = sum(terms.iter().map(|(inflow, _)| weight(inflow)).collect());
+    Expr::Bin(BinOp::Div, Box::new(numerator), Box::new(denominator))
+}
+
+/// The flow of `path` as it enters a set, by the side `path` stands on
+/// in that set: an outside connector pushes in when its flow is
+/// positive, an inside one when it is negative (9.1.2).
+fn inflow_of(path: &str, outside: bool, flow_name: &str) -> Expr {
+    let flow = Expr::Ref(format!("{path}.{flow_name}"));
+    if outside {
+        flow
+    } else {
+        Expr::Neg(Box::new(flow))
+    }
+}
+
+/// The equations MLS 15.2 owes an outside connector's stream member.
+///
+/// A port of a class is outside in the set its own class joins it into,
+/// and nothing inside the class writes its `h_outflow`: what it pushes
+/// out to its parent is what the components inside push into it. So
+/// each outside member of a set gets its outflow written as the mix of
+/// what the others in that set push in - and an other that is itself an
+/// outside port carries in, not its own outflow, which is the equation
+/// being written beside this one, but what it hears from its parent's
+/// set. Without that the two outside ports of a pass-through class
+/// would each be defined by the other and nothing would define either.
+///
+/// `parent_set` maps a connector to the set it stands in as an inside
+/// connector, which is the set of its parent. `element` is the
+/// subscript of one element of an array member, or empty.
+pub(super) fn outside_stream_equations(
+    members: &[(&str, bool)],
+    member: &str,
+    flow_name: &str,
+    element: &str,
+    parent_set: &HashMap<String, Vec<(String, bool)>>,
+) -> Vec<EquationItem> {
+    let var = |path: &str| format!("{path}.{member}{element}");
+    // What `path` pushes into a set it stands in as outside: the mix of
+    // its parent's set without it, or its own outflow where it has no
+    // parent's set to hear from.
+    let heard_from_above = |path: &str| -> Expr {
+        let rest: Vec<&(String, bool)> = parent_set
+            .get(path)
+            .map(|set| set.iter().filter(|m| m.0 != path).collect())
+            .unwrap_or_default();
+        match rest.as_slice() {
+            [] => Expr::Ref(var(path)),
+            [one] => Expr::Ref(var(&one.0)),
+            _ => weighted_mix(
+                rest.iter()
+                    .map(|o| (inflow_of(&o.0, o.1, flow_name), Expr::Ref(var(&o.0))))
+                    .collect(),
+            ),
+        }
+    };
+    let carried = |o: &(&str, bool)| -> Expr {
+        if o.1 {
+            heard_from_above(o.0)
+        } else {
+            Expr::Ref(var(o.0))
+        }
+    };
+    let mut equations = Vec::new();
+    for (path, outside) in members {
+        if !*outside {
+            continue;
+        }
+        let others: Vec<&(&str, bool)> = members.iter().filter(|m| m.0 != *path).collect();
+        let rhs = match others.as_slice() {
+            [] => continue,
+            [one] => carried(one),
+            _ => weighted_mix(
+                others
+                    .iter()
+                    .map(|o| (inflow_of(o.0, o.1, flow_name), carried(o)))
+                    .collect(),
+            ),
+        };
+        equations.push(EquationItem {
+            lhs: Expr::Ref(var(path)),
+            rhs,
+            origin: String::new(),
+        });
+    }
+    equations
+}

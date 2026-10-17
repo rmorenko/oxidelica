@@ -1278,6 +1278,21 @@ fn join_the_connections(registry: &HashMap<&str, &ClassDef>, acc: &mut Flat) -> 
             _ => part,
         }
     }
+    // The set each connector stands in as an inside connector, which is
+    // its parent's: what an outside port hears from above, for the
+    // equation of 15.2 below.
+    let parent_set: HashMap<String, Vec<(String, bool)>> = sets
+        .iter()
+        .flat_map(|members| {
+            let owned: Vec<(String, bool)> =
+                members.iter().map(|(p, o)| (p.to_string(), *o)).collect();
+            members
+                .iter()
+                .filter(|(_, outside)| !*outside)
+                .map(move |(p, _)| (p.to_string(), owned.clone()))
+                .collect::<Vec<_>>()
+        })
+        .collect();
     for members in sets.iter_mut() {
         // Connectors in one set must match in shape, not in name: a
         // signal output and a signal input are different classes with
@@ -1506,9 +1521,20 @@ fn join_the_connections(registry: &HashMap<&str, &ClassDef>, acc: &mut Flat) -> 
                 continue;
             }
             if member_component.stream {
-                // A stream variable gets no equation from the
-                // connection: each side's outflow is set by its own
+                // An inside connector's outflow is set by its own
                 // component, and `inStream` reads the others' below.
+                // An outside one's is written by nobody inside its
+                // class, so the connection owes it the mix of 15.2.
+                let flow_name = held.iter().find(|c| c.flow).map(|c| c.name.clone());
+                if let (true, Some(flow_name)) = (connections::outside_stream_open(), flow_name) {
+                    acc.equations.extend(connections::outside_stream_equations(
+                        members,
+                        &member_component.name,
+                        &flow_name,
+                        "",
+                        &parent_set,
+                    ));
+                }
                 continue;
             }
             if member_component.flow {

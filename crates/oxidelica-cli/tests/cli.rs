@@ -1897,3 +1897,54 @@ fn a_failed_assert_names_the_values_its_condition_read() {
     assert!(err.contains("assertion failed at t = 0.000000"), "{err}");
     assert!(err.contains("[\"x\" = 300, \"limit\" = 100]"), "{err}");
 }
+
+/// The connector shape the outside-stream tests share: a source pushing
+/// 2 kg/s at `h = 3` from inside a wrapper whose port is joined to it.
+const WRAPPED_SOURCE: &str = "connector P Real p; flow Real m_flow; stream Real h_outflow; end P; \
+     model Source P port; parameter Real m = 1; parameter Real h = 1; \
+     equation port.m_flow = -m; port.h_outflow = h; end Source; \
+     model Wrap P port; Source s(m = 2, h = 3); equation connect(port, s.port); end Wrap; \
+     model PSink P port; parameter Real h = 5; Real hin; \
+     equation port.p = 0; port.h_outflow = h; hin = inStream(port.h_outflow); end PSink; \
+     model FSink P port; parameter Real h = 7; Real hin; \
+     equation port.m_flow = 0.5; port.h_outflow = h; hin = inStream(port.h_outflow); end FSink;";
+
+/// An outside connector's stream member is written by the connection.
+///
+/// Nothing inside `Wrap` writes `port.h_outflow`: what the wrapper
+/// pushes out is what its source pushes into the port, which is the
+/// equation MLS 15.2 owes the outside connector. Without it the
+/// outflow is an unknown nothing determines and the model is refused
+/// as unbalanced. The sink hears the source's 3, which is the number
+/// checked. `OXIDELICA_NO_OUTSIDE_STREAM` gives back the refusal.
+#[test]
+fn an_outside_port_pushes_out_what_its_inside_pushes_in() {
+    let file = TempFile::new(
+        "outside_stream_w1.mo",
+        &format!(
+            "model W1 {WRAPPED_SOURCE} Wrap w; PSink a; \
+             equation connect(w.port, a.port); end W1;"
+        ),
+    );
+    let run = |off: bool| {
+        let mut command = bin();
+        if off {
+            command.env("OXIDELICA_NO_OUTSIDE_STREAM", "1");
+        }
+        command
+            .args(["simulate", file.path(), "--stop", "0.1", "--dt", "0.05"])
+            .output()
+            .unwrap()
+    };
+    let out = run(false);
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(first_row(&stdout(&out), "a.hin"), 3.0);
+    assert_eq!(first_row(&stdout(&out), "w.port.h_outflow"), 3.0);
+    let refused = run(true);
+    assert!(!refused.status.success());
+    assert!(
+        stderr(&refused).contains("unbalanced model"),
+        "{}",
+        stderr(&refused)
+    );
+}
