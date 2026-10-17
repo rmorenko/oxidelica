@@ -50910,3 +50910,18 @@ run lists identical name for name and the refusals identical line for
 line. The mend moves no model across a wall; what it moves is the
 numbers inside the models that already ran, which is what the
 reference saw and the floors cannot. The floors stay where they are.
+
+What the 21 instants `ChopperStepDown_RL` holds only at 1e-8 are,
+read off the trail (`/tmp/m445/tr_ChopperStepDown_RL_on_1e-8.txt`):
+each is a single event 30 to 50 µs after a period start (0.0020494,
+0.0030343, ...), before the reference ramp starts at 0.025, and it
+changes nothing - `transistor.off = 1`, `diode.off = 0`,
+`greaterEqual_p.y = 0` before and after. With the duty cycle at zero
+the PWM comparator rests on its threshold, and the fine tolerance
+sees a graze the coarse one steps past. No state moves, so this is
+not a lie. It is a count that measures how closely the solver looks.
+One question stays open for the series that takes the rule:
+`Thyristor1Pulse_R` now fires the sample due exactly on its stop time
+and ends with the integral reset to zero. Whether an event on the stop
+instant belongs in the final point is a convention that should be
+chosen once, not left to the order of two branches.
