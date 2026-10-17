@@ -227,6 +227,16 @@ pub(super) fn record_input_fields(
     function: &ClassDef,
     input: &Component,
 ) -> Option<Vec<String>> {
+    record_input_class(registry, function, input).map(|of| record_fields_of(registry, of, 0))
+}
+
+/// The record an input of a function is, when it is one: the class
+/// [`record_input_fields`] reads the fields of.
+pub(super) fn record_input_class<'a>(
+    registry: &HashMap<&'a str, &'a ClassDef>,
+    function: &ClassDef,
+    input: &Component,
+) -> Option<&'a ClassDef> {
     // Asked under the name the body was called by, where that is
     // known: a media function takes `ThermodynamicState`, and which
     // record that is depends on the medium it was called through
@@ -264,7 +274,7 @@ pub(super) fn record_input_fields(
     // `redeclare record extends ThermodynamicState` is how a medium
     // says its state is the one it inherits, and a function taking
     // that state was told it takes nothing at all.
-    (of.kind == ClassKind::Record).then(|| record_fields_of(registry, of, 0))
+    (of.kind == ClassKind::Record).then_some(of)
 }
 
 /// What a name of a function body holds before anything assigns it.

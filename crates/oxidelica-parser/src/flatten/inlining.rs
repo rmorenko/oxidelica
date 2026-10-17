@@ -1792,7 +1792,8 @@ fn worked_body(
     // The body's own names are not records, and the caller's may be:
     // an argument substituted in carries the caller's spelling, so
     // the table that answers for it is the caller's.
-    let in_view = super::statements::records_in_view();
+    let in_view = body_records_in_view(class, &inputs, &bindings, registry);
+    let _body_records = statements::Records::in_view(&in_view);
     let local_shapes = Shapes {
         sizes: &sizes,
         loop_vars: &no_loop_vars,
@@ -2697,6 +2698,56 @@ fn bare_record_constant(registry: &HashMap<&str, &ClassDef>, named: &str) -> Opt
 /// binds numbers only, so that one binary gives both numbers.
 fn record_locals_from_inputs_open() -> bool {
     std::env::var_os("OXIDELICA_NO_RECORD_LOCALS_FROM_INPUTS").is_none()
+}
+
+/// The records a body's operators can see: the caller's, and the
+/// body's own inputs that were handed a record field by field.
+///
+/// Such an input is bound as `x.re` and `x.im` and never as `x`, so the
+/// bare name stays the body's own when a statement is worked out. An
+/// operator is chosen by the record its operand is, and `x` was asked
+/// of the caller's table, which has never heard of it: `x / Complex(3,
+/// 1)` took `x` for a number, built `Complex(x, 0)` from it, and the
+/// input's name reached the flat model with no prefix and nothing
+/// declaring it. Filed here, the operator's own body is reached and
+/// `x` is written out as its fields, which the bindings then turn into
+/// the caller's.
+fn body_records_in_view(
+    class: &ClassDef,
+    inputs: &[&Component],
+    bindings: &HashMap<String, Expr>,
+    registry: &HashMap<&str, &ClassDef>,
+) -> HashMap<String, String> {
+    let mut in_view = super::statements::records_in_view();
+    if std::env::var_os("OXIDELICA_NO_BODY_RECORDS").is_some() {
+        return in_view;
+    }
+    for input in inputs {
+        if !input.dimensions.is_empty() || bindings.contains_key(&input.name) {
+            continue;
+        }
+        let field_prefix = format!("{}.", input.name);
+        if !bindings.keys().any(|name| name.starts_with(&field_prefix)) {
+            continue;
+        }
+        if let Some(of) = record_fields::record_input_class(registry, class, input) {
+            in_view.insert(input.name.clone(), of.name.clone());
+        }
+    }
+    // A local record is the same kind of name: `z := Complex(3, 1); y
+    // := x / z` binds `z.re` and `z.im`, and `z` itself was asked of
+    // the caller's table as well.
+    for local in &class.components {
+        if local.causality != Causality::None || !local.dimensions.is_empty() {
+            continue;
+        }
+        if let Some(of) = lookup(registry, &local.type_name, &class.name, &class.imports)
+            .filter(|of| of.kind == ClassKind::Record)
+        {
+            in_view.insert(local.name.clone(), of.name.clone());
+        }
+    }
+    in_view
 }
 
 /// The fields of a record-typed argument that are single numbers.

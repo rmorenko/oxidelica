@@ -4679,3 +4679,27 @@ fn a_call_that_does_not_name_the_unknown_has_no_slope_in_it() {
     let last = result.rows.last().unwrap();
     assert!((last[column(&result, "yd")] - 0.1).abs() < 1e-12);
 }
+
+#[test]
+fn a_record_input_divided_inside_a_body_is_the_records_own_division() {
+    // An input handed a record is bound field by field, `x.re` and
+    // `x.im`, and the bare `x` was asked of the caller's table of
+    // records, which had never heard of it. So `x / C(3, 1)` took `x`
+    // for a number, built `C(x, 0)` from it, and the input's own name
+    // reached the flat model with nothing declaring it. A local record
+    // went the same way.
+    let result = run("operator record C Real re; Real im; \
+         encapsulated operator function '/' input C a; input C b; output C c; \
+         algorithm c := C((a.re * b.re + a.im * b.im) / (b.re * b.re + b.im * b.im), \
+         (a.im * b.re - a.re * b.im) / (b.re * b.re + b.im * b.im)); \
+         end '/'; end C; \
+         function f input C x; output C y; algorithm y := x / C(3, 1); end f; \
+         function g input C x; output C y; protected C z; \
+         algorithm z := C(3, 1); y := x / z; end g; \
+         model M C a(re = 1, im = 2); C p = f(a); C q = g(a); \
+         annotation(experiment(StopTime = 1, Interval = 0.5)); end M;");
+    // (1 + 2i) / (3 + i) = (5 + 5i) / 10.
+    for name in ["p.re", "p.im", "q.re", "q.im"] {
+        assert!((last_of(&result, name) - 0.5).abs() < 1e-12, "{name}");
+    }
+}
