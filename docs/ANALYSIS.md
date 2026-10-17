@@ -51851,3 +51851,24 @@ what it asks for is a clocked discretized partition, with `der` inside
 a clocked partition integrated by the named method, and that is a
 layer this compiler does not have. It is a feature and not a repair,
 and is left as a map.
+
+### The row `shiftSample` on an event clock: refused where the standard answers
+
+The two throttle models (`EngineThrottleControl` and its `Engine`)
+reach `RealSignals.NonPeriodic.FractionalDelay(shift = 1, final
+resolution = 1)`, whose comment says the resolution is fixed at one to
+prepare the model for event-clock partitions, and the clock it shifts
+is the crankshaft's `FixedRotationalClock`, an event clock. The array
+layer refuses every `shiftSample` of an event clock
+(`flatten/clocks.rs`, `periodic_only`, called by `shifted`). MLS 16.5.2
+answers this case: `shiftSample(u, k, resolution)` is written as a
+`superSample`, a `shiftSample` and a `subSample`, and because an event
+clock cannot be super-sampled it "can only shift the number of ticks",
+so `shiftSample(u, 2)` of a clock ticking at 0, 1, 2, 3 ticks at 2, 3,
+and a resolution other than 1 is an error. Nine lines show the refusal
+(`/tmp/m450/ea/S1.mo`). The repair is to let an event clock shift by
+whole ticks at resolution 1 and to refuse the rest by name, which the
+clock's exact fractions can hold, but the run then has to skip the
+first `k` ticks of an event root, and whether it does is not yet
+measured. Mapped, not repaired: what stands behind this wall in the two
+models was not probed.
