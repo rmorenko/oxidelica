@@ -175,8 +175,24 @@ impl Parser {
                     Token::ConstrainedBy => {
                         self.bump();
                         constrained_by = Some(self.dotted_name("constraining type")?);
+                        // MLS 7.3.2: the modifiers of a constraining
+                        // clause are applied to the declaration and to
+                        // every later redeclaration, and the
+                        // declaration's own override them. Dropped,
+                        // `constrainedby PartialBooleanMISO(nu = nu)`
+                        // left a logical clock's combinator at its
+                        // default of no inputs where the clock has two,
+                        // and `min` of the empty input was the only
+                        // thing that said so.
                         if self.peek() == &Token::LParen {
-                            self.modifier_list()?;
+                            let (constraint_modifiers, _, _, _) = self.modifier_list()?;
+                            if std::env::var_os("OXIDELICA_NO_CONSTRAINT_MODIFIERS").is_none() {
+                                for (key, value) in constraint_modifiers {
+                                    if !modifiers.iter().any(|(k, _)| *k == key) {
+                                        modifiers.push((key, value));
+                                    }
+                                }
+                            }
                         }
                     }
                     Token::If => {

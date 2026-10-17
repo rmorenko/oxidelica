@@ -1718,3 +1718,27 @@ fn a_flow_read_in_a_product_still_takes_the_open_ports_zero() {
     let last = result.rows.last().unwrap();
     assert!((last[s] - 1.0).abs() < 1e-9, "m.a.s(1) = {}", last[s]);
 }
+
+#[test]
+fn a_constraining_clause_modifies_what_redeclares_it() {
+    // MLS 7.3.2: `constrainedby Base(n = n)` modifies the declaration
+    // and every redeclaration of it. The logical clocks of the
+    // library hand their input count to the combinator that way, and
+    // dropped, the combinator kept its default of none and its sum of
+    // inputs was zero.
+    let result = run("model M \
+           partial block Base parameter Integer n = 0; \
+             parameter Real u[n]; output Real y; end Base; \
+           block Sum extends Base; equation y = sum(u); end Sum; \
+           block Outer parameter Integer n = 2; \
+             replaceable Base comb(u = fill(1.5, n)) constrainedby Base(n = n); \
+           end Outer; \
+           block Two extends Outer(redeclare Sum comb); end Two; \
+           Two two; \
+           Real y = two.comb.y; \
+           annotation(experiment(StopTime = 0.1, Interval = 0.1)); \
+         end M;");
+    let last = result.rows.len() - 1;
+    let y = result.rows[last][result.columns.iter().position(|c| c == "y").unwrap()];
+    assert!((y - 3.0).abs() < 1e-12, "y = {y}");
+}
