@@ -447,7 +447,18 @@ FILES_FLOOR=2671
 #   flatten          961 = 953 here + 8 in the scheduled run
 #   runnable flatten 844 = 836 here + 8 in the scheduled run
 #   run 750 and runnable run 707 are unmoved: none of the eight ran.
-FLATTEN_FLOOR=953
+#
+# And flatten 955 = 953 + TestComplexFunctions and TestComplexOperations
+# of ModelicaTest.ComplexMath, which flatten and run once five walls
+# of operator records inside function bodies are down. From one desk
+# binary (/tmp/m449/ox13), the six switches of the series set against
+# unset, the flattened and the run lists gained exactly those two and
+# lost nothing, 529 Jacobians in both (/tmp/m449/pair/p1.txt against
+# all.txt, 953 / 781 against 955 / 783; the off half equals HEAD's
+# binary line for line, /tmp/m449/pair/off.txt):
+#
+#   953 + 2 = 955
+FLATTEN_FLOOR=955
 # The two run floors came down by one, and the one is named: giving a
 # record constructor called with no arguments the values its `extends`
 # stated took `Modelica.Thermal.FluidHeatFlow.Examples.WaterPump` out
@@ -1506,7 +1517,12 @@ FLATTEN_FLOOR=953
 # and SMPM_VoltageSource):
 #
 #   778 + 1 = 779
-RUN_FLOOR=779
+#
+# And run 781 = 779 + the same two ComplexMath tests, by the same pair
+# as `FLATTEN_FLOOR` (781 against 783 printed, less the same two swings):
+#
+#   779 + 2 = 781
+RUN_FLOOR=781
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -1724,7 +1740,10 @@ RUN_FLOOR=779
 #
 # And runnable flatten 836 = 844 less the eight refused giants carved
 # out on 2026-10-12, all runnable examples; see `FLATTEN_FLOOR`.
-RUNNABLE_FLATTEN_FLOOR=836
+#
+# And runnable flatten 838 = 836 + the two ComplexMath tests, both
+# runnable examples, by the same pair as `FLATTEN_FLOOR`.
+RUNNABLE_FLATTEN_FLOOR=838
 # And runnable run 674 = 671 + the three batteries, all runnable
 # examples, by the same runner job as `RUN_FLOOR` (d58700e, job
 # 112530851204).
@@ -1842,7 +1861,10 @@ RUNNABLE_FLATTEN_FLOOR=836
 #
 # And runnable run 735 = 733 + 2, the still array input, both runnable,
 # by the same pair as `RUN_FLOOR`: 735 against 737 printed.
-RUNNABLE_RUN_FLOOR=735
+#
+# And runnable run 737 = 735 + the two ComplexMath tests, both runnable,
+# by the same pair as `FLATTEN_FLOOR`: 737 against 739 printed.
+RUNNABLE_RUN_FLOOR=737
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and

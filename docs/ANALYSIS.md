@@ -51620,3 +51620,30 @@ now take only a record that declares operators of its own
 (`operators.rs`, `declares_operators`), and the bare constant only one
 of single numbers. That is the record the language means to be worked
 on whole, and it is what `Complex` is.
+
+### The pair of the ComplexMath series, one binary
+
+One desk binary built from the final tree (`/tmp/m449/ox13`), the six
+switches of the series set (`/tmp/m449/pair/p1.txt`) against unset
+(`all.txt`), and HEAD's binary before the shift (`ox1`, `off.txt`):
+
+| half      | flatten / run | runnable  | Jacobians | apart |
+| --------- | ------------- | --------- | --------- | ----- |
+| HEAD      | 953 / 781     | 836 / 737 | 529       | 1974  |
+| switches  | 953 / 781     | 836 / 737 | 529       | 1974  |
+| series on | 955 / 783     | 838 / 739 | 529       | 1974  |
+
+HEAD and the switched half agree list for list, flattened, run and
+refused, so the switches are inert and the assert values move no
+model. The series' lists differ by exactly `TestComplexFunctions` and
+`TestComplexOperations`, in both; no victim. The census, taken from
+the same files through `refusals.sh`'s own folding: HEAD and the
+switched half the same row for row, 67 in 39 rows and 172 in 122; the
+one assert row present in both carries its values folded to `[...]`,
+so the values do not split rows. With the series on, the row `an array
+cannot be a divisor` (2) empties, 65 in 38 rows, the run half
+unchanged. The reference on the same binary: held on 521, moved on 0
+(`/tmp/m449/ref_final.check`), the witnesses at 3, 7, 4, 4, 4, 7, 18,
+7 and 7. Three rows had timed out on a desk shared with the pair; one
+at a time their CPU seconds are the old binary's (43.5 against 43.6,
+40.0 against 37.7, 53.9 against 52.5), and run alone they held.
