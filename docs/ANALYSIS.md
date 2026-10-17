@@ -51834,3 +51834,20 @@ with its test) and the clock aliases (the probe above, which still
 wants its own test and a switch named in the project's way). This shift
 was told not to move floors, so the series and its floors of 956 / 784
 and 839 / 740 wait for one that is.
+
+### The row `Clock has no argument called solverMethod`: a solver clock, not a typo
+
+The two models (`ClockedWithDiscretizedContinuousController`,
+`ControlledMixingUnit`) set `useSolver = true` on a clock block, and
+the library's clocks then write `y = Clock(c, solverMethod =
+solverMethod)` (`PeriodicExactClock.mo:32`, `PeriodicRealClock.mo:9`,
+`EventClock.mo:9`). MLS 16.3 and 16.8.3 define that overload of the
+constructor: it associates an integration method with a clock, so that
+a continuous partition is discretized and integrated on its ticks. The
+table of the built-ins' named arguments (`flatten/names.rs`) knows only
+`Clock(interval, resolution)`, and the refusal names the argument it
+did not know, which is honest. Accepting the keyword is the small half;
+what it asks for is a clocked discretized partition, with `der` inside
+a clocked partition integrated by the named method, and that is a
+layer this compiler does not have. It is a feature and not a repair,
+and is left as a map.
