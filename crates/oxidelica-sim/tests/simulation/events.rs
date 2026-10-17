@@ -1336,3 +1336,25 @@ fn events_that_changed_something_are_counted_alike_on_two_solvers() {
          annotation(experiment(StopTime = 1, Interval = 0.01)); end Q;";
     assert_eq!(run_on(quiet, SolverMethod::Rk4).expect("runs").events, 0);
 }
+
+#[test]
+fn a_clock_handed_through_an_input_reaches_the_block_inside() {
+    // A clock connected into a block and on to a block inside it comes
+    // out as two equations between clocks, the inner one first. Read
+    // as a definition of whichever side was not yet spoken for, the
+    // inner one took the input's name and the innermost clock was
+    // defined by nobody, even for a periodic clock. Ticking every 0.1 s
+    // over a second, the count is 11.
+    let result = run("model M \
+           connector CO = output Clock; connector CI = input Clock; \
+           block Tick CI u; Integer n(start = 0); \
+             equation when u then n = previous(n) + 1; end when; end Tick; \
+           block Sink CI u; Tick t; equation connect(u, t.u); end Sink; \
+           Sink sink; CO y = Clock(0.1); \
+           equation connect(y, sink.u); \
+           annotation(experiment(StopTime = 1, Interval = 0.1)); \
+         end M;");
+    let last = result.rows.len() - 1;
+    let n = result.rows[last][result.columns.iter().position(|c| c == "sink.t.n").unwrap()];
+    assert_eq!(n, 11.0, "sink.t.n = {n}");
+}

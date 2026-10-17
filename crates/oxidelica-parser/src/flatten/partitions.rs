@@ -692,6 +692,7 @@ fn clocks_of_the_model(model: &mut Model) -> Result<Option<DeclaredClocks>, Stri
         .filter(|component| component.type_name == "Clock")
         .filter_map(|component| Some((component.name.clone(), component.binding.clone()?)))
         .collect();
+    let mut aliases: Vec<(String, String)> = Vec::new();
     let mut kept = Vec::new();
     for equation in model.equations.drain(..) {
         // Either side may be the clock being said: a connection
@@ -703,6 +704,21 @@ fn clocks_of_the_model(model: &mut Model) -> Result<Option<DeclaredClocks>, Stri
             // Where both are clocks - a clock signal drawn from one
             // block to another is exactly that - the one being said is
             // the one nothing has said yet.
+            // Read as a definition of whichever side is not yet spoken
+            // for, a connection depends on the order the equations come
+            // in: a clock handed through an input to a block inside is
+            // `sink.u = sink.t.u` before it is `src.y = sink.u`, the
+            // first takes `sink.u`, and `sink.t.u` is defined by nobody.
+            // Kept as an alias with no direction, either side hands its
+            // clock to the other once it has one.
+            (Expr::Ref(left), Expr::Ref(right))
+                if declared.contains(left)
+                    && declared.contains(right)
+                    && std::env::var_os("OXIDELICA_NO_CLOCK_ALIASES").is_none() =>
+            {
+                aliases.push((left.clone(), right.clone()));
+                continue;
+            }
             (Expr::Ref(left), Expr::Ref(right))
                 if declared.contains(left) && declared.contains(right) =>
             {
@@ -736,6 +752,19 @@ fn clocks_of_the_model(model: &mut Model) -> Result<Option<DeclaredClocks>, Stri
             if let Some(index) = clock_expr(value, &mut clocks, &parameters)? {
                 clocks.named.insert(name.clone(), index);
                 settled = false;
+            }
+        }
+        for (left, right) in &aliases {
+            match (clocks.by_name(left), clocks.by_name(right)) {
+                (Some(index), None) => {
+                    clocks.named.insert(right.clone(), index);
+                    settled = false;
+                }
+                (None, Some(index)) => {
+                    clocks.named.insert(left.clone(), index);
+                    settled = false;
+                }
+                _ => {}
             }
         }
         if settled {
