@@ -51152,6 +51152,24 @@ that model by a fifth meets it.
 
 ### What stands behind MixtureGases
 
+**Counted by a measure of ten steps, not run to its horizon.** The two
+models the floors took are two different claims and stand apart here.
+`SimpleNaturalGasFixedComposition` (`experiment(StopTime = 1.01)`)
+runs to its stop time under `simulate`: its last row is t = 1.01, 1012
+rows (`/tmp/m447/sng.csv`). That one is bought outright.
+`MixtureGases` (`experiment(StopTime = 1)`) is counted as running by
+the floor's own definition, `run_a_little`, which takes ten steps of
+the output interval and stops - on this model that is t = 0.01. Run to
+its horizon, it dies at t = 0.299 of 1.0, on the division by the
+weight of the `setSmoothState` blend at its edge, below. So it is
+bought by the measure and does not reach its end, and the measure's
+limit - ten steps do not tell "runs" from "began to run and will not
+finish" - is no longer a supposition but this model, by name, inside
+the floor. The floor stays: it is right by the measure it is written
+in, and the measure itself is Roman's to decide.
+
+The wall behind it, in detail.
+
 The library check runs ten steps; `simulate` to the stop time refuses
 at t = 0.299 with a step size underflow, and on `rk4` at `1e-4` names
 it: the loop `medium1.T, medium2.T, der_p, der(medium2.T), der_T` is
@@ -51168,8 +51186,7 @@ that is zero on one branch and at its edge, the m437 zero-pivot breed:
 blend is all `state2`. How the run reaches t = 0.299 with that pivot in
 the loop is not established here (the loop may be entered only at the
 join). Not this series: parked with that map, a model of its own for
-the zero pivot. The `MixtureGases` that counts in the floors is the
-ten-step run, as every model there is.
+the zero pivot.
 
 ### Reserve: an event on the stop instant, counted over the run list
 
