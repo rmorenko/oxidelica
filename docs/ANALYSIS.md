@@ -51228,3 +51228,18 @@ same `spread(.., "stateSelect", ..)`. It is not taken here: a weight
 supplied where there was none changes which states reduction keeps,
 which these notes say is measured by the list of victims over the
 corpus, a series of its own.
+
+### Reserve: the census after the row
+
+A fresh census of both halves on the pushed tree
+(`/tmp/m447/census/census.txt`, raw `/tmp/m447/census/raw.txt`),
+counted by section bounds: 67 in 39 rows would not flatten, as in
+`/tmp/m444c/census.txt`; 173 in 124 rows flattened and would not run,
+against 179 in 129 there. The six are the six models m446 and m447
+took, by name. The rows that say `cannot differentiate` held seven
+models in m444c, not the six the brief added up: the seventh,
+`TestRegSquare2Derivatives`, stood under the bare `cannot
+differentiate function` without the `structurally singular` prefix.
+Two are left, neither of this row: `HeatingSystem`, a subscript that
+survived flattening inside `waterBaseProp_ph`, and `AdvancedSolenoid`,
+`abs` outside a walked body.
