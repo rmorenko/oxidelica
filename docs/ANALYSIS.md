@@ -52054,3 +52054,130 @@ to be refused, and the ratio of the halves rose to 0.96. Taking it
 means a test for each link seen red under its switch, the switches
 named the project's way, and a corpus pair with the solver-pair
 reference over the two models.
+
+## The outside stream series taken, and two rows above it mapped (m452)
+
+### A third link, walked before the series
+
+The probe of m451 left `TestSources` on `unknown variable
+boundary6.ports[1].Xi_outflow`. The flat model holds an array stream
+member element by element, as `Xi_outflow[1]`, and the equation of
+15.2 named it whole. A small model, `A1`
+(`~/oxideflow/park/m451-outside-stream/A1.mo`), is `W2` with
+`Xi_outflow[2]` and the wrapper's port an element of a port array. It
+is refused with exactly that text. Written once per element the flat
+model carries, it runs, and both sinks hear `{3, 0.25}`, which is what
+the only source pushing pushes. `TestSources` then runs, on `dopri45`
+and on `bdf`, and the last rows of the two agree to the digit over 481
+columns. The chain ends there: three links, one family.
+
+### The series, measured from one binary
+
+Three commits, one per link, each with a test that is seen red under
+its switch: `OXIDELICA_NO_OUTSIDE_STREAM` (W1 hears 3, refused as
+unbalanced without it), `OXIDELICA_NO_STREAM_SIDE_BY_SET` (W2 hears 3,
+not 4 and 5) and `OXIDELICA_NO_OUTSIDE_STREAM_ELEMENTS` (A1). The pair
+is one desk binary built from the final tree, `/tmp/m452/ox21`, with
+the three switches set against none (`/tmp/m452/pair/off.txt`,
+`on.txt`):
+
+| half | flatten / run | runnable  | Jacobians | run half refused |
+| ---- | ------------- | --------- | --------- | ---------------- |
+| off  | 956 / 784     | 839 / 740 | 529       | 172 in 144 rows  |
+| on   | 956 / 787     | 839 / 743 | 529       | 169 in 140 rows  |
+
+The off half's flattened and run lists are those of m451's off half
+line for line. The run list gains `TestJunctionIdeal`, `TestSources`
+and `LumpedPipeInitialization`, and loses nothing. The rows here are
+counted from the line `of the 956 that flatten` to the end of the
+file. That is a different boundary from m451's 122/115, so the row
+counts compare within this table only. Eight `unbalanced` rows,
+holding nine models, empty. The Newton direction row goes 6 to 8, and four rows of one
+appear: `MeasuringTemperature`, `HeatExchangerSimulation`, a
+`Nonlinear.solve` start and `B5.InnerTankSide`. Names looked up stand
+at 1659635029 against a ceiling of 1660001727. The run half rose from
+3212 s to 3784 s, mostly BranchingPipes running where they used to be
+refused, and the ratio of the halves is 0.88.
+
+Two of the three models are witnesses. On the series binary,
+`LumpedPipeInitialization` repeats the probe's numbers: the volume's
+temperature is 582.4131 on `dopri45` against 582.4135 on `bdf`, and
+the inlet flow 2.48849 against 2.48821. `TestSources` agrees on the two
+solvers as above. `TestJunctionIdeal` runs only inside the library
+check. On `dopri45`, on `bdf` and on a plain `simulate` with the
+default solver, it is refused in the Newton direction of the loop
+holding the junction's three outflows at t = 0.50475. Its run is not a
+checked number. It stays out of the floors as a candidate swing. That
+is the review's judgement, by analogy with Roman's word of 09.10 on
+SpringWithMass and SMPM_VoltageSource, and not his word on this model.
+If it comes to run on two solvers it may be taken into the floors
+without asking. The floors rise by the two witnesses: run 782 to 784,
+runnable run 738 to 740.
+
+### `HeatExchangerSimulation`: a steady start on a medium the plan computes
+
+The refusal is `der(HEX.pipe_1.mediums[1].T): ... is not a state of
+the model`. The medium is `StandardWaterOnePhase`, which is
+`WaterIF97_pT`, so the pipe's `SteadyStateInitial` writes
+`der(mediums.T) = 0` and `der(mediums.p) = 0`. That is right for the
+medium. The plan chose `U` and `m` as states, though, so `T` and `p`
+are computed. Two layers meet here.
+
+1. `steady_rows_on_balances` would solve those rows as the balances
+   standing still, and it drops all 80 of them (`der(T)` and `der(p)`
+   over 20 nodes of two pipes) as `clocked`. The reason is a single
+   torn block of 2120 unknowns (162 torn) that holds every medium of
+   both pipes and also reads `time`. Read coarsely through the plan,
+   every name the block assigns is taken to move with the clock.
+2. Without the swap, `algebraic_definition_derivatives` has no
+   derivative for a torn unknown of that block
+   (`OXIDELICA_INIT_DER_PROBE`: `torn k=162 (block of 2120, inner
+1958)`), so the substitution refuses.
+
+The small model `H8` (`~/oxideflow/park/m452-steady-torn/H8.mo`, 15
+lines, no library) shows a third fact. Its rows are swapped
+(`Some(0)`, `Some(1)`), and still the model is refused with `der(T) is
+not a state`. The substitution runs over every initial equation,
+swapped or not, and a swapped row's substituted form is never read: the
+residual takes `derivatives[state]` for it. With the substitution
+skipped for swapped rows (probe
+`~/oxideflow/park/m452-steady-swap-probe.diff`, switch
+`OXPROBE_SWAP_SKIP`), `H8` runs to the hand answer: `p = 2e5`, where
+`der(m) = 1e-3 - 1e-8 (p - 1e5)` stands still, and `h = 1.2e6`, which
+gives `T = 299.95`. This alone does not move `HeatExchangerSimulation`,
+whose rows are not swapped at all. The first fact is the wall there:
+the clock test reads a block whole, when it should read the stage that
+assigns `T`. The probe is parked, not taken. It changes which models
+start where, so it needs its own victims list.
+
+### `MeasuringTemperature`: initialised, then lost at t = 0
+
+The refusal names an algebraic loop of 50 unknowns that steps outside
+its domain at t = 0. `OXIDELICA_NEWTON_TRAIL` shows the initialisation
+converging: |f| goes 2e9, 75, 3.6e-7, 6e-14. The trail then follows
+the run's first solves of the same loop. The first starts at 9.1e-2,
+and its first step throws a temperature to -544433 and a density to
+82644, so |f| reaches 5.5e5. It recovers on that solve, but a later
+start from the converged point opens at |f| = 2.4e4 and ends in NaN
+inside `waterBaseProp_ph` for `openTankCold3`. The loop holds the
+junction's three outflows that the series now writes, beside the
+tanks' port densities. The failure comes from the first Newton step
+being too long, not from any equation being missing. It belongs with
+the Newton direction rows that the order forbids this shift (m444).
+No change was made.
+
+### `TestJunctionTraceSubstances`: one storey up, at a bracket
+
+Under the series this model leaves `unbalanced` (`nothing determines
+junction1.Hb_flow`, ...) and stops at the first evaluation at t = 0,
+before any Newton step. Moist air's temperature is solved from the
+enthalpy that `inStream` mixes at `pipe2.port_a`, and
+`solveOneNonlinearEquation` is handed `u_min = 190`, `u_max = 647` with
+`f(190) = 75640` and `f(647) = 575206`. Both are positive, so the
+enthalpy it was given lies below that of air at 190 K. That is a
+value the starting guess holds, not one the equations produce.
+`RoomCO2WithControls` stood at the same wall on both halves of the
+pair, before the series as after it. What the two read at t = 0 is the
+next question (`oxidelica why ... junction1.port_2.h_outflow` names
+the chain: `junction1.medium.h` through the junction's port). It was
+not walked this shift.

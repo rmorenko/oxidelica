@@ -1540,7 +1540,26 @@ FLATTEN_FLOOR=956
 # SMPM_VoltageSource, which are not taken into the floors):
 #
 #   784 - 2 = 782 = 781 + 1
-RUN_FLOOR=782
+#
+# And run 784 = 782 + LumpedPipeInitialization + TestSources, the
+# outflow of an outside stream connector written as 15.2 asks, the
+# side of a neighbour read from the set it shares, and the equation
+# written element by element. From one desk binary built from the
+# final tree, OXIDELICA_NO_OUTSIDE_STREAM, OXIDELICA_NO_STREAM_SIDE_BY_SET
+# and OXIDELICA_NO_OUTSIDE_STREAM_ELEMENTS set against unset, the run
+# list gained exactly TestJunctionIdeal, TestSources and
+# LumpedPipeInitialization and lost nothing, the flattened list the same
+# line for line, 529 Jacobians in both (/tmp/m452/pair/off.txt against
+# on.txt, 956 / 784 against 956 / 787). TestJunctionIdeal is left out:
+# it runs only inside the library check, and on dopri45, on bdf and on
+# a plain `simulate` it is refused in the Newton direction of the
+# junction's loop at t = 0.50475. That is the review's judgement, by
+# analogy with Roman's word of 09.10 on the two swings, not his word on
+# this model; if it comes to run on two solvers it may be taken without
+# asking. The other two run on dopri45 and bdf and agree:
+#
+#   787 - 2 swings - TestJunctionIdeal = 784 = 782 + 2
+RUN_FLOOR=784
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -1890,7 +1909,13 @@ RUNNABLE_FLATTEN_FLOOR=839
 # `FLATTEN_FLOOR`: 740 printed, less the same two swings.
 #
 #   740 - 2 = 738 = 737 + 1
-RUNNABLE_RUN_FLOOR=738
+#
+# And runnable run 740 = 738 + LumpedPipeInitialization + TestSources,
+# both runnable, by the same pair as `RUN_FLOOR`: 743 printed, less the
+# two swings and TestJunctionIdeal, for the same reason.
+#
+#   743 - 2 - 1 = 740 = 738 + 2
+RUNNABLE_RUN_FLOOR=740
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
