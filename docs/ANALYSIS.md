@@ -50938,3 +50938,129 @@ and the mended run fires every one of them on time. `CCCV_Stack` and
 0.054559). `SpringDamperSystem` ran in 58 s and timed out at 61 s on a
 60 s ceiling, and on its own it took 45 s and 57 s: weather, no change.
 Nothing else of the 774 moved by a single event or a printed digit.
+
+## A walked body differentiated through its own statements (m446)
+
+The row `cannot differentiate a call of several arguments` held four
+models, mapped in m437: `MixtureGases`, `TestPressureLossDerivatives`,
+`TestRegRoot2Derivatives` and `TestRegRoot2ZeroDerivative`. One
+mechanism under all four: the inliner leaves the call standing for the
+run to walk, and the differentiator has no rule for a walked body. All
+four functions carry `smoothOrder`, which nothing read.
+
+### The road taken, and why not the other
+
+The second road of m437 is the inliner past its two blocks. Probed
+(`OX446_STANDING`, a print in `inline_function`, not committed), the
+blocks are: in the two `regRoot2` tests, `regRoot2_utility` has its
+`return` under `k2 > 0` with `k1`, `k2` moving with time, which no
+compiler decides before the run; in `TestRegRoot2ZeroDerivative` and in
+`MixtureGases` it is `nested deeper than the compiler follows`, the
+`MAX_DEPTH = 32` of `flatten/mod.rs`, met inside
+`evaluatePoly3_derivativeAtZero` and over the 23 numbers of the gas's
+data record. The first is not a ceiling at all and cannot be lifted;
+the second is the ceiling whose raise to 48 has already cost a corpus
+pass to memory. So the road is the general one.
+
+A walked body that promises `smoothOrder >= 1` now has its derivative
+written out as a body of its own (`crates/oxidelica-sim/src/derived.rs`),
+before anything differentiates: every assignment `v := e` is preceded
+by `$d1_v := de`, where `de` is what the compiler's own differentiator
+makes of `e` with each name standing for its rate. The branches, loops
+and the `return` are kept as written, so the derivative takes the same
+road as the value and the undecidable `return` is decided by the walk.
+A call to the body differentiates to a call to `f$der`, handed the
+arguments' rates first and the arguments after. This is the forward
+mode of automatic differentiation, exact rather than numerical: there
+is no step size and no noise for the reference to object to. A derived
+body promises one order less, so `ydd = der(yd)` is a body built from
+the body. Inside a derived body only, `smooth` and `noEvent` take their
+argument's derivative, and `abs(u)` is `du` above zero, `-du` below,
+zero where `u` is zero and not moving, and not a number where `u` is
+zero and moving, which the run refuses rather than reads. That is true
+everywhere, unlike `sign(u)*du`. Bodies with arrays, tuple assignments,
+`when` or calls as statements are not written out and keep the old
+refusal. `OXIDELICA_NO_WALKED_DERIVATIVE` keeps the old reading.
+
+One fault was found on the way and is now a test: the second
+derivative's body named the rate of `x` `$d_x`, which was already the
+name of an input of the first derivative, and `der(f(time))` for
+`f = x^2` came out as `-2x`. Rates are now spelled `$dN_` with the
+first level no name of the body already uses.
+
+### The control of m437 had moved
+
+The brief's control, `R5.mo` (`regRoot2` with `use_yd0 = true`, inlined
+whole), no longer differentiates: it is refused for `abs`. The inlined
+value holds `sqrt(abs(-0.01))`, a constant, and the time derivative
+already answers zero for what does not move. The slope in one name,
+taken to rank and solve an equation, had no such rule, and asked
+`abs(-0.01)` for its derivative in `x`. The rule now says it: a call
+that does not mention the name has a slope of nothing in it.
+`OXIDELICA_NO_STILL_SLOPE` keeps the old reading. Smallest model,
+`y = x*sqrt(abs(-0.01))` with `yd = der(y)`, now a test.
+
+### Numbers, against the finite difference of the run's own output
+
+```text
+model                         pair            worst rel. error   where
+R1 (regRoot2, k2 = 0)         y / yd          0.087%             off the joints
+TestPressureLossDerivatives   m_flow1 / der   0.016%             t = 1.1
+TestRegRoot2Derivatives       y / yd          1.9%               t = 1.0056
+TestRegRoot2Derivatives       yd / ydd        62%                t = 1.0056
+```
+
+On a grid of 4e-4, so the difference quotient is itself the coarse
+side. Inside the regularised band the agreement is to four figures
+(`yd` 18.46796 against 18.46202 at t = 0.9992, `ydd` 179.6614 against
+179.6603). The large ratios sit on the joints of the piecewise
+definition, t = 0.99, 1.0 and 1.01 and the next point after, where a
+central difference straddles a kink in the second derivative that
+`smoothOrder = 2` promises away but the polynomials of `regRoot2` do not
+quite honour. At t = 2 the branch is `y = sqrt(k1)*sqrt(x)` with
+`x = 1`, `k1 = 1.4`, `k1' = 0.2`, `x' = 1`, and by hand `y` = 1.183216,
+`yd` = 0.084515 + 0.591608 = 0.676123 and `ydd` = the sum of
+-0.006037, 0.042258, 0.042258 and -0.295804, -0.217325: the run's
+final point prints all
+three to the sixth decimal (`y`, `yd`, `ydd` and the `use_yd0` twin
+`y2`, `y2d`, `y2dd` alike).
+The tests check exact numbers on small bodies: `3*(2t)^2` gives 24 and
+24 at t = 1, `t^2` gives 2.
+
+### What moved
+
+A pair from one binary (`/tmp/m446/ox4`, both switches set for
+`/tmp/m446/pair/off.txt` and unset for `on.txt`, both `--list`): 953
+flattened and 774 run against 953 and 778, runnable 836 / 731 against
+836 / 735, 529 Jacobians in both. Gained by name, and nothing lost:
+`TestPressureLossDerivatives`, `TestRegRoot2Derivatives`,
+`TestRegRoot2ZeroDerivative`, and `TestRegSquare2Derivatives`, which was
+not in the row at all: it stood alone under `cannot differentiate
+function abs`, the same slope of a constant. The register is otherwise
+identical line for line: the row of four is a row of one, and the
+`abs` single is gone.
+
+`--check` of the reference's 521 rows on the final tree's binary
+(`/tmp/m446/ox5`, `/tmp/m446/ref_on.check`): held on 520, and
+`DoublePendulum` ran out of its 60 s of CPU on a desk shared with the
+pair, a ceiling and not a number. The witnesses hold their counts (3,
+7, 4, 7, 7, 4, 4, 7) and `SampleBesideCrossing` its 18.
+
+### What is left of the row
+
+`MixtureGases` alone. `h_T` takes the gas's data record as an input of
+23 numbers, and a body that declares an array is not written out: the
+forward mode here walks scalars. Taking arrays is the next link, and a
+separate one: the rate of an array input is an array of rates, laid out
+the way the walk lays out the value. Behind it `MixtureGases` also meets
+`specificEnthalpy_pTX` standing as a recursion with no bottom (m437), so
+the link may move the model to another wall rather than to running.
+
+The floors move by the four: run 772 to 776 and runnable run 729 to
+733, from the pair. The preflight of the final tree
+(`/tmp/m446/pf.txt`) printed 953 / 778 and 836 / 735 and the library
+step went red on the desk's band alone, 0.638 against an edge of 0.64,
+flattening at 4799 ms per model while the pair's second half shared the
+desk - the busy-desk reading m438 named, not a slower compiler: the
+main pass's own pair printed 4021 and 5789 ms flattening on the same
+binary as the desk filled up.

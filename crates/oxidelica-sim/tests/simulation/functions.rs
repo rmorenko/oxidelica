@@ -4571,3 +4571,79 @@ fn a_record_chosen_by_an_if_hands_its_walked_matrix_field_on() {
     let last = r.rows.last().unwrap();
     assert!((last[x] - 91.0).abs() < 1e-9, "x = {}", last[x]);
 }
+
+/// The column of a result named `name`.
+fn column(result: &SimResult, name: &str) -> usize {
+    result.columns.iter().position(|c| c == name).unwrap()
+}
+
+#[test]
+fn a_walked_body_that_promises_a_derivative_is_differentiated_through_its_statements() {
+    // A `return` under a condition only the run can decide leaves the
+    // call standing, and `der(y)` reaches it in index reduction. The
+    // body says it is twice differentiable, so its derivative is
+    // written out from its statements: `k*x^2` with `x = 2t` and
+    // `k = 3` is `12t^2`, whose rate is `24t` and whose second rate
+    // is 24. The second derivative is a derived body of a derived body,
+    // whose rates must not take the names of the first one's: spelled
+    // alike, the first rate came out as `-2x` rather than `2x`.
+    let source = "model M function f input Real x; input Real k = 1; output Real y; \
+         algorithm if x < -5 then y := 0; return; end if; y := k*x*x; \
+         annotation(smoothOrder = 2); end f; \
+         Real x; Real y; Real yd; Real ydd; Real z; Real zd; \
+         equation x = 2*time; y = f(x, 3); yd = der(y); ydd = der(yd); \
+         z = f(time); zd = der(z); \
+         annotation(experiment(StopTime = 1, Interval = 0.5)); end M;";
+    let result = run(source);
+    let last = result.rows.last().unwrap();
+    assert!((last[column(&result, "y")] - 12.0).abs() < 1e-9);
+    assert!(
+        (last[column(&result, "yd")] - 24.0).abs() < 1e-9,
+        "yd = {}",
+        last[column(&result, "yd")]
+    );
+    assert!(
+        (last[column(&result, "ydd")] - 24.0).abs() < 1e-9,
+        "ydd = {}",
+        last[column(&result, "ydd")]
+    );
+    assert!(
+        (last[column(&result, "zd")] - 2.0).abs() < 1e-9,
+        "zd = {}",
+        last[column(&result, "zd")]
+    );
+    // A body that promises nothing is still refused by name.
+    let silent = source.replace("annotation(smoothOrder = 2); ", "");
+    assert!(compile_err(&silent).contains("cannot differentiate a call of several arguments"));
+}
+
+#[test]
+fn a_walked_body_takes_abs_on_the_side_the_walk_stands_on() {
+    // `abs` inside a derived body is `du` above zero and `-du` below.
+    // `abs(x - 1)` with `x = time` is `1 - t` until one and `t - 1`
+    // after: the rate is -1 at the half and 1 at the end.
+    let result = run("model M function f input Real x; output Real y; \
+         algorithm if x > 100 then y := 0; return; end if; y := abs(x - 1); \
+         annotation(smoothOrder = 1); end f; \
+         Real y; Real yd; equation y = f(time); yd = der(y); \
+         annotation(experiment(StopTime = 2, Interval = 0.5)); end M;");
+    let yd = column(&result, "yd");
+    assert!(
+        (result.rows[1][yd] + 1.0).abs() < 1e-9,
+        "yd = {}",
+        result.rows[1][yd]
+    );
+    assert!((result.rows.last().unwrap()[yd] - 1.0).abs() < 1e-9);
+}
+
+#[test]
+fn a_call_that_does_not_name_the_unknown_has_no_slope_in_it() {
+    // `abs(-0.01)` names nothing that moves, and the slope of this
+    // equation in `x` is `sqrt(0.01)`, whatever `abs` would need to be
+    // differentiated by. It used to be refused for the `abs`.
+    let result = run("model M Real x; Real y; Real yd; \
+         equation x = time - 1; y = x*sqrt(abs(-0.01)); yd = der(y); \
+         annotation(experiment(StopTime = 1, Interval = 0.5)); end M;");
+    let last = result.rows.last().unwrap();
+    assert!((last[column(&result, "yd")] - 0.1).abs() < 1e-12);
+}

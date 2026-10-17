@@ -1472,7 +1472,19 @@ FLATTEN_FLOOR=953
 # 953 / 774):
 #
 #   771 + 1 = 772
-RUN_FLOOR=772
+#
+# And run 776 = 772 + 4, a walked body that promises `smoothOrder`
+# differentiated through its own statements, and the slope of a call
+# that does not name the unknown read as nothing. From one desk binary,
+# OXIDELICA_NO_WALKED_DERIVATIVE and OXIDELICA_NO_STILL_SLOPE set
+# against unset, the run list gained exactly TestPressureLossDerivatives,
+# TestRegRoot2Derivatives, TestRegRoot2ZeroDerivative and
+# TestRegSquare2Derivatives and lost nothing, the flattened list the
+# same line for line, 529 Jacobians in both (/tmp/m446/pair/off.txt
+# against on.txt, 953 / 774 against 953 / 778):
+#
+#   772 + 4 = 776
+RUN_FLOOR=776
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -1802,7 +1814,10 @@ RUNNABLE_FLATTEN_FLOOR=836
 #
 # And runnable run 729 = 728 + Fourbar_analytic, runnable, by the same
 # pair as `RUN_FLOOR`: 730 against 731 printed.
-RUNNABLE_RUN_FLOOR=729
+#
+# And runnable run 733 = 729 + 4, the walked derivative, all four
+# runnable, by the same pair as `RUN_FLOOR`: 731 against 735 printed.
+RUNNABLE_RUN_FLOOR=733
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and

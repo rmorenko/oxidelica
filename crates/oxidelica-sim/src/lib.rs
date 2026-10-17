@@ -18,6 +18,7 @@ use std::fmt;
 mod code;
 mod compile;
 mod continuation;
+mod derived;
 mod events;
 mod hidden;
 mod linear;

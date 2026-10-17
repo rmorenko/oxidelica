@@ -5104,6 +5104,17 @@ pub(crate) fn compile_at(
         carried = with_transport_equations(model);
         &carried
     };
+    // 0b. A walked body that promises a derivative has it written out
+    // as a body of its own, before anything differentiates: index
+    // reduction reaches a call to it as a call to the derived body.
+    let derived;
+    let model = match crate::derived::with_derivative_bodies(model) {
+        Some(with) => {
+            derived = with;
+            &derived
+        }
+        None => model,
+    };
 
     // 1. Parameters and constants, in whatever order they depend on
     // each other.

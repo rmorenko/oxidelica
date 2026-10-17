@@ -569,6 +569,12 @@ thread_local! {
     /// environment variable in a test binary is shared by every thread
     /// in it.
     static SHARE_HERE: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    /// Whether what is being differentiated is a statement of a walked
+    /// body, written out as that body's derivative (`derived.rs`). The
+    /// rules that hold only there - a body's `abs` and `smooth` - are
+    /// asked of this, so that nothing a model's own equations are
+    /// differentiated by changes with them.
+    pub(crate) static IN_BODY: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
     /// Names whose derivative was answered with a bare `der(x)` that
     /// nothing here can work out: the walk had no definition, no
     /// dummy and no implicit equation for `x`, and the equation that
@@ -662,6 +668,22 @@ pub(crate) fn differentiate_at(
         // closing, a flow reversing. This says nothing about `abs`
         // instead, and what it does say is true everywhere.
         _ if matches!(target, DiffTarget::Time { .. }) && does_not_move(expr, target) => {
+            Expr::Number(0.0)
+        }
+        // The same truth for the other target, asked where it matters:
+        // a slope in one name holds every other name still, so a call
+        // that does not mention the name has a slope of nothing in it,
+        // whatever the function. `regRoot2` inlined with constant
+        // arguments leaves `abs(-0.01)` in its value, and the slope of
+        // the equation in `x` was refused for an `abs` that names no
+        // `x` at all. Asked of calls only, since that is where a rule
+        // can be missing; arithmetic over constants folds on its own.
+        // `OXIDELICA_NO_STILL_SLOPE` keeps the old reading so one
+        // binary can be measured against itself.
+        Expr::Call(..)
+            if matches!(target, DiffTarget::Variable { name, .. } if !mentions_name(expr, name))
+                && !crate::walk::switch_set("OXIDELICA_NO_STILL_SLOPE") =>
+        {
             Expr::Number(0.0)
         }
         Expr::Number(_) | Expr::Bool(_) => Expr::Number(0.0),
@@ -880,6 +902,71 @@ pub(crate) fn differentiate_at(
                     bin(Pow, (**base).clone(), Expr::Number(c - 1.0)),
                 ),
                 d(base)?,
+            )
+        }
+        // A call to a body the run walks, where that body's derivative
+        // has been written out as a body of its own: the derivative is
+        // a call to that one, handed each argument's rate first and the
+        // arguments themselves after. An input the call left to its
+        // default holds a constant, and its rate is nothing.
+        Expr::Call(name, args) if crate::derived::derivative_of(name).is_some() => {
+            let (derived, carries) =
+                crate::derived::derivative_of(name).expect("asked in the guard");
+            let mut handed = Vec::new();
+            for (at, carried) in carries.iter().enumerate() {
+                if !carried {
+                    continue;
+                }
+                handed.push(match args.get(at) {
+                    Some(arg) => d(arg)?,
+                    None => Expr::Number(0.0),
+                });
+            }
+            handed.extend(args.iter().cloned());
+            Expr::Call(derived, handed)
+        }
+        // Inside a walked body, `smooth` and `noEvent` say something
+        // about events and nothing about the value, which is their
+        // argument; the derivative is the argument's.
+        Expr::Call(name, args)
+            if IN_BODY.with(|on| on.get())
+                && ((operator_name(name) == "smooth" && args.len() == 2)
+                    || (operator_name(name) == "noEvent" && args.len() == 1)) =>
+        {
+            d(args.last().expect("one argument at least"))?
+        }
+        // Inside a walked body, `abs(u)` is taken on the side the walk
+        // stands on: `du` where `u` is above zero and `-du` where it is
+        // below. At zero it has a derivative only where `u` is not
+        // moving, and there it is zero; anywhere else the answer is
+        // not a number, which the run refuses rather than read. That
+        // is true at every point, zero included - it is not
+        // `sign(u)*du`, which answers zero where no derivative exists.
+        Expr::Call(name, args)
+            if IN_BODY.with(|on| on.get()) && operator_name(name) == "abs" && args.len() == 1 =>
+        {
+            use oxidelica_parser::RelOp::*;
+            let u = &args[0];
+            let du = d(u)?;
+            let rel = |op, a: &Expr| {
+                Box::new(Expr::Rel(
+                    op,
+                    Box::new(a.clone()),
+                    Box::new(Expr::Number(0.0)),
+                ))
+            };
+            Expr::If(
+                rel(Gt, u),
+                Box::new(du.clone()),
+                Box::new(Expr::If(
+                    rel(Lt, u),
+                    Box::new(Expr::Neg(Box::new(du.clone()))),
+                    Box::new(Expr::If(
+                        rel(Eq, &du),
+                        Box::new(Expr::Number(0.0)),
+                        Box::new(Expr::Number(f64::NAN)),
+                    )),
+                )),
             )
         }
         Expr::Call(name, args) if args.len() == 1 => {
