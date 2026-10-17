@@ -264,12 +264,34 @@ pub(super) fn record_class_of(
             if called.kind != ClassKind::Function || function_records_off() {
                 return None;
             }
-            let held = inlining::function_components(registry, called, 0);
-            let mut outputs = held.iter().filter(|c| c.causality == Causality::Output);
-            let (Some(output), None) = (outputs.next(), outputs.next()) else {
+            // The cheap questions first: this is asked of every call
+            // inside every operator expression, and nearly every
+            // function answers with a number. The class's own outputs
+            // are read before the ones it inherits, and a built-in type
+            // says no before any lookup is paid for.
+            let own: Vec<&Component> = called
+                .components
+                .iter()
+                .filter(|c| c.causality == Causality::Output)
+                .collect();
+            let held;
+            let outputs: Vec<&Component> = if own.is_empty() && !called.extends.is_empty() {
+                held = inlining::function_components(registry, called, 0);
+                held.iter()
+                    .filter(|c| c.causality == Causality::Output)
+                    .collect()
+            } else {
+                own
+            };
+            let [output] = outputs.as_slice() else {
                 return None;
             };
-            if !output.dimensions.is_empty() {
+            if !output.dimensions.is_empty()
+                || matches!(
+                    output.type_name.as_str(),
+                    "Real" | "Integer" | "Boolean" | "String"
+                )
+            {
                 return None;
             }
             // Only a record that declares operators of its own: that is
