@@ -51647,3 +51647,35 @@ unchanged. The reference on the same binary: held on 521, moved on 0
 7 and 7. Three rows had timed out on a desk shared with the pair; one
 at a time their CPU seconds are the old binary's (43.5 against 43.6,
 40.0 against 37.7, 53.9 against 52.5), and run alone they held.
+
+### Parked: the work band is red, and the series is not pushed
+
+The preflight's library step on the final tree (`/tmp/m449/pf_final.txt`)
+held every count floor at the new numbers, 955 / 783 and runnable
+838 / 739, and refused on the work band: names looked up 1694529687
+against the reference 1660001727, 2.08 per cent above it against a band
+of 2000 per million. HEAD's binary printed 1658468092 (`off.txt`). The
+two ComplexMath models look up 32649 names each, so the growth is the
+cost of the series on the models that already ran, not the models it
+bought.
+
+Split on 39 models of the run list, one in twenty
+(`/tmp/m449/sample.txt`), one binary with one switch at a time:
+27650614 names with all six switches set, 28591935 with none. The
+function-record reading (wall 2) carries 818934 of the 941321, the body
+records (wall 1) 111153, the record local values (wall 4) 10723, the
+bare record constants 531, the other two nothing. The function-record
+reading gathered a function's inherited components for every call
+inside every operator expression; asking its own outputs first and
+saying no to a built-in output type brings the sample to 28181205, still
+1.9 per cent above. What remains is mostly that same reading, which
+now looks up the output's type for every call answering a record.
+
+So the series is parked on the desk as local commits, not pushed: the
+band says the change costs more than it was allowed, and no band moves
+without the judgement it is owed. The next step is to bring the
+function-record reading under the band (asked only when the other
+operand is already a record of a class that declares the operator, or
+answered once per called class per expansion) and then the whole pair
+again. The two ComplexMath models, the counts and the reference above
+stand as measured.
