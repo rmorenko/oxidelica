@@ -51679,3 +51679,77 @@ operand is already a record of a class that declares the operator, or
 answered once per called class per expansion) and then the whole pair
 again. The two ComplexMath models, the counts and the reference above
 stand as measured.
+
+## The function-record reading under the work band, and why a reach of two loses two models (m450)
+
+### What a function and a body's local answer as records, remembered
+
+The series parked in m449 stood 2.08 per cent above the band of names
+looked up. Reading a call as the record its function answers with
+asked the function's outputs and their type at every call inside
+every operator expression, and reading a body's local as a record
+looked its type up at every local of every body worked out. Both
+answers depend on nothing the call brings: the function and the
+registry in the first case, the type name and the class that declares
+it in the second. They are now remembered, the refusals with the
+answers, inside the bracket `StandingNames` already holds still, and
+a built-in type of a local says no before any lookup.
+
+On the sample of 39 corpus models (`/tmp/m449/sample.txt`), one
+binary (`/tmp/m449/ox18`): 27650614 names with the six switches of the
+series set, 28181205 at the parked head, 28129795 with the new memory
+switched off and 27676138 with it on (`/tmp/m450/s_off18.txt`,
+`s_on18.txt`). The lists of what flattens and runs are the same line
+for line.
+
+The pair over the whole library, one binary built from the final tree
+(`/tmp/m449/ox19`), all six switches against none
+(`/tmp/m450/pair/off.txt`, `all.txt`): 953 / 781 against 955 / 783,
+runnable 836 / 737 against 838 / 739, files 2671 both, 529 Jacobians
+both. The lists differ in exactly `TestComplexFunctions` and
+`TestComplexOperations`, flattening and running. The census of the
+refused (`off.kinds`, `all.kinds`): flattening 67 in 39 rows against
+65 in 38, the row `an array cannot be a divisor` (2) emptied, the run
+half 172 in 122 rows both; `all.kinds` is identical to m449's. Names
+looked up: 1659624226 against the band's 1660001727, inside its 2000
+per million; the off half prints 1658468092 as before, so the series
+now costs 1156134 names where it cost 36061595. The ratio of the two
+halves is 0.691.
+
+### A reach of two: both models are lost to a start that is right
+
+`OXPROBE_READ_REACH=2` (`~/oxideflow/park/m449-read-reach-probe.diff`)
+wins `OneTank` and `RoomCO2` and loses `TanksWithEmptyingPipe2` and
+`InverseParameterization`. Probed with a probe binary that drops read
+starts by name (`OXPROBE_SKIP_READ`, not committed), the newly read
+names one at a time against all the others dropped
+(`/tmp/m450/bis2.sh`):
+
+- `TanksWithEmptyingPipe2`: 66 names newly read; `tank2.m` alone kills
+  the model, and `tank3.m` alone. Both are right: `level_start = 1`,
+  `V = crossArea * level + V0 = 1.1`, `m = V * d = 1095.1446`. At a
+  reach of one the state slots of all six tank states are 0 and the
+  run reaches the same 1095.1446 by its first output point
+  (`/tmp/m450/tanks_r1.csv`). Seeded with the right mass, the Newton
+  block of the emptying pipes' flows at t = 0
+  (`valveDiscrete.V_flow`, three `m_flows[1]`, `tank3.ports[1].m_flow`)
+  swings with period two, narrowing - |f| 167, 2.2e5, 165, 4.3e3, 162
+  ... - for 29 iterations before the circle detector shortens the step,
+  and the budget of 50 runs out at |f| about 22. From the zero slots
+  the same block converges in 20.
+- `InverseParameterization`: 44 names newly read, and one of them,
+  `pipe1.flowModel.zetas[1] = 0.0514`, kills it alone. It is worked out
+  from parameters, so it is right too. The block it joins at t = 0 goes
+  through NaN at a reach of one as well (|f| 2.25e6, then NaN for ten
+  iterations, then 3.87e6 and onward to its floor), and with the start
+  seeded it reaches 3.16e7 and NaN and is refused for a direction that
+  does not descend. `pump.head`, read as 0 where it was 17.98, is not
+  the cause: dropping it as well leaves the model refused.
+
+So neither loss is a start read through to where it is no longer the
+truth of the equations. Both are a Newton iteration at t = 0 that
+converged from one starting point by luck and fails from a better one:
+the emptying pipes by a damping that switches on too late, the inverse
+pump by a block that crosses NaN on either road. The fix that would
+make the reach of two a clean +2 is in the solver, not in the reading,
+and it is a series of its own. Nothing here was changed.
