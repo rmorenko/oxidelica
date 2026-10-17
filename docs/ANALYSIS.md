@@ -51433,3 +51433,60 @@ siblings do. The refusal is owed to them. `TankWithTopPorts` is a
 component of the batch plant, which is passed its medium by the plant.
 So the row is not a family for a series. It is five models the
 library does not mean to run on their own.
+
+### `OneTank`, the single no chapter maps, shrunk to fourteen lines
+
+`Modelica.Fluid.Examples.AST_BatchPlant.Test.OneTank` is refused at
+t = 0: `algebraic loop ["tank.ports[1].m_flow"] stepped outside the
+domain of its own equations`. The Newton trail (`/tmp/m448/onetank_trail.txt`)
+shows a block of one unknown: the residual is 89.1 at
+`m_flow = 0`, and every point the line search tries on the way back,
+from -89 down to -1.7e-4, is NaN. The domain ends exactly at zero
+outflow from the tank. `OXIDELICA_MODE_PROBE` lists the twenty inner
+assignments of the torn block. The one that branches on the sign is
+the tank's port pressure (`TankWithTopPorts`, the Remelhe/Poschlad
+branch for `stiffCharacteristicForEmptyPort = false`):
+`p_ambient + levelAbovePort*g*d - (if m_flow < 0 then
+m_flow^2/(2*d*bottomArea^2) else 0)`. At zero flow it takes the
+`else` and is finite. Past zero it divides by `bottomArea^2`.
+
+The same refusal from a model of fourteen lines (`/tmp/m448/ot/T1.mo`:
+the tank with `level_start = 0.8`, a source of no flow on top, a
+`StaticPipe` of `height_ab = -1` and an ambient boundary). Neighbours:
+
+- `T3`, the same with a level pipe (`height_ab = 0`): the residual at
+  zero flow is zero, so the loop never steps negative. It is then
+  refused by the medium's temperature assert at t = 0, as `T2` (the
+  stiff characteristic) and `V1` (the tank drained by a sink, no pipe)
+  are.
+- `U1`, `U2`, `U3`: the port's equation written out by hand in a model,
+  with a literal area and with the nested if-equation of the tank. All
+  three converge in both directions of flow. So the pipe, the friction
+  function (`W1`, `W2`: finite from -80 kPa to 20 kPa) and the shape of
+  the equation are not the wall. What is left is the tank's own value
+  in the branch: `bottomArea`, reached through the conditional input
+  `portsData_diameter` and its connection to `portsData_diameter2`.
+  `U6` builds that conditional input on its own and runs with the
+  right area, so the conditional chain alone is not enough to break it
+  either. Whether `bottomArea` holds a NaN inside the tank was not
+  measured: the tank refuses before any row is printed.
+
+And the assert that stops `T2`, `T3` and `V1` names nothing: it prints
+`Temperature T (= ? K) is not in the allowed range (? K <= T <= ? K)
+required from medium model "?"`. That is a fault of its own, shown in
+four lines (`/tmp/m448/ot/Str.mo`): an assert whose message joins a
+literal to `String(T)` prints `T (= ? K)`. An assert in an equation
+section has its message made text at parse time
+(`parser/equations.rs`, through `statements::message_text`), and
+anything that is not a literal becomes a question mark there, before
+a value exists. The walked bodies already evaluate `String(x)` when a
+message is read (`walk.rs`, `prose`). The equation asserts would need
+the message carried as an expression to the run. That is a refusal
+that does not say what it refused, the first thing to mend before the
+temperature assert itself can be asked, and it is not built here.
+
+So `OneTank` is two layers deep at least. The first, which stops the
+model, is a NaN on the outflow branch of the tank's port that a
+handwritten port does not show. The second, met by every neighbour
+that gets past the first, is a temperature assert at t = 0 that cannot
+say which temperature.
