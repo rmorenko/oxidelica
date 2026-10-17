@@ -2763,16 +2763,61 @@ fn body_records_in_view(
     // := x / z` binds `z.re` and `z.im`, and `z` itself was asked of
     // the caller's table as well.
     for local in &class.components {
-        if local.causality != Causality::None || !local.dimensions.is_empty() {
+        // A built-in type says no before a lookup is paid for: this is
+        // asked of every local of every body worked out, and nearly all
+        // of them are numbers.
+        if local.causality != Causality::None
+            || !local.dimensions.is_empty()
+            || matches!(
+                local.type_name.as_str(),
+                "Real" | "Integer" | "Boolean" | "String"
+            )
+        {
             continue;
         }
-        if let Some(of) = lookup(registry, &local.type_name, &class.name, &class.imports)
-            .filter(|of| of.kind == ClassKind::Record)
-        {
-            in_view.insert(local.name.clone(), of.name.clone());
+        if let Some(of) = local_record_remembered(registry, &local.type_name, class) {
+            in_view.insert(local.name.clone(), of);
         }
     }
     in_view
+}
+
+thread_local! {
+    /// Which record a body's local is of, by its type name and the
+    /// class that wrote it, for as long as one registry stands - the
+    /// refusals as well as the answers, since nearly every type asked
+    /// about is not a record. Bounded by the declarations of the
+    /// registry; cleared by `StandingNames` on both sides.
+    pub(super) static LOCAL_RECORDS: RefCell<HashMap<(String, String), Option<String>>> =
+        RefCell::new(HashMap::new());
+}
+
+/// The record a body's local of type `type_name` is, asked from the
+/// class that declares it and remembered while the registry stands.
+/// The answer depends on the type name, the class's own scope and
+/// imports and the registry, and on nothing the call brings.
+fn local_record_remembered(
+    registry: &HashMap<&str, &ClassDef>,
+    type_name: &str,
+    class: &ClassDef,
+) -> Option<String> {
+    let ask = || {
+        lookup(registry, type_name, &class.name, &class.imports)
+            .filter(|of| of.kind == ClassKind::Record)
+            .map(|of| of.name.clone())
+    };
+    if !super::lookup::REGISTRY_STANDS.with(|stands| stands.get())
+        || std::env::var_os("OXIDELICA_NO_FUNCTION_RECORD_MEMORY").is_some()
+    {
+        return ask();
+    }
+    let key = (type_name.to_string(), class.name.clone());
+    if let Some(told) = LOCAL_RECORDS.with(|held| held.borrow().get(&key).cloned()) {
+        return told;
+    }
+    let found = ask();
+    LOCAL_RECORDS.with(|held| held.borrow_mut().insert(key, found.clone()));
+    found
 }
 
 /// The fields of a record-typed argument that are single numbers.

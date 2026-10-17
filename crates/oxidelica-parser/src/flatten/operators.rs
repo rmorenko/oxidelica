@@ -264,6 +264,52 @@ pub(super) fn record_class_of(
             if called.kind != ClassKind::Function || function_records_off() {
                 return None;
             }
+            function_record_remembered(registry, called)
+        }
+        _ => None,
+    }
+}
+
+thread_local! {
+    /// The record a function answers with, by the function's full name,
+    /// for as long as one registry stands - the answer and the refusal
+    /// alike, since nearly every function asked about answers with a
+    /// number. Keyed by a class of the registry, so it is bounded by the
+    /// registry; cleared by `StandingNames` on both sides.
+    pub(super) static FUNCTION_RECORDS: std::cell::RefCell<HashMap<String, Option<String>>> =
+        std::cell::RefCell::new(HashMap::new());
+}
+
+/// The record a function answers with, worked out once per function
+/// while the registry stands still. The answer depends on nothing but
+/// the function and the registry: its outputs, its own scope and
+/// imports, and whether the output's record declares operators.
+fn function_record_remembered(
+    registry: &HashMap<&str, &ClassDef>,
+    called: &ClassDef,
+) -> Option<String> {
+    if !super::lookup::REGISTRY_STANDS.with(|stands| stands.get()) || function_record_memory_off() {
+        return function_record_of(registry, called);
+    }
+    if let Some(told) = FUNCTION_RECORDS.with(|held| held.borrow().get(&called.name).cloned()) {
+        return told;
+    }
+    let found = function_record_of(registry, called);
+    FUNCTION_RECORDS.with(|held| held.borrow_mut().insert(called.name.clone(), found.clone()));
+    found
+}
+
+/// Whether the record a function answers with is worked out afresh at
+/// every call, as it was before: one binary, both halves of a timing.
+fn function_record_memory_off() -> bool {
+    std::env::var_os("OXIDELICA_NO_FUNCTION_RECORD_MEMORY").is_some()
+}
+
+/// The record class a function's one output is of, when that record
+/// declares operators of its own.
+fn function_record_of(registry: &HashMap<&str, &ClassDef>, called: &ClassDef) -> Option<String> {
+    {
+        {
             // The cheap questions first: this is asked of every call
             // inside every operator expression, and nearly every
             // function answers with a number. The class's own outputs
@@ -303,7 +349,6 @@ pub(super) fn record_class_of(
                 .filter(|of| of.kind == ClassKind::Record)?;
             declares_operators(registry, &of.name).then(|| of.name.clone())
         }
-        _ => None,
     }
 }
 
@@ -411,4 +456,57 @@ pub(super) fn operator_function<'a>(
         .collect();
     inside.sort_by_key(|class| class.name.clone());
     inside.first().map(|class| **class)
+}
+
+#[cfg(test)]
+mod remembered {
+    use super::*;
+
+    /// What a function answers with is asked once per function while a
+    /// registry stands: the reading is made of every call inside every
+    /// operator expression, and paid afresh each time it carried most
+    /// of what the ComplexMath series cost the library in names looked
+    /// up. Both the answer and the refusal are remembered, and both stay
+    /// the answers they were.
+    #[test]
+    fn a_functions_record_is_worked_out_once_while_the_registry_stands() {
+        let classes = crate::parser::parse_file(
+            "package L \
+               operator record C Real re; Real im; \
+                 encapsulated operator function '+' \
+                   input C a; input C b; output C c; \
+                 algorithm c := a; end '+'; \
+               end C; \
+               function base output C z; algorithm z := C(1, 2); end base; \
+               function f extends base; end f; \
+               function g input Real x; output Real y; algorithm y := x; end g; \
+             end L;",
+        )
+        .unwrap();
+        let registry: HashMap<&str, &ClassDef> =
+            classes.iter().map(|c| (c.name.as_str(), c)).collect();
+        let _standing = super::super::lookup::StandingNames::open();
+        let asked = || super::super::lookup::counts().0;
+        for (function, answer) in [("L.f", Some("L.C".to_string())), ("L.g", None)] {
+            let before = asked();
+            assert_eq!(
+                function_record_remembered(&registry, registry[function]),
+                answer
+            );
+            let first = asked() - before;
+            let before = asked();
+            assert_eq!(
+                function_record_remembered(&registry, registry[function]),
+                answer
+            );
+            assert_eq!(
+                asked() - before,
+                0,
+                "{function}: the second asking is remembered"
+            );
+            if function == "L.f" {
+                assert!(first > 0, "the first asking looks the output up");
+            }
+        }
+    }
 }
