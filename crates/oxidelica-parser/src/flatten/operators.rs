@@ -249,11 +249,41 @@ pub(super) fn record_class_of(
         Expr::Neg(inner) => recur(inner),
         Expr::If(_, then, otherwise) => recur(then).or_else(|| recur(otherwise)),
         // `Complex(1, 2)` builds one.
-        Expr::Call(name, _) => lookup(registry, name, scope, imports)
-            .filter(|class| class.kind == ClassKind::Record)
-            .map(|class| class.name.clone()),
+        Expr::Call(name, _) => {
+            let called = lookup(registry, name, scope, imports)?;
+            if called.kind == ClassKind::Record {
+                return Some(called.name.clone());
+            }
+            // And a function whose one output is a record answers
+            // with one: `sin(a) / cos(a)` of the complex library is
+            // a division of two complex numbers. Read as anything
+            // else, the two results reached the array layer as two
+            // lists of two and were refused as an array divisor,
+            // where the same formula over two named records went
+            // through the record's own `'/'`.
+            if called.kind != ClassKind::Function || function_records_off() {
+                return None;
+            }
+            let held = inlining::function_components(registry, called, 0);
+            let mut outputs = held.iter().filter(|c| c.causality == Causality::Output);
+            let (Some(output), None) = (outputs.next(), outputs.next()) else {
+                return None;
+            };
+            if !output.dimensions.is_empty() {
+                return None;
+            }
+            lookup(registry, &output.type_name, &called.name, &called.imports)
+                .filter(|of| of.kind == ClassKind::Record)
+                .map(|of| of.name.clone())
+        }
         _ => None,
     }
+}
+
+/// Whether a function's record result is left unread as a record, as
+/// it was before: one binary, both halves of the measurement.
+fn function_records_off() -> bool {
+    std::env::var_os("OXIDELICA_NO_FUNCTION_RECORDS").is_some()
 }
 
 /// The record class the elements of an array belong to, when they

@@ -4703,3 +4703,23 @@ fn a_record_input_divided_inside_a_body_is_the_records_own_division() {
         assert!((last_of(&result, name) - 0.5).abs() < 1e-12, "{name}");
     }
 }
+
+#[test]
+fn a_function_answering_a_record_is_divided_by_the_records_own_division() {
+    // `sin(a) / cos(a)` of the complex library: a call whose one output
+    // is a record was not read as that record, so the two results
+    // reached the array layer as two lists of two and the model was
+    // refused for an array standing as a divisor.
+    let result = run("operator record C Real re; Real im; \
+         encapsulated operator function '/' input C a; input C b; output C c; \
+         algorithm c := C((a.re * b.re + a.im * b.im) / (b.re * b.re + b.im * b.im), \
+         (a.im * b.re - a.re * b.im) / (b.re * b.re + b.im * b.im)); \
+         end '/'; end C; \
+         function twice input C x; output C y; algorithm y := C(2 * x.re, 2 * x.im); end twice; \
+         function swap input C x; output C y; algorithm y := C(x.im, x.re); end swap; \
+         model M C a(re = 1, im = 2); C q = twice(a) / swap(a); \
+         annotation(experiment(StopTime = 1, Interval = 0.5)); end M;");
+    // (2 + 4i) / (2 + i) = (8 + 6i) / 5.
+    assert!((last_of(&result, "q.re") - 1.6).abs() < 1e-12);
+    assert!((last_of(&result, "q.im") - 1.2).abs() < 1e-12);
+}
