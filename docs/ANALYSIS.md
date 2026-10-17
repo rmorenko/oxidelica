@@ -50925,3 +50925,16 @@ One question stays open for the series that takes the rule:
 and ends with the integral reset to zero. Whether an event on the stop
 instant belongs in the final point is a convention that should be
 chosen once, not left to the order of two branches.
+
+The whole run list was then asked, not just the reference: all 774
+models that run, `dopri45` at their own tolerance, the switch set and
+unset on one binary (`/tmp/m445/all_off.tsv`, `all_on.tsv`). 22 moved.
+Eighteen are the converters above. `DemoSignalCharacteristic` counts
+30 for 38: its `harmonic` block sampled at 0.122126 where 0.12 was due,
+eight late samples in all, the same lie outside the power converters,
+and the mended run fires every one of them on time. `CCCV_Stack` and
+`CCCV_StackRC` move in the sixth figure of the final point (`energy.y`
+362595.985399 against 362595.984883, a current 0.054561 against
+0.054559). `SpringDamperSystem` ran in 58 s and timed out at 61 s on a
+60 s ceiling, and on its own it took 45 s and 57 s: weather, no change.
+Nothing else of the 774 moved by a single event or a printed digit.
