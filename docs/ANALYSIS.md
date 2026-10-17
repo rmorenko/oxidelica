@@ -51490,3 +51490,118 @@ model, is a NaN on the outflow branch of the tank's port that a
 handwritten port does not show. The second, met by every neighbour
 that gets past the first, is a temperature assert at t = 0 that cannot
 say which temperature.
+
+## Asserts that name their values, the tank's silent starts, and ComplexMath's five walls (m449)
+
+### A failed assert says what its condition read
+
+The refusal of a failed assert now ends with the names its condition
+reads and the values they held, `["T" = NaN, "T_max" = 403.15]`. A
+message joined with `String(x)` is made text when it is parsed, before
+any value exists, so the medium's range check printed `T (= ? K)` and
+nothing else; that was what m448 named as the first thing to mend
+before `OneTank`'s temperature assert could be asked. The values are
+quoted in a list the way the loops' refusals list theirs, which the
+census folds (`refusals.sh`, `s/\[".*/[...]/`). Whether it folds them
+in practice was measured by the pair below and not assumed.
+
+### `OneTank`: `bottomArea` is finite, and the tank's starts are three equations away
+
+Both questions of m448 were taken by probe, without a change to the
+compiler that stayed.
+
+`bottomArea` inside the tank, read through the assert above
+(`/tmp/m449/ot/T3d.mo`: the tank extended by a class that copies the
+protected `bottomArea[1]`, `portsData_diameter2[1]` and `medium.d` into
+public variables, a top-level assert that reads them, and a throwaway
+switch that prints a failed assert and goes on): `bottomArea = 0.00785`,
+which is `pi*0.05^2` for the 0.1 m port, `diameter2 = 0.1`, `d =
+995.586`, and `m = 0`, `U = 0`. So the area is right, and the NaN of
+the outflow branch is the one m434 found: the temperature worked out
+from a mass and an energy that start at zero.
+
+Why `m` and `U` have no start: they are the states (`oxidelica why`
+says so for both; `level`, `medium.T` and `medium.h` are algebraic),
+and nothing gives them one but `m = fluidVolume*medium.d`,
+`fluidVolume = V` and `V = crossArea*level + V0`, with `level`'s start
+`level_start`. The compiler reads a silent state's start from the
+equations, but grows the set of names it is willing to read only one
+equation out from the state (`compile.rs`, "As far as one equation
+reaches, and no further"). Small models (`/tmp/m449/ss/`) put the
+limit exactly there:
+
+| model | chain from the start to the state            | `m` at t = 0 |
+| ----- | -------------------------------------------- | ------------ |
+| `S1`  | `m = A*level*1000`, one equation             | 1600, right  |
+| `S6`  | `V = A*level + 0.1`, `m = V*1000`            | 1700, right  |
+| `S5`  | the same with `fluidVolume = V` between      | 0            |
+| `S9`  | `V = ...`, `W = 2*V`, `m = W*1000`, no alias | 0            |
+
+`S9` has no alias in it, so the m428 switch named
+`OXIDELICA_READ_THROUGH_ALIAS` worked by depth and not by the alias:
+it grew the reach by one more equation wherever a bare alias stood.
+A throwaway switch that grows the reach `N` equations
+(`OXPROBE_READ_REACH`, parked as `~/oxideflow/park/m449-read-reach-probe.diff`)
+makes `S9`, `T1`, `T3` and `V1` run at 2 and above, `T1` with `tank.m`
+at 853 kg after one second. Under `--only` from `.msl`, reach 2 against
+reach 1: `OneTank` and `TraceSubstances.RoomCO2` begin to run,
+`AST_BatchPlant.Test.TanksWithEmptyingPipe2` and
+`InverseParameterization` stop. Those are the four names m434 measured
+for the alias switch, two for two, and the same verdict holds: it is
+not a change but the first wall of a chain whose other walls are the
+blocks that converge slowly from the right start (m434). Not taken.
+
+Whether the language says anything for `DynamicFreeInitial` here: it
+is the default of `Modelica.Fluid.System.energyDynamics`, and it writes
+no initial equation at all for the tank's balances
+(`PartialLumpedVolume`, the `if energyDynamics == ...` of its initial
+section), so the starts are left to the tool. That `m` and `U` begin
+at zero is therefore not an error the model owes; it is the tool
+declining to read a start three equations away. A cost of ours, not
+of the model.
+
+### ComplexMath: five walls between two models and a run, all taken
+
+`ModelicaTest.ComplexMath.TestComplexFunctions` and
+`TestComplexOperations` were refused while flattening by "an array
+cannot be a divisor". m448 named two walls with small models; five
+stood in all, each shown by a small model under `/tmp/m449/cx/` and
+each taken with its own switch and a test red under it.
+
+1. A record input divided inside a body (`D1` to `D9`). An input handed
+   a record is bound field by field, `x.re` and `x.im`, and never as
+   `x`. The operator is chosen by the record its operand is, and `x`
+   was asked of the caller's table, which has never heard of it. So
+   `x / Complex(3, 1)` took `x` for a number, built `Complex(x, 0)`,
+   and the flat model met `unknown variable x`. The body's record
+   inputs and record locals are now in the table its statements are
+   worked against (`OXIDELICA_NO_BODY_RECORDS`). `D1` gives
+   `(1+2i)/(3+i) = 0.5+0.5i`, `D5` `(3+i)/(1+2i) = 1-i`.
+2. A function answering a record divided by another (`E1`, `Cx2`,
+   `Cx10`). `record_class_of` knew a constructor and a name in the
+   table, and not a call of a function whose one output is a record,
+   so `sin(a) / cos(a)` reached the array layer as two lists of two
+   (`OXIDELICA_NO_FUNCTION_RECORDS`). `tan(1+2i)` comes out
+   `0.0338 + 1.0148i`.
+3. A body's assert comparing two records (`F1`). The assert was worked
+   out with no table of records while the assignments beside it had
+   one, so `ref == res` compared two numbers called `ref` and `res`
+   (`OXIDELICA_NO_ASSERT_RECORDS`). A comparison that is false still
+   stops the run (`F1x`).
+4. A record local with a value on its declaration (`G1` to `G4`):
+   `Complex b = Complex(2, 3)` was bound whole as a list, and `b.im`
+   answered nothing (`OXIDELICA_NO_RECORD_LOCAL_VALUES`).
+5. A package's record constant read in its own functions (`K1` to
+   `K7`, `H_asin`, `H_acos`, `H_atan`): `constant Complex j =
+Complex(0, 1)` of `ComplexMath`. Its field was read only from named
+   constructor arguments, and a constructor given in order takes its
+   fields in declared order
+   (`OXIDELICA_NO_POSITIONAL_RECORD_CONSTANTS`); and bare, as `asin`
+   writes `-j*log(...)`, it was asked as a number or a list and neither
+   (`OXIDELICA_NO_BARE_RECORD_CONSTANTS`). `asin`, `acos` and `atan` of
+   `0.3+0.2i` agree with Python's `cmath` to the six digits printed.
+
+Under `--only` from `.msl`, both test models now run; each walks every
+function of `ComplexMath` and asserts its answer against a reference
+written in the library to 1e-14. The first wall alone moved nothing,
+which is what a link in the middle of a chain measures.
