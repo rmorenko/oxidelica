@@ -534,9 +534,23 @@ pub(super) fn stream_mix(
             // class the connection was written in - when it is
             // positive. That is the sign convention of 9.1.2, and it is
             // the whole of the inside/outside distinction here.
+            //
+            // And the side is the one `other` stands on in the set it
+            // shares with the reader, not whether it is outside in some
+            // set: a wrapper's port is outside in its own class and
+            // inside in its parent's, and the sinks of the parent hear
+            // it as an inside connector pushing out.
             let inflow = |other: &str| {
                 let flow = Expr::Ref(format!("{other}.{flow_name}"));
-                if context.outside.iter().any(|path| path == other) {
+                let shared = match stream_side_by_set_open() {
+                    true => context.side_in.get(&(path.to_string(), other.to_string())),
+                    false => None,
+                };
+                let outside = match shared {
+                    Some(side) => *side,
+                    None => context.outside.iter().any(|known| known == other),
+                };
+                if outside {
                     flow
                 } else {
                     Expr::Neg(Box::new(flow))
@@ -1261,4 +1275,11 @@ pub(super) fn outside_stream_equations(
         });
     }
     equations
+}
+/// Whether `inStream` weighs a neighbour by the side it stands on in
+/// the set the two share, rather than by whether it is an outside
+/// connector anywhere. `OXIDELICA_NO_STREAM_SIDE_BY_SET` closes the
+/// road, so that one binary gives both numbers.
+fn stream_side_by_set_open() -> bool {
+    std::env::var_os("OXIDELICA_NO_STREAM_SIDE_BY_SET").is_none()
 }

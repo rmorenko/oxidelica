@@ -1760,8 +1760,12 @@ fn join_the_connections(registry: &HashMap<&str, &ClassDef>, acc: &mut Flat) -> 
     });
     if any_streams {
         let mut node_of: HashMap<String, Vec<String>> = HashMap::new();
+        let mut side_in: HashMap<(String, String), bool> = HashMap::new();
         for members in sets.iter() {
             for member in members.iter() {
+                for other in members.iter() {
+                    side_in.insert((member.0.to_string(), other.0.to_string()), other.1);
+                }
                 // What a port hears is what stands in the node with
                 // it, and a port on the boundary stands in two: the
                 // set its own class joins it into and the set its
@@ -1776,6 +1780,7 @@ fn join_the_connections(registry: &HashMap<&str, &ClassDef>, acc: &mut Flat) -> 
         }
         let context = StreamContext {
             nodes: node_of,
+            side_in,
             connectors: &acc.connectors,
             outside: &acc.outside,
             registry,
@@ -2420,6 +2425,9 @@ const STREAM_EPS: f64 = 1e-10;
 struct StreamContext<'a> {
     /// Connector instance path -> every path on the same node, sorted.
     nodes: HashMap<String, Vec<String>>,
+    /// (reader, other) -> whether `other` is outside in the set the two
+    /// share. A port on a boundary stands in two sets on two sides.
+    side_in: HashMap<(String, String), bool>,
     /// Connector instance path -> connector class name.
     connectors: &'a HashMap<String, String>,
     /// The connectors that were a class's own port: their flow enters

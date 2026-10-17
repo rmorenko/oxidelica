@@ -1948,3 +1948,42 @@ fn an_outside_port_pushes_out_what_its_inside_pushes_in() {
         stderr(&refused)
     );
 }
+
+/// A neighbour is weighed by the side it stands on in the shared set.
+///
+/// The wrapper's port is outside in its own class and inside in the
+/// set of three at the top, where it pushes 2 kg/s out to the sinks.
+/// Weighed as an outside connector there, its flow of -2 counted as
+/// nothing coming in, and each sink heard the other sink's own outflow
+/// - 4 and 5 where the source inside pushes 3. Both sinks hear 3, to
+/// the floor of the weights. `OXIDELICA_NO_STREAM_SIDE_BY_SET` gives
+/// back the wrong mix, which is what shows the test can tell.
+#[test]
+fn a_wrapper_port_is_heard_from_the_side_it_stands_on() {
+    let file = TempFile::new(
+        "outside_stream_w2.mo",
+        &format!(
+            "model W2 {WRAPPED_SOURCE} Wrap w; PSink a; FSink b; \
+             equation connect(w.port, a.port); connect(w.port, b.port); end W2;"
+        ),
+    );
+    let run = |off: bool| {
+        let mut command = bin();
+        if off {
+            command.env("OXIDELICA_NO_STREAM_SIDE_BY_SET", "1");
+        }
+        command
+            .args(["simulate", file.path(), "--stop", "0.1", "--dt", "0.05"])
+            .output()
+            .unwrap()
+    };
+    let out = run(false);
+    assert!(out.status.success(), "{}", stderr(&out));
+    for sink in ["a.hin", "b.hin"] {
+        let heard = first_row(&stdout(&out), sink);
+        assert!((heard - 3.0).abs() < 1e-6, "{sink} = {heard}");
+    }
+    let wrong = run(true);
+    assert!(wrong.status.success(), "{}", stderr(&wrong));
+    assert!((first_row(&stdout(&wrong), "a.hin") - 3.0).abs() > 0.5);
+}
