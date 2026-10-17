@@ -51605,3 +51605,18 @@ Under `--only` from `.msl`, both test models now run; each walks every
 function of `ComplexMath` and asserts its answer against a reference
 written in the library to 1e-14. The first wall alone moved nothing,
 which is what a link in the middle of a chain measures.
+
+Walls 2 and 5 were first written wider than their case, and four
+existing tests said so: a function answering any record was read as
+that record, which turned a medium's `setState` aside
+(`a_constant_of_a_deep_iterating_medium_is_read_by_a_parameter`,
+`a_walked_body_answers_with_a_record_of_si_typed_fields`), and a bare
+package constant of any record was laid out as a list, which shifted
+the arguments of a function handed a gas's data
+(`an_omitted_default_does_not_shift_a_handed_over_record`) and put an
+array into a walked body's arithmetic
+(`a_walked_body_hands_a_package_record_to_a_call_inside_a_list`). Both
+now take only a record that declares operators of its own
+(`operators.rs`, `declares_operators`), and the bare constant only one
+of single numbers. That is the record the language means to be worked
+on whole, and it is what `Complex` is.
