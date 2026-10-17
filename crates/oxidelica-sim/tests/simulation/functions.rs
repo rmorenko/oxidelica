@@ -4769,7 +4769,10 @@ fn a_package_record_constant_is_read_bare_and_by_field() {
     // read only named arguments, so `j.im` had no value; and a bare `j`
     // was asked only as a number or a list and reached the flat model
     // as a name nothing declares.
-    let result = run("package P record C Real re; Real im; end C; \
+    let result = run("package P operator record C Real re; Real im; \
+         encapsulated operator function '*' input C a; input C b; output C c; \
+         algorithm c := C(a.re * b.re - a.im * b.im, a.re * b.im + a.im * b.re); \
+         end '*'; end C; \
          constant C j = C(0, 1); \
          function f input Real x; output Real y; algorithm y := x * j.im; end f; \
          function h input Real x; output Real y; protected C z; \

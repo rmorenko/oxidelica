@@ -272,12 +272,26 @@ pub(super) fn record_class_of(
             if !output.dimensions.is_empty() {
                 return None;
             }
-            lookup(registry, &output.type_name, &called.name, &called.imports)
-                .filter(|of| of.kind == ClassKind::Record)
-                .map(|of| of.name.clone())
+            // Only a record that declares operators of its own: that is
+            // what the reading is for, and a medium's state answered by
+            // `setState` is a record nobody divides, whose body is
+            // worked out by other roads that a record here would turn
+            // aside. Asked by exact name, so no scan of the registry.
+            let of = lookup(registry, &output.type_name, &called.name, &called.imports)
+                .filter(|of| of.kind == ClassKind::Record)?;
+            declares_operators(registry, &of.name).then(|| of.name.clone())
         }
         _ => None,
     }
+}
+
+/// Whether a record declares operators of its own: an operator record,
+/// whose values the language means to be worked on whole. Asked by
+/// exact name, so no scan of the registry.
+pub(super) fn declares_operators(registry: &HashMap<&str, &ClassDef>, record: &str) -> bool {
+    ["+", "-", "*", "/", "==", "constructor"]
+        .iter()
+        .any(|symbol| registry.contains_key(format!("{record}.'{symbol}'").as_str()))
 }
 
 /// Whether a function's record result is left unread as a record, as

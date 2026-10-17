@@ -1590,8 +1590,22 @@ fn enclosing_record_constant_whole(
                 if !held.dimensions.is_empty() {
                     return None;
                 }
-                lookup(registry, &held.type_name, &owner.name, &owner.imports)
+                let record = lookup(registry, &held.type_name, &owner.name, &owner.imports)
                     .filter(|of| of.kind == ClassKind::Record)?;
+                // Only an operator record of single numbers - the
+                // record the language means to be worked on whole, as
+                // `-j*log(...)` works on `j`. A record holding an
+                // array, or one handed to a call as data, has roads of
+                // its own: laid out as a list here, a gas's data shifted
+                // the arguments of a function handed over, and an array
+                // field reached a walked body in an arithmetic
+                // expression.
+                if record.components.iter().any(|c| !c.dimensions.is_empty())
+                    || !record.extends.is_empty()
+                    || !super::operators::declares_operators(registry, &record.name)
+                {
+                    return None;
+                }
                 let path = format!("{}.{name}", owner.name);
                 return class_constant_array_at(
                     registry,
