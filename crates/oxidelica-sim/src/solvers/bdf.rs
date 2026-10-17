@@ -401,7 +401,7 @@ impl CompiledModel {
                     self.eval_point(t_event, &y, &mut values, &mut f_scratch, &mut alg_guess)?;
                     // See the adaptive solver: a threshold due on the
                     // instant of a crossing is turned with it.
-                    state.turn_clocks(t_event, &self.clocks, &mut values);
+                    self.raise_at_crossing(t_event, &mut state, &mut values);
                     let outcome = or_stall!(self.handle_event(
                         t_event,
                         &mut y,

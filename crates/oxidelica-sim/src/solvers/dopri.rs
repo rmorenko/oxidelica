@@ -711,7 +711,7 @@ impl CompiledModel {
                     // loop without reaching the one below: the relation
                     // on `time` is turned here, or the next step would
                     // start past its threshold and turn it a step late.
-                    state.turn_clocks(t_event, &self.clocks, &mut values);
+                    self.raise_at_crossing(t_event, &mut state, &mut values);
                     let outcome = or_stall!(self.handle_event(
                         t_event,
                         &mut y,

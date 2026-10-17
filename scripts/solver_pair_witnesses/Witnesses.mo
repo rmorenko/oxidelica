@@ -109,4 +109,22 @@ package Witnesses
     lag.u = 0;
     annotation(experiment(StopTime = 1, Interval = 0.01));
   end ThresholdBesideLag;
+  // A sample due on the instant of a crossing: the crossing's event
+  // raised the clocks due there and not the samples, which then fired
+  // wherever the next step ended (m445). Ten samples at 0.01 apart sum
+  // to 0.55; fired late at 0.05, 0.06 and 0.07 they summed more.
+  model SampleBesideCrossing "sample(0.01, 0.01) beside the zeros of a 50 Hz sine: the instants sum to 0.55"
+    Real x(start = 0, fixed = true);
+    discrete Real s(start = 0, fixed = true);
+    Integer m(start = 0, fixed = true);
+  equation
+    der(x) = 1;
+    when sample(0.01, 0.01) then
+      s = pre(s) + time;
+    end when;
+    when {sin(314.1592653589793*time) < 0, sin(314.1592653589793*time) > 0} then
+      m = pre(m) + 1;
+    end when;
+    annotation(experiment(StopTime = 0.1, Interval = 0.0002, Tolerance = 1e-6));
+  end SampleBesideCrossing;
 end Witnesses;

@@ -450,6 +450,35 @@ fn a_when_body_can_ask_what_a_state_arrived_with() {
     .contains("is not discrete"));
 }
 
+/// A sample whose instant is also the instant of a crossing fires there,
+/// and not at the end of whatever step the run takes next. The two
+/// coincide by construction in a rectifier whose current turns on the
+/// zero of its 50 Hz source, and a `Mean` sampled every 10 ms beside it
+/// sampled at 0.0511 instead of 0.05 and read 102.02 for 99.035.
+#[test]
+fn a_sample_due_on_the_instant_of_a_crossing_fires_on_it() {
+    let source = "model M Real x(start = 0, fixed = true); \
+         discrete Real at(start = 0, fixed = true); Integer m(start = 0, fixed = true); \
+         equation der(x) = 1; \
+         when sample(0.01, 0.01) then at = time; end when; \
+         when {sin(314.1592653589793*time) < 0, sin(314.1592653589793*time) > 0} then \
+           m = pre(m) + 1; end when; \
+         annotation(experiment(StopTime=0.1, Interval=0.0002, Tolerance=1e-6)); end M;";
+    for method in [SolverMethod::Dopri45, SolverMethod::Bdf] {
+        let result = run_on(source, method).unwrap();
+        let at = result.columns.iter().position(|c| c == "at").unwrap();
+        for row in &result.rows {
+            let ticks = row[at] / 0.01;
+            assert!(
+                (ticks - ticks.round()).abs() < 1e-6,
+                "{method:?}: a sample fired at {} by t = {}",
+                row[at],
+                row[0]
+            );
+        }
+    }
+}
+
 /// A check among the actions of a `when` is made when the event fires,
 /// not at every step: the steady-state tests of the Fluid library are
 /// written that way, and a run where it does not hold is wrong rather

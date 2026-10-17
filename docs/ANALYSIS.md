@@ -50713,3 +50713,200 @@ its stage c = 0.2 with |f| = 0.28 (a pressure off by 0.2 Pa) and the
 first Newton step sends pressures to -3.4e5 Pa and a mass flow to
 2.6e10: a thirteen-variable loop whose Jacobian at zero flow through
 the orifices is close to singular, not the water's edge.
+
+### The crossing 1.1 ms off was a sample, and the sample lied
+
+The two diode rectifiers kept one instant 1.1 ms apart, 0.0511 at
+1e-6 against 0.0500 at 1e-8. Read off the rows
+(`/tmp/m445/db6.csv`, `db8.csv`, trail in `db6.trail`, `db8.trail`),
+the diodes are not what moved: at both tolerances the current through
+`diode_p1` reaches zero at 0.0500 and the bridge turns there, to the
+same digits. The event at 0.0511 changes no diode. What changes there
+is `meanVoltage`, a `Modelica.Blocks.Math.Mean` sampling every 10 ms:
+
+```text
+t        meanVoltage.x  meanVoltage.y       (1e-6)
+0.05000  0.99035        99.035
+0.05100  1.0146         99.035
+0.05111  0              102.02
+t        meanVoltage.x  meanVoltage.y       (1e-8)
+0.05000  0.99035        99.035
+0.05002  0              99.035
+```
+
+The sample due at 0.05 fired at 0.0511 on the coarse tolerance, the
+integral it divides ran on 1.1 ms into the next period, and the mean
+voltage the model prints read 102.02 for 99.035 - three percent wrong,
+held for the rest of the period, at a tolerance of 1e-6. At 1e-8 it
+fired 16 µs late, and at 0.06 the same model fired 0.4 ms late
+(`0.060442`) and read 99.51. So the consultant's arithmetic was right
+and both of the branches the order named were wrong: the trajectory is
+not shifted, and the crossing is not lost. A third thing lied.
+
+The mechanism, by the code. A crossing found inside a step is handled
+in the branch of `dopri.rs` that places the event, and that branch
+turned the relations on `time` due at the instant (`turn_clocks`) but
+never raised the `sample(...)` flags due there; those were raised only
+by the branch that handles a step ending on a scheduled instant, which
+a step ending in a crossing goes round the loop without reaching.
+The next step then starts on the overdue instant, the clamp of the
+step to the next time event does nothing for an instant that is not
+ahead (`next > t + 1e-12`), and the sample fires wherever that step
+ends - which depends on the tolerance. `bdf.rs` held the same branch
+with the same omission. In these rectifiers the sample instants are
+the zeros of the source by construction, so every period's sample
+landed on a crossing.
+
+The small witness (`/tmp/m445/w/SampleBesideCrossing.mo`): `der(x) =
+1`, a `sample(0.01, 0.01)` writing `time`, and a `when` on the sign of
+a 50 Hz sine. The sample fired at 0.0538, 0.0662 and 0.0738 instead of
+0.05, 0.06, 0.07, on every tolerance from 1e-4 to 1e-8, and under
+`bdf` at 0.0231, 0.0431, 0.0508 and six more. The test
+`a_sample_due_on_the_instant_of_a_crossing_fires_on_it` holds both
+solvers to it and was seen red without the mend.
+
+Mended: the crossing raises the samples due at its instant with the
+clocks (`raise_at_crossing`), on both solvers.
+`OXIDELICA_NO_SAMPLE_AT_CROSSING` keeps the old order for a pair from
+one binary.
+
+What it does to the ten, counts of events at 1e-6, 1e-8, 1e-9, 1e-10
+(`/tmp/m445/zeno.txt`, one binary, the switch off and on):
+
+```text
+model                        old                  mended
+DiodeBridge2Pulse            19  21  20  21       16  21  19  21
+ThyristorBridge2Pulse_R      31  34  31  34       28  31  28  31
+DiodeCenterTap2Pulse         19  21  21  21       16  21  19  21
+ThyristorCenterTap2Pulse_R   31  34  31  34       28  31  28  31
+HalfControlledBridge2Pulse   32  35  35  35       29  32  32  32
+SinglePhaseTwoLevel_RL       318 331 307 308      225 245 218 221
+SinglePhaseTwoLevel_R        286 296 291 291      192 192 192 192
+ChopperStepDown_RL           283 289 296 290      191 199 208 192
+PolyphaseTwoLevel_RL         855 850 846 857      740 745 747 745
+```
+
+The counts fell everywhere, because a late sample was an event of its
+own and an in-time one shares its instant with the crossing.
+`SinglePhaseTwoLevel_R` now counts 192 at every tolerance. The rest
+still wander by count, and the sets of instants say why (1e-6 against
+1e-8, distinct instants, unmatched within tau 1e-6 / 1e-4 / 1e-3,
+`/tmp/m445/sets.py` over `tr_*`):
+
+```text
+model                    old                         mended
+SinglePhaseTwoLevel_RL   339/342 136+142 17+17 0+0   245/251 6+6 0+0 0+0
+SinglePhaseTwoLevel_R    297/307 133+134 0+0   0+0   203/203 7+7 0+0 0+0
+ChopperStepDown_RL       296/320 1+111   0+2   0+0   212/230 0+21 0+0 0+0
+PolyphaseTwoLevel_RL     921/910 1+1     0+0   0+0   802/806 0+0  0+0 0+0
+DiodeBridge2Pulse        14/14 at tau 1e-3 one apart  every instant matched
+```
+
+At tau 1e-4 every one of them now agrees with itself across the two
+tolerances, where `SinglePhaseTwoLevel_RL` had seventeen instants each
+way without a partner - the samples of its PWM fired 0.1 ms late at
+0.0346, 0.0545, 0.0745 and so on. What is left in the counts is the
+grouping m443 described, two crossings at one instant taken in one
+event or two, and the 21 instants `ChopperStepDown_RL` holds only at
+1e-8 are each within 50 µs of a period start (0.002049, 0.003034,
+...), a second event a hair after one both sides share. That is the
+counter as a fingerprint, not the run. The rule of the reference is
+not changed here and none of the ten is admitted.
+
+The reference spoke, as it should. `--check` of its 521 rows on the
+mended binary (`/tmp/m445/check_on.tsv`) held 512 and moved 9, every
+one a power converter admitted by the tolerance road, eight by a count
+that fell (`ChopperStepDown_R` 264 to 175, `HBridge_R` and `_RL` 292
+to 202, `PolyphaseTwoLevel_R` 487 to 382, and so on) and
+`Thyristor1Pulse_R` by its final point, `rootMeanSquareVoltage.mean.x`
+117.51 to 0: the sample due on the stop time, which a crossing reaches,
+now fires there and resets the integral. Old against new at 1e-6, the
+instants of the mended run are a subset of the old ones on every model
+asked (`HBridge_R` 293 against 203, 90 missing from the new and none
+added, each of them 0.16 ms after a period start, the late samples);
+where a model had been admitted with a lie inside it, both tolerances
+agreed on the lie. The nine were taken again through the tolerance
+road on one binary (`/tmp/m445/moved_pair.tsv`): eight agree and their
+rows are rewritten; `ChopperBuckBoost_DutyCycle` counts 10819 against
+10818 with every instant matched within 1e-6 (`bb6.txt`, `bb8.txt`) -
+the grouping again - and leaves the reference by name. The witness
+`Witnesses.SampleBesideCrossing` enters it: 18 events, the instants
+of the samples summing to 0.55 at both tolerances, and 21 events
+summing to 0.5638 with the mend switched off, which `--check` names.
+Rows 521: 520 held and the witness. The defect 7 witnesses keep their
+counts (3, 7, 4, 7, 7, 4, 4, 7).
+
+Four more of the order's questions, answered on the mended binary.
+The five rectifiers m443 read as grouping now match instant for
+instant at tau 1e-6 between 1e-6 and 1e-8 (`/tmp/m445/q_*`), where
+they kept three unmatched each way: `DiodeBridge2Pulse`,
+`DiodeCenterTap2Pulse`, `ThyristorBridge2Pulse_R`,
+`ThyristorCenterTap2Pulse_R`, `HalfControlledBridge2Pulse`, all 0+0.
+Part of what read as grouping at those three instants was the late
+sample. `ThyristorCenterTap2mPulse_RLV_Characteristic`, about 40 s a
+run under a 60 s ceiling, holds 14616 distinct instants at 1e-6
+against 14668 at 1e-8, every one with a partner within 1e-6, mended
+or not: grouping, nothing lost.
+
+`ControlledSwitchWithArc`, the 13-or-3 question of m442, read off the
+model: both switches are driven by `sineVoltage(V=1, f=1)` against a
+`level` of 0.5, so `off = control.v < 0.5` turns where `sin(2 pi t) =
+0.5`, at 1/12 and 5/12 of every second - twelve turns in the six
+seconds of the run, and with the initial event thirteen events. Both
+`dopri45` and `bdf` now count 13, with `switch1.off`, `switch2.off`
+and `switch2.quenched` turning at exactly 0.0833, 0.4167, 1.0833, ...
+5.4167 (`/tmp/m445/arc_*.csv`). So 13 is the truth and the 3 that
+m442's convergence switch produced was two turns where twelve are
+owed: a lost crossing, not a different reading.
+
+### The structurally singular family of the run half, mapped
+
+The order's last item, a map and no code. On the census m444 took
+(`/tmp/m444c/census.txt`, `raw.txt`), the run half's rows that begin
+`structurally singular model` add to 47 models in 42 rows; the raw half
+names 50 lines, three of them continuation fragments of one message.
+Split by wording (`/tmp/m445/sub.txt`, `ss_kind.txt`): "constrains no
+state" 31 models, "no equation determines" 10, "cannot differentiate" 6. Item 22 of the queue, read before any probe, is about the row of
+singular Jacobians, not this family, so nothing here repeats m342 or
+m344.
+
+The largest part is not a defect of index reduction at all. Of the 31
+"constrains no state", 16 are not examples: classes under `Utilities`
+or `Components` with no experiment and no example icon
+(`OpAmpCircuits.Add`, `Buffer`, `Feedback`, `Gain`, `Utilities.Nand`,
+`RealSwitch`, `AnalysatorAC`, `AnalysatorDC`, the two hysteresis
+transformers, `PermeanceActuator`, `SimpleSolenoid`, `Loops.Utilities.
+Cylinder`, both `SpringDamperNoRelativeStates`,
+`Noise.Utilities.Parts.MotorWithCurrentControl`). Eleven of them refuse
+on exactly the equation a top-level connector gets when it is left
+open, `p.i = 0` (`n2.i`, `p1.i`, `control.i`, `nv.i`, `flange_b.tau`,
+...): a component asked to run on its own, its flow pinned to zero
+with nothing to carry it. That is the honest answer for a class that
+is a part, and the counting of such parts as examples is the filter
+AGENTS.md already warns about, not work for the compiler. The 15 real
+examples in the row split into MultiBody constraints and loops (6:
+the four `Constraints`, `PlanarFourbar`, all on derivatives of
+`R.T`), quasi-static and fundamental-wave synchronous machines on
+`phiMechanical` (4), and singles (`SMPM_NoLoad`, `TransformerTestbench`,
+`TanksWithOverflow`, `IMC_DOL_CommonLeakage`, `TestBearingConversion`).
+
+"No equation determines" is seven Spice3 MOSFET circuits on one
+equation, `vin.p.v = mn.G.v` - a gate voltage whose derivative is asked
+for and that nothing defines - plus `TestSweptVolume` and the two
+`Test33` tables. The seven are one layer by their message and are the
+cleanest family in the half; they wait behind the Spice3 question
+Roman named first. "Cannot differentiate" is six singles, four of them
+a call of several arguments.
+
+So the 47 are three families and a tail: 16 parts that should not be
+counted as runnable examples, 7 Spice3 gates, 6 MultiBody constraints,
+4 machines on one angle, and 14 singles.
+
+Measured on the library as a pair from one binary (`/tmp/m445/ox2`,
+`OXIDELICA_NO_SAMPLE_AT_CROSSING` set for `off.txt` and not for
+`on.txt`, both `--list --without scripts/heavy_models.txt`): 953
+flattened and 774 run on both halves, 836 and 731 of the runnable, the
+run lists identical name for name and the refusals identical line for
+line. The mend moves no model across a wall; what it moves is the
+numbers inside the models that already ran, which is what the
+reference saw and the floors cannot. The floors stay where they are.

@@ -68,6 +68,28 @@ impl CompiledModel {
         state.turn_clocks(t, &self.clocks, values)
     }
 
+    /// Everything scheduled for `t` that falls on the instant of a state
+    /// event: the relations on `time` turn, and the `sample(...)` flags
+    /// due here go up with them.
+    ///
+    /// The flags used to be left for the branch that handles a step
+    /// ending on a scheduled instant, which a step ending in a crossing
+    /// never reaches. The next step then began on the overdue instant,
+    /// was not cut short for it - a time event at the step's start is
+    /// not ahead - and the sample fired wherever that step happened to
+    /// end. A `Mean` over 10 ms beside a diode bridge, whose current
+    /// turns exactly on the sample's instant, sampled 1.1 ms late at
+    /// 1e-6 and 0.4 ms late at 1e-8, and the mean voltage read 102.02
+    /// where it is 99.035 (`DiodeBridge2Pulse`, m445).
+    /// `OXIDELICA_NO_SAMPLE_AT_CROSSING` keeps the old order, so that
+    /// one binary gives both numbers.
+    pub(crate) fn raise_at_crossing(&self, t: f64, state: &mut EventState, values: &mut [f64]) {
+        if !sample_at_crossing_off() {
+            state.raise_samples(t, &self.samples, &self.sample_slots, values);
+        }
+        state.turn_clocks(t, &self.clocks, values);
+    }
+
     /// What the initial event's `when` clauses assign, written into
     /// `values` ahead of the block that reads it: every branch that
     /// holds now and has not fired gives its discrete values their
@@ -120,6 +142,13 @@ impl CompiledModel {
         }
         any
     }
+}
+
+/// Whether a sample due on the instant of a state event waits for the
+/// end of the next step, as it did before the crossing raised it.
+fn sample_at_crossing_off() -> bool {
+    static OFF: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *OFF.get_or_init(|| std::env::var_os("OXIDELICA_NO_SAMPLE_AT_CROSSING").is_some())
 }
 
 /// Whether a block refused before the initial event's `when` clauses
