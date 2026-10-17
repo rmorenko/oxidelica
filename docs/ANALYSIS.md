@@ -51795,3 +51795,42 @@ the element type for `min` and the least for `max`, so `true` and
 (`/tmp/m450/ea/E2.mo`). The repair needs the element type at that arm,
 which the array layer does not carry there, so it is a change of its
 own and was not made.
+
+### `LogicalSample`, walked to its end: two links, and the model runs
+
+Behind the first link stood a second. With the constraint's modifiers
+kept, `LogicalSample` stopped at `conjunctiveClock.u[1] is a Clock, so
+it needs an interval the compiler can see`. Shrunk to 25 lines
+(`/tmp/m450/ea/K6.mo`, `K7.mo`, `K8.mo`): a clock handed through an
+input to a block inside, `connect(y, sink.u)` outside and
+`connect(u, t.u)` inside, is refused even for `Clock(0.1)`. A
+connection between two clocks comes out as `a = b`, and the reading of
+clock definitions turns each such equation into a definition of
+whichever side is not yet spoken for, in the order the equations come.
+The inner `sink.u = sink.t.u` comes first and takes `sink.u` as the
+name it defines, so the outer equation finds `sink.u` spoken for, and
+`sink.t.u` is defined by nobody. The probe reads a clock-to-clock
+equation as an alias with no direction and lets either side hand its
+clock to the other until nothing more settles
+(`~/oxideflow/park/m450-clock-alias-probe.diff`, switch
+`OXPROBE_CLOCK_ALIAS`). Under it `K7` ticks 11 times in a second of
+`Clock(0.1)`, as it should, and `LogicalSample` runs: 100 events in its
+two seconds, the conjunctive clock's sample changing 28 times and the
+disjunctive one's 98.
+
+The pair of one binary with both switches off and on
+(`/tmp/m450/oxca3`, `/tmp/m450/ca/off.txt`, `on.txt`): 955 / 783
+against 956 / 784, runnable 838 / 739 against 839 / 740, 529 Jacobians
+both. The lists differ in exactly `LogicalSample`, flattening and
+running, and lose nothing. In the census the row of an empty `min` goes
+from 2 to 1 and nothing else moves; the two other models of the clock
+row are utilities with an unconnected clock input and stay where they
+are by right. The off half is the run list of the pushed tree line for
+line.
+
+So the chain has two links and an end, and it is parked whole: the
+constraint's modifiers (`~/oxideflow/park/m450-constraint-modifiers.patch`,
+with its test) and the clock aliases (the probe above, which still
+wants its own test and a switch named in the project's way). This shift
+was told not to move floors, so the series and its floors of 956 / 784
+and 839 / 740 wait for one that is.
