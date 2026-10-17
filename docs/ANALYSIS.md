@@ -51069,3 +51069,145 @@ The library step taken again alone on a quiet desk, on the committed
 tree (`/tmp/m446/lib_quiet.txt`): 2671 read, 953 / 778, runnable 836 /
 735, ratio 0.809, 3891 ms per model flattening and 3146 running, all
 floors held.
+
+## The last link of the row: an array handed to a walked body (m447)
+
+The row `cannot differentiate a call of several arguments` had one
+model left after m446, `Media.Examples.MixtureGases`, and the map
+said its body takes an array. Probed (a print in
+`with_derivative_bodies`, not committed), the refusal in the run was
+one body only, `IdealGases.Common.Functions.h_T`, and the body as the
+run holds it is one assignment: `data` is the gas's record laid out as
+23 numbers, read as `data[4]`, `data[23]` and so on, and nothing else
+in it is an array - no loop, no local array, no subscript that moves.
+On all five calls the model makes, `data` is a literal of the medium.
+So the price of the general road, rates laid out as arrays, was not
+asked by this model at all, and the cheap road the brief named was the
+whole of it.
+
+The smallest model that refuses the same way, `A4` (`/tmp/m447/s/`):
+`f(a[3], x)` with a `return` under `x > 100`, so the inliner leaves it
+standing, `y = f(d, x)` with `d` a constant, `yd = der(y)`. The same
+body without the `return` (`A1` to `A3`, an array input, a local array,
+a record) is inlined and never reaches the walk.
+
+### Two links, one series
+
+1. An array input is read as still inside the derived body: it and
+   every element of it the body reads stand in the body's table of
+   what does not move, with not a number as their value, so a proof of
+   sign that leans on one fails rather than proves by a value nobody
+   had. The call checks it: an argument that moves is refused by name,
+   as `its derivative reads the array handed as input 1 as still`
+   (`A5`). Any other array in a body still refuses, now
+   naming the array. `OXIDELICA_NO_STILL_ARRAY_INPUT`.
+2. Behind it `h_T` calls `Modelica.Math.log`, which is `y := .log(u)`
+   and promises no `smoothOrder`, so the walked `h_T` had no rate for
+   the log. A body of nothing but assignments is one expression written
+   in steps, and its derivative is exactly what inlining it would have
+   handed the differentiator; it is now written out to as many orders
+   as any body of the model promises. A body with a branch, a loop or a
+   `return` still needs the promise. `OXIDELICA_NO_STRAIGHT_BODY`.
+
+Under either switch alone `A4`, `H3` and the new test are refused in
+the old words.
+
+### Numbers
+
+`H3` (`/tmp/m447/s/H3.mo`): a walked copy of `h_T`'s body with a
+`return` added, nitrogen's data from a package constant, `T = 300 +
+1000t`, `hd = der(h)` against `1000*cp_T(data, T)`, the library's own
+heat capacity: equal to 1e-16 relative at every point from 300 K to
+1300 K, on both sides of `Tlimit = 1000`. The test checks `2 + 6x`
+exactly, 14 at t = 1. In `MixtureGases` up to t = 0.29, `U1/m1` against
+`h - R_s*T` agrees to 1.3e-16 relative at every row.
+
+### What the two links moved
+
+A pair from one binary (`/tmp/m447/ox8`, both switches set for
+`/tmp/m447/pair/off.txt` and unset for `on.txt`, both `--list`): 953
+flattened and 778 run against 953 and 780, runnable 836 / 735 against
+836 / 737, 529 Jacobians in both. The off half prints m446's on half
+exactly. Gained by name, and nothing lost: `MixtureGases` and
+`ModelicaTest.Media.TestsWithFluid.MediaTestModels.IdealGases.SimpleNaturalGasFixedComposition`,
+which was not in the row: it stood in `der(volume.medium.T): ... is not
+a state` (3 to 2). The register is otherwise identical line for line,
+and the row `cannot differentiate a call of several arguments` is gone.
+`SimpleNaturalGasFixedComposition` runs to its stop time under
+`simulate`.
+
+The floors move by the two: run 776 to 778 and runnable run 733 to 735.
+
+`--check` of the reference's 521 rows on the same binary, on a quiet
+desk (`/tmp/m447/ref8.check`): held on 521, moved on 0. The witnesses
+by name: `Rises` 4, `RisesLonger` 7, `Dips` 3, `Threshold` 7,
+`Hysteresis` 7, `RisesBesideDecay` 4, `RisesBesideSwing` 4,
+`ThresholdBesideLag` 7, and `SampleBesideCrossing` 18. The tail m446
+left, `DoublePendulum` out of its 60 s of CPU on a shared desk, is cut:
+on the committed tree of m446 and a quiet desk (`/tmp/m447/ox1`,
+`/tmp/m447/ref.check`) the reference held on 521 with `DoublePendulum`
+run in 58 s of wall clock, and on this binary in 49 s. Under a CPU
+ceiling of 60 s, then, and close to it: the next change that slows
+that model by a fifth meets it.
+
+### What stands behind MixtureGases
+
+The library check runs ten steps; `simulate` to the stop time refuses
+at t = 0.299 with a step size underflow, and on `rk4` at `1e-4` names
+it: the loop `medium1.T, medium2.T, der_p, der(medium2.T), der_T` is
+NaN at t = 0.3 before any Newton step. The residual solves
+`der(medium2.T)` out of `der_T = der(smoothState.T)` by dividing by the
+weight of `smoothStep(m_flow_ext2, medium2.state.T, state2.T, 0.2)` on
+`medium2.state.T`, written in the residual as `if m_flow_ext2 > 0.2
+then 1 else if m_flow_ext2 < -0.2 then 0 else -(x/0.2)*((x/0.2)^2 -
+3)/4 + 0.5`. With `m_flow_ext2 = time - 0.5` that weight is outright
+zero on the branch `time < 0.3`, and zero again at the join itself,
+where the polynomial gives `-2/4 + 0.5`. So the pivot is a coefficient
+that is zero on one branch and at its edge, the m437 zero-pivot breed:
+`der_T` is the wrong equation to take `der(medium2.T)` from while the
+blend is all `state2`. How the run reaches t = 0.299 with that pivot in
+the loop is not established here (the loop may be entered only at the
+join). Not this series: parked with that map, a model of its own for
+the zero pivot. The `MixtureGases` that counts in the floors is the
+ten-step run, as every model there is.
+
+### Reserve: an event on the stop instant, counted over the run list
+
+No `omc` on the desk, so the question of m445 - whether an event due
+exactly at the stop time belongs in the final point - was put to the
+trail it already left (`/tmp/m445/all_on.tsv`, `all_off.tsv`, the 774
+models that run, `dopri45`). `Blocks.Math.Mean` integrates `x` and on
+`sample(t0 + 1/f, 1/f)` takes `y_last = f*pre(x)` and resets `x` to
+zero; its documentation says only that the output is updated after
+each period. A final point that holds a `Mean`'s `x` at exactly zero is
+a model whose stop time is a whole number of periods and whose last
+sample fired on the stop instant.
+
+Of the 619 that ran on the mended side, 35 hold such a zero (stop
+times 0.1 in 27, 0.2 in 2, 0.5 in 1, 10 in 5; the list in
+`/tmp/m447/mean35.txt`). Joined by exact name to the unmended side, 34
+of the 35 already held the zero there: the order of the two branches
+never decided them. One did: `Thyristor1Pulse_R`, which ends with
+`meanVoltage.x = 0.923822` and `rootMeanSquareVoltage.mean.x =
+117.510942` unmended and zero mended. So the convention the reference
+will have to choose touches one model of 774 today, and the other 34
+already sit on the side the mend put the one on. The choice stays
+Roman's; this is the material.
+
+### Reserve: `stateSelect` written per element (m438, `Sc6n2`)
+
+`w_a(stateSelect = {avoid, never, avoid})` is read as the default for
+every element because the flattener spreads an array attribute over
+the elements for `start` (`flatten/components.rs`, `element_starts`)
+and `fixed` (`element_fixed`) and not for `stateSelect`: each element
+keeps the whole array (`components.rs`, `flat.state_select`), the run
+evaluates it (`compile.rs`, the `STATE_SELECT` table), the value is no
+number between 1 and 5, and the element falls to the default of 3.
+Shown small (`/tmp/m447/b/SS.mo`, `x[3]` with `stateSelect = {avoid,
+never, prefer}`, under `OXIDELICA_VICTIM_PROBE`): each of `x[1]`,
+`x[2]`, `x[3]` says the whole literal and is read as `an array reached
+the evaluator`. The fix is the third spread beside the two, the
+same `spread(.., "stateSelect", ..)`. It is not taken here: a weight
+supplied where there was none changes which states reduction keeps,
+which these notes say is measured by the list of victims over the
+corpus, a series of its own.

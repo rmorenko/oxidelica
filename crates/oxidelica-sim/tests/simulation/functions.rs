@@ -4637,6 +4637,38 @@ fn a_walked_body_takes_abs_on_the_side_the_walk_stands_on() {
 }
 
 #[test]
+fn a_walked_body_reads_an_array_handed_to_it_as_still() {
+    // The gas data of the media are an array of coefficients handed to
+    // a walked body. Still at the call, they are still inside it, and
+    // the derivative of `a[1] + a[2]*x + a[3]*x^2` with `a = {1, 2, 3}`
+    // and `x = 1 + t` is `2 + 6x`: 14 at t = 1. The body also calls a
+    // function of its own that promises nothing and is one assignment,
+    // which differentiates as its expression would inlined. Handed a
+    // moving array instead, the derivative would miss its terms, and
+    // the call is refused by name.
+    let source = "model M function g input Real u; output Real v; \
+         algorithm v := u*u; end g; \
+         function f input Real a[3]; input Real x; output Real y; \
+         algorithm if x > 100 then y := 0; return; end if; \
+         y := a[1] + a[2]*x + a[3]*g(x); \
+         annotation(Inline = false, smoothOrder = 2); end f; \
+         constant Real d[3] = {1, 2, 3}; \
+         Real x(start = 1, fixed = true); Real y; Real yd; \
+         equation der(x) = 1; y = f(d, x); yd = der(y); \
+         annotation(experiment(StopTime = 1, Interval = 0.5)); end M;";
+    let result = run(source);
+    let last = result.rows.last().unwrap();
+    assert!((last[column(&result, "y")] - 17.0).abs() < 1e-9);
+    assert!(
+        (last[column(&result, "yd")] - 14.0).abs() < 1e-9,
+        "yd = {}",
+        last[column(&result, "yd")]
+    );
+    let moving = source.replace("y = f(d, x)", "y = f({x, 2, 3}, x)");
+    assert!(compile_err(&moving).contains("reads the array handed as input 1 as still"));
+}
+
+#[test]
 fn a_call_that_does_not_name_the_unknown_has_no_slope_in_it() {
     // `abs(-0.01)` names nothing that moves, and the slope of this
     // equation in `x` is `sqrt(0.01)`, whatever `abs` would need to be

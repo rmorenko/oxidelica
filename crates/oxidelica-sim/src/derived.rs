@@ -37,8 +37,31 @@ thread_local! {
     /// The walked bodies with a derivative written out: the name of the
     /// body, the name of its derivative, and for each input whether a
     /// rate goes with it. Set per model by `with_derivative_bodies`.
-    static DERIVABLE: RefCell<HashMap<String, (String, Vec<bool>)>> =
+    static DERIVABLE: RefCell<HashMap<String, (String, Vec<Handed>)>> =
         RefCell::new(HashMap::new());
+}
+
+/// What a call to a derived body hands for one input of the value.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) enum Handed {
+    /// The input's rate goes in front, then the input itself.
+    Rate,
+    /// The input does not move continuously - a flag, a count - and
+    /// only the input itself is handed.
+    Nothing,
+    /// An array input, read inside the derived body as standing still.
+    /// That reading is true only where the call's argument does not
+    /// move, so the call checks it there and refuses where it does:
+    /// a moving array handed to a body that read it as still would be
+    /// a derivative with terms missing, a wrong number.
+    Still,
+}
+
+/// Whether a body with an array among its inputs is written out, each
+/// array read as standing still. `OXIDELICA_NO_STILL_ARRAY_INPUT`
+/// keeps the old reading, which refused every body declaring an array.
+fn still_array_inputs_open() -> bool {
+    !walk::switch_set("OXIDELICA_NO_STILL_ARRAY_INPUT")
 }
 
 /// Whether a walked body is differentiated through its derived body.
@@ -51,7 +74,7 @@ fn walked_derivatives_open() -> bool {
 
 /// The derived body of a walked function, where one was written out:
 /// its name, and which inputs carry a rate.
-pub(crate) fn derivative_of(name: &str) -> Option<(String, Vec<bool>)> {
+pub(crate) fn derivative_of(name: &str) -> Option<(String, Vec<Handed>)> {
     DERIVABLE.with(|known| known.borrow().get(name).cloned())
 }
 
@@ -68,6 +91,34 @@ fn smooth_order(class: &ClassDef) -> f64 {
             _ => None,
         })
         .unwrap_or(0.0)
+}
+
+/// Whether a body is nothing but assignments: no branch, no loop, no
+/// `return`. Such a body is one expression written in steps, and its
+/// derivative is that expression's - exactly what inlining it would
+/// have handed the differentiator. `Modelica.Math.log` is `y :=
+/// .log(u)` and promises nothing, and a walked `h_T` that calls it
+/// could not be written out for want of the log's rate.
+/// `OXIDELICA_NO_STRAIGHT_BODY` keeps the old reading.
+fn straight(class: &ClassDef) -> bool {
+    !walk::switch_set("OXIDELICA_NO_STRAIGHT_BODY")
+        && !class.name.ends_with("$der")
+        && class
+            .algorithm
+            .iter()
+            .all(|s| matches!(s, Statement::Assign(..)))
+}
+
+/// The order of smoothness a body may be differentiated to: what it
+/// promises, or for a straight body as many orders as any body of the
+/// model promises, since that is the most a promised body calling it
+/// can ask for. A derived body holds the order it was given and no
+/// more, which is what brings the writing out to an end.
+fn order_of(class: &ClassDef, ceiling: f64) -> f64 {
+    match straight(class) {
+        true => smooth_order(class).max(ceiling),
+        false => smooth_order(class),
+    }
 }
 
 /// Whether a declaration holds a number with a rate of change. A
@@ -109,6 +160,7 @@ pub(crate) fn with_derivative_bodies(model: &Model) -> Option<Model> {
         return None;
     }
     let mut functions = model.functions.clone();
+    let ceiling = functions.iter().map(smooth_order).fold(0.0, f64::max);
     let mut tried: Vec<String> = Vec::new();
     // A body is written out once every body it calls has been, so the
     // passes go on while one of them adds something. Each derived body
@@ -117,13 +169,13 @@ pub(crate) fn with_derivative_bodies(model: &Model) -> Option<Model> {
         let mut added = false;
         for at in 0..functions.len() {
             let class = &functions[at];
-            if smooth_order(class) < 1.0
+            if order_of(class, ceiling) < 1.0
                 || tried.contains(&class.name)
                 || derivative_of(&class.name).is_some()
             {
                 continue;
             }
-            match derive(class) {
+            match derive(class, order_of(class, ceiling)) {
                 Ok((derived, mask)) => {
                     DERIVABLE.with(|known| {
                         known
@@ -168,16 +220,39 @@ impl Drop for InBody {
 }
 
 /// Write out the derivative of one body, or say why it cannot be.
-fn derive(class: &ClassDef) -> Result<(ClassDef, Vec<bool>), String> {
+fn derive(class: &ClassDef, order: f64) -> Result<(ClassDef, Vec<Handed>), String> {
     if class.external || class.builtin.is_some() || class.algorithm.is_empty() {
         return Err(format!(
             "`{}` has no statements to differentiate",
             class.name
         ));
     }
-    if class.components.iter().any(|c| !c.dimensions.is_empty()) {
-        return Err(format!("`{}` declares an array", class.name));
+    // An array input is taken as standing still: the gas data of the
+    // media, a table of coefficients. Its elements are read in the
+    // body by their own names, `data[4]`, and each stands for a rate
+    // of nothing. What moves is the scalars; the call is where the
+    // array is checked not to. An array declared anywhere else in the
+    // body would need a rate laid out as an array, which this does not
+    // write.
+    let still_array = |c: &Component| {
+        still_array_inputs_open() && c.causality == Causality::Input && !c.dimensions.is_empty()
+    };
+    if let Some(array) = class
+        .components
+        .iter()
+        .find(|c| !c.dimensions.is_empty() && !still_array(c))
+    {
+        return Err(format!(
+            "`{}` declares an array `{}`",
+            class.name, array.name
+        ));
     }
+    let still_names: Vec<&str> = class
+        .components
+        .iter()
+        .filter(|c| still_array(c))
+        .map(|c| c.name.as_str())
+        .collect();
     let Some(output) = class
         .components
         .iter()
@@ -205,7 +280,26 @@ fn derive(class: &ClassDef) -> Result<(ClassDef, Vec<bool>), String> {
     for index in indices {
         rates.entry(index).or_insert(Expr::Number(0.0));
     }
-    let still = HashMap::new();
+    // A still array and every element of it the body reads stand in
+    // the table of what does not move with time, and not among the
+    // rates: `a[1]` written in a body is a subscript of `a`, and in a
+    // flattened one the element is a name of its own, `data[4]`; both
+    // are still. The table holds values for the proofs of sign that
+    // `abs` asks for, and an array input has no value until the call,
+    // so each holds not a number: a proof that leans on one fails and
+    // the body is refused, rather than proved by a value it never had.
+    let mut still: HashMap<String, f64> = HashMap::new();
+    for name in &still_names {
+        rates.remove(*name);
+        still.insert(name.to_string(), f64::NAN);
+    }
+    each_read(&class.algorithm, &mut |name| {
+        if let Some((head, _)) = name.split_once('[') {
+            if still_names.contains(&head) && name.ends_with(']') {
+                still.insert(name.to_string(), f64::NAN);
+            }
+        }
+    });
     let none = HashMap::new();
     let no_defs = HashMap::new();
     let no_implicit = HashMap::new();
@@ -238,7 +332,14 @@ fn derive(class: &ClassDef) -> Result<(ClassDef, Vec<bool>), String> {
         .iter()
         .filter(|c| c.causality == Causality::Input)
     {
-        mask.push(carries_rate(input));
+        if still_names.contains(&input.name.as_str()) {
+            mask.push(Handed::Still);
+            continue;
+        }
+        mask.push(match carries_rate(input) {
+            true => Handed::Rate,
+            false => Handed::Nothing,
+        });
         if carries_rate(input) {
             components.push(rate_component(
                 input,
@@ -277,7 +378,7 @@ fn derive(class: &ClassDef) -> Result<(ClassDef, Vec<bool>), String> {
     derived.derivative = None;
     derived.annotations = vec![Expr::NamedArg(
         "smoothOrder".to_string(),
-        Box::new(Expr::Number(smooth_order(class) - 1.0)),
+        Box::new(Expr::Number(order - 1.0)),
     )];
     Ok((derived, mask))
 }
@@ -301,6 +402,56 @@ fn rate_component(
     held.max = None;
     held.nominal = None;
     held
+}
+
+/// Every name a body's statements read, in conditions, values, ranges
+/// and subscripts alike.
+fn each_read(list: &[Statement], look: &mut dyn FnMut(&str)) {
+    let expr = |e: &Expr, look: &mut dyn FnMut(&str)| {
+        let mut refs = Vec::new();
+        e.collect_refs(&mut refs);
+        for r in refs {
+            look(r);
+        }
+    };
+    for statement in list {
+        match statement {
+            Statement::Assign(_, subscripts, value) => {
+                subscripts.iter().for_each(|s| expr(s, look));
+                expr(value, look);
+            }
+            Statement::TupleAssign(targets, value) => {
+                for (_, subscripts) in targets.iter().flatten() {
+                    subscripts.iter().for_each(|s| expr(s, look));
+                }
+                expr(value, look);
+            }
+            Statement::If(branches) | Statement::When(branches) => {
+                for branch in branches {
+                    if let Some(condition) = &branch.condition {
+                        expr(condition, look);
+                    }
+                    each_read(&branch.body, look);
+                }
+            }
+            Statement::For(_, range, inner) => {
+                if let Some(range) = range {
+                    expr(range, look);
+                }
+                each_read(inner, look);
+            }
+            Statement::While(condition, inner) => {
+                expr(condition, look);
+                each_read(inner, look);
+            }
+            Statement::Call(_, args) => args.iter().for_each(|a| expr(a, look)),
+            Statement::Assert(condition, message) => {
+                expr(condition, look);
+                expr(message, look);
+            }
+            Statement::Break | Statement::Return => {}
+        }
+    }
 }
 
 /// The names a body's `for` loops count with.

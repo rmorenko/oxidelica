@@ -908,19 +908,35 @@ pub(crate) fn differentiate_at(
         // has been written out as a body of its own: the derivative is
         // a call to that one, handed each argument's rate first and the
         // arguments themselves after. An input the call left to its
-        // default holds a constant, and its rate is nothing.
+        // default holds a constant, and its rate is nothing. An array
+        // the derived body reads as standing still must stand still
+        // here, or the call is refused by name: handed a moving array,
+        // the derived body would answer with its terms missing.
         Expr::Call(name, args) if crate::derived::derivative_of(name).is_some() => {
+            use crate::derived::Handed;
             let (derived, carries) =
                 crate::derived::derivative_of(name).expect("asked in the guard");
             let mut handed = Vec::new();
             for (at, carried) in carries.iter().enumerate() {
-                if !carried {
-                    continue;
+                match (carried, args.get(at)) {
+                    (Handed::Nothing, _) => {}
+                    (Handed::Still, Some(arg))
+                        if !match target {
+                            DiffTarget::Time { .. } => does_not_move(arg, target),
+                            DiffTarget::Variable { name: var, .. } => !mentions_name(arg, var),
+                        } =>
+                    {
+                        return Err(format!(
+                            "cannot differentiate `{name}`: its derivative reads the array \
+                             handed as input {} as still, and `{}` moves",
+                            at + 1,
+                            arg.describe()
+                        ));
+                    }
+                    (Handed::Still, _) => {}
+                    (Handed::Rate, Some(arg)) => handed.push(d(arg)?),
+                    (Handed::Rate, None) => handed.push(Expr::Number(0.0)),
                 }
-                handed.push(match args.get(at) {
-                    Some(arg) => d(arg)?,
-                    None => Expr::Number(0.0),
-                });
             }
             handed.extend(args.iter().cloned());
             Expr::Call(derived, handed)

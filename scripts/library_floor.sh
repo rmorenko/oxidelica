@@ -1484,7 +1484,18 @@ FLATTEN_FLOOR=953
 # against on.txt, 953 / 774 against 953 / 778):
 #
 #   772 + 4 = 776
-RUN_FLOOR=776
+#
+# And run 778 = 776 + 2, an array handed to a walked body read as
+# still where the call proves it so, and a body of nothing but
+# assignments differentiated without a promise. From one desk binary,
+# OXIDELICA_NO_STILL_ARRAY_INPUT and OXIDELICA_NO_STRAIGHT_BODY set
+# against unset, the run list gained exactly Media.Examples.MixtureGases
+# and SimpleNaturalGasFixedComposition and lost nothing, the flattened
+# list the same line for line, 529 Jacobians in both
+# (/tmp/m447/pair/off.txt against on.txt, 953 / 778 against 953 / 780):
+#
+#   776 + 2 = 778
+RUN_FLOOR=778
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -1817,7 +1828,10 @@ RUNNABLE_FLATTEN_FLOOR=836
 #
 # And runnable run 733 = 729 + 4, the walked derivative, all four
 # runnable, by the same pair as `RUN_FLOOR`: 731 against 735 printed.
-RUNNABLE_RUN_FLOOR=733
+#
+# And runnable run 735 = 733 + 2, the still array input, both runnable,
+# by the same pair as `RUN_FLOOR`: 735 against 737 printed.
+RUNNABLE_RUN_FLOOR=735
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
