@@ -4723,3 +4723,28 @@ fn a_function_answering_a_record_is_divided_by_the_records_own_division() {
     assert!((last_of(&result, "q.re") - 1.6).abs() < 1e-12);
     assert!((last_of(&result, "q.im") - 1.2).abs() < 1e-12);
 }
+
+#[test]
+fn a_check_in_a_body_compares_records_with_the_records_own_relation() {
+    // `assert(ref == res, ...)` of two local records was worked out with
+    // no table of records, so it compared two numbers named `ref` and
+    // `res` and the run met names nothing declares. A comparison that
+    // is false must still stop the run.
+    let source = |im: &str| {
+        format!(
+            "operator record C Real re; Real im; \
+             encapsulated operator function '==' input C a; input C b; output Boolean r; \
+             algorithm r := a.re == b.re and a.im == b.im; end '=='; end C; \
+             function t output Boolean ok; protected C ref; C res; \
+             algorithm res := C(-1, -1); ref := C(-1, {im}); \
+             assert(ref == res, \"differ\"); ok := true; end t; \
+             model M Boolean result; algorithm when initial() then result := t(); end when; \
+             annotation(experiment(StopTime = 0)); end M;"
+        )
+    };
+    let result = run(&source("-1"));
+    assert_eq!(last_of(&result, "result"), 1.0);
+    let model = parse_model(&source("-2")).unwrap();
+    let refused = compile(&model).unwrap().simulate().unwrap_err().to_string();
+    assert!(refused.contains("differ"), "{refused}");
+}

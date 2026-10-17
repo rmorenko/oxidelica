@@ -187,11 +187,20 @@ pub(super) fn execute(
                 let condition = substitute_class_constants(condition, registry, scope, imports, &[]);
                 let condition = substitute_refs(&condition, bindings);
                 let no_loop_vars = HashMap::new();
+                // With the records in view, as an assignment has them:
+                // `assert(ref == res, ...)` of two local records is the
+                // record's own `'=='`, and with no table it was a
+                // comparison of two numbers named `ref` and `res`,
+                // which reached the run as names nothing declares.
+                let in_view = match std::env::var_os("OXIDELICA_NO_ASSERT_RECORDS") {
+                    Some(_) => HashMap::new(),
+                    None => records_in_view(),
+                };
                 let shapes = Shapes {
                     sizes,
                     loop_vars: &no_loop_vars,
                     consts,
-                    records: no_records(),
+                    records: &in_view,
                 };
                 let condition = expand(&condition, &shapes, registry, scope, imports, depth + 1)?
                     .into_expr();
