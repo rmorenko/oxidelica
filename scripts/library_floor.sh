@@ -458,7 +458,19 @@ FILES_FLOOR=2671
 # binary line for line, /tmp/m449/pair/off.txt):
 #
 #   953 + 2 = 955
-FLATTEN_FLOOR=955
+#
+# And flatten 956 = 955 + LogicalSample of Modelica.Clocked, which
+# flattens and runs once a constraining clause's modifiers reach the
+# declaration and a connection between two clocks hands the clock
+# either way. From one desk binary built from the final tree
+# (/tmp/m451/ox20), every switch of this series and of the last one
+# set against none (/tmp/m451/pair/off.txt against all.txt, 953 / 781
+# against 956 / 784), the flattened and the run lists gained exactly
+# LogicalSample and the two ComplexMath tests already counted, and
+# lost nothing, 529 Jacobians in both:
+#
+#   955 + 1 = 956
+FLATTEN_FLOOR=956
 # The two run floors came down by one, and the one is named: giving a
 # record constructor called with no arguments the values its `extends`
 # stated took `Modelica.Thermal.FluidHeatFlow.Examples.WaterPump` out
@@ -1522,7 +1534,13 @@ FLATTEN_FLOOR=955
 # as `FLATTEN_FLOOR` (781 against 783 printed, less the same two swings):
 #
 #   779 + 2 = 781
-RUN_FLOOR=781
+#
+# And run 782 = 781 + LogicalSample, by the same pair as
+# `FLATTEN_FLOOR` (784 printed, less the two swings SpringWithMass and
+# SMPM_VoltageSource, which are not taken into the floors):
+#
+#   784 - 2 = 782 = 781 + 1
+RUN_FLOOR=782
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -1743,7 +1761,10 @@ RUN_FLOOR=781
 #
 # And runnable flatten 838 = 836 + the two ComplexMath tests, both
 # runnable examples, by the same pair as `FLATTEN_FLOOR`.
-RUNNABLE_FLATTEN_FLOOR=838
+#
+# And runnable flatten 839 = 838 + LogicalSample, a runnable example,
+# by the same pair as `FLATTEN_FLOOR`: 839 printed.
+RUNNABLE_FLATTEN_FLOOR=839
 # And runnable run 674 = 671 + the three batteries, all runnable
 # examples, by the same runner job as `RUN_FLOOR` (d58700e, job
 # 112530851204).
@@ -1864,7 +1885,12 @@ RUNNABLE_FLATTEN_FLOOR=838
 #
 # And runnable run 737 = 735 + the two ComplexMath tests, both runnable,
 # by the same pair as `FLATTEN_FLOOR`: 737 against 739 printed.
-RUNNABLE_RUN_FLOOR=737
+#
+# And runnable run 738 = 737 + LogicalSample, by the same pair as
+# `FLATTEN_FLOOR`: 740 printed, less the same two swings.
+#
+#   740 - 2 = 738 = 737 + 1
+RUNNABLE_RUN_FLOOR=738
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and

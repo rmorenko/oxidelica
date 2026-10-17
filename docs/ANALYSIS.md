@@ -51872,3 +51872,105 @@ clock's exact fractions can hold, but the run then has to skip the
 first `k` ticks of an event root, and whether it does is not yet
 measured. Mapped, not repaired: what stands behind this wall in the two
 models was not probed.
+
+## LogicalSample taken, and the two algebraic-loop rows probed again (m451)
+
+### The series of two links, measured from one binary
+
+The two links parked in m450 are in the tree as two commits: the
+modifiers of a constraining clause reach the declaration
+(`OXIDELICA_NO_CONSTRAINT_MODIFIERS`), and a connection between two
+clocks is an alias with no direction (`OXIDELICA_NO_CLOCK_ALIASES`).
+Each has a test seen red under its switch and green without it. The
+pair was taken from one binary built from the final tree
+(`/tmp/m451/ox20`), every switch of this series and of the m449 series
+set against none (`/tmp/m451/pair/off.txt`, `all.txt`):
+
+| half | flatten / run | runnable  | Jacobians | names      |
+| ---- | ------------- | --------- | --------- | ---------- |
+| off  | 953 / 781     | 836 / 737 | 529       | 1658468092 |
+| all  | 956 / 784     | 839 / 740 | 529       | 1659634877 |
+
+The off half matches m450's off half to the digit on every count it
+prints. The lists differ in exactly `LogicalSample` and the two
+ComplexMath tests the floors already hold, flattening and running, and
+nothing is lost. In the census (`off.kinds`, `all.kinds`, folded the
+way `refusals.sh` folds), the row `X of an empty array` goes from 2
+to 1 against m450's `all.kinds` and nothing else moves: flattening 65
+in 38 rows becomes 64 in 38, the run half is 172 in 122 rows both. The
+names stand at 1659634877 against the band's 1660001727. A check that
+the model runs and also tells the truth: both of its sampled outputs
+equal the sine they sample at every tick, 28 changes for the
+conjunctive clock and 98 for the disjunctive one, with no mismatch
+(`/tmp/m451/ls.csv`).
+
+### The row `underdetermined algebraic loop` (8): what is new since m442
+
+The row holds five Spice3 classes and three FundamentalWave machines,
+which the queue already files under item 30. Of the five Spice3
+classes only `Spice3BenchmarkRtlInverter` is a runnable example. `MNmos`
+and `MPmos` are the transistors of `InvertersExtendedModel`, and
+`NAND` and `ONEBIT` are subcircuits of the four-bit adder. None of the
+five carries an experiment or the Example icon. They are in the count
+because the example filter takes them, and work on them buys no
+runnable model.
+
+A probe print of the raw Jacobian at the refusal (a scratch build,
+not committed) gives the shapes:
+
+- `RtlInverter`: `[[0.0]]`, the column of `der(Q1.vbx)` exactly zero,
+  which is `capbx = CJC*(1 - XCJC)` at the card's default `XCJC = 1`,
+  as m442 found. New: with `Q11(XCJC = 0.9)` written in
+  (`/tmp/m451/ul/E.mo`) the block becomes `[[-2.0e-13]]` and is
+  still refused as underdetermined, now on the size of its one entry.
+  A twelve-line model shows the same thing (`/tmp/m451/ul/L.mo`):
+  `i = C0*(der(v) + 1e-30*der(v)^3)` with `C0 = 2e-13` is refused,
+  and with `C0 = 2e-6` it runs. That is the bare judgement's floor
+  `1e-7 * max(scale, 1)` on a block of one. It is the half m442
+  mended and parked under `OXIDELICA_NO_ONE_BY_ONE`, and Roman turned
+  it down on 16 October. It is noted here only because it puts a
+  second wall behind the zero for anyone who reads the cards as the
+  only cause.
+- `MNmos`: a block of five whose four derivative columns are all zero,
+  because the example's card sets `CBD = 0, CBS = 0`, and whose fifth
+  row is zero as well. That is genuinely underdetermined as written,
+  and a compiler that runs it would have to throw the capacitor rows
+  out by structure, not by number.
+- `NAND`: fifteen unknowns of rank 11. One column, `der(Q2.vbx)`, is
+  exactly zero, and the other derivative columns stand at 1e-12 to
+  6e-12. The smallest singular values pair `der(DVBEDROP.pin)` with
+  `der(Q4.vbx)` (1.2e-30) and `der(Q3.vbx)` with `der(Q5.vbx)`
+  (5.3e-25): the same `vbx` zero in four transistors.
+- `SMEE_DOL`: twenty-six unknowns of rank 24, no column zero. The two
+  null directions lie along derivatives of the air gap and the stator
+  windings, with the three switches' `s` near 1e-28. That is the
+  machine family of item 30, and nothing here is new.
+
+So the row holds one runnable model, and that model stands on a card
+whose default makes a capacitance exactly zero, with a judgement
+already turned down standing behind it. Nothing in the row is for
+taking this shift.
+
+### The row `singular Jacobian in algebraic loop` (8): the quasi-static rectifier
+
+Of the eight (`Rectifier` of QuasiStatic.SinglePhase, `RoomCO2`,
+three FundamentalWave machines, `Engine1a`, `LossyGearDemo2`,
+`TestMixingVolumesPressureStates`), the machines are item 30 and the
+rest are filed as single causes in m448. The quasi-static `Rectifier`
+was walked one step, with `OXIDELICA_NEWTON_TRAIL` printing the block
+(`/tmp/m451/qsrect.trail`). A block of twelve is refused at t = 0
+from all zeros. Its rows 3, 7 and 9 are the same row, because
+`load2.G` is fed by a ramp that starts at 0, and a conductor of 0
+leaves the DC side with nothing to tell its voltages apart.
+
+With the ramp given an offset of 1e-3 (`/tmp/m451/ul/QR.mo`) the model
+runs to its stop time, and it lies. The quasi-static half settles on
+`rectifierQS.vQS = 0` and `vDC = 0`, with all 2000 A of the source
+flowing through `resistorQS` to ground, and `load1` reads 0 V for the
+whole run while the transient half reads about 135 V. With an offset
+of 1e-12 the block is still refused. So a judgement that let this
+block through would buy a wrong number, not a model. The ideal AC/DC
+converter's `vDC = sqrt(re^2 + im^2) * k` has two roots at zero
+current, and the iteration takes the one where the voltage is zero. A
+repair has to choose that root on purpose, which is a layer of its
+own, not a tolerance.
