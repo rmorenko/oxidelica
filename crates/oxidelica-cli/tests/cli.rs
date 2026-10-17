@@ -290,14 +290,7 @@ fn the_tolerance_on_the_command_line_beats_the_annotation() {
     let exact = (-1.0f64).exp();
 
     let coarse = bin()
-        .args([
-            "simulate",
-            model.path(),
-            "--solver",
-            "dopri45",
-            "-o",
-            "/dev/null",
-        ])
+        .args(["simulate", model.path(), "--solver", "dopri45"])
         .output()
         .unwrap();
     assert!(coarse.status.success(), "{}", stderr(&coarse));
@@ -315,8 +308,6 @@ fn the_tolerance_on_the_command_line_beats_the_annotation() {
             "dopri45",
             "--tolerance",
             "1e-10",
-            "-o",
-            "/dev/null",
         ])
         .output()
         .unwrap();
