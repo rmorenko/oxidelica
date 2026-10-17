@@ -1283,3 +1283,44 @@ pub(super) fn outside_stream_equations(
 fn stream_side_by_set_open() -> bool {
     std::env::var_os("OXIDELICA_NO_STREAM_SIDE_BY_SET").is_none()
 }
+
+/// Whether the equation of 15.2 over an array stream member is written
+/// element by element. `OXIDELICA_NO_OUTSIDE_STREAM_ELEMENTS` closes
+/// the road, so that one binary gives both numbers.
+fn outside_stream_elements_open() -> bool {
+    std::env::var_os("OXIDELICA_NO_OUTSIDE_STREAM_ELEMENTS").is_none()
+}
+
+/// The subscripts under which the flat model carries a stream member:
+/// one empty subscript for a scalar, every element for an array.
+/// Asked of the first member of the set that carries it at all.
+pub(super) fn stream_elements(
+    members: &[(&str, bool)],
+    member: &str,
+    components: &[Component],
+) -> Vec<String> {
+    for (path, _) in members {
+        let whole = format!("{path}.{member}");
+        if components.iter().any(|c| c.name == whole) {
+            return vec![String::new()];
+        }
+        if !outside_stream_elements_open() {
+            continue;
+        }
+        let found: Vec<String> = components
+            .iter()
+            .filter_map(|c| c.name.strip_prefix(&whole))
+            .filter(|rest| rest.starts_with('[') && !rest.contains('.'))
+            .map(str::to_string)
+            .collect();
+        if !found.is_empty() {
+            return found;
+        }
+    }
+    // Under the closed road an array member keeps its whole name, which
+    // is what the flat model does not carry and the refusal names.
+    match outside_stream_elements_open() {
+        true => Vec::new(),
+        false => vec![String::new()],
+    }
+}

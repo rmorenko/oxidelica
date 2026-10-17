@@ -1987,3 +1987,59 @@ fn a_wrapper_port_is_heard_from_the_side_it_stands_on() {
     assert!(wrong.status.success(), "{}", stderr(&wrong));
     assert!((first_row(&stdout(&wrong), "a.hin") - 3.0).abs() > 0.5);
 }
+
+/// The outflow of 15.2 over an array stream member, element by element.
+///
+/// A fluid port carries `Xi_outflow[nXi]`, and the flat model holds it
+/// as `Xi_outflow[1]` and so on. The equation for an outside port's
+/// outflow named the member whole, which no component of the flat
+/// model is called, and the model was refused for it. Here the source
+/// inside the wrapper pushes `{3, 0.25}` through an element of a port
+/// array, and both sinks hear both elements.
+/// `OXIDELICA_NO_OUTSIDE_STREAM_ELEMENTS` gives back the refusal.
+#[test]
+fn an_array_stream_leaves_an_outside_port_element_by_element() {
+    let file = TempFile::new(
+        "outside_stream_a1.mo",
+        "model A1 connector P Real p; flow Real m_flow; stream Real Xi_outflow[2]; end P; \
+         model Source P port; parameter Real m = 1; parameter Real X[2] = {1, 1}; \
+         equation port.m_flow = -m; port.Xi_outflow = X; end Source; \
+         model Wrap P ports[1]; Source s(m = 2, X = {3, 0.25}); \
+         equation connect(ports[1], s.port); end Wrap; \
+         model PSink P port; Real hin[2]; \
+         equation port.p = 0; port.Xi_outflow = {5, 0.5}; hin = inStream(port.Xi_outflow); end PSink; \
+         model FSink P port; Real hin[2]; \
+         equation port.m_flow = 0.5; port.Xi_outflow = {7, 0.75}; hin = inStream(port.Xi_outflow); \
+         end FSink; \
+         Wrap w; PSink a; FSink b; \
+         equation connect(w.ports[1], a.port); connect(w.ports[1], b.port); end A1;",
+    );
+    let run = |off: bool| {
+        let mut command = bin();
+        if off {
+            command.env("OXIDELICA_NO_OUTSIDE_STREAM_ELEMENTS", "1");
+        }
+        command
+            .args(["simulate", file.path(), "--stop", "0.1", "--dt", "0.05"])
+            .output()
+            .unwrap()
+    };
+    let out = run(false);
+    assert!(out.status.success(), "{}", stderr(&out));
+    for (column, want) in [
+        ("a.hin[1]", 3.0),
+        ("a.hin[2]", 0.25),
+        ("b.hin[1]", 3.0),
+        ("b.hin[2]", 0.25),
+    ] {
+        let heard = first_row(&stdout(&out), column);
+        assert!((heard - want).abs() < 1e-6, "{column} = {heard}");
+    }
+    let refused = run(true);
+    assert!(!refused.status.success());
+    assert!(
+        stderr(&refused).contains("unknown variable `w.ports[1].Xi_outflow`"),
+        "{}",
+        stderr(&refused)
+    );
+}

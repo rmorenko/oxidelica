@@ -1526,14 +1526,23 @@ fn join_the_connections(registry: &HashMap<&str, &ClassDef>, acc: &mut Flat) -> 
                 // An outside one's is written by nobody inside its
                 // class, so the connection owes it the mix of 15.2.
                 let flow_name = held.iter().find(|c| c.flow).map(|c| c.name.clone());
+                // An array member is carried element by element, so
+                // the equation is written once per element.
                 if let (true, Some(flow_name)) = (connections::outside_stream_open(), flow_name) {
-                    acc.equations.extend(connections::outside_stream_equations(
+                    let elements = connections::stream_elements(
                         members,
                         &member_component.name,
-                        &flow_name,
-                        "",
-                        &parent_set,
-                    ));
+                        &acc.components,
+                    );
+                    for element in &elements {
+                        acc.equations.extend(connections::outside_stream_equations(
+                            members,
+                            &member_component.name,
+                            &flow_name,
+                            element,
+                            &parent_set,
+                        ));
+                    }
                 }
                 continue;
             }
