@@ -297,13 +297,38 @@ fn record_binding_field(
     // its named arguments: `State(p = 101325, T = 298.15)`. Anything
     // else is a shape this has no way to take a field of, and saying
     // so is better than guessing at a position.
-    let Expr::Call(_, args) = &settled else {
+    let Expr::Call(called, args) = &settled else {
         return None;
     };
-    let wanted = args.iter().find_map(|arg| match arg {
+    let named = args.iter().find_map(|arg| match arg {
         Expr::NamedArg(name, value) if name == field => Some(value.as_ref().clone()),
         _ => None,
-    })?;
+    });
+    // Given in order, a record's own constructor takes exactly its
+    // fields in the order the record declares them: `constant Complex
+    // j = Complex(0, 1)` of the complex library. That is not a guess at
+    // a position, it is what the language says the position is - but
+    // only for a record's constructor, every argument in order, and as
+    // many as the record has fields. A function standing in the same
+    // place is not read this way.
+    let wanted = match named {
+        Some(value) => value,
+        None => {
+            if args.iter().any(|arg| matches!(arg, Expr::NamedArg(..)))
+                || std::env::var_os("OXIDELICA_NO_POSITIONAL_RECORD_CONSTANTS").is_some()
+            {
+                return None;
+            }
+            let record = lookup(registry, called, &owner.name, &owner.imports)
+                .filter(|of| of.kind == ClassKind::Record)?;
+            let fields = record_fields_of(registry, record, 0);
+            if fields.len() != args.len() {
+                return None;
+            }
+            let place = fields.iter().position(|known| known == field)?;
+            args[place].clone()
+        }
+    };
     const_eval(&wanted, &HashMap::new())
 }
 
@@ -1268,6 +1293,17 @@ fn substitute_at(
                 if let Some(value) = enclosing_constant_array(registry, name, scope, depth) {
                     return value;
                 }
+                // A record constant of a package this class is written
+                // inside, named bare: `-j*log(...)` in the body of
+                // `ComplexMath.asin`, where `j` is `constant Complex j =
+                // Complex(0, 1)` of `ComplexMath` itself. The import
+                // road above reads the same constant when it was
+                // brought in by name; written beside it, it was asked
+                // only as a number or a list, neither answered, and
+                // the bare name travelled into the flat model.
+                if let Some(value) = enclosing_record_constant_whole(registry, name, scope, depth) {
+                    return value;
+                }
                 // The same array, asked of the medium the body was
                 // called under rather than the interface it is written
                 // in. By scope, `X_default` inside `PartialMedium` is
@@ -1512,6 +1548,58 @@ fn enclosing_constant_array(
             }
             if let Some(answer) = constant_array_of_package(registry, owner, name, depth) {
                 return Some(answer);
+            }
+        }
+        let (head, _) = prefix.rsplit_once('.')?;
+        prefix = head;
+    }
+}
+
+/// A record constant declared by a package the scope is written inside,
+/// named bare, as the record it comes to.
+///
+/// The cheap question first, and the only one most names reach: does a
+/// package on the way out declare a constant of this name itself, of a
+/// type that is a record. Only then is the dotted road asked for the
+/// value, by the whole path the import road would have used. Inherited
+/// declarations are not walked: the gathering of a package is the dear
+/// part of the constants layer, and the case this is for - `j` beside
+/// the functions of `ComplexMath` - is declared where it is read.
+fn enclosing_record_constant_whole(
+    registry: &HashMap<&str, &ClassDef>,
+    name: &str,
+    scope: &str,
+    depth: usize,
+) -> Option<Expr> {
+    if depth > MAX_CONSTANT_DEPTH
+        || std::env::var_os("OXIDELICA_NO_BARE_RECORD_CONSTANTS").is_some()
+    {
+        return None;
+    }
+    let mut prefix = scope;
+    loop {
+        if let Some(owner) = registry
+            .get(prefix)
+            .filter(|owner| owner.kind == ClassKind::Package)
+        {
+            if let Some(held) = owner
+                .components
+                .iter()
+                .find(|c| c.name == name && c.variability == Variability::Constant)
+            {
+                if !held.dimensions.is_empty() {
+                    return None;
+                }
+                lookup(registry, &held.type_name, &owner.name, &owner.imports)
+                    .filter(|of| of.kind == ClassKind::Record)?;
+                let path = format!("{}.{name}", owner.name);
+                return class_constant_array_at(
+                    registry,
+                    &path,
+                    &owner.name,
+                    &owner.imports,
+                    depth + 1,
+                );
             }
         }
         let (head, _) = prefix.rsplit_once('.')?;

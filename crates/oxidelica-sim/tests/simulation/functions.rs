@@ -4760,3 +4760,22 @@ fn a_record_local_given_a_value_on_its_declaration_is_read_by_field() {
          annotation(experiment(StopTime = 0)); end M;");
     assert_eq!(last_of(&result, "result"), 32.0);
 }
+
+#[test]
+fn a_package_record_constant_is_read_bare_and_by_field() {
+    // `constant C j = C(0, 1)` of a package, read inside its functions:
+    // bare, as `ComplexMath.asin` writes `-j*log(...)`, and by field.
+    // The constructor gives its fields in order, and the field road
+    // read only named arguments, so `j.im` had no value; and a bare `j`
+    // was asked only as a number or a list and reached the flat model
+    // as a name nothing declares.
+    let result = run("package P record C Real re; Real im; end C; \
+         constant C j = C(0, 1); \
+         function f input Real x; output Real y; algorithm y := x * j.im; end f; \
+         function h input Real x; output Real y; protected C z; \
+         algorithm z := j; y := x * z.im + z.re; end h; \
+         model M Real a = f(2); Real c = h(4); \
+         annotation(experiment(StopTime = 1, Interval = 0.5)); end M; end P;");
+    assert_eq!(last_of(&result, "a"), 2.0);
+    assert_eq!(last_of(&result, "c"), 4.0);
+}
