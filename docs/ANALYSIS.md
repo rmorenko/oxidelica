@@ -52470,3 +52470,36 @@ corpus pass by memory. So the wall is not a missing rule. It is an
 orientation that reaches the joint's equation already 32 storeys deep,
 and the question for a later shift is why a three-by-three matrix of
 names nests that far. A raised ceiling is not an answer here.
+
+### Where the run half stands after this shift
+
+Every row of the run half (`/tmp/m453/pair/on.txt`, 169 refusals) was
+read against this document by model name and by the wording of its
+refusal. What is not mapped falls into three groups, each closed for a
+stated reason. The first is components rather than examples, which
+count as "runnable examples: 0": the `Utilities`, `BaseClasses` and
+`Components` models with a `parameter X has no value`, and the two
+`unbalanced` utilities `DirectCapacitor` and `DirectInductor`, all of
+them the pahan queue's item 34. The second is the Spice3 `T0` family,
+which is parked. The third is the Newton direction rows, forbidden by
+m444. The two newly mapped rows, `IN_con.a` and the arrays surviving
+as scalars, are written up above.
+
+The repair of `IN_con.a` is the nearest win of these, at two models.
+It needs about seventy minutes of pair and a full preflight, which did
+not fit the end of this shift, so it is left in the order it would be
+taken:
+
+1. Rewind the pile in `settle_parameters` when `const_eval` and
+   `resolve` both fail (the parked probe, made the default under a
+   switch for turning it off).
+2. In the length loop of `instantiate_components`, keep the checks of
+   a binding that is taken as the parameter's value, and drop them
+   only where the value is measured and not kept.
+3. Test with `W1` (runs to `y = 12`), `W6` (refused by `positive`) and
+   `W9` (refused by `positive`), all three in
+   `~/oxideflow/park/m453-assert-record/`.
+4. A pair of one binary. The second part changes which checks reach
+   every model whose whole-number parameter a function with an
+   `assert` works out. Thirty-seven files of the library hold a
+   function with an `assert`, so the list of victims is the witness.
