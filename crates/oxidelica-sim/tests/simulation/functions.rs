@@ -755,6 +755,171 @@ fn a_hand_over_inside_a_walked_body_is_specialized() {
     );
 }
 
+/// A copy made for a function handed over takes an array its handed
+/// function was given as an array, wherever its call ends up standing.
+///
+/// `Modelica.Math.Nonlinear.Examples.solveNonlinearEquations1` hands
+/// over `function fun3(p = {5, 1})`, and the copy of the solver it makes
+/// is in no registry. Its call was put in for `r` and then read inside
+/// `abs(r)` of an assertion as a call of scalars, so the `{5, 1}` it
+/// carries refused: "an array value cannot be used where a scalar is
+/// expected". Here the root of `5u - 1` is a fifth, and the run checks
+/// it twice: an assertion that holds, and the value it holds of.
+#[test]
+fn a_copy_for_a_handed_over_function_keeps_its_array_inputs() {
+    let result = run("package P \
+           partial function Scalar input Real u; output Real y; end Scalar; \
+           function f extends Scalar; input Real p[2]; \
+             algorithm y := p[1]*u - p[2]; end f; \
+           function solve \
+             input Scalar g; input Real lo; input Real hi; output Real x; \
+           protected \
+             Real mid; Real step; \
+           algorithm \
+             x := lo; \
+             step := hi - lo; \
+             while abs(step) > 1e-12 loop \
+               step := step/2; \
+               mid := x + step; \
+               if g(mid) < 0 then x := mid; end if; \
+             end while; \
+           end solve; \
+           function check \
+           protected Real r; \
+           algorithm \
+             r := solve(function f(p = {5, 1}), 0, 1); \
+             assert(abs(r - 0.2) < 1e-9, \"the root of 5u - 1 is a fifth\"); \
+           end check; \
+           model M \
+             Real x; \
+           algorithm \
+             when initial() then check(); end when; \
+             x := abs(solve(function f(p = {5, 1}), 0, 1)); \
+             annotation(experiment(StopTime=0.1)); \
+           end M; \
+         end P;");
+    let last = result.rows.last().expect("a final row");
+    assert!(
+        (last[1] - 0.2).abs() < 1e-9,
+        "the root of 5u - 1 is a fifth, and this said {}",
+        last[1]
+    );
+}
+
+/// The place an assignment writes may be named by a constant of the
+/// package the body was written in.
+///
+/// The moist air writes `dddX[Water] := ...` with `Water = 1` a
+/// constant of `MoistAir`. The value of an assignment was resolved
+/// where the body was written and its place was not, so `Water` was
+/// asked of the body's own bindings and the model refused: "the
+/// subscript of `dddX` must be a whole number the compiler can see".
+#[test]
+fn a_package_constant_names_the_place_an_assignment_writes() {
+    let result = run("package P \
+           package Q \
+             constant Integer Water = 1; constant Integer Air = 2; \
+             function f input Real s; output Real d[2]; \
+               algorithm d[Water] := 2*s; d[Air] := 3*s; end f; \
+           end Q; \
+           model M Real x[2]; equation x = Q.f(1 + time); \
+             annotation(experiment(StopTime=1)); end M; \
+         end P;");
+    let last = result.rows.last().expect("a final row");
+    let x1 = result
+        .columns
+        .iter()
+        .position(|c| c == "x[1]")
+        .expect("x[1]");
+    let x2 = result
+        .columns
+        .iter()
+        .position(|c| c == "x[2]")
+        .expect("x[2]");
+    assert!(
+        (last[x1] - 4.0).abs() < 1e-9 && (last[x2] - 6.0).abs() < 1e-9,
+        "at t = 1 the places are 2*2 and 3*2, and this said {} and {}",
+        last[x1],
+        last[x2]
+    );
+}
+
+/// An output a `redeclare function extends` inherits keeps the shape
+/// its base declared, and is gathered element by element.
+///
+/// `MoistAir.density_derX` declares nothing of its own and writes
+/// `dddX[Water]` and `dddX[Air]`; the `Density[nX] dddX` is its base's.
+/// The shapes were measured through a plain lookup of the base, which
+/// from inside the redeclaration finds the redeclaration itself, so
+/// the output had no length and the two elements were never gathered:
+/// "function never assigns its output `dddX`".
+#[test]
+fn an_inherited_output_of_a_redeclared_function_keeps_its_shape() {
+    let result = run("package P \
+           partial package Base \
+             constant Integer nX = 2; \
+             replaceable partial function der_X input Real s; \
+               output Real[nX] d; end der_X; \
+           end Base; \
+           package Moist extends Base; \
+             redeclare function extends der_X \
+               algorithm d[1] := 2*s; d[2] := 3*s; end der_X; \
+           end Moist; \
+           model M package Medium = Moist; Real x[2]; \
+           equation x = Medium.der_X(1 + time); \
+             annotation(experiment(StopTime=1)); end M; \
+         end P;");
+    let last = result.rows.last().expect("a final row");
+    let x1 = result
+        .columns
+        .iter()
+        .position(|c| c == "x[1]")
+        .expect("x[1]");
+    let x2 = result
+        .columns
+        .iter()
+        .position(|c| c == "x[2]")
+        .expect("x[2]");
+    assert!(
+        (last[x1] - 4.0).abs() < 1e-9 && (last[x2] - 6.0).abs() < 1e-9,
+        "at t = 1 the elements are 2*2 and 3*2, and this said {} and {}",
+        last[x1],
+        last[x2]
+    );
+}
+
+/// A body's `if` is decided by a constant of the package it was
+/// written in.
+///
+/// The reference moist air asks `if (useDissociation == false)` with
+/// `useDissociation` a `constant Boolean` of its package. Undecided,
+/// both branches were merged, and `Mmix`, written only in the `else`,
+/// refused as "assigned in one branch only". Here the `else` is taken:
+/// at t = 1 the input is 2, `w` is {2, 4} and the answer 1 + 1/6.
+#[test]
+fn a_package_constant_decides_a_branch_of_a_body() {
+    let result = run("package P \
+           package Q \
+             constant Boolean useDis = true; \
+             function f input Real T; output Real u; \
+             protected Real Mmix; Real w[2]; \
+             algorithm \
+               if (useDis == false) then u := 0; \
+               else w := {T, 2*T}; Mmix := 1/(w*{1, 1}); u := Mmix + 1; \
+               end if; \
+             end f; \
+           end Q; \
+           model M Real x; equation x = Q.f(1 + time); \
+             annotation(experiment(StopTime=1)); end M; \
+         end P;");
+    let last = result.rows.last().expect("a final row");
+    assert!(
+        (last[1] - (1.0 + 1.0 / 6.0)).abs() < 1e-9,
+        "the else branch gives 1 + 1/6 at t = 1, and this said {}",
+        last[1]
+    );
+}
+
 /// What a function's base is modified with is the value of the input
 /// it modifies, in the short form and the long.
 ///

@@ -52891,3 +52891,194 @@ The fix for the brackets that `why` drops around a `WithDerivative`
 `~/oxideflow/park/m455-describe-brackets.diff`. How many census rows
 it would change was not measured: a third corpus pass beside the pair
 and the reference would have spoiled the timings of both.
+
+## The narrow reach judged by a pair, and four layers under the array refusals (m456)
+
+### The narrow reach, measured
+
+The second form parked by m455 grows the reading of starts one more
+step, only from a name whose start is its type's, and only through the
+equation the matching gives that name. It is
+`~/oxideflow/park/m455-grow-from-type-start.diff`, applied as parked.
+`OXIDELICA_NO_GROW_FROM_TYPE_START=1` keeps the old reach. Its test,
+`a_start_from_a_type_waits_for_its_own_equation_before_it_reads_another`,
+is red under the switch with `U = -248019.85` read with `R_s = 1000`,
+and green without it.
+
+`--only` from `.msl` on the binary of the pair (`/tmp/m456/ox27`) runs
+all five: `RoomCO2` in 35 s, `RoomCO2WithControls` in 147 s,
+`MediaTestModels.Air.MoistAir` in 34 s, `InverseParameterization` in
+35 s and `TestMultiPortTraceSubstances` in 792 s, of which 755 s are the
+run (`/tmp/m456/only_*.txt`).
+
+The pair was taken on `ox27`, the switch set against unset
+(`/tmp/m456/off.txt` against `on.txt`). Off printed 956 / 789 and
+839 / 745, and its lists and refusals are those of `/tmp/m455/p3on.txt`
+line for line, two notes printed in another order aside. On printed
+956 / 793 and 839 / 749. Four models run that did not:
+`RoomCO2`, `RoomCO2WithControls`, `TestMultiPortTraceSubstances` and
+`MediaTestModels.Air.MoistAir`. None was lost: `InverseParameterization`,
+which the wider form of m455 cost, runs in both halves. One refusal
+moved a storey and did not run, `TestJunctionTraceSubstances`, from
+`pipe2.flowModel.states[1].T` to `junction1.mbXi_flow[1]`, as m455's
+probe of the four had shown. The Jacobians are 529 and 1974 apart in
+both halves.
+
+The time is the price. The run half went from 3788 s to 4725 s, from
+3962 ms to 4942 ms a model, 937 s more, which is 25%. Flattening went
+the other way, 4029 ms to 3796 ms a model, on a desk with the timer of
+the giant queued behind it; the run half's growth is about one model:
+`TestMultiPortTraceSubstances` alone ran 755 s under `--only`. So the
+change is a choice for Roman and not a fix to be taken: either the
+giant goes into `scripts/heavy_models.txt` with a floor of its own, and
+the main pass pays roughly the three cheap winners, or the main pass
+pays a quarter more. Nothing was merged and no floor moved.
+
+### `PartialMedium.BaseProperties is partial` (3): templates, and the refusal is owed
+
+`Modelica.Media.Examples.Utilities.{FixedAmbient, FixedMassFlowRate,
+PortVolume}` each declare `replaceable package Medium =
+Modelica.Media.Interfaces.PartialMedium` and a `Medium.BaseProperties
+medium`. Asked as they stand, the medium is the partial interface and
+its `BaseProperties` really cannot be instantiated. The redeclaration
+is not lost on the way: the examples that use these components with a
+real medium (`ReferenceAir.DryAir1`, `MoistAir`,
+`TwoPhaseWater.TestTwoPhaseStates`) run in `/tmp/m455/p3on.txt`. The
+same family as `dynamicViscosity` (m455), and left as a map.
+
+### `an array value cannot be used where a scalar is expected` (3): one wording, four layers
+
+The row held one model of `Math` and two of `Media`, and the probe put
+them in four layers, three of them under the two `Media` models. Each
+was reproduced with a model of a dozen lines, red before its change
+and green after, and each change has a switch so that one binary gives
+both numbers.
+
+1. `TestNonlinear` calls `solveNonlinearEquations1`, which hands over
+   `function fun3(p = {5, 1})`. The solver is copied for the handed
+   function (`apply$f`), and the copy is in no registry. Its call was
+   put in for `r` and then read inside `abs(r)` of an assertion, where
+   the lookup of a call's input shapes found nothing and resolved the
+   carried `{5, 1}` as a scalar. The shapes are now read off the copy
+   (`names.rs`, `OXIDELICA_NO_COPY_INPUTS`). Test
+   `a_copy_for_a_handed_over_function_keeps_its_array_inputs`: the
+   root of `5u - 1` is a fifth, both through an assertion and as a
+   value. `--only` runs `TestNonlinear`.
+2. `TestAllProperties.MoistAir` then stood at the subscript of `dddX`
+   not being a whole number: `density_derX` writes `dddX[Water] := ...`
+   with `Water` a constant of `MoistAir`. The value of an assignment
+   was resolved against the package and the place written to was not.
+   Now it is (`statements.rs`, `OXIDELICA_NO_PLACE_CONSTANTS`, test
+   `a_package_constant_names_the_place_an_assignment_writes`).
+3. Behind it, `density_derX never assigns its output dddX`: the output
+   is the base's `Density[nX] dddX`, and the shapes of a redeclared
+   `function extends` were measured through a plain lookup of its base,
+   which from inside the redeclaration finds the redeclaration. The
+   base is now found the way `function_components` already finds it
+   (`shapes.rs`, `OXIDELICA_NO_BASE_SHAPES`, test
+   `an_inherited_output_of_a_redeclared_function_keeps_its_shape`).
+   The model then flattens and is refused at the run by `dddX[1]`
+   going below its `min` of zero, at -0.71. The derivative of density
+   by the water fraction is negative for moist air, so the bound the
+   test model writes (`Medium.Density dddX[nX]`) is the one that is
+   broken, and the refusal is the language's own assertion: owed.
+4. `IncompleteMedia.ReferenceMoistAir` stood at `Mmix` being assigned
+   in one branch only: the body asks `if (useDissociation == false)`
+   with `useDissociation` a `constant Boolean` of the package, the
+   condition was not decided, and the merge of both branches had no
+   value of `Mmix` for the one that does not write it. A condition is
+   now read with the package's constants (`statements.rs`,
+   `OXIDELICA_NO_CONDITION_CONSTANTS`, test
+   `a_package_constant_decides_a_branch_of_a_body`). The model then
+   flattens and is refused by the run's code at an array of two
+   written out (`code.rs:1014`), a storey not walked here.
+
+### `scanInteger has 1 output(s) for 2 target(s)` (2): a wrong number behind a refusal
+
+`Strings.Advanced.scanInteger` declares `nextIndex` first and `number`
+second and its C writes both through its last two arguments. The
+compiler answered the C name with the number and gave it to the first
+output declared. So `k = Advanced.scanInteger("12 3", 1, false)` came
+out 12 where the C answers 3, without a word (small model
+`/tmp/m456/small/S4.mo`), and a tuple asking for both refused. Each
+output now takes the place the C writes it to, the index under a name
+of its own (`external.rs`, `inlining.rs`,
+`OXIDELICA_NO_SCAN_OUTPUTS`), and the reading follows the library's C:
+a sign refused where `unsigned`, a token going on as a real number
+refused, and a failure answered as the start and zero, which is the
+C's own answer and how the wrapper detects one. Test
+`both_answers_of_scan_integer_land_where_the_c_writes_them`. The two
+models of the row move a storey and do not run:
+`TestExamplesCalculator` to `scanReal`, which this compiler has no
+body for, and `Digital.Examples.RAM` to `the subscript of mem`, a
+write at an address the run decides (the family of `y_buf`, mapped
+in the m292 series).
+
+### `an array of shape [2]` over `dewEnthalpy` (EquilibriumDrumBoiler): mapped and parked
+
+`EquilibriumDrumBoiler` writes `extends PartialTwoPort(redeclare
+replaceable package Medium = StandardWater)` and calls
+`Medium.dewEnthalpy(sat)` from its own declarations. It runs inside
+`DrumBoiler`, which redeclares the medium on the component, and is
+refused alone. A model without the library shows the layer
+(`~/oxideflow/park/m456-extends-redeclare-medium.mo`): with the medium
+redeclared on the `extends` of the class itself, the class's own
+names do not reach the redeclaration. `Medium.dew(sat)` finds the
+partial function, and a `constant Real c = Medium.k` finds nothing.
+The same medium redeclared on a component (`Outer2`), declared
+directly (`Plain`), or named outright (`Drum6`) runs. That is a
+defect, parked with its small model and not repaired this shift: the
+pair of the series below was already running on the final tree.
+
+### The series, measured
+
+The five changes of the two sections above are one series, each behind
+its switch. The pair was taken on one binary built from the final tree
+(`/tmp/m456/ox34`), the five switches set against unset
+(`/tmp/m456/p3off.txt` against `p3on.txt`). Off printed 956 / 789 and
+839 / 745, and its flattened and run lists are those of
+`/tmp/m456/off.txt` name for name. On printed 960 / 791 and 843 / 747.
+
+Four models flatten that did not: `TestNonlinear`,
+`TestColorMapToSvg`, `TestAllProperties.MoistAir` and
+`IncompleteMedia.ReferenceMoistAir`. Two of them run: `TestNonlinear`
+and `TestColorMapToSvg`. The second was not aimed at. `--only` with
+each switch alone names the change: under
+`OXIDELICA_NO_CONDITION_CONSTANTS` it is refused at `readDirectory`, as
+in `/tmp/m455/p3on.txt`, and under each of the other four it runs. Its
+body asks `headerType == HeaderType.svgBegin` of a constant, and,
+undecided, both branches were taken, the one that lists a directory
+among them. Nothing was lost. The two `Media` models stand at the run,
+for the reasons given above, and `RAM` and `TestExamplesCalculator`
+moved a storey. The Jacobians are 529 and 1974 apart in both halves.
+Flattening did 1.6 million more expansions, which is the bodies that
+now go further before they stop.
+
+The run half did not slow: 4175 ms a model off and 4034 ms on, both
+taken with the giant's timer beside them, which is weather in both
+halves alike.
+
+### The price of the giant, by solver
+
+`TestMultiPortTraceSubstances` was run alone with the narrow reach
+(`/tmp/m456/ox27 simulate ... --solver NAME`), one solver after the
+other, under `/usr/bin/time`. Under `--only`, which takes the default
+solver, it ran in 792 s, 755 s of them the run. Named outright, neither
+solver finished in the time the shift could give it. `dopri45` was
+stopped at 2268 s of user time (`/tmp/m456/giant_dopri45.txt`) and
+`bdf` at 31 minutes of CPU, with no result file from either. So the
+two solvers cannot be compared on this model: neither gives an answer
+in under half an hour, and the default gives one in under thirteen
+minutes. A model that only one road finishes is a giant by the rule of
+these notes whichever pass it lands in, and that is the number for the
+question of `scripts/heavy_models.txt`.
+
+### The reference held
+
+The `--check` of the reference on `ox27`, which carries the narrow
+reach (`/tmp/m456/ref.check`), held on 520 and moved on 1,
+`TestAllProperties.LinearWater_pT_Ambient`, at its 60 s CPU ceiling.
+Timed alone with the switch on and off it took 59.0 s and 58.7 s of
+user time, and the two result files are the same byte for byte
+(`/tmp/m456/lw_on.csv`, `lw_off.csv`). It is weather at the ceiling and
+not the change, and no row of the reference was rewritten.

@@ -824,7 +824,17 @@ fn one_assignment(
         let indices = subscripts
             .iter()
             .map(|subscript| {
-                let subscript = substitute_refs(subscript, bindings);
+                // The place written to may be named by a constant of
+                // the package, as the value may: the moist air writes
+                // `dddX[Water] := ...` with `Water = 1` a constant of
+                // `MoistAir`. The value was resolved where the body
+                // was written and the place was not, so `Water` was
+                // asked of the bindings, which never heard of it.
+                let subscript = match std::env::var_os("OXIDELICA_NO_PLACE_CONSTANTS") {
+                    None => substitute_class_constants(subscript, registry, scope, imports, &[]),
+                    Some(_) => subscript.clone(),
+                };
+                let subscript = substitute_refs(&subscript, bindings);
                 // A subscript may be written with a
                 // length rather than a digit, and only the
                 // array layer knows a length.
@@ -1058,8 +1068,21 @@ pub(super) fn settled_condition(
     if std::env::var_os("OXIDELICA_NO_BODY_CONDITIONS").is_some() {
         return None;
     }
+    // A condition may name a constant of the package the body was
+    // written in, as an assignment's value may: the reference moist air
+    // asks `if (useDissociation == false)` with `useDissociation` a
+    // `constant Boolean` of `ReferenceMoistAir`. Undecided, both
+    // branches were merged, and a local written only in the `else` -
+    // `Mmix` - had no value for the branch that does not write it.
+    let expr = match std::env::var_os("OXIDELICA_NO_CONDITION_CONSTANTS") {
+        None => substitute_class_constants(expr, registry, scope, imports, &[]),
+        Some(_) => expr.clone(),
+    };
+    if let Some(number) = settled_truth(&expr, consts, &texts_in_view()) {
+        return Some(number);
+    }
     algorithms::settled_in_body(
-        expr, bindings, consts, sizes, registry, scope, imports, depth,
+        &expr, bindings, consts, sizes, registry, scope, imports, depth,
     )
 }
 

@@ -3360,6 +3360,58 @@ fn a_number_at_the_front_of_a_string_is_read_here() {
     assert_eq!(value(2), 5.0, "started from the third letter");
 }
 
+/// Both answers of `scanInteger` land on the outputs the C writes them
+/// to.
+///
+/// `Strings.Advanced.scanInteger` declares `nextIndex` first and
+/// `number` second, and its C writes them through its fourth and fifth
+/// arguments. The number was given to whichever output came first, so
+/// `nextIndex` read 12 off `"12 3"` where the C answers 3, and a tuple
+/// asking for both refused for want of a second output. Failure is
+/// the C's own answer: the start it was given, and zero.
+#[test]
+fn both_answers_of_scan_integer_land_where_the_c_writes_them() {
+    let m = parse_model(
+        "model M function scan input String s; input Integer at; \
+         input Boolean unsigned = false; output Integer nextIndex; output Integer number; \
+         external \"C\" ModelicaStrings_scanInteger(s, at, unsigned, nextIndex, number); \
+         end scan; \
+         Integer a, b, c, d, e, f, g; \
+         algorithm (a, b) := scan(\"  -123\", 1); (c, d) := scan(\"x 45\", 2, true); \
+         (e, f) := scan(\"+7\", 1, true); g := scan(\"1.5\", 1); end M;",
+    )
+    .expect("numbers this compiler can read");
+    let values: std::collections::HashMap<String, f64> = m
+        .equations
+        .iter()
+        .filter_map(|e| match (&e.lhs, &e.rhs) {
+            (Expr::Ref(name), Expr::Number(n)) => Some((name.clone(), *n)),
+            _ => None,
+        })
+        .collect();
+    let value = |name: &str| {
+        *values
+            .get(name)
+            .unwrap_or_else(|| panic!("{name} in {values:?}"))
+    };
+    assert_eq!(
+        (value("a"), value("b")),
+        (7.0, -123.0),
+        "the index after -123"
+    );
+    assert_eq!(
+        (value("c"), value("d")),
+        (5.0, 45.0),
+        "from the second letter"
+    );
+    assert_eq!(
+        (value("e"), value("f")),
+        (1.0, 0.0),
+        "a sign where none may stand"
+    );
+    assert_eq!(value("g"), 1.0, "a real number is not a whole one");
+}
+
 /// A line of a file, answered here rather than by the library's C.
 #[test]
 fn a_line_of_a_file_is_read_here() {

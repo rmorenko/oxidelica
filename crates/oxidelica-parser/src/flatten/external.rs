@@ -46,6 +46,7 @@ pub(super) fn answered_here(called: &str) -> bool {
             | "ModelicaInternal_getNumberOfFiles"
             | "ModelicaInternal_getcwd"
             | "ModelicaStrings_scanInteger"
+            | SCAN_INTEGER_NEXT
             | "ModelicaStandardTables_CombiTable1D_minimumAbscissa"
             | "ModelicaStandardTables_CombiTable1D_maximumAbscissa"
             | "ModelicaStandardTables_CombiTable1D_getValue"
@@ -217,27 +218,73 @@ pub(super) fn number_of(
             Some(std::fs::read_dir(text(0)?).ok()?.count() as f64)
         }
         // A whole number read off the front of a string, and where it
-        // ended. Two outputs in C, and what a caller wants of it here
-        // is the number; the standard library's `scanInteger` asks
-        // for both and this answers the first, which is what a
-        // parameter built on it is built on.
-        ("ModelicaStrings_scanInteger", 2 | 3) => {
+        // ended. Two outputs in C, both written through pointers:
+        // `scanInteger(string, startIndex, unsigned, nextIndex,
+        // number)`. The number is answered under the C's own name and
+        // the index after it under `SCAN_INTEGER_NEXT`, so that each
+        // output of the wrapper takes the one it was declared to take.
+        ("ModelicaStrings_scanInteger", 2 | 3) | (SCAN_INTEGER_NEXT, 2 | 3) => {
             let text = text(0)?;
-            let from = const_eval(args.get(1)?, numbers)?.max(1.0) as usize;
-            let rest: String = text.chars().skip(from - 1).collect();
-            let rest = rest.trim_start();
-            let mut digits = String::new();
-            for (at, letter) in rest.chars().enumerate() {
-                let sign = at == 0 && (letter == '-' || letter == '+');
-                if letter.is_ascii_digit() || sign {
-                    digits.push(letter);
-                    continue;
-                }
-                break;
+            let from = const_eval(args.get(1)?, numbers)?;
+            let unsigned = match args.get(2) {
+                None => false,
+                Some(given) => const_eval(given, numbers)? != 0.0,
+            };
+            let (next, number) = scan_integer(&text, from, unsigned)?;
+            match name == SCAN_INTEGER_NEXT {
+                true => Some(next),
+                false => Some(number),
             }
-            digits.parse::<f64>().ok()
         }
         _ => None,
+    }
+}
+
+/// The second answer of `ModelicaStrings_scanInteger`, the index after
+/// the number, under a name of its own. The `$` keeps it from being a
+/// name a model can write.
+pub(super) const SCAN_INTEGER_NEXT: &str = "ModelicaStrings_scanInteger$nextIndex";
+
+/// `ModelicaStrings_scanInteger` as the library's C writes it: where the
+/// number ended and the number, counted from one.
+///
+/// White space is skipped, then an optional sign (refused where
+/// `unsigned`), then digits, and the token must not go on as a real
+/// number does - a `.`, `e` or `E` after the digits. Where there is no
+/// such token the C answers `startIndex` and zero, which is how the
+/// wrapper `Strings.scanInteger` tells a failure: it is the C's own
+/// answer and not a default chosen here. `None` where the start is
+/// not a whole number of one or more, which the C does not define.
+pub(super) fn scan_integer(text: &str, from: f64, unsigned: bool) -> Option<(f64, f64)> {
+    if from.fract() != 0.0 || from < 1.0 {
+        return None;
+    }
+    let letters: Vec<char> = text.chars().collect();
+    let start = from as usize;
+    let mut at = start;
+    while at <= letters.len() && letters[at - 1].is_whitespace() {
+        at += 1;
+    }
+    let failed = Some((from, 0.0));
+    let signed = at <= letters.len() && matches!(letters[at - 1], '+' | '-');
+    if unsigned && signed {
+        return failed;
+    }
+    let first_digit = at + usize::from(signed);
+    let mut end = first_digit;
+    while end <= letters.len() && letters[end - 1].is_ascii_digit() {
+        end += 1;
+    }
+    if end == first_digit {
+        return failed;
+    }
+    if end <= letters.len() && matches!(letters[end - 1], '.' | 'e' | 'E') {
+        return failed;
+    }
+    let token: String = letters[at - 1..end - 1].iter().collect();
+    match token.parse::<i32>() {
+        Ok(number) => Some((end as f64, f64::from(number))),
+        Err(_) => failed,
     }
 }
 

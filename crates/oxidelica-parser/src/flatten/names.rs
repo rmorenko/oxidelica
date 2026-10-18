@@ -792,34 +792,43 @@ pub(super) fn resolve(
             // a record or an array there means an aggregate is what
             // was asked for, and a scalar there still refuses, so the
             // check is narrowed rather than dropped.
-            let aggregates_allowed = lookup(registry, name, scope, imports)
-                .filter(|class| class.kind == ClassKind::Function)
-                .map(|class| {
-                    // The inputs a base declared are inputs all the
-                    // same: `redeclare function extends setState_psX`
-                    // declares nothing of its own, and the `X[:]` it
-                    // inherits was taken for a scalar, refusing the
-                    // mass fractions handed to it as an array.
-                    let declared = match inherited_inputs_open() {
-                        true => inlining::with_inherited_components(class, registry),
-                        false => class.components.clone(),
-                    };
-                    declared
-                        .iter()
-                        .filter(|component| component.causality == Causality::Input)
-                        .map(|component| {
-                            !component.dimensions.is_empty()
-                                || lookup(
-                                    registry,
-                                    &component.type_name,
-                                    &class.name,
-                                    &class.imports,
-                                )
+            let declared_inputs = |class: &ClassDef| {
+                // The inputs a base declared are inputs all the
+                // same: `redeclare function extends setState_psX`
+                // declares nothing of its own, and the `X[:]` it
+                // inherits was taken for a scalar, refusing the
+                // mass fractions handed to it as an array.
+                let declared = match inherited_inputs_open() {
+                    true => inlining::with_inherited_components(class, registry),
+                    false => class.components.clone(),
+                };
+                declared
+                    .iter()
+                    .filter(|component| component.causality == Causality::Input)
+                    .map(|component| {
+                        !component.dimensions.is_empty()
+                            || lookup(registry, &component.type_name, &class.name, &class.imports)
                                 .is_some_and(|of| of.kind == ClassKind::Record)
-                        })
-                        .collect::<Vec<bool>>()
-                })
-                .unwrap_or_default();
+                    })
+                    .collect::<Vec<bool>>()
+            };
+            // A copy made for a function handed over - `apply$f` for
+            // `apply(function f(p = {5, 1}), u)` - is in no registry,
+            // and its inputs are the receiver's with the handed
+            // function's filled ones added. Not found, its call was read
+            // as a call of scalars, and the `{5, 1}` it carries for `p`
+            // refused once anything stood around it: `abs(r)` in an
+            // assertion, after the copy's call had been put in for `r`.
+            let aggregates_allowed = match lookup(registry, name, scope, imports) {
+                Some(class) if class.kind == ClassKind::Function => declared_inputs(class),
+                Some(_) => Vec::new(),
+                None if std::env::var_os("OXIDELICA_NO_COPY_INPUTS").is_none() => {
+                    super::statements::specialization(name)
+                        .map(|copy| declared_inputs(&copy))
+                        .unwrap_or_default()
+                }
+                None => Vec::new(),
+            };
             let args: Result<Vec<Expr>, String> = args
                 .iter()
                 .enumerate()

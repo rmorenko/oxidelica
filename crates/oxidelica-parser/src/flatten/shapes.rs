@@ -163,7 +163,19 @@ fn collect_shapes_under(
     // nothing goes first.
     let declared: OnceCell<HashMap<String, f64>> = OnceCell::new();
     for extend in &class.extends {
-        if let Some(base) = lookup(registry, &extend.base, scope, &class.imports) {
+        // `redeclare function extends density_derX` names the class it
+        // replaces, and asked by that name from where it stands it
+        // finds itself, which has no output declared. The base is the
+        // one it replaces, as `function_components` already reads it:
+        // looked up here the plain way, `Density[nX] dddX` was never
+        // measured, and the moist air's `dddX[Water] := ...` element by
+        // element came back as an output never assigned.
+        let base = match extend.from_base && std::env::var_os("OXIDELICA_NO_BASE_SHAPES").is_none()
+        {
+            true => super::inheritance::inherited_class(registry, class, &extend.base, 0),
+            false => lookup(registry, &extend.base, scope, &class.imports),
+        };
+        if let Some(base) = base {
             collect_shapes_under(
                 registry,
                 base,

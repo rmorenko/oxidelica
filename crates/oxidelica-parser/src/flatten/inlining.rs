@@ -2303,6 +2303,65 @@ fn body_written_elsewhere(
                 (ended.name.clone(), past),
             ]));
         }
+        // `scanInteger` writes both its answers through pointers, in the
+        // order `nextIndex, number` after the three inputs, and names
+        // neither as the answer. Given to the first output declared, the
+        // number went to `nextIndex`: `Advanced.scanInteger("12 3")`
+        // read 12 where the index after the number is 3, without a word,
+        // and the tuple of the wrapper refused for want of a second.
+        // Each output now takes the place the C writes for it.
+        if call.called == "ModelicaStrings_scanInteger"
+            && call.answer.is_none()
+            && call.arguments.len() == 5
+            && std::env::var_os("OXIDELICA_NO_SCAN_OUTPUTS").is_none()
+        {
+            // The three inputs the C is handed, bound to the wrapper's
+            // inputs with their defaults: the C's list also names the
+            // two outputs, which a binding of inputs cannot name, so it
+            // is asked of the first three alone. `scanInteger(s)` with
+            // the start left to its default of one is how the library
+            // writes it.
+            let inputs_only = crate::ast::ExternalCall {
+                arguments: call.arguments[..3].to_vec(),
+                ..call.clone()
+            };
+            let bound = external_arguments_bound(class, args, &inputs_only, registry)?;
+            let handed: Vec<Expr> = match bound {
+                Some(bound) => bound,
+                None => args[..args.len().min(3)].to_vec(),
+            };
+            let handed = handed.as_slice();
+            let written = |at: usize| match &call.arguments[at] {
+                Expr::Ref(name) => Some(name.clone()),
+                _ => None,
+            };
+            let (Some(next), Some(number)) = (written(3), written(4)) else {
+                return Err(outside_this_language(class));
+            };
+            let answer = |output: &Component| {
+                if output.name == next {
+                    Some(Expr::Call(
+                        external::SCAN_INTEGER_NEXT.to_string(),
+                        handed.to_vec(),
+                    ))
+                } else if output.name == number {
+                    Some(Expr::Call(call.called.clone(), handed.to_vec()))
+                } else {
+                    None
+                }
+            };
+            return class
+                .components
+                .iter()
+                .filter(|c| c.causality == Causality::Output)
+                .map(|output| {
+                    answer(output)
+                        .map(|value| (output.name.clone(), value))
+                        .ok_or_else(|| outside_this_language(class))
+                })
+                .collect::<Result<Vec<_>, String>>()
+                .map(Some);
+        }
         return Ok(Some(vec![(output.name.clone(), made)]));
     }
 
