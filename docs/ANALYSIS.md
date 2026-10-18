@@ -52503,3 +52503,15 @@ taken:
    every model whose whole-number parameter a function with an
    `assert` works out. Thirty-seven files of the library hold a
    function with an `assert`, so the list of victims is the witness.
+
+One family is wider than it was written above. Under the wall B
+probe, `BranchingDynamicPipes` stops on `pipe1.state_b.T` at the
+moist-air `T_phX` bracket, before any Newton step, with `u_min = 190`,
+`u_max = 647`, `f(190) = 75640.2991813851` and `f(647) =
+575206.3141813253` (`/tmp/m453/bdp_ref.txt`). The second residual is
+the one `TestJunctionTraceSubstances` and `RoomCO2WithControls` print
+to the digit, and the first differs in the sixth figure. So the
+moist-air bracket at the starting point is one wall for three models,
+and for `BranchingDynamicPipes` it stands behind wall B. A repair of
+wall B alone would move that model one storey and not to a run. The
+bracket is the one to take first.
