@@ -183,6 +183,38 @@ fn run_algorithm_sections(
                         continue;
                     };
                     let value = as_entered(value, &entered);
+                    // A vector assigned whole - `state := initialState(
+                    // localSeed, globalSeed)` of the random generators,
+                    // or plainly `st := {1, 2}` - is one action per
+                    // element, as the same assignment among the
+                    // equations already is. Taken as one scalar it was
+                    // refused for an array standing where a scalar was
+                    // expected.
+                    if std::env::var_os("OXIDELICA_NO_WHEN_ARRAY_ACTIONS").is_none() {
+                        if let Value::Array(_) = expand_here(&value, &HashMap::new())? {
+                            let places = expand_here(&Expr::Ref(target.clone()), &no_loop_vars)?;
+                            let values = expand_here(&value, &no_loop_vars)?;
+                            let (mut places_flat, mut values_flat) = (Vec::new(), Vec::new());
+                            places.flatten_into(&mut places_flat);
+                            values.flatten_into(&mut values_flat);
+                            if places_flat.len() != values_flat.len() {
+                                return Err(format!(
+                                    "`{target}` is given {} value(s) for {} element(s) in a `when`",
+                                    values_flat.len(),
+                                    places_flat.len()
+                                ));
+                            }
+                            for (place, element) in places_flat.into_iter().zip(values_flat) {
+                                let Expr::Ref(place) = place else {
+                                    return Err(format!(
+                                        "an element of `{target}` assigned in a `when` is not a name"
+                                    ));
+                                };
+                                actions.push(WhenAction::Assign(place, element));
+                            }
+                            continue;
+                        }
+                    }
                     actions.push(WhenAction::Assign(
                         flat_name(target, prefix, outers),
                         resolve_here(&value)?,
@@ -853,8 +885,25 @@ fn flatten_when_clauses(
                                         .to_string());
                                 };
                                 let target = flat_name(target, prefix, outers);
-                                if !targets.contains(&target) {
-                                    targets.push(target);
+                                // A whole array is one target per
+                                // element, as the plain assignment at
+                                // an event above already makes it.
+                                let elements = match when_choice_arrays() {
+                                    true => sizes_here
+                                        .get(&target)
+                                        .filter(|shape| !shape.is_empty())
+                                        .map(|shape| {
+                                            index_tuples(shape)
+                                                .into_iter()
+                                                .map(|indices| element_name(&target, &indices))
+                                                .collect::<Vec<_>>()
+                                        }),
+                                    false => None,
+                                };
+                                for target in elements.unwrap_or_else(|| vec![target]) {
+                                    if !targets.contains(&target) {
+                                        targets.push(target);
+                                    }
                                 }
                             }
                         }
@@ -867,10 +916,34 @@ fn flatten_when_clauses(
                                 let Expr::Ref(target) = &equation.lhs else {
                                     unreachable!("every branch was checked above");
                                 };
-                                given.push((
-                                    flat_name(target, prefix, outers),
-                                    resolve_here(&equation.rhs)?,
-                                ));
+                                let named = flat_name(target, prefix, outers);
+                                // The bSav of the Preisach hysteresis is
+                                // given `cat(1, {bSavI}, fill(...))` in
+                                // one branch and `pre(bSav)` in another:
+                                // an array on each side, taken apart
+                                // into one value per element.
+                                if let Some(shape) = sizes_here
+                                    .get(&named)
+                                    .filter(|shape| !shape.is_empty() && when_choice_arrays())
+                                {
+                                    let mut elements = Vec::new();
+                                    expand_here(&equation.rhs, &HashMap::new())?
+                                        .flatten_into(&mut elements);
+                                    let places = index_tuples(shape);
+                                    if elements.len() != places.len() {
+                                        return Err(format!(
+                                            "`{named}` is given {} value(s) by an `if` at an \
+                                             event and holds {}",
+                                            elements.len(),
+                                            places.len()
+                                        ));
+                                    }
+                                    for (indices, one) in places.into_iter().zip(elements) {
+                                        given.push((element_name(&named, &indices), one));
+                                    }
+                                    continue;
+                                }
+                                given.push((named, resolve_here(&equation.rhs)?));
                             }
                             let condition = condition.map(resolve_here).transpose()?;
                             branches.push((condition, given));
@@ -1604,4 +1677,11 @@ fn when_conditions(condition: &Expr, expand_here: &ExpandHere<'_>) -> Result<Vec
 /// the old reading, so that one binary gives both numbers.
 fn initial_loops_run() -> bool {
     std::env::var_os("OXIDELICA_INITIAL_LOOPS_RUN").is_some()
+}
+
+/// Whether an array given by an `if` at an event is taken apart into
+/// its elements. `OXIDELICA_NO_WHEN_CHOICE_ARRAYS` keeps it whole, as
+/// before, so that one binary can be measured both ways.
+fn when_choice_arrays() -> bool {
+    std::env::var_os("OXIDELICA_NO_WHEN_CHOICE_ARRAYS").is_none()
 }

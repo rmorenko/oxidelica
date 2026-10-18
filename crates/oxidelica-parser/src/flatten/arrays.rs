@@ -349,7 +349,13 @@ pub(super) fn expand(
             // scalars once they have been looked at with the shapes to
             // hand. Left to the scalar path the vector arrives whole and
             // is refused for being an array.
-            Expr::Not(inner) => Value::Scalar(Expr::Not(Box::new(recur(inner)?.scalar()?))),
+            // `not` over an array is the array of the negations, as 10.6.7
+            // says of the element-wise operators: `fire_n = not fire_p` of
+            // the space vector modulation was refused for being an array.
+            Expr::Not(inner) => match std::env::var_os("OXIDELICA_NO_ARRAY_NOT") {
+                None => map_value(&recur(inner)?, &|e| Expr::Not(Box::new(e))),
+                Some(_) => Value::Scalar(Expr::Not(Box::new(recur(inner)?.scalar()?))),
+            },
             Expr::And(l, r) => Value::Scalar(Expr::And(
                 Box::new(recur(l)?.scalar()?),
                 Box::new(recur(r)?.scalar()?),
@@ -768,9 +774,58 @@ fn index_into(
                 // place is asked, the last one included, so an index
                 // outside the array falls through to a value that is
                 // no number rather than quietly taking the end.
-                let mut picked = Vec::with_capacity(items.len());
+                let mut candidates = Vec::with_capacity(items.len());
                 for item in items {
-                    picked.push(inner(item)?.scalar()?);
+                    candidates.push(inner(item)?);
+                }
+                // What is picked may itself be an array - a row of a
+                // constant table, `fire[ka + 1, :]` of the space vector
+                // modulation - and then the asking is done once for each
+                // element, all of the candidates being of one shape. Two
+                // shapes are not a choice the run can make, so they are
+                // refused as before.
+                let shape = candidates.first().map(Value::shape).unwrap_or_default();
+                if !shape.is_empty()
+                    && std::env::var_os("OXIDELICA_NO_RUNTIME_ROW").is_none()
+                    && candidates
+                        .iter()
+                        .all(|candidate| candidate.shape() == shape)
+                {
+                    let flat: Vec<Vec<Expr>> = candidates
+                        .iter()
+                        .map(|candidate| {
+                            let mut out = Vec::new();
+                            candidate.flatten_into(&mut out);
+                            out
+                        })
+                        .collect();
+                    let boolean = is_boolean(&with_end);
+                    let elements: Vec<Expr> = (0..flat[0].len())
+                        .map(|at| {
+                            let mut chosen = Expr::Number(f64::NAN);
+                            for (place, candidate) in flat.iter().enumerate().rev() {
+                                let names = match boolean {
+                                    true => Expr::Bool(place != 0),
+                                    false => Expr::Number(place as f64 + 1.0),
+                                };
+                                chosen = Expr::If(
+                                    Box::new(Expr::Rel(
+                                        crate::ast::RelOp::Eq,
+                                        Box::new(index.clone()),
+                                        Box::new(names),
+                                    )),
+                                    Box::new(candidate[at].clone()),
+                                    Box::new(chosen),
+                                );
+                            }
+                            chosen
+                        })
+                        .collect();
+                    return Ok(reshape_value(elements, &shape));
+                }
+                let mut picked = Vec::with_capacity(candidates.len());
+                for candidate in candidates {
+                    picked.push(candidate.scalar()?);
                 }
                 let mut chosen = Expr::Number(f64::NAN);
                 for (place, candidate) in picked.into_iter().enumerate().rev() {
@@ -2240,6 +2295,26 @@ pub(super) fn map_value(value: &Value, f: &dyn Fn(Expr) -> Expr) -> Value {
         Value::Scalar(expr) => Value::Scalar(f(expr.clone())),
         Value::Array(items) => Value::Array(items.iter().map(|item| map_value(item, f)).collect()),
     }
+}
+
+/// Scalars in row-major order, put back into the shape they were taken
+/// from - the inverse of `Value::flatten_into`.
+fn reshape_value(elements: Vec<Expr>, shape: &[usize]) -> Value {
+    let Some((&first, rest)) = shape.split_first() else {
+        return Value::Scalar(
+            elements
+                .into_iter()
+                .next()
+                .unwrap_or(Expr::Number(f64::NAN)),
+        );
+    };
+    let stride = rest.iter().product::<usize>().max(1);
+    let mut elements = elements.into_iter();
+    Value::Array(
+        (0..first)
+            .map(|_| reshape_value(elements.by_ref().take(stride).collect(), rest))
+            .collect(),
+    )
 }
 
 /// Pair two values element by element, broadcasting a scalar over an

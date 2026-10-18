@@ -24,3 +24,6 @@ commutated = "commutated"
 # `OT.mo` is the name of a parked small model in the analysis notes (a
 # copy of the OneTank example), not a misspelling.
 OT = "OT"
+# `aSav` and `bSav` are what the Preisach hysteresis of the FluxTubes
+# library calls its saved turning points, so `Sav` is a name.
+Sav = "Sav"

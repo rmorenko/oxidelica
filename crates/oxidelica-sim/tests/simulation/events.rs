@@ -1358,3 +1358,99 @@ fn a_clock_handed_through_an_input_reaches_the_block_inside() {
     let n = result.rows[last][result.columns.iter().position(|c| c == "sink.t.n").unwrap()];
     assert_eq!(n, 11.0, "sink.t.n = {n}");
 }
+
+/// `not` over a Boolean vector is the vector of the negations. The
+/// space vector modulation writes `fire_n = not fire_p` with `fire_p`
+/// three wide, and the compiler refused it for an array standing where
+/// a scalar was expected.
+#[test]
+fn not_over_a_boolean_vector_negates_each_element() {
+    let source = "model A Boolean p[3]; Boolean n[3]; \
+         equation p = {time > 0.25, time > 0.5, time > 0.75}; n = not p; \
+         annotation(experiment(StopTime = 1, Interval = 0.01)); end A;";
+    let result = run(source);
+    let column = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+    let at = result
+        .rows
+        .iter()
+        .position(|row| (row[0] - 0.6).abs() < 1e-9)
+        .unwrap();
+    let row = &result.rows[at];
+    assert_eq!(
+        [
+            row[column("n[1]")],
+            row[column("n[2]")],
+            row[column("n[3]")]
+        ],
+        [0.0, 0.0, 1.0],
+        "n at t = 0.6"
+    );
+}
+
+/// A row of a constant table picked by an index known only during the
+/// run, as the modulation picks `fire[ka + 1, :]` by the sector it
+/// worked out. Each element is asked by the index, and the row comes out
+/// whole; before, the pick was taken for one scalar and the row refused.
+#[test]
+fn a_row_of_a_table_is_picked_by_an_index_of_the_run() {
+    let source = "model B constant Real c[3, 2] = [1, 2; 3, 4; 5, 6]; \
+         Integer k(start = 1, fixed = true); Real p[2]; \
+         algorithm when sample(0, 0.1) then k := if time > 0.65 then 3 else if time > 0.35 then 2 else 1; end when; \
+         equation p = c[k, :]; \
+         annotation(experiment(StopTime = 1, Interval = 0.01)); end B;";
+    let result = run(source);
+    let column = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+    let value_at = |t: f64, name: &str| {
+        let at = result
+            .rows
+            .iter()
+            .position(|row| (row[0] - t).abs() < 1e-9)
+            .unwrap();
+        result.rows[at][column(name)]
+    };
+    assert_eq!([value_at(0.2, "p[1]"), value_at(0.2, "p[2]")], [1.0, 2.0]);
+    assert_eq!([value_at(0.5, "p[1]"), value_at(0.5, "p[2]")], [3.0, 4.0]);
+    assert_eq!([value_at(0.9, "p[1]"), value_at(0.9, "p[2]")], [5.0, 6.0]);
+}
+
+/// A vector assigned whole inside a `when` of an algorithm, as the
+/// random generators hand back their state from `initialState`. It is
+/// one action per element, the same as the equation `st = {...}` in a
+/// `when` already was; before, it was refused for an array standing
+/// where a scalar was expected.
+#[test]
+fn a_vector_assigned_whole_in_a_when_of_an_algorithm_lands_on_each_element() {
+    let source = "model W discrete Real st[2](each start = 0, each fixed = true); \
+         algorithm when sample(0, 0.25) then st := pre(st) + {1, 10}; end when; \
+         annotation(experiment(StopTime = 1, Interval = 0.01)); end W;";
+    let result = run(source);
+    let column = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+    let last = result.rows.last().unwrap();
+    // Ticks at 0, 0.25, 0.5, 0.75 and 1.
+    assert_eq!([last[column("st[1]")], last[column("st[2]")]], [5.0, 50.0]);
+}
+
+/// An `if` inside a `when` that gives a whole array in each branch, as
+/// the Preisach hysteresis keeps its turning points. Each element is a
+/// choice of its own, and the branch not taken keeps `pre`; before, the
+/// array was taken for one scalar and refused.
+#[test]
+fn an_if_at_an_event_gives_an_array_element_by_element() {
+    let source = "model P discrete Real s[3](each start = 0, each fixed = true); \
+         Boolean a = time > 0.3; Boolean b = time > 0.6; \
+         equation when {a, b} then \
+           if a and not b then s = cat(1, {1}, fill(2, 2)); else s = pre(s) + {1, 1, 1}; end if; \
+         end when; \
+         annotation(experiment(StopTime = 1, Interval = 0.01)); end P;";
+    let result = run(source);
+    let column = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+    let last = result.rows.last().unwrap();
+    assert_eq!(
+        [
+            last[column("s[1]")],
+            last[column("s[2]")],
+            last[column("s[3]")]
+        ],
+        [2.0, 3.0, 3.0]
+    );
+}

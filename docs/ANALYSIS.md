@@ -53214,3 +53214,85 @@ lines during the run. That is the layer of the FFT buffer mapped in
 as the row (`R2.mo`), it is refused as unbalanced, "nothing determines
 mem[2,1], ..., mem[4,2]", which is the second link of that section.
 The growth by one is expected and is not a new family.
+
+### Four layers under the array refusals
+
+The flatten half of `/tmp/m456/census.txt` holds five models refused
+for "an array of shape [N] is used where a scalar is expected" in
+three rows. `dewEnthalpy` of `EquilibriumDrumBoiler` was taken apart
+by m456 and is left alone. The other four were probed, and they stand
+on four layers. Each layer has a model of a dozen lines or fewer that
+was refused before and now gives the right numbers (`/tmp/m459/fire`,
+`xor`, `bsav`), a test that is red under its switch, and the switch:
+
+1. `not` over a Boolean vector was taken for a scalar. `fire_n = not
+fire_p` of `SVPWM` is how the space-vector modulation writes its
+   negative signal. `A.mo`, 7 lines. `OXIDELICA_NO_ARRAY_NOT`.
+2. A row of a constant table picked by an index known only in the
+   run, `fire[ka + 1, :]` of the same block. The pick by asking each
+   place was written for one scalar, and a row was refused. Now each
+   element is asked by the same index, the candidates being of one
+   shape. `B5.mo`, 11 lines. `OXIDELICA_NO_RUNTIME_ROW`.
+3. A vector assigned whole inside a `when` of an algorithm, as
+   `state64 := Xorshift64star.initialState(localSeed, globalSeed)` of
+   `GenerateRandomNumbers` does. Even `st := {1, 2}` was refused
+   (`X10.mo`, 7 lines), where the equation `st = {1, 2}` in a `when`
+   ran (`X9.mo`). It is now one action per element.
+   `OXIDELICA_NO_WHEN_ARRAY_ACTIONS`.
+4. An array given by an `if` inside a `when` of the equations, as the
+   Preisach hysteresis keeps its turning points:
+   `bSav = cat(1, {bSavI}, fill(-mat.Hsat, Count - 1))` in one branch,
+   `pre(bSav)` in another. Without the `if` it ran (`P2.mo`). Each
+   element is now a choice of its own, and a branch that does not
+   name it keeps `pre`. `P3.mo`, 13 lines.
+   `OXIDELICA_NO_WHEN_CHOICE_ARRAYS`.
+
+Where the four models went, by `--only` from `.msl`:
+
+- `ThreePhaseTwoLevel_PWM` flattens and runs.
+- `IMC_InverterDrive` flattens and is refused in the run, "step size
+  underflow at t = 0.000000: probable singularity". Not probed.
+- `GenerateRandomNumbers` stops at "an expression did not come to an
+  end here, nested deeper than the compiler follows", on
+  `Array([Ref("localSeed"), Ref("globalSeed")])`. That is the ceiling
+  of `MAX_DEPTH`, which is not touched. `initialState` runs ten rounds
+  of `(r, state) := random(state)`, and whether those rounds are what
+  reaches the ceiling was not measured.
+- `HysteresisModelComparison` stops at a unit mismatch in
+  `preisachEverett.J = ...`, printed as `kg.s-2.A-1 against 1`.
+  `everett` writes its result as a product of two sums, each carrying
+  `p.M`, with a `unitT` of one tesla in front. Which side the checker
+  read wrongly was not probed: a wall of another family.
+
+### The pair of the four layers
+
+One binary built from the final tree (`/tmp/m459/ox5`), the four
+switches set against unset (`/tmp/m459/pair3/off.txt` against
+`on.txt`): 960 / 791 against 962 / 792, runnable 843 / 747 against
+845 / 748. The flattened list gained exactly `IMC_InverterDrive` and
+`ThreePhaseTwoLevel_PWM`, the run list exactly
+`ThreePhaseTwoLevel_PWM`, and nothing was lost. The off half is the
+judge's print of the series to the digit, names 1656431234; the on
+half looks up 1659388140, 1786 per million more, the two new models'
+own work. There are 529 and 1974 Jacobians in both halves.
+`ThreePhaseTwoLevel_PWM` runs on dopri45 and bdf, 1185 events each,
+and they agree on the final point to four digits: `filter[1].x[1]` is
+0.646141 against 0.646185 (`/tmp/m459/pwm.tsv`). The floors are not
+moved here. They wait for the runner's print, as those of the series
+did.
+
+`IMC_InverterDrive`, probed one step further on `ox5`: dopri45 stops
+at t = 0 with "step size underflow ... (state re-selection did not
+help)". bdf goes as far as t = 0.002 and is refused with "the states
+re-selected at t = 0.002 name different variables than the run so
+far - 0 left () and 2 arrived (der(aimc.inertiaRotor.flange_b.phi),
+der(loadInertia.flange_b.phi))". That is the wall of the m399 map
+("the states re-selected at t = 0.005", the moving base of the
+MultiBody drive), met here on a machine fed by the modulation. Not
+taken further this shift.
+
+The rows of two in the flatten half that stand above the singles are
+all on the map already: `dgesv` (m455), the trip count (m455), the
+flexible size of the `usertab` tables (m220), the thyristor's branches
+(the six singles, parked as the library's own dimensions), the clock
+with no interval and `solverMethod` (m451), and `shiftSample` (m451).
