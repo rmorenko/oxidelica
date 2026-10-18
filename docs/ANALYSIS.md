@@ -52515,3 +52515,18 @@ moist-air bracket at the starting point is one wall for three models,
 and for `BranchingDynamicPipes` it stands behind wall B. A repair of
 wall B alone would move that model one storey and not to a run. The
 bracket is the one to take first.
+
+The bracket's own inputs, printed at the `Streams.error` of
+`solveOneNonlinearEquation` (`~/oxideflow/park/m453-bracket-probe.diff`,
+`OXPROBE_BRACKET`, `/tmp/m453/tjts_bracket.txt`), are `f.p = 101325`,
+`f.X[1] = 0.01` and `f.h = -163226.49901351007`. So the walk is handed
+an enthalpy of -1.63e5 J/kg, which is about twice as far below zero as
+moist air at 190 K, -87586. The mix that makes it is a convex
+combination of two outflows, and both are positive at the guess, so
+one of them is already that negative when it is read. The Newton
+trail's residual for `pipe2.port_b.h_outflow` at the first point is
+`1163226.4989951896`, which is exactly the guess of 1e6 less that
+mix. The mix is consistent with itself. The question left is which of
+`junction1.port_2.h_outflow` (the junction's `medium.h`) and
+`traceSubstance2.port.h_outflow` comes in at -1.63e5 before anything
+is solved, and from which state's start.
