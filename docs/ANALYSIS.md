@@ -52292,3 +52292,75 @@ the same `f(190) = 75640.42244260639` and `f(647) = 575206.3141813253`
 to the digit, before any Newton step, so the two are one family. The
 next instrument is a print of the mixing argument's terms at the first
 evaluation. No change was made.
+
+### `unknown variable IN_con.a` (2): a check left behind by a settling that failed
+
+The row holds
+`ModelicaTest.Fluid.TestComponents.NewFittings.GenericResistances.VolumeFlowRate`
+and `ModelicaTest.Fluid.Dissipation.TestCases.PressureLoss.SeveralTestCases`.
+It had not been mapped before. The refusal is raised in
+`code.rs:952`, where the run's code generator meets a name nothing
+declares. The real model shrinks to three components (`V1.mo`: two
+`Boundary_pT` and the fitting), then to a single parameter,
+`dp_small = dp_volumeFlowRate_DP(dp_volumeFlowRate_IN_con(a = a, b = b,
+dp_min = 1e-10), ...)` (`V3.mo`), and then to fifteen lines with no
+library (`W1.mo`). The files are in `~/oxideflow/park/m453-assert-record/`.
+
+```modelica
+record R Real a = 1; end R;
+function f input R c; output Real y;
+algorithm assert(c.a > 0, "positive"); y := 2 * c.a; end f;
+parameter Real a = 3;
+parameter Real p = f(R(a = a));
+```
+
+Remove the `assert` and it runs. Change `parameter Real p` to `Real p`
+and it runs too, and the check is kept: with `a = -3` that variant is
+refused as `assertion failed ... positive`. A probe at the `assert`
+arm of `statements::execute` shows the sequence. First,
+`settle_parameters` asks `resolve` for `p` under `SettlingParameter`.
+The body is entered with `c` bound whole to `R(a = a)`. The check
+`c.a > 0` goes onto the shared pile in the body's own spelling, and
+then the settling fails, `settled=None`. Nothing takes back what was
+set aside. Later the component is built through `expand_call`. There
+the body is entered with `c.a` bound field by field and makes a
+correct check, `a > 0`, beside the stale one. The stale one is what
+reaches the run.
+
+The probe `~/oxideflow/park/m453-settle-rewind-probe.diff`
+(`OXPROBE_SETTLE_REWIND`) rewinds the pile to its mark when the
+settling fails. Both `W1` and `VolumeFlowRate` then run. It is not
+taken, because it loses the check: `W6`, with `a = -3`, runs to
+`y = -12` under the probe instead of being refused. The correct check
+of the second entry does not reach the model either, so the pile is
+rewound past it as well, or the second entry never set it aside. Two
+fixes are open, and either needs that answered first. One is to
+rewind only what the failed settling added. The other is to bind a
+record built by a constructor field by field, as the second entry
+does, so that the first check is already correct. A fix that turns
+this refusal into a run without its check is the wrong number the
+notes forbid, and is worse than the refusal.
+
+### What the change to wall A measured besides its winner
+
+The pair is one desk binary built from the final tree,
+`/tmp/m453/ox22`. `OXIDELICA_NO_SWAPPED_ROW_SKIP` was set against
+unset (`/tmp/m453/pair/off.txt` against `on.txt`). Off printed 956 / 787
+and 839 / 743, the flattened and run lists of m452's on half line for
+line. On printed 956 / 788 and 839 / 744. The run list gained
+`LinearWater_pT` and lost nothing, the flattened list was the same,
+and both halves had 529 Jacobians. `--check` of the reference
+(`/tmp/m453/ref.check`) held on 520 and moved on 1:
+`TestAllProperties.LinearWater_pT_Ambient` hit its 60 s CPU ceiling.
+That model has no steady row. Timed alone on a quiet desk it takes
+54.1 s on `ox22` against 55.6 s on the pushed binary. The pass ran
+beside a preflight at a load of 17 to 20, so the move is the weather.
+
+One test changed its answer.
+`initialization_reports_what_it_cannot_solve` held the model
+`b + sin(c) = a; c + sin(b) = a` with `der(b) = 0` to `is not a state`.
+The row is now solved as `der(a) = 0`, which is a true reading of it,
+and the start `a = 0` meets a block whose Jacobian is singular there.
+The test now holds that model to `singular Jacobian`. A twin that adds
+`time` to one side, so that the row is clocked, is held to the old
+refusal. Under the switch the first assertion goes red.
