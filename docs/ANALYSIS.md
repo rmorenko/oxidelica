@@ -52532,3 +52532,130 @@ mix. The mix is consistent with itself. The question left is which of
 `junction1.port_2.h_outflow` (the junction's `medium.h`) and
 `traceSubstance2.port.h_outflow` comes in at -1.63e5 or below before
 anything is solved, and what computes it.
+
+## The `IN_con.a` series taken, and the moist-air bracket traced to a start (m454)
+
+### Two parts, one check each road
+
+The fix is the two parts m453 mapped. `settle_parameters` marks the
+pile of checks before it asks for a parameter and rewinds to the mark
+when the settling fails (`instantiate.rs`, switch
+`OXIDELICA_KEEP_FAILED_SETTLING_CHECKS`). The loop in
+`instantiate_components` that measures lengths now rewinds only when
+the measurement is not taken. Where the whole number it comes to
+becomes the parameter's value, the checks the expansion set aside are
+kept, because the later build reads the number and never enters the
+body again (`components.rs`, switch `OXIDELICA_DROP_TAKEN_LENGTH_CHECKS`,
+which restores the old rewind).
+
+The test is `a_parameter_worked_out_by_a_checking_body_keeps_the_check_in_flat_names`
+in `functions.rs`, holding `W1`, `W6` and `W9` of
+`~/oxideflow/park/m453-assert-record/` in one model. With `a = 3` it
+runs to `y = 12`. With `a = -3` (a whole `p`) and `a = -1.25` it is
+refused with `assertion failed ... positive`. Under the first switch
+all three refuse `c.a` as an unknown name. Under the second, `a = -3`
+runs to `y = -12` without its check. Both make the test red.
+
+`--only` from `.msl` on the binary of the final tree: `VolumeFlowRate`
+runs. `SeveralTestCases` moves one storey and stops at `algebraic loop
+did not converge in 50 Newton iterations`, the Newton row m444 holds.
+So the row bought one model, not two.
+
+### The moist-air bracket: an internal energy seeded with the type's gas constant
+
+m453 left one question: which of the two outflows mixed at
+`pipe2.port_a` comes in at -1.63e5 J/kg before anything is solved. A
+probe at the first evaluation of a block
+(`~/oxideflow/park/m454-values-probe.diff`, `OXPROBE_VALUES`, output
+`/tmp/m454/tjts_values.txt`) prints the values of
+`TestJunctionTraceSubstances` at that point:
+
+| Name                             | Value               |
+| -------------------------------- | ------------------- |
+| `junction1.port_2.h_outflow`     | -163226.49901351007 |
+| `junction1.medium.h`             | -163226.49901351007 |
+| `junction1.medium.T`             | 293.15              |
+| `junction1.medium.Xi[1]`         | 0.01                |
+| `junction1.medium.R_s`           | 288.79726589121543  |
+| `junction1.medium.u`             | -247887.41750951987 |
+| `junction1.U` (state)            | -24788.741750951987 |
+| `junction1.m` (state)            | 0.1                 |
+| `junction1.port_2.m_flow`        | -1.1380155354401003 |
+| `traceSubstance2.port.h_outflow` | 45262.582490480156  |
+| `traceSubstance2.port.m_flow`    | 0                   |
+
+The sensor is honest: 45262.58 is `h_pTX(101325, 293.15, {0.01, 0.99})`
+to the digit, and its flow is zero, so the mix is all the junction's.
+The junction's enthalpy is computed and not a start: it is
+`u + R_s*T`, and `u` is `U/m` from the state. The state `U` declares
+no start, so the run's reading of starts (`compile.rs`, the
+`read_starts` rounds) worked it out from `U = m*u`. A probe on those
+rounds (`~/oxideflow/park/m454-read-start-probe.diff`,
+`OXPROBE_READ_START`) shows `u` read in pass 0, round 4, from
+`u = h - R_s*T` while `R_s` stood at 1000. That 1000 is the start of
+its type, `CPNOM = 1.0e3` in `Modelica.Media`, which round 4 puts in
+for everything still unread. `45262.58 - 1000*293.15 = -247887.42`,
+the printed `u` to the digit. Moist air at 293.15 K has `R_s` 288.80
+and `u` -39398.34.
+
+`R_s` was never read from its own equation because the reach of the
+reading stops one equation from a silent state. `U` reaches `u`
+through `U = m*u`, `u` reaches `h`, `R_s` and `T`, and the equation of
+`R_s` reads `X_liquid` and `X_steam`, two equations away. The probe
+prints `X_liquid skipped, not wanted` in rounds 0, 1, 4 and 5. So the
+start of `U` is the right formula fed one wrong number, and every
+moist-air volume whose energy is a silent state starts with an
+internal energy about 208 kJ/kg too low.
+
+`RoomCO2WithControls` prints `volume.medium.h = -163226.49901351007`
+and `volume.medium.u = -247887.41750951984` at the same point
+(`/tmp/m454/room_values.txt`), so it is the same seed in a different
+volume. The smallest model that shows it is one `ClosedVolume` of
+`MoistAir` with `energyDynamics = FixedInitial`
+(`~/oxideflow/park/m454-R1-moist-volume.mo`). It is refused with `the
+Newton direction of algebraic loop ["volume.medium.p",
+"volume.medium.T", "volume.medium.phi"] does not reduce the residual`,
+from the same `U = -24788.74`.
+
+A probe that grows the reach twice instead of once
+(`~/oxideflow/park/m454-grow-twice-probe.diff`, `OXPROBE_GROW_TWICE`)
+reads `R_s` from its equation. Then `R1` runs and holds `h = 45262.58`
+and `T = 293.15` with `U = -4715.32`. `RoomCO2WithControls` runs.
+`TestJunctionTraceSubstances` moves one storey, to a refusal at
+`junction1.mbXi_flow`. The probe was not taken, for two reasons. The
+note above the growth says that unbounded growth cost the corpus
+eleven minutes to eighteen, so twice needs its own timing. And the
+reach decides which starts are read, so it changes the start of every
+model that has a silent state, which needs a pair with a diff of the
+run lists. A narrower fix is also open: let a name whose start comes
+only from its type wait for its own equation before it is used to read
+another start. Either is a series of its own. `BranchingDynamicPipes`
+was not run under the probe, because it is behind wall B.
+
+One more thing was found on the way. The printed equation of
+`traceSubstance2.port.h_outflow` from `oxidelica why`, evaluated as
+written, gives 129262.58 and not 45262.58. The difference is
+`4200*20*1`, the liquid term. The printer drops the brackets around a
+`WithDerivative` whose value is compound: `grouped` in `ast.rs` does
+not see through it, so `(a + b) * c` prints as `a + b * c`. That is
+an instrument that prints a wrong expression. It was not fixed here,
+because it changes the wording of refusals and the pair was already
+running on the final tree.
+
+### What the pair measured
+
+One desk binary built from the final tree, `/tmp/m454/ox23`, both
+switches set against unset (`/tmp/m454/off.txt` against `on.txt`).
+Off printed 956 / 788 and 839 / 744, the flattened and run lists of
+m453's on half (`/tmp/m453/pair/on.txt`) line for line. On printed
+956 / 789 and 839 / 745. The run list gained `VolumeFlowRate` and lost
+nothing, the flattened list was the same, and both halves had 529
+Jacobians. In the refusals only the two models of the row moved:
+`VolumeFlowRate` to a run, `SeveralTestCases` to
+`algebraic loop did not converge in 50 Newton iterations:
+["from_mflow3.dp"]`. The second part, which keeps the checks of a
+length the loop takes, moved no other model. `VolumeFlowRate` runs on
+dopri45 and bdf to the same 1017 points, and its last point satisfies
+the resistance law: `dp = a*V*|V| + b*V` with `a = 1`, `b = 2`,
+`V = 446.2147` gives 200000 Pa, the `fitting1.dp` printed
+(`/tmp/m454/vfr_dopri45.csv`, `vfr_bdf.csv`).

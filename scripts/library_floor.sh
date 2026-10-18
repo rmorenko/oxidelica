@@ -1571,7 +1571,20 @@ FLATTEN_FLOOR=956
 # digits. The swings and TestJunctionIdeal stay out as above:
 #
 #   788 - 2 swings - TestJunctionIdeal = 785 = 784 + 1
-RUN_FLOOR=785
+#
+# And run 786 = 785 + VolumeFlowRate of the generic resistances, whose
+# `dp_small` is worked out by a function with an `assert` and whose
+# failed settling left that check behind in the body's own spelling.
+# From one desk binary built from the final tree, both switches set
+# (OXIDELICA_KEEP_FAILED_SETTLING_CHECKS and
+# OXIDELICA_DROP_TAKEN_LENGTH_CHECKS) against unset, the run list
+# gained exactly that model and lost nothing, the flattened list the
+# same line for line, 529 Jacobians in both (/tmp/m454/off.txt against
+# on.txt, 956 / 788 against 956 / 789). It runs on dopri45 and bdf to
+# the same numbers. The swings and TestJunctionIdeal stay out:
+#
+#   789 - 2 swings - TestJunctionIdeal = 786 = 785 + 1
+RUN_FLOOR=786
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -1932,7 +1945,12 @@ RUNNABLE_FLATTEN_FLOOR=839
 # pair as `RUN_FLOOR`: 744 printed, less the same three.
 #
 #   744 - 2 - 1 = 741 = 740 + 1
-RUNNABLE_RUN_FLOOR=741
+#
+# And runnable run 742 = 741 + VolumeFlowRate, runnable, by the same
+# pair as `RUN_FLOOR`: 745 printed, less the same three.
+#
+#   745 - 2 - 1 = 742 = 741 + 1
+RUNNABLE_RUN_FLOOR=742
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and

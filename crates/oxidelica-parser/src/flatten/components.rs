@@ -124,6 +124,15 @@ pub(super) fn instantiate_components(
                 // `max([size(a, 1); size(b, 1)])` stacks the lengths of
                 // four signals and takes the longest - which only the
                 // array layer can read.
+                //
+                // The expansion sets aside the checks of whatever body
+                // it enters. Where the number it comes to is taken as
+                // the parameter's value, those checks are the only ones
+                // the parameter will ever have: the later build reads
+                // the number and never enters the body again. So they
+                // are kept then, and dropped only where the expansion
+                // measured something it did not take.
+                let mark = checks_mark();
                 let measured =
                     dimension_value(&binding, &local_consts, &sizes_here).or_else(|| {
                         let no_loop_vars = HashMap::new();
@@ -133,12 +142,16 @@ pub(super) fn instantiate_components(
                             consts: &local_consts,
                             records: no_records(),
                         };
-                        let mark = checks_mark();
                         let worked = expand(&binding, &shapes, registry, scope, imports, 0);
-                        checks_rewind(mark);
+                        if std::env::var_os("OXIDELICA_DROP_TAKEN_LENGTH_CHECKS").is_some() {
+                            checks_rewind(mark);
+                        }
                         let value = const_eval(&worked.ok()?.into_expr(), &local_consts)?;
                         (value.fract() == 0.0).then_some(value as i64)
                     });
+                if measured.is_none() {
+                    checks_rewind(mark);
+                }
                 if let Some(length) = measured {
                     local_consts.insert(waiting.name.clone(), length as f64);
                     inlining::Inlined::forget();

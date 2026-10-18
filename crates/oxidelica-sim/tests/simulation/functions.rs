@@ -4782,3 +4782,32 @@ fn a_package_record_constant_is_read_bare_and_by_field() {
     assert_eq!(last_of(&result, "a"), 2.0);
     assert_eq!(last_of(&result, "c"), 4.0);
 }
+
+#[test]
+fn a_parameter_worked_out_by_a_checking_body_keeps_the_check_in_flat_names() {
+    // `p = f(R(a = a))`, where the body checks `c.a > 0`. A settling
+    // that failed left that check on the pile in the body's own
+    // spelling, and the run refused `c.a` as a name nothing declares.
+    // And where `p` comes to a whole number, the loop that measures
+    // lengths took it as the parameter's value and threw the check away,
+    // so `a = -3` ran to `y = -12`. The model runs where the check holds
+    // and is refused where it does not, whether `p` is whole or not.
+    let source = |a: &str| {
+        format!(
+            "model W record R Real a = 1; end R; \
+             function f input R c; output Real y; \
+             algorithm assert(c.a > 0, \"positive\"); y := 2 * c.a; end f; \
+             parameter Real a = {a}; parameter Real p = f(R(a = a)); Real y; \
+             equation y = p * (1 + time); \
+             annotation(experiment(StopTime = 1)); end W;"
+        )
+    };
+    let result = run(&source("3"));
+    assert_eq!(last_of(&result, "y"), 12.0);
+    for a in ["-3", "-1.25"] {
+        let model = parse_model(&source(a)).unwrap();
+        let refused = compile(&model).unwrap().simulate().unwrap_err().to_string();
+        assert!(refused.contains("assertion failed"), "{a}: {refused}");
+        assert!(refused.contains("positive"), "{a}: {refused}");
+    }
+}

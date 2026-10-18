@@ -1192,6 +1192,7 @@ fn settle_parameters(
             // medium the body was reached by: the number it settles to
             // is read by the run, not by the dimensional layer.
             let _settling = constants::SettlingParameter::now();
+            let aside = checks_mark();
             let settled = const_eval(&expr, &env).or_else(|| {
                 let inlined = resolve(
                     &expr,
@@ -1212,6 +1213,18 @@ fn settle_parameters(
                     const_eval(&folded, &env)
                 })
             });
+            // A settling that came to nothing keeps nothing either. The
+            // body it entered set its checks aside in the spelling of
+            // that entry - a record handed in whole, `c.a > 0` - and
+            // the parameter is built later by another road, which
+            // makes the checks again in its own terms. Left on the
+            // pile, the first spelling reaches the run as a name
+            // nothing declares.
+            if settled.is_none()
+                && std::env::var_os("OXIDELICA_KEEP_FAILED_SETTLING_CHECKS").is_none()
+            {
+                checks_rewind(aside);
+            }
             if let Some(value) = settled {
                 local_consts.insert(component.name.clone(), value);
                 inlining::Inlined::forget();
