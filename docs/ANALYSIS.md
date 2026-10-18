@@ -53540,3 +53540,25 @@ A short function that fills an array input of its base, `function g =
 f(V = {1, 2, 3})`, is refused with `missing its argument V`
 (`/tmp/m460/dg/F1.mo`). It did not stand in either model's way and was
 not taken.
+
+### The branch units of the thyristor (2): the library's own equation
+
+`SimpleTriacCircuit` and `ThyristorBehaviourTest` are refused at the
+same line of `Semiconductors.Thyristor`:
+
+```modelica
+vContot = vConmain + smooth(0, if iGK < 0.95 * IGT then 0
+  else if iGK < 0.95*IGT + 1e-3 then 10000*(iGK-0.95*IGT)*vAK else 10* vAK);
+```
+
+The declarations make `iGK` a current and `vAK` a voltage, so the
+middle branch is A·V = W and the last is V. The refusal is true of
+what is written. The `10000` stands for something per ampere that the
+author never declared. The compiler reads the literal as having no
+unit, which is a reading and not the specification's. Two models of
+four lines show it (`/tmp/m460/u/L1.mo`, `L2.mo`): the same `if` is
+refused for its branches, and `w = 10000*i*v` alone for its two
+sides. So the question is about literals and not about this model.
+How other tools read an unannotated number was not measured here.
+Reading literals as unknown would change every unit check the compiler
+makes, so it is a choice for Roman and was not taken. No change.
