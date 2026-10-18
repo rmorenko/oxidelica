@@ -348,6 +348,7 @@ pub(super) fn execute(
             }
             Statement::While(condition, body) => {
                 let mut rounds = 0;
+                let condition = &condition_as_written(condition, registry, scope, imports);
                 loop {
                     let now = substitute_refs(condition, bindings);
                     let truth = settled_condition(
@@ -1068,15 +1069,13 @@ pub(super) fn settled_condition(
     if std::env::var_os("OXIDELICA_NO_BODY_CONDITIONS").is_some() {
         return None;
     }
-    // A condition may name a constant of the package the body was
-    // written in, as an assignment's value may: the reference moist air
-    // asks `if (useDissociation == false)` with `useDissociation` a
-    // `constant Boolean` of `ReferenceMoistAir`. Undecided, both
-    // branches were merged, and a local written only in the `else` -
-    // `Mmix` - had no value for the branch that does not write it.
-    let expr = match std::env::var_os("OXIDELICA_NO_CONDITION_CONSTANTS") {
-        None => substitute_class_constants(expr, registry, scope, imports, &[]),
-        Some(_) => expr.clone(),
+    // The old order, kept behind its switch so that one binary can be
+    // measured both ways: the package's constants asked of the
+    // condition after the bindings were put in. See
+    // [`condition_as_written`] for why that order was dear.
+    let expr = match condition_constants_after() {
+        true => substitute_class_constants(expr, registry, scope, imports, &[]),
+        false => expr.clone(),
     };
     if let Some(number) = settled_truth(&expr, consts, &texts_in_view()) {
         return Some(number);
@@ -1084,6 +1083,44 @@ pub(super) fn settled_condition(
     algorithms::settled_in_body(
         &expr, bindings, consts, sizes, registry, scope, imports, depth,
     )
+}
+
+/// A condition of a body's control flow with the constants of the
+/// package it was written in put in, before the bindings are.
+///
+/// The reference moist air asks `if (useDissociation == false)` with
+/// `useDissociation` a `constant Boolean` of `ReferenceMoistAir`.
+/// Undecided, both branches were merged, and a local written only in
+/// the `else` - `Mmix` - had no value for the branch that does not
+/// write it.
+///
+/// The constants are asked of the condition as the body wrote it, the
+/// order an assignment's value keeps. Asked after the bindings were
+/// put in, as first written, the question went to every name the
+/// caller had handed over - whole flat paths of the model, each of
+/// them a lookup through the registry for a constant that is not one -
+/// and the series that brought it in looked up 72 million more names
+/// over the library, 48 million of them in fluid models it gained
+/// nothing in. `OXIDELICA_CONDITION_CONSTANTS_AFTER=1` restores that
+/// order and `OXIDELICA_NO_CONDITION_CONSTANTS=1` asks neither.
+pub(super) fn condition_as_written(
+    condition: &Expr,
+    registry: &HashMap<&str, &ClassDef>,
+    scope: &str,
+    imports: &[(String, String)],
+) -> Expr {
+    match std::env::var_os("OXIDELICA_NO_CONDITION_CONSTANTS").is_none()
+        && !condition_constants_after()
+    {
+        true => substitute_class_constants(condition, registry, scope, imports, &[]),
+        false => condition.clone(),
+    }
+}
+
+/// Whether the old, dear order is asked for; see [`condition_as_written`].
+fn condition_constants_after() -> bool {
+    std::env::var_os("OXIDELICA_NO_CONDITION_CONSTANTS").is_none()
+        && std::env::var_os("OXIDELICA_CONDITION_CONSTANTS_AFTER").is_some()
 }
 
 pub(super) fn settled_truth(
@@ -1360,7 +1397,10 @@ fn one_if_statement(
     let decidable = branches.iter().all(|branch| {
         branch.condition.as_ref().is_none_or(|condition| {
             settled_condition(
-                &substitute_refs(condition, bindings),
+                &substitute_refs(
+                    &condition_as_written(condition, registry, scope, imports),
+                    bindings,
+                ),
                 bindings,
                 consts,
                 sizes,
@@ -1385,7 +1425,8 @@ fn one_if_statement(
                     break;
                 }
                 Some(condition) => {
-                    let condition = substitute_refs(condition, bindings);
+                    let condition = condition_as_written(condition, registry, scope, imports);
+                    let condition = substitute_refs(&condition, bindings);
                     let value = settled_condition(
                         &condition, bindings, consts, sizes, registry, scope, imports, depth,
                     )

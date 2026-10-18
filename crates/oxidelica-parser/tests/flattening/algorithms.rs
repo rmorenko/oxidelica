@@ -3699,3 +3699,57 @@ fn an_impure_draw_is_held_to_the_order_a_when_gives_it() {
     assert_eq!(minted("$randomNext"), 33);
     assert_eq!(minted("$randomDraw"), 2);
 }
+
+/// The constants of a body's package are asked of a condition as the
+/// body wrote it, not of the condition with the caller's arguments put
+/// in.
+///
+/// Asked after the bindings, every flat path a caller hands over was a
+/// lookup through the registry for a constant it never is: the series
+/// that first read such constants looked up 72 million more names over
+/// the library, 48 million of them in fluid models that gained nothing.
+/// Here five conditions name one input and the package's `k`, and the
+/// caller hands over a sum of one name of a part or of twenty. The
+/// nineteen names more cost 152 lookups asked as written, all of them
+/// outside the conditions, and 247 asked after the bindings: one more
+/// per name per condition.
+#[test]
+fn a_body_condition_asks_its_constants_before_the_arguments() {
+    let cost = |handed: usize| {
+        let sum = (1..=handed)
+            .map(|i| format!("p.q.c{i}"))
+            .collect::<Vec<_>>()
+            .join(" + ");
+        let parts = (1..=20)
+            .map(|i| format!("Real c{i} = {i};"))
+            .collect::<Vec<_>>()
+            .join(" ");
+        let source = format!(
+            "package P \
+               package Q \
+                 constant Real k = 1; \
+                 function f input Real a; output Real u; \
+                 algorithm \
+                   if a > 4*k then u := 4; elseif a > 3*k then u := 3; \
+                   elseif a > 2*k then u := 2; elseif a > k then u := 1; \
+                   elseif a < -k then u := -1; else u := 0; end if; \
+                 end f; \
+               end Q; \
+               model Inner {parts} end Inner; \
+               model Outer Inner q; end Outer; \
+               model M Outer p; Real y; equation y = Q.f({sum} + time); end M; \
+             end P;"
+        );
+        let (before, _) = oxidelica_parser::name_counts();
+        let model = oxidelica_parser::parse_model(&source).unwrap();
+        let (after, _) = oxidelica_parser::name_counts();
+        assert!(!model.equations.is_empty());
+        after - before
+    };
+    let (one, twenty) = (cost(1), cost(20));
+    eprintln!("names looked up: {one} for one name handed, {twenty} for twenty");
+    assert!(
+        twenty - one < 200,
+        "{one} for one name handed, {twenty} for twenty"
+    );
+}

@@ -53082,3 +53082,79 @@ Timed alone with the switch on and off it took 59.0 s and 58.7 s of
 user time, and the two result files are the same byte for byte
 (`/tmp/m456/lw_on.csv`, `lw_off.csv`). It is weather at the ceiling and
 not the change, and no row of the reference was rewritten.
+
+## The names a body's conditions looked up, and a band left below (m457)
+
+### What carried the 72 million
+
+The library job for 2e4d380 printed 1732340625 names looked up against
+the band's 1660001727, 4.36 per cent above it. One probe binary that
+stopped each model after flattening and printed its names
+(`/tmp/m457/oxp1`, not committed) gave 1659658471 with the five
+switches of that series set and 1732340625 without them
+(`/tmp/m457/f_off.txt`, `f_on.txt`), the build machine's own number to
+the digit. Model by model (`/tmp/m457/delta.txt`) the rise is spread:
+`IncompleteMedia.ReferenceMoistAir`, refused before the series and
+flattened after it, takes 22.0 million, `BatchPlant_StandardWater`
+9.5 million, and over five hundred fluid models the rest, a million or
+two each.
+
+The 39 dearest of those, one switch at a time on the same binary
+(`/tmp/m457/sample.txt`, `s_*.txt`): `OXIDELICA_NO_CONDITION_CONSTANTS`
+takes 70.0 million away, `OXIDELICA_NO_COPY_INPUTS` 25.2 million, all
+of it the two moist airs it was written for, `OXIDELICA_NO_PLACE_CONSTANTS`
+2.2 million, the other two nothing. So the price was the constants of
+a body's package read in its conditions.
+
+### Asked as written, not as handed over
+
+The condition of an `if` or a `while` in a body was given the caller's
+arguments first and asked for the package's constants after. Every
+name a caller hands over is a flat path of the model, and each was a
+lookup through the registry for a constant it never is - once for the
+question whether the branches can be decided, and again for each
+branch walked. An assignment's value is asked the other way round, and
+the condition now is too (`statements.rs`, `condition_as_written`);
+`OXIDELICA_CONDITION_CONSTANTS_AFTER=1` keeps the old order for a
+pair. The test `a_body_condition_asks_its_constants_before_the_arguments`
+hands one name and twenty to five conditions: nineteen names more cost
+152 lookups this way and 247 the old way, and it is red under the
+switch.
+
+Putting the constants in once per `if` rather than once per question
+was tried and measured worse on the sample, 983978232 against
+983478179: it asked the conditions of branches never reached.
+
+On the sample the series' 1047776699 names came to 983478179, against
+974045568 with the conditions asking no constants at all. The lists of
+what flattens are identical. Over the library (`/tmp/m457/f_fix.txt`)
+the count is 1656431234, and the flatten list is that of the series
+name for name, 960 lines.
+
+### Below the band, and why
+
+That is 2151 per million below the band's centre, and the band holds
+both sides (`library_floor.sh`, `held`): 250490 names under its lower
+edge. Against the five switches set (`/tmp/m457/d_fixoff.txt`), 123
+models now cost 34.7 million fewer than before the series - their
+conditions are decided where they were merged, and a merged branch
+walks both bodies - and 566 cost 31.4 million more, of which
+`ReferenceMoistAir` is 20.6 million, a model that flattens now and was
+refused at `/tmp/m456/p3off.txt:1914`. The band is not moved here: the
+question is put to Roman with these numbers.
+
+Also seen, and not the subject: the profile of `ReferenceMoistAir`
+flattening alone has `__findenv_locked` at the top of the stack, the
+switches read from the environment on the hot path. That is time and
+not names.
+
+### The pair
+
+One binary built from the final tree (`/tmp/m457/ox2`), the old order
+under its switch against the new (`/tmp/m457/p_off.txt`, `p_on.txt`):
+960 / 791 and 843 / 747 in both halves, the lists of what flattens and
+runs identical name for name, 1751 lines, and identical to those of
+the series' own pair (`/tmp/m456/p3on.txt`). The Jacobians are 529 and
+1974 apart in both. Names looked up 1732340625 against 1656431234.
+The two halves ran side by side on one desk: flattening 6968 against
+6297 ms a model, running 5050 against 5168.
