@@ -53315,3 +53315,55 @@ of what it substitutes, or a substituted number is told apart from one
 the model wrote. Both are a choice about the structure, so nothing
 was changed. The three models are parked as
 `~/oxideflow/park/m459-unit-of-an-inlined-local`.
+
+### `ReferenceMoistAir` of the media tests: two walls, one of them an order
+
+`TestAllProperties.IncompleteMedia.ReferenceMoistAir` flattens since
+m456 and is refused in the run with "an array of 2 written out". A
+probe printing the array at `code.rs` (not committed) names it:
+`{state.X[1], state.X[2]}`, handed whole to a call left standing.
+Shrunk one property at a time from the test's own declarations
+(`/tmp/m459/rma`):
+
+- `isentropicEnthalpy`, `setState_psX` and `setState_phX` (`R1` to
+  `R3`) reach the wall of m422's link 4: "an array reached the
+  evaluator: {0.0368017112855051, 0.0510878114959572}" inside the
+  walked `Ice09_Utilities` body. That is mapped and not small.
+- Every other property runs alone (`R5` to `R10`) and in most pairs.
+  The pair that refuses is seven lines (`R16`):
+  `cp = specificHeatCapacityCp(state)` and then
+  `a = velocityOfSound(state)`. Written the other way round (`R22`),
+  it runs. So does `cp_pTX` called directly ahead of
+  `velocityOfSound` (`R23`). `velocityOfSound` alone (`R7`) is
+  inlined, with `cp_pTX` and `cv_pTX` inside it as calls. After
+  `specificHeatCapacityCp` has been asked, `velocityOfSound` stands
+  whole with its record written out, and the run cannot take it.
+
+A model whose answer depends on the order of two declarations means
+something remembered between the askings changes the road the second
+one takes. The table of answers in `inline_body` is the first suspect.
+A probe binary that bypassed it (`OX_PROBE_NO_MEMO`, not committed)
+had not finished `R16` after ten minutes at 570 MB and was stopped.
+The table is what makes this medium finish at all, so that probe
+cannot settle it. The next instrument is a print of the key and the
+answer for `velocityOfSound` in both orders, so the two askings can be
+compared. The four models are parked as
+`~/oxideflow/park/m459-order-of-askings`.
+
+The print came next, a probe binary (`/tmp/m459/oxp3`, not committed)
+naming each body worked out and how it ended. In `R16`, `cp_pTX` is
+first worked at depth 2, for `cp`, and succeeds. Inside
+`velocityOfSound` it is worked at depths 9 and 8 and succeeds there
+too, so `velocityOfSound` at depth 1 is refused for nesting deeper
+than the compiler follows, and that refusal is what leaves it standing
+for the walk with the record written out. In `R22` the same `cp_pTX`
+at depths 9 and 8 is refused for nesting, stays a call, and
+`velocityOfSound` at depth 1 is worked out. So the answers kept from
+an earlier asking change whether a later and deeper one reaches
+`MAX_DEPTH`. The reading, not measured: with the bodies under `cp_pTX`
+already answered, its descent finishes, and what it builds is then too
+deep for its caller. Which remembered body makes the difference was
+not printed, and the ceiling is not touched. The result of
+a model should not depend on the order of its declarations, so the
+next shift has its question: is a remembered answer charged the depth
+it would have cost?
