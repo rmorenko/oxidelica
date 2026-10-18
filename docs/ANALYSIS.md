@@ -52659,3 +52659,96 @@ dopri45 and bdf to the same 1017 points, and its last point satisfies
 the resistance law: `dp = a*V*|V| + b*V` with `a = 1`, `b = 2`,
 `V = 446.2147` gives 200000 Pa, the `fitting1.dp` printed
 (`/tmp/m454/vfr_dopri45.csv`, `vfr_bdf.csv`).
+
+### `dgesv is written here, and not for what it was handed` (2): two walls under one wording
+
+The row was not mapped before. Both models are refused in
+`inlining.rs`, where a call to a body written in Rust is laid out by
+`outside::shape`, and the shape of `dgesv` there is a square matrix
+and a right-hand side that is a vector. A probe at the refusal
+(`~/oxideflow/park/m454-outside-probe.diff`, `OXPROBE_OUTSIDE`) prints
+what each model hands over.
+
+`TestMatricesExamplesSolveLinearEquations` hands `[4, 6]` numbers in
+shapes `[2, 2]` and `[2, 3]`. That is `Matrices.solve2(A1, B2)`, a
+right-hand side of three columns, which LAPACK's `dgesv` takes and
+the shape here does not. The smallest model is `G1.mo` in
+`~/oxideflow/park/m454-dgesv/`: `solve2` with `B[2, 3]` is refused
+with the same words, and `G2.mo`, the same call with `B[2, 1]`, runs
+to `{-2, 3}`. So this wall is the width of the right-hand side.
+
+`TestWaterPumpCharacteristics` hands `[1, 3]` numbers in shapes `[]`
+and `[3]`, and the first argument is the name `V_flow_nominal_pow`.
+The pump's `polynomialFlow` declares it as a protected
+`Real V_flow_nominal_pow[N, N] = {{... for j in 1:N} for i in 1:N}`
+with `N = size(V_flow_nominal, 1)`, also protected. The matrix reaches
+the call as a name with no shape. `P1.mo` shows it in twelve lines,
+and `P2.mo`, the same body with `M[3, 3]` written out, runs to
+`y = -33349900`, which is what the three coefficients of a curve
+through `(0, 100)`, `(0.001, 50)` and `(0.0015, 0)` add up to. So this
+wall is the size of a protected array whose dimension is another
+protected name, not `dgesv`. The two models share a wording and not a
+layer. No change was made.
+
+### `the trip count of a loop is not settled here` (2): a tuple equation has no road to the walk
+
+The row holds `ModelicaTest.Math.TestInterpolateParametric` and
+`TestInterpolateTimeVarying`, and it was not mapped before. Both write
+`(x, i) = Modelica.Math.Vectors.interpolate(tabx, taby, time)`, and
+the body hunts the row with a `while`, which no unrolling can settle
+because the row is what the run decides. The small models are in
+`~/oxideflow/park/m454-tuple-walk/`. `I3`, the same call with one
+output, `x = interpolate(...)`, runs to `x(5) = 25`. `I1`, the same
+call written as a tuple, is refused. `I5` and `I4` show it without the
+library: a nine-line function with a `while` runs when it is called
+for one output and is refused when its two outputs are taken as a
+tuple. `I6` makes the second output `Real`, which changes nothing.
+
+The cause is the tuple equation itself. A `when` tuple
+(`equations.rs`, `WhenAction::TupleAssign`) and an algorithm tuple
+(`statements.rs`) both catch the refusal of an unrollable loop and let
+the call stand for the run, which walks the body and takes the k-th
+output. The tuple equation (`equations.rs`, the `Expr::Tuple` arm
+before `spatialDistribution`) has no such arm, so the refusal passes
+straight through. A probe that gives it the same arm as the `when`
+tuple (`~/oxideflow/park/m454-tuple-walk-probe.diff`,
+`OXPROBE_TUPLE_WALK`) lets `I1`, `I4` and `I6` run to 25. Both models
+of the row then move one storey, to `structurally singular model:
+cannot differentiate a subscript that survived flattening`, because
+they also ask for `der(x)` and `x` is now a subscript of a standing
+call. The library's `interpolate` carries `smoothOrder = 1`, so that
+derivative is what the test is about. So the chain is at least two
+links: the tuple's road to the walk, and a derivative of an output of
+a walked body. The probe was not taken. No model runs under it, and
+the arm decides which tuple equations go to the walk, which needs a
+pair of its own.
+
+### `clock is a Clock, so it needs an interval` (2): helpers with a free clock input
+
+`CylinderAirCharge` and `InductionToPowerDelay` of
+`Clocked.Examples.Systems.Utilities.ComponentsThrottleControl` are
+blocks and not examples. Each declares a `ClockInput clock` that
+nothing outside connects when the block is checked alone, so the
+partition has no clock to tick on. The refusal (`partitions.rs`) is
+honest, and the census counts the two only because they sit under
+`Examples`. Inside `Engine` they are fed the crankshaft's clock, and
+`Engine` stands at the `shiftSample` wall mapped in m451.
+
+### `ModelicaStrings_compare is not a function` (1): a named argument carried past its binding
+
+`ModelicaTest.Utilities.TestStrings` calls `Strings.compare("abc",
+"ABC", caseSensitive = false)`. `compare` is a wrapper whose body is
+`external "C" result = ModelicaStrings_compare(string1, string2,
+caseSensitive)`. The named argument reaches the external name
+unbound, and `names.rs` refuses a named argument to anything that is
+not a function. `S1.mo` in `~/oxideflow/park/m454-compare/` shows it in
+seven lines. `S2.mo`, the same call with `false` given by position,
+runs to `c = 2`, which is `Compare.Equal`, the right answer. So the
+wall is how a named argument is bound to the wrapper's inputs before
+the wrapper is replaced by its external call, and not the string
+comparison. No change was made.
+
+The `--check` of the reference on `ox23` (`/tmp/m454/ref.check`) held
+on 520 and moved on 1, the same `LinearWater_pT_Ambient` at its 60 s
+CPU ceiling that m453 put down to the weather. It ran beside the
+preflight again.
