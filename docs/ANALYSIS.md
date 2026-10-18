@@ -53164,3 +53164,53 @@ The `--check` of the reference on `ox2` (`/tmp/m457/ref.check`) held on
 the desk: `DoublePendulum` and `TestAllProperties.LinearWater_pT_Ambient`.
 Alone they took 35.4 s and 52.3 s of user time. Weather, and no row of
 the reference was rewritten.
+
+## The floors to the judge's print, the brackets counted, and two layers under `fire_p` (m459)
+
+### The floors, to the judge's print of m456
+
+The library job 39143596312 printed 960 flatten and 791 run, runnable
+843 and 747, on de01c8e. The head 0661060 differs from it by one
+heading of prose in this file, so the print stands for the head. The
+pair of the series (`/tmp/m456/p3off_lists.txt` against
+`p3on_lists.txt`, 956 / 789 against 960 / 791) gained in the flattened
+list exactly `TestNonlinear`, `TestColorMapToSvg`,
+`TestAllProperties.MoistAir` and
+`TestAllProperties.IncompleteMedia.ReferenceMoistAir`, and in the run
+list exactly the first two. It lost nothing. `SpringWithMass`, the
+swinging `SMPM_VoltageSource` of `Magnetic.FundamentalWave` and
+`TestJunctionIdeal` all stand by name in the run list of the on half,
+so the floors go to 960, 788, 843 and 744: the printed numbers less
+those three on the two run floors.
+
+### The brackets of `WithDerivative`, counted
+
+Both censuses of m456 are whole, and the patch they were taken on is
+the parked `m455-describe-brackets.diff` (`/tmp/m456/census.txt`
+without it, `census_br.txt` with it). Counted between the section
+heads: the flatten half is 60 models in 34 rows in both, the run half
+169 models in 114 rows in both. The rows are identical line for line.
+The raw reports (`raw.txt` against `raw_br.txt`) differ only in the
+lines of time and work, and no refusal is worded differently. No row
+merges and no row splits. The reason is in the text of the
+refusals: the one that names a `WithDerivative`
+(`HeatingSystem`, `raw.txt:159`) prints the expression in the
+compiler's inner spelling, `WithDerivative(Index(Call(...)))`, and
+never goes through `grouped`, so the brackets cannot reach it. The
+patch changes what `why` prints and nothing the census counts. It
+stays parked.
+
+### The fifth subscript, `RAM`
+
+The row "the subscript of `X` must be a whole number the compiler can
+see" went from 4 to 5 with `Modelica.Electrical.Digital.Examples.RAM`.
+The series of m456 took down the wall in front of it: the off half
+refused it on "`Advanced.scanInteger` has 1 output(s) for 2
+target(s)". `DLATRAM` writes `mem[int_addr,1:n_data] := mem_word`
+inside its algorithm, where `int_addr` is worked out from the address
+lines during the run. That is the layer of the FFT buffer mapped in
+"The subscript row, probed". Reduced to 11 lines
+(`/tmp/m459/ram/R.mo`), it refuses the same way. With the constant `1`
+as the row (`R2.mo`), it is refused as unbalanced, "nothing determines
+mem[2,1], ..., mem[4,2]", which is the second link of that section.
+The growth by one is expected and is not a new family.

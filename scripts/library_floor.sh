@@ -470,7 +470,21 @@ FILES_FLOOR=2671
 # lost nothing, 529 Jacobians in both:
 #
 #   955 + 1 = 956
-FLATTEN_FLOOR=956
+#
+# And flatten 960 = 956 + TestNonlinear and TestColorMapToSvg of
+# ModelicaTest.Math, and TestAllProperties.MoistAir and
+# TestAllProperties.IncompleteMedia.ReferenceMoistAir of
+# ModelicaTest.Media, which flatten once the series of 2e4d380 is in.
+# From one desk binary, the series' switches set against unset, the
+# flattened list gained exactly those four and lost nothing, 529 and
+# 1974 Jacobians in both halves (/tmp/m456/p3off_lists.txt against
+# p3on_lists.txt, 956 / 789 against 960 / 791). Set from the print:
+# the runner printed 960 / 791 and runnable 843 / 747 on de01c8e, in
+# job 39143596312; the head 0661060 differs from it by one heading of
+# prose in docs/ANALYSIS.md and by nothing the library step measures.
+#
+#   956 + 4 = 960
+FLATTEN_FLOOR=960
 # The two run floors came down by one, and the one is named: giving a
 # record constructor called with no arguments the values its `extends`
 # stated took `Modelica.Thermal.FluidHeatFlow.Examples.WaterPump` out
@@ -1584,7 +1598,17 @@ FLATTEN_FLOOR=956
 # the same numbers. The swings and TestJunctionIdeal stay out:
 #
 #   789 - 2 swings - TestJunctionIdeal = 786 = 785 + 1
-RUN_FLOOR=786
+#
+# And run 788 = 786 + TestNonlinear and TestColorMapToSvg, by the same
+# pair and the same runner print as `FLATTEN_FLOOR` (791 printed by job
+# 39143596312 on de01c8e). The swings stay out, SpringWithMass and
+# Modelica.Magnetic.FundamentalWave.Examples.BasicMachines
+# .SynchronousMachines.SMPM_VoltageSource (the one of
+# Electrical.Machines does not swing), and TestJunctionIdeal as above;
+# all three stand in the run list of p3on_lists.txt by name:
+#
+#   791 - 2 swings - TestJunctionIdeal = 788 = 786 + 2
+RUN_FLOOR=788
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -1808,7 +1832,11 @@ RUN_FLOOR=786
 #
 # And runnable flatten 839 = 838 + LogicalSample, a runnable example,
 # by the same pair as `FLATTEN_FLOOR`: 839 printed.
-RUNNABLE_FLATTEN_FLOOR=839
+#
+# And runnable flatten 843 = 839 + the four of `FLATTEN_FLOOR`, all
+# runnable examples, by the same pair and runner print (job
+# 39143596312): 843 printed.
+RUNNABLE_FLATTEN_FLOOR=843
 # And runnable run 674 = 671 + the three batteries, all runnable
 # examples, by the same runner job as `RUN_FLOOR` (d58700e, job
 # 112530851204).
@@ -1950,7 +1978,13 @@ RUNNABLE_FLATTEN_FLOOR=839
 # pair as `RUN_FLOOR`: 745 printed, less the same three.
 #
 #   745 - 2 - 1 = 742 = 741 + 1
-RUNNABLE_RUN_FLOOR=742
+#
+# And runnable run 744 = 742 + TestNonlinear and TestColorMapToSvg,
+# both runnable, by the same pair and runner print as `RUN_FLOOR`: 747
+# printed (job 39143596312), less the same three.
+#
+#   747 - 2 - 1 = 744 = 742 + 2
+RUNNABLE_RUN_FLOOR=744
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
