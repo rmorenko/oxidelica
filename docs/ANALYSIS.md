@@ -53475,3 +53475,39 @@ Clock, so it needs an interval` (2, `CylinderAirCharge` and
 `InductionToPowerDelay`, both parts of the throttle example),
 `dgesv is written here` (2), the flexible size of `t_new.columns` (2),
 and the branch units of the thyristor (2).
+
+### The order of two askings: the table of expansions forgets the depth
+
+The question m459 left open was whether a remembered answer is charged
+the depth it would have cost. Two probe switches were built on f916b2d
+in a scratch tree (`/tmp/m460/oxp`, `/tmp/m460/oxp2`, not committed),
+and the four parked models (`R7`, `R16`, `R22`, `R23` of
+`~/oxideflow/park/m459-order-of-askings`) were run from one binary:
+
+```text
+                                   R7    R16      R22    R23
+unchanged                          runs  refused  runs   runs
+depth added to the EXPANDED key    runs  runs     runs   runs
+deep refusals not remembered       refused in all four
+```
+
+The refusal is `subscripts and arrays survive flattening only as
+scalars`. So the table `expand` keeps answers in is the place, not
+`inline_body`'s, whose key already carries the depth. The `EXPANDED`
+key is the scope, the mark and the expression, with no depth, and an
+answer worked out at one depth is handed to an asking at another. The
+second row shows that the order of the declarations stops mattering
+once the depth is in the key. The third row shows that the three models
+which run lean on remembered refusals: a refusal for nesting, served
+to a shallower asking, leaves the call standing for the walk, and
+that is the road they run on. Worked out afresh, the same shallower
+asking goes deep enough to build the array the run cannot take. `R16`
+fails because the success at one depth is served where the walk
+was owed.
+
+Nothing was changed. Adding the depth to the key is a candidate fix,
+and its cost has not been measured. The table was written to trim
+forty million expansions of `DoublePendulum` to 641 questions, so a
+key that splits by depth has to be timed on the dear models and run
+as a corpus pair before it is anything more. That is a shift of its
+own.
