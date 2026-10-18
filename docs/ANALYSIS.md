@@ -52413,3 +52413,44 @@ the check) are the tests. The second part changes which checks reach
 every model whose integer parameter is worked out by a function with
 an `assert`. That is a list of victims to measure with a pair, and
 this shift did not take it.
+
+### `subscripts and arrays survive flattening only as scalars` (2): two walls under one wording
+
+The refusal names a shape and not an equation. The two models stand at
+different walls.
+
+`FlueGasSixComponents` (`ModelicaTest.Media.TestAllProperties`) is the
+wall m448 found for the two `MoistAir` models. Its test differs from
+the common one only in `isentropicEnthalpy(..., exact = true)`. Without
+`exact` the call runs (`/tmp/m453/fg/F3.mo`). With it, the mixture's
+body calls `specificEnthalpy_psX(p, s, refState.X)`, and that call
+alone (`F4.mo`) is refused at flattening with `an array value cannot
+be used where a scalar is expected`. A constant `X` in place of
+`state.X` (`F5.mo`) is refused the same way. So it is the function and
+not the record field. In the full model the same road reaches the run
+as a written-out `X` instead, so the wording differs.
+
+`GyroscopicEffects` shrinks to three components
+(`~/oxideflow/park/m453-gyro/G5.mo`): `World`, a `Spherical` with
+`angles_fixed = true` and a `BodyCylinder`. It is refused in 16 s.
+Without `angles_fixed` it is refused the same way (`G7.mo`). Without
+`w_rel_a_fixed` it stops elsewhere, at a start the equations do not
+determine (`G6.mo`), which fits: that flag is what selects the branch
+of `Spherical` holding the equation below. A probe that prints
+the parent chain of the failing compile
+(`~/oxideflow/park/m453-array-parent-probe.diff`, `OXPROBE_ARRAY`)
+names the equation. It is the joint's `w_rel`, written as the angular
+velocity of `frame_b.R` less `resolve2(frame_b.R,
+angularVelocity1(frame_a.R))`. It reaches the plan as
+`resolve2({{T rows}, {w}}, {0, 0, 0})[3]`: a call left standing with
+the orientation record written out as a nested list, subscripted by
+the element. The code generator neither inlines it nor knows it as a
+walked body. The same equation in a small model runs: `G8.mo`, then
+`G10.mo` with `world.frame_b.R`, then `G11.mo` with `nullRotation()`.
+So the call stands only in the joint's context. The likely difference
+is that the joint's `R` takes part in index reduction while the small
+model's does not, since `resolve2` carries `derivative(noDerivative =
+R)` and `InlineAfterIndexReduction`. That is a reading and not a
+measurement. A grep answers half of it: no source file under `crates/`
+names `InlineAfterIndexReduction`. The next probe is which pass leaves
+`resolve2` standing in `G5`.
