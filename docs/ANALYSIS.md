@@ -53367,3 +53367,19 @@ not printed, and the ceiling is not touched. The result of
 a model should not depend on the order of its declarations, so the
 next shift has its question: is a remembered answer charged the depth
 it would have cost?
+
+### `unknown function previous` (1): a `when` on a clock written in place
+
+`ComponentsThrottleControl.SpeedControl` writes its controller as
+`when Clock() then x_d = previous(x_d) + ...; end when`. Shrunk to
+eight lines (`/tmp/m459/prev/Q2.mo`): `when Clock(0.1) then x =
+previous(x) + 0.1*N; end when` is refused with "unknown function
+`previous`". The same equation under a clock that is declared and
+named, `Clock c = Clock(0.1); when c then ...` (`Q3.mo`), runs and
+gives x(1) = 0.50139 from the eleven ticks. So the clocked `when` is
+known only through a declared name. With the constructor written in
+the condition, the clause goes down the road of an ordinary `when`,
+where `previous` is nobody's. It is one model and was not fixed in
+this shift: there was not time left for the pair and the preflight a
+change to the clock layer is owed. Parked as
+`~/oxideflow/park/m459-when-on-a-clock-written-in-place`.
