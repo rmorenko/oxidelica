@@ -52364,3 +52364,31 @@ and the start `a = 0` meets a block whose Jacobian is singular there.
 The test now holds that model to `singular Jacobian`. A twin that adds
 `time` to one side, so that the row is clocked, is held to the old
 refusal. Under the switch the first assertion goes red.
+
+The chain behind it, walked further with probes at the `assert` arm,
+at the inliner's memory, at `checks_rewind` and at the take in
+`instantiate` (`~/oxideflow/park/m453-assert-record/probes.diff`, on
+`W6`, `a = -3`):
+
+1. The first round of `settle_parameters` asks for `p`, enters the
+   body with `c` bound whole to `R(a = a)`, and sets `c.a > 0` aside.
+   The settling fails.
+2. The second round asks the same thing, and `inline_body` answers it
+   from `INLINED`, which keeps a body's checks beside its outputs. The
+   stale `c.a > 0` goes onto the pile a second time. That round fails
+   as well.
+3. An expansion inside `instantiate_components` enters the body with
+   `c.a` bound field by field, and its check `a > 0` is the right one.
+   That expansion is a measurement and rewinds what it set aside, so
+   the right check is dropped, correctly.
+4. The take at the end of `instantiate` finds `["c.a > 0", "c.a > 0"]`,
+   and the run refuses the name.
+
+So the stale checks come only from the failed settling, once fresh and
+once from memory. Rewinding after a failed settling (the parked probe)
+removes both, and nothing is left, because no road that keeps its
+checks ever produced the right one. Which road builds the binding `p`
+finally carries was not established. A fix wants the rewind and also
+that road keeping the check the body makes. Measuring that is a later
+shift's work, with `W6` as the test of the check and `W1` as the test
+of the run.
