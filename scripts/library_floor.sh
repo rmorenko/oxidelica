@@ -2814,7 +2814,26 @@ WORK_PERCENT=5
 # 85852741 names they look up on their own (/tmp/m405/eight_only.txt):
 # 1745854468 - 85852741 = 1660001727. The desk printed 1658239533
 # without them (/tmp/m405/main2.txt), 1062 per million below.
-WORK_NAMES=1660001727
+#
+# Moved to 1656431234 from /tmp/m457/p_on.txt, the m457 order of the
+# conditions' constants. One binary printed 1732340625 with
+# OXIDELICA_CONDITION_CONSTANTS_AFTER set (/tmp/m457/p_off.txt) and
+# 1656431234 without it, 43819 per million down, with the flatten and
+# run lists identical name for name (1751 lines, /tmp/m457/L_off.txt,
+# L_on.txt), 960 / 791 and 843 / 747 both ways, and 529 and 1974
+# jacobians apart both ways. The build machine printed the same
+# 1732340625 for 2e4d380 (job 117650837991), so the count agrees with
+# the desk to the digit and the centre is taken from the desk. The m456
+# series cost 1732340625 - 1659658471 = 72682154 names and the new order
+# gives back 75909391. Fewer names looked up for more models holds only
+# against the count before that series: 3227237 fewer (1944 per million
+# down) while the series flattens four models more (956 / 789 to
+# 960 / 791). Those four were won by the series and not by the order,
+# whose two halves give one list, and ReferenceMoistAir among them did
+# not flatten before and carries 20.6 million names alone. The old
+# reference would have been red on the fall, 2151 per million below it
+# and 250489 names under its lower edge.
+WORK_NAMES=1656431234
 WORK_NAMES_PPM=2000
 
 # The band, as a function, so that it can be seen red without a library
