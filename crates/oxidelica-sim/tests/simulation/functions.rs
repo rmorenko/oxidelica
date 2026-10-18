@@ -4998,3 +4998,16 @@ fn a_walked_function_written_as_a_short_class_runs_its_base_body() {
     assert_eq!(last_of(&result, "r2.a"), 3.0);
     assert_eq!(last_of(&result, "r2.b"), 6.0);
 }
+
+#[test]
+fn a_length_named_by_a_local_of_the_body_is_measured() {
+    // The pump's polynomial curve sizes its matrix `P[N, N]` with a
+    // local `Integer N = size(V, 1)`, and solves for its coefficients
+    // in another local's binding. The locals were not among what a
+    // length was read against, so `P` took no shape and `dgesv` was
+    // handed it as four numbers where nine were written. Through the
+    // three points the quadratic is 100 - 33333.3 V - 2.2e7 V^2, which
+    // at V = 0.0005 is 250/3.
+    let result = run("package H2 function dgesv_vec input Real A[:, size(A, 1)]; input Real b[size(A, 1)]; output Real x[size(A, 1)] = b; output Integer info; protected Integer n = size(A, 1); Integer nrhs = 1; Real Awork[size(A, 1), size(A, 1)] = A; Integer lda = max(1, size(A, 1)); Integer ldb = max(1, size(b, 1)); Integer ipiv[size(A, 1)]; external \"FORTRAN 77\" dgesv(n, nrhs, Awork, lda, ipiv, x, ldb, info); end dgesv_vec; function solve input Real A[:, size(A, 1)]; input Real b[size(A, 1)]; output Real x[size(b, 1)]; protected Integer info; algorithm (x, info) := dgesv_vec(A, b); end solve; function f input Real x; input Real V[:]; input Real H[:]; output Real y; protected Integer N = size(V, 1); Real P[N, N] = {{if j > 1 then V[i]^(j-1) else 1 for j in 1:N} for i in 1:N}; Real c[size(V, 1)] = solve(P, H); algorithm y := c[1] + c[2]*x + c[3]*x^2; end f; model M Real a = f(0.0005 + 0*time, {0, 0.001, 0.0015}, {100, 50, 0}); annotation(experiment(StopTime = 0.1)); end M; end H2; ");
+    assert!((last_of(&result, "a") - 250.0 / 3.0).abs() < 1e-9);
+}

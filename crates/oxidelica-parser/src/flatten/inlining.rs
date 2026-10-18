@@ -1597,6 +1597,12 @@ fn inline_body(
     answer
 }
 
+/// Whether a length named by a scalar local of a body reads that
+/// local's binding. `OXIDELICA_NO_LOCAL_LENGTHS` leaves it unmeasured.
+fn local_lengths_open() -> bool {
+    std::env::var_os("OXIDELICA_NO_LOCAL_LENGTHS").is_none()
+}
+
 /// Whether a partial function nobody redeclared is refused as that.
 /// `OXIDELICA_NO_UNWRITTEN_PARTIAL` gives the old refusals back, so that
 /// one binary gives both registers.
@@ -1761,6 +1767,27 @@ fn worked_body(
             numbers
         }
     };
+    // A length may be named by a local of the body that is itself one
+    // number: `Integer N = size(V_flow_nominal, 1); Real P[N, N]` is
+    // how the pump's polynomial curve sizes its matrix. The bindings
+    // above hold the inputs and nothing of the locals, so `N` measured
+    // nothing, the matrix took no shape, and `dgesv` was handed it as
+    // four numbers where nine were written. The scalar locals' own
+    // bindings are read as lengths too, in terms of what the call
+    // handed in.
+    let mut length_bindings = bindings.clone();
+    if local_lengths_open() {
+        for local in &class.components {
+            if local.causality == Causality::None
+                && local.dimensions.is_empty()
+                && !length_bindings.contains_key(&local.name)
+            {
+                if let Some(value) = &local.binding {
+                    length_bindings.insert(local.name.clone(), substitute_refs(value, &bindings));
+                }
+            }
+        }
+    }
     for component in &class.components {
         if component.dimensions.is_empty() || sizes.contains_key(&component.name) {
             continue;
@@ -1771,7 +1798,7 @@ fn worked_body(
             .map(|dimension| {
                 settled_in_body(
                     dimension,
-                    &bindings,
+                    &length_bindings,
                     &caller_numbers,
                     &sizes,
                     registry,

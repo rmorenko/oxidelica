@@ -53511,3 +53511,32 @@ forty million expansions of `DoublePendulum` to 641 questions, so a
 key that splits by depth has to be timed on the dear models and run
 as a corpus pair before it is anything more. That is a shift of its
 own.
+
+### `dgesv is written here, and not for what it was handed` (2)
+
+The two models of this row stand on two different walls.
+`TestWaterPumpCharacteristics` reaches `dgesv` through the pump's
+`polynomialFlow`, which sizes its matrix `P[N, N]` with a local
+`Integer N = size(V_flow_nominal, 1)`. Lengths were read against the
+inputs a call hands in and against nothing of the body's locals, so
+`N` measured nothing, `P` took no shape, and `dgesv` was handed it as
+four numbers where nine were written (`/tmp/m460/dg/D6.mo`, three
+lines over the library). The scalar locals' own bindings are now read
+as lengths too, behind `OXIDELICA_NO_LOCAL_LENGTHS`. The test is a
+self-contained copy of the curve with its own `dgesv_vec`: it gives
+250/3 at V = 0.0005, the quadratic through the three points, and under
+the switch it is refused with the old words. On one model,
+`TestWaterPumpCharacteristics` flattens and runs.
+
+`TestMatricesExamplesSolveLinearEquations` keeps its refusal, and its
+wall is a different one. `Matrices.solve2` hands `dgesv` a right side
+that is a matrix (`B2[2, 3]`), and the shape rule written here takes
+only a vector, a square of `n * n` and a side of `n`. Reading a matrix
+side means `dgesv` has to learn `nrhs`, which cannot be told from the
+count of numbers alone, as the note on `dgelsy` already says. That is
+what is left of the row.
+
+A short function that fills an array input of its base, `function g =
+f(V = {1, 2, 3})`, is refused with `missing its argument V`
+(`/tmp/m460/dg/F1.mo`). It did not stand in either model's way and was
+not taken.

@@ -2913,7 +2913,20 @@ WORK_PERCENT=5
 # not flatten before and carries 20.6 million names alone. The old
 # reference would have been red on the fall, 2151 per million below it
 # and 250489 names under its lower edge.
-WORK_NAMES=1656431234
+#
+# Moved to 1668297756 from /tmp/m460/pair/on7.txt, by two changes of
+# m460 that each let a model flatten. From one binary with the three
+# switches of f916b2d set against unset, the count went 1659388140 to
+# 1659393903 (/tmp/m460/pair/off5.txt, on5.txt) with ControlledMixingUnit
+# the only new line. From one binary with OXIDELICA_NO_LOCAL_LENGTHS set
+# against unset it went 1659393903 to 1668297756 (off7.txt, on7.txt),
+# 5366 per million up, with TestWaterPumpCharacteristics the only new
+# line in either list. That model alone looks up 16668051 names
+# flattened against 7764198 refused (`--only`, both ways), 8903853 of
+# the 8903853 added. The lists hold no loss, and 529 and 1974 jacobians
+# apart both ways. Without the move this line would turn red for a
+# model won, 7164 per million above the old centre.
+WORK_NAMES=1668297756
 WORK_NAMES_PPM=2000
 
 # The band, as a function, so that it can be seen red without a library
