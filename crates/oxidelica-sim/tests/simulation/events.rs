@@ -661,6 +661,24 @@ fn an_if_decided_on_a_tick_counts_on_that_tick() {
 }
 
 #[test]
+fn a_clock_written_in_the_condition_of_a_when_is_a_clock() {
+    // `when Clock(0.1) then` writes its clock in place, with no `Clock`
+    // declared anywhere. Asking the declarations alone, the pass that
+    // reads clocked partitions gave up before it reached the clause, and
+    // the run met `previous` as a function nobody had. The ticks are at
+    // 0, 0.1, ..., 0.5, so `x` ends at 0.1 times the sum of `sin` over
+    // them - the number the same clause gives under a declared clock.
+    let result = run(
+        "model M Real n = sin(time); discrete Real x(start = 0, fixed = true); \
+         equation when Clock(0.1) then x = previous(x) + 0.1*n; end when; \
+         annotation(experiment(StopTime = 0.5, Interval = 0.5)); end M;",
+    );
+    let x = result.columns.iter().position(|c| c == "x").unwrap();
+    let expected: f64 = (0..=5).map(|k| 0.1 * (0.1 * k as f64).sin()).sum();
+    assert!((result.rows.last().unwrap()[x] - expected).abs() < 1e-9);
+}
+
+#[test]
 fn an_if_on_the_first_tick_is_decided_on_the_clock() {
     // `BooleanChange` and `IntegerChange` answer `false` on the first
     // tick and compare with `previous` after it, in an `if firstTick()`.

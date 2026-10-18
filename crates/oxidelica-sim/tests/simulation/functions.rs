@@ -4976,3 +4976,25 @@ fn a_parameter_worked_out_by_a_checking_body_keeps_the_check_in_flat_names() {
         assert!(refused.contains("positive"), "{a}: {refused}");
     }
 }
+
+#[test]
+fn a_walked_function_written_as_a_short_class_runs_its_base_body() {
+    // `function g = f(final check = false)` writes no statements of its
+    // own: they are `f`'s. A body walked at run time travelled with the
+    // short class's empty algorithm, every field of its record stayed
+    // at nought, and the moist air's speed of sound came out as zero
+    // through `sqrt(max(0, NaN))`. The `while` keeps `f` from being
+    // written out, so it is walked; `g` must answer what `f` answers.
+    let result = run("package Y record R Real a; Real b; end R; \
+         function f input Real x; input Boolean check = true; output R r; \
+         protected Real s; Integer i; \
+         algorithm s := 0; i := 0; \
+         while s < x loop s := s + 1; i := i + 1; end while; \
+         r.a := s; r.b := 2*i; end f; \
+         function g = f(final check = false); \
+         model M Real x = 2.5 + time; R r1 = f(x); R r2 = g(x); \
+         annotation(experiment(StopTime = 0.1)); end M; end Y;");
+    assert_eq!(last_of(&result, "r1.a"), 3.0);
+    assert_eq!(last_of(&result, "r2.a"), 3.0);
+    assert_eq!(last_of(&result, "r2.b"), 6.0);
+}

@@ -53383,3 +53383,95 @@ where `previous` is nobody's. It is one model and was not fixed in
 this shift: there was not time left for the pair and the preflight a
 change to the clock layer is owed. Parked as
 `~/oxideflow/park/m459-when-on-a-clock-written-in-place`.
+
+The probe of the next shift put the fault one storey higher than the
+map did. `clock_expr` reads a constructor written in place perfectly
+well, `Clock(0.1)` and `Clock()` alike, and the clause loop in
+`partition_clocks` hands it the condition. It never got there:
+`clocks_of_the_model` gave up at its first line on a model that
+declares no `Clock`, so the whole clocked pass was skipped and the
+clause stayed an ordinary `when`. The same equation with a declared
+clock (`Q3`) differs only in having a declaration, which is why it ran.
+The pass now also goes on when a single-branch `when` is conditioned on
+`Clock(...)` with arguments, behind `OXIDELICA_NO_CLOCK_IN_CONDITION`.
+`Q2` gives x(0.5) = 0.146287, which is 0.1 times the sum of `sin` over
+the six ticks 0 to 0.5, the number `Q3` gives. `Q1` with
+`previous(N)` gives 0.098344, the sum over 0 to 0.4.
+
+It does not win `SpeedControl`, and the map was wrong to promise that
+it would. That clause is `when Clock() then`, a clock that says
+nothing and waits to be settled by what the clause touches. Inside the
+example that is the samplers' clock. Taken alone, with nothing else
+clocked in it, nothing can settle it. Letting a bare `Clock()` into the
+pass only moved the refusal from the run ("unknown function
+`previous`") to flattening ("`x_d` uses `previous`, but nothing says
+which clock it is on"), and cost the model its flatten line. So the
+fix takes only clocks that state their interval. `SpeedControl` keeps
+its refusal, and it is a true one: the class is a part, not an example
+(`EngineThrottleControl` is the example, and it stands at the
+`shiftSample` wall). Across the library, `when Clock(<interval>)` is
+written only inside the documentation strings of `ModelicaReference`,
+so the corpus should not move. The change is for the language, not
+for the count.
+
+### A short function's body, walked at run time, was empty
+
+`ReferenceMoistAir` gave the speed of sound as 0 m/s (`R22` of m459,
+which runs). The chain, shrunk one call at a time: `velocityOfSound` is
+`sqrt(max(0, R*T*cp/cv))`, `cv` came out `NaN`, and `max(0, NaN)` gave
+the zero. `cv` is the water part's `IF97_new.cv_pT`, which reads a
+record from `IF97_new.g2`, and that is a short class:
+`function g2 = Basic.g2(final checkLimits = false)`. Called directly
+(`/tmp/m460/vs/V5.mo`), `Basic.g2` gives `tau = 1.811169`. The short
+class gives every field as 0. The alias with no modifier works, because
+it resolves to `Basic.g2` itself, but the modifier makes a class of its
+own with no statements, and `programs_used` carried that class's empty
+algorithm to the run. The walk ran nothing and every field kept its
+start of 0. So `cp` was wrong too: 996.45 against 1015.26 after the
+fix, because the steam part's `cp` was 0.
+
+The fix carries the statements of the first base along `extends` that
+writes any, read in that base's scope, behind
+`OXIDELICA_NO_BODY_FROM_BASE`. The test is a short class over a body
+with a `while` (so it is walked, not inlined), and under the switch it
+gives 0 where 3 is owed. After the fix `R22` gives a = 347.28 m/s,
+which is `sqrt(R*T*cp/cv)` with R = 288.86, T = 298.15, cp = 1015.26
+and cv = 725.02. This was a wrong number standing in a model that
+counts as running, and no floor or census could see it.
+
+It also answers the m459 question about order only in part. `R16` (the
+same declarations in the other order) still refuses with `subscripts
+and arrays survive flattening only as scalars`, so whether a remembered
+answer is charged the depth it would have cost is still open. A probe
+that adds the depth to the key of `EXPANDED` was built, and it was not
+measured once the zero turned up.
+
+### `Clock(c, solverMethod = m)`: the top of the census
+
+The fresh census on the head (m460) sums 58 models in 33 rows of the
+flatten half and 170 in 114 of the run half, against 60 / 34 and
+169 / 114 in m456. The moves are those of the four layers: the three
+`array of shape [N] where a scalar` rows of m456 are gone,
+`GenerateRandomNumbers` is at `MAX_DEPTH`, `Hysteresis` is at a unit
+mismatch, and `IMC_InverterDrive` is a second `step size underflow`.
+
+The top row that nobody has mapped was `Clock` has no argument called
+`solverMethod` (2: `ControlledMixingUnit` and
+`ClockedWithDiscretizedContinuousController`). The library's clock
+blocks write `Clock(Clock(period), solverMethod = solverMethod)`, and
+the named-argument table knew `Clock` only as `interval, resolution`.
+With the name read as the solver form, the String parameter it names
+made an event clock whose start was a name ("the start interval of an
+event clock has to be a number"). Both are now read, behind
+`OXIDELICA_NO_CLOCK_SOLVER_BY_NAME`. The test is a clock block with a
+String parameter: ten Euler steps reach 0.9^10, and under the switch
+it is refused at parse. `ControlledMixingUnit` now flattens and
+refuses to run at `discrete variable inverseBlockConstraints.y2 is
+never assigned`. The other model asks for `ImplicitEuler`, which the
+clocked solver refuses honestly.
+
+The next rows of the flatten half that nobody has mapped: `clock is a
+Clock, so it needs an interval` (2, `CylinderAirCharge` and
+`InductionToPowerDelay`, both parts of the throttle example),
+`dgesv is written here` (2), the flexible size of `t_new.columns` (2),
+and the branch units of the thyristor (2).

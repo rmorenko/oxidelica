@@ -63,6 +63,19 @@ fn order_builtin_arguments(name: &str, args: Vec<Expr>) -> Result<Vec<Expr>, Str
     if !args.iter().any(|a| matches!(a, Expr::NamedArg(..))) {
         return Ok(args);
     }
+    // `Clock` is declared four ways, and the table above holds the
+    // names of one. The form that adds a solver to a clock is
+    // `Clock(c, solverMethod)`, and the library's clock blocks write
+    // it by name: `Clock(Clock(period), solverMethod = solverMethod)`.
+    // Read against the interval form, it was refused as an argument
+    // `Clock` does not have.
+    if name == "Clock" && std::env::var_os("OXIDELICA_NO_CLOCK_SOLVER_BY_NAME").is_none() {
+        if let [clock, Expr::NamedArg(keyword, method)] = args.as_slice() {
+            if keyword == "solverMethod" && !matches!(clock, Expr::NamedArg(..)) {
+                return Ok(vec![clock.clone(), (**method).clone()]);
+            }
+        }
+    }
     let Some((_, declared)) = BUILTIN_ARGUMENTS.iter().find(|(known, _)| *known == name) else {
         return Ok(args);
     };

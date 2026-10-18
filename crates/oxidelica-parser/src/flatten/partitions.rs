@@ -651,7 +651,22 @@ fn clocks_of_the_model(model: &mut Model) -> Result<Option<DeclaredClocks>, Stri
         .filter(|component| component.type_name == "Clock")
         .map(|component| component.name.clone())
         .collect();
-    if declared.is_empty() {
+    // A clock need not be declared to be there: `when Clock(0.1) then`
+    // writes its clock in the condition, and a model whose only clock
+    // is written that way is as clocked as one that named it. Asking
+    // the declarations alone left such a clause to the plain `when`
+    // path, where `previous` means nothing. Only a clock that says its
+    // own interval counts: a bare `Clock()` waits for something else
+    // to settle it, and a model with no declared clock has nothing
+    // that could - taking it in here would only move its refusal from
+    // the run to flattening.
+    let written_in_place = std::env::var_os("OXIDELICA_NO_CLOCK_IN_CONDITION").is_none()
+        && model.when_clauses.iter().any(|clause| {
+            clause.branches.len() == 1
+                && matches!(&clause.branches[0].condition,
+                    Expr::Call(name, args) if name == "Clock" && !args.is_empty())
+        });
+    if declared.is_empty() && !written_in_place {
         // A machine with no clock to run on still has to hear about
         // it, so it is asked before this pass gives up.
         build_state_machines(model, &Clocks::default(), &mut HashMap::new())?;
@@ -741,6 +756,41 @@ fn clocks_of_the_model(model: &mut Model) -> Result<Option<DeclaredClocks>, Stri
         }
     }
     model.equations = kept;
+
+    // The method a clock steps with may be a parameter of the block
+    // that makes the clock - `Clock(Clock(period), solverMethod =
+    // solverMethod)` in every clock block of the library - and a String
+    // has no place among the numbers above. Read here as the text it is
+    // bound to, so that the clock is the solver form and not an event
+    // clock whose start is a name.
+    if std::env::var_os("OXIDELICA_NO_CLOCK_SOLVER_BY_NAME").is_none() {
+        let texts: HashMap<&str, &Expr> = model
+            .components
+            .iter()
+            .filter(|component| component.type_name == "String")
+            .filter(|component| {
+                matches!(
+                    component.variability,
+                    Variability::Parameter | Variability::Constant
+                )
+            })
+            .filter_map(|component| match &component.binding {
+                Some(text @ Expr::Str(_)) => Some((component.name.as_str(), text)),
+                _ => None,
+            })
+            .collect();
+        for (_, value) in &mut definitions {
+            if let Expr::Call(head, args) = value {
+                if head == "Clock" && args.len() == 2 {
+                    if let Expr::Ref(name) = &args[1] {
+                        if let Some(text) = texts.get(name.as_str()) {
+                            args[1] = (*text).clone();
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     let mut clocks = Clocks::default();
     for _ in 0..MAX_DEPTH {

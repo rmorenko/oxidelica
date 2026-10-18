@@ -1489,3 +1489,26 @@ fn an_edge_the_residual_sees_too_damps_the_rest_of_the_solve() {
     );
     assert!(!refusal.contains("did not converge in 50"), "{refusal}");
 }
+
+#[test]
+fn a_clock_block_names_its_solver_by_name_and_by_parameter() {
+    // The library's clock blocks write `Clock(Clock(period), solverMethod
+    // = solverMethod)`, the method a String parameter of the block. Read
+    // against the interval form the name was refused as an argument
+    // `Clock` does not have, and once named the parameter made an event
+    // clock with a name for its start. Ten Euler steps of `der(x) = -x`
+    // reach 0.9^10, the same as the positional form above.
+    let result = run("package P block PC parameter Real period = 0.1; \
+         parameter String solverMethod = \"ExplicitMidPoint2\"; output Clock y; \
+         equation y = Clock(Clock(period), solverMethod = solverMethod); end PC; \
+         model M PC pc(solverMethod = \"ExplicitEuler\"); \
+         Real u; Real x(start = 1); Real hx; \
+         equation u = sample(0, pc.y); der(x) = -x + u; hx = hold(x); \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M; end P;");
+    let index = result.columns.iter().position(|c| c == "hx").unwrap();
+    let reached = result.rows.last().unwrap()[index];
+    assert!(
+        (reached - 0.348_678_440_1).abs() < 1e-9,
+        "reached {reached}"
+    );
+}

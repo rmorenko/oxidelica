@@ -245,17 +245,30 @@ pub(super) fn programs_used(
         // A function the body hands over is specialized here, as it
         // would have been had the body been inlined: see
         // `handed_over_in_walked_body`.
+        //
+        // And the body is read where it is written. `function g2 =
+        // Basic.g2(final checkLimits = false)` writes no algorithm of
+        // its own - its statements are its base's - and carried as
+        // it stood the walk ran nothing, left every field of the
+        // record at nought, and the moist air's speed of sound came
+        // out as `sqrt(max(0, NaN))`, a zero nobody had refused. Its
+        // names are the writer's too, so they are read in the
+        // writer's scope.
+        let writer = match body_from_base_open() {
+            true => body_writer(registry, class, 0),
+            false => class,
+        };
         let algorithm = super::arrays::handed_over_in_walked_body(
-            &class.algorithm,
+            &writer.algorithm,
             registry,
-            &class.name,
-            &class.imports,
+            &writer.name,
+            &writer.imports,
         );
         carried.algorithm = qualified_calls(
             &algorithm,
             registry,
-            &class.name,
-            &class.imports,
+            &writer.name,
+            &writer.imports,
             &renamed,
             &held,
         );
@@ -299,8 +312,8 @@ pub(super) fn programs_used(
         gather_calls_in_statements(
             &algorithm,
             registry,
-            &class.name,
-            &class.imports,
+            &writer.name,
+            &writer.imports,
             &mut calls,
         );
         for called in from_bindings {
@@ -646,6 +659,40 @@ fn called_under(class: &ClassDef, registry: &HashMap<&str, &ClassDef>, medium: &
         false => class,
     };
     paired_under(meant, registry, medium).unwrap_or_else(|| meant.name.clone())
+}
+
+/// Whether a carried body is read from the base that writes it when
+/// it writes none of its own. `OXIDELICA_NO_BODY_FROM_BASE` carries
+/// the class's own empty algorithm, as before.
+fn body_from_base_open() -> bool {
+    std::env::var_os("OXIDELICA_NO_BODY_FROM_BASE").is_none()
+}
+
+/// The class whose statements a function runs: itself where it writes
+/// any, otherwise the first base along its `extends` that does. The
+/// same road `function_body` takes, kept to the class so that the
+/// statements are read in the scope that wrote them.
+fn body_writer<'a>(
+    registry: &HashMap<&'a str, &'a ClassDef>,
+    class: &'a ClassDef,
+    depth: usize,
+) -> &'a ClassDef {
+    if !class.algorithm.is_empty() || depth > MAX_DEPTH {
+        return class;
+    }
+    for extend in &class.extends {
+        let base = match extend.from_base {
+            true => inherited_class(registry, class, &extend.base, 0),
+            false => lookup(registry, &extend.base, &class.name, &class.imports),
+        };
+        if let Some(base) = base {
+            let writer = body_writer(registry, base, depth + 1);
+            if !writer.algorithm.is_empty() {
+                return writer;
+            }
+        }
+    }
+    class
 }
 
 /// Whether the calls a local's binding makes are named the way the
