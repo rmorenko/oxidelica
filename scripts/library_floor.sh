@@ -1559,7 +1559,19 @@ FLATTEN_FLOOR=956
 # asking. The other two run on dopri45 and bdf and agree:
 #
 #   787 - 2 swings - TestJunctionIdeal = 784 = 782 + 2
-RUN_FLOOR=784
+#
+# And run 785 = 784 + LinearWater_pT of the media tests with fluid,
+# whose steady start is solved on the volume's balances and was
+# refused by the substitution of a row nobody reads. From one desk
+# binary built from the final tree, OXIDELICA_NO_SWAPPED_ROW_SKIP set
+# against unset, the run list gained exactly that model and lost
+# nothing, the flattened list the same line for line, 529 Jacobians in
+# both (/tmp/m453/pair/off.txt against on.txt, 956 / 787 against
+# 956 / 788). It runs on dopri45 and bdf and they agree to twelve
+# digits. The swings and TestJunctionIdeal stay out as above:
+#
+#   788 - 2 swings - TestJunctionIdeal = 785 = 784 + 1
+RUN_FLOOR=785
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -1915,7 +1927,12 @@ RUNNABLE_FLATTEN_FLOOR=839
 # two swings and TestJunctionIdeal, for the same reason.
 #
 #   743 - 2 - 1 = 740 = 738 + 2
-RUNNABLE_RUN_FLOOR=740
+#
+# And runnable run 741 = 740 + LinearWater_pT, runnable, by the same
+# pair as `RUN_FLOOR`: 744 printed, less the same three.
+#
+#   744 - 2 - 1 = 741 = 740 + 1
+RUNNABLE_RUN_FLOOR=741
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
