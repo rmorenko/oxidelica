@@ -52454,3 +52454,19 @@ R)` and `InlineAfterIndexReduction`. That is a reading and not a
 measurement. A grep answers half of it: no source file under `crates/`
 names `InlineAfterIndexReduction`. The next probe is which pass leaves
 `resolve2` standing in `G5`.
+
+The next probe was taken the same shift
+(`~/oxideflow/park/m453-gyro/standing-probe.diff`, `OXPROBE_STANDING`,
+on `G5`). `resolve2` is asked 68 times and inlined 64 of them. The four
+that stand are refused by `expand` at `depth > MAX_DEPTH`
+(`arrays.rs:27`), with `an expression did not come to an end here,
+nested deeper than the compiler follows` over the written-out
+`frame_b.R.T`. `inline_function` reads that wording as `NO_BOTTOM` and
+leaves the call standing for a walk that the code generator then
+cannot compile. The nesting depth was hit at an inlining depth of 1
+and of 10, so the expression is deep, not the chain of calls. This is
+the ceiling the working notes warn about: raising it to 48 killed the
+corpus pass by memory. So the wall is not a missing rule. It is an
+orientation that reaches the joint's equation already 32 storeys deep,
+and the question for a later shift is why a three-by-three matrix of
+names nests that far. A raised ceiling is not an answer here.
