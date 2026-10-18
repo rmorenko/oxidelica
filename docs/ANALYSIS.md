@@ -53570,3 +53570,14 @@ function (`tableOnFile = true`, tables `TestTable_1D_a` and
 `TestTable_1D_Time`), so the
 length the refusal asks for lives behind the C wall the census already
 names. It is not a family of its own.
+
+`ControlledMixingUnit`, which flattens since f916b2d, now stops at
+`discrete variable inverseBlockConstraints.y2 is never assigned`. The
+controller is an inverse model: `InverseBlockConstraints` writes only
+`u1 = u2; y1 = y2`, so `y2` is defined by nobody and has to be solved
+for out of `invMixingUnit`, and that sits inside a partition clocked
+with `ExplicitEuler`. A clocked tick here is a list of assignments (the
+compiler's own words when it refuses an implicit method), so a tick
+that owes an equation to be solved is the same wall from another side.
+Taking it means solving an algebraic system on the tick. That is a
+chain of its own and was not opened in this shift.
