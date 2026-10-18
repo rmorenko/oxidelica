@@ -53581,3 +53581,10 @@ compiler's own words when it refuses an implicit method), so a tick
 that owes an equation to be solved is the same wall from another side.
 Taking it means solving an algebraic system on the tick. That is a
 chain of its own and was not opened in this shift.
+
+The row `clock is a Clock, so it needs an interval` (2) is
+`CylinderAirCharge` and `InductionToPowerDelay`, both parts of the
+throttle example with a `ClockInput clock` that only the example
+connects. Checked alone, nothing gives the input a clock, so the
+refusal is true. The example that connects them, `EngineThrottleControl`,
+stands at the `shiftSample` wall.
