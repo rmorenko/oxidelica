@@ -177,12 +177,24 @@ fn initialization_reports_what_it_cannot_solve() {
     // where a single residual determines a single unknown, the
     // implicit function theorem answers instead, which is what the
     // media models of the library rest on.
+    //
+    // The source reads `time` so that the row is not solved on the
+    // balance of `a`. Without it the row is swapped for `der(a) = 0`,
+    // which is a true reading of it, its written form is never
+    // substituted, and the start at `a = 0` is refused for a reason
+    // of its own: the block's Jacobian there is singular.
+    assert!(error(
+        "model M Real a(start = 1); Real b; Real c; equation der(a) = -a; \
+         b + sin(c) = a + time; c + sin(b) = a; \
+         initial equation der(b) = 0; end M;"
+    )
+    .contains("is not a state"));
     assert!(error(
         "model M Real a(start = 1); Real b; Real c; equation der(a) = -a; \
          b + sin(c) = a; c + sin(b) = a; \
          initial equation der(b) = 0; end M;"
     )
-    .contains("is not a state"));
+    .contains("singular Jacobian"));
 }
 
 /// The refusal names the statements it counted, not only how many.
