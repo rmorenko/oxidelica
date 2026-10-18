@@ -52765,12 +52765,12 @@ time. Both were built behind probe switches on one binary
 (`/tmp/m455/oxp1`) and run on the smallest model and the three models
 of the wall (`/tmp/m455/four.txt`):
 
-| Model                         | Old reach                              | Narrow                        | Twice                         |
-| ----------------------------- | -------------------------------------- | ----------------------------- | ----------------------------- |
-| `R1` (park, m454)             | Newton direction over `p`, `T`, `phi`  | runs                          | runs                          |
-| `RoomCO2WithControls`         | `volume.portInDensities[3]` (22 s)     | runs (149 s)                  | runs (148 s)                  |
-| `TestJunctionTraceSubstances` | `pipe2.flowModel.states[1].T`          | `junction1.mbXi_flow[1]`      | `junction1.mbXi_flow[1]`      |
-| `BranchingDynamicPipes`       | `pipe1.mediums[1].T` is not a state    | the same                      | the same                      |
+| Model                         | Old reach                             | Narrow                   | Twice                    |
+| ----------------------------- | ------------------------------------- | ------------------------ | ------------------------ |
+| `R1` (park, m454)             | Newton direction over `p`, `T`, `phi` | runs                     | runs                     |
+| `RoomCO2WithControls`         | `volume.portInDensities[3]` (22 s)    | runs (149 s)             | runs (148 s)             |
+| `TestJunctionTraceSubstances` | `pipe2.flowModel.states[1].T`         | `junction1.mbXi_flow[1]` | `junction1.mbXi_flow[1]` |
+| `BranchingDynamicPipes`       | `pipe1.mediums[1].T` is not a state   | the same                 | the same                 |
 
 Under both, `R1` starts at `h = 45262.582490480156`,
 `T = 293.15`, `R_s = 288.79726589121543` and `U = -4715.32374875952`,
@@ -52859,7 +52859,7 @@ only where the list and the defaults read nothing but inputs.
 test is `a_named_argument_to_an_outside_body_is_bound_to_its_wrapper`
 in `algorithms.rs`. `compare("abc", "ABC", caseSensitive = false)` is
 2 (`Equal`), `compare("abc", "ABC")` is 3, and
-`compare(string2 = "abd", string1 = "abc")` is 1. Under the switch the
+`compare(string2 = "xyz", string1 = "abc")` is 1. Under the switch the
 first is refused. The second case was a wrong refusal too, and not
 only the named one: two arguments went to a C body of three.
 
@@ -52891,4 +52891,3 @@ The fix for the brackets that `why` drops around a `WithDerivative`
 `~/oxideflow/park/m455-describe-brackets.diff`. How many census rows
 it would change was not measured: a third corpus pass beside the pair
 and the reference would have spoiled the timings of both.
-

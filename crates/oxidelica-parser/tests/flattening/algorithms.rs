@@ -2092,7 +2092,7 @@ fn a_named_argument_to_an_outside_body_is_bound_to_its_wrapper() {
         2.0
     );
     assert_eq!(value("compare(\"abc\", \"ABC\")"), 3.0);
-    assert_eq!(value("compare(string2 = \"abd\", string1 = \"abc\")"), 1.0);
+    assert_eq!(value("compare(string2 = \"xyz\", string1 = \"abc\")"), 1.0);
     assert_eq!(value("compare(\"abc\", \"ABC\", false)"), 2.0);
 }
 
