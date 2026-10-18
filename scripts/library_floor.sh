@@ -484,7 +484,20 @@ FILES_FLOOR=2671
 # prose in docs/ANALYSIS.md and by nothing the library step measures.
 #
 #   956 + 4 = 960
-FLATTEN_FLOOR=960
+#
+# And flatten 962 = 960 + IMC_InverterDrive of Electrical.Machines and
+# ThreePhaseTwoLevel_PWM of PowerConverters, which flatten once the
+# four places that took an array for one scalar are taken apart
+# (bd6900d). From one desk binary, the four switches set against
+# unset, the flattened list gained exactly those two and lost nothing
+# (/tmp/m459/pair3/off_lists.txt against on_lists.txt, 960 against
+# 962). Set from the print: the runner printed 962 / 793 and runnable
+# 845 / 749 on bd6900d, in the library job of run 39160476888; the head
+# differs from it by three commits of prose in docs/ANALYSIS.md and by
+# nothing the library step measures.
+#
+#   960 + 2 = 962
+FLATTEN_FLOOR=962
 # The two run floors came down by one, and the one is named: giving a
 # record constructor called with no arguments the values its `extends`
 # stated took `Modelica.Thermal.FluidHeatFlow.Examples.WaterPump` out
@@ -1608,7 +1621,18 @@ FLATTEN_FLOOR=960
 # all three stand in the run list of p3on_lists.txt by name:
 #
 #   791 - 2 swings - TestJunctionIdeal = 788 = 786 + 2
-RUN_FLOOR=788
+#
+# And run 789 = 788 + ThreePhaseTwoLevel_PWM, by the same pair and the
+# same runner print as `FLATTEN_FLOOR`. The two machines disagree by
+# one model: the runner printed 793 because IMC_InverterDrive runs
+# there (4151 points), and on the desk it is refused with a step size
+# underflow at t = 0 (`library check --only`, 138 s), so the desk pair
+# gave 792. The floor is set from the lower of the two. The swings and
+# TestJunctionIdeal stay out, all four stand by name in the run list
+# of on_lists.txt and of the runner's print:
+#
+#   792 - 2 swings - TestJunctionIdeal = 789 = 788 + 1
+RUN_FLOOR=789
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -1836,7 +1860,11 @@ RUN_FLOOR=788
 # And runnable flatten 843 = 839 + the four of `FLATTEN_FLOOR`, all
 # runnable examples, by the same pair and runner print (job
 # 39143596312): 843 printed.
-RUNNABLE_FLATTEN_FLOOR=843
+#
+# And runnable flatten 845 = 843 + the two of `FLATTEN_FLOOR`, both
+# runnable examples, by the same pair and runner print (run
+# 39160476888): 845 printed.
+RUNNABLE_FLATTEN_FLOOR=845
 # And runnable run 674 = 671 + the three batteries, all runnable
 # examples, by the same runner job as `RUN_FLOOR` (d58700e, job
 # 112530851204).
@@ -1984,7 +2012,14 @@ RUNNABLE_FLATTEN_FLOOR=843
 # printed (job 39143596312), less the same three.
 #
 #   747 - 2 - 1 = 744 = 742 + 2
-RUNNABLE_RUN_FLOOR=744
+#
+# And runnable run 745 = 744 + ThreePhaseTwoLevel_PWM, by the same pair
+# and runner print as `RUN_FLOOR`: 749 printed (run 39160476888), 748
+# on the desk where IMC_InverterDrive does not run, and the lower is
+# taken, less the same three.
+#
+#   748 - 2 - 1 = 745 = 744 + 1
+RUNNABLE_RUN_FLOOR=745
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
@@ -2703,7 +2738,18 @@ WORK_DEAREST=12
 # 552 (/tmp/m429/preflight.txt, `WORK: jacobians is 552 against 485`).
 # So the next change that touches the Jacobians is measured against the
 # sum, beforehand.
-WORK_JACOBIANS=485
+#
+# Moved by the four places taken apart (bd6900d), and turned red on this
+# line alone with every count right: the runner printed 537, 511 for
+# the main pass and 26 for the dear one, 1.107 of 485. Named model by
+# model from the per-model work of the main pass, the runner's print
+# for bd6900d against its print for 0a39075 (run 39155049717): the only
+# models whose Jacobians moved are IMC_InverterDrive, 0 -> 26, which
+# now runs there, and nothing else. The desk prints 529 for the same
+# tree (/tmp/m459/pair3/on.txt), where that model is refused. The
+# centre is set at the runner's print: ten percent around 537 is 483.3
+# to 590.7, which holds the desk's 529.
+WORK_JACOBIANS=537
 WORK_JACOBIANS_PPM=100000
 # The pair is held on a line of its own and to a band of its own, an
 # order of magnitude wide in either direction rather than five percent:
