@@ -52752,3 +52752,143 @@ The `--check` of the reference on `ox23` (`/tmp/m454/ref.check`) held
 on 520 and moved on 1, the same `LinearWater_pT_Ambient` at its 60 s
 CPU ceiling that m453 put down to the weather. It ran beside the
 preflight again.
+
+## The moist-air bracket taken with a reach grown from type starts, and a named argument bound before its external (m455)
+
+### Two forms tried on the four
+
+m454 left two ways to make the reading of starts reach `R_s` of a
+moist-air volume before `R_s` reads `u`. The narrow one grows the
+reach a second step, but only from the names the first step took in
+whose start is their type's. The wide one grows every name a second
+time. Both were built behind probe switches on one binary
+(`/tmp/m455/oxp1`) and run on the smallest model and the three models
+of the wall (`/tmp/m455/four.txt`):
+
+| Model                         | Old reach                              | Narrow                        | Twice                         |
+| ----------------------------- | -------------------------------------- | ----------------------------- | ----------------------------- |
+| `R1` (park, m454)             | Newton direction over `p`, `T`, `phi`  | runs                          | runs                          |
+| `RoomCO2WithControls`         | `volume.portInDensities[3]` (22 s)     | runs (149 s)                  | runs (148 s)                  |
+| `TestJunctionTraceSubstances` | `pipe2.flowModel.states[1].T`          | `junction1.mbXi_flow[1]`      | `junction1.mbXi_flow[1]`      |
+| `BranchingDynamicPipes`       | `pipe1.mediums[1].T` is not a state    | the same                      | the same                      |
+
+Under both, `R1` starts at `h = 45262.582490480156`,
+`T = 293.15`, `R_s = 288.79726589121543` and `U = -4715.32374875952`,
+the same to the digit. The two forms bought the same models and the
+narrow one pays one walk from a handful of names rather than from all
+of them, so the narrow one was taken. `BranchingDynamicPipes` is not
+behind this wall at all: with any reach it stops at wall B, before a
+start is read.
+
+### The change, measured, and parked
+
+`compile.rs`, at the growth of `wanted_names`: after the one step of
+growth, the names it took in whose start came from their type
+(`start_from_type`, not stated) are grown once more.
+`OXIDELICA_NO_GROW_FROM_TYPE_START=1` keeps the old reach. The test is
+`a_start_from_a_type_waits_for_its_own_equation_before_it_reads_another`
+in `initialisation.rs`, `R1` taken down to six equations without the
+library: a `GasConstant` typed `start = 1000` whose own equation reads
+a steam fraction. With the change `U` starts at `h - R_s*T` with
+`R_s = 288.796`. Under the switch it starts at -248019.855, read with
+`R_s = 1000`, and the run begins at a temperature of 2.45 K. That is a
+wrong number given without a word, and not a refusal. The test is red
+without the change and green with it.
+
+The pair was taken on `/tmp/m455/ox24`, the switch set against unset
+(`/tmp/m455/off.txt` against `on.txt`). Off printed 956 / 789 and
+839 / 745, the lists and the refusals of `/tmp/m454/on.txt` line for
+line. On printed 956 / 792 and 839 / 748. Four models ran that did
+not run before: `RoomCO2`, `RoomCO2WithControls`,
+`TestMultiPortTraceSubstances` and `MediaTestModels.Air.MoistAir`.
+All four were refused by a Newton block over a moist-air volume's
+`p`, `T` and `phi`, so they are one family. One model was lost:
+`InverseParameterization`, now refused with a Newton direction over
+`pump.port_a.m_flow`, `pump.N` and the orifice. `--only` on the same
+binary repeats both verdicts.
+
+The loss has a cause and it is the same breed as the win. A probe on
+the reading (`OXPROBE_READ_START`) shows the wider reach taking in
+`orifice.dp`. Its start comes from its type, and through
+`dp = port_a.p - port_b.p` it reads `orifice.port_b.p = 1325`, then
+`sink.ports[1].p = 1325` through the connection. The sink states
+`p = 100000`. So the growth went out through every equation that
+names a type-started name, and the type's start then read a neighbour
+it has no business reading. A narrower form grows only through the
+equation the matching gives to the type-started name: its own
+equation, which is the one that says its value. Under that form
+(`/tmp/m455/oxp4`) `R1` and the test model keep the same numbers to
+the digit. `--only` from `.msl` runs `InverseParameterization` and the
+four winners (`/tmp/m455/own5.txt`).
+
+It was not taken, because of time. `TestMultiPortTraceSubstances`
+alone took 872 s under `--only`. The run half of the pair went from
+3741 s to 4650 s, from 3913 ms to 4864 ms a model, which is about that
+one model. A newly running model that costs a quarter of an hour is a
+giant by the rule of these notes, and taking it with no decision on
+whether it goes to the scheduled run would turn the library job's
+ceiling into a wager. The narrower form also wants its own pair. The
+series is in `~/oxideflow/park/m455-grow-from-type-start.diff`, with
+the change, the test, both probes and the matched-equation form
+(`OXPROBE_GROW_ANY_EQUATION` gives the wider one back). Two questions
+are open for Roman: whether `TestMultiPortTraceSubstances` goes into
+`scripts/heavy_models.txt` with its floor, and the pair of the
+matched-equation form.
+
+### `dynamicViscosity` (4): templates, mapped twice before
+
+The row is the four `PartialMediumFunctions*` of
+`ModelicaTest.Media.TestAllProperties`. Each declares `replaceable
+package Medium = Modelica.Media.Interfaces.PartialMedium` and carries
+no `experiment`. The library extends them with real media (Media.mo
+lines 612-663). Asked as they stand, `dynamicViscosity` really is
+partial, and the refusal is owed. This is the reading of m309, which
+first counted the row, and of m448's reserve. It is not
+`Essotherm650`'s layer. That model runs in `TestsWithFluid`, and its
+question is the unit of the table's viscosity column, which is a
+number and not a missing body.
+
+### A named argument bound before the external call
+
+`external_arguments_bound` in `inlining.rs` binds the arguments of a
+call to the wrapper's inputs, a missing one taking its default, and
+reads the wrapper's external argument list with them in place. It
+does this only where the call named an argument or left one out, and
+only where the list and the defaults read nothing but inputs.
+`OXIDELICA_NO_EXTERNAL_BINDING` keeps the arguments as written. The
+test is `a_named_argument_to_an_outside_body_is_bound_to_its_wrapper`
+in `algorithms.rs`. `compare("abc", "ABC", caseSensitive = false)` is
+2 (`Equal`), `compare("abc", "ABC")` is 3, and
+`compare(string2 = "abd", string1 = "abc")` is 1. Under the switch the
+first is refused. The second case was a wrong refusal too, and not
+only the named one: two arguments went to a C body of three.
+
+`--only ModelicaTest.Utilities.TestStrings` moves one storey, to
+`Strings.Advanced.scanReal`, whose body `ModelicaStrings_scanReal`
+this compiler has none of. So the change buys no model.
+
+The pair was taken on `/tmp/m455/ox26`, built without the parked
+series, the switch set against unset (`/tmp/m455/p3off.txt` against
+`p3on.txt`). Both halves printed 956 / 789 and 839 / 745, and the
+flattened and run lists are those of `/tmp/m455/off.txt` name for
+name. One refusal changed, `TestStrings`, to the `scanReal` wall. The
+run work is the same to the point: 24141908 points, 35273694 Newton
+steps and 529 Jacobians in both halves. Flattening did 1147 more
+expansions and 123 more bodies, which is the wrapper calls that now
+reach their external body instead of stopping at the refusal. No
+floor moves.
+
+The `--check` of the reference on `ox26` (`/tmp/m455/ref.check`) held
+on 520 and moved on 1, `MultiBody.Examples.Elementary.UserDefinedGravityField`,
+at its 60 s CPU ceiling. It is weather and not the change: its
+output is the same file byte for byte
+with the switch on and off (24095572 bytes), and timed one after the
+other it took 53 s and 65 s in one order and 52 s and 62 s in the
+other, with a corpus pass running beside it each time.
+
+The fix for the brackets that `why` drops around a `WithDerivative`
+(m454) is four lines in `grouped`, parked as
+`~/oxideflow/park/m455-describe-brackets.diff`. How many census rows
+it would change was not measured: a third corpus pass beside the pair
+and the reference would have spoiled the timings of both.
+

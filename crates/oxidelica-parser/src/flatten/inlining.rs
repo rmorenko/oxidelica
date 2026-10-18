@@ -2171,6 +2171,8 @@ fn body_written_elsewhere(
         }) else {
             return Err(outside_this_language(class));
         };
+        let bound = external_arguments_bound(class, args, call, registry)?;
+        let args: &[Expr] = bound.as_deref().unwrap_or(args);
         let made = Expr::Call(call.called.clone(), args.to_vec());
         // A least-squares problem is handed over as a matrix of any
         // height and width, and the numbers alone do not say which:
@@ -2305,6 +2307,113 @@ fn body_written_elsewhere(
     }
 
     Ok(None)
+}
+
+/// What an external call is handed, worked out from the wrapper's
+/// inputs, where the call to the wrapper named an argument or left one
+/// to its default.
+///
+/// The wrapper's arguments used to go to the name outside exactly as
+/// the call wrote them. That is right only when every input is given
+/// in order: `Strings.compare("abc", "ABC", caseSensitive = false)`
+/// carried its named argument to `ModelicaStrings_compare`, which is
+/// not a Modelica function and has no names to bind it to, and
+/// `compare("abc", "ABC")` carried two arguments to a body that takes
+/// three. The wrapper's declaration says what goes outside -
+/// `ModelicaStrings_compare(string1, string2, caseSensitive)` - so the
+/// arguments are bound to the inputs the way a walked body binds them,
+/// a missing one taking its default, and the declaration's list is
+/// read with them in place.
+///
+/// `None` where the call gave every input in order, or where the
+/// declaration's list or a default reads something other than the
+/// inputs, which this binding cannot name. `OXIDELICA_NO_EXTERNAL_BINDING`
+/// keeps the arguments as written.
+fn external_arguments_bound(
+    class: &ClassDef,
+    args: &[Expr],
+    call: &crate::ast::ExternalCall,
+    registry: &HashMap<&str, &ClassDef>,
+) -> Result<Option<Vec<Expr>>, String> {
+    if std::env::var_os("OXIDELICA_NO_EXTERNAL_BINDING").is_some() {
+        return Ok(None);
+    }
+    let components = function_components(registry, class, 0);
+    let inputs: Vec<&Component> = components
+        .iter()
+        .filter(|c| c.causality == Causality::Input)
+        .collect();
+    let named = args.iter().any(|arg| matches!(arg, Expr::NamedArg(..)));
+    if !named && args.len() >= inputs.len() {
+        return Ok(None);
+    }
+    let is_input = |name: &str| inputs.iter().any(|input| input.name == name);
+    let reads_only_inputs = |expr: &Expr| {
+        let mut refs = Vec::new();
+        expr.collect_refs(&mut refs);
+        refs.iter().all(|name| is_input(name))
+    };
+    if !call.arguments.iter().all(reads_only_inputs) {
+        return Ok(None);
+    }
+    let mut given: HashMap<String, Expr> = HashMap::new();
+    let mut position = 0;
+    for arg in args {
+        match arg {
+            Expr::NamedArg(name, value) => {
+                if !is_input(name) {
+                    return Err(format!(
+                        "function `{}` has no input named `{name}`",
+                        class.name
+                    ));
+                }
+                if given.insert(name.clone(), (**value).clone()).is_some() {
+                    return Err(format!(
+                        "argument `{name}` of function `{}` is given twice",
+                        class.name
+                    ));
+                }
+            }
+            positional => {
+                let Some(input) = inputs.get(position) else {
+                    return Err(format!(
+                        "function `{}` takes {} input(s) and was handed more",
+                        class.name,
+                        inputs.len()
+                    ));
+                };
+                given.insert(input.name.clone(), positional.clone());
+                position += 1;
+            }
+        }
+    }
+    // A default may read an input given before it, as `n = size(x, 1)`
+    // does; it is read with what was given, and a default reading
+    // anything else is not this binding's to name.
+    for input in &inputs {
+        if given.contains_key(&input.name) {
+            continue;
+        }
+        match &input.binding {
+            Some(default) if reads_only_inputs(default) => {
+                let value = super::names::substitute_refs(default, &given);
+                given.insert(input.name.clone(), value);
+            }
+            Some(_) => return Ok(None),
+            None => {
+                return Err(format!(
+                    "argument `{}` of function `{}` is not given and has no default",
+                    input.name, class.name
+                ))
+            }
+        }
+    }
+    Ok(Some(
+        call.arguments
+            .iter()
+            .map(|argument| super::names::substitute_refs(argument, &given))
+            .collect(),
+    ))
 }
 
 /// What the call handed over, under the names the body knows them by.

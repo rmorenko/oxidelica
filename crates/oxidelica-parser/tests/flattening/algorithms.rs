@@ -2064,6 +2064,38 @@ fn the_forms_the_media_library_is_written_in() {
     );
 }
 
+/// An argument named or left to its default reaches a body written
+/// outside under the wrapper's own list.
+#[test]
+fn a_named_argument_to_an_outside_body_is_bound_to_its_wrapper() {
+    // `Strings.compare(s1, s2, caseSensitive = false)` handed its named
+    // argument to the C name, which has no names, and was refused; a
+    // call leaving `caseSensitive` to its default handed two arguments
+    // to a body of three. Both are bound to the wrapper's inputs first.
+    let compare = "function compare input String string1; input String string2; \
+         input Boolean caseSensitive = true; output Integer result; \
+         external \"C\" result = ModelicaStrings_compare(string1, string2, caseSensitive); \
+         end compare;";
+    let value = |call: &str| -> f64 {
+        let m = parse_model(&format!(
+            "model M {compare} Real y; equation y = {call}; end M;"
+        ))
+        .unwrap_or_else(|e| panic!("{call}: {e}"));
+        match m.equations.first().map(|e| &e.rhs) {
+            Some(Expr::Number(n)) => *n,
+            other => panic!("{call}: {other:?}"),
+        }
+    };
+    // `Types.Compare`: Less 1, Equal 2, Greater 3.
+    assert_eq!(
+        value("compare(\"abc\", \"ABC\", caseSensitive = false)"),
+        2.0
+    );
+    assert_eq!(value("compare(\"abc\", \"ABC\")"), 3.0);
+    assert_eq!(value("compare(string2 = \"abd\", string1 = \"abc\")"), 1.0);
+    assert_eq!(value("compare(\"abc\", \"ABC\", false)"), 2.0);
+}
+
 /// A body written outside Modelica says what it is: the name called,
 /// what it is handed, and in what language.
 #[test]
