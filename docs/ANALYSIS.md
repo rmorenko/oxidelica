@@ -53158,3 +53158,9 @@ the series' own pair (`/tmp/m456/p3on.txt`). The Jacobians are 529 and
 1974 apart in both. Names looked up 1732340625 against 1656431234.
 The two halves ran side by side on one desk: flattening 6968 against
 6297 ms a model, running 5050 against 5168.
+
+The `--check` of the reference on `ox2` (`/tmp/m457/ref.check`) held on
+519 and moved on 2 at the 60 s CPU ceiling, with a preflight sharing
+the desk: `DoublePendulum` and `TestAllProperties.LinearWater_pT_Ambient`.
+Alone they took 35.4 s and 52.3 s of user time. Weather, and no row of
+the reference was rewritten.
