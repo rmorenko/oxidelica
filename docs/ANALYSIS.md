@@ -53296,3 +53296,22 @@ all on the map already: `dgesv` (m455), the trip count (m455), the
 flexible size of the `usertab` tables (m220), the thyristor's branches
 (the six singles, parked as the library's own dimensions), the clock
 with no interval and `solverMethod` (m451), and `shiftSample` (m451).
+
+### The unit of an inlined local, probed
+
+`HysteresisModelComparison`, past its array layer, is refused
+"unit mismatch in `preisachEverett.J = ...`: kg.s-2.A-1 against 1".
+The model is sound. Shrunk to 15 lines (`/tmp/m459/hyst/U5.mo`): a
+function whose local `SI.MagneticFluxDensity unitT = 1` multiplies a
+dimensionless input. Inlined, the local arrives as the number `1`,
+and `check.rs` reads a number written whole as dimensionless, so the
+output's tesla stands against one. `U3.mo` is the same with
+`constant`. `U4.mo`, the same constant declared in the model and not
+in a function, runs. The rule for a number with a fraction already
+makes it carry no claim, for the same reason: the magnetic constant
+arrives as a digit. A whole number gets no such pass, and `unitT` is
+the whole number that shows it. Either the inliner carries the unit
+of what it substitutes, or a substituted number is told apart from one
+the model wrote. Both are a choice about the structure, so nothing
+was changed. The three models are parked as
+`~/oxideflow/park/m459-unit-of-an-inlined-local`.
