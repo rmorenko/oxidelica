@@ -52181,3 +52181,114 @@ pair, before the series as after it. What the two read at t = 0 is the
 next question (`oxidelica why ... junction1.port_2.h_outflow` names
 the chain: `junction1.medium.h` through the junction's port). It was
 not walked this shift.
+
+## The row `der(X) is not a state` sorted by wall, and a steady row left unsubstituted (m453)
+
+### Seven models, two walls and a third breed
+
+The row held seven models on the pushed tree
+(`/tmp/m452/pair/on.txt`, lines 2050 to 2186). Each was run once under
+`--only` from `.msl` with `OXIDELICA_INIT_DER_PROBE`, and once under
+the parked probe `~/oxideflow/park/m452-steady-swap-probe.diff`
+(`OXPROBE_SWAP_SKIP`), which prints why `steady_rows_on_balances`
+drops a row and skips the substitution of a swapped one. The outputs
+are in `/tmp/m453/`.
+
+| Model                            | Rows swapped | Wall            | Under the probe        |
+| -------------------------------- | ------------ | --------------- | ---------------------- |
+| Machines `IMC_Initialize`        | 0 of 2       | B, clocked      | stands                 |
+| FundamentalWave `IMC_Initialize` | 0 of 4       | B, clocked      | stands                 |
+| QuasiStatic `IMC_Initialize`     | 0 of 4       | B, clocked      | stands                 |
+| `BranchingDynamicPipes`          | 0 of 82      | B, clocked      | stands                 |
+| `HeatExchangerSimulation`        | 0 of 80      | B, clocked      | stands                 |
+| `MoistAir`                       | 3 of 3       | A, substitution | leaves, to Newton (50) |
+| `LinearWater_pT`                 | 2 of 2       | A, substitution | leaves, and runs       |
+
+The machines are not the steady start of a medium. Their rows are
+`der(idq_sr) = 0` and `der(airGap.V_msr) = 0`, written on an air gap
+the plan iterates inside a torn block, and they are dropped as
+clocked, like the pipes. Unlike the pipes, the clock is genuinely
+theirs: the supply's sine reaches the air gap through the stator, so
+a test that read each name's own equation would still call these rows
+clocked (see the next part). That is the third breed. A steady start
+asked of a quantity that does move with time can only be answered by
+the derivative of its definition, and here that definition is a torn
+unknown of a block of 197, 466 and 1582 unknowns. It stays mapped.
+
+### Wall A taken: a swapped row is not substituted
+
+A row `steady_rows_on_balances` swaps is solved as its balance, and
+the residual reads `derivatives[state]` for it. Its written form was
+substituted all the same, and where `p` and `T` are iterated inside a
+torn block no derivative is worked out for them, so the substitution
+refused a start the balances answer. The change skips that
+substitution. `OXIDELICA_NO_SWAPPED_ROW_SKIP=1` restores it. The test
+`a_steady_row_solved_on_its_balances_is_not_substituted` is the small
+model `H8`. It checks `p = 2e5` and `T = 299.95` from the hand answer,
+and it was seen to go red under the switch.
+
+`LinearWater_pT` runs on dopri45 and on bdf, 1010 steps each. Both
+start at and hold `volume.medium.T = 293.15` and `volume.medium.p =
+1101325.0007`, which is the ambient 101325 plus the 1e6 the pipe drops
+at a flow of 1 kg/s. `volume.m = 99.8780103` and `volume.U =
+8374098.687` agree between the solvers to twelve digits. `MoistAir`
+leaves the row and stops one storey up: an algebraic loop does not
+converge in 50 Newton iterations. That belongs with the Newton
+direction rows, which the order forbids this shift (m444).
+
+### Wall B mapped and parked: the clock test reads a block whole
+
+The small model `B2` (`~/oxideflow/park/m452-steady-torn/B2.mo`) puts
+two unrelated volumes in one torn block of six. Only the second reads
+`time`. All four rows are dropped as clocked, and the first volume is
+refused with `der(T1) is not a state`, though nothing in it moves with
+the clock. Two coarse readings are behind it, not one.
+
+1. The clock test in `steady_rows_on_balances` paints every name of an
+   `Implicit` stage with the stage's `any`.
+2. `states_behind_algebraics` gives every name of a block the union
+   of what the whole block reads. So after the clock is read per name,
+   the reach of `T1` still names the states of the second volume, and
+   those are unheld.
+
+The probe `~/oxideflow/park/m453-clock-by-name-probe.diff`
+(`OXPROBE_CLOCK_BY_NAME`) reads both per name, to a fixpoint over the
+block's `inner` and `torn` equations. Under it `B2` swaps the first
+volume's two rows and refuses the second, which is the honest answer.
+In the corpus:
+
+- `BranchingDynamicPipes` swaps all 82 rows and stops one storey up,
+  at a `solveOneNonlinearEquation` bracket on `pipe1.state_b.T`.
+- `HeatExchangerSimulation` swaps all 80 rows. Its initialisation
+  then ran 25 minutes of processor time with no output and was
+  stopped. That is no answer.
+- The three machines stay clocked, for the reason given above.
+
+No model runs under the probe, so it was not taken. It also changes
+the reach the Jacobian structure reads (`jacobian_structure` calls
+the same function), so taking it is a different compiler and would
+need its own list of victims.
+
+### `TestJunctionTraceSubstances`: a starting guess, not an equation
+
+`oxidelica why ... junction1.port_2.h_outflow` gives
+`junction1.medium.h` by way of `h_pTX`, and the junction's medium
+starts at `T_start = 293.15`, `p_start = 101325`. The refusal is
+raised before any Newton step (`OXIDELICA_WHERE`: `walk.rs:1499`
+through `solvers/mod.rs:1634`) on the first point of the
+initialisation. `OXIDELICA_NEWTON_TRAIL` shows ten attempts of the
+ladder of starts, all `|f| = NaN`. The loop's 34 unknowns start at
+their declared values: every `h_outflow` at 1e6, the trace
+concentrations at 1, the junction's `Hb_flow` at 0. Moist air at
+X = 0.01 has `h(190 K) = -87586` and `h(647 K) = 411980`
+(`/tmp/m453/h/HQ.mo`). The two printed residuals `f(190) = 75640` and
+`f(647) = 575206` both give the enthalpy handed in as about -1.63e5
+J/kg. That is not 1e6 and not a mix of 1e6 with the sensor's
+2.5e4-scale `h_outflow`, so the value comes from a term inside the
+loop that the trail does not print. It is still a value of the
+starting point and not of a solved equation: no Newton step has been
+taken. `RoomCO2WithControls` stops on the same `T_phX` bracket with
+the same `f(190) = 75640.42244260639` and `f(647) = 575206.3141813253`
+to the digit, before any Newton step, so the two are one family. The
+next instrument is a print of the mixing argument's terms at the first
+evaluation. No change was made.
