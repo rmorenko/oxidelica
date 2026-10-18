@@ -52522,11 +52522,13 @@ The bracket's own inputs, printed at the `Streams.error` of
 `f.X[1] = 0.01` and `f.h = -163226.49901351007`. So the walk is handed
 an enthalpy of -1.63e5 J/kg, which is about twice as far below zero as
 moist air at 190 K, -87586. The mix that makes it is a convex
-combination of two outflows, and both are positive at the guess, so
-one of them is already that negative when it is read. The Newton
+combination of two outflows, so at least one of them is at -1.63e5 or
+below when it is read. Neither was printed, and the starts declared for
+them are not negative, so whichever it is was computed and not taken
+from a start. The Newton
 trail's residual for `pipe2.port_b.h_outflow` at the first point is
 `1163226.4989951896`, which is exactly the guess of 1e6 less that
 mix. The mix is consistent with itself. The question left is which of
 `junction1.port_2.h_outflow` (the junction's `medium.h`) and
-`traceSubstance2.port.h_outflow` comes in at -1.63e5 before anything
-is solved, and from which state's start.
+`traceSubstance2.port.h_outflow` comes in at -1.63e5 or below before
+anything is solved, and what computes it.
