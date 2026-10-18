@@ -52392,3 +52392,24 @@ finally carries was not established. A fix wants the rewind and also
 that road keeping the check the body makes. Measuring that is a later
 shift's work, with `W6` as the test of the check and `W1` as the test
 of the run.
+
+The last link was found with `W9`, which is `W6` with `a = -1.25`, so
+that `p = -2.5`. Under the rewind the take finds `["a > 0"]` and the
+model is refused with `assertion failed ... positive`, which is right.
+`W6` loses its check because `p = -6` is a whole number. The loop in
+`instantiate_components` that measures lengths (`components.rs`,
+around line 136) asks every parameter still without a value whether
+it comes to an integer. It expands the binding, rewinds what was set
+aside because a measurement keeps nothing, and then, where the value
+is whole, inserts it into `local_consts` as the parameter's value. So
+the parameter is settled by a road that threw its checks away, and the
+later build reads it as a number and never enters the body again.
+
+That makes the fix two parts, each small: a rewind when
+`settle_parameters` fails, and the length loop keeping the checks of
+a binding it takes as the parameter's value, while still dropping them
+where it only measured. `W1` (runs), `W6` and `W9` (both refused by
+the check) are the tests. The second part changes which checks reach
+every model whose integer parameter is worked out by a function with
+an `assert`. That is a list of victims to measure with a pair, and
+this shift did not take it.
