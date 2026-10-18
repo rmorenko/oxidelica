@@ -53562,3 +53562,11 @@ sides. So the question is about literals and not about this model.
 How other tools read an unannotated number was not measured here.
 Reading literals as unknown would change every unit check the compiler
 makes, so it is a choice for Roman and was not taken. No change.
+
+The row `the flexible size of t_new.columns` (2) is
+`CombiTable1Dv.Test25_usertab` and `CombiTimeTable.Test66_usertab`.
+Both read their table out of `usertab.c` through an external C
+function (`tableOnFile = true`, tables `TestTable_1D_a` and
+`TestTable_1D_Time`), so the
+length the refusal asks for lives behind the C wall the census already
+names. It is not a family of its own.
