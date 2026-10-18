@@ -1741,6 +1741,45 @@ fn a_steady_start_on_a_volume_s_pressure_is_solved_on_its_balances() {
     );
 }
 
+/// A steady row solved on its balances is not substituted in the form
+/// it was written in, since that form is never read. Here `p` and `T`
+/// come out of a loop of two, so neither has a derivative worked out,
+/// and substituting `der(T) = 0` refused the start that the balances
+/// answer: the inflow equals the outflow at `p = 2e5`, and the energy
+/// stands still where `h = 1.2e6`, so `T = (1.2e6 - 200) / 4000`.
+/// `OXIDELICA_NO_SWAPPED_ROW_SKIP=1` gives the refusal back.
+#[test]
+fn a_steady_row_solved_on_its_balances_is_not_substituted() {
+    let result = run("model H8 \
+           function hf input Real p; input Real T; output Real h; \
+             algorithm h := 4000 * T + 1e-3 * p; end hf; \
+           function df input Real p; input Real T; output Real d; \
+             algorithm d := 1000 + 1e-6 * p - 0.1 * (T - 300); end df; \
+           parameter Real V = 1e-3; parameter Real m_in = 1e-3; \
+           Real p(start = 1e5); Real T(start = 300); \
+           Real h; Real d; Real u; Real m; Real U; \
+         equation \
+           h = hf(p, T); d = df(p, T); u = h - p / d; \
+           m = V * d; U = m * u; \
+           der(m) = m_in - 1e-8 * (p - 1e5); \
+           der(U) = m_in * (1200000 - h); \
+         initial equation \
+           der(T) = 0; der(p) = 0; \
+         annotation(experiment(StopTime = 0.1)); end H8;");
+    let column = |name: &str| {
+        result
+            .columns
+            .iter()
+            .position(|had| had == name)
+            .unwrap_or_else(|| panic!("{name} among {:?}", result.columns))
+    };
+    let first = &result.rows[0];
+    let p = first[column("p")];
+    let t = first[column("T")];
+    assert!((p - 2e5).abs() < 1e-6 * p, "p(0) = {p}");
+    assert!((t - 299.95).abs() < 1e-9 * t, "T(0) = {t}");
+}
+
 /// A modifier an `extends` writes on a shared instance of its base is
 /// what that instance holds, before anything else reads it. The test
 /// models of water write `extends PartialTestModel(system(energyDynamics

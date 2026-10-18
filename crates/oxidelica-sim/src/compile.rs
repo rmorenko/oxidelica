@@ -808,6 +808,14 @@ fn steady_on_balances_off() -> bool {
     std::env::var("OXIDELICA_NO_STEADY_ON_BALANCES").is_ok_and(|said| said == "1")
 }
 
+/// Whether `OXIDELICA_NO_SWAPPED_ROW_SKIP` has a steady row solved on
+/// its balances substituted all the same, as it was before it was
+/// known that its written form is never read. Read by its value, `1`,
+/// for the reason [`init_domain_halving_off`] gives.
+fn swapped_row_skip_off() -> bool {
+    std::env::var("OXIDELICA_NO_SWAPPED_ROW_SKIP").is_ok_and(|said| said == "1")
+}
+
 /// How far a demoted variable declared `fixed` may sit from its start
 /// once the constraints have solved it, before the two are called a
 /// contradiction. Weighed against the size of the value: a specific
@@ -7808,9 +7816,20 @@ impl CompiledModel {
         if std::env::var_os("OXIDELICA_INIT_DER_PROBE").is_some() {
             self.probe_init_derivative_boxes(initial_equations, &algebraic_derivatives, plan);
         }
+        // A row solved on its balances is never read in its written
+        // form: the residual below takes `derivatives[state]` for it. So
+        // its `der(T)` is not substituted, which would refuse it where
+        // `T` is iterated inside a torn block and has no derivative
+        // worked out - the steady start of `LinearWater_pT` (m453).
+        let skip_swapped = !swapped_row_skip_off();
         let substituted: Vec<(Code, Code)> = initial_equations
             .iter()
-            .map(|equation| {
+            .zip(&swapped)
+            .map(|(equation, swap)| {
+                if skip_swapped && swap.is_some() {
+                    let zero = Expr::Number(0.0);
+                    return Ok((table.compile(&zero)?, table.compile(&zero)?));
+                }
                 let lhs = substitute_derivatives_with(
                     &equation.lhs,
                     &self.states,
