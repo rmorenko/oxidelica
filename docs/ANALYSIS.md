@@ -53148,7 +53148,7 @@ flattening alone has `__findenv_locked` at the top of the stack, the
 switches read from the environment on the hot path. That is time and
 not names.
 
-### The pair
+### The pair of the conditions' constants
 
 One binary built from the final tree (`/tmp/m457/ox2`), the old order
 under its switch against the new (`/tmp/m457/p_off.txt`, `p_on.txt`):
