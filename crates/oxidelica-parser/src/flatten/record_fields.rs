@@ -396,9 +396,20 @@ pub(super) fn held_between_events(
         return false;
     }
     let root = name.split(['[', '.']).next().unwrap_or(name);
-    let Some(declared) = class.components.iter().find(|c| c.name == root) else {
-        return false;
+    // The declaration may stand in a base: the memories of the digital
+    // library declare `mem_word` in `MemoryBase` and write it in the
+    // algorithm of `DLATRAM`, which extends it.
+    let declared = match class.components.iter().find(|c| c.name == root) {
+        Some(own) => own.clone(),
+        None if std::env::var_os("OXIDELICA_NO_RUN_TIME_PLACE").is_none() => {
+            match inherited_declaration(root, class, registry, 0) {
+                Some(found) => found,
+                None => return false,
+            }
+        }
+        None => return false,
     };
+    let declared = &declared;
     if declared.causality == Causality::Input || name[root.len()..].contains('.') {
         return false;
     }
@@ -406,6 +417,31 @@ pub(super) fn held_between_events(
         return true;
     }
     discrete_type(&declared.type_name, registry, class, 0)
+}
+
+/// The declaration of `root` in one of the bases of `class`, found
+/// the way the base names are resolved from where they were written.
+fn inherited_declaration(
+    root: &str,
+    class: &ClassDef,
+    registry: &HashMap<&str, &ClassDef>,
+    depth: usize,
+) -> Option<Component> {
+    if depth > 32 {
+        return None;
+    }
+    for base in &class.extends {
+        let Some(parent) = lookup(registry, &base.base, &class.name, &class.imports) else {
+            continue;
+        };
+        if let Some(found) = parent.components.iter().find(|c| c.name == root) {
+            return Some(found.clone());
+        }
+        if let Some(found) = inherited_declaration(root, parent, registry, depth + 1) {
+            return Some(found);
+        }
+    }
+    None
 }
 
 /// Whether a type is followed through its bases to one that is

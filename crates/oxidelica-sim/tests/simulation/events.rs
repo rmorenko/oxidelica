@@ -1472,3 +1472,89 @@ fn an_if_at_an_event_gives_an_array_element_by_element() {
         [2.0, 3.0, 3.0]
     );
 }
+
+/// The value of one column of the last row of a result.
+fn last_of(result: &oxidelica_sim::SimResult, name: &str) -> f64 {
+    let at = result
+        .columns
+        .iter()
+        .position(|c| c == name)
+        .unwrap_or_else(|| panic!("no column {name} in {:?}", result.columns));
+    result.rows.last().expect("a final row")[at]
+}
+
+/// A buffer filled at a place only the run knows.
+///
+/// `buf[iTick] := u` in the `when` of a model is how the FFT blocks of
+/// the standard library sample their input, and it was refused: "the
+/// subscript of `buf` must be a whole number the compiler can see".
+/// Written out as one guarded write per element, each element takes
+/// the value at the tick that names it and keeps it after, so after
+/// four ticks the buffer holds 10, 20, 30, 40 and its sum is 100.
+#[test]
+fn a_buffer_is_filled_at_a_place_the_run_settles() {
+    let result = run("model A \
+           parameter Integer n = 4; \
+           Integer k(start = 0, fixed = true); \
+           Real buf[n](each start = 0, each fixed = true); \
+           Real s; \
+         algorithm \
+           when sample(0, 0.1) then \
+             k := pre(k) + 1; \
+             if k >= 1 and k <= n then buf[k] := 10*k; end if; \
+           end when; \
+         equation s = sum(buf); \
+           annotation(experiment(StopTime = 1)); \
+         end A;");
+    let got: Vec<f64> = ["buf[1]", "buf[2]", "buf[3]", "buf[4]", "s"]
+        .iter()
+        .map(|name| last_of(&result, name))
+        .collect();
+    assert_eq!(got, vec![10.0, 20.0, 30.0, 40.0, 100.0]);
+}
+
+/// A discrete matrix written a row at a time, at a row only the run
+/// knows and outside any `when`, the way the digital memories write
+/// `mem[addr, 1:n] := word` under a write enable. The rows the address
+/// does not name keep what they held: at the end the address has gone
+/// round 1, 2, 3, 4 and only rows 3 and 4 were written, so rows 1 and
+/// 2 still hold their start of zero.
+#[test]
+fn a_discrete_matrix_keeps_the_rows_an_address_does_not_name() {
+    let result = run("model F1 \
+           Integer mem[4,2](each start = 0); \
+           Integer a(start = 1); \
+         algorithm \
+           when sample(0, 0.1) then a := mod(pre(a), 4) + 1; end when; \
+           if a > 2 then mem[a, 1:2] := {a, 10*a}; end if; \
+           annotation(experiment(StopTime = 0.45)); \
+         end F1;");
+    let got: Vec<f64> = [
+        "mem[1,1]", "mem[1,2]", "mem[2,1]", "mem[2,2]", "mem[3,1]", "mem[3,2]", "mem[4,1]",
+        "mem[4,2]",
+    ]
+    .iter()
+    .map(|name| last_of(&result, name))
+    .collect();
+    assert_eq!(got, vec![0.0, 0.0, 0.0, 0.0, 3.0, 30.0, 4.0, 40.0]);
+}
+
+/// `pre` of a matrix is a matrix of `pre`s. It was asked for each row
+/// as one scalar and refused: "an array of shape [2] is used where a
+/// scalar is expected".
+#[test]
+fn pre_of_a_matrix_is_taken_element_by_element() {
+    let result = run("model I7 \
+           Integer mem[2,2](each start = 0); \
+           Integer y[2,2]; \
+         equation \
+           y = pre(mem); \
+           mem = {{1, 2}, {3, 4}}; \
+           annotation(experiment(StopTime = 0.5)); \
+         end I7;");
+    let got: Vec<f64> = ["y[1,1]", "y[1,2]", "y[2,1]", "y[2,2]"]
+        .iter()
+        .map(|name| last_of(&result, name))
+        .collect();
+    assert_eq!(got, vec![1.0, 2.0, 3.0, 4.0]);
+}

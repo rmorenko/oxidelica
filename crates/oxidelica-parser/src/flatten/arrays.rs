@@ -1673,6 +1673,30 @@ pub(super) fn expand_call(
             }
             let elements = (0..length)
                 .map(|index| {
+                    // A row of a matrix is itself an array, and the call
+                    // spreads over it the same way: `pre(mem)` of the
+                    // digital memories is a matrix of `pre`s, and asking
+                    // each row to be one scalar refused it.
+                    let nested = values.iter().any(|value| {
+                        matches!(value, Value::Array(items) if matches!(items[index], Value::Array(_)))
+                    });
+                    if nested && std::env::var_os("OXIDELICA_NO_RUN_TIME_PLACE").is_none() {
+                        let args = values
+                            .iter()
+                            .map(|value| match value {
+                                Value::Array(items) => items[index].clone().into_expr(),
+                                Value::Scalar(expr) => expr.clone(),
+                            })
+                            .collect::<Vec<_>>();
+                        return expand(
+                            &Expr::Call(name.to_string(), args),
+                            shapes,
+                            registry,
+                            scope,
+                            imports,
+                            depth + 1,
+                        );
+                    }
                     let args = values
                         .iter()
                         .map(|value| match value {

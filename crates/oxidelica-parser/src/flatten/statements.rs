@@ -585,6 +585,167 @@ fn in_function_body() -> bool {
     OUTPUTS.with(|held| !held.borrow().is_empty())
 }
 
+/// An assignment to one element at a place only the run can settle,
+/// written out as one guarded write per element it may name.
+///
+/// Only in the algorithm of a model, where the array is the model's
+/// own and its length is declared: a function's array is a local the
+/// inlining lays out, and a refusal there stays what it was. Every
+/// subscript has to name one place rather than a run, and the
+/// subscripts the compiler can settle stay the numbers they come to.
+/// `OXIDELICA_NO_RUN_TIME_PLACE` keeps the refusal.
+#[allow(clippy::too_many_arguments)]
+fn written_at_run_time(
+    target: &str,
+    subscripts: &[Expr],
+    value: &Expr,
+    bindings: &HashMap<String, Expr>,
+    consts: &HashMap<String, f64>,
+    sizes: &HashMap<String, Vec<i64>>,
+    registry: &HashMap<&str, &ClassDef>,
+    scope: &str,
+    imports: &[(String, String)],
+    depth: usize,
+) -> Result<Option<Vec<Statement>>, String> {
+    if subscripts.is_empty()
+        || in_function_body()
+        || std::env::var_os("OXIDELICA_NO_RUN_TIME_PLACE").is_some()
+    {
+        return Ok(None);
+    }
+    let Some(shape) = sizes
+        .get(target)
+        .filter(|shape| shape.len() == subscripts.len())
+    else {
+        return Ok(None);
+    };
+    // The places the run settles, each with every number it may come
+    // to. A run of places - `mem[addr, 1:n]` - and a place the
+    // compiler sees stay as they were written: the write below says
+    // what they come to.
+    let mut open: Vec<(usize, Expr, i64)> = Vec::new();
+    for (at, (subscript, &length)) in subscripts.iter().zip(shape).enumerate() {
+        if matches!(
+            subscript,
+            Expr::Range(..) | Expr::ColonSubscript | Expr::EndSubscript
+        ) {
+            continue;
+        }
+        let resolved = substitute_class_constants(subscript, registry, scope, imports, &[]);
+        let settled = algorithms::settled_in_body(
+            &resolved, bindings, consts, sizes, registry, scope, imports, depth,
+        );
+        if settled.is_none() {
+            if length < 1 {
+                return Ok(None);
+            }
+            open.push((at, resolved, length));
+        }
+    }
+    if open.is_empty() {
+        return Ok(None);
+    }
+    // Whether every place is one element, so that what an element not
+    // named keeps can be written out element by element.
+    let single = open.len()
+        == subscripts
+            .iter()
+            .filter(|s| {
+                !matches!(
+                    s,
+                    Expr::Range(..) | Expr::ColonSubscript | Expr::EndSubscript
+                )
+            })
+            .count();
+    let mut chosen: Vec<Vec<i64>> = vec![Vec::new()];
+    for (_, _, length) in &open {
+        chosen = chosen
+            .iter()
+            .flat_map(|so_far| {
+                (1..=*length).map(move |at| {
+                    let mut with = so_far.clone();
+                    with.push(at);
+                    with
+                })
+            })
+            .collect();
+    }
+    let mut written = Vec::new();
+    for numbers in chosen {
+        let condition = open
+            .iter()
+            .zip(&numbers)
+            .map(|((_, place, _), at)| {
+                Expr::Rel(
+                    RelOp::Eq,
+                    Box::new(place.clone()),
+                    Box::new(Expr::Number(*at as f64)),
+                )
+            })
+            .reduce(|a, b| Expr::And(Box::new(a), Box::new(b)))
+            .expect("one place at least is open");
+        let mut place: Vec<Expr> = subscripts.to_vec();
+        for ((at, _, _), number) in open.iter().zip(&numbers) {
+            place[*at] = Expr::Number(*number as f64);
+        }
+        let mut branches = vec![StatementBranch {
+            condition: Some(condition),
+            body: vec![Statement::Assign(
+                target.to_string(),
+                place.clone(),
+                value.clone(),
+            )],
+        }];
+        // An element the subscript does not name keeps what it held:
+        // what an earlier statement of the section wrote, which the
+        // merge reads on its own, or else at an event what it held
+        // before it, which is `pre` of it.
+        // Outside a `when` the same holds of a discrete variable, which
+        // the language says enters the algorithm holding `pre` of
+        // itself: the memories of the digital library write `mem[addr,
+        // 1:n]` under a write enable, in no `when` at all.
+        let held = |element: &str| {
+            inside_when() || record_fields::held_between_events(element, registry, scope)
+        };
+        if single {
+            let indices: Vec<i64> = place
+                .iter()
+                .map(|p| match p {
+                    Expr::Number(n) => Some(*n as i64),
+                    other => algorithms::settled_in_body(
+                        &substitute_class_constants(other, registry, scope, imports, &[]),
+                        bindings,
+                        consts,
+                        sizes,
+                        registry,
+                        scope,
+                        imports,
+                        depth,
+                    )
+                    .map(|n| n as i64),
+                })
+                .collect::<Option<Vec<i64>>>()
+                .unwrap_or_default();
+            let element = element_name(target, &indices);
+            if indices.len() == subscripts.len()
+                && !bindings.contains_key(&element)
+                && held(&element)
+            {
+                branches.push(StatementBranch {
+                    condition: None,
+                    body: vec![Statement::Assign(
+                        target.to_string(),
+                        place,
+                        Expr::Call("pre".to_string(), vec![Expr::Ref(element)]),
+                    )],
+                });
+            }
+        }
+        written.push(Statement::If(branches));
+    }
+    Ok(Some(written))
+}
+
 /// Whether a loop left on a condition the compiler cannot decide is
 /// written out with a flag. `OXIDELICA_NO_LOOP_EXIT` keeps the old
 /// refusal, so that one binary gives both numbers.
@@ -612,6 +773,9 @@ fn one_assignment(
     depth: usize,
     fold: bool,
 ) -> Result<(), String> {
+    // What the statement says before anything is put into it, for the
+    // statements an assignment may be written out as.
+    let as_written = value;
     // A body may name a constant of a package the way an
     // equation may, and it is resolved where it was
     // written - in this class, not at the call site.
@@ -686,6 +850,33 @@ fn one_assignment(
                 }
             }
         }
+    }
+    // An element written at a place only the run knows - `buf[iTick]
+    // := u` in the `when` of a model - is one of as many elements as
+    // that dimension holds, and which one is a question the run
+    // answers. So it is written out as that many guarded writes, `if
+    // iTick == j then buf[j] := u`, one per element: each element is
+    // then an `if` of its own, and the one the subscript does not name
+    // keeps what it held. One guarded write each rather than one
+    // `elseif` chain, so the size grows with the length and not with
+    // its square.
+    if let Some(written) = written_at_run_time(
+        target, subscripts, as_written, bindings, consts, sizes, registry, scope, imports, depth,
+    )? {
+        return execute(
+            &written,
+            bindings,
+            assigned,
+            &mut Vec::new(),
+            consts,
+            sizes,
+            registry,
+            scope,
+            imports,
+            depth + 1,
+            fold,
+        )
+        .map(|_| ());
     }
     // `oM[1:mBase, 1:mBase] := ...` names a run of
     // elements rather than one, and what it is given is
@@ -1336,6 +1527,16 @@ fn read_after(rest: &[Statement], name: &str) -> bool {
     {
         return true;
     }
+    // In the algorithm of a model, outside any function, what is
+    // written is the section's answer and the model reads it after,
+    // whatever the statements say. `buf[iTick] := u` written out as
+    // one guarded write per element had the last of them followed by
+    // nothing, and that element was left in its branch with no
+    // equation at all; and an array a model's `if` writes and nothing
+    // after reads was refused as having no value.
+    if !in_function_body() && std::env::var_os("OXIDELICA_NO_RUN_TIME_PLACE").is_none() {
+        return true;
+    }
     AFTERWARDS.with(|held| held.borrow().iter().any(|outer| read_later(outer, name, 0)))
 }
 
@@ -1664,6 +1865,20 @@ fn one_if_statement(
             // an event should not disagree about what holding a
             // value means.
             if inside_when() && !name.contains('[') {
+                return Some(Expr::Call("pre".to_string(), vec![Expr::Ref(name.clone())]));
+            }
+            // And an element of the model's own array the same way: a
+            // buffer written at a place the run settles, `buf[iTick] :=
+            // u` under `if iTick <= ns`, leaves every element alone in
+            // the branch not taken, and each keeps what it held.
+            if (inside_when() || record_fields::held_between_events(&name, registry, scope))
+                && !in_function_body()
+                && std::env::var_os("OXIDELICA_NO_RUN_TIME_PLACE").is_none()
+                && sizes.contains_key(name.split('[').next().unwrap_or(&name))
+                && registry
+                    .get(scope)
+                    .is_some_and(|class| class.kind != ClassKind::Function)
+            {
                 return Some(Expr::Call("pre".to_string(), vec![Expr::Ref(name.clone())]));
             }
             let Some(start) = record_fields::starts_at(&name, registry, scope) else {
