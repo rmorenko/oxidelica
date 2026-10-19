@@ -1494,3 +1494,24 @@ fn a_record_value_that_fits_no_length_of_the_record_is_refused_by_name() {
         "{said}"
     );
 }
+
+/// A record handed whole to a component declared above it is measured
+/// before that component is built.
+///
+/// `Impedance impedance(cellData = cellData)` stands above `parameter
+/// CellData cellData` in the battery library's impedance example, and
+/// the block's own `cellData.OCV_SOC[:, 2]` reads its length from the
+/// sibling's. Built in the order written, the sibling had not been
+/// measured yet and the model refused for a length its declaration
+/// writes out; a read of a member (`cd.T`) already moved the reader
+/// below, a read of the whole record did not.
+#[test]
+fn a_record_handed_whole_to_a_component_above_it_is_measured_first() {
+    let source = "record R parameter Real T[:, 2] = [0, 1; 1, 1]; end R; \
+         model Inner parameter R d; Real y; equation y = d.T[2, 2] * time; end Inner; \
+         model M Inner i(d = cd); parameter R cd(T = [0, 1; 0.5, 2; 1, 3]); end M;";
+    let m = parse_model(source).unwrap_or_else(|e| panic!("{e}"));
+    let names: Vec<&str> = m.components.iter().map(|c| c.name.as_str()).collect();
+    assert!(names.contains(&"i.d.T[3,2]"), "{names:?}");
+    assert!(!names.contains(&"i.d.T[4,2]"), "{names:?}");
+}

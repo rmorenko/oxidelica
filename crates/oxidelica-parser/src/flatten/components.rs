@@ -2290,10 +2290,32 @@ fn built_in_reading_order(components: &[Component]) -> Vec<&Component> {
         {
             value.collect_refs(&mut read);
         }
+        // A sibling handed whole to a component is read as surely as
+        // one read by a member: `Impedance impedance(cellData =
+        // cellData)` above `parameter CellData cellData` handed the
+        // block a record whose flexible `OCV_SOC[:, 2]` had not been
+        // measured yet, and the battery's impedance example refused for
+        // a length its own declaration writes out. Only a modifier
+        // hands a component something to build from: a binding that
+        // names a scalar sibling whole, `h_v = 420e3 * y`, is an
+        // equation, and moving it reorders the unknowns of the loop it
+        // stands in and with them the root the loop settles on.
+        // `OXIDELICA_NO_WHOLE_SIBLING_READ=1` counts only the dotted
+        // reads, as before.
+        let mut handed = Vec::new();
+        if std::env::var_os("OXIDELICA_NO_WHOLE_SIBLING_READ").is_none() {
+            for (_, value) in &component.modifiers {
+                value.collect_refs(&mut handed);
+            }
+        }
         let mut below: Vec<usize> = read
             .iter()
             .filter_map(|name| {
-                let (head, _) = name.split_once('.')?;
+                let (head, _) = match name.split_once('.') {
+                    Some(split) => split,
+                    None if handed.contains(name) => (*name, ""),
+                    None => return None,
+                };
                 let head = head.split('[').next().unwrap_or(head);
                 position.get(head).copied().filter(|later| *later > at)
             })
