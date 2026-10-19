@@ -54603,3 +54603,31 @@ models, none twice` and held all five floors: 23 / 2, runnable 21 / 2
 (`/tmp/m464/judge.txt`). The summed seconds are higher than the
 pricing run's because the desk was shared. The wall is what the 240
 is measured in, and on the desk it was a quarter of it.
+
+### Where the pipe's run goes
+
+A probe that counts each walked body by name and depth (a scratch
+build, not committed, `/tmp/m464/dp/walks.txt`) showed 39.4 million
+walks over three minutes of `DynamicPipeEnergyConservationCheck2`
+before it was stopped:
+
+| Body                                                    | Walks    |
+| ------------------------------------------------------- | -------- |
+| `Modelica.Math.log`, depth 3                            | 23329264 |
+| `IdealGases.Common.Functions.h_T`, depth 2              | 7776422  |
+| `SingleGasNasa.T_h.f_nonlinear`, depth 1                | 7776422  |
+| `solveOneNonlinearEquation$...T_h_f_nonlinear`, depth 0 | 517466   |
+
+So the price is the inverse of `h_T`: `T_h` solved by
+`solveOneNonlinearEquation` at the top, about fifteen evaluations of
+`f_nonlinear` a solve and three `log` calls each. The flattener had
+already said where it comes from. The four pipes'
+`T_start` asks to be evaluated, cannot be worked out before the run,
+and is "carried into the run instead". It is bound to the same
+`solveOneNonlinearEquation` call. A parameter carried into the run
+whose value is a whole iterative solve looks like it is being solved
+afresh half a million times, where a parameter needs to be solved once.
+The next shift's question is whether a carried parameter is computed
+once per run or once per evaluation. If it is the second, that is a
+cost for every carried parameter in the library, and this model is
+only the dearest instance of it.
