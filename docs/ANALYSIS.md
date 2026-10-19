@@ -54126,10 +54126,12 @@ of `ComplexMath.sum` is skipped, so inside the body `v[:].re` has no
 class, and the member arm of `arrays.rs` cannot pick `re` out of a list
 of records. A trial that picked the field per record at the member arm
 (behind a switch, not kept) moved nothing in `/tmp/s461/cz13.mo` or
-`cz21.mo`, because the class is missing before the arm is reached. The
-repair belongs where the table is built: an array of records filed as
-its element's class, which then has to agree with every reader that
-takes `records` for a single record.
+`cz21.mo`, because the class is missing before the arm is reached. A
+second trial filed `Complex v[:]` under `Complex` in that table
+(`OXIDELICA_ARRAY_RECORD_INPUTS`, not kept) and moved none of `cz11`,
+`cz13`, `cz20` or `cz21` either, so the table is not the only place the
+class is lost: both repairs together, or the substitution of the list
+into the body, is where the next probe starts.
 
 `Clocked.Examples.Systems.ControlledMixingUnit` reaches the run half
 since the Clock's `solverMethod` argument is read, and refuses on
