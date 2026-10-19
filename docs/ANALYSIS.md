@@ -53783,3 +53783,178 @@ one model. A key with the whole depth in it is not affordable. What
 could be is a key that tells only whether the depth left is enough for
 the answer to stand, a bit rather than a number, and that is a design
 for a shift of its own. Nothing was changed.
+
+## Shift 460: the registers after `initial()`, three probed rows, and a record holding a matrix
+
+### The digital registers under the `initial()` change: unmoved, and right
+
+The last shift left one question about 676ea18 open: whether the
+numbers of the digital registers, which load `clock_flag` under `if
+initial()` inside `if change(clock)`, moved under the change. One binary
+of 676ea18 (`/tmp/m460s/ox1`) simulated `Digital.Examples.DFFREG` and
+`DLATREG` with `OXIDELICA_NO_INITIAL_DEFINITION` set and unset
+(`/tmp/m460s/reg/*.csv`). The two result files of each model are
+identical byte for byte. So `initial()` reaches those registers by
+another road than the algorithm definition the change moved, and the
+change touches nothing they print.
+
+The numbers themselves agree with the tables of the models. In
+`DLATREG` (logic codes: 2 is `X`, 3 is `0`, 4 is `1`) the outputs start
+`U`, fall to `0` at 3 (the reset pulse at 1 plus the 2 s delay `tHL`),
+`dataOut[1]` goes to `X` at 13 while enable is high and `data_0` is
+`W`, follows `data_0 = 1` to `1` at 18, `dataOut[2]` follows `data_1`
+to `1` at 19, and the reset pulse at 20 brings both back to `0` at 22.
+In `DFFREG` the reset at 1 brings both outputs to `0` at 6 (`tHL` 5).
+The edge at 7 latches `data_0 = 1` and `dataOut[1]` shows it at 13
+(`tLH` 6). `dataOut[2]` stays `0` until 16, when it shows `X`: at 10
+`data_1` turns `X` at the same instant as the next edge, and a new value
+arriving inside the delay is what an inertial delay cancels the pending
+one for, so whatever the edge at 7 latched from the `H` of `data_1`
+never shows. The `0` of `data_0` latched at the edge at 15 shows at 20.
+An edge and a data change at one instant latching the new data is a
+reading of the event iteration that this record does not settle against
+a reference tool. A measurement, not a change.
+
+### `PartialMedium.BaseProperties is partial` (3): the redeclaration is not lost
+
+Measured again on 676ea18 because the question was whether the three
+`Media.Examples.Utilities` parts lose a redeclaration on the way. They
+do not: asked alone they stand on `Medium = PartialMedium`, whose
+`BaseProperties` is partial, and the examples that redeclare them
+(`ReferenceAir.DryAir1`, `DryAir2`, `TwoPhaseWater.TestTwoPhaseStates`)
+each flatten and run under `--only` with the same binary. The refusal
+is owed, the same family as the fourteen open components of queue item
+34, and the map written under "templates, and the refusal is owed"
+above still stands.
+
+### `the trip count of a loop is not settled` (2): a tuple equation had no door to the walk
+
+`ModelicaTest.Math.TestInterpolateParametric` and
+`TestInterpolateTimeVarying` write `(x, i) =
+Modelica.Math.Vectors.interpolate(tabx, taby, time)`. The body hunts
+the row holding `time` with a `while`, which only the run can settle.
+The same call written as `x = interpolate(...)` runs (`T3.mo`), and so
+does the same tuple in an algorithm or inside `when`: both have a door
+to the walk for a body refused on its trip count. The tuple equation
+(`flatten_tuple_equation`, `flatten/equations.rs`) had none, and gave
+the refusal back. Small models in `/tmp/s460/trip`: `T1` (the corpus
+shape), `T4` (tables written out), `T5` and `T7` (a local function).
+
+Behind `OXIDELICA_NO_TUPLE_WALK`, the tuple equation now takes the walk
+on the same terms as the algorithm's door: refused for the trip count,
+walkable, carried by the run, and with a table among the arguments.
+`T1` gives `x = 6.5`, `i = 3` at 2.5 and `x = 13.9`, `i = 4` at 3.7, the
+straight line between the squares. `T5` and `T7`, which hand the
+function no table, are still refused, as the narrowing intends. The
+test is `a_tuple_equation_walks_a_body_hunting_through_a_table`, red
+under the switch.
+
+Both corpus models now flatten and do not run: they write `y = der(x)`,
+and `x` is a walked call, which index reduction cannot differentiate
+(`structurally singular model: cannot differentiate a subscript that
+survived flattening`). That is the wall `smoothOrder` and
+`normallyConstant` of `interpolate` exist for, and it is a design of its
+own, not part of this one.
+
+### `scanDelimiter never assigns its output` (1): the function is right, a C body stands behind it
+
+`readRealParameterModel` reads three parameters from a file through
+`Examples.readRealParameter`. `Strings.scanDelimiter` itself folds
+correctly where its inputs are known: `S3.mo` (`/tmp/s460/scan`) asks
+it three times and gets 11, 18 and 30, the indices after `=` and `;`
+and after the end of a line with no `;`. Branches inside a `while`, the
+output assigned only on the found path - the analysis sees all of it.
+What stops the model is the step after: `Examples.expression` reads the
+number with `Strings.Advanced.scanReal`, an `external "C"` body
+(`ModelicaStrings_scanReal`, `S8.mo`), so `nextIndex` after the value is
+never known, and the second `scanDelimiter` is asked with a start the
+compiler cannot see. Its output is then left unassigned by every road
+the fold can decide, and the message names the symptom, not the C body.
+The same wall as `TestStrings` and `TestExamplesCalculator` of the
+C-function row. Parked with the C bodies, which wait for Roman.
+
+### `an array of N written out` in the run half (3): records handed whole to a walked body
+
+All three are raised at `code.rs`, compiling an argument of a walked
+call, and in all three the argument is a record written out as its
+fields with an array among them.
+
+`Rotational3DEffects.GyroscopicEffects` hands `Frames.resolve2` its
+`Orientation`: `{{T rows}, {w}}`, three rows of three and a list of
+three, twelve numbers in all. The walk seats the record as `Real[12]`.
+The argument was neither a list of numbers nor rows of one length, so
+the list branch handed the nested rows on as single numbers. A chain of
+three links, each red on its own switch in `/tmp/s460/rag/Q1.mo` (a
+record of a 2 by 2 matrix and a list, `y := r.T * v`), was built and
+measured:
+
+1. A record with an array among its fields, whose leaves come to
+   exactly the seat's length, goes over as its leaves in order - the
+   road the text-bearing records already took (`record_numbers`).
+2. Seated, the body read `r.T` whole, and only `r.T[1,1]` and its
+   siblings had names in the frame. The whole field is written as its
+   elements in its own shape (`records_as_arrays`, `carried.rs`).
+3. The walk had no matrix times a list. Rows of one length times a list
+   as long as a row is one scalar product per row (`elements_of`).
+
+`Q1` gives 3.5 and 8.5 at t = 1, which is `{{1, 2}, {3, 4}} * {1.5,
+1}`. The test is `a_walked_body_takes_a_record_holding_a_matrix`, red
+under each switch. The corpus pair of one binary (`/tmp/m460s/ox7`, the
+three switches and the tuple door's set against none,
+`/tmp/m460s/pair7/off.txt` and `on.txt`) prints 965 / 794 and 848 / 750
+against 967 / 795 and 850 / 751, and the lists differ by exactly three
+names: the two `TestInterpolate*` below, which flatten, and
+`GyroscopicEffects`, which runs. The off half equals the base of
+676ea18 line for line (`/tmp/m460s/head.txt`).
+
+Whether the run is right was checked, because a quaternion read with
+`awk` out of the result file looked like zero for a while: the header
+holds quoted names with commas (`"bodyCylinder1.body.frame_a.R.T[3,3]"`)
+and the columns slid. Read with a CSV parser, `bodyCylinder1.body.Q`
+starts at `{0, 0, 0, 1}` and keeps `|Q| = 1` to 1e-13 up to 0.1. The
+example builds the same gyroscope twice, once with a revolute joint and
+a body and once with `Rotor1D`, and the two quaternions agree to 6.4e-12
+over that stretch, with `revolute.w` and `rotor1D.w` both 4.44034878 at
+0.1. A lesson about the instrument: a result file is read with a CSV
+parser, never split on commas.
+
+The model does not get to its stop time. `simulate` to 5 s is refused
+between 0.1 and 0.5 with `der(der(bodyCylinder1.body.a_0[3]))`
+constraining no state, from the index reduction the run does again when
+it changes its choice of states. Half the gyroscope shows the same
+refusal (`/tmp/s460/rag/B4.mo`, spherical joint, cylinder, fixed
+rotation, revolute rotor and cylinder, stop 1), while the base binary
+cannot get that far, stopping at the record wall. So the refusal is the
+next wall, honestly named, and not a number gone wrong. The library
+check counts ten steps as running, by its own rule, and the model is
+counted on that rule.
+
+`TestAllProperties.IncompleteMedia.ReferenceMoistAir` and
+`FlueGasSixComponents` hand `velocityOfSound` and `dynamicViscosity` a
+`ThermodynamicState` holding `X[nX]`. The seat there has no length at
+all: `nX` is a constant of the medium, and `handed_record_fields` reads
+a dimension with `const_eval` and nothing else, so the record is not
+laid out as an array and the walk seats it as one number. A trial
+reading the length where the record stands (`declared_length`, the way
+`shaped_record_fields` already does) took both models a storey further
+and no further: `ReferenceMoistAir` to the wall `Inverse_sh_TX` already
+stands at (an array in `ice09BaseProp_pT`), `FlueGasSixComponents` to a
+record constructor inside the walk (`state := if size(X, 1) == 0 then
+ThermodynamicState(...)`). Neither runs, so the trial is parked as a
+diff (`/tmp/s460/arr/named_lengths_full.diff`) and not taken: a chain
+whose end has not been reached.
+
+### `the Newton direction of algebraic loop` (10): the hydraulic family, unchanged
+
+Probed on the smallest of the row, `SeriesPipes2`, with
+`OXIDELICA_NEWTON_TRAIL` (`/tmp/s460/sp2.txt`). The loop over
+`pipe1.mediums[1].p`, `valveIncompressible1.dp_turbulent` and
+`pipe3.mediums[1].p` solves at 0, 0.0002 and 0.0003. At 0.0008 the first
+full Newton step takes `pipe1.mediums[1].p` from 7.5e5 to -1.8e7 Pa,
+the water answers NaN there, and the damped walk afterwards gains
+nothing below a step of 3e-5. The middle residual, about 3270, is the
+equation of `dp_turbulent`, which the valve writes over viscosities and
+densities of both sides. This is the shape the note in
+`solvers/mod.rs` already records for `BranchingPipes1`, `12` and `14`
+(m214, m215): a step of the water formulation out of its domain, not a
+singular matrix. Nothing new was found and nothing was changed.
