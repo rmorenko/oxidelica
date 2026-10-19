@@ -54115,3 +54115,37 @@ root, and a `superSample` whose factor is to be inferred between them.
 refused as no clock at all. Two exact clocks of different roots meeting
 needs a common base, which is a change to how roots are kept rather
 than a fix of the inference.
+
+### Two more walls named after the push
+
+The Complex sum of `ShowImpedance`, one layer further. The record
+table a body is inlined against, `body_records_in_view`, files an
+input under its record's class only where the input has no dimensions
+(`inlining.rs`, the `!input.dimensions.is_empty()` test). `Complex v[:]`
+of `ComplexMath.sum` is skipped, so inside the body `v[:].re` has no
+class, and the member arm of `arrays.rs` cannot pick `re` out of a list
+of records. A trial that picked the field per record at the member arm
+(behind a switch, not kept) moved nothing in `/tmp/s461/cz13.mo` or
+`cz21.mo`, because the class is missing before the arm is reached. The
+repair belongs where the table is built: an array of records filed as
+its element's class, which then has to agree with every reader that
+takes `records` for a single record.
+
+`Clocked.Examples.Systems.ControlledMixingUnit` reaches the run half
+since the Clock's `solverMethod` argument is read, and refuses on
+`discrete variable inverseBlockConstraints.y2 is never assigned by a
+when clause`. `why` on its neighbours shows the shape. The inverse
+plant is discretized by `ExplicitEuler`, so `invMixingUnit.c =
+pre(invMixingUnit.c) + pre($slope0_1_4)` reads only the tick before,
+and `inverseBlockConstraints` writes `u1 = u2` and `y1 = y2`. At one
+tick `u1 = filter.y` and `u2 = invMixingUnit.c` are both settled, so `u1
+= u2` is a condition with no unknown of the tick in it, while `y2`, and
+through it `invMixingUnit.T_c`, has no equation of the tick at all. The
+model is one equation over on one side and one under on the other,
+which is what an inverse model is until the constraint is
+differentiated; under an explicit method the input reaches the output
+only a tick later. The refusal is right but names the wrong half: the
+unknown left over, not the condition with nothing to determine. Saying
+which equation of the tick constrains nothing is the cheap
+improvement; running the model is a question of how the specification
+wants an inverse model discretized, and is not taken here.
