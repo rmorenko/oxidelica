@@ -6791,7 +6791,17 @@ fn what_the_run_watches(
         collect(&equation.lhs);
         collect(&equation.rhs);
     }
-    for expr in state_rhs.values() {
+    // In the order of the states' names and not the map's. A map is
+    // walked in an order seeded afresh by every process, and the order
+    // of the indicators is the order the event search meets crossings
+    // that fall in one step: CCCV_Stack gave four different results in
+    // nine runs of one binary, and CCCV_StackRC chattered to a refusal
+    // at t = 806 in one run of six and ran in the other five.
+    let mut by_name: Vec<(&String, &Expr)> = state_rhs.iter().collect();
+    if !crate::walk::switch_set("OXIDELICA_INDICATORS_BY_MAP") {
+        by_name.sort_by(|a, b| a.0.cmp(b.0));
+    }
+    for (_, expr) in by_name {
         collect(expr);
     }
     for clause in when_clauses {
@@ -8919,6 +8929,44 @@ mod supply_once_tests {
                 dependent,
                 "dependence under {said:?}"
             );
+        }
+    }
+}
+
+#[cfg(test)]
+mod watched_order_tests {
+    use super::{collect_relations, what_the_run_watches};
+    use crate::*;
+    use oxidelica_parser::RelOp;
+
+    /// One relation in each of forty derivatives, collected from maps
+    /// built afresh: the indicators come out in the order of the
+    /// states' names however each map happens to be seeded, so two
+    /// runs of one model watch the same list in the same order.
+    #[test]
+    fn the_indicators_do_not_follow_the_seed_of_a_map() {
+        let names: Vec<String> = (0..40).map(|k| format!("x{k:02}")).collect();
+        let relation = |name: &String| {
+            Expr::Rel(
+                RelOp::Lt,
+                Box::new(Expr::Ref(name.clone())),
+                Box::new(Expr::Number(1.0)),
+            )
+        };
+        let watched = || {
+            let state_rhs: HashMap<String, Expr> = names
+                .iter()
+                .map(|name| (name.clone(), relation(name)))
+                .collect();
+            what_the_run_watches(&[], &[], &state_rhs, &[], &[])
+        };
+        let mut wanted = Vec::new();
+        for name in &names {
+            collect_relations(&relation(name), &mut wanted);
+        }
+        assert_eq!(wanted.len(), names.len());
+        for _ in 0..8 {
+            assert_eq!(format!("{:?}", watched()), format!("{wanted:?}"));
         }
     }
 }

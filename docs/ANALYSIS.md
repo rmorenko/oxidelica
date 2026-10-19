@@ -54342,3 +54342,137 @@ moved is its own `unknown variable c2.re`. The Jacobians are 529 and
 1974 apart in both halves, and the points and Newton steps differ by
 less than one in ten thousand. The run floors wait for the runner's
 print, as a floor rises to what the runner has printed.
+
+## Shift 463: the wrong resistance of the battery family, and a run that drew lots
+
+### The verdicts
+
+The code run of adac25c went red on the linters job alone: the spell
+checker read the bare name of the second scratch file of the last
+chapter, its directory left off, as a misspelt `and`. c4067eb writes
+the path out whole. The daily run of
+7f9b251 was cancelled at its 240 minute ceiling with 21 of the 23
+heavy models read, every other job green. It was not the code. Four
+of the heavy models under `--only` on binaries of 676ea18 (the last
+green cron) and 7f9b251 gave the same work to the digit
+(`LineForceWithTwoMasses` 1654020 names both, `Fourbar2` 1573988,
+`SeriesPipes12` 364 Newton steps both, `MoistAir1` 18), and the
+minutes inside the desk's noise (216s against 233s, 144s against
+138s). The weather is visible from the runner: the same 7f9b251 ran
+its main library pass in 55 minutes on its push and in 98 minutes
+inside the cron, which shared the runner with three push runs that
+hour (`/tmp/s463/heavy_pair.txt`, the two job logs beside it).
+
+### Who else held the wrong number of `ShowImpedance`
+
+a50b920 measures a record component's members with what the
+declaration hands down. A probe printed every record whose measured
+shapes differ between the two rules over the whole corpus (local,
+reverted). Eight classes, all but one in the batteries: `rcData` one
+long against two, and `OCV_SOC` 2 by 2 against 29 by 2, in
+`BatteryDischargeCharge`, `CCCV_Cell`, `CCCV_CellRC`, `CCCV_Stack`,
+`CCCV_StackRC`, `CCCVcharging` and `ShowImpedance`. The eighth is
+`R134a_ph.fres_R134a`, whose `res.c`, `d`, `t`, `n` measure 20 against
+21, and whose three runnable tests give the same CSV byte for byte
+either way.
+
+Run under `OXIDELICA_RECORD_SHAPES_AS_DECLARED` and without, on one
+binary (`/tmp/s463/v/`), four battery models were running on a wrong
+resistance before a50b920, and nothing refused. `ExampleData` writes
+`Ri = OCVmax/Isc` and two RC elements of `0.2*Ri` and `0.1*Ri`, so
+by hand `R0 = Ri - sum(rcData.R) = 0.7*Ri`. With `Isc = 1200`, one
+cell has `Ri = 0.0035` and `R0 = 0.00245`; the old rule subtracted the
+first element alone and gave `0.8*Ri = 0.0028`. `oxidelica why ...
+cellData2.R0` names both bindings: `Ri - (rcData[1].R + rcData[2].R)`
+now, `Ri - rcData[1].R` under the switch.
+
+| model                    | `r0.R_actual` now / before | what moved                          |
+| ------------------------ | -------------------------- | ----------------------------------- |
+| `BatteryDischargeCharge` | 0.01225 / 0.014            | `energy2.y` 71552 / 79821 at 3600 s |
+| `CCCVcharging`           | 0.01225 / 0.014            | `energy.u` 0.288 / 0.323 at the end |
+| `CCCV_CellRC`            | 0.00245 / 0.0028           | `r0.LossPower` 31% apart at the end |
+| `CCCV_StackRC`           | 0.00245 / 0.0028 per cell  | degraded `[1,1]` 0.0049 / 0.0056    |
+
+The stack numbers are `Ns*R0/Np` of `CellRCStack`, which is why ten
+in series and two in parallel give 0.01225. `CCCV_Cell` and
+`SuperCapDischargeCharge` have no RC elements and are identical. The
+new numbers are the right ones by the formula, so the fix stands as
+it is.
+
+### A run that drew lots
+
+`CCCV_Stack` also differed under the switch, but its inputs were equal
+at t = 0. Nine runs of one binary with one environment gave four
+different CSVs, the first difference at 1e-10 at t = 0.1, and
+`library check --only` gave 3507 points in one run of four and 4372
+in the others. `CCCV_StackRC`, with the right resistance, ran in five
+of six runs and in one was refused for chattering at t = 806. The
+dump of the compiled model differed in every one of six runs in one
+field alone, the event indicators: the same 225 of them, in another
+order. `what_the_run_watches` collected the relations of the
+derivatives from `state_rhs.values()`, a map whose order is seeded
+afresh by every process, and the order of the indicators is the order
+the event search meets crossings that fall in one step.
+
+The indicators are now collected in the order of the states' names,
+behind `OXIDELICA_INDICATORS_BY_MAP` for the old order. The test
+`the_indicators_do_not_follow_the_seed_of_a_map` passes and goes red
+under the switch. On the fixed binary `CCCV_Stack` gave one CSV in five
+runs, and `CCCV_StackRC` the same refusal in five of five, at t =
+805.9: what had been a draw is now a wall, named in the census.
+
+The three swings of the floors (`SpringWithMass`, `SMPM_VoltageSource`
+of FundamentalWave, `TestJunctionIdeal`) are not this. Each gave the
+same points and Newton steps in six runs under either order
+(`/tmp/s463/swing.txt`), so what makes them swing between the desk
+and the runner is still unnamed.
+
+### The import of a built-in's name
+
+Twenty imports in the library give a built-in's name to a function:
+`ComplexMath.abs` (7), `ComplexMath.exp` (5), `ComplexMath.sum` (2),
+and `Math.atan`, `atan2`, `log`, `log10`, `exp` (one or two each).
+Under `OXIDELICA_IMPORTED_BUILTINS_KEPT` and without, on one binary,
+the running models of the families that hold them were simulated to
+the end and their CSVs compared (`/tmp/s463/imp.txt`): only
+`ShowImpedance` moves, refused under the switch as it was before
+a50b920. The `CCCV_Stack` and `CCCV_StackRC` rows of that list are
+the draw above and not the imports, which neither model has. The
+PowerConverters models that stop in a full-length simulation stop the
+same way under both, and their work under `library check --only` is
+the same to the digit.
+
+### The edges of the three new roads
+
+Six small models, every number checked by hand on the head
+(`/tmp/s463/k/`): a slice by range `v[1:2].re` and `sum(v[2:3].im)`
+of a `Complex v[3]`; a record holding a record, modified two floors
+down; `ComplexMath.sum` of a slice, of a column of a matrix of records
+and of a row through `real`; a record extending a record extending a
+record, each `extends` modifying the base's array; a record argument
+built with one field modified, `f(P(b = 9))`; and `Complex c(re = 3)`
+with a binding beside the modifier. None is red. Under
+`OXIDELICA_SLICES_BY_PLACE` the slice models are refused rather than
+wrong, and under the imports switch the column sum is refused.
+
+### The census m463
+
+Taken on c4067eb (`/tmp/m463/census.txt`), counted by section
+boundaries: the flatten half 52 models in 31 rows, the run half 172 in
+115, as expected. The raw halves differ by one line, `ShowImpedance`
+leaving the row `unknown variable X in equation X`, which goes from 2
+to 1 and stays.
+
+### The pair of the indicator order
+
+One binary of the final tree (`/tmp/s463/oxfix`), under
+`OXIDELICA_INDICATORS_BY_MAP` for `/tmp/s463/pair/off.txt` and without
+it for `on.txt`, each under a 24 GB ceiling. Both printed 968 / 796
+and 851 / 752, the run lists are the same line for line, and the work
+of the run half agrees to the point (25243664 both) and to one Newton
+step in 36657928. The order fixes a draw, not a count: no model
+arrived or left on the desk, so the floors are not moved by it. The
+quick preflight of the tree (`/tmp/s463/pf_quick.txt`) is green but
+for the desk's work band, whose excess is `IMC_InverterDrive`'s
+refusal as in the last chapter: without its 1100990 points and 1382578
+Newton steps the rest is 442318 and 893877, x1.066 and x0.988.
