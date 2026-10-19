@@ -54330,3 +54330,15 @@ the rest is 445344 points and 899243 Newton steps, x1.073 and x0.994
 of the centres and inside the band. The centres were drawn from the
 runner, where the model runs; the band holds a desk refusal the
 runner does not pay, and it is not a cost of the change.
+
+### The pair of the series
+
+One binary built from the final tree (`/tmp/s462/oxfinal`), the three
+switches set for `/tmp/s462/pair3/off.txt` and unset for `on.txt`, each
+under a 24 GB ceiling. Off printed 968 / 795 and 851 / 751, on 968 /
+796 and 851 / 752. The flattened lists are the same line for line; the
+run list gained `ShowImpedance` and lost nothing; the only refusal that
+moved is its own `unknown variable c2.re`. The Jacobians are 529 and
+1974 apart in both halves, and the points and Newton steps differ by
+less than one in ten thousand. The run floors wait for the runner's
+print, as a floor rises to what the runner has printed.
