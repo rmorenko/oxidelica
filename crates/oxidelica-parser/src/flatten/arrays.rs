@@ -581,6 +581,21 @@ pub(super) fn expand(
                     if let (Some(class), Value::Array(items)) = (registry.get(of.as_str()), &value)
                     {
                         let fields = record_fields_of(registry, class, 0);
+                        // A slice is an array of records, not one record
+                        // worked out as its fields: `v[:].re` of two
+                        // phasors is the real part of each, and read by
+                        // place it was the whole of `v[1]` - a list of
+                        // two counted as the two fields of one, which
+                        // only failed to give a wrong number where the
+                        // name of a whole record was then refused.
+                        if sliced(base) && !slices_by_place() {
+                            return Ok(Value::Array(
+                                items
+                                    .iter()
+                                    .map(|item| field_of_one(item, &fields, path))
+                                    .collect::<Result<Vec<_>, String>>()?,
+                            ));
+                        }
                         if fields.len() == items.len() {
                             if let Some(place) = fields.iter().position(|field| field == path) {
                                 return Ok(items[place].clone());
@@ -1010,6 +1025,36 @@ pub(super) fn expand_call(
             ));
         }
         Ok(value as i64)
+    };
+
+    // A name an import gives is that import's, whatever built-in shares
+    // it: `import Modelica.ComplexMath.sum` is how a battery's impedance
+    // adds its phasors, and the arms below took the bare `sum` for the
+    // reduction of numbers. Handed a list of records, that reduction
+    // flattened every field into one total, the real and the imaginary
+    // parts added together, and the equation came out between a
+    // phasor and one number. Only a function with a body of its own
+    // is followed: one declared `external "builtin"` is the built-in
+    // under another name, and the arms below are what it means.
+    if let Some(imported) = imported_function(name, registry, scope, imports) {
+        return expand_call(&imported, args, shapes, registry, scope, imports, depth);
+    }
+    // And the other way round: `.sum` is the compiler's own `sum`, its
+    // path resolved away, and it is how `ComplexMath.sum` writes the
+    // reduction inside the very function that took the name. Matched
+    // against the arms with its dot on, it met none of them and was
+    // spread over its argument as if it were any scalar function.
+    // Only where no class at the top answers to the name, so a user's
+    // own top-level `.f` stays theirs, and only for the reductions this
+    // layer works out whole: any other built-in keeps its dot, which is
+    // how the passes after this one tell it from a namesake.
+    let name = match name.strip_prefix('.') {
+        Some(bare @ ("sum" | "product" | "min" | "max" | "vector" | "scalar"))
+            if args.len() == 1 && !imported_builtins_kept() && registry.get(bare).is_none() =>
+        {
+            bare
+        }
+        _ => name,
     };
 
     match (name, args.len()) {
@@ -1450,9 +1495,11 @@ pub(super) fn expand_call(
                     }
                     // The shape each argument turned out to have is
                     // what a `[:]` input takes its length from.
-                    let argument_shapes: Vec<Vec<i64>> = values.iter().map(shape_i64).collect();
+                    let mut argument_shapes: Vec<Vec<i64>> = values.iter().map(shape_i64).collect();
                     let arguments: Vec<Expr> =
                         values.into_iter().map(|value| value.into_expr()).collect();
+                    let arguments =
+                        records_kept_whole(class, registry, arguments, &mut argument_shapes);
                     // Worked out under the name the call wrote: a
                     // media function called as `Medium.density` has
                     // to find the medium's own records, not the ones
@@ -2200,6 +2247,165 @@ fn spread_of_scalar_inputs(
         spread = Some(items.len());
     }
     spread
+}
+
+/// Whether a subscripted base keeps a dimension: one subscript that is
+/// a colon or a range, so what it reads is a list of elements rather
+/// than one. Only the one-subscript case is read, since there each
+/// element is one record and nothing else.
+fn sliced(base: &Expr) -> bool {
+    matches!(base, Expr::Index(_, subscripts)
+        if subscripts.len() == 1
+            && matches!(subscripts[0], Expr::ColonSubscript | Expr::Range(..)))
+}
+
+/// Whether a member of a slice of records is read by place, as it was
+/// before: `OXIDELICA_SLICES_BY_PLACE`, so that one binary gives both
+/// halves of a measurement.
+fn slices_by_place() -> bool {
+    std::env::var_os("OXIDELICA_SLICES_BY_PLACE").is_some()
+}
+
+/// One field of one record of a slice: a record named whole has the
+/// field under its name, and a record worked out as its fields has it
+/// at the place the record declares it. Anything else is refused by
+/// name rather than guessed at.
+fn field_of_one(item: &Value, fields: &[String], path: &str) -> Result<Value, String> {
+    match item {
+        Value::Scalar(Expr::Ref(name)) => Ok(Value::Scalar(Expr::Ref(format!("{name}.{path}")))),
+        Value::Array(held) if held.len() == fields.len() => {
+            match fields.iter().position(|field| field == path) {
+                Some(place) => Ok(held[place].clone()),
+                None => Err(format!("a record of the slice has no field `{path}`")),
+            }
+        }
+        other => Err(format!(
+            "`.{path}` of a slice of records, and one element is not a record: {}",
+            names::sketch(&other.clone().into_expr())
+        )),
+    }
+}
+
+/// The records of a list handed to an input that takes an array of
+/// them, written back as records rather than as their fields.
+///
+/// `ComplexMath.sum({Complex(1, f), Complex(2, 5)})` works the list out
+/// before the body is reached, and what arrives is a list of lists of
+/// numbers: nothing in it says it was ever a list of phasors, so the
+/// body's `v[:].re` could not tell a record from a row, and the class
+/// was gone before any table could be asked. Written back as calls of
+/// the record, the body's own reading finds the class again. Only
+/// where a call with the fields in order means exactly those fields -
+/// a record with no constructor of that many inputs, or one whose
+/// inputs are the fields by name and in order - so that rebuilding the
+/// record cannot build a different one.
+fn records_kept_whole(
+    class: &ClassDef,
+    registry: &HashMap<&str, &ClassDef>,
+    arguments: Vec<Expr>,
+    shapes: &mut [Vec<i64>],
+) -> Vec<Expr> {
+    if slices_by_place() {
+        return arguments;
+    }
+    let inputs: Vec<Component> = inlining::function_components(registry, class, 0)
+        .into_iter()
+        .filter(|c| c.causality == Causality::Input)
+        .collect();
+    let mut out = Vec::with_capacity(arguments.len());
+    for (index, argument) in arguments.into_iter().enumerate() {
+        let kept = (|| {
+            if argument_is_named(&argument) {
+                return None;
+            }
+            let input = inputs.get(index)?;
+            if input.dimensions.len() != 1 {
+                return None;
+            }
+            let record = record_fields::record_input_class(registry, class, input)?;
+            let fields = record_fields_of(registry, record, 0);
+            let Expr::Array(items) = &argument else {
+                return None;
+            };
+            let all_written_out = !items.is_empty()
+                && items.iter().all(|item| {
+                    matches!(item, Expr::Array(held)
+                        if held.len() == fields.len()
+                            && held.iter().all(|one| !matches!(one, Expr::Array(_))))
+                });
+            if !all_written_out || !rebuilt_as_written(registry, record, &fields) {
+                return None;
+            }
+            let rebuilt = items
+                .iter()
+                .map(|item| match item {
+                    Expr::Array(held) => Expr::Call(record.name.clone(), held.clone()),
+                    other => other.clone(),
+                })
+                .collect();
+            Some(Expr::Array(rebuilt))
+        })();
+        match kept {
+            Some(rebuilt) => {
+                if let Some(shape) = shapes.get_mut(index) {
+                    shape.truncate(1);
+                }
+                out.push(rebuilt);
+            }
+            None => out.push(argument),
+        }
+    }
+    out
+}
+
+fn argument_is_named(argument: &Expr) -> bool {
+    matches!(argument, Expr::NamedArg(..))
+}
+
+/// Whether calling a record with its fields in order builds exactly
+/// those fields.
+fn rebuilt_as_written(
+    registry: &HashMap<&str, &ClassDef>,
+    record: &ClassDef,
+    fields: &[String],
+) -> bool {
+    let Some(constructor) = operator_function(registry, &record.name, "constructor", fields.len())
+    else {
+        return true;
+    };
+    let takes: Vec<String> = inlining::function_components(registry, constructor, 0)
+        .into_iter()
+        .filter(|c| c.causality == Causality::Input)
+        .map(|c| c.name)
+        .collect();
+    takes.len() == fields.len() && takes.iter().zip(fields).all(|(a, b)| a == b)
+}
+
+/// The full name of the function a bare call names through an import,
+/// where the import is of a function with a Modelica body. A dotted
+/// name is already whole, and a name no import gives is left to the
+/// built-ins and to lookup as before.
+fn imported_function(
+    name: &str,
+    registry: &HashMap<&str, &ClassDef>,
+    scope: &str,
+    imports: &[(String, String)],
+) -> Option<String> {
+    if name.contains('.') || imported_builtins_kept() {
+        return None;
+    }
+    let (_, target) = imports.iter().find(|(local, _)| local == name)?;
+    let class = lookup(registry, target, scope, imports)?;
+    (class.kind == ClassKind::Function && class.external_call.is_none() && class.name != name)
+        .then(|| class.name.clone())
+}
+
+/// Whether a bare call keeps the built-in of its name even where an
+/// import gives the name to a function, as it did before:
+/// `OXIDELICA_IMPORTED_BUILTINS_KEPT`, so that one binary gives both
+/// halves of a measurement.
+fn imported_builtins_kept() -> bool {
+    std::env::var_os("OXIDELICA_IMPORTED_BUILTINS_KEPT").is_some()
 }
 
 fn takes_or_gives_an_array(class: &ClassDef, registry: &HashMap<&str, &ClassDef>) -> bool {

@@ -5060,3 +5060,67 @@ fn a_length_named_by_a_local_of_the_body_is_measured() {
     let result = run("package H2 function dgesv_vec input Real A[:, size(A, 1)]; input Real b[size(A, 1)]; output Real x[size(A, 1)] = b; output Integer info; protected Integer n = size(A, 1); Integer nrhs = 1; Real Awork[size(A, 1), size(A, 1)] = A; Integer lda = max(1, size(A, 1)); Integer ldb = max(1, size(b, 1)); Integer ipiv[size(A, 1)]; external \"FORTRAN 77\" dgesv(n, nrhs, Awork, lda, ipiv, x, ldb, info); end dgesv_vec; function solve input Real A[:, size(A, 1)]; input Real b[size(A, 1)]; output Real x[size(b, 1)]; protected Integer info; algorithm (x, info) := dgesv_vec(A, b); end solve; function f input Real x; input Real V[:]; input Real H[:]; output Real y; protected Integer N = size(V, 1); Real P[N, N] = {{if j > 1 then V[i]^(j-1) else 1 for j in 1:N} for i in 1:N}; Real c[size(V, 1)] = solve(P, H); algorithm y := c[1] + c[2]*x + c[3]*x^2; end f; model M Real a = f(0.0005 + 0*time, {0, 0.001, 0.0015}, {100, 50, 0}); annotation(experiment(StopTime = 0.1)); end M; end H2; ");
     assert!((last_of(&result, "a") - 250.0 / 3.0).abs() < 1e-9);
 }
+
+#[test]
+fn an_imported_function_is_called_where_a_built_in_shares_its_name() {
+    // `import Modelica.ComplexMath.sum` is how a battery's impedance
+    // adds its phasors. The bare `sum` was taken for the built-in, the
+    // list of records was flattened into one total with the real and
+    // imaginary parts added together, and the model was refused for
+    // an equation between a phasor and a number. Inside the function
+    // the reduction is written `.sum`, the built-in with its path
+    // resolved away, and `v[:].re` of two records was read by place,
+    // as if the two records were the two fields of one. The imported
+    // `sum` must add the phasors, and the plain `sum` beside it must
+    // still add numbers.
+    let result = run("package P operator record C Real re; Real im; \
+         encapsulated operator function '+' input C a; input C b; output C c; \
+         algorithm c := C(a.re + b.re, a.im + b.im); end '+'; end C; \
+         function sum input C v[:]; output C r; \
+         algorithm r := C(.sum(v[:].re), .sum(v[:].im)); annotation(Inline = true); end sum; \
+         model M import P.sum; Real f = 1 + time; C z = sum({C(1, f), C(2, 5)}); \
+         Real s = .sum({1.0, f}); \
+         annotation(experiment(StopTime = 1)); end M; end P;");
+    assert_eq!(last_of(&result, "z.re"), 3.0);
+    assert_eq!(last_of(&result, "z.im"), 7.0);
+    assert_eq!(last_of(&result, "s"), 3.0);
+}
+
+#[test]
+fn a_field_read_off_a_slice_of_two_records_is_one_field_of_each() {
+    // Two records and two fields look alike once the records are worked
+    // out: `v[:].re` of a `Complex v[2]` was read as the field `re` of
+    // one record whose fields were `v[1]` and `v[2]`, and the model was
+    // refused for a name nothing declares. With three records the slice
+    // was read element by element and was right, which is what made the
+    // case of two a wrong reading rather than a missing one.
+    let result = run("model S record C Real re; Real im; end C; \
+         C v[2] = {C(1, 10 + time), C(2, 20)}; Real r[2] = v[:].re; Real s = sum(v[:].im); \
+         annotation(experiment(StopTime = 1)); end S;");
+    assert_eq!(last_of(&result, "r[1]"), 1.0);
+    assert_eq!(last_of(&result, "r[2]"), 2.0);
+    assert_eq!(last_of(&result, "s"), 31.0);
+}
+
+#[test]
+fn a_record_array_sized_by_the_declaration_is_summed_whole_up_an_extends() {
+    // A battery cell's record writes `extends CellData(R0 = Ri -
+    // sum(rcData.R))` and is declared with two RC elements where its
+    // default has one. The record's fields were measured off the
+    // record's own defaults before anything was instantiated, so the
+    // sum came to the first element alone and `R0` came out 0.8 where
+    // 1 - 0.2 - 0.1 is owed - a wrong number given without a word. The
+    // same declarations in a `model` were right.
+    let result = run("model R0 record RC parameter Real R = 1; end RC; \
+         record Base parameter Real Ri = 1; parameter Real R0 = Ri; end Base; \
+         record CD extends Base(R0 = Ri - sum(rcData.R)); parameter Integer nRC = 1; \
+         parameter RC rcData[nRC] = {RC(R = 0)}; end CD; \
+         parameter CD cd(nRC = 2, rcData = {RC(R = 0.2), RC(R = 0.1)}); \
+         Real y = cd.R0 * (1 + 0 * time); \
+         annotation(experiment(StopTime = 1)); end R0;");
+    assert!(
+        (last_of(&result, "y") - 0.7).abs() < 1e-12,
+        "{}",
+        last_of(&result, "y")
+    );
+}

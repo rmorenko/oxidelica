@@ -132,6 +132,47 @@ pub(super) fn collect_member_shapes_named(
     }
 }
 
+/// What a record declaration hands its record, and what the record's
+/// `extends` hand its bases, as one list a base reads its lengths from.
+/// The declaration speaks last and so first: a name it sets is not
+/// taken again from an `extends` below it, which keeps the list free
+/// of a name twice, so that reading it by the first entry or by the
+/// last says the same.
+fn handed_to_a_record(
+    registry: &HashMap<&str, &ClassDef>,
+    record: &ClassDef,
+    written: &[(String, Expr)],
+) -> Vec<(String, Expr)> {
+    let mut out: Vec<(String, Expr)> = written.to_vec();
+    let mut level = vec![record];
+    let mut depth = 0;
+    while let Some(class) = level.pop() {
+        depth += 1;
+        if depth > MAX_DEPTH {
+            break;
+        }
+        for extend in &class.extends {
+            for (name, value) in &extend.modifiers {
+                if !out.iter().any(|(held, _)| held == name) {
+                    out.push((name.clone(), value.clone()));
+                }
+            }
+            if let Some(base) = lookup(registry, &extend.base, &class.name, &class.imports) {
+                level.push(base);
+            }
+        }
+    }
+    out
+}
+
+/// Whether a record's fields are measured off the record's own
+/// declarations alone, as they were before:
+/// `OXIDELICA_RECORD_SHAPES_AS_DECLARED`, so that one binary gives both
+/// halves of a measurement.
+fn record_shapes_as_declared() -> bool {
+    std::env::var_os("OXIDELICA_RECORD_SHAPES_AS_DECLARED").is_some()
+}
+
 /// The same, for the members of a record below a name.
 #[allow(clippy::too_many_arguments)]
 fn collect_shapes_under(
@@ -201,7 +242,31 @@ fn collect_shapes_under(
             .filter(|of| of.kind == ClassKind::Record)
         {
             let below = format!("{prefix}{}.", component.name);
-            collect_shapes_under(registry, of, &below, consts, given, &[], out, depth + 1);
+            // Measured with what the declaration handed the record and
+            // what the record's own `extends` handed its base. A record
+            // is measured here and nowhere else, before anything is
+            // instantiated, so a length read off the defaults is the
+            // length for good: `parameter CD cd(n = 2, x = {0.2, 0.1})`
+            // over `Real x[n]` with `n = 1` was measured one long, a
+            // `sum(x)` handed up an `extends` came to `x[1]` alone, and
+            // a battery cell's resistance came out as its total less
+            // the first of its two RC elements - a wrong number, given
+            // without a word. A model is not walked this way, which is
+            // why the same declarations in a `model` were right.
+            let handed_down = match record_shapes_as_declared() {
+                true => Vec::new(),
+                false => handed_to_a_record(registry, of, &component.modifiers),
+            };
+            collect_shapes_under(
+                registry,
+                of,
+                &below,
+                consts,
+                given,
+                &handed_down,
+                out,
+                depth + 1,
+            );
         }
         if component.dimensions.is_empty() {
             continue;
