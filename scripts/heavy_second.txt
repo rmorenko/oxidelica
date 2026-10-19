@@ -1,0 +1,27 @@
+# The second basket of the heavy models: what `scripts/heavy_floor.sh
+# --pass b` reads, and what `--pass a` leaves out of
+# `scripts/heavy_models.txt`. That list stays the one place the
+# decision to carve a model out is written down, with the prices; this
+# file only says which half of it goes to the second runner.
+#
+# Split on 2026-10-19, on Roman's word, by the prices of one binary
+# built from 36e3dd1 on the desk, all 23 under `--only-from` with
+# `--slow 25` (/tmp/m464/heavy_prices.txt): 9979s running and 1273s
+# flattening between them. The names were dealt dearest first, each to
+# the cheaper basket, by the sum of the two halves: pass a 5620.7s,
+# pass b 5631.1s, a skew of 0.2%. A name added to the heavy list goes
+# to whichever basket is cheaper by the prices beside it, and a split
+# that drifts past ten percent is dealt again from fresh prices.
+
+Modelica.Electrical.Spice3.Examples.Spice3BenchmarkFourBitBinaryAdder.FOURBIT
+Modelica.Electrical.Spice3.Examples.Spice3BenchmarkFourBitBinaryAdder
+Modelica.Electrical.Spice3.Examples.Spice3BenchmarkFourBitBinaryAdder.TWOBIT
+ModelicaTest.Fluid.TestComponents.Pipes.DynamicPipesWithTraceSubstances
+ModelicaTest.Fluid.TestPipesAndValves.BranchingPipes12
+ModelicaTest.Fluid.TestPipesAndValves.SeriesPipes12
+ModelicaTest.Fluid.TestPipesAndValves.BranchingPipes18
+ModelicaTest.Fluid.TestComponents.Pipes.DynamicPipeWithNominalLaminarFlow
+Modelica.Media.Examples.R134a.R134a2
+Modelica.Media.Examples.R134a.R134a1
+Modelica.Media.Examples.ReferenceAir.MoistAir1
+Modelica.Media.Examples.ReferenceAir.MoistAir2

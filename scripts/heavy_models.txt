@@ -48,36 +48,58 @@
 # both halves and a date, so the split of this list into two jobs, when
 # it comes, is arithmetic and not a guess. A run price of 0.0s means
 # the model is refused before its first step.
+#
+# The split came on 2026-10-19, on Roman's word, after the scheduled
+# job was cut at its 240 minute ceiling with 21 of 23 read. The prices
+# above it were a week old, so every name was priced again first, one
+# binary built from 36e3dd1 under `--only-from` with `--slow 25`
+# (/tmp/m464/heavy_prices.txt): 9979s running and 1273s flattening,
+# 187.5 minutes against the 159.4 the older prices added up to. The
+# rise sits on two names that passed a wall and now pay for the run
+# behind it - `DynamicPipeEnergyConservationCheck2` from 0.6s to
+# 2674.8s since the `IN_con.a` series of 2026-10-18, and `EngineV6`
+# from 0.0s to 536.3s - while ten others grew cheaper. The newest line
+# beside each name now says which pass reads it; the second basket is
+# named in `scripts/heavy_second.txt` and everything else is pass a.
 
 # 1643s to run, 2026-09-14
 # 1546.2s / 79.9s, 2026-10-12, run / flatten, both halves
+# 1845.5s / 87.2s, 2026-10-19, run / flatten, 36e3dd1, pass b
 Modelica.Electrical.Spice3.Examples.Spice3BenchmarkFourBitBinaryAdder.FOURBIT
 # 825s to run, 2026-09-14
 # 1552.3s / 80.6s, 2026-10-12, run / flatten, both halves
+# 1796.8s / 88.2s, 2026-10-19, run / flatten, 36e3dd1, pass b
 Modelica.Electrical.Spice3.Examples.Spice3BenchmarkFourBitBinaryAdder
 # 225s to run, 2026-09-14
 # 478.8s / 33.5s, 2026-10-12, run / flatten, both halves
+# 558.1s / 33.3s, 2026-10-19, run / flatten, 36e3dd1, pass b
 Modelica.Electrical.Spice3.Examples.Spice3BenchmarkFourBitBinaryAdder.TWOBIT
 
 # 270.1s to flatten, 2026-09-21
 # 0.0s / 247.9s, 2026-10-12, run / flatten, both halves
+# 536.3s / 279.6s, 2026-10-19, run / flatten, 36e3dd1, pass a
 Modelica.Mechanics.MultiBody.Examples.Loops.EngineV6
 
 # 293s to run, 2026-09-22
 # 66.1s / 57.2s, 2026-10-12, run / flatten, both halves
+# 106.5s / 46.4s, 2026-10-19, run / flatten, 36e3dd1, pass b
 ModelicaTest.Fluid.TestComponents.Pipes.DynamicPipeWithNominalLaminarFlow
 # 67s to flatten, 2026-09-22
 # 0.6s / 136.5s, 2026-10-12, run / flatten, both halves
+# 2674.8s / 136.4s, 2026-10-19, run / flatten, 36e3dd1, pass a
 ModelicaTest.Fluid.TestComponents.Pipes.DynamicPipeEnergyConservationCheck2
 
 # 377.7s to flatten, 2026-09-24
 # 2.9s / 14.7s, 2026-10-12, run / flatten, both halves
+# 1.8s / 18.7s, 2026-10-19, run / flatten, 36e3dd1, pass b
 Modelica.Media.Examples.ReferenceAir.MoistAir2
 # 372.1s to flatten, 2026-09-24
 # 2.4s / 21.0s, 2026-10-12, run / flatten, both halves
+# 1.6s / 34.9s, 2026-10-19, run / flatten, 36e3dd1, pass b
 Modelica.Media.Examples.ReferenceAir.MoistAir1
 # 369.4s to flatten, 2026-09-24
 # 0.4s / 7.1s, 2026-10-12, run / flatten, both halves
+# 0.1s / 26.7s, 2026-10-19, run / flatten, 36e3dd1, pass a
 Modelica.Media.Examples.ReferenceAir.MoistAir
 
 # 233s to run, 2026-09-29, 456922 Newton steps: a Spice3 oscillator
@@ -86,6 +108,7 @@ Modelica.Media.Examples.ReferenceAir.MoistAir
 # half it would add about 242ms to every model, against a ceiling the
 # weather already reaches.
 # 317.9s / 0.9s, 2026-10-12, run / flatten, both halves
+# 37.4s / 0.6s, 2026-10-19, run / flatten, 36e3dd1, pass a
 Modelica.Electrical.Spice3.Examples.Oscillator
 
 # Five refused models carved out on 2026-10-06, the dearest of the
@@ -96,14 +119,19 @@ Modelica.Electrical.Spice3.Examples.Oscillator
 # some 27 minutes of the runner's, against a job that had walked to
 # 149 minutes. Prices are run / flatten, measured that day.
 # 495.1s / 161.0s, 2026-10-06, refused
+# 196.6s / 129.8s, 2026-10-19, run / flatten, 36e3dd1, pass b
 ModelicaTest.Fluid.TestComponents.Pipes.DynamicPipesWithTraceSubstances
 # 324.8s / 39.4s, 2026-10-06, refused
+# 201.4s / 31.2s, 2026-10-19, run / flatten, 36e3dd1, pass b
 ModelicaTest.Fluid.TestPipesAndValves.BranchingPipes12
 # 193.0s / 91.7s, 2026-10-06, refused
+# 46.4s / 12.3s, 2026-10-19, run / flatten, 36e3dd1, pass b
 Modelica.Media.Examples.R134a.R134a2
 # 47.1s / 151.0s, 2026-10-06, refused
+# 86.9s / 113.2s, 2026-10-19, run / flatten, 36e3dd1, pass a
 ModelicaTest.Fluid.TestComponents.Pipes.DynamicPipesAndFittings
 # 114.7s / 79.3s, 2026-10-06, refused
+# 30.9s / 9.6s, 2026-10-19, run / flatten, 36e3dd1, pass b
 Modelica.Media.Examples.R134a.R134a1
 
 # Eight refused models carved out on 2026-10-12 on Roman's word, the
@@ -118,18 +146,26 @@ Modelica.Media.Examples.R134a.R134a1
 # where a flatten price of zero means the model was outside the fifty
 # dearest to flatten that day.
 # 1182.2s / 0s, 2026-10-12, refused: step size underflow at t = 0
+# 798.2s / 0.3s, 2026-10-19, run / flatten, 36e3dd1, pass a
 Modelica.Electrical.Machines.Examples.InductionMachines.IMC_YDarc
 # 468.2s / 21.6s, 2026-10-12, refused
+# 248.4s / 24.6s, 2026-10-19, run / flatten, 36e3dd1, pass a
 Modelica.Mechanics.MultiBody.Examples.Elementary.LineForceWithTwoMasses
 # 351.7s / 21.2s, 2026-10-12, refused
+# 147.2s / 24.2s, 2026-10-19, run / flatten, 36e3dd1, pass a
 Modelica.Mechanics.MultiBody.Examples.Loops.Fourbar2
 # 298.6s / 44.3s, 2026-10-12, refused
+# 34.4s / 48.6s, 2026-10-19, run / flatten, 36e3dd1, pass a
 Modelica.Mechanics.MultiBody.Examples.Loops.Engine1b
 # 204.7s / 37.6s, 2026-10-12, refused
+# 212.1s / 34.4s, 2026-10-19, run / flatten, 36e3dd1, pass a
 ModelicaTest.Fluid.TestPipesAndValves.SeriesPipes13
 # 183.6s / 21.7s, 2026-10-12, refused
+# 141.0s / 15.3s, 2026-10-19, run / flatten, 36e3dd1, pass a
 ModelicaTest.Fluid.TestPipesAndValves.DynamicPipeInitialization
 # 166.0s / 38.3s, 2026-10-12, refused
+# 164.4s / 29.0s, 2026-10-19, run / flatten, 36e3dd1, pass b
 ModelicaTest.Fluid.TestPipesAndValves.SeriesPipes12
 # 131.3s / 50.9s, 2026-10-12, refused
+# 112.1s / 48.4s, 2026-10-19, run / flatten, 36e3dd1, pass b
 ModelicaTest.Fluid.TestPipesAndValves.BranchingPipes18

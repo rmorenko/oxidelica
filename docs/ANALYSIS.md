@@ -54484,3 +54484,75 @@ order. Two more passes of the fixed binary with `OXIDELICA_WORK_EACH`
 work by model agree for all 1020 models to the point and to the step.
 Three passes of the new order are one pass; the old order draws a
 step of its own.
+
+## Shift 464: the heavy job priced again and cut in two
+
+### Why the prices came first
+
+The scheduled heavy job of 2026-10-19 (run 39253489374) was cut at its
+own ceiling, 240.3 minutes against 240, with 21 of 23 models read in
+7896s and nearly two silent hours after. The prices in
+`scripts/heavy_models.txt` were a week old and added up to 159.4
+minutes, so a cut dealt from them could have put a name that had grown
+dear into one basket and lost that basket the same way. All 23 were
+priced again first, one binary built from 36e3dd1 under
+`--only-from scripts/heavy_models.txt --slow 25`
+(`/tmp/m464/heavy_prices.txt`): 9979s running and 1273s flattening,
+187.5 minutes, the counts 23 / 2 and runnable 21 / 2 as the floors
+hold.
+
+### Which names moved, and why
+
+Ten names grew cheaper, between x0.12 (`Oscillator`, 317.9s to 37.4s
+of running) and x0.95. Two grew dearer by far more than the weather:
+
+| Model                                 | run then | run now | both halves |
+| ------------------------------------- | -------- | ------- | ----------- |
+| `DynamicPipeEnergyConservationCheck2` | 0.6s     | 2674.8s | x20.5 total |
+| `EngineV6`                            | 0.0s     | 536.3s  | x3.3 total  |
+
+Neither is a regression of speed. Both were refused before their first
+step on 2026-10-12 and now reach the run. For the pipe the switches of
+the `IN_con.a` series of m454 say so in one run: with
+`OXIDELICA_KEEP_FAILED_SETTLING_CHECKS=1
+OXIDELICA_DROP_TAKEN_LENGTH_CHECKS=1` the same binary refuses it with
+`unknown variable IN_con.a` after 0.5s of running
+(`/tmp/m464/dp/switch.txt`). Without them it runs its ten steps and
+is refused by the model's own `when terminal()` check, `time > 495`,
+which the shortened run can never meet. A sample of the thread while it
+runs puts the time in `sim::walk::to_scalar` and `sim::code::eval`,
+the walked bodies of the medium's functions, called afresh at each
+evaluation. That is where the next shift would look to make it
+cheaper. The model stays in the heavy list, which is where a model
+that is dear because of the solver belongs, and it now has the price
+it really costs.
+
+The runner did not show it plainly. The green cron of the same morning
+(39231316223, on 676ea18, which carries the series) read 21 of 23 in
+5245s and the whole list in 15362s of running. The cut one was slower
+from the first model, 1776s for three against 1424s. The weather and the
+new price together crossed the 240.
+
+### The cut
+
+The names were dealt dearest first, each to the cheaper basket, by the
+sum of both halves: pass a 11 names and 5620.7s, pass b 12 names and
+5631.1s, a skew of 0.2%. The second basket is
+`scripts/heavy_second.txt`; `heavy_models.txt` stays the one place the
+decision to carve out is written, now with a line beside each name
+saying which pass reads it. On a runner that took 15362s for the whole
+on its green morning, each basket would be about half of that, some 65
+minutes of running plus the build, inside the 240 each keeps.
+
+`scripts/heavy_floor.sh` gained `--pass a|b` and `--judge`, the
+library's of 2026-10-13 by the same hand. A pass holds nothing. The
+judge asks the binary for each basket's set and the list's, runs them
+through `library_floor.sh --partition-check`, and refuses a basket
+naming a model outside the list. It also refuses a report that read a
+different number of models than its basket holds. Only then does it
+add the counts and hold the five floors, which are not divided. Seen on
+a stand of hand-made reports: green on the true cut (11 + 12 = 23),
+red on a count under its floor, on swapped reports and on a stray
+name. Both passes were started on the desk as a witness
+(`/tmp/m464/heavy-a.txt`, `heavy-b.txt`). They had not finished when
+this was written, and the next shift reads them.

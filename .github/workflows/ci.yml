@@ -310,21 +310,29 @@ jobs:
   # this, and red here is a finding for the next shift rather than a
   # stop signal - a benchmark can grow slower because of the runner it
   # was handed.
-  heavy:
-    name: the heavy models still read
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+  #
+  # Cut in two on Roman's word of 2026-10-19, by the hand that cut the
+  # library job: two passes on two runners, the second basket named in
+  # `scripts/heavy_second.txt`, and a judge that adds their two reports
+  # up and holds the sum to the five floors in `scripts/heavy_floor.sh`,
+  # undivided. The judge also checks that the two passes read the whole
+  # list between them and no model twice, and it keeps the name the
+  # single job had, so whatever reads the verdict by that name reads the
+  # verdict of the whole.
+  heavy-a:
+    name: the heavy models still read, pass a
+    if: >-
+      github.event_name == 'schedule'
+      || (github.event_name == 'workflow_dispatch' && github.event.inputs.model == '')
     runs-on: ubuntu-latest
-    # Wider than the main job's, because these are the models that job
-    # could not afford. Raised from 180 to 240 on Roman's word,
-    # 2026-10-12: the cron on 1ff2f0d was cut at 181 minutes, 21 of 23
-    # models read, where the cron on 82fa4c2 had passed the same list
-    # and the same default code in 102 - the runner's weather, measured
-    # as such on the desk (docs/ANALYSIS.md, m409). This job runs only
-    # on the schedule and by hand, and nothing waits for it, so its
-    # minutes are cheap in a way the library job's are not. The split
-    # into two jobs is the next step when the list grows again; the
-    # prices beside every name in scripts/heavy_models.txt are what it
-    # will be reckoned from.
+    # Raised from 180 to 240 on Roman's word, 2026-10-12, when the cron
+    # on 1ff2f0d was cut at 181 minutes - the runner's weather, measured
+    # as such on the desk (docs/ANALYSIS.md, m409). The cron of
+    # 2026-10-19 (run 39253489374) was cut at this 240 too, with 21 of
+    # 23 read in 131.6 minutes and nearly two silent hours after. The
+    # answer to that was the cut and not a third raise: each pass keeps
+    # the 240 the single job had, and the baskets are balanced by the
+    # prices in scripts/heavy_second.txt.
     timeout-minutes: 240
     steps:
       - uses: actions/checkout@v5
@@ -340,11 +348,96 @@ jobs:
           ref: v4.1.0
           path: .msl
 
-      - name: Read them all, against their floors
+      - name: Read basket a
+        run: |
+          cargo build --release -p oxidelica-cli
+          ./scripts/heavy_floor.sh --pass a .msl heavy-a.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: heavy-a
+          path: heavy-a.txt
+
+  heavy-b:
+    name: the heavy models still read, pass b
+    if: >-
+      github.event_name == 'schedule'
+      || (github.event_name == 'workflow_dispatch' && github.event.inputs.model == '')
+    runs-on: ubuntu-latest
+    # The same ceiling as pass a, for the same reasons.
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: The standard library
+        uses: actions/checkout@v5
+        with:
+          repository: modelica/ModelicaStandardLibrary
+          ref: v4.1.0
+          path: .msl
+
+      - name: Read basket b
+        run: |
+          cargo build --release -p oxidelica-cli
+          ./scripts/heavy_floor.sh --pass b .msl heavy-b.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: heavy-b
+          path: heavy-b.txt
+
+  heavy:
+    name: the heavy models still read
+    needs: [heavy-a, heavy-b]
+    # `always()` so that a single model asked for by hand, which skips
+    # both passes, still reaches its own step below. Otherwise the judge
+    # sits only on two passes that both succeeded, as the library's
+    # does: a pass cut by its ceiling leaves the judge skipped rather
+    # than red, so the run reads as cut and not as failed.
+    if: >-
+      always()
+      && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+      && (github.event.inputs.model != ''
+          || (needs.heavy-a.result == 'success' && needs.heavy-b.result == 'success'))
+    runs-on: ubuntu-latest
+    # Builds the binary to ask it which models each pass reads, then
+    # judges the two reports; nothing here reads a model, except the one
+    # model asked for by hand. That is one of the heavy giants and costs
+    # what the single job's step did, so the ceiling is the passes'.
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: The standard library
+        uses: actions/checkout@v5
+        with:
+          repository: modelica/ModelicaStandardLibrary
+          ref: v4.1.0
+          path: .msl
+
+      - uses: actions/download-artifact@v4
+        if: github.event.inputs.model == ''
+        with:
+          name: heavy-a
+
+      - uses: actions/download-artifact@v4
+        if: github.event.inputs.model == ''
+        with:
+          name: heavy-b
+
+      - name: Judge the two together, against their floors
         if: github.event.inputs.model == ''
         run: |
           cargo build --release -p oxidelica-cli
-          ./scripts/heavy_floor.sh .msl
+          ./scripts/heavy_floor.sh --judge .msl heavy-a.txt heavy-b.txt
 
       # One model by hand. This does not go through `heavy_floor.sh`:
       # that script's floors and its check on the length of the list are
