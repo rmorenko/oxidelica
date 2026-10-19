@@ -520,7 +520,16 @@ FILES_FLOOR=2671
 # 39193932414. Both machines flatten the same 965.
 #
 #   964 + 1 = 965
-FLATTEN_FLOOR=965
+#
+# And flatten 967 = 965 + TestInterpolateParametric and
+# TestInterpolateTimeVarying of ModelicaTest.Math, which flatten once a
+# loop's trip count is read from the shape it walks (bfee5f5). The
+# desk list of bfee5f5 holds 967 (/tmp/m460s/pair7/on.txt), and the
+# runner printed 967 / 796 and runnable 850 / 752 on 7f9b251, in the
+# judge of run 39240925726. Both machines flatten the same 967.
+#
+#   965 + 2 = 967
+FLATTEN_FLOOR=967
 # The two run floors came down by one, and the one is named: giving a
 # record constructor called with no arguments the values its `extends`
 # stated took `Modelica.Thermal.FluidHeatFlow.Examples.WaterPump` out
@@ -1673,7 +1682,15 @@ FLATTEN_FLOOR=965
 # stand by name in the desk's run list and stay out:
 #
 #   794 - 2 swings - TestJunctionIdeal = 791 = 790 + 1
-RUN_FLOOR=791
+#
+# And run 792 = 791 + GyroscopicEffects of MultiBody's
+# Rotational3DEffects, by the same desk list and runner print as
+# `FLATTEN_FLOOR`. The runner ran 796 and the desk 795, and the lower
+# is taken. The two swings and TestJunctionIdeal stand by name in the
+# desk's run list and stay out:
+#
+#   795 - 2 swings - TestJunctionIdeal = 792 = 791 + 1
+RUN_FLOOR=792
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -1913,7 +1930,11 @@ RUN_FLOOR=791
 # And runnable flatten 848 = 847 + the one of `FLATTEN_FLOOR`, a
 # runnable example, by the same desk list and runner print (run
 # 39193932414): 848 printed on both machines.
-RUNNABLE_FLATTEN_FLOOR=848
+#
+# And runnable flatten 850 = 848 + the two of `FLATTEN_FLOOR`, both
+# runnable examples, by the same desk list and runner print (run
+# 39240925726): 850 printed on both machines.
+RUNNABLE_FLATTEN_FLOOR=850
 # And runnable run 674 = 671 + the three batteries, all runnable
 # examples, by the same runner job as `RUN_FLOOR` (d58700e, job
 # 112530851204).
@@ -2082,7 +2103,13 @@ RUNNABLE_FLATTEN_FLOOR=848
 # same three.
 #
 #   750 - 2 - 1 = 747 = 746 + 1
-RUNNABLE_RUN_FLOOR=747
+#
+# And runnable run 748 = 747 + GyroscopicEffects, by the same desk
+# list and runner print as `RUN_FLOOR`: 752 printed (run 39240925726),
+# 751 on the desk, and the lower is taken, less the same three.
+#
+#   751 - 2 - 1 = 748 = 747 + 1
+RUNNABLE_RUN_FLOOR=748
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
