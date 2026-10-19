@@ -53588,3 +53588,177 @@ throttle example with a `ClockInput clock` that only the example
 connects. Checked alone, nothing gives the input a clock, so the
 refusal is true. The example that connects them, `EngineThrottleControl`,
 stands at the `shiftSample` wall.
+
+### `the subscript of X must be a whole number the compiler can see` (5)
+
+The row is five models in m460: `Rectifier6pulseFFT` and
+`Rectifier12pulseFFT` (`buf`), `RealFFT1` and `RealFFT2` (`y_buf`), and
+`Digital.Examples.RAM` (`mem`). All five write one element of a model's
+own array at a place only the run can settle: `buf[iTick] := u` in the
+`when` of `Blocks.Math.RealFFT`, and `mem[int_addr, 1:n_data] := word`
+under a write enable in `Memories.DLATRAM`, with no `when` at all. The
+refusal is raised in `one_assignment` (`flatten/statements.rs`), where
+every subscript of a written place has to settle to a number. The
+smallest model is twelve lines (`/tmp/s459/sub/A.mo`), and it refuses
+with the same words.
+
+The place is now written out as one guarded write per element it may
+name, `if iTick == j then buf[j] := u`, behind
+`OXIDELICA_NO_RUN_TIME_PLACE`. Three more things were needed before the
+small models gave the right numbers, each found on a model of its own:
+
+1. The last guarded write was followed by nothing that read the array,
+   so the merge of its `if` left that one element in its branch with no
+   equation (`B.mo`: `nothing determines buf[4]`, whatever the length).
+   In the algorithm of a model, what is written is read by the model
+   after the section, so `read_after` now says so.
+2. An element a branch leaves alone keeps what it held. That was true
+   of a scalar in a `when` and not of an element, nor outside a `when`
+   for a discrete variable (`F1.mo`). The `pre` fallback now covers an
+   element of the model's own array, and `held_between_events` looks
+   through the bases for the declaration, since `mem_word` is declared
+   in `MemoryBase` and written in `DLATRAM` (`D.mo`).
+3. `pre` of a matrix was refused as `an array of shape [2] is used
+where a scalar is expected` (`I7.mo`), and that refusal stands on the
+   tree before this change too. A scalar call spreading over an array
+   went one storey deep, so the rows of a matrix were asked to be
+   scalars. It now spreads down each row.
+
+Three tests check the numbers: a buffer filled by four ticks holds 10,
+20, 30, 40 and sums to 100, a matrix written a row at a time keeps the
+rows its address did not name at zero, and `pre` of a matrix answers
+the matrix. All three are red under the switch.
+
+On the five models it is a family that moves up a storey, not one that
+starts running. The corpus pair of one binary (`/tmp/s459/oxp1`, the
+switch set against unset, `/tmp/s459/pair/off.txt` and `on.txt`) prints
+964 / 793 and runnable 847 / 749 in both halves, the flattened and run
+lists identical line for line and 529 Jacobians in both. The refusal
+ranking shows where the five went: the three subscript rows (2, 2 and
+
+1. are gone, and `an expression did not come to an end here, nested
+deeper than the compiler follows` goes from 2 to 7. The cost is 239463
+   expansions more over the corpus (91620459 against 91859922, 0.26%).
+   That pair was taken with a helper since removed, which no small model
+   needed. The pair of the final tree (`/tmp/s459/pair3`, below) moves the
+   same three rows the same way.
+
+The four FFT models now stop at that depth, `Bin(Add, Bin(Add, ...`,
+which is the buffer of `ns` guarded elements handed whole to
+`realFFT(buf, nfi)`. With a buffer of eight (`C.mo`) the depth is not
+reached and the call goes on to `rawRealFFT`, which is
+`ModelicaFFT_kiss_fftr`, a body written in C. So behind the depth stands
+the C wall the census already names, and taking the depth alone would
+move no model.
+
+`RAM` now stops at `an expression did not come to an end here, nested
+deeper than the compiler follows: Ref("dLATRAM.dataIn[1]")`. `DLATRAM`
+checked alone stops at the same depth. The address comes out of
+`address()`, a loop with a `break` on a condition only the run settles,
+so it is written out with a flag. It is then compared against every
+element of an eight-by-two memory in three branches, read back the same
+way, and the nesting runs past the ceiling. A twenty-line copy of the
+read and the write with a plain address (`K2.mo`) runs, so the depth
+comes from the address and not from the guarded writes. That is a chain
+of its own and was not opened.
+
+### `function X is partial and nothing redeclared it` (5): honest
+
+All five are open templates, and the refusal is true. `TankWithTopPorts`
+is a base class of the batch plant whose `Medium` stays the
+`PartialMedium` of `PartialLumpedVolume`, and the examples that give it
+a medium, `OneTank`, `TwoTanks` and the four emptying-pipe tests,
+flatten (`/tmp/m460/pair/on7_lists.txt`). The four
+`TestAllProperties` models are the bases the medium tests extend, each
+with `Medium = PartialMedium`. This is the reading m291 already gave
+("The partial-function row, probed") and the same set as item 34 of the
+queue, the filter for open components, which waits on Roman. No change.
+
+### `dgesv` with a right-hand side that is a matrix (1)
+
+`TestMatricesExamplesSolveLinearEquations` calls `Matrices.solve2(A,
+B)` with `B[2, 3]`. A side of several columns cannot be told from the
+count of numbers, as the note on `dgelsy` says, so the call is now laid
+out the way the fit is: under a name of the compiler's own,
+`$dgesv_columns`, with the count of rows and of columns written in front
+from the shapes the arguments arrived in, and each column solved on its
+own. A side of one column keeps the road it had. It is behind
+`OXIDELICA_NO_SIDE_COLUMNS`. `G1.mo` of
+`~/oxideflow/park/m454-dgesv/` gives `X = [-2, -4, 6; 3, 6, -9]`, which
+is right for `A = [1, 2; 3, 4]` and `B = [4, 8, -12; 6, 12, -18]`, and
+the model flattens and runs under `--only`. The test is the same system
+written with its own `dgesv`, red under the switch.
+
+The corpus pair of the final tree (`/tmp/s459/oxp3`, both switches of
+this shift set against unset, `/tmp/s459/pair3/off.txt` and `on.txt`)
+prints 964 / 793 against 965 / 794, and runnable 847 / 749 against
+848 / 750. The flattened and run lists differ by exactly this model,
+in both, and by nothing else. There are 529 Jacobians in both halves. The floors
+are left for the runner's print, as the rule for a desk pair says.
+
+### `if initial() then m := 7 end if` in an algorithm answers zero
+
+Found on the way and not taken. In a model's algorithm, outside any
+`when`:
+
+```modelica
+model J2
+  Integer m(start = 0);
+algorithm
+  if initial() then
+    m := 7;
+  end if;
+end J2;
+```
+
+The flattened equation is `m = if initial() then 7 else pre(m)`, which
+is right, and the run prints `m = 0` from the first row to the last.
+The language says the initial problem takes the `initial()` branch, so
+`m` should be 7 throughout. Written as `when initial() then m := 7`
+(`J3.mo`) it gives 7. The cause is in the run's discrete layer
+(`discrete_layer`, `sim/src/compile.rs`): an equation for an `Integer`
+moves to the event iteration only when its other side holds a
+relation, and `initial()` is not one. So `m` stays an algebraic
+variable of the continuous solve, which reads `initial()` as false (the
+`"initial" => 0.0` rule in `code.rs`), and `pre(m)` is its start. This
+is a wrong number in a model that runs, which the census cannot see.
+The digital memories load their contents exactly this way (`if
+initial() then mem := getMemory(...)`), so the defect lies in the road
+`RAM` would take once it flattens. Small models: `/tmp/s459/sub/J2.mo`
+to `J5.mo`.
+
+### The price of the depth in the table of expansions
+
+The candidate from the last shift, the depth added to the key of
+`EXPANDED`, was timed on the dear models one at a time, not as a corpus.
+One binary built on f916b2d carries it behind a probe switch
+(`/tmp/m460/oxp`, `OX_PROBE_DEPTH_KEY`), and each model ran under
+`--only` with the switch unset and then set
+(`/tmp/s459/depth/out.txt`). A corpus pair was running beside it on the
+same desk, so the seconds are weather and the count of expansions is
+the measurement:
+
+```text
+                         expansions            flatten s
+                       off        on      x   off   on
+DoublePendulum       104599    257026  2.46    40   47
+Engine1a             279839    685692  2.45   105   89
+Engine1b_analytic    300733    728281  2.42    74   80
+RollingWheelSetDriv  128108    278534  2.17    23   22
+RollingWheelSetPull  129500    280374  2.17    20   21
+Fourbar1             155614    368997  2.37    30   33
+FullRobot            272374    516482  1.90    21   13
+PlanarLoops_analytic 210651    415506  1.97    10   10
+HeatingSystem       2924030  15645939  5.35   172  721
+```
+
+Every model ends the same way with the key as without it: the eight
+MultiBody models flatten and run, and `HeatingSystem` flattens and does
+not run, in both halves. The table answers about half as often once the
+depth is in its key, and on eight models the clock does not show it
+through the weather. `HeatingSystem` is the exception and the warning:
+five times the expansions and four times the time, twelve minutes for
+one model. A key with the whole depth in it is not affordable. What
+could be is a key that tells only whether the depth left is enough for
+the answer to stand, a bit rather than a number, and that is a design
+for a shift of its own. Nothing was changed.
