@@ -54731,15 +54731,18 @@ begins the same descent again. A backtrace on two of those solves
 inside the step (`dopri.rs:579`): forty halvings, each an interpolated
 point and a whole solve of the block, and the halvings close on the
 start of the step. So once stepping, most of the price is the event
-search finding its crossing at the first instant of the step, again
-and again, at a full Jacobian per probe. Why the crossing sits at the
-step's start is the next question, and it was not asked this shift.
+search. The descents that repeat are not later steps: eight minutes of
+the same probe (`/tmp/m465/dp15.txt`) printed six indicators and all
+six at t = 0, h = 1e-4. That is one first step, searched once per
+turned indicator, forty block solves apiece, at a full Jacobian per
+probe. Why the crossings sit at the step's start is the next section.
 
 ### What crosses at the start of the step
 
 A probe at the bisection that names each indicator and its two readings
-(`/tmp/m465/dp13.txt`, slots named in `dp14.txt`) shows four crossing
-over the first step, from t = 0 with h = 1e-4. Two are mass flows read
+(`/tmp/m465/dp13.txt`, slots named in `dp14.txt`) shows the first four of the six
+over the first step, from t = 0 with h = 1e-4 (the probe was stopped
+there, and indicators 383 and 385 were not named). Two are mass flows read
 directly, `pipeA_VB.port_b.m_flow` and `pipeAV_VB.port_b.m_flow`. Both
 stand at 1.4e-13 where the step begins and at about -0.03 at its end.
 The other two are `loss1.m_flow` and `loss1.port_a.m_flow` against
