@@ -54715,3 +54715,22 @@ so to every model with one. It is a series to be decided by Roman, not
 a fix for the rest of a shift. The cost it is set against is 2674.8 s
 of run on one model, 517466 solves in three minutes, and 39.4 million
 body walks in shift 464's count.
+
+### How the calls fall over the run
+
+A second count, of the block's solves rather than its residual calls
+(`/tmp/m465/dp11.txt`, five minutes, the same scratch build), puts the
+initialization at 247 solves of the 246-unknown block at t = 0. That
+comes to about 260 residual calls a solve, close to one difference
+Jacobian of 246 columns and a handful of Newton steps. After that the
+run reaches the stop time of 1e-4 in a few stages and then solves the
+block at 5e-5, 2.5e-5 and so on, halving down to about 1e-15, and
+begins the same descent again. A backtrace on two of those solves
+(`/tmp/m465/dp12.txt`) names both callers. One is a stage of the step
+(`dopri.rs:332`). The other is the bisection that places an event
+inside the step (`dopri.rs:579`): forty halvings, each an interpolated
+point and a whole solve of the block, and the halvings close on the
+start of the step. So once stepping, most of the price is the event
+search finding its crossing at the first instant of the step, again
+and again, at a full Jacobian per probe. Why the crossing sits at the
+step's start is the next question, and it was not asked this shift.
