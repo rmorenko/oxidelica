@@ -54592,3 +54592,14 @@ pass writes before its first model finishes, since the report is
 written when the check ends. A second pair was started on that
 reading and stopped four minutes later, once `ps` by name showed the
 first pair at 100 and 88 minutes of processor time.
+
+Both passes then finished with exit code 0, side by side on one desk
+that was also running the quick preflight. Pass a printed 11 / 2 in
+57.7 minutes of wall (7010s running, 1372s flattening, peak 6.3 GB,
+`/tmp/m464/heavy-a.txt`). Pass b printed 12 / 0 in 43.7 minutes
+(7064s running, 1294s flattening, peak 3.6 GB, `heavy-b.txt`). The
+judge over the two real reports printed `partition: 11 + 12 = 23
+models, none twice` and held all five floors: 23 / 2, runnable 21 / 2
+(`/tmp/m464/judge.txt`). The summed seconds are higher than the
+pricing run's because the desk was shared. The wall is what the 240
+is measured in, and on the desk it was a quarter of it.
