@@ -28,19 +28,27 @@ pub fn old_outside_fold() -> bool {
     std::env::var_os("OXIDELICA_OLD_OUTSIDE_FOLD").is_some()
 }
 
+/// The name a system of equations with a right-hand side of several
+/// columns is called by: `dgesv` with the count of rows and of columns
+/// written in front, since a side of any width cannot be told from the
+/// count of numbers alone. A name of the compiler's own, with a `$` no
+/// model can write.
+pub const SOLVE_COLUMNS: &str = "$dgesv_columns";
+
 /// Whether a body of this name is one written here.
 pub fn written_here(called: &str) -> bool {
-    matches!(
-        called,
-        "ModelicaRandom_xorshift64star"
-            | "ModelicaRandom_xorshift128plus"
-            | "ModelicaRandom_xorshift1024star"
-            | "dgesv"
-            | "dgelsy"
-            | "dgesvd"
-            | "dgetrf"
-            | "dgetri"
-    )
+    called == SOLVE_COLUMNS
+        || matches!(
+            called,
+            "ModelicaRandom_xorshift64star"
+                | "ModelicaRandom_xorshift128plus"
+                | "ModelicaRandom_xorshift1024star"
+                | "dgesv"
+                | "dgelsy"
+                | "dgesvd"
+                | "dgetrf"
+                | "dgetri"
+        )
 }
 
 /// How many numbers a body of this name takes and how many it answers
@@ -79,6 +87,11 @@ pub fn shape(called: &str, given: &[usize]) -> Option<(usize, usize)> {
         // where the call was laid out, as it is for the fit above.
         ("dgesvd", [1, 1, matrix]) if *matrix > 0 => Some((all, 0)),
         ("dgetrf", [1, 1, matrix]) if *matrix > 0 => Some((all, 0)),
+        // The two counts, a square matrix and a side as tall as it.
+        (SOLVE_COLUMNS, [1, 1, square, side]) => {
+            let width = (1..=*square).find(|w| w * w == *square)?;
+            (side.is_multiple_of(width) && *side > 0).then_some((all, side + 1))
+        }
         // A square factorization and its pivots: the width is in the
         // count, as it is for a system of equations above.
         ("dgetri", [square, width]) if *width * *width == *square && *width > 0 => {
@@ -130,6 +143,26 @@ pub fn answer(called: &str, given: &[f64]) -> Option<Vec<f64>> {
             let mut answer = solve(&given[..given.len() - width], &given[given.len() - width..])?;
             // Whether there was a solution, the way LAPACK says it: a
             // zero where all went well.
+            answer.push(0.0);
+            Some(answer)
+        }
+        // The counts, the matrix row by row, then the side row by row;
+        // each column is solved on its own and the answer is laid out
+        // row by row again, with word of how it went at the end.
+        (SOLVE_COLUMNS, [n, columns, rest @ ..]) => {
+            let (n, columns) = (whole(*n)?, whole(*columns)?);
+            if n == 0 || rest.len() != n * n + n * columns {
+                return None;
+            }
+            let (matrix, side) = rest.split_at(n * n);
+            let mut answer = vec![0.0; n * columns];
+            for column in 0..columns {
+                let b: Vec<f64> = (0..n).map(|row| side[row * columns + column]).collect();
+                let x = solve(matrix, &b)?;
+                for (row, value) in x.into_iter().enumerate() {
+                    answer[row * columns + column] = value;
+                }
+            }
             answer.push(0.0);
             Some(answer)
         }
@@ -781,6 +814,37 @@ mod tests {
         assert!((told[0] - 0.8).abs() < 1e-12, "{told:?}");
         assert_eq!(shape("dgesv", &[4, 2]), Some((6, 3)));
         assert_eq!(shape("dgesv", &[4, 3]), None);
+
+        // A side of several columns, with the counts in front: each
+        // column is its own system, and the answer comes back row by
+        // row with word of how it went at the end.
+        let told = super::answer(
+            SOLVE_COLUMNS,
+            &[
+                2.0, 3.0, 1.0, 2.0, 3.0, 4.0, 4.0, 8.0, -12.0, 6.0, 12.0, -18.0,
+            ],
+        )
+        .unwrap();
+        let want = [-2.0, -4.0, 6.0, 3.0, 6.0, -9.0, 0.0];
+        assert!(
+            told.iter().zip(want).all(|(a, b)| (a - b).abs() < 1e-9),
+            "{told:?}"
+        );
+        assert_eq!(shape(SOLVE_COLUMNS, &[1, 1, 4, 6]), Some((12, 7)));
+        assert_eq!(shape(SOLVE_COLUMNS, &[1, 1, 4, 5]), None);
+        assert_eq!(shape(SOLVE_COLUMNS, &[1, 1, 3, 6]), None);
+        assert!(written_here(SOLVE_COLUMNS));
+        // A count of numbers that is not the one the counts promise.
+        assert_eq!(super::answer(SOLVE_COLUMNS, &[2.0, 3.0, 1.0, 2.0]), None);
+        assert_eq!(super::answer(SOLVE_COLUMNS, &[0.0, 3.0]), None);
+        // A singular matrix has no answer for any column.
+        assert_eq!(
+            super::answer(
+                SOLVE_COLUMNS,
+                &[2.0, 2.0, 1.0, 2.0, 2.0, 4.0, 1.0, 0.0, 2.0, 0.0]
+            ),
+            None
+        );
     }
 
     /// A fit through points that do not lie on the line, one that

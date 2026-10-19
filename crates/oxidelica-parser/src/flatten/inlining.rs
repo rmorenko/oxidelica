@@ -2227,6 +2227,41 @@ fn body_written_elsewhere(
             return numbered_outputs(class, registry, consts, &given_shapes, &made, answers)
                 .map(Some);
         }
+        // A system whose right-hand side is a matrix, `solve2(A, B)` with
+        // `B[n, m]`: the numbers alone do not say how wide the side is,
+        // the same trouble as the fit's, so the two counts go in front
+        // read off the shapes the arguments arrived in. A side of one
+        // column keeps the road it always had.
+        if call.called == "dgesv" && std::env::var_os("OXIDELICA_NO_SIDE_COLUMNS").is_none() {
+            if let (Some([n, n2]), Some([rows, columns])) = (
+                shapes.first().map(Vec::as_slice),
+                shapes.get(1).map(Vec::as_slice),
+            ) {
+                if n == n2 && n == rows && *n > 0 && *columns > 1 && args.len() == 2 {
+                    let (n, columns) = (*n as usize, *columns as usize);
+                    let mut given = vec![Expr::Number(n as f64), Expr::Number(columns as f64)];
+                    given.extend(args.iter().cloned());
+                    let made = Expr::Call(crate::outside::SOLVE_COLUMNS.to_string(), given);
+                    let mut given_shapes: HashMap<String, Vec<i64>> = HashMap::new();
+                    for (input, shape) in function_components(registry, class, 0)
+                        .iter()
+                        .filter(|c| c.causality == Causality::Input)
+                        .zip(shapes)
+                    {
+                        given_shapes.insert(input.name.clone(), shape.clone());
+                    }
+                    return numbered_outputs(
+                        class,
+                        registry,
+                        consts,
+                        &given_shapes,
+                        &made,
+                        n * columns + 1,
+                    )
+                    .map(Some);
+                }
+            }
+        }
         // A body written here in Rust answers with numbers rather than
         // with a string, and may answer with several: the generators
         // give a value and the state they moved to. Each output takes

@@ -1661,6 +1661,33 @@ fn a_system_of_equations_is_solved_by_a_body_written_here() {
     assert!(refusal.contains("written here"), "{refusal}");
 }
 
+/// A system whose right-hand side is a matrix is solved column by
+/// column. `Matrices.solve2(A, B)` hands LAPACK's `dgesv` a `B[2, 3]`,
+/// and the count of numbers alone cannot say how wide a side is, so it
+/// was refused: "`dgesv` is written here, and not for what it was
+/// handed". With `A = [1, 2; 3, 4]` and `B = [4, 8, -12; 6, 12, -18]`
+/// the answer is `X = [-2, -4, 6; 3, 6, -9]`.
+#[test]
+fn a_system_with_a_matrix_side_is_solved_column_by_column() {
+    let result = run("model M function solve2 input Real a[:, size(a, 1)]; \
+         input Real b[size(a, 1), :]; \
+         output Real x[size(a, 1), size(b, 2)] = b; output Integer info; \
+         external \"FORTRAN 77\" dgesv(a, b, x, info); end solve2; \
+         Real x[2, 3]; Real ok; \
+         equation (x, ok) = solve2([1, 2; 3, 4], [4, 8, -12; 6, 12, -18]); \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;");
+    let column = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+    let last = result.rows.last().unwrap();
+    let got: Vec<f64> = ["x[1,1]", "x[1,2]", "x[1,3]", "x[2,1]", "x[2,2]", "x[2,3]"]
+        .iter()
+        .map(|name| last[column(name)])
+        .collect();
+    for (got, want) in got.iter().zip([-2.0, -4.0, 6.0, 3.0, 6.0, -9.0]) {
+        assert!((got - want).abs() < 1e-9, "{got:?} against {want}");
+    }
+    assert_eq!(last[column("ok")], 0.0);
+}
+
 /// A parameter whose value is a solve is worked out before the run.
 ///
 /// The pump characteristics of the standard library fit a quadratic
