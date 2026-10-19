@@ -54476,3 +54476,11 @@ quick preflight of the tree (`/tmp/s463/pf_quick.txt`) is green but
 for the desk's work band, whose excess is `IMC_InverterDrive`'s
 refusal as in the last chapter: without its 1100990 points and 1382578
 Newton steps the rest is 442318 and 893877, x1.066 and x0.988.
+
+The one Newton step between the halves sits on the side of the old
+order. Two more passes of the fixed binary with `OXIDELICA_WORK_EACH`
+(`/tmp/s463/rep/each.txt`, `each2.txt`, run side by side) printed
+36657927 Newton steps both, the same as `on.txt`, and their lists of
+work by model agree for all 1020 models to the point and to the step.
+Three passes of the new order are one pass; the old order draws a
+step of its own.
