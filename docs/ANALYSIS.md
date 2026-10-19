@@ -54060,8 +54060,11 @@ refuses on `der(der(bodyCylinder1.body.a_0[3])) = 0`.
 
 What differs is the weighing, not the equations. At the start every
 `r_0` pair weighs `(frame_a.r_0, 1.0)` against `(r_0, 0.0)`, so the
-body's frame is demoted; at the resume point both weigh 1.0, the tie
-breaks the other way, and `bodyCylinder1.r_0[i]` is demoted instead.
+body's frame is demoted; at the resume point both weigh 1.0, and the
+tie goes to the declared preference: `BodyCylinder.r_0` is
+`StateSelect.avoid` (2.0 in the probe) and `body.frame_a.r_0` the
+default (3.0), so `bodyCylinder1.r_0[i]` is demoted instead. The second
+pass is the one that does what the library asked for.
 From there the paths part: reductions 8 and 9 of the second pass, on
 `revolute.frame_b.R.T[3,1]` and `[3,2]`, take `body.Q[3]` and `Q[2]`
 where the first pass took `r_0` of the other cylinder, and by
@@ -54077,12 +54080,15 @@ refusal: `FullRobot` compiles twice (no retreat) and `PlanarFourbar`
 six times with four retreats, so both are born of a later compilation
 like B4; the four `Constraints` refuse on the first. So "constrains no
 state" is at least two families: a selection made at a resume point
-that a tie sends the wrong way (B4, `FullRobot`, likely
-`PlanarFourbar`), and a first reduction that cannot place a constraint
-(`Constraints`). The question for whoever takes it is what the
-resumed weighing should do with a tie that the start broke one way: a
-tie broken by the earlier selection rather than by the order of the
-candidates would keep B4 on the first path. No code was changed.
+that parts from the first (B4, `FullRobot`, likely `PlanarFourbar`),
+and a first reduction that cannot place a constraint (`Constraints`).
+For B4 the parting is not a tie broken at random: the resume follows
+`avoid`, which is right by the specification, and still runs out of
+states by reduction 32. So keeping the first path (a tie
+broken by the earlier selection) would buy the model by overruling
+the library's own preference, and the question for whoever takes it
+is why honouring `avoid` here leaves the rotation with nothing, not
+how to break the tie. No code was changed.
 
 ### FlueGas and MoistAir, one storey on
 
