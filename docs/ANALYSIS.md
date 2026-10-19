@@ -54556,3 +54556,39 @@ red on a count under its floor, on swapped reports and on a stray
 name. Both passes were started on the desk as a witness
 (`/tmp/m464/heavy-a.txt`, `heavy-b.txt`). They had not finished when
 this was written, and the next shift reads them.
+
+### What the runner should take, written before it is asked
+
+The baskets were balanced on desk seconds, and the 240 stands on a
+runner. So the prediction is written here, to be checked against the
+first real run of the two passes rather than read off it afterwards.
+
+Two anchors give two multipliers, and neither was measured on the
+cut itself. The library judge of the same day (8863 ms a model
+flattening, 10181 ms running, over 1020 models) against the desk's
+week gives about x1.4 flattening and x1.9 running. The green cron
+of the same morning (39231316223, on 676ea18, which already carries
+the `IN_con.a` series) read the same 23 in 2077s flattening and
+15362s running against the desk's 1273s and 9979s, which is x1.63 and
+x1.54. A basket is about 4984s running and 636s flattening. By the
+first anchor that is 10360s, 173 minutes. By the second it is 8712s,
+145 minutes. These are summed seconds over the check's threads, so
+the wall should fall below them, but not below the dearest single
+name: `DynamicPipeEnergyConservationCheck2` alone, at x1.54, is about
+69 minutes of pass a.
+
+So expect 145 to 173 minutes a pass at most, against a ceiling of
+240: a margin of about 1.4x, not 2x. One more name passing a wall at
+the price this one did would put a basket back at the ceiling, and
+the answer then is to deal again from fresh prices, not to raise it.
+
+### The witness on the desk
+
+Both passes were reported dead at 23:14 of this shift. They were not.
+The check for them was `pgrep -fl "heavy_floor\|library check"`, and
+`pgrep` takes an extended expression, where `\|` is a literal bar, so
+it matched nothing and printed nothing. The 29-byte reports are what a
+pass writes before its first model finishes, since the report is
+written when the check ends. A second pair was started on that
+reading and stopped four minutes later, once `ps` by name showed the
+first pair at 100 and 88 minutes of processor time.
