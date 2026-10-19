@@ -54149,3 +54149,13 @@ unknown left over, not the condition with nothing to determine. Saying
 which equation of the tick constrains nothing is the cheap
 improvement; running the model is a question of how the specification
 wants an inverse model discretized, and is not taken here.
+
+The cheap improvement was taken in the next commit. The refusal now
+names a target that one `when` branch assigns twice beside the name it
+leaves over, and for this model it reads `discrete variable
+inverseBlockConstraints.y2 is never assigned by a when clause;
+inverseBlockConstraints.u1 is assigned twice in the same when sample(0,
+1)`. The test
+`a_name_assigned_twice_in_a_tick_is_named_beside_the_one_left_over`
+fails without it. Only the text of an existing refusal changes, so no
+model can move.

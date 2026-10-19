@@ -203,3 +203,27 @@ fn a_partial_function_nobody_wrote_is_named_as_that() {
         );
     }
 }
+
+/// A tick that lands two equations on one name and none on another is
+/// refused naming both: the name left over and the one assigned twice.
+/// Named by the first alone, the refusal sent the reader looking for an
+/// equation that was missing, when the cause was one that was there
+/// twice - `InverseBlockConstraints` under an explicit discretization.
+#[test]
+fn a_name_assigned_twice_in_a_tick_is_named_beside_the_one_left_over() {
+    let model = parse_model(
+        "model M discrete Real u(start = 0); discrete Real y(start = 0); Real x(start = 1); \
+         equation der(x) = -x; \
+         when sample(0, 0.1) then u = x; u = pre(y); end when; \
+         annotation(experiment(StopTime = 0.3)); end M;",
+    )
+    .unwrap();
+    let why = compile(&model)
+        .expect_err("the tick has no equation for y")
+        .to_string();
+    assert!(
+        why.contains("discrete variable `y` is never assigned by a when clause"),
+        "{why}"
+    );
+    assert!(why.contains("`u` is assigned twice"), "{why}");
+}

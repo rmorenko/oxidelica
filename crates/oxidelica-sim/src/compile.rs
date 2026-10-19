@@ -4144,6 +4144,39 @@ fn values_at_this_point(
 /// which initial equations were spent saying so.
 type DiscreteLayer = (Vec<String>, Vec<f64>, Vec<usize>, Vec<usize>);
 
+/// A name one `when` branch assigns twice, told as the other half of
+/// a refusal about a name it never assigns.
+///
+/// The two go together: one equation of a tick too many on one side
+/// and one too few on the other is a tick that counts right in total
+/// and is still not solvable. `InverseBlockConstraints` under an
+/// explicit discretization is the case met: `u1 = filter.y` and `u1 =
+/// u2` both land on `u1`, and `y2`, which the block's other equation
+/// was meant to give, is the name left over. Naming only the second
+/// sends the reader to look for an equation that is missing when the
+/// cause is one that is there twice.
+fn assigned_twice(model: &Model) -> String {
+    for clause in &model.when_clauses {
+        for branch in &clause.branches {
+            let mut seen: Vec<&str> = Vec::new();
+            for action in &branch.actions {
+                let WhenAction::Assign(target, _) = action else {
+                    continue;
+                };
+                if seen.contains(&target.as_str()) {
+                    return format!(
+                        "; `{target}` is assigned twice in the same `when {}`, \
+                         so one of its equations was meant for another name",
+                        branch.condition.describe()
+                    );
+                }
+                seen.push(target);
+            }
+        }
+    }
+    String::new()
+}
+
 fn discrete_layer(
     model: &Model,
     params: &HashMap<String, f64>,
@@ -4279,8 +4312,9 @@ fn discrete_layer(
             && !discrete_names.contains(&component.name)
         {
             return err(format!(
-                "discrete variable `{}` is never assigned by a when clause",
-                component.name
+                "discrete variable `{}` is never assigned by a when clause{}",
+                component.name,
+                assigned_twice(model)
             ));
         }
     }
