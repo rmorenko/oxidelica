@@ -54631,3 +54631,87 @@ The next shift's question is whether a carried parameter is computed
 once per run or once per evaluation. If it is the second, that is a
 cost for every carried parameter in the library, and this model is
 only the dearest instance of it.
+
+## Shift 465: a carried parameter is solved once, and the price is the Jacobian
+
+### The question, answered by a counter
+
+Shift 464 left one question: is a parameter "carried into the run"
+solved once, or once per evaluation? A twelve-line model answers it
+(`/tmp/m465/P3.mo`): `parameter Real p =
+solveOneNonlinearEquation(function f(c = a), 0.5, 3)` under `Evaluate
+= true`, whose flattening prints the same note as the pipes. A scratch
+counter at the entry of `walk::walk` (not committed, the diff is
+`/tmp/m465/probe.diff`) counted one walk of the solve and sixteen of
+`f` over a run of 1000 steps. That is once.
+
+The same count holds on `DynamicPipeEnergyConservationCheck2`. Printing
+the parameters as `evaluate_parameters` leaves them
+(`/tmp/m465/dp4.txt`) shows all four `pipe*.T_start` settled there at
+2590.39 K, with `unsettled []`. "Carried into the run" means only that
+flattening did not settle the value; the run's parameter round does,
+once per compilation. So the question of shift 464 has the answer
+"once", and no carried parameter in the library pays the price that
+was suspected.
+
+### Where the half million solves come from
+
+The model has twenty equations that call the same `T_h` solve, and not
+one of them is a parameter binding. Each one reads a variable: eight
+`pipe*.state_a.T` / `state_b.T` from `mediums[1].h` and
+`mediums[30].h`, four `boundary*.medium.T` from `h_in_internal`, and
+eight in the two losses from the `h_outflow` of a port
+(`/tmp/m465/dp8.txt`). A backtrace taken on the 4096th solve
+(`/tmp/m465/dp3.txt`) runs `compile_at` → `solve_initialization` →
+`eval_point` → `solve_implicit_block` → the block's residual →
+`Code::Program`. That is the initialization's torn block, and the run
+uses the same block afterwards.
+
+What the block is, counted at its residual (`/tmp/m465/dp6.txt`,
+`dp9.txt`, `dp10.txt`):
+
+| Measure                                             | Count               |
+| --------------------------------------------------- | ------------------- |
+| unknowns torn / residuals                           | 246 / 246           |
+| inner assignments run per residual call             | 3702                |
+| of which walk a body                                | 10                  |
+| inner values that change between two calls          | about 54 (44 to 58) |
+| walked inner values that change between two calls   | 0.08                |
+| residual calls before the run leaves t = 0          | 64000               |
+| `T_h` solves in those                               | 280006 (4.4 a call) |
+| of those, a repeat of earlier arguments bit for bit | 279982              |
+| distinct argument sets over the same stretch        | 24                  |
+| solves per residual call once stepping              | 13.6                |
+
+The Jacobian is taken by differences, one column per torn unknown
+(`solvers/mod.rs`, the loop over `0..n` in `solve_implicit_block_from`
+and its relatives), and each column calls the whole residual. The
+residual runs all 3702 inner assignments in order whatever unknown was
+moved. Perturbing one of 246 unknowns moves about fifty-four of them,
+and nearly never one of the ten that walk `T_h`. So 99.99% of the
+solves recompute the answer the previous call just gave, and the
+Jacobian of the initialization alone accounts for 280 thousand of them.
+
+### What this does not decide
+
+Two answers suggest themselves, and neither belongs to this shift.
+
+- A table of walked answers keyed by the arguments would catch the
+  repeats. But its key is the argument vector of a body, which nothing
+  bounds, and the rule on caches says hits over a bounded key or no
+  cache.
+- The structural answer is that a column runs only the inner
+  assignments in the cone of the unknown it moves: a dependency graph
+  of the block, built once per compilation, with nothing remembered
+  between calls. The block carries no such graph today:
+  `inner_sources` is the text of each assignment, kept for refusals,
+  so the slots each compiled assignment reads would have to be
+  gathered from its `Code`.
+  Measured here, that would turn about 3702 assignments per column into
+  about 54, and leave the ten walked ones out of nearly every column.
+
+The second is a change to how every torn block takes its Jacobian, and
+so to every model with one. It is a series to be decided by Roman, not
+a fix for the rest of a shift. The cost it is set against is 2674.8 s
+of run on one model, 517466 solves in three minutes, and 39.4 million
+body walks in shift 464's count.
