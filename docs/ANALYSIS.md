@@ -53696,10 +53696,9 @@ prints 964 / 793 against 965 / 794, and runnable 847 / 749 against
 in both, and by nothing else. There are 529 Jacobians in both halves. The floors
 are left for the runner's print, as the rule for a desk pair says.
 
-### `if initial() then m := 7 end if` in an algorithm answers zero
+### `if initial() then m := 7 end if` in an algorithm answered zero
 
-Found on the way and not taken. In a model's algorithm, outside any
-`when`:
+Found on the way. In a model's algorithm, outside any `when`:
 
 ```modelica
 model J2
@@ -53726,6 +53725,28 @@ The digital memories load their contents exactly this way (`if
 initial() then mem := getMemory(...)`), so the defect lies in the road
 `RAM` would take once it flattens. Small models: `/tmp/s459/sub/J2.mo`
 to `J5.mo`.
+
+Behind `OXIDELICA_NO_INITIAL_DEFINITION`, `initial()` now counts as
+deciding, the same as a relation, so such a definition goes to the
+event iteration with its variable, and the initial event raises
+`initial()` there. `J2` gives 7 throughout. `J4` (`der(x) = m` beside
+it) reaches `x = 4.2` at 0.6, which is 7 * 0.6. `J7` (`if initial()
+then f := 100 else f := 1`) shows 100 at the start and 1 after it. The
+test is `J4`, and it is red under the switch.
+
+The corpus pair of one binary (`/tmp/s459/oxp4`, the switch set against
+unset, `/tmp/s459/pair4/off.txt` and `on.txt`) prints 965 / 794 in both
+halves, the lists and the refusal ranking identical line for line, and
+529 Jacobians in both. The work differs by two Newton iterations on
+`CCCV_StackRC`, 8150 against 8152, and the same model printed 8152 in
+the pair before it with this switch not yet written
+(`/tmp/s459/pair3/on.txt`), so that is weather. No model moves, so no
+model of the corpus was leaning on the wrong reading in a way the lists
+can see. Whether the numbers of the digital registers moved, which
+load `clock_flag` under `if initial()` inside `if change(clock)`, was
+not measured: one register takes five minutes to simulate on this desk
+beside a corpus pair. The change is a correction of a wrong number, not
+a gain of models.
 
 ### The price of the depth in the table of expansions
 

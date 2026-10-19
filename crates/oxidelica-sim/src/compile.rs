@@ -4213,10 +4213,29 @@ fn discrete_layer(
         // belongs where the rest of the connection equations are: it
         // has no crossing of its own, and moving it would take an
         // equation from a set that still needs one.
+        // And `initial()` decides too: `m = if initial() then 7 else
+        // pre(m)` is how an algorithm loads a value once, and kept
+        // among the continuous unknowns it was solved where
+        // `initial()` reads false, so `m` held its start for the whole
+        // run. In the event iteration the initial event raises it.
+        fn asks_initial(expr: &Expr) -> bool {
+            if let Expr::Call(name, args) = expr {
+                if name == "initial" && args.is_empty() {
+                    return true;
+                }
+            }
+            let mut found = false;
+            expr.map_children(&mut |child| {
+                found |= asks_initial(child);
+                child.clone()
+            });
+            found
+        }
+        let initial_decides = std::env::var_os("OXIDELICA_NO_INITIAL_DEFINITION").is_none();
         let decides = |other: &Expr| {
             let mut relations = Vec::new();
             collect_relations(other, &mut relations);
-            !relations.is_empty()
+            !relations.is_empty() || (initial_decides && asks_initial(other))
         };
         let named = |side: &Expr, other: &Expr| match side {
             Expr::Ref(name) if decides(other) => discrete_valued

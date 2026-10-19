@@ -1558,3 +1558,30 @@ fn pre_of_a_matrix_is_taken_element_by_element() {
         .collect();
     assert_eq!(got, vec![1.0, 2.0, 3.0, 4.0]);
 }
+
+/// A value loaded once by `if initial()` in an algorithm keeps it.
+///
+/// `m := 7` under `if initial()` flattens to `m = if initial() then 7
+/// else pre(m)`, which is right. Kept among the continuous unknowns it
+/// was solved where `initial()` reads false, so `m` held its start of
+/// zero for the whole run, and `x`, which integrates it, stayed at zero
+/// too. Taken by the event iteration, the initial event raises
+/// `initial()`: `m` is 7 throughout and `x` reaches 7 * 0.6 = 4.2.
+#[test]
+fn a_value_loaded_at_the_initial_event_is_kept() {
+    let result = run("model J4 \
+           Integer m(start = 0); \
+           Real x(start = 0, fixed = true); \
+         equation der(x) = m; \
+         algorithm if initial() then m := 7; end if; \
+           annotation(experiment(StopTime = 0.6)); \
+         end J4;");
+    let m = result.columns.iter().position(|c| c == "m").expect("m");
+    assert_eq!(result.rows.first().map(|row| row[m]), Some(7.0));
+    assert_eq!(last_of(&result, "m"), 7.0);
+    assert!(
+        (last_of(&result, "x") - 4.2).abs() < 1e-9,
+        "{}",
+        last_of(&result, "x")
+    );
+}
