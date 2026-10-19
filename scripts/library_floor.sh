@@ -529,7 +529,17 @@ FILES_FLOOR=2671
 # judge of run 39240925726. Both machines flatten the same 967.
 #
 #   965 + 2 = 967
-FLATTEN_FLOOR=967
+#
+# And flatten 968 = 967 + ShowImpedance of Batteries, which flattens
+# once a record handed whole to a component above it is measured first
+# (72fe1c0). The desk list of cedf4ed holds 968
+# (/tmp/s462/pair3/off.txt, the head's code under the three switches
+# of the next commit), and the runner printed 968 / 796 and runnable
+# 851 / 752 on f1d75dc, in the judge of run 39263588929. Both machines
+# flatten the same 968.
+#
+#   967 + 1 = 968
+FLATTEN_FLOOR=968
 # The two run floors came down by one, and the one is named: giving a
 # record constructor called with no arguments the values its `extends`
 # stated took `Modelica.Thermal.FluidHeatFlow.Examples.WaterPump` out
@@ -1690,6 +1700,10 @@ FLATTEN_FLOOR=967
 # desk's run list and stay out:
 #
 #   795 - 2 swings - TestJunctionIdeal = 792 = 791 + 1
+#
+# Held at 792 by the judge of f1d75dc (run 39263588929): the runner ran
+# 796 and the desk 795 (/tmp/s462/pair3/off.txt), the same as for
+# 7f9b251, and the lower less the same three is the floor as it stands.
 RUN_FLOOR=792
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
@@ -1934,7 +1948,11 @@ RUN_FLOOR=792
 # And runnable flatten 850 = 848 + the two of `FLATTEN_FLOOR`, both
 # runnable examples, by the same desk list and runner print (run
 # 39240925726): 850 printed on both machines.
-RUNNABLE_FLATTEN_FLOOR=850
+#
+# And runnable flatten 851 = 850 + ShowImpedance of `FLATTEN_FLOOR`, a
+# runnable example, by the same desk list and runner print (run
+# 39263588929): 851 printed on both machines.
+RUNNABLE_FLATTEN_FLOOR=851
 # And runnable run 674 = 671 + the three batteries, all runnable
 # examples, by the same runner job as `RUN_FLOOR` (d58700e, job
 # 112530851204).
@@ -2109,6 +2127,9 @@ RUNNABLE_FLATTEN_FLOOR=850
 # 751 on the desk, and the lower is taken, less the same three.
 #
 #   751 - 2 - 1 = 748 = 747 + 1
+#
+# Held at 748 by the judge of f1d75dc (run 39263588929): 752 printed,
+# 751 on the desk (/tmp/s462/pair3/off.txt), less the same three.
 RUNNABLE_RUN_FLOOR=748
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
