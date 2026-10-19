@@ -53958,3 +53958,160 @@ densities of both sides. This is the shape the note in
 `solvers/mod.rs` already records for `BranchingPipes1`, `12` and `14`
 (m214, m215): a step of the water formulation out of its domain, not a
 singular matrix. Nothing new was found and nothing was changed.
+
+## Shift 461: a fresh census, the dgesv tail gone, a sibling read whole, and the second reduction
+
+### The census of the head, against m460
+
+Taken on the binary of f352b31's compiler (`/tmp/m461/census.txt`,
+raw half `/tmp/m461/raw.txt`), counted by the section boundaries. The
+flatten half went from 58 models in 33 rows (`/tmp/m460/census.txt`)
+to 53 in 32, the run half from 170 in 114 to 172 in 115. Every moved
+row was named from the two raw halves:
+
+- `the trip count of a loop is not settled here` (2) is gone, as
+  expected: `TestInterpolateParametric` and `TestInterpolateTimeVarying`
+  flatten and now stand in the run half under `cannot differentiate a
+subscript that survived flattening` (1 to 3), on
+  `Vectors.interpolate(...)[1]`.
+- `an array of N written out` in the run half went 3 to 2, as expected:
+  `GyroscopicEffects` runs. The two left are `FlueGasSixComponents` and
+  `ReferenceMoistAir`.
+- `the subscript of X must be a whole number` (5: the two rectifier
+  FFTs, `RAM`, `RealFFT1`, `RealFFT2`) emptied into `nested deeper
+than the compiler follows` (2 to 7). That is the depth wall the
+  order reserves for Roman, reached one storey later by the same five.
+- `has no argument called` (2) split: `ClockedWithDiscretizedContinuous
+Controller` now refuses because `ImplicitEuler` would make every tick
+  an equation to solve, and `ControlledMixingUnit` flattens and stops at
+  `discrete variable inverseBlockConstraints.y2 is never assigned by a
+when clause`.
+- The dgesv row (2 in the order's reading of m460) is gone from both
+  halves. Neither is a tail: `TestWaterPumpCharacteristics` already
+  ran in the desk lists of 676ea18 and bfee5f5 (`/tmp/m460s/head.txt`,
+  `pair7/on.txt`) and runs under `--only` on the head, so the m460
+  census was older than the order took it to be.
+
+The top of the census less what waits for Roman (C, FORTRAN, FFT,
+depth, units): in the flatten half the partial functions (5, family of
+item 34), partial classes (3), the flexible size of the table blocks
+(2, below) and the three Clock rows (below); in the run half the
+hydraulic Newton direction (10, unchanged since m460), the
+underdetermined loops (8: five Spice3 circuits and three FundamentalWave
+machines, `SMEE_DOL`, `SMEE_Rectifier`, `IMC_DOL_Polyphase`) and the
+singular Jacobians (8). The underdetermined row is not new ground:
+its three machines are the open switch's `Goff` of item 30, mapped
+under "The row `underdetermined algebraic loop` (8)" above, and a
+probe on the head finds `SMEE_DOL` and `IMC_DOL_Polyphase` refusing on
+the first compilation with no retreat, the same 26 unknowns as there.
+
+### The flexible size: a record handed whole to a component above it
+
+Taken from the stopped shift's park (`m461-stopped-work`).
+`built_in_reading_order` moved a reader below a later sibling only
+when the reader named a member of it (`cd.T`); `Impedance
+impedance(cellData = cellData)` above `parameter CellData cellData`
+names the sibling whole, nothing moved, and `cellData.OCV_SOC[:, 2]`
+was measured before the record was built. Counting a whole read as a
+read takes `ShowImpedance` through flattening, behind
+`OXIDELICA_NO_WHOLE_SIBLING_READ`. The test
+`a_record_handed_whole_to_a_component_above_it_is_measured_first` fails
+under the key and passes without it.
+
+The park's version was wider than that and the quick preflight said
+so: it counted any whole name in a binding as well, so `Med.H h_v =
+420e3 * y` moved below `y`, the loop `y * h_v = 420e3` met its unknowns
+in another order, and Newton settled on the other root - `h_v` came out
++420e3 where the cli test
+`a_type_start_is_not_given_to_a_variable_its_own_equation_defines`
+holds it at -420e3 (`/tmp/s461/vh.mo`). A binding is an equation and
+not a hand-over, so only a name handed in a modifier now moves its
+reader. The cli test passes and the flattening test still fails under
+the key.
+
+The other two of the row are not the same layer. `CombiTable1Dv.
+Test25_usertab` and `CombiTimeTable.Test66_usertab` set
+`tableOnFile = true` with no file, so `columns = 2:size(table, 2)` is
+measured on a table only `usertab.c` fills, and the model itself calls
+a C function (`mydummyfunc`). That is the C wall and stays.
+
+`ShowImpedance` does not run. It stops at `unknown variable c2.re`,
+which shrinks to `Modelica.ComplexMath.sum` of a list of records
+written out: `sum({Complex(1, f), Complex(2, 5)})` is refused with an
+equation between shapes [2] and [] whose right side adds the real and
+the imaginary parts together (`/tmp/s461/cz13.mo`, `cz20.mo`); over a
+declared `Complex v[2]` the same call is right (`cz15.mo`). A probe in
+the member arm of `arrays.rs` shows why: `v[:].re` arrives with the
+records already worked out as their fields, a list of lists, and
+`record_class_of` answers None for it, so the field cannot be picked
+and `.re` goes onto every number (`a.re.re` in `cz21.mo`). A local
+repair at the member arm does not reach it, because the type is lost
+where the input is substituted, one layer up. Refused, not a wrong
+number; mapped and not taken.
+
+### The second reduction of the gyroscope (B4): a map
+
+`/tmp/s460/rag/B4.mo` under `OXIDELICA_VICTIM_PROBE`
+(`/tmp/s461/b4_probe.txt`, the two reductions cut apart into
+`first.txt` and `second.txt`). The run compiles twice: once at the
+start, once at the stall where it re-selects the states. The first
+reduction takes 29 reductions and succeeds; the second takes 32 and
+refuses on `der(der(bodyCylinder1.body.a_0[3])) = 0`.
+
+What differs is the weighing, not the equations. At the start every
+`r_0` pair weighs `(frame_a.r_0, 1.0)` against `(r_0, 0.0)`, so the
+body's frame is demoted; at the resume point both weigh 1.0, the tie
+breaks the other way, and `bodyCylinder1.r_0[i]` is demoted instead.
+From there the paths part: reductions 8 and 9 of the second pass, on
+`revolute.frame_b.R.T[3,1]` and `[3,2]`, take `body.Q[3]` and `Q[2]`
+where the first pass took `r_0` of the other cylinder, and by
+reduction 30 the last quaternion `Q[1]` goes for `a_0[3] = 0`. The
+derivative of that same row at 31 takes `w_a[3]`, and at 32 nothing
+is left for the second derivative: every candidate weighs 0 and the
+supply-once guard refuses the rows that would reach `w`. The second
+reduction has spent the rotation of body one on constraints of
+translation the first reduction paid for with positions.
+
+The same family in the run half, by how many compilations precede the
+refusal: `FullRobot` compiles twice (no retreat) and `PlanarFourbar`
+six times with four retreats, so both are born of a later compilation
+like B4; the four `Constraints` refuse on the first. So "constrains no
+state" is at least two families: a selection made at a resume point
+that a tie sends the wrong way (B4, `FullRobot`, likely
+`PlanarFourbar`), and a first reduction that cannot place a constraint
+(`Constraints`). The question for whoever takes it is what the
+resumed weighing should do with a tie that the start broke one way: a
+tie broken by the earlier selection rather than by the order of the
+candidates would keep B4 on the first path. No code was changed.
+
+### FlueGas and MoistAir, one storey on
+
+The parked named-lengths diff no longer applies as it stands: the
+`whole_array_fields_open` it carried landed with bfee5f5. Without that
+hunk (`/tmp/s461/named.diff`) it builds, and moves the two models as
+m460 said and no further. `ReferenceMoistAir` stops at an array
+reaching the evaluator in `ice09BaseProp_pT`. `FlueGasSixComponents`
+stops in the walk at the refusal that `state` is held element by
+element and was given one number, on `state := if size(X, 1) == 0 then
+ThermodynamicState(...) else ...`: the walk's `elements_of` knows lists and a few calls,
+and neither an `if` nor a record constructor. A small model of a record
+assigned from an `if` of two constructors runs right outside a medium
+(`/tmp/s461/ifrec.mo`), so the wall is the walked body of the medium
+and not the language. The chain still has no visible end, and the diff
+stays in the park.
+
+### The three Clock rows of the flatten half
+
+Probed, not changed. `CylinderAirCharge` and `InductionToPowerDelay`
+are parts whose `ClockInput` is wired only by the `Engine` above them:
+asked to run alone, the clock has nothing to come from, and the
+refusal is honest. `EngineThrottleControl` and `Engine` take a
+`FractionalDelay` with `shiftSample` on the crankshaft's event clock;
+the specification defines `shiftSample` as a super- then a sub-sample,
+which an event clock does not allow, and `periodic_only` says so.
+`AbsoluteClocks` has two exact clocks, 10 ms and 2 ms, each with its own
+root, and a `superSample` whose factor is to be inferred between them.
+`same` compares roots first, so a factor of 5 that is exactly right is
+refused as no clock at all. Two exact clocks of different roots meeting
+needs a common base, which is a change to how roots are kept rather
+than a fix of the inference.
