@@ -1704,7 +1704,17 @@ FLATTEN_FLOOR=968
 # Held at 792 by the judge of f1d75dc (run 39263588929): the runner ran
 # 796 and the desk 795 (/tmp/s462/pair3/off.txt), the same as for
 # 7f9b251, and the lower less the same three is the floor as it stands.
-RUN_FLOOR=792
+#
+# And run 793 = 792 + ShowImpedance of Batteries, which runs once an
+# import of `ComplexMath.sum` is the function it names and a record's
+# fields are measured with what its declaration hands down (a50b920).
+# The runner ran 797 in the judge of adac25c (run 39284969969), the
+# desk 796 on the same code (/tmp/s462/pair3/on.txt), and the lower is
+# taken. The two swings and TestJunctionIdeal stand by name in that run
+# list (lines 338, 379 and 481) and stay out:
+#
+#   796 - 2 swings - TestJunctionIdeal = 793 = 792 + 1
+RUN_FLOOR=793
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -2130,7 +2140,14 @@ RUNNABLE_FLATTEN_FLOOR=851
 #
 # Held at 748 by the judge of f1d75dc (run 39263588929): 752 printed,
 # 751 on the desk (/tmp/s462/pair3/off.txt), less the same three.
-RUNNABLE_RUN_FLOOR=748
+#
+# And runnable run 749 = 748 + ShowImpedance, a runnable example, by
+# the same desk list and runner print as `RUN_FLOOR`: 753 printed (run
+# 39284969969), 752 on the desk, and the lower is taken, less the same
+# three.
+#
+#   752 - 2 - 1 = 749 = 748 + 1
+RUNNABLE_RUN_FLOOR=749
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
