@@ -325,6 +325,55 @@ fn a_walked_body_lays_out_what_it_answers_with() {
 }
 
 #[test]
+fn a_tuple_equation_walks_a_body_hunting_through_a_table() {
+    // `(x, i) = interpolate(tabx, taby, time)` of `Math.Vectors`: the
+    // `while` hunts the row that holds `time`, which only the run can
+    // say. The same call in an algorithm went to the walk; written as
+    // an equation it was refused for its trip count.
+    let result = run(
+        "model M function f input Real t[:]; input Real v[size(t, 1)]; \
+         input Real xi; output Real y; output Integer k; \
+         protected Integer i; \
+         algorithm i := 1; while i < size(t, 1) - 1 and xi >= t[i + 1] loop i := i + 1; end while; \
+         y := v[i] + (v[i + 1] - v[i]) * (xi - t[i]) / (t[i + 1] - t[i]); k := i; end f; \
+         Real x; Integer j; equation (x, j) = f({0, 1, 2, 3}, {0, 1, 4, 9}, time); \
+         annotation(experiment(StopTime = 2.5, Interval = 0.5)); end M;",
+    );
+    let last = result.rows.last().unwrap();
+    let at = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+    assert!((last[at("x")] - 6.5).abs() < 1e-9, "{}", last[at("x")]);
+    assert_eq!(last[at("j")], 3.0);
+}
+
+#[test]
+fn a_walked_body_takes_a_record_holding_a_matrix() {
+    // The frames' `resolve2(R, v)`: a record holding a matrix and a
+    // list, handed whole, read as `R.T * v`. The record came written
+    // out as nested rows, which reached the run as an array; once
+    // seated, `R.T` had no name in the frame; once named, the walk did
+    // not know a matrix times a list.
+    let result = run("model M record Ori Real T[2, 2]; Real w[2]; end Ori; \
+         function f input Ori r; input Real v[2]; output Real y[2]; \
+         protected Integer k; \
+         algorithm k := 0; while k < v[1] loop k := k + 1; end while; y := r.T * v; end f; \
+         Ori o(T = {{1, 2}, {3, 4}}, w = {0, 0}); Real y[2]; \
+         equation y = f(o, {time + 0.5, 1}); \
+         annotation(experiment(StopTime = 1, Interval = 0.5)); end M;");
+    let last = result.rows.last().unwrap();
+    let at = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+    assert!(
+        (last[at("y[1]")] - 3.5).abs() < 1e-9,
+        "{}",
+        last[at("y[1]")]
+    );
+    assert!(
+        (last[at("y[2]")] - 8.5).abs() < 1e-9,
+        "{}",
+        last[at("y[2]")]
+    );
+}
+
+#[test]
 fn a_walked_body_decides_over_arrays() {
     // Conditions, choices and negation over what was handed in, all
     // written out element by element on the way to one answer.

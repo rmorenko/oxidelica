@@ -1211,7 +1211,29 @@ fn record_numbers<'a>(class: &ClassDef, position: usize, arg: &'a Expr) -> Optio
         return None;
     }
     let all = leaves(arg);
-    if !all.iter().any(|leaf| matches!(leaf, Expr::Str(_))) {
+    // A record holding an array, handed whole, comes written out as
+    // its fields with the array nested inside: `Orientation` of the
+    // frames is `{{T rows}, {w}}`, neither a list of numbers nor rows
+    // of one length. The walk seats such a record as its numbers under
+    // one length, in the order the record declared them, which is the
+    // order the leaves are written in - so where the leaves come to
+    // exactly that length, they are the record and go over as one.
+    // Without this the nested rows reached the run as an array where a
+    // number was wanted.
+    let ragged = match arg {
+        Expr::Array(items) => {
+            items.iter().any(|item| matches!(item, Expr::Array(_)))
+                && !items.iter().all(|item| {
+                    matches!((item, items.first()),
+                        (Expr::Array(row), Some(Expr::Array(first)))
+                            if row.len() == first.len()
+                                && row.iter().all(|one| !matches!(one, Expr::Array(_))))
+                })
+        }
+        _ => false,
+    };
+    let ragged = ragged && !crate::walk::switch_set("OXIDELICA_NO_RAGGED_RECORDS");
+    if !ragged && !all.iter().any(|leaf| matches!(leaf, Expr::Str(_))) {
         return None;
     }
     let input = class

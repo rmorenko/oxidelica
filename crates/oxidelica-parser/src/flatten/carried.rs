@@ -361,6 +361,12 @@ fn local_record_fields_open() -> bool {
     std::env::var_os("OXIDELICA_NO_LOCAL_RECORD_FIELDS").is_none()
 }
 
+/// Whether an array field of a record input read whole is spelled as
+/// its elements for the walk, in its own shape.
+fn whole_array_fields_open() -> bool {
+    std::env::var_os("OXIDELICA_NO_WHOLE_ARRAY_FIELDS").is_none()
+}
+
 /// Whether a body left standing under a medium that changes what it
 /// reads is carried as a copy of its own, prepared under that medium.
 /// `OXIDELICA_NO_CARRIED_MARK` carries every body under the name of the
@@ -906,6 +912,44 @@ fn records_as_arrays(
                 format!("{}.{member}", component.name),
                 Expr::Ref(format!("{}[{}]", component.name, index + 1)),
             );
+        }
+        // An array field read whole - `R.T * v1` of the frames, where
+        // `T` is three by three - is its elements written out in its
+        // own shape. Renamed element by element only, `R.T` itself
+        // was a name the frame never held.
+        if whole_array_fields_open() {
+            for field in record_fields::record_components(registry, of, 0) {
+                if field.dimensions.is_empty() {
+                    continue;
+                }
+                let shape: Option<Vec<i64>> = field
+                    .dimensions
+                    .iter()
+                    .map(|d| const_eval(d, &HashMap::new()).map(|n| n as i64))
+                    .collect();
+                let Some(shape) = shape else { continue };
+                let whole = format!("{}.{}", component.name, field.name);
+                fn laid(
+                    whole: &str,
+                    shape: &[i64],
+                    at: &mut Vec<i64>,
+                    renamed: &HashMap<String, Expr>,
+                ) -> Option<Expr> {
+                    let Some((&first, rest)) = shape.split_first() else {
+                        return renamed.get(&super::names::element_name(whole, at)).cloned();
+                    };
+                    let mut items = Vec::new();
+                    for index in 1..=first {
+                        at.push(index);
+                        items.push(laid(whole, rest, at, renamed)?);
+                        at.pop();
+                    }
+                    Some(Expr::Array(items))
+                }
+                if let Some(value) = laid(&whole, &shape, &mut Vec::new(), &renamed) {
+                    renamed.insert(whole, value);
+                }
+            }
         }
         component.type_name = "Real".to_string();
         component.dimensions = vec![Expr::Number(members.len() as f64)];

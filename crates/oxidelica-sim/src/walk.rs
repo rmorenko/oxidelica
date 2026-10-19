@@ -881,6 +881,40 @@ fn elements_of(
                 _ => None,
             }
         }
+        // `T * v` of a matrix written out as rows and a list as long as
+        // a row: one scalar product per row, which is what the frames'
+        // `resolve2` answers with. Anything else is left alone.
+        Expr::Bin(BinOp::Mul, a, b)
+            if matches!(a.as_ref(), Expr::Array(rows)
+                    if !rows.is_empty() && rows.iter().all(|row| matches!(row, Expr::Array(_))))
+                && !switch_set("OXIDELICA_NO_WALKED_MATRIX_VECTOR") =>
+        {
+            let Expr::Array(rows) = a.as_ref() else {
+                unreachable!("matched above")
+            };
+            let Some(right) = elements_of(b, frame, programs, time, depth)? else {
+                return Ok(None);
+            };
+            let mut items = Vec::new();
+            for row in rows {
+                let Expr::Array(row) = row else {
+                    unreachable!("matched above")
+                };
+                if row.len() != right.len() || row.iter().any(|one| matches!(one, Expr::Array(_))) {
+                    return Ok(None);
+                }
+                let mut terms = Vec::new();
+                for (one, other) in row.iter().zip(&right) {
+                    terms.push(Expr::Bin(
+                        BinOp::Mul,
+                        Box::new(to_scalar(one, frame, programs, time, depth)?),
+                        Box::new(other.clone()),
+                    ));
+                }
+                items.push(fold("sum", terms)?);
+            }
+            Some(items)
+        }
         // `2*u` and `u/2`: a number and an array, the number going
         // with every element. Two arrays multiplied are a scalar
         // product and not a list, and that is `to_scalar`'s to write.

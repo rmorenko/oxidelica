@@ -413,14 +413,40 @@ fn one_tuple_equation(
         .collect::<Result<Vec<_>, String>>()?;
     let argument_shapes: Vec<Vec<i64>> = values.iter().map(shape_i64).collect();
     let arguments: Vec<Expr> = values.into_iter().map(|value| value.into_expr()).collect();
-    let outputs = inlining::inline_function_outputs(
+    let attempt = inlining::inline_function_outputs(
         function,
         &arguments,
         &argument_shapes,
         local_consts,
         registry,
         0,
-    )?;
+    );
+    // A tuple equation whose body hunts through a table with a `while`
+    // takes what the walk answers with, the way the same call does in
+    // an algorithm or inside `when`: `(x, i) = interpolate(tabx, taby,
+    // time)` asks which row holds `time`, and that is what the run
+    // decides. The same narrowing as the algorithm's door - a table
+    // among the arguments - since a body that merely nests deeply
+    // inlines well and costs the corpus when walked.
+    let walk_door = std::env::var_os("OXIDELICA_NO_TUPLE_WALK").is_none();
+    let outputs = match attempt {
+        Ok(outputs) => outputs,
+        Err(why)
+            if walk_door
+                && why.starts_with(algorithms::UNDECIDABLE_LOOP)
+                && carried::walkable(function, registry).is_ok()
+                && inlining::carried_by_the_run(&arguments)
+                && arguments
+                    .iter()
+                    .any(|argument| matches!(argument, Expr::Array(_))) =>
+        {
+            super::names::stands_for_the_run(name, scope);
+            super::names::stands_for_the_run(&function.name, scope);
+            let standing = Expr::Call(function.name.clone(), arguments.clone());
+            inlining::walked_outputs(function, registry, &standing)
+        }
+        Err(why) => return Err(why),
+    };
     if targets.len() > outputs.len() {
         return Err(format!(
             "`{name}` has {} output(s) for {} target(s)",
