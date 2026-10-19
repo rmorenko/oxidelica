@@ -54167,3 +54167,166 @@ inverseBlockConstraints.u1 is assigned twice in the same when sample(0,
 `a_name_assigned_twice_in_a_tick_is_named_beside_the_one_left_over`
 fails without it. Only the text of an existing refusal changes, so no
 model can move.
+
+## Shift 462: the loop rows by name, and the Complex sum taken to a run
+
+### The census of the head
+
+Taken on the binary of cedf4ed (`/tmp/m462/census.txt`, raw half
+`/tmp/m462/raw.txt`), counted by the section boundaries: the flatten
+half holds 52 models in 31 rows, the run half 173 in 115. Against m461
+(53 in 32, 172 in 115) one model moved, and the two raw halves name
+it: `Batteries.Examples.ShowImpedance`, refused in m461 for the
+flexible size of `cellData.OCV_SOC`, flattens since 72fe1c0 and stops
+in the run half at `unknown variable c2.re`. By the rows
+(`/tmp/s462/f461.txt` against `f462.txt`, `r461.txt` against
+`r462.txt`), the flatten row of the flexible size (1) is gone and the
+run row `unknown variable X in equation X` went from 1 to 2, which
+accounts for both halves. One more run row changed its words without
+moving a model: `ControlledMixingUnit`'s refusal now also names the
+target assigned twice, which is f1d75dc.
+
+### The loop rows of the run half, by name
+
+Every model of the four rows the order named was asked under `--only`
+from `.msl` on the head binary (`/tmp/s462/only_*.txt`); every one
+refuses as the m461 census says. The rows regrouped by cause, with the
+chapter that maps each:
+
+| row (census)                    | n   | models and family                                                                                                                                                                                                                                                     |
+| ------------------------------- | --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| singular Jacobian               | 8   | `SMEE_Generator`, `SMEE_Generator_Polyphase`, `SMEE_LoadDump` (FundamentalWave machines, item 30); `Rectifier` of QuasiStatic (two roots at zero current, m451); `RoomCO2` (moist air); `Engine1a` (m433); `LossyGearDemo2`, `TestMixingVolumesPressureStates` (m434) |
+| `X` of algebraic loop           | 6   | `ThreeSprings`, `PumpingSystem` (a start the block never reads, m426 to m428); `RollingWheelSetDriving`, `RollingWheelSetPulling` (the wheel set's dead row, m429); `RoomCO2WithControls`, `TestJunctionTraceSubstances` (moist air)                                  |
+| did not converge                | 4+1 | `PressureLoss.Bend`, `SeveralTestCases` (a swing across a square root, below); `SMPM_CurrentSource` (the machine family, m406); `MediaTestModels.Air.MoistAir` (moist air); `DynamicPipeClosingValve` in the initialisation (m426, m427)                              |
+| the equations of algebraic loop | 4   | `PointGravityWithPointMasses2` (a start on a name that is not a state, m426); `RollingWheel` (m391); `GearType2` (m360, m429); `Spice3BenchmarkDifferentialPair` (item 30)                                                                                            |
+
+So twenty-two models, and nothing new among them but one member. The
+moist-air four (`RoomCO2`, `RoomCO2WithControls`,
+`TestJunctionTraceSubstances`, `MediaTestModels.Air.MoistAir`) are the
+internal energy seeded with the type's gas constant of m454: the reach
+grown from type starts (m455, `~/oxideflow/park/m455-grow-from-type-start.diff`)
+runs three of them and moves the fourth a storey, and it waits on
+Roman's choice between the heavy set and a quarter more run time
+(m456). Nothing in the four rows touches the ranking tests' thresholds.
+
+`SeveralTestCases` is the one member no chapter had walked to its
+layer; m454 left it at the row. Its loop is one unknown,
+`from_mflow3.dp` of a `CurvedBend` at zero flow
+(`/tmp/s462/stc_trail.txt`). Newton swings it +1000, -999.996, +999.991
+and so on for fifty iterations, every full step accepted because the
+residual falls by about two parts in a million each time, and the
+circling guard of m417, which asks a return to within 1e-2, sees each
+swing land a little short of the last. It is `Bend`'s family exactly
+(`/tmp/s462/trail_Bend.txt` swings `from_mflow.dp` the same way, closer
+in), and a signed square root shows it in eight lines
+(`/tmp/s462/swn.mo`: `m = sign(dp) sqrt(|dp|)` solved for `m = -1e-3`
+from `dp = 1000` swings and is refused, from `m = +1e-3` it runs). A
+swing whose amplitude shrinks by a part in a hundred thousand a step is
+not a circle by any tolerance a guard can honestly hold, and the
+answer is a damping that sees a sign change on a single unknown. That
+is the solver knob of m417 again, priced there as a series, and it was
+not touched.
+
+The Newton-direction row (10) is the ten names of m460 to the name
+(`/tmp/s462/nd461.txt` against `nd462.txt`): `SeriesPipes1`, `2`,
+`BranchingPipes1`, `2`, `3`, `4`, `13`, `14`, `TestTemperature1`,
+`TestMultiPortTraceSubstances`. Nothing arrived and nothing left, and
+it is still the hydraulic family m444 priced: a first step out of the
+water's domain.
+
+`initialization is not square` (4) is four names already mapped:
+`NonCircularPipes` (8 for 6, a surplus the matching cannot see through
+the medium, m416), `ThreePhaseTransformerWithRectifier` (21 and 4 for
+23, the library's typo on the secondary currents, m416),
+`InitSpringConstant` (0 and 2 for 3, a parameter with no column in the
+matching, m416 and m434), and `GearType1` (a utility with open flanges,
+m448). Each refusal carries its m434 wording to the character.
+
+### The Complex sum of `ShowImpedance`: three layers and a wrong number
+
+The two probes of m461 moved nothing because neither was at the root.
+`Impedance` writes `import Modelica.ComplexMath.sum` and then the bare
+`sum`, and the array layer's arms take a bare `sum` for the built-in
+before any lookup is asked. Handed a list of phasors, the built-in
+flattened every field into one total, which is the "real and
+imaginary parts added together" m461 saw; `cz15.mo`, which m461 read as
+right, ran only because `sum(v)` of a declared array went down the
+operator road. Written with its full name instead of the import, the
+same call reaches `ComplexMath.sum` and meets two more walls inside
+it, which is the first chain of this shift:
+
+1. The bare name an import gives is the import's (`arrays.rs`,
+   `imported_function`). Only a function with a body of its own is
+   followed; one declared `external` keeps its arm.
+2. Inside the body the reduction is written `.sum`, the built-in with
+   its path resolved away, and matched with its dot on it met no arm
+   and was spread over its argument. A one-argument `.sum`, `.product`,
+   `.min`, `.max`, `.vector` or `.scalar` is now the arm, where no top
+   class answers to the name.
+3. The list handed to `Complex v[:]` had been worked out as a list of
+   lists of numbers before the body was reached, so `v[:].re` had no
+   class. The records are written back as calls of the record where a
+   call with the fields in order builds exactly those fields
+   (`records_kept_whole`), and the member arm reads a field of a slice
+   one record at a time. That arm also had a wrong reading of its own:
+   a slice of two records, read by place, was taken for the two fields
+   of one, so `v[:].re` of a `Complex v[2]` came out as `v[1]`
+   (`/tmp/s462/slice2.mo`). It was refused only because `v[1]` names
+   nothing; with three records the same slice was right.
+
+All three stand behind `OXIDELICA_IMPORTED_BUILTINS_KEPT` (1 and 2) and
+`OXIDELICA_SLICES_BY_PLACE` (3). With them `cz13`, `cz20`, `cz11` and
+`ShowImpedance` run, and the next link was a wrong number.
+`ShowImpedance` ran to `R0 = 0.008` where the record says `Ri -
+sum(rcData.R) = 0.01 - 0.002 - 0.001 = 0.007`. `oxidelica why` on the
+head binary says the same binding, `cellData.Ri - cellData.rcData[1].R`,
+so the head already held it and the Complex sum had merely kept it
+from reaching a run. It shrinks to five lines (`/tmp/s462/r0j.mo`):
+a `record CD extends Base(R0 = sum(x))` with `Real x[n]`, declared
+`parameter CD cd(n = 2, x = {0.2, 0.1})`, gives `R0 = 0.2`. The same
+declarations in a `model` give 0.3, and so does the same record
+without the `extends`. The layer is `shapes.rs`: the members of a
+record component are measured before anything is instantiated, and
+they were measured with nothing handed down, so `x` was one long, and
+a length measured there is the length for good. They are now measured
+with the declaration's modifiers and the `extends` modifiers of the
+record and its bases (`handed_to_a_record`), behind
+`OXIDELICA_RECORD_SHAPES_AS_DECLARED`.
+
+`ShowImpedance` then runs to the end of its sweep, and its 10003 rows
+agree with `Ri - 0.003 + 1/(1/0.002 + j 2 pi f 30000) + 1/(1/0.001 +
+j 2 pi f 10000)` to 3.5e-18 at worst. Three tests, each red under its
+own switch and green without it:
+`an_imported_function_is_called_where_a_built_in_shares_its_name` (red
+under both the first and the third),
+`a_field_read_off_a_slice_of_two_records_is_one_field_of_each` (the
+third) and `a_record_array_sized_by_the_declaration_is_summed_whole_up_an_extends`
+(the fourth). Not every name the library imports over a built-in is
+covered by the one road: `import Modelica.ComplexMath.abs` and
+`.exp` already resolved before this, and the probe `imp4.mo` reads
+`abs(Complex(3, 4))` as 5 on the head as well.
+
+### The floors, and the red band of the quick preflight
+
+The judges of both code runs of m461 are green: 75533e4 printed 968 /
+796 and runnable 851 / 752 (run 39262393983), and f1d75dc the same
+(run 39263588929). The desk list of the same code
+(`/tmp/s462/pair3/off.txt`) printed 968 / 795 and 851 / 751, so the
+two flatten floors rise by one to 968 and 851 for `ShowImpedance`,
+and the run floors stand at 792 and 748: the desk is one under the
+runner, and the lower less the two swings and `TestJunctionIdeal` is
+what is already written.
+
+The quick preflight of the change (`/tmp/s462/pf_quick.txt`) printed
+968 / 796 and 851 / 752, the runner's numbers, and went red on the
+work band: 1546334 points against 415001 and 2281821 Newton steps
+against 904754. The pass names `IMC_InverterDrive` of the Machines,
+the desk's known swing, as the dearest model after `Dimmer_RL`: on the
+desk it is refused for a step underflow at t = 0 after 1100990 points
+and 1382578 Newton steps, the same to the digit under `--only` on the
+head binary as on the change, with the switches and without
+(`/tmp/s462/imc_head.txt`, `imc_on.txt`, `imc_off.txt`). Without it
+the rest is 445344 points and 899243 Newton steps, x1.073 and x0.994
+of the centres and inside the band. The centres were drawn from the
+runner, where the model runs; the band holds a desk refusal the
+runner does not pay, and it is not a cost of the change.
