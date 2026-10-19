@@ -54734,3 +54734,31 @@ start of the step. So once stepping, most of the price is the event
 search finding its crossing at the first instant of the step, again
 and again, at a full Jacobian per probe. Why the crossing sits at the
 step's start is the next question, and it was not asked this shift.
+
+### What crosses at the start of the step
+
+A probe at the bisection that names each indicator and its two readings
+(`/tmp/m465/dp13.txt`, slots named in `dp14.txt`) shows four crossing
+over the first step, from t = 0 with h = 1e-4. Two are mass flows read
+directly, `pipeA_VB.port_b.m_flow` and `pipeAV_VB.port_b.m_flow`. Both
+stand at 1.4e-13 where the step begins and at about -0.03 at its end.
+The other two are `loss1.m_flow` and `loss1.port_a.m_flow` against
+`loss1.m_flow_small`, from -0.01 to 0.02. A flow that the
+initialization leaves at rounding above zero and that reverses at once
+crosses about 5e-12 of the way into the step, and forty halvings is the
+search that places it. Each halving pays a solve of the 246-unknown
+block.
+
+So the map of the run half has three parts, and none of them is a
+parameter:
+
+1. the initialization's difference Jacobian, about 260 residual calls
+   a solve with 3702 inner assignments each, where about 54 move;
+2. an event bisection of forty probes per crossing, each a full block
+   solve;
+3. crossings that sit at the first rounding of the step, because the
+   flows start on zero and reverse.
+
+Cone-limited columns would cheapen the first and every probe of the
+second. Whether the third is the model's physics or a start the
+initialization should not have left on zero is a probe of its own.
