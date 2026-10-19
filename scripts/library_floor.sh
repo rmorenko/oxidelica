@@ -497,7 +497,20 @@ FILES_FLOOR=2671
 # nothing the library step measures.
 #
 #   960 + 2 = 962
-FLATTEN_FLOOR=962
+#
+# And flatten 964 = 962 + ControlledMixingUnit of Fluid, which
+# flattens once a short function's body runs from its base (f916b2d),
+# and TestWaterPumpCharacteristics of ModelicaTest.Fluid, which
+# flattens once a body's length named by one of its own scalar locals
+# is measured (5a4fa0d). The flattened list of the desk binary of
+# 5a4fa0d holds 964 (/tmp/m460/pair/on7_lists.txt). Set from the
+# print: the runner printed 964 / 794 and runnable 847 / 750 on
+# 5a4fa0d, in the library job of run 39173922127; the head differs
+# from it by four commits of prose in docs/ANALYSIS.md and by nothing
+# the library step measures.
+#
+#   962 + 2 = 964
+FLATTEN_FLOOR=964
 # The two run floors came down by one, and the one is named: giving a
 # record constructor called with no arguments the values its `extends`
 # stated took `Modelica.Thermal.FluidHeatFlow.Examples.WaterPump` out
@@ -1632,7 +1645,16 @@ FLATTEN_FLOOR=962
 # of on_lists.txt and of the runner's print:
 #
 #   792 - 2 swings - TestJunctionIdeal = 789 = 788 + 1
-RUN_FLOOR=789
+#
+# And run 790 = 789 + TestWaterPumpCharacteristics, by the same desk
+# list and runner print as `FLATTEN_FLOOR`. The runner's run list of
+# 794 against the desk's of 793 differs by exactly IMC_InverterDrive,
+# which still runs there and not here, so the lower is taken. The two
+# swings and TestJunctionIdeal stand by name in both run lists and
+# stay out:
+#
+#   793 - 2 swings - TestJunctionIdeal = 790 = 789 + 1
+RUN_FLOOR=790
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -1864,7 +1886,11 @@ RUN_FLOOR=789
 # And runnable flatten 845 = 843 + the two of `FLATTEN_FLOOR`, both
 # runnable examples, by the same pair and runner print (run
 # 39160476888): 845 printed.
-RUNNABLE_FLATTEN_FLOOR=845
+#
+# And runnable flatten 847 = 845 + the two of `FLATTEN_FLOOR`, both
+# runnable examples, by the same desk list and runner print (run
+# 39173922127): 847 printed on both machines.
+RUNNABLE_FLATTEN_FLOOR=847
 # And runnable run 674 = 671 + the three batteries, all runnable
 # examples, by the same runner job as `RUN_FLOOR` (d58700e, job
 # 112530851204).
@@ -2019,7 +2045,14 @@ RUNNABLE_FLATTEN_FLOOR=845
 # taken, less the same three.
 #
 #   748 - 2 - 1 = 745 = 744 + 1
-RUNNABLE_RUN_FLOOR=745
+#
+# And runnable run 746 = 745 + TestWaterPumpCharacteristics, by the
+# same desk list and runner print as `RUN_FLOOR`: 750 printed (run
+# 39173922127), 749 on the desk where IMC_InverterDrive does not run,
+# and the lower is taken, less the same three.
+#
+#   749 - 2 - 1 = 746 = 745 + 1
+RUNNABLE_RUN_FLOOR=746
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
