@@ -510,7 +510,17 @@ FILES_FLOOR=2671
 # the library step measures.
 #
 #   962 + 2 = 964
-FLATTEN_FLOOR=964
+#
+# And flatten 965 = 964 + TestMatricesExamplesSolveLinearEquations of
+# ModelicaTest.Math, which flattens and runs once a system whose
+# right-hand side is a matrix is solved column by column (b451820).
+# The flattened list of the desk binary of 676ea18 holds 965
+# (/tmp/m460s/head.txt), and the runner printed 965 / 795 and
+# runnable 848 / 751 on 676ea18, in the library job of run
+# 39193932414. Both machines flatten the same 965.
+#
+#   964 + 1 = 965
+FLATTEN_FLOOR=965
 # The two run floors came down by one, and the one is named: giving a
 # record constructor called with no arguments the values its `extends`
 # stated took `Modelica.Thermal.FluidHeatFlow.Examples.WaterPump` out
@@ -1654,7 +1664,16 @@ FLATTEN_FLOOR=964
 # stay out:
 #
 #   793 - 2 swings - TestJunctionIdeal = 790 = 789 + 1
-RUN_FLOOR=790
+#
+# And run 791 = 790 + TestMatricesExamplesSolveLinearEquations, by the
+# same desk list and runner print as `FLATTEN_FLOOR`. The runner ran
+# 795 and the desk 794, and the floor has to hold on both machines -
+# set from the higher, a green compiler turns the preflight red on the
+# lower - so the desk is taken. The two swings and TestJunctionIdeal
+# stand by name in the desk's run list and stay out:
+#
+#   794 - 2 swings - TestJunctionIdeal = 791 = 790 + 1
+RUN_FLOOR=791
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -1890,7 +1909,11 @@ RUN_FLOOR=790
 # And runnable flatten 847 = 845 + the two of `FLATTEN_FLOOR`, both
 # runnable examples, by the same desk list and runner print (run
 # 39173922127): 847 printed on both machines.
-RUNNABLE_FLATTEN_FLOOR=847
+#
+# And runnable flatten 848 = 847 + the one of `FLATTEN_FLOOR`, a
+# runnable example, by the same desk list and runner print (run
+# 39193932414): 848 printed on both machines.
+RUNNABLE_FLATTEN_FLOOR=848
 # And runnable run 674 = 671 + the three batteries, all runnable
 # examples, by the same runner job as `RUN_FLOOR` (d58700e, job
 # 112530851204).
@@ -2052,7 +2075,14 @@ RUNNABLE_FLATTEN_FLOOR=847
 # and the lower is taken, less the same three.
 #
 #   749 - 2 - 1 = 746 = 745 + 1
-RUNNABLE_RUN_FLOOR=746
+#
+# And runnable run 747 = 746 + TestMatricesExamplesSolveLinearEquations,
+# by the same desk list and runner print as `RUN_FLOOR`: 751 printed
+# (run 39193932414), 750 on the desk, and the lower is taken, less the
+# same three.
+#
+#   750 - 2 - 1 = 747 = 746 + 1
+RUNNABLE_RUN_FLOOR=747
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
