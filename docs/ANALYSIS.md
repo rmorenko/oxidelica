@@ -56161,3 +56161,91 @@ test's help, on `d9f09f2` as it stands (`/tmp/m473/ox`):
 
 These are the same seam from the other side, and both belong to item
 18's map.
+
+### The rule's pair, kept as an instrument
+
+The pair was taken anyway, to size what a steady-pivot rule would buy,
+with one binary built from the probe tree (`/tmp/m473/ox4`, `--list`,
+the giants left out by default): `/tmp/m473/pair_off.txt` gives 969
+flatten and 797 run, runnable 852 and 753, the floors exactly; with
+`OXIDELICA_M473_STEADY=1`, `/tmp/m473/pair_on.txt` gives 969 and 800,
+runnable 852 and 756. The run lists (`ran_off.lst`, `ran_on.lst`)
+differ by exactly `SMEE_DOL`, `SMEE_Rectifier` and `IMC_DOL_Polyphase`
+gained and nothing lost, and the rule fired on those three blocks and
+no other in the corpus. So the family is three models wide and no
+victim stands in the corpus - and the rule still does not go in,
+because `Z` shows the wrong number it lets through, and a corpus
+without a model of `Z`'s shape is not evidence that the shape is
+absent.
+
+## Shift 473: what the convergence test admits, counted by name (item 18)
+
+A probe on the path that accepts a block (`OXIDELICA_M473_SOFT`, the
+second half of `park/m473-steady-pivot-and-soft-probe.diff`, binary
+`/tmp/m473/oxsoft2`) prints a row when it was taken by the relative arm
+alone - `|f| > 1e-10` and `|f| > 1e-12 * (|lhs| + |rhs|)` - and the
+unknown judged with it either grew a thousandfold from the block's
+start or stands above 1e9. Each model and unknown is printed again only
+when the unknown has grown tenfold since its last line. One corpus pass
+(`/tmp/m473/soft.txt`, `--list`, three threads, peak 5.9 GB under a
+ceiling of 16) gives 969 / 797 and the run list identical name for name
+to the pair's `ran_off.lst`, so the probe moved nothing. Read by
+`/tmp/m473/soft.py` into `/tmp/m473/soft_map.txt`:
+
+```text
+models with such an acceptance                    50   (43 run)
+  grew >= 1e3 from a start that was not zero      26   (21 run)
+  above 1e9, or grown from an exact zero          24   (22 run)
+running models whose worst such row leaves
+  |f| > 1e-6                                      26
+  |f| > 1e-3                                      13
+  |f| > 1                                         12
+running models with the unknown above 1e12        14
+```
+
+Two kinds, as the queue asked, and the line between them is not the
+one the queue drew. Grown from an exact zero is mostly honest: the
+transformer cores' `der(core.plug_p2.pin[k].i)` at 1.6e6 to 4.9e11,
+the permanent-magnet machines' stator current derivatives at 4e4 to
+8e6, `BranchingPipes17`'s enthalpy derivative at 2.4e6, all with
+residuals of 1e-10 to 6e-5 against sides of the same size - the m334
+reading, still standing. What is not honest is the eight running
+models whose unknown is above 1e12 with a residual that is the whole
+of a side, nothing cancelled:
+
+| model                                      | unknown                            | `\|v\|` | `\|f\|` |
+| ------------------------------------------ | ---------------------------------- | ------: | ------: |
+| `Machines...IMS_Start`                     | `aims.inertiaRotor.a`              |  5.7e28 |  8.8e12 |
+| `FluxTubes...ComparisonPullInStroke`       | `advancedSolenoid.armature.mass.a` |  2.5e26 |  3.4e10 |
+| `Machines...IMC_DOL`                       | `aimc.lssigma.v_[2]`               |  1.4e19 |   1.7e7 |
+| `Machines...SMEE_Rectifier`                | `der(smee.spacePhasorS.i[2])`      |  1.5e20 |   9.1e6 |
+| `...ThyristorBridge2Pulse_DC_Drive`        | `dcpm.la.v`                        |  1.9e13 |      62 |
+| `...SinglePhaseTransformerWithHysteresis1` | `core.derHstat`                    |  1.0e15 |    0.78 |
+| `...SinglePhaseTransformerWithHysteresis2` | `transformer.core.LossPowerStat`   |  2.7e13 |     762 |
+| `...InductorWithHysteresis`                | `core.derHstat`                    |  2.9e14 |  3.8e-6 |
+
+Beside them, six more run on residuals far larger than their unknowns
+could justify though part of a side cancelled: `Dimmer_RL`
+(`triac.thyristor2.s` at 1.0e30, `|f| = 3.8e18`), `ControlledSwitchWithArc`
+(`switch1.s` at 2.9e30, `|f| = 3.8e19`), `ComparisonQuasiStatic`
+(`advancedSolenoid.c_par1.n.v` at 1.4e23, `|f| = 5.1e12`), and
+`IMC_YD`, `ThyristorBridge2Pulse_RLV` and `DCPM_Drive` (switch
+parameters at 2e17 to 4e17, `|f|` 1.7e6 to 4.1e6). An acceleration of
+5.7e28 and a switch parameter of 1e30 are not physics; every model of
+this table and the paragraph above is counted among the 797 that run.
+
+Against m334 the list has grown: `Machines...IMS_Start`,
+`ControlledSwitchWithArc`, `IMC_YD`, `DCPM_Drive`, the three hysteresis
+models and `ComparisonQuasiStatic` were not among its runaways. Some
+of that is the probe's wider net (m334 kept one acceptance per block),
+so the comparison is of names, not of a trend.
+
+What the map says for a DECISION, together with the open switch above:
+the convergence test's relative arm admits a residual of `1e-10 * |v|`
+whatever the row, and that one number is behind both the fourteen
+running models on runaway unknowns and the three refused machines,
+which the rank test has to refuse precisely because the arm would
+admit an error of a few percent on them. A row-scaled arm (m334's
+candidate) is the one change that addresses both; its price was four
+models for four in m334 and is not re-measured here. No tolerance was
+touched.
