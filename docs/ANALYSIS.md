@@ -54841,6 +54841,29 @@ difference-Jacobian solve. That is the cost shift 465 set against
 cone-limited columns. This shift found no cheaper cause in the
 initialization layer. Nothing was changed in the compiler.
 
+### The full runs did not finish, and what stopped them
+
+Shift 466 started `X3` and `X0` to their stop time of 500 s, each under
+the memory ceiling of `~/oxideflow/cap.sh` (8 GB), with the same scratch
+binary `/tmp/m466/ox`. Neither finished. Both were stopped at 46 minutes
+by the ceiling's other limit: the output file had not grown for 45
+minutes (`/tmp/m466/fullX3.txt`, `fullX0.txt`). Peak memory was 0.2 GB.
+That limit is a poor fit for `simulate`, which writes its CSV only at
+the end, so a healthy run looks the same as a stuck one. What the runs
+do say is a lower bound. `X3` had used 46 minutes of CPU and was still
+in `run_bdf` → `solve_implicit_block` (a `sample` taken a minute before
+the stop). The model as the library writes it, `when terminal()`
+included, ran in 2674.8 s on the desk of shift 464. `X3` lacks that
+clause, so the two are not the same run, and 46 minutes against 44.6 is
+inside the weather of a desk running two of them at once. So the bound
+says one thing only: a start of 0.03 kg/s out of rest did not make the
+whole run cheap. Its first step costs 11.9 s, and the rest of the run
+still costs at least as much as the model as written. The price is not
+only in the first step. `X0` did not finish after 46 minutes of CPU
+either. The next measurement of a whole run should print its progress,
+or run without the stall limit, so that it ends with a time rather
+than a bound.
+
 ### The Complex sum of `ShowImpedance` was already done
 
 The second probe of the order was the substitution of a list of records
