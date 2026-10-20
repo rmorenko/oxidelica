@@ -56135,7 +56135,12 @@ the converged point does not fix the stator current's derivative to
 better than a few percent of one. The 157.404 rad/s the candidate ran
 to agrees with the `Goff = 1e-3` run to seven digits, which says the
 error does not grow in this model; it does not say the rule is safe,
-and `Z` says it is not.
+and `Z` says it is not. The spread is also measured against an unknown
+that stands at 1e-10 when it is taken, so its "few percent" is of an
+absolute 1 A/s, against a derivative that reaches 6.7e4 later in the
+run (the soft map below): physically small here, and the same
+blindness to a zero start that m334 found in growth. A rule cannot
+read that from the block, which is the point.
 
 So the border is not a threshold to be moved. The rank test and the
 convergence test are one guard in two halves, and the open switch sits
