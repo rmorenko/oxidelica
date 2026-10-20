@@ -54765,3 +54765,86 @@ parameter:
 Cone-limited columns would cheapen the first and every probe of the
 second. Whether the third is the model's physics or a start the
 initialization should not have left on zero is a probe of its own.
+
+## Shift 466: the energy check's flow starts on zero because the model says so
+
+### Where the zero comes from
+
+Shift 465 left one question. The flows that cross at the first rounding
+of the step stand at 1.4e-13 when the step begins. Is that a root the
+model sets, or a degenerate root Newton landed in when a physical one
+sits near -0.03? The model sets it. `system` is declared with
+`energyDynamics = FixedInitial`, and `massDynamics` defaults to
+`energyDynamics`. Every pipe therefore has the initial equation
+`mediums.p = ps_start`, with `ps_start = linspace(p_a_start, p_b_start,
+n)`. `oxidelica why ... 'pipeA_VB.mediums[30].p'` names that equation
+(`/tmp/m466/why2.txt`). With `p_b_start = 100000`, the last volume of
+`pipeA_VB` and of `pipeAV_VB` is held at the pressure of `boundary7` and
+`boundary13`. That makes the drop over `loss1` and `loss2` zero, and
+`loss*.m_flow = massFlowRate(dp, ...)` makes the flow zero.
+`why ... pipeA_VB.port_b.m_flow` (`/tmp/m466/why1.txt`) shows the flow
+has no start of its own to lean on: it is `-m_flows[31]` and the
+negative of `loss1.port_a.m_flow`.
+
+Three copies of the model without its `when terminal()` were solved at
+t = 0 (`/tmp/m466/X0.mo`, `X1.mo`, `X2.mo`). One was as written. One
+had `m_flow_start = 0.03` on the losses and `-0.03` on the pipes. One
+had `-0.03` on the losses. All three gave the same initialization bit
+for bit: `pipeA_VB.port_b.m_flow = 1.4243939349402e-13`, `loss1.dp =
+-1.455e-11`, `pipeA_VB.mediums[30].p = 99999.99999999999`. The flow
+starts were never what held the root. The fixed pressures leave no
+second root to choose.
+
+The 1.4e-13 is one unit in the last place of that pressure. The pressures
+of all four pipes come out of the initialization up to two ulps away
+from `a + (b - a)*k/(n-1)` (7 of 30 differ). A twelve-line model with
+the same `linspace` start and `p = ps` (`/tmp/m466/U1.mo`) gives
+`p[30] = 100000.0` exactly. So the ulp comes from the initialization's
+solve, not from `linspace`. It was not traced further. At 1e-13 kg/s it
+changes no answer. It decides only which side of zero the flow starts
+on.
+
+### What the first step costs from each start
+
+The same block-solve counter as shift 465 (`/tmp/m465/oxc11`, scratch,
+`OX465_COUNT`), stop time 1e-4:
+
+| Start                                                     | Block solves                             | First step                                       |
+| --------------------------------------------------------- | ---------------------------------------- | ------------------------------------------------ |
+| as written, flow 1.4e-13 (`X0`)                           | 247 at t = 0, then 1366 by 21 min of CPU | not taken, t at 1.2e-5 when stopped              |
+| `p_b_start = 100000.01` on two pipes, outflow 1e-4 (`X4`) | 247 at t = 0, then 891 by 14 min of CPU  | not taken, bisecting near 9.97e-6                |
+| `p_b_start = 100500` on two pipes, outflow 0.03 (`X3`)    | 247 at t = 0, then 10                    | taken in 11.9 s, 0 events, flow -0.030 to -0.043 |
+
+The indicator probe (`/tmp/m465/oxc13`, `OX465_IND`) on `X4`
+(`/tmp/m466/iX4.txt`) answers why an outflow of the right sign does not
+help. Indicators 125 and 218, the pipes' flow signs, no longer cross.
+Indicators 376, 379 and 383 still do: `loss1.m_flow` and
+`loss1.port_a.m_flow` against `±loss1.m_flow_small` go from -0.0099 to
+0.0206. So do 385 and 388, which `X0` also turned. The flow out of a
+pipe that starts at rest really does pass through the loss's
+regularisation band of ±0.01 kg/s within the first 1e-4 s. Every
+crossing is placed by forty halvings, and each halving pays a full
+solve of the 246-unknown block.
+
+### What this decides
+
+The zero is not the quiet-wrong-number kind. It is the model's own
+start, written by `FixedInitial` and two equal pressures. The sign of
+its last ulp adds two indicators out of seven and none of the price.
+The price is the physics of a flow leaving rest through a regularised
+band, met with an event search whose every probe is a full
+difference-Jacobian solve. That is the cost shift 465 set against
+cone-limited columns. This shift found no cheaper cause in the
+initialization layer. Nothing was changed in the compiler.
+
+### The Complex sum of `ShowImpedance` was already done
+
+The second probe of the order was the substitution of a list of records
+into a body, for `ShowImpedance`. Its map was out of date. Shift 462
+carried the chain to a run (`OXIDELICA_IMPORTED_BUILTINS_KEPT`,
+`OXIDELICA_SLICES_BY_PLACE`, `OXIDELICA_RECORD_SHAPES_AS_DECLARED`,
+since flipped). On the head binary, `cz11`, `cz13`, `cz20` and `cz21` of
+`/tmp/s461` all run with the right numbers. For example, `cz20` gives
+`z = 6 + 13j` at t = 0, and `cz21` gives `3`. `library check .msl --only
+Modelica.Electrical.Batteries.Examples.ShowImpedance` prints 1 flatten
+and 1 run. There was nothing to merge.
