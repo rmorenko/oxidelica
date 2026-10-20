@@ -55538,3 +55538,10 @@ show for it, it was not merged. The diff is parked at
 `~/oxideflow/park/m470-orientation-residue-probe.diff`, and the tree
 holds none of it. What would take it further is the reducer's second
 link above, and that belongs with index reduction, not with chapter 9.
+
+The preflight of the tree (`/tmp/m470/preflight.txt`) is green except
+for the library step. That step printed 969 / 797 and runnable 852 /
+753, above the new floors of 794 and 750. Its two reds are the desk's
+own, as in shifts 467 to 469: 2276457 Newton steps and 1543390 points,
+the same to the digit as shift 469's, and a ratio of the halves of
+0.989 against the desk band's 0.91.
