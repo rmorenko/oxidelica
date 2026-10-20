@@ -55190,3 +55190,14 @@ The fixpoint reads that equation left to right, so the closer's control
 is never reached from `loadControl.y`, and its mode is chosen on the
 zero. So two of the five ways in are one fault, an alias read only one
 way: the vessels' port heights and the switch's control.
+
+The hysteresis cores are a different way in, and the trail marks them
+for the second link and not the first. `core.asc = der(core.Hstat) > 0`
+asks a derivative, which the fixpoint's evaluator refuses ("der()
+outside a state equation"). So `asc` keeps whatever the pass before it
+left, and the mode of `core.dHyst` is chosen on that. `Hstat` is named
+as unwritten only because it sits under the `der` the condition reads.
+The choice is not made on its zero. The direction of a hysteresis loop
+at the start is a question the model answers with the first step, and
+this layer cannot answer it before the step. These models are counted
+above, but what reaches them is not the alias.
