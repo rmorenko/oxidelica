@@ -3965,6 +3965,12 @@ fn settle_modes(
     resuming: bool,
 ) -> Result<Vec<usize>, SimError> {
     let mut mode_env = start_env.clone();
+    // For the trail only: the names whose definition the last pass
+    // could not ask, and why. A number that stands in `mode_env` for
+    // such a name is whatever stood there before, and the trail says
+    // so beside it rather than letting it read as an answer.
+    let mut unasked: HashMap<String, String> = HashMap::new();
+    let mut defined: std::collections::HashSet<String> = std::collections::HashSet::new();
     for _ in 0..MAX_DEFINITION_PASSES {
         let mut progress = false;
         for equation in &model.equations {
@@ -3975,7 +3981,7 @@ fn settle_modes(
                 // A continuation already knows this from the run.
                 continue;
             }
-            if let Ok(value) = eval(
+            match eval(
                 &equation.rhs,
                 &EvalCtx {
                     vars: &mode_env,
@@ -3984,8 +3990,19 @@ fn settle_modes(
                     depth: 0,
                 },
             ) {
-                if mode_env.insert(name.clone(), value) != Some(value) {
-                    progress = true;
+                Ok(value) => {
+                    if mode_trail() {
+                        unasked.remove(name);
+                        defined.insert(name.clone());
+                    }
+                    if mode_env.insert(name.clone(), value) != Some(value) {
+                        progress = true;
+                    }
+                }
+                Err(why) => {
+                    if mode_trail() {
+                        unasked.insert(name.clone(), why.0);
+                    }
                 }
             }
         }
@@ -4011,6 +4028,25 @@ fn settle_modes(
                 taken = index;
                 break;
             }
+        }
+        if mode_trail() {
+            let unwritten = UNWRITTEN.with(|set| set.borrow().clone());
+            eprintln!(
+                "{}",
+                trail_mode(
+                    modes.len(),
+                    conditional,
+                    taken,
+                    &Fixpoint {
+                        model,
+                        env: &mode_env,
+                        unasked: &unasked,
+                        defined: &defined,
+                        unwritten: &unwritten,
+                    },
+                    mode_time,
+                )
+            );
         }
         modes.push(taken);
     }
@@ -8694,6 +8730,108 @@ fn reciprocal_solution(
     crate::symbolic::solve_reciprocal_known(lhs, rhs, name, known)
 }
 
+/// Whether the branch each undecided `if` takes is printed with the
+/// Newton trail. A block refused as singular names its rows by the
+/// equation of the branch it holds, and a branch that is flat in the
+/// unknown reads the same whichever condition chose it: the tank of
+/// `TestTankWithTopPorts` has two branches flat at zero flow, and the
+/// rows alone could not say which one stood there.
+fn mode_trail() -> bool {
+    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ON.get_or_init(|| std::env::var_os("OXIDELICA_NEWTON_TRAIL").is_some())
+}
+
+/// What the definitions followed before a mode is chosen came to, as
+/// the trail reads it.
+struct Fixpoint<'a> {
+    model: &'a Model,
+    env: &'a HashMap<String, f64>,
+    /// Names whose definition could not be asked on the last pass, and why.
+    unasked: &'a HashMap<String, String>,
+    /// Names some definition gave a value to.
+    defined: &'a std::collections::HashSet<String>,
+    /// Names that start at zero because nobody gave them a start.
+    unwritten: &'a std::collections::HashSet<String>,
+}
+
+/// One line saying which branch of the undecided `if` numbered
+/// `index` was taken at `time`, under which condition, and what each
+/// name the conditions read was worth when it was chosen.
+///
+/// Two kinds of number are marked, because neither is an answer. A
+/// name whose definition could not be asked on the last pass holds
+/// whatever an earlier pass left. And a name read one level down, by
+/// the definition of a name the condition reads, that no definition
+/// reached and nobody gave a start: that is the zero the language
+/// fills in, and the choice was made on it. The tank of
+/// `TestTankWithTopPorts` chose its branch above the level on
+/// `portsData_height2[i] = 0`, an input whose value comes over an
+/// alias the definitions are followed the other way along.
+fn trail_mode(
+    index: usize,
+    conditional: &oxidelica_parser::ast::ConditionalEquations,
+    taken: usize,
+    fixpoint: &Fixpoint<'_>,
+    time: f64,
+) -> String {
+    let how = conditional.conditions.get(taken).map_or_else(
+        || "the `else`".to_string(),
+        |condition| format!("`{}`", condition.describe()),
+    );
+    let mut read: Vec<String> = Vec::new();
+    for condition in &conditional.conditions {
+        let asked = pre_as_now(condition);
+        let mut names = Vec::new();
+        asked.collect_refs(&mut names);
+        for name in names {
+            let mut shown = fixpoint.env.get(name).map_or_else(
+                || format!("{name} = unknown"),
+                |value| format!("{name} = {value}"),
+            );
+            if let Some(why) = fixpoint.unasked.get(name) {
+                shown.push_str(&format!(
+                    " (left over: its definition was not asked, {why})"
+                ));
+            }
+            let mut below: Vec<String> = fixpoint
+                .model
+                .equations
+                .iter()
+                .filter(|equation| matches!(&equation.lhs, Expr::Ref(lhs) if lhs == name))
+                .flat_map(|equation| {
+                    let mut inner = Vec::new();
+                    equation.rhs.collect_refs(&mut inner);
+                    inner.into_iter().map(str::to_string).collect::<Vec<_>>()
+                })
+                .filter(|inner| {
+                    fixpoint.unwritten.contains(inner) && !fixpoint.defined.contains(inner)
+                })
+                .collect();
+            below.sort();
+            below.dedup();
+            if !below.is_empty() {
+                shown.push_str(&format!(
+                    " (from {} at a zero nobody wrote and no definition reached)",
+                    below.join(", ")
+                ));
+            }
+            if !read.contains(&shown) {
+                read.push(shown);
+            }
+        }
+    }
+    let first = conditional.branches[taken]
+        .first()
+        .map(|equation| format!("{} = {}", equation.lhs.describe(), equation.rhs.describe()))
+        .unwrap_or_default();
+    format!(
+        "mode {index} t={time}: branch {} of {} by {how}, reading [{}]; first equation `{first}`",
+        taken + 1,
+        conditional.branches.len(),
+        read.join(", ")
+    )
+}
+
 /// A mode condition as it reads where a mode is chosen: `pre(x)` is `x`.
 ///
 /// A mode is settled where the run starts or where an event has
@@ -9012,5 +9150,64 @@ mod theorem_tests {
             r("q"),
         );
         assert!(for_the_theorem(&cubic, &r("x"), "q", &zero));
+    }
+}
+
+#[cfg(test)]
+mod mode_trail_tests {
+    use super::{trail_mode, Fixpoint};
+    use oxidelica_parser::parse_model;
+    use std::collections::{HashMap, HashSet};
+
+    /// The smallest shape of `TestTankWithTopPorts`'s wall: a mode
+    /// condition read through a definition whose input comes over an
+    /// alias, `h = h2`, which the definitions are followed the other
+    /// way along. The trail has to say that the choice was made on a
+    /// zero nobody wrote, and has to say nothing of the kind once a
+    /// definition has reached the input.
+    const ALIAS: &str = "model A Real h; Real h2; Real x(start = 1, fixed = true); Real y; \
+        Boolean above; equation h = 9; h = h2; above = x >= h2; der(x) = 0; \
+        if above then y = 1; else y = 2; end if; end A;";
+
+    fn line(defined: &[&str]) -> String {
+        let model = parse_model(ALIAS).unwrap();
+        assert_eq!(model.conditional.len(), 1, "the `if` is left to the run");
+        let env: HashMap<String, f64> = [("above", 1.0), ("h2", 0.0), ("x", 1.0)]
+            .into_iter()
+            .map(|(n, v)| (n.to_string(), v))
+            .collect();
+        let unwritten: HashSet<String> = ["h2".to_string()].into_iter().collect();
+        let defined: HashSet<String> = defined.iter().map(|n| (*n).to_string()).collect();
+        let unasked = HashMap::new();
+        trail_mode(
+            0,
+            &model.conditional[0],
+            0,
+            &Fixpoint {
+                model: &model,
+                env: &env,
+                unasked: &unasked,
+                defined: &defined,
+                unwritten: &unwritten,
+            },
+            0.0,
+        )
+    }
+
+    #[test]
+    fn a_mode_chosen_on_an_unwritten_zero_says_so() {
+        let said = line(&["above"]);
+        assert!(said.contains("branch 1 of 2 by `above`"), "{said}");
+        assert!(
+            said.contains("above = 1 (from h2 at a zero nobody wrote"),
+            "{said}"
+        );
+        assert!(said.contains("first equation `y = 1`"), "{said}");
+    }
+
+    #[test]
+    fn a_mode_chosen_on_a_reached_input_says_nothing_of_a_zero() {
+        let said = line(&["above", "h2"]);
+        assert!(!said.contains("nobody wrote"), "{said}");
     }
 }

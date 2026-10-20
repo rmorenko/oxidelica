@@ -54995,3 +54995,102 @@ output at t = 0 show the settled `pre`, while the test, written for
 can be true only if the point at t = 0 is written between the two
 halves of the initial event. That is a question about what the first
 output row means, and it is left with the parked diff for a decision.
+
+## Shift 468: the tank takes its branch on a zero nobody wrote
+
+### The branch, named
+
+Shift 467 left the wall of `TestTankWithTopPorts` with two suspects:
+the branch `ports[i].p = p_ambient`, taken when
+`pre(ports_m_flow_out[i])` is false, or the square law above the level,
+which is flat at zero flow. Neither is the answer. The trail now prints,
+for each run-time `if` it settles, which branch was taken, by which
+condition, and what each name the condition reads was worth
+(`OXIDELICA_NEWTON_TRAIL`, a line beginning `mode`). On the real model,
+unshrunk (`/tmp/m468/tank_modes.txt`), all four ports take branch 2 of
+4, the branch above the level, by `tank.aboveLevel[i] = 1`. The level is
+1 m and the ports stand at 9, 6, 4 and 2 m, so every port is below the
+level's reach and `aboveLevel` should be false. The branch the model
+asked for is the third, `ports[i].m_flow = 0` under
+`pre(ports_m_flow_out[i]) = true`.
+
+The cause is in `settle_modes`, the step that follows plain `name =
+expr` definitions to a fixpoint before the conditions are asked. A probe
+of its table (scratch, not kept) printed `tank.portsData_height2[i] =
+0` and `tank.ports_emptyPipeHysteresis[i] = 0` for all four ports. The
+heights reach the tank as a conditional input, `portsData_height =
+portsData.height if nPorts > 0`, connected to `portsData_height2`. The
+connection is written `portsData_height[i] = portsData_height2[i]`, so
+the fixpoint, which only ever reads an equation left to right, sets
+`portsData_height[i]` from the zero of `portsData_height2[i]` and never
+goes the other way. Nobody wrote a start for `portsData_height2`, so its
+zero is the one the language fills in. Then `level >= 0 + 0` is true.
+
+There is a second link behind the first. With the heights put right by
+hand, `aboveLevel[i]` still came out 1. Its definition reads
+`pre(aboveLevel[i])`, the fixpoint's evaluator does not know `pre`, and
+so after the first pass, which had set it to 1 on the zero heights, the
+equation was never asked again and the 1 stayed.
+
+A trial behind a switch (`TRIAL468`, parked whole in
+`~/oxideflow/park/m468-mode-env-trial.diff`) took both links. An alias
+whose right side is unwritten and undefined, and whose left side a
+definition has reached, is read right to left. A definition that can no
+longer be asked goes back to its start rather than keeping its last
+pass. Under it the four ports take branch 3 by `pre(ports_m_flow_out)`,
+the run gets past t = 0, and it was at t = 7.96 s of 5000 with Newton
+converging when it was stopped for a run of its own. That run was still
+going at 15 minutes of CPU, so whether the tank finishes is not known.
+The trial is not merged. Choosing a branch is under Roman's word, and
+the trial changes the start of every model whose modes read such a
+name. It has not been measured over the corpus.
+
+### A wrong number from the same reading
+
+`/tmp/m468/p/A1.mo` is the smallest form, twelve lines: `h = 9; h =
+h2; above = x >= h2;` with `x` starting at 1, and `if above then y = 1;
+else y = 2;`. The right answer is `y = 2` from the first row. The run
+gives `y = 1` at t = 0 and t = 0.001, and 2 from the next point on, once
+the run has seen the condition flip. Without the alias
+(`/tmp/m468/p/A3.mo`, `h2 = 9`) it gives 2 from the start, and under
+the trial A1 gives 2 from the start as well. So this is a wrong number
+at the start, without a word, wherever a mode condition reads a name
+that only an alias defines.
+
+### The family
+
+The same trail on three neighbours, cut at 0.001 s
+(`/tmp/m468/p/neighbours.txt`). `Modelica.Fluid.Examples.Tanks.TanksWithOverflow`
+picks every port mode on `upperTank.portsData_height[i]` at a zero
+nobody wrote. That is the same conditional input in
+`Vessels.BaseClasses.PartialLumpedVessel`, so the reading reaches every
+vessel that takes `portsData`. `AST_BatchPlant.BatchPlant_StandardWater`
+picks the modes of `B5`'s inner ports on `B5.level` at an unwritten
+zero, and on `m_flow_negative` left over from an earlier pass, which is
+the second link. `DynamicPipeClosingValve` has no mode chosen this way.
+It is refused before the modes are reached. These three are only a
+sample. The corpus has not been asked which of its 224 refused models
+choose a mode on an unwritten zero.
+
+### What was merged
+
+Only the trail. With the switch off, the fixpoint does what it did
+before. The trail reads one more flag, and the rest is printing. Two
+tests in `compile.rs` (`mode_trail_tests`) check the line on A1's shape:
+one that a choice made on the unwritten zero says so, one that it says
+nothing once a definition has reached the input. With the marking
+switched off by hand, the first test goes red. The branch choice, the
+trial and the corpus pair it would need wait for Roman's word, with
+`pre` at t = 0 (queue item 54) beside them. That is the same layer: what
+a condition reads before the first event has settled.
+
+The preflight of the tree (`/tmp/m468/preflight.txt`) is green except
+for the library step. That step printed 969 / 796 and runnable 852 /
+752, the floors. Its two reds are the desk's own. The work band printed
+2276457 Newton steps against 904754, the same to the digit as shift
+467's preflight of the code before this change
+(`/tmp/m467/preflight.txt`). The excess is `IMC_InverterDrive`'s desk
+refusal, as in the chapters of m462 and m463. The time band printed
+0.940 while the full runs of `X3` and `X0` and the tank's trial shared
+the desk. The trail adds nothing to a run with the switch off but one
+flag read.
