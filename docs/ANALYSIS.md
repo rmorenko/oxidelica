@@ -54824,7 +54824,11 @@ Indicators 376, 379 and 383 still do: `loss1.m_flow` and
 pipe that starts at rest really does pass through the loss's
 regularisation band of ±0.01 kg/s within the first 1e-4 s. Every
 crossing is placed by forty halvings, and each halving pays a full
-solve of the 246-unknown block.
+solve of the 246-unknown block. In `X0`, the 1119 solves after the
+initialization fall into about 28 descents of forty. Eleven begin at
+5e-5, the middle of the first 1e-4. The rest begin in shorter steps
+near 1e-5 and 1e-6. So the run is placing one crossing after another,
+not refining one.
 
 ### What this decides
 
