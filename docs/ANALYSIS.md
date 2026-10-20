@@ -55935,6 +55935,26 @@ closes them as it closes the others. Not one of the six runs, so the
 chain is still worth nothing on the floors and costs nothing. Link 4 is
 where it stands for all six.
 
+**Link 4, swept.** On `/tmp/m472/pl.mo` (the example with
+`checkTotalPower = false`) under links 1 to 3, six reducer switches end
+at the same refusal: `OXIDELICA_PARTIAL_SENSITIVITY`, `NO_TIE_JOINT`,
+`NO_RETREAT`, `NO_STATE_SELECT`, `NO_DERIVATIVES_AT_REDUCTION` and
+`NO_CONSTANT_CANDIDATES` all leave it singular on
+`der(jointRRR2.jointUSR.rod1.rRod_0[2])` (`/tmp/m472/k_*.txt`).
+`OXIDELICA_SUPPLY_ONCE=0` and `=4` take the reduction through, and the
+model stops one step on: `initialization is not square: 13 initial
+equation(s) and 0 fixed start(s) for 14 unknown(s) (2 state(s) and 12
+parameter(s))`. `OXIDELICA_INIT_PROBE` (`/tmp/m472/k_init.txt`) shows the
+13: three `positiveBranch`, nine `n_b` and `position.phi = phi_ref`. The
+last of these reaches nothing it can settle and takes `body2.w_a[3]`, and
+the model's one `fixed = true`, `rev.w`, was demoted and takes nothing.
+So with supply-once off the two states kept are not the driven angle and
+its velocity, and the start written for them has nowhere to land. This
+is the same limit as link 6 of the four-bar chain in m471: the choice of
+victim weighs 0 or NaN everywhere and keeps a state the model did not
+mean. That makes the analytic family and `Fourbar1` one question for
+Roman, and not two.
+
 The chain as mapped: link 1, the shape of a sibling's member declared
 below (m430, a guess about the shape until it is read from the class);
 link 2, the same at depth two (m430); link 3, the open port's zero (this
