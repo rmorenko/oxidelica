@@ -55138,3 +55138,32 @@ today contradicts itself: its flags say one branch and its values come
 from another, chosen on `portsData_height[i] = 0`. That is a wrong
 number in three models that count towards the floors, and it was not
 seen because the run puts it right at the next point it checks.
+
+### The parked reading over the corpus
+
+The parked trial was measured as a pair from one binary
+(`/tmp/m468/probe4`, without the heavy set, both halves on the desk at
+once: `/tmp/m468/pair_off.txt` against `pair_on.txt`). Without the
+switch it prints 969 / 796 and runnable 852 / 752. The run list is the
+same name for name as shift 467's (`/tmp/m467/off2_ran.lst`). With
+the switch it prints 969 / 797 and 852 / 753. The flattened lists are
+the same. The run lists differ by exactly one name, which arrives:
+`TestTankWithTopPorts`. Nothing that ran is lost. Measured this way,
+the reading costs nothing and wins the tank. It also changes the first
+row of the three models above, which is the point of it.
+
+There is a second wall, and it is not the same as the first. Run on its
+own under `simulate` with the model's tolerance of 1e-5 and stop time
+of 5000 s, the tank under the trial gets to t = 133.2 s
+(`/tmp/m468/p/TT_trail.txt`). There, as the level falls past the port
+at 2 m, port 4 takes branch 2 by `aboveLevel[4] = 1`, and the run is
+refused as `singular Jacobian` over `ports[4].m_flow` and four more.
+Under `library check` the same binary and switch count the model as
+run. Why the two runners part was not looked into. It is the next
+question for this model, ahead of any merge.
+
+The trial stays parked. Choosing a branch is Roman's package, and the
+diff in `~/oxideflow/park/m468-mode-env-trial.diff` is a probe, with
+printing still in it, not a change ready to merge. What this pair gives
+the decision is its price: one model gained, none lost, and three first
+rows that stop contradicting themselves.
