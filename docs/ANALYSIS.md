@@ -56623,3 +56623,13 @@ from (`solvers/mod.rs:1644`, by `OXIDELICA_WHERE`). So the third model
 behind the `T0` wall is a medium wall of its own, independent of the
 phase, and the map of item 1 closes on three names, three walls: two on
 the rank threshold of item 30, one on an ideal gas's temperature solve.
+
+The runaway unknown is named by the trail: `names:
+["sweptVolume.medium.T"]`, from 293.15 to 2438179 in thirteen steps,
+each accepted as a descent because the residual does fall (to
+`1.43e-4`), then the line search sticks at `lambda = 9.5e-7`. The block
+that follows starts from the non-number and is the one refused. The
+temperature is the medium's `T` solved from its `h` at the start,
+`T_h` of the NASA ideal gas; a residual that decays with `T` admits
+descent toward infinity, and no bound on `T` stops it. That is the
+next probe for this model, and a medium question, not the phase's.
