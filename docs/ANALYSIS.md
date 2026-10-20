@@ -55158,9 +55158,12 @@ of 5000 s, the tank under the trial gets to t = 133.2 s
 (`/tmp/m468/p/TT_trail.txt`). There, as the level falls past the port
 at 2 m, port 4 takes branch 2 by `aboveLevel[4] = 1`, and the run is
 refused as `singular Jacobian` over `ports[4].m_flow` and four more.
-Under `library check` the same binary and switch count the model as
-run. Why the two runners part was not looked into. It is the next
-question for this model, ahead of any merge.
+The two runners do not disagree. `library check` runs ten of the
+model's steps (`run_a_little` in the command line, 41 points under
+`--only`), and the second wall stands far past them. So the model the
+pair gains is one that gets through its start and then stops at 133 s
+of 5000. That is what the floors count as running for every model, but
+the decision should know it.
 
 The trial stays parked. Choosing a branch is Roman's package, and the
 diff in `~/oxideflow/park/m468-mode-env-trial.diff` is a probe, with
