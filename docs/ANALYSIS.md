@@ -56643,3 +56643,16 @@ it has no root at any finite temperature. Something hands the start
 solve a zero where the volume's density or mass should be - the next
 question for this model is which start, and whether it is a zero that
 stands for a value nobody worked out.
+
+Where the zero comes from, by `OXIDELICA_VICTIM_PROBE` on `SVnoTrap.mo`:
+reduction 3, on `sweptVolume.ports[1].p = vessel_ps_static[1]`, weighs
+`sweptVolume.m` and `sweptVolume.U` both at `0.0` and demotes `U`, so
+`m` stays a state. `PartialLumpedVolume` declares `SI.Mass m` and
+`SI.Energy U` with no start, and the medium's `p` and `T` that the
+library means to be the states (`preferredMediumStates`) are not the
+ones kept. A state `m` starting at zero makes `d = m / V` zero, and the
+temperature solve is asked for exactly that. So the wall is state
+selection keeping the volume's mass over its medium's states, with a
+start nobody wrote; it touches the layer the charter guards and the
+`StateSelect` reading of item 56's neighbourhood, and is left as a map
+line rather than a probe.
