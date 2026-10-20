@@ -54924,3 +54924,40 @@ different list. The tank test now stops one storey up, at `singular
 Jacobian in algebraic loop ["tank.ports[1].m_flow", ...]`. The two
 flatten floors rise by one in the same commit, to 969 and 852. The
 three run floors do not move.
+
+### What stands behind the tank now, and a `pre` that does not catch up
+
+`TestTankWithTopPorts` now flattens and is refused at t = 0 with
+`singular Jacobian in algebraic loop` over eight unknowns, the four
+port flows among them. The Newton trail (`/tmp/m467/p/tank_trail.txt`)
+shows rows 0 to 3, the four port equations, with a Jacobian row of
+zeros and a residual of zero. The level starts at 1 m, below all four
+ports (9, 6, 4 and 2 m), so the tank's Remelhe/Poschlad branch should
+take `ports[i].m_flow = 0` while `pre(ports_m_flow_out[i])` holds its
+start of `true`. A zero row says the branch taken does not read the
+flow at all, which is the `ports[i].p = p_ambient` branch, the one for
+`pre(ports_m_flow_out[i]) = false`. The same tank with
+`stiffCharacteristicForEmptyPort = true`, which has no such branch,
+gets past t = 0 and was still running after two minutes when it was
+stopped. So the wall is the outflow flag's `pre`. Small models of the
+same branch (`/tmp/m467/p/T3.mo` to `T6.mo`, `T10.mo`, `T11.mo`), with
+the hysteresis, the `Evaluate = true` outer `if`, a `for` loop and the
+flag inside a torn block, all run and take the right branch. The tank
+was not shrunk further in this shift.
+
+A neighbour found on the way is a wrong number of its own.
+`/tmp/m467/p/T9.mo` has `Boolean b(start = true, fixed = true)`,
+`b = time < -1`, `y = if pre(b) then 1 else 2`, and one state. After
+the initial event `b` is false, so `pre(b)` should be false from the
+first step on, and `y` should be 2. `dopri45` and `bdf` give `y = 1` for
+the whole run. `rk4` gives 1 at t = 0 and 0.1, and 2 from 0.2 on. The
+answer depends on the solver. The cause is in `events.rs`. The initial
+event takes one pass only (`passes = 1` while `$initial` is raised), so
+that `pre(v)` shows the start, as MLS 8.6 asks. Nothing then copies the
+settled value into `pre` until the next event comes along. Under
+`dopri45` no event comes, and `rk4` meets one at its first output
+point. In the language, the initial event is followed by event
+iteration at the same instant until every `pre` equals its value. That
+is a change to the event layer for every model with a discrete start,
+so it was not made here. It needs a pair of its own, and it is a
+candidate for what holds the tank.
