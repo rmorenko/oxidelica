@@ -56254,3 +56254,17 @@ admit an error of a few percent on them. A row-scaled arm (m334's
 candidate) is the one change that addresses both; its price was four
 models for four in m334 and is not re-measured here. No tolerance was
 touched.
+
+The row-scaled arm was put to the two small models of the seam, from
+one binary with a switch (`OXIDELICA_M473_ROWARM`, the arm's scale
+`max(|lhs|, |rhs|)` in place of `|v_i|`, built in a separate worktree,
+`/tmp/m473/oxrow`). It does not mend them: `Z` at `g = 1e-7` gives
+`y(1) = 0.99996` under both arms, and `K` with `big = 1e7` gives
+`x(1) = 0.99976` at `g = 1e-8` under both, and at `g = 1e-7` moves from
+1.0000021 to 1.0016 - worse. Both are carried by the sides arm, `1e-12
+
+- (|lhs| + |rhs|)`, which a row scale does not touch, so a repair of
+  item 18 has to say what the sides arm owes as well. A first reading of
+  this comparison set the switch to an empty string for the old arm and
+  read the new arm twice, because the switch is asked by presence; the
+  numbers above are from the second reading, with the variable unset.
