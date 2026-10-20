@@ -55124,3 +55124,17 @@ What is settled is that these models print a start that depends on a
 zero nobody wrote. That is the wrong-number kind, and three of the
 models that run, and count towards the floors, have it in their first
 row. The rows after the first were not compared.
+
+Which of each pair is right can be read off the row itself, because the
+vessel prints the flags that choose its branch. In all three, without
+the trial, the row says `regularFlow[i] = 0`, so the port stands above
+the level, and yet `s[i]` is `fluidLevel - portsData_height[i]`, which
+is the regular branch's equation. `EmptyTanks`' `tank2.s[1] = -0.499`
+is 0.001 - 0.5. `TestSimpleTank`'s `tank.s[2] = -0.999` and
+`ControlledTanks`' `tank1.s[1] = -3.95` are made the same way. With the
+trial, `inFlow[i] = 1` and `s[i] = ports[i].m_flow` (38.01 and 0 and 0).
+That is the branch the printed flags name. So the first row written
+today contradicts itself: its flags say one branch and its values come
+from another, chosen on `portsData_height[i] = 0`. That is a wrong
+number in three models that count towards the floors, and it was not
+seen because the run puts it right at the next point it checks.
