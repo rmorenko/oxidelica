@@ -56605,3 +56605,21 @@ the run was stopped - which is a cost of the stiff load and not a
 refusal. So both models the `T0` rule leaves behind in Spice3 stand on
 the rank threshold of item 30, and neither is a second structural
 family.
+
+### Item 1, the third left behind: TestSweptVolume's `NaN` is the medium's
+
+Under the key TestSweptVolume refuses with the block `["sweptVolume.mb_flow",
+"der(sweptVolume.medium.h)"]` `NaN at t = 0, before any Newton step`,
+its non-numbers being `ports_H_flow[1]`, `der(medium.T)`, `Hb_flow` and
+`der(U)`. The trapezoid is not in it: with the trapezoid's amplitude
+taken to zero (`state/m474/SVconst.mo`, key set) and with the boundary's
+pressure fixed and no trapezoid read at all (`SVnoTrap.mo`, key unset)
+the refusal is word for word the same. The trail of the second
+(`OXIDELICA_NEWTON_TRAIL`) shows a one-member block on the temperature
+that doubles its unknown on every step, `293.15`, `586.3`, `1172.6`,
+while the residual halves, `1.19`, `0.594`, `0.297`: a residual going as
+`1/T` that Newton chases to infinity, which is where the `NaN` comes
+from (`solvers/mod.rs:1644`, by `OXIDELICA_WHERE`). So the third model
+behind the `T0` wall is a medium wall of its own, independent of the
+phase, and the map of item 1 closes on three names, three walls: two on
+the rank threshold of item 30, one on an ideal gas's temperature solve.
