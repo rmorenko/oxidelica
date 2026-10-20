@@ -55550,11 +55550,12 @@ the same to the digit as shift 469's, and a ratio of the halves of
 
 ### The verdict on ddb01ab
 
-Run 39426433039 was still in its main library pass when this shift
-ended. Every job that had finished was green, and the dear pass among
-them. The three heavy jobs were skipped, which is the push's own rule
-and not a verdict on the heavy floors. Nothing in the compiler changed
-between e193277 and ddb01ab, so nothing was done.
+Run 39426433039 finished green, the library judge included. The judge
+printed 969 flatten / 798 run and runnable 852 / 754, the same as for
+e193277, four above the floors of 794 and 750. The three heavy jobs were
+skipped, which is the push's own rule and not a verdict on the heavy
+floors. Nothing in the compiler changed between e193277 and ddb01ab, so
+nothing was done.
 
 ### `Fourbar1`: six links, five taken by probe
 
