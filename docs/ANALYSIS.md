@@ -55175,3 +55175,10 @@ diff in `~/oxideflow/park/m468-mode-env-trial.diff` is a probe, with
 printing still in it, not a change ready to merge. What this pair gives
 the decision is its price: one model gained, none lost, and three first
 rows that stop contradicting themselves.
+
+The same census on the 23 heavy models (`/tmp/m468/modes_heavy.txt`),
+which the corpus pair does not see, finds one. `IMC_YDarc` settles six
+modes at the start, and three of them are chosen on
+`switchYDwithArc.idealCloser.closerWithArc[i].control` at a zero nobody
+wrote. It is the switch with arc that `SMEE_LoadDump` has in the main
+pass.
