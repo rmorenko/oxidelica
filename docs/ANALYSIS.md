@@ -56513,3 +56513,29 @@ run lists (`state/m474/p2off.lst`, `p2on.lst`) differing by
 `InitSpringConstant` alone. No victim, the chain walked to its end, so
 it is taken, with `RUN_FLOOR` 795 and `RUNNABLE_RUN_FLOOR` 751 in the
 same commit (the desk's print less the two swings and TestJunctionIdeal).
+
+### Item 1, continued: Nor's failure at its first edge is not the zero
+
+The open question above, answered with the time left. Nor's underflow
+follows the supply's edge and nothing else: with the supply's `TD`
+moved to 0.7 the run stops at `t = 0.700000`, with `TD = 0` at
+`t = 0.000000` (`/tmp/m474/ns.txt`, `ne.txt`, `OXIDELICA_WHEN_STILL`
+set). Two variants then take the `when` out of the question
+(`state/m474/NorRampW.mo`, `NorNoPulse.mo`, the example's own text
+with sources swapped). With the supply a `RampVoltage` over the same
+0.5 to 0.6 and the two inputs still pulses, the key set: underflow at
+`t = 0.500000`. With the supply a ramp and both inputs held by
+`ConstantVoltage` - no pulse source left, so no phase for the key to
+answer, run with the key unset: underflow at `t = 0.500000` again.
+
+So Nor dies where its supply rises whether or not any `der(T0) = 0`
+stands in the system. It is a wall of the MOSFET circuit under a
+rising supply, not a fault of the rule, and the rule's account stays
+as the pair printed it: seven won, zero lost, and of the seven the one
+whose full run fails fails for a reason of its own. What this does not
+show is that the zero is right at the instant a phase jumps - in the
+six that finish, the phase of the winners never jumps inside the
+check's ten steps, and in FourInverters `vin.T0` sits at 2 over the
+whole run with `der(vin.T0) = 0` on every row, because `PER = 10`
+outlasts `StopTime`. A model whose pulse repeats inside its run is the
+probe still owed before the rule is argued for.
