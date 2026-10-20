@@ -56656,3 +56656,15 @@ selection keeping the volume's mass over its medium's states, with a
 start nobody wrote; it touches the layer the charter guards and the
 `StateSelect` reading of item 56's neighbourhood, and is left as a map
 line rather than a probe.
+
+### The census of the head
+
+`refusals.sh .msl both` on 35eb88c (`/tmp/m474c/census.txt`, raw
+`/tmp/m474c/raw.txt`, counted between the section marks): the run
+half is 171 models in 114 rows, the flatten half 51 in 30.
+`initialization is not square` is down to 3 and `InitSpringConstant`
+is in neither half. The `T0` rows stand as before, the rule being
+parked: 3 under `vin.T0`, 2 under `vinN.T0`, the rest single. The top
+of the run half is `the Newton direction of algebraic loop` (10),
+`singular Jacobian` (9) and `underdetermined algebraic loop` (8),
+which is where this shift's two Spice3 stragglers would arrive.
