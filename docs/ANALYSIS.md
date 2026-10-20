@@ -55774,3 +55774,227 @@ chain against a winding's currents, and nothing in the structure
 records that line yet. This is the cost of the series as it stands:
 -17 +3 on the run floors for no model of the loops family, until links
 4 and 6 are taken as well.
+
+## Shift 472: the analytic joints' open ports, and the fourteen open components by name
+
+### The verdict on ecf8943
+
+Run 39448923332 was a docs run: the push touched only this file, so the
+library jobs were skipped and the run carries no verdict on the floors.
+Its one working job, coverage and linters, finished green with the
+advisories. Nothing was done.
+
+### The analytic joints, one link further than m430
+
+The six models of the row (`Engine1b_analytic`, `EngineV6_analytic` and
+its utility twin, `PlanarLoops_analytic`, `Utilities.CylinderBase`,
+`Utilities.Cylinder_analytic_CAD`) refuse on `nothing gives a value to
+jointRRP.jointUSP.e2_ia, prismatic.e, rod1.e2_ia, rod1.eRod_ia,
+rod1.rodLength` (`revolute.e` and `jointUSR` for the RRR row). This is
+the wall the m416, m429 and m430 maps already name, and it was asked
+again before anything was built. The cause is the order of declarations:
+`JointUSP` declares `final parameter Real eRod1_ia[3] = rod1.eRod_ia`
+above `rod1`, so when `spread_over_elements` takes the binding apart the
+shape of `rod1.eRod_ia` has not been measured, and the one name is
+copied whole to all three elements. The twelve-line model
+`/tmp/m472/s3.mo` (`e1[3] = in1.e` with `in1` declared below) refuses in
+the same words, and with the two lines swapped (`s1.mo`) it runs.
+`oxidelica why` on `jointRRP.jointUSP.rod1.eRod_ia` answers "declared:
+nowhere", while `eRod_ia[1]` is declared and bound. `rodLength` is a
+`fixed = false` parameter and falls with the others, as m430 found. The
+RRR row is the same family: the same five names, one `--only` each.
+
+The parked m430 probe (`~/oxideflow/park/m430-sibling-member-shape-probe.patch`,
+`OXIDELICA_SIBLING_MEMBER_PROBE=1 OXIDELICA_SIBLING_DEEP_PROBE=1`) still
+applies to the head and reproduces m430 to the number: `CylinderBase`
+2031 equations for 2037 unknowns, `PlanarLoops_analytic` 3951 for 3975.
+That map stopped at "the six equations a `JointRRP`/`JointRRR` owes". This
+shift found them.
+
+**Link 3: an open port of the assembly is not given its zero.**
+`OXIDELICA_BALANCE_PROBE` on `PlanarLoops_analytic` (`/tmp/m472/bal_pl.txt`)
+names, three times over, the forces and torques of `rod2.frame_b` and
+`revolute.frame_b` inside each `jointUSR`, which leads to the ports.
+`JointRRR` has five frames. The model connects `frame_a`, `frame_b`,
+`frame_ia`, and `frame_im` on two of the three joints, and leaves
+`frame_ib` open on all three and `frame_im` open on the last. That is
+four open frames of six flow members each, 24, which is the deficit.
+`CylinderBase` leaves `frame_im` open once: six, the deficit.
+
+The flow of an open port is set to zero in `flatten/mod.rs` (the
+`half_seams` near line 1098) unless the port is "spoken for". An equation
+counts as the level above speaking when its `origin` is not the instance
+that holds the port (`mod.rs:1079`). `JointRRR` hands `frame_ib` to its
+own animation shape, `shape_rod2(r = frame_ib.r_0, R = frame_ib.R)`, and
+that binding is recorded with the shape as its origin,
+`jointRRR1.shape_rod2`. That is a part of the owner, but it is not the
+owner itself, so the port was read as taken in charge from above and its
+zero was withheld. `/tmp/m472/z3.mo` shows it in twenty lines: an
+assembly with an open port and a block `Show sh(r = b.r)` is refused
+with 8 equations for 9 unknowns, `nothing determines s.l.b.f`.
+
+The change counts an origin below the owner (`owner.` as a prefix) as
+the owner speaking (`OXIDELICA_OLD_PORT_SPEAKER=1` restores the old
+reading). The test `a_part_reading_an_open_port_does_not_withhold_its_zero`
+(`crates/oxidelica-sim/tests/simulation/systems.rs`) checks that the open
+flow is zero and the shape reads e^-1 at t = 1. It fails without the
+change, with the same `unbalanced model: 8 ... 9`, and passes with it. Under
+both changes:
+
+| model                   | m430 probe alone                    | m430 probe and the port                                           |
+| ----------------------- | ----------------------------------- | ----------------------------------------------------------------- |
+| `CylinderBase`          | unbalanced 2031/2037                | structurally singular, `piston.frame_b.R.T[3,3] = ...frame_b.R.T` |
+| `Cylinder_analytic_CAD` | unbalanced 2101/2107                | the same as `CylinderBase`                                        |
+| `PlanarLoops_analytic`  | unbalanced 3951/3975                | structurally singular, `rod1.frame_a.R.T[2,2] = rev.frame_b.R.T`  |
+| `Engine1b_analytic`     | singular, `der(world.frame_b.R.T…)` | the same, 1.4 GB peak (`/tmp/m472/e1b.txt`)                       |
+
+`EngineV6_analytic` and its twin were not run one at a time. They are in
+the chain pair below.
+
+**Link 4: reduction of the analytic loop.** All three models that moved
+are balanced now and stop in index reduction. `CylinderBase` and the CAD
+twin are parts, with open `cylinder_a`, `crank_a` and no `world` of their
+own, so their singular reduction may be a property of the part. The
+victim trail of `PlanarLoops_analytic` (`OXIDELICA_VICTIM_PROBE`,
+`/tmp/m472/pl_victims.txt`) runs 289 reductions with two retreats. From
+reduction 72 on, no candidate is left (`victim: <none>`, 60 times), and the
+rows offered are ones the system already holds (`der(world.frame_b.r_0[2])
+= 0`). The candidates it spent first are the `r_0` of every frame of every
+`jointUSR`, nine times each. Those come from `checkTotalPower = true`,
+which this example sets on all three joints: the power sum reads
+`der(frame_X.r_0)` of all five frames, so reduction has to differentiate
+every frame position back to the world.
+
+That is one wall in front of another. With `checkTotalPower = false` on
+all three (`/tmp/m472/pl.mo`, trail `/tmp/m472/pl_np_v.txt`), reduction
+takes 59 steps and one retreat. At 28 it demotes `rev.phi`, the driven
+angle of the loop. At 30 the row `der(jointRRR1.jointUSR.rod1.rRod_0[2])
+= ...` finds no victim, and `supply-once` refuses to differentiate
+`jointRRR2.jointUSR.revolute.r_a[1]` a second time. The model is
+refused as structurally singular on that row. So link 4 is a reduction
+that does not see through the analytic joint: `RevoluteWithLengthConstraint`
+gives its angle by `atan2` from the positions, and a tool that runs these
+examples treats that angle as given by the positions, not as a state
+competing with the loop's own. Whether this is the same limit as link 6
+of the four-bar chain (m471, the choice of victim) or a separate one is
+not settled. Both end on supply-once and a candidate list that weighs 0.
+
+`Engine1b_analytic` has no `checkTotalPower`, so it shows link 4 without
+anything in front of it. Its trail under both changes
+(`/tmp/m472/e1b_v.txt`) retreats four times. At reduction 50 the
+reducer demotes `gasForce.s_rel`, the piston's stroke. At 52 the row
+`jointRRP.jointUSP.rod2.frame_b.r_0[3] = jointUSP.frame_im.r_0[3]` finds
+no victim, supply-once refuses `connectingRod.frameTranslation` a second
+time, and taking `jointUSP.rod1.rRod_0[2]` from the singular set is
+refused, so the reduction starts again. Later retreats are on
+`crank2.body.v_0[1..3]` at 70 to 72, and it ends where m430 left it,
+singular at `der(world.frame_b.R.T[2,2]) = 0`. The shape is the one in
+`PlanarLoops_analytic` with the power sum taken out: positions are
+differentiated through the analytic joint all the way to the world, and
+the driven coordinate is spent before the loop's own.
+
+**The price of link 3 alone, as a pair.** One binary (`/tmp/m472/ox4`, the
+m430 probe compiled in and switched off), the main pass, with and without
+`OXIDELICA_OLD_PORT_SPEAKER=1` (`/tmp/m472/pair_on.txt`, `pair_off.txt`):
+
+| half       | flatten | run | runnable flatten | runnable run | Jacobians |
+| ---------- | ------: | --: | ---------------: | -----------: | --------: |
+| old reader |     969 | 797 |              852 |          753 |       529 |
+| new reader |     969 | 797 |              852 |          753 |       529 |
+
+The flatten and run lists are identical name for name
+(`/tmp/m472/flat_*.lst`, `ran_*.lst`), and so is every refusal line. The
+run half's work matches to the digit: 25243746 points, 36657929 Newton
+iterations. Only the count of names in flattening moves, 1671043741 to
+1671044173, which is the zeros written. Link 3 alone costs nothing and
+wins nothing, because the six models stand at the parameters before they
+reach the balance. By the rule for chains it is not taken alone. It is
+parked as `~/oxideflow/park/m472-open-port-part-speaker.diff` (the
+change and its test) and, with the m430 probe, as
+`m472-open-port-part-speaker-with-m430.diff`. The tree holds none of it.
+
+**The chain so far, as a pair.** The same binary, with both m430
+switches on, once without the port change (`OXIDELICA_OLD_PORT_SPEAKER=1`,
+`/tmp/m472/chain_sib.txt`) and once with it (`chain_on.txt`). Both halves
+print 969 / 797 and 852 / 753 with 529 Jacobians, and their flatten and
+run lists are identical to each other and to the pair above, name for
+name. So the four rows move and no model does. The refusal lines that
+change belong to the six models of the family and to nothing else:
+
+| model                         | head                  | links 1-2               | links 1-3                      |
+| ----------------------------- | --------------------- | ----------------------- | ------------------------------ |
+| `CylinderBase`                | parameters `jointRRP` | unbalanced 2031/2037    | singular, `piston.frame_b.R`   |
+| `Cylinder_analytic_CAD`       | parameters `jointRRP` | unbalanced 2101/2107    | singular, `piston.frame_b.R`   |
+| `PlanarLoops_analytic`        | parameters `jointRRR` | unbalanced 3951/3975    | singular, `rod1.frame_a.R`     |
+| `EngineV6_analytic`           | parameters `jointRRP` | unbalanced 8751/8787    | singular, `der(cylinder…)` row |
+| `Utilities.EngineV6_analytic` | parameters `jointRRP` | unbalanced 9395/9431    | singular, a `der` row          |
+| `Engine1b_analytic`           | parameters `jointRRP` | singular, `der(world…)` | the same                       |
+
+The deficits of the two V6 engines are 36, six per cylinder, and link 3
+closes them as it closes the others. Not one of the six runs, so the
+chain is still worth nothing on the floors and costs nothing. Link 4 is
+where it stands for all six.
+
+The chain as mapped: link 1, the shape of a sibling's member declared
+below (m430, a guess about the shape until it is read from the class);
+link 2, the same at depth two (m430); link 3, the open port's zero (this
+shift); link 4, reduction through an analytic joint, with the
+`checkTotalPower` power sum in front of it in `PlanarLoops_analytic`. The
+end has not been reached, so the chain is not taken.
+
+### The fourteen open components of item 34, by name again
+
+`/tmp/m402/open14.txt` is gone, but the m402 chapter's own table names
+all fourteen, with the package paths cut short. They were resolved
+against `.msl` to one file each (`/tmp/m472/open_narrow.txt`). m402's
+criterion was: `check` calls the model an example, it flattens and does
+not run, and it is not runnable, meaning no `experiment` and no
+`Icons.Example` anywhere up its `extends` chain. The same criterion on
+this head:
+
+```text
+Modelica.Electrical.Analog.Examples.OpAmps.OpAmpCircuits.Add
+Modelica.Electrical.Analog.Examples.OpAmps.OpAmpCircuits.Buffer
+Modelica.Electrical.Analog.Examples.OpAmps.OpAmpCircuits.Feedback
+Modelica.Electrical.Analog.Examples.OpAmps.OpAmpCircuits.Gain
+Modelica.Electrical.Analog.Examples.Utilities.Nand
+Modelica.Electrical.Analog.Examples.Utilities.RealSwitch
+Modelica.Electrical.Polyphase.Examples.Utilities.AnalysatorAC
+Modelica.Electrical.Polyphase.Examples.Utilities.AnalysatorDC
+Modelica.Magnetic.FluxTubes.Examples.Hysteresis.Components.Transformer1PhaseWithHysteresis
+Modelica.Magnetic.FluxTubes.Examples.Hysteresis.Components.Transformer3PhaseYyWithHysteresis
+Modelica.Magnetic.FluxTubes.Examples.MovingCoilActuator.Components.PermeanceActuator
+Modelica.Magnetic.FluxTubes.Examples.SolenoidActuator.Components.SimpleSolenoid
+Modelica.Mechanics.Rotational.Examples.Utilities.SpringDamperNoRelativeStates
+Modelica.Mechanics.Translational.Examples.Utilities.SpringDamperNoRelativeStates
+```
+
+Each was checked against the instruments, not against the m402 table:
+
+- All fourteen are in the flatten list of this head's pair
+  (`/tmp/m472/flat_on.lst`, 14 of 14), and none is in its run list (0 of
+  14).
+- All fourteen are marked `part` by `meant_to_run` in the m471 probe
+  (`/tmp/m471/models_mark.tsv`), so none is runnable.
+- All fourteen are among the 73 parts that flatten and do not run
+  (`/tmp/m471/parts_flat_notran.txt`, 14 of 14).
+- None is among the fifteen of `/tmp/m471/never17.txt`, neither the
+  twelve parts nor the three Spice3 examples (0 of 15).
+
+In the m470 census (`/tmp/m470/raw.txt`) every one of them refuses the
+same way: `structurally singular model: equation <open port's flow> = 0
+constrains no state`. Examples are `n2.i` for `Add`, `flange_b.tau` for
+the rotational spring, and `starPoint1.i` for the three-phase
+transformer. That is a component whose open ports are given the zero a
+parent would have replaced with a connection. It is the m402 reading, and
+it still holds.
+
+| variant                        | names | flatten | run | runnable flatten / run |
+| ------------------------------ | ----: | ------: | --: | ---------------------: |
+| narrow: the fourteen           |    14 |     -14 |   0 |                  0 / 0 |
+| broad: everything not runnable |   129 |    -117 | -44 |                  0 / 0 |
+
+So the narrow filter would take flatten from 969 to 955 on the present
+floors and leave run 797, runnable 852 and 753 untouched. The broad
+variant is the m471 price and is repeated only for the comparison. The
+filter is unchanged and the floors are untouched. Both are Roman's call.
