@@ -54864,6 +54864,18 @@ either. The next measurement of a whole run should print its progress,
 or run without the stall limit, so that it ends with a time rather
 than a bound.
 
+The second pair was started at 06:44 on 20 October with the stall
+limit off and a time limit of 180 minutes for both. Neither finished
+inside it. Both files end on the same line from the ceiling: it was
+the time limit that stopped them, at 180 minutes lived of 180 allowed,
+with a peak of 0.2 GB of the 8 GB allowed (`/tmp/m466/full2X3.txt`,
+`full2X0.txt`). No CSV was written. So `X3` and `X0` each take more
+than 180 minutes on the desk, against 2674.8 s (44.6 minutes) for
+`DynamicPipeEnergyConservationCheck2` as written. That is more than
+four times as long, and the bound is now a bound four times higher
+rather than a time. The run was not restarted. Item 48 waits on
+Roman's word.
+
 ### The Complex sum of `ShowImpedance` was already done
 
 The second probe of the order was the substitution of a list of records
@@ -55219,3 +55231,89 @@ flattened lists are the same. The run lists differ by
 `TestTankWithTopPorts` alone, and the run list without the switch is
 shift 467's, name for name. So the parked form is the probe's numbers,
 ready for the decision.
+
+## Shift 469: what stands behind the mode wall, and the Newton direction row by name
+
+Nothing in the compiler was changed. The whole runs of the energy
+check that shift 466 started for the second time are recorded under
+"The full runs did not finish" above. The binary for everything below
+is `/tmp/m468/ox5`, the clean form of the parked mode reading, so each
+model was measured with and without `OXIDELICA_MODE_ALIASES=1` by one
+binary.
+
+### The nine the clean form does not win
+
+Shift 468's trail census (`/tmp/m468/modes_census.txt`) found 29 models
+that choose a mode at the start on an unwritten zero or a left-over
+value (`/tmp/m468/either.lst`), and 19 of them run
+(`/tmp/m468/ran_family.lst`). Taking the second list from the first,
+by the lists and not by count, leaves ten (`/tmp/m468/nine.lst`, misnamed). One
+of them is `TestTankWithTopPorts`, the model the clean form wins. That
+leaves nine (`/tmp/m469/nine.lst`). Each was asked under `library check .msl --refused --only`
+from the root, without and with the switch (`/tmp/m469/only/*.roff.txt`
+against `*.ron.txt`):
+
+| model                                                     | first wall, without and with the clean form                                                                     |
+| --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `AST_BatchPlant.BaseClasses.InnerTank`                    | unbalanced, 6 equations for 11 unknowns (a part, not an example)                                                |
+| `AST_BatchPlant.Test.OneTank`                             | loop `tank.ports[1].m_flow` steps outside its domain at t = 0                                                   |
+| `Explanatory.MeasuringTemperature`                        | the tanks' loop steps outside the water's domain at t = 0 (m452)                                                |
+| `PumpingSystem`                                           | `reservoir.medium.h = waterBaseProp_pT(...)[5]` of algebraic loop (a start the block never reads, m426 to m428) |
+| `Tanks.TanksWithOverflow`                                 | structurally singular: `lowerTank.ports[2].m_flow = 0` constrains no state                                      |
+| `Hysteresis.Components.Transformer1PhaseWithHysteresis`   | structurally singular: `resistor1.n.i + winding1.p.i = 0` constrains no state (a part)                          |
+| `Hysteresis.Components.Transformer3PhaseYyWithHysteresis` | structurally singular: `starPoint1.i = 0` constrains no state (a part)                                          |
+| `Hysteresis.ThreePhaseTransformerWithRectifier`           | initialization is not square, 21 initial equations and 4 fixed starts for 23 unknowns                           |
+| `FundamentalWave ... SMEE_LoadDump`                       | singular Jacobian in the air gap loop (the machine family, item 30)                                             |
+
+The refusal is the same byte for byte with and without the switch for
+all nine. So the price of the decision is exact: the clean form wins
+one model now, and changes the first wall of none of the other nine.
+All nine stand at a wall of
+another family, before the mode choice or beside it. `TanksWithOverflow`
+was named in shift 468 as a member by its trail, but what refuses it
+first is structural and comes before any run. Three of the nine are
+parts rather than examples (`InnerTank` and the two hysteresis
+transformers under `Components`).
+
+### `the Newton direction of algebraic loop` (10): the same ten as m460
+
+The ten names of the row in shift 467's raw half (`/tmp/m467/raw.txt`)
+are the ten of m460's, name for name (`/tmp/m469/nd.m460.lst` against
+`nd.m467.lst`). All of them are hydraulic and all in `ModelicaTest.Fluid`:
+`SeriesPipes1`, `SeriesPipes2`, `BranchingPipes1`, `2`, `3`, `4`, `13`,
+`14`, `TestTemperature1` and `TestMultiPortTraceSubstances`. The row was
+mapped in m424 (nine of ten: a liquid's pressure read back through a
+density whose slope in `p` is 4.5e-7, stepped out of the water
+formulation's domain), in m444, and again in m460 on `SeriesPipes2`.
+`TestMultiPortTraceSubstances` is the third kind of m363, an
+initialization (m371).
+
+`BranchingPipes3` and `BranchingPipes13` joined the row in m451, when
+the outside stream connector got its equation. No chapter had shown
+their trail, so both were run under `OXIDELICA_NEWTON_TRAIL` to 0.002 s
+(`/tmp/m469/nd/BranchingPipes3.txt`, `BranchingPipes13.txt`). They are
+the same mechanism as `SeriesPipes2`. The loop solves at t = 0 and on
+the early steps. At t = 0.0008 the first full Newton step from a small
+residual (|f| = 3.7 and 12.4) takes the second and third pipes'
+pressures from about 5.0e5 to -2.0e6 Pa (`BranchingPipes3`) and to
+-1.0e7 Pa (`BranchingPipes13`). The water answers NaN there, and the
+damped steps afterwards buy nothing above a step of 4e-6. So the row is
+one family of nine and one initialization, and it is all already
+mapped.
+
+The neighbouring loop rows of the same census were compared with
+shift 462's table ("The loop rows of the run half, by name"). The
+singular Jacobian (8), `X` of algebraic loop (6), did not converge (4,
+with `DynamicPipeClosingValve` beside it as the initialization that did
+not converge) and the equations of algebraic loop (4) hold exactly the
+names that table gives. The underdetermined row (8) is the five Spice3
+circuits and the three FundamentalWave machines of item 30. Of the 40
+models in these five rows and the Newton direction row (10 + 8 + 6 +
+4 + 4 + 8), and `DynamicPipeClosingValve` beside them, none is
+unmapped: each has a chapter naming its layer. Some of them wait on
+decisions already in Roman's set: the cone of columns (item 48), the
+mode choice (item 55), the reach grown from type starts (m455) and the
+open switch's `Goff` (item 30). The hydraulic Newton direction family
+has m424's three probes, none taken, and no decision pending. A fresh
+probe of the row would be a repair of the water formulation's domain
+edge, which is a series of its own and not a map.
