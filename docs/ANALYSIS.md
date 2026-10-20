@@ -55404,3 +55404,137 @@ same to the digit as theirs (`IMC_InverterDrive`'s desk refusal), and
 1543390 points, which is their 1543310 and the filter's 80. The ratio
 of the halves printed 1.025 against the desk band's 0.91, and shift 467
 printed 1.021 on the code before either change.
+
+## Shift 470: the run floors on the judge, a fresh census, and the loop a four-bar closes
+
+### The floors on the judge's print
+
+The judge of e193277 (run 39409365054) printed 969 flatten / 798 run
+and runnable 852 / 754. The desk pair of shift 469 printed 797 and 753
+on the same code. The runner's run list, taken from the artifacts
+`library-main` and `library-dear` (`/tmp/m470/ci_all_ran.lst`), and the
+desk's (`/tmp/m469/p13_on_ran.lst`) differ by
+`IMC_InverterDrive` alone, the model 6ef503d named. So the run floors
+went to 794 and 750, both by `Blocks.Examples.Filter`, from the desk's
+797 and 753 less the two swings and `TestJunctionIdeal`.
+
+### The census of the head, against m467
+
+Taken on the head's binary (`/tmp/m470/census.txt`, raw half
+`/tmp/m470/raw.txt`) and counted by the section boundaries. The
+flatten half went from 52 models in 31 rows (`/tmp/m467/census.txt`)
+to 51 in 30. The run half stayed at 172 models in 115 rows on m467 and
+114 on m470. By name (`/tmp/m470/rows467.txt` against `rows470.txt`):
+
+- `Blocks.Examples.Filter` left the run half. It runs.
+- `TestTankWithTopPorts` left the flatten half (`connect between 1 and
+2 connector(s)`) and stands in the run half under `singular Jacobian
+in algebraic loop`. That is shift 467's flatten fix, which m467's
+  census was taken before. The singular Jacobian row went from 8 to 9.
+
+Nothing else moved. The census prints 969 / 797 and 852 / 753, the same
+as the desk pair.
+
+### The top of the run half, by name
+
+The three rows the order named are already mapped model by model in
+shift 462's table ("The loop rows of the run half, by name"), and the
+names in `/tmp/m470/raw.txt` are the same:
+
+- `underdetermined algebraic loop` (8): `MNmos`, `MPmos`, `NAND`,
+  `ONEBIT` and `Spice3BenchmarkRtlInverter`, the Spice3 capacitance a
+  function writes as zero (item 30). Then `SMEE_DOL`, `SMEE_Rectifier`
+  and `IMC_DOL_Polyphase`, the FundamentalWave machines (item 30).
+- `` `X` of algebraic loop `` (6): `ThreeSprings` and `PumpingSystem`,
+  a start the block never reads (m426 to m428). `RollingWheelSetDriving`
+  and `RollingWheelSetPulling`, the wheel set's dead row (m429).
+  `RoomCO2WithControls` and `TestJunctionTraceSubstances`, moist air
+  (m454, m455).
+- `did not converge` (4): `PressureLoss.Bend` and `SeveralTestCases`,
+  a swing across a signed square root (m462). `SMPM_CurrentSource`,
+  the machine family (m406). `MediaTestModels.Air.MoistAir`, moist air.
+
+None of them is new. Of the 172, a grep by last name over this file
+found 17 never named, and every one of them is a part rather than an
+example: `Utilities.*`, `BaseClasses.*`, `Components.*`. The one
+runnable example this file names only in passing is `Fourbar1`, in a
+list of controls (m355) and a table of expansions (m459).
+
+### `Fourbar1`: nine equations a loop owes as three
+
+`Loops.Fourbar1` refuses with `unbalanced model: 2002 algebraic
+equation(s) for 1993 unknown(s)` (`/tmp/m470/fourbar1.txt`). It has
+done so in every census kept since m422. The nine are the loop:
+`connect(j5.frame_b, b3.frame_b)` closes a kinematic ring, and by
+section 9.4 a connection that closes a ring of an overconstrained
+record owes the record's `equalityConstraint` instead of the equality.
+A `Frames.Orientation` holds twelve reals, `T[3,3]` and `w[3]`, and its
+constraint returns `residue[3]`. Twelve were written where three were
+owed. `docs/PANEL_MULTIBODY.md` already says this ("costs exactly 9
+equations per closed kinematic loop"). `connections::constraint_is_empty`
+holds the spanning tree to records whose residue is empty, and says why:
+the three residues are three equations the compiler does not write
+yet.
+
+What stands behind that wall was not known. A probe was built behind a
+switch named nowhere in the tree, `OX_PROBE_RING_ANY`
+(`/tmp/m470/ring_probe.diff`, binary `/tmp/m470/oxp2`). It lets the tree
+cut an orientation as well. It decides whether a pair closes the ring
+once per record, so that `R.T` and `R.w` agree. In place of the twelve
+it writes the three residues of `Orientation.equalityConstraint` over
+the two connectors' `R.T`. The function itself compiles here: a model
+that calls it directly runs (`/tmp/m470/eq/EqC.mo`).
+
+With the switch on, the ring probe drops exactly one pair, `rev1.frame_a.R`
+against `rev.frame_b.R`, and the model is no longer unbalanced
+(`/tmp/m470/f1_any2.txt`). The next wall is index reduction:
+
+```text
+structurally singular model: equation Call(".atan2", ...) = 0
+constrains no state, so index reduction cannot help, nor did the
+31 other equations of its singular subset tried in its place
+```
+
+The trail (`/tmp/m470/f1_trail.txt`, with `OXIDELICA_VICTIM_PROBE` and
+`OXIDELICA_SUPPLY_PROBE`) shows 35 reductions taken. Thirty-two of them
+demote position, angular velocity and torque-axis states of the
+bodies and joints, one per connection pair. The last three demote
+`j5.phi`, `j2.s` and `j3.phi`, which are the loop's own. On the 36th the
+residue is differentiated through the joints' rotation matrices, back
+along the ring, and each road ends either at an equation already
+differentiated in this reduction (`supply-once`, eq 1518 for
+`j5.frame_a.R.T[1,2]` and eq 1112 for `b3.frameTranslation.frame_b.r_0[2]`)
+or at a row the system already holds (`dependent-row`, the world's
+fixed frame). The ring holds seven joint coordinates (`j1`, `j2`,
+`rev`, `rev1`, `j3`, `j4`, `j5`) and its closing connection six
+constraints, three of position and three of orientation, which leaves
+one degree of freedom. So six joint coordinates have to stop being
+states, and the reducer took three of them before it stalled.
+
+What this says about the work. The missing equations are the first
+link of a chain, and it is a link the compiler can write: the
+function is ordinary Modelica that already compiles, and the tree
+already finds the pair. The second link is the reducer meeting a
+constraint that comes as `atan2` of products of rotation entries, where
+every road back to a state goes through the same joint equations twice.
+That is the reducer's limit with closed MultiBody loops in general
+(`PlanarFourbar` stands at `der(der(revolute1.R_rel.T...))` in its own
+row), not something new. So the chain is not walked to its end here,
+and the probe is parked rather than proposed: by itself it moves one
+model from `unbalanced` to `structurally singular` and wins none.
+
+The probe was measured as a pair all the same, so that "wins none" is a
+number and not a guess. One binary (`/tmp/m470/oxp2`), the main pass
+without the heavy set, the switch unset (`/tmp/m470/pair_off.txt`) and
+set (`pair_on.txt`), run one after the other. Both print 969 / 797 and
+852 / 753, and the flatten and run lists are the same name for name
+(`p_off_*.lst` against `p_on_*.lst`). Of the 178 refusals by kind, only
+one changed its words: `Fourbar1`, from `unbalanced` to `structurally
+singular`. `Fourbar2` and `Engine1b` are in the heavy set and were not
+asked. `Fourbar_analytic` runs both ways, and `PlanarFourbar`,
+`Engine1a` and `RollingWheelSetDriving` refuse both ways
+(`/tmp/m470/loops.txt`). So the cut is harmless, and with nothing to
+show for it, it was not merged. The diff is parked at
+`~/oxideflow/park/m470-orientation-residue-probe.diff`, and the tree
+holds none of it. What would take it further is the reducer's second
+link above, and that belongs with index reduction, not with chapter 9.
