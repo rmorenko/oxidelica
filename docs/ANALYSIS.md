@@ -55396,3 +55396,11 @@ lower of the two machines, but AGENTS.md has a floor rise to what the
 runner has printed and not ahead of it. Once the runner's judge prints
 the tree, the run floors go up by one, 793 to 794 and runnable 749 to
 750, both by `Filter`, which is a runnable example.
+
+The preflight of the tree (`/tmp/m469/preflight2.txt`) is green except
+for the library step, which printed 969 / 797 and runnable 852 / 753,
+above the floors. Its two reds are the desk's own, as in shifts 467 and 468. The work band printed 2276457 Newton steps against 904754, the
+same to the digit as theirs (`IMC_InverterDrive`'s desk refusal), and
+1543390 points, which is their 1543310 and the filter's 80. The ratio
+of the halves printed 1.025 against the desk band's 0.91, and shift 467
+printed 1.021 on the code before either change.
