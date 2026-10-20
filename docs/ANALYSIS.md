@@ -56556,3 +56556,21 @@ nothing in these two runs goes wrong. That is evidence for the rule,
 not proof of it, and it does not touch the charter's case, which is a
 zero taken by state selection: this probe gives the zero to the
 supply loop only and leaves selection as it was.
+
+### Item 1, the next wall of Inverter, narrowed by elimination
+
+Inverter under the key meets `underdetermined algebraic loop
+["der(mn.Dinternal)"]`, while FourInverters, the same transistors four
+times over, runs. Variants of the example (`state/m474/Inv*.mo`, key
+set, `--stop 0.001`) rule out the obvious differences one at a time,
+and none moves the wall: drain and source resistances left ungiven
+(`RD = RS = -1e40`, as FourInverters' cards leave them) or given at
+`1e-3` and `10`; `CBD = 0` as in FourInverters, or `CBS` and `CBD` both
+given; overlap capacitances given; a capacitor hung on the output as
+FourInverters' `c1..c4` are. With resistances given, the loop widens
+to both transistors' internal nodes and `mp.S.v` and reads `do not
+mention ... at t = 0` instead. So the wall stands on something other
+than the modelcards and the load, most likely the circuit's own shape
+(`mn.D` straight onto `mp.S` with the supply on `mp.D`); it is a
+Spice3 wall of its own, the next line of the map, and was not taken
+further in this shift.
