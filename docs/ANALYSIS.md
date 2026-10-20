@@ -55210,3 +55210,12 @@ binary without the switch gives `y = 1`. It also takes the tank's ports
 into branch 3 by `pre(ports_m_flow_out[i])`. The corpus pair above was
 measured with the probe and not with this form, so the form needs a
 pair of its own before it can stand for the probe's numbers.
+
+The clean form was then measured as a pair of its own, one binary
+(`/tmp/m468/ox5`, without the heavy set, `/tmp/m468/clean_off.txt`
+against `clean_on.txt`). It prints the same as the probe: 969 / 796 and
+852 / 752 without the switch, and 969 / 797 and 852 / 753 with it. The
+flattened lists are the same. The run lists differ by
+`TestTankWithTopPorts` alone, and the run list without the switch is
+shift 467's, name for name. So the parked form is the probe's numbers,
+ready for the decision.
