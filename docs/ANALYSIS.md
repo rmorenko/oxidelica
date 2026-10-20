@@ -54875,3 +54875,52 @@ since flipped). On the head binary, `cz11`, `cz13`, `cz20` and `cz21` of
 `z = 6 + 13j` at t = 0, and `cz21` gives `3`. `library check .msl --only
 Modelica.Electrical.Batteries.Examples.ShowImpedance` prints 1 flatten
 and 1 run. There was nothing to merge.
+
+## Shift 467: a subscript after a member of an array of components
+
+### The census, taken again on unchanged code
+
+Four shifts in a row changed only documents, so the census had to come
+out the same. It did, line for line: `diff` of `/tmp/m463/census.txt`
+against `/tmp/m467/census.txt` from the first section on is empty. Both
+count 52 models in 31 rows that would not flatten and 172 in 115 rows
+that would not run, and both print 968 / 796 and runnable 851 / 752.
+
+### A wrong number and a refusal from one reading
+
+`ModelicaTest.Fluid.TestComponents.Vessels.TestTankWithTopPorts` stood
+alone in its census row, `connect between 1 and 2 connector(s)`, and was
+in neither this document nor the queue. It writes
+`connect(massFlowRate.ports[1], tank.topPorts)` over
+`MassFlowSource_T massFlowRate[2]`: the first port of each of two
+sources, against two top ports. A twenty-line model
+(`/tmp/m467/p/C1.mo`) is refused the same way. Its neighbour
+(`/tmp/m467/p/W1.mo`) shows what the refusal was protecting against by
+luck. With `Src s[2]` each holding `Real e[2]`, `z = s.e[1]` ran and gave
+`z = {1, 10}`, which is the whole `e` of `s[1]`. The right answer is
+`{1, 3}`, the first `e` of each. The flattener worked `s.e` out whole,
+as the two `e` of the two components one under the other, and then put
+`[1]` on the outer axis. Where the shapes happened to fit, the result
+was a wrong number with no word. Where they did not, it was the connect
+refusal. Spelled `s[:].e[1]`, the same equation is refused for shapes.
+
+The fix is in the `Index` arm of `expand`. When the base is a name that
+is a member of an array of components, and is not an array of its own
+spelling, the subscript goes onto the member of each element:
+`{s[1].e[1], s[2].e[1]}`. `OXIDELICA_OUTER_MEMBER_SUBSCRIPTS` restores
+the old reading. Two tests in `equations.rs` check the numbers. Both
+pass with the fix and both fail under the switch (`/tmp/m467/t_on.txt`,
+`t_off.txt`).
+
+### What it moved
+
+One binary (`/tmp/m467/ox1`), the corpus without the heavy set, run
+with and without the switch (`/tmp/m467/on.txt`, `off.txt`). Flatten
+went 968 to 969 and runnable flatten 851 to 852. The run counts stayed
+at 796 and 752. The diff of the flattened lists is exactly
+`TestTankWithTopPorts`, and the diff of the run lists is empty. So
+nothing that ran was lost, and no other model's numbers moved to a
+different list. The tank test now stops one storey up, at `singular
+Jacobian in algebraic loop ["tank.ports[1].m_flow", ...]`. The two
+flatten floors rise by one in the same commit, to 969 and 852. The
+three run floors do not move.

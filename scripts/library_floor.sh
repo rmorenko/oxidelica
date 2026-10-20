@@ -539,7 +539,18 @@ FILES_FLOOR=2671
 # flatten the same 968.
 #
 #   967 + 1 = 968
-FLATTEN_FLOOR=968
+#
+# And flatten 969 = 968 + TestTankWithTopPorts of ModelicaTest.Fluid,
+# which flattens once a subscript written after a member of an array
+# of components goes to the member. The desk pair of one binary
+# (/tmp/m467/on.txt against off.txt, OXIDELICA_OUTER_MEMBER_SUBSCRIPTS)
+# differs in its flattened list by exactly that name and in its run
+# list by nothing. Raised with the change, as the order of the shift
+# asked: flattening is the same on both machines, and no flattened
+# count has swung between them.
+#
+#   968 + 1 = 969
+FLATTEN_FLOOR=969
 # The two run floors came down by one, and the one is named: giving a
 # record constructor called with no arguments the values its `extends`
 # stated took `Modelica.Thermal.FluidHeatFlow.Examples.WaterPump` out
@@ -1962,7 +1973,11 @@ RUN_FLOOR=793
 # And runnable flatten 851 = 850 + ShowImpedance of `FLATTEN_FLOOR`, a
 # runnable example, by the same desk list and runner print (run
 # 39263588929): 851 printed on both machines.
-RUNNABLE_FLATTEN_FLOOR=851
+#
+# And runnable flatten 852 = 851 + TestTankWithTopPorts of
+# `FLATTEN_FLOOR`, a runnable example, by the same desk pair
+# (/tmp/m467/on.txt, off.txt).
+RUNNABLE_FLATTEN_FLOOR=852
 # And runnable run 674 = 671 + the three batteries, all runnable
 # examples, by the same runner job as `RUN_FLOOR` (d58700e, job
 # 112530851204).

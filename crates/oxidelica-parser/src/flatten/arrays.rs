@@ -513,6 +513,28 @@ pub(super) fn expand(
             // this is how `a[i]` works inside a function whose `a` was bound
             // to an array literal.
             Expr::Index(base, subscripts) => {
+                // A subscript written after a member of an array of
+                // components belongs to the member: `s.e[1]` over
+                // `Src s[2]` is `{s[1].e[1], s[2].e[1]}`. Worked out
+                // whole first, `s.e` is the two `e` of `s[1]` and of
+                // `s[2]` one under the other, and `[1]` then picked
+                // the first component's whole `e` - a wrong number
+                // where the shape happened to fit, and a connect of
+                // one to two where it did not.
+                if let Expr::Ref(name) = base.as_ref() {
+                    if member_subscripts_open() && !shapes.sizes.contains_key(name) {
+                        if let Some((array, member)) = member_of_array(name, shapes.sizes) {
+                            let elements = elements_of(array, &shapes.sizes[array]);
+                            return try_map_names(&elements, &|each| {
+                                Some(recur(&Expr::Index(
+                                    Box::new(Expr::Ref(format!("{each}.{member}"))),
+                                    subscripts.clone(),
+                                )))
+                            })
+                            .map(|mapped| mapped.unwrap_or(elements.clone()));
+                        }
+                    }
+                }
                 // An array of records written out is worked out one
                 // record at a time. A record is its fields and an array
                 // is its elements, and both are the same kind of value
@@ -663,6 +685,14 @@ pub(crate) fn deep_matrix_open() -> bool {
 /// closes the road, so that one binary gives both numbers.
 fn member_shapes_open() -> bool {
     std::env::var_os("OXIDELICA_NO_MEMBER_SHAPES").is_none()
+}
+
+/// Whether a subscript after a member of an array of components goes
+/// to the member. `OXIDELICA_OUTER_MEMBER_SUBSCRIPTS` restores the old
+/// reading, which put it on the components, so that one binary gives
+/// both numbers.
+fn member_subscripts_open() -> bool {
+    std::env::var_os("OXIDELICA_OUTER_MEMBER_SUBSCRIPTS").is_none()
 }
 
 /// Whether a member read off every element of a slice of components

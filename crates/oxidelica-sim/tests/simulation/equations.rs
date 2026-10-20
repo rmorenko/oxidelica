@@ -2762,3 +2762,39 @@ fn der_of_a_linear_expression_is_the_same_of_the_derivatives() {
     );
     assert!(refusal.contains("der"), "{refusal}");
 }
+
+#[test]
+fn a_subscript_after_a_member_of_an_array_of_components_goes_to_the_member() {
+    // `s.e[1]` over `Src s[2]` is the first `e` of each component. Read
+    // the other way it was the whole `e` of the first one, which has the
+    // same length here and so gave 10 where 3 was owed without a word.
+    let result = run("model W model Src parameter Real v = 1; Real e[2]; \
+         equation e[1] = v; e[2] = 10*v; end Src; \
+         Src s[2](v = {1, 3}); Real z[2]; equation z = s.e[1]; \
+         annotation(experiment(StopTime=0.01, Interval=0.01)); end W;");
+    let at = |name: &str| {
+        let i = result.columns.iter().position(|n| n == name).unwrap();
+        result.rows[0][i]
+    };
+    assert_eq!(at("z[1]"), 1.0);
+    assert_eq!(at("z[2]"), 3.0);
+}
+
+#[test]
+fn a_connect_may_take_one_port_of_each_of_an_array_of_components() {
+    // `connect(s.ports[1], k.top)` joins `s[1].ports[1]` to `k.top[1]`
+    // and `s[2].ports[1]` to `k.top[2]`, as the batch plant's tank test
+    // writes it; it was refused as one connector against two.
+    let result = run("model C connector P Real e; flow Real f; end P; \
+         model Src P ports[1]; parameter Real v = 1; equation ports[1].e = v; end Src; \
+         model Snk P top[2]; equation top[1].f = top[1].e; top[2].f = 2*top[2].e; end Snk; \
+         Src s[2](v = {1, 3}); Snk k; equation connect(s.ports[1], k.top); \
+         annotation(experiment(StopTime=0.01, Interval=0.01)); end C;");
+    let at = |name: &str| {
+        let i = result.columns.iter().position(|n| n == name).unwrap();
+        result.rows[0][i]
+    };
+    assert_eq!(at("k.top[1].e"), 1.0);
+    assert_eq!(at("k.top[2].e"), 3.0);
+    assert_eq!(at("k.top[2].f"), 6.0);
+}
