@@ -56296,3 +56296,57 @@ one binary with a switch (`OXIDELICA_M473_ROWARM`, the arm's scale
   this comparison set the switch to an empty string for the old arm and
   read the new arm twice, because the switch is asked by presence; the
   numbers above are from the second reading, with the variable unset.
+
+### A step-size test beside the residual test, measured as a probe
+
+After the list, one more probe for item 18, because the two small
+models of the seam asked for it: a block is held to a second condition
+before it is accepted - the Newton step the last Jacobian gives from
+the point, `|J^-1 f|`, is below `1e-8 * (1 + |v_j|)` for every unknown -
+with the rows already on the arithmetic floor (`|f| <= 1e-14 * (|lhs| +
+|rhs|)`) left out of `f`, because without that mask the test
+`a_column_lost_in_a_loud_row_is_read_from_further_away` is refused as
+underdetermined. Keys `OXIDELICA_M473_STEPCRIT` and
+`OXIDELICA_M473_FLOORMASK`, built in a separate worktree, binary
+`/tmp/m473/oxstep3`, parked with the rest of the shift's probes. The
+simulation tests pass under it, 502 of 502.
+
+| model (small)           | head      | step test     | right     |
+| ----------------------- | --------- | ------------- | --------- |
+| `Z`, `g = 1e-7`         | 0.9999641 | 1.000000008   | 1         |
+| `Z`, `g = 1e-6`         | 1.0000844 | 0.99999999970 | 1         |
+| `K`, `big = 1e7`, 1e-8  | 0.9997596 | 0.999999986   | 1         |
+| `K`, `big = 1e7`, 1e-7  | 1.0000021 | 0.999999998   | 1         |
+| the loud-row test's `b` | 0.4818089 | 0.4818169     | 0.4818156 |
+
+The mask's threshold matters: at `1e-12` the step test leaves `K` where
+the head has it, at `1e-13` and below it mends `K`, and the loud-row
+model's `b` moves within 1e-5 of the answer at every setting.
+
+The corpus pair, one binary, the keys unset and set
+(`/tmp/m473/p2_off.txt`, `p2_on.txt`): 969 / 797 and runnable 852 /
+753 both, the run lists identical name for name (`r2_off.lst`,
+`r2_on.lst`), and the refusal register of the run half identical line
+for line, 142 rows and 172 models. The price is work: points 25243746
+to 31588913, Newton steps 36657929 to 45348834, Jacobians 529 to 558.
+Asked one at a time, `Dimmer_RL` alone goes from 23700356 points and
+34381472 Newton steps to 30045805 and 43071100: 6345449 more points,
+which is 282 more than the 6345167 the whole corpus gained, so the rest
+gave back 282, and 8689628 of the 8690905 Newton steps it gained;
+`IMC_InverterDrive` moves by 32 Newton steps and
+`ComparisonPullInStroke` not at all. So the test is free everywhere but
+the one model whose switch parameter runs to 1e30, and there it costs a
+third more work - which is what holding a runaway to its step ought to
+cost.
+
+What this does not show: that the runaways are mended. The pair counts
+models, and `IMS_Start` and `ComparisonPullInStroke` print no
+difference in their written output over the first 2 ms (`|a|` at most
+17 in the solenoid, the rotor's `a` at zero), because the runaway
+unknowns of the map above live in acceptances inside a step, not in
+the rows that are written. Whether the step test removes them is the
+soft probe run again under the keys, which is the next instrument and
+not this shift's. And the rank test's place in the seam stands: with a
+step test in front of it, the open switch's three machines would be
+the question again, which is Roman's decision under item 30 and not a
+consequence of this probe. No tolerance was touched in the tree.
