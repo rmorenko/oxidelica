@@ -56596,3 +56596,12 @@ So Inverter's next wall is the rank threshold of item 30, which is in
 Roman's package with the tolerances, and it is left there with this
 small model as its witness: one stage, one capacitor, a sharp change
 between `3e-8` and `1e-7`.
+
+Nand reads the same. With `10e-6` hung on the two nodes of its loop
+(`state/m474/NandBig.mo`, `mn1.S` and `mp1.S`, key set) it compiles
+past the wall at `t = 0` and starts to integrate. It integrates very
+slowly - 8 min 47 s of processor time had not reached `t = 1e-3` when
+the run was stopped - which is a cost of the stiff load and not a
+refusal. So both models the `T0` rule leaves behind in Spice3 stand on
+the rank threshold of item 30, and neither is a second structural
+family.
