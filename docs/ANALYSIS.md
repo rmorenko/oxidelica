@@ -56657,7 +56657,7 @@ start nobody wrote; it touches the layer the charter guards and the
 `StateSelect` reading of item 56's neighbourhood, and is left as a map
 line rather than a probe.
 
-### The census of the head
+### The census of the head, after m474's chain
 
 `refusals.sh .msl both` on 35eb88c (`/tmp/m474c/census.txt`, raw
 `/tmp/m474c/raw.txt`, counted between the section marks): the run
