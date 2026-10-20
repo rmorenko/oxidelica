@@ -55182,3 +55182,11 @@ modes at the start, and three of them are chosen on
 `switchYDwithArc.idealCloser.closerWithArc[i].control` at a zero nobody
 wrote. It is the switch with arc that `SMEE_LoadDump` has in the main
 pass.
+
+`why` on `SMEE_LoadDump` shows the switch has the same shape as the
+vessels. `switch.control[1] = loadControl.y`, and the connection inside
+the switch is `switch.control[1] = switch.closerWithArc[1].control`.
+The fixpoint reads that equation left to right, so the closer's control
+is never reached from `loadControl.y`, and its mode is chosen on the
+zero. So two of the five ways in are one fault, an alias read only one
+way: the vessels' port heights and the switch's control.
