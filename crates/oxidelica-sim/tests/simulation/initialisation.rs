@@ -1940,6 +1940,70 @@ fn a_section_two_conditions_over_is_solved_if_they_agree_and_named_if_not() {
     assert!(error.contains("`z = 2`"), "{error}");
 }
 
+/// A parameter left to the initialisation is found by a fixed start
+/// that reduction demoted.
+///
+/// `a` is fixed, and `der(v) = a` makes it the derivative of a state,
+/// so reduction computes it from the plan and its start becomes a
+/// condition. The condition reaches no state - it speaks for `c` - and
+/// was dropped as an alias, which left the section one short for
+/// exactly the one parameter. Kept, it finds `c = 9.81 / 0.5` and the
+/// mass stays where it was put.
+#[test]
+fn a_demoted_fixed_start_finds_the_parameter_left_to_the_initialisation() {
+    let result = run("model K \
+           parameter Real c(fixed = false, start = 1); \
+           Real x(start = 0.5, fixed = true); \
+           Real v(start = 0, fixed = true); \
+           Real a(start = 0, fixed = true); \
+         equation der(x) = v; der(v) = a; a = 9.81 - c * x; \
+           annotation(experiment(StopTime = 1)); end K;");
+    let column = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+    let last = result.rows.last().unwrap();
+    assert!(
+        (last[column("x")] - 0.5).abs() < 1e-9,
+        "x(1) = {}",
+        last[column("x")]
+    );
+    assert!(
+        last[column("v")].abs() < 1e-9,
+        "v(1) = {}",
+        last[column("v")]
+    );
+}
+
+/// A parameter bound to one the initialisation finds reads the found
+/// value, not the start it was folded from.
+///
+/// `k = c` was given a number from `c`'s start before the
+/// initialisation began, so the equations read a copy that nothing
+/// moved, and the section, solving for `c`, found an equation that did
+/// not depend on it and refused as singular. `InitSpringConstant`
+/// writes exactly this: `spring.spring.c = spring.c`.
+#[test]
+fn a_parameter_bound_to_a_found_one_reads_what_was_found() {
+    let result = run("model K2 \
+           parameter Real c(fixed = false, start = 1); \
+           parameter Real k = c; \
+           Real x(start = 0.5, fixed = true); \
+           Real v(start = 0, fixed = true); \
+           Real a(start = 0, fixed = true); \
+         equation der(x) = v; der(v) = a; a = 9.81 - k * x; \
+           annotation(experiment(StopTime = 1)); end K2;");
+    let column = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+    let last = result.rows.last().unwrap();
+    assert!(
+        (last[column("x")] - 0.5).abs() < 1e-9,
+        "x(1) = {}",
+        last[column("x")]
+    );
+    assert!(
+        last[column("v")].abs() < 1e-9,
+        "v(1) = {}",
+        last[column("v")]
+    );
+}
+
 /// A reduction left with nothing but a fixed state to demote sends the
 /// walk back to the earlier reduction that spent a free one.
 ///

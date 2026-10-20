@@ -5336,6 +5336,21 @@ pub(crate) fn compile_at(
         }
     }
 
+    // A parameter bound to one the initialisation finds was given a
+    // number above from that one's start, and the initialisation then
+    // moves the start while the copy stays where it was folded. So
+    // such a parameter is written out as its binding wherever the
+    // equations read it, and reads the found one by name.
+    // `OXIDELICA_NO_FOUND_DEPENDENTS` keeps the folded copy.
+    let found_dependents;
+    let model = match dependents_of_found(model, &unsettled_parameters) {
+        Some(rewritten) if std::env::var_os("OXIDELICA_NO_FOUND_DEPENDENTS").is_none() => {
+            found_dependents = rewritten;
+            &found_dependents
+        }
+        _ => model,
+    };
+
     let distributed;
     let model = if der_linear_open() {
         let mut out = model.clone();
@@ -7723,12 +7738,40 @@ impl CompiledModel {
             unsettled,
         );
         let demoted_fixed: Vec<(usize, f64)> = match &condition_match {
-            Some(matched) => demoted_all
-                .iter()
-                .zip(&matched.demoted_claims)
-                .filter(|(_, claim)| claim.is_some())
-                .map(|(entry, _)| *entry)
-                .collect(),
+            Some(matched) => {
+                let claimed: Vec<(usize, f64)> = demoted_all
+                    .iter()
+                    .zip(&matched.demoted_claims)
+                    .filter(|(_, claim)| claim.is_some())
+                    .map(|(entry, _)| *entry)
+                    .collect();
+                // The matching pairs conditions with states, so a
+                // condition whose unknown is a parameter left to the
+                // initialisation claims nothing and is dropped as an
+                // alias. `InitSpringConstant` leaves the spring's `c`
+                // to be found and says how with `rev.a(fixed = true)`:
+                // dropped, the section was one short for exactly the one
+                // parameter. Where the dropped conditions are exactly as
+                // many as the parameters and the section is short by
+                // that many, they are what determines the parameters.
+                let declared = fixed.iter().filter(|f| **f).count();
+                let dropped: Vec<(usize, f64)> = demoted_all
+                    .iter()
+                    .zip(&matched.demoted_claims)
+                    .filter(|(_, claim)| claim.is_none())
+                    .map(|(entry, _)| *entry)
+                    .collect();
+                let short = initial_equations.len() + claimed.len() + declared + dropped.len();
+                if !unsettled.is_empty()
+                    && dropped.len() == unsettled.len()
+                    && short == states + unsettled.len()
+                    && parameter_conditions_open()
+                {
+                    demoted_all
+                } else {
+                    claimed
+                }
+            }
             None => demoted_all,
         };
         let conditions = initial_equations.len() + demoted_fixed.len();
@@ -8637,6 +8680,82 @@ fn without_row<T: Clone>(all: &[T], skip: &[usize]) -> Vec<T> {
         .filter(|(index, _)| !skip.contains(index))
         .map(|(_, item)| item.clone())
         .collect()
+}
+
+/// The model with every parameter that stands on one the
+/// initialisation finds written out as its binding, or `None` where no
+/// parameter does. Bindings are followed through each other, so a
+/// chain `k = c2; c2 = c` reads `c` at its end.
+fn dependents_of_found(model: &Model, found: &[String]) -> Option<Model> {
+    if found.is_empty() {
+        return None;
+    }
+    let bindings: HashMap<&str, &Expr> = model
+        .components
+        .iter()
+        .filter(|c| c.variability == Variability::Parameter)
+        .filter_map(|c| c.binding.as_ref().map(|b| (c.name.as_str(), b)))
+        .collect();
+    // Which bound parameters reach a found one, worked as a fixpoint
+    // over the bindings rather than by recursion, so a cycle ends.
+    let mut reaching: Vec<&str> = found.iter().map(String::as_str).collect();
+    loop {
+        let before = reaching.len();
+        for (name, binding) in &bindings {
+            if reaching.contains(name) {
+                continue;
+            }
+            let mut refs = Vec::new();
+            binding.collect_refs(&mut refs);
+            if refs.iter().any(|r| reaching.contains(r)) {
+                reaching.push(name);
+            }
+        }
+        if reaching.len() == before {
+            break;
+        }
+    }
+    let dependents: HashMap<&str, &Expr> = bindings
+        .into_iter()
+        .filter(|(name, _)| reaching.contains(name) && !found.iter().any(|f| f == name))
+        .collect();
+    if dependents.is_empty() {
+        return None;
+    }
+    fn written_out(expr: &Expr, dependents: &HashMap<&str, &Expr>, depth: usize) -> Expr {
+        match expr {
+            Expr::Ref(name) if depth < 16 => match dependents.get(name.as_str()) {
+                Some(binding) => written_out(binding, dependents, depth + 1),
+                None => expr.clone(),
+            },
+            _ => expr.map_children(&mut |child| written_out(child, dependents, depth)),
+        }
+    }
+    let fix = |e: &mut Expr| *e = written_out(e, &dependents, 0);
+    let mut out = model.clone();
+    for equation in out
+        .equations
+        .iter_mut()
+        .chain(out.initial_equations.iter_mut())
+    {
+        fix(&mut equation.lhs);
+        fix(&mut equation.rhs);
+    }
+    for conditional in &mut out.conditional {
+        conditional.conditions.iter_mut().for_each(fix);
+        for equation in conditional.branches.iter_mut().flatten() {
+            fix(&mut equation.lhs);
+            fix(&mut equation.rhs);
+        }
+    }
+    Some(out)
+}
+
+/// Whether a demoted condition the matching paired with nothing may
+/// stand for a parameter left to the initialisation.
+/// `OXIDELICA_NO_PARAMETER_CONDITIONS` drops it as before.
+fn parameter_conditions_open() -> bool {
+    std::env::var_os("OXIDELICA_NO_PARAMETER_CONDITIONS").is_none()
 }
 
 /// Whether a section two or more over may leave out the conditions the

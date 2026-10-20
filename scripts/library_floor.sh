@@ -1738,7 +1738,19 @@ FLATTEN_FLOOR=969
 # (/tmp/m470/census.txt) prints the same 797 and 753:
 #
 #   797 - 2 swings - TestJunctionIdeal = 794 = 793 + 1
-RUN_FLOOR=794
+#
+# And run 795 = 794 + MultiBody's Elementary.InitSpringConstant, which
+# runs once a demoted fixed start may speak for a parameter left to the
+# initialisation and a parameter bound to that one reads it by name
+# rather than as a copy folded from its start. The pair is one binary
+# from the final tree, both keys set and unset (/tmp/m474/p2off.txt,
+# p2on.txt): 969 / 797 to 969 / 798, the run lists differing by that
+# name alone. The runner has not yet counted this tree, so the desk is
+# taken, less the same three, which stand by name in its run list
+# (lines 224, 381 and 483 of state/m474/p2on.lst):
+#
+#   798 - 2 swings - TestJunctionIdeal = 795 = 794 + 1
+RUN_FLOOR=795
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -2182,7 +2194,13 @@ RUNNABLE_FLATTEN_FLOOR=852
 # less the same three.
 #
 #   753 - 2 - 1 = 750 = 749 + 1
-RUNNABLE_RUN_FLOOR=750
+#
+# And runnable run 751 = 750 + InitSpringConstant, a runnable example,
+# by the same desk pair as `RUN_FLOOR` (754 printed in
+# /tmp/m474/p2on.txt, 753 in p2off.txt), less the same three.
+#
+#   754 - 2 - 1 = 751 = 750 + 1
+RUNNABLE_RUN_FLOOR=751
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and

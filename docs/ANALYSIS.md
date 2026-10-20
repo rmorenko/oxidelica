@@ -56350,3 +56350,166 @@ not this shift's. And the rank test's place in the seam stands: with a
 step test in front of it, the open switch's three machines would be
 the question again, which is Roman's decision under item 30 and not a
 consequence of this probe. No tolerance was touched in the tree.
+
+## Shift 474: what a `when` assigns, under differentiation, and the spring constant's chain
+
+### Item 1: the `T0` wall is ten models in two packages, and one family
+
+The rows of the m470 census that read `no equation determines X, whose
+derivative the equation ... needs` with `X` a name only a `when` assigns
+number ten, not seven. Seven are Spice3 (`vin.T0`, `vin1.T0`, `vin2.T0`,
+`VGS.T0`: Inverter, FourInverters, InvertersApartRecord,
+InvertersExtendedModel, Nand, Nor, Spice3BenchmarkMosfetCharacterization).
+Three are ModelicaTest, on the phase of `Blocks.Sources.Trapezoid`
+(`trapezoid.T_start`, `trapezoid2.T_start`): TestSweptVolume,
+CombiTable2Ds.Test33, CombiTable2Dv.Test33. The trapezoid writes
+`when time >= ... then count = pre(count) + 1; T_start = time; end when;`,
+which is the pulse source's shape exactly. So the wall is three models
+wider than the brief said, and it is one family by layer as well as by
+wording: all ten take the same arm of the same branch (`compile.rs`, the
+`index.is_none()` arm of the supply loop, the name is no unknown at all),
+and the probe below moves all ten past it.
+
+Both are alive on head (`--only` from `.msl`, binary `/tmp/m474/ox`).
+The small model `T.mo` (in `state/m474`) refuses the same way in one
+second: a `Real T0` assigned by `when sample(0, 0.25) then T0 = time`,
+`v1 = 2 + (time - T0)`, `v2 = v1`, `i = der(v2)`.
+
+The probe, `OXIDELICA_WHEN_STILL` (parked as
+`state/m474/when_still_probe.patch`, not in the tree): in that arm only,
+a name that is not an unknown and is in the discrete layer gets
+`der(name) = 0` as its supply, instead of the refusal. Nothing in state
+selection or in the walk is touched. On `T.mo` it gives `i = 1` at
+every point and `der(T0) = 0`, which is right between events.
+
+The pair, one binary `/tmp/m474/ox2`, key unset and set
+(`/tmp/m474/off.txt`, `on.txt`): flatten 969 both, run 797 to 804,
+runnable 852 / 753 to 852 / 760. The run lists (`state/m474/ran_off.lst`,
+`ran_on.lst`) differ by exactly seven names and no victim:
+
+```text
++ Spice3.Examples.FourInverters          + Spice3.Examples.Nor
++ Spice3.Examples.InvertersApartRecord   + ...Spice3BenchmarkMosfetCharacterization
++ Spice3.Examples.InvertersExtendedModel + ModelicaTest.Tables.CombiTable2Ds.Test33
+                                          + ModelicaTest.Tables.CombiTable2Dv.Test33
+```
+
+What the three left behind meet next, each its own line of the map:
+Inverter `underdetermined algebraic loop ["der(mn.Dinternal)"]`; Nand
+`the equations of algebraic loop ["der(mp1.Sinternal)",
+"der(mn1.Sinternal)"] do not mention [...] at t = 0`; TestSweptVolume a
+`NaN` through `der(sweptVolume.U)`. Inverter and Nand are the MOSFET's
+internal nodes, a Spice3 wall of its own; TestSweptVolume is the medium.
+
+A caution the corpus count does not show: the check runs ten steps, and
+the full experiment of the winners was run as well
+(`/tmp/m474/full.txt`). Six finish (FourInverters 5001 steps, the
+record and extended variants, MosfetCharacterization, both Test33), and
+FourInverters reads as an inverter should: `vin.v` 0 to 5, `mn1.D.v`
+from 5 down to 7e-8 after it. Nor does not: `step size underflow at
+t = 0.500000`, which is `v.TD = 0.5`, the moment its first pulse
+starts. Whether that is the zero failing at the event, or the Nor's own
+stiffness, is not known from this shift; it is the first thing to ask
+before the rule goes to Roman, because it is precisely the charter's
+warning about a rule true between events.
+
+The rule is the breed the charter parks, so it stays parked: the
+material for the decision is the seven names, the zero victims, and the
+Nor at its first edge.
+
+### Item 2: `InitSpringConstant`, the chain walked to its end
+
+Two links, and the model runs at the end of them.
+
+Link 1 is m416's (`state/m416/parameter_conditions_link1_with_test.patch`,
+code half applies on head untouched, the chapter half did not and was
+left out): a demoted fixed start the matching pairs with no state is
+kept as a condition when the conditions dropped are exactly as many as
+the parameters left to the initialisation. `OXIDELICA_NO_PARAMETER_CONDITIONS`
+takes it back. With link 1 alone, `K.mo` runs and the real model moves
+from `initialization is not square` to `the Newton step does not solve,
+because its equations do not pin down [spring.c]`.
+
+Link 2 is the folded binding. `why InitSpringConstant spring.spring.c`
+answers `bound to: spring.c`: the evaluation of parameters folds the
+inner spring's `c` to a number from `spring.c`'s start (100) before the
+initialisation begins, so the equations read a copy nothing moves and
+the Jacobian has no column for `spring.c`. The fix: where a parameter
+is left to the initialisation, every bound parameter that reaches it
+through bindings is written out as its binding wherever the equations
+read it, so the found one is read by name. `OXIDELICA_NO_FOUND_DEPENDENTS`
+keeps the folded copy. `K2.mo` (the same with `parameter Real k = c`)
+runs with it.
+
+With both, `InitSpringConstant` runs, and the number is right: at rest,
+`rev.phi = 0`, `rev.w = 0`, the spring force `4.903325`, which is
+`m g r_CM / r = 1 * 9.80665 * 0.5 / 1`. There is no third wall.
+
+Each link has a test that goes red without it, seen to go red:
+`a_demoted_fixed_start_finds_the_parameter_left_to_the_initialisation`
+under `OXIDELICA_NO_PARAMETER_CONDITIONS=1`, and
+`a_parameter_bound_to_a_found_one_reads_what_was_found` under
+`OXIDELICA_NO_FOUND_DEPENDENTS=1` alone.
+
+Of the `initialization is not square` row (four in m470): NonCircularPipes
+is the other sign (8 equations for 6 unknowns) and
+ThreePhaseTransformerWithRectifier is item 55, both untouched;
+GearType1 (2 written and 2 fixed for 3 states, no parameter) refuses
+the same with and without the chain, it is not of this family.
+
+### Item 3: the four that do not converge, and their neighbour, by trail
+
+Each run once under `OXIDELICA_NEWTON_TRAIL` with `--only` from `.msl`
+(`/tmp/m474/trail_*.txt`). Three breeds, not one, and not four.
+
+**Bend and SeveralTestCases, one breed: a seesaw about zero flow.**
+SeveralTestCases' one-member loop `from_mflow3.dp` starts at 1000 and
+goes `-999.996`, `999.991`, `-999.986` ... to `-999.774` at step 49,
+the residual flat at `1.2713e-3` all the way, with full steps
+(`lambda=1e0`) every time. Bend's three-member loop does the same in
+`from_mflow.dp`: 1000, -990, 1000, then 4.95 and into a seesaw of
+`±2.06e-4 ... ±1.61e-4` with the residual stuck near `2.3e-8`. A
+Newton step that lands on the mirror image every time is a slope with
+the sign of the flow in it - a pressure loss that goes as `|v|v` or a
+regularised root at zero - and the line search accepts the jump
+because the residual is even in the unknown. The convergence test is
+not what fails: the iteration never comes nearer.
+
+**MoistAir and RoomCO2, one breed: the saturation pair.** MoistAir's
+loop is `volume.medium.p, T, phi, portInDensities[1..2],
+fixedMassFlowRate.medium.X_sat, x_sat`, RoomCO2's (singular, not
+divergent) holds `boundary1.medium.X_sat, x_sat` and the same volume's
+`p, T, phi`. The trail of MoistAir: the first step takes `p` from
+101325 to -14834, the residual to `5.8e17`, and from step 2 on a third
+member (`phi` by position) grows without bound to `3.0e8` while
+`|f|` sits at `1.37e8`. `x_sat = 0.622 p_steam_sat / max(2.2e-14,
+p - p_steam_sat)`: a pressure taken negative by one full step puts the
+`max` on its floor, where the slope in `p` is zero - a singular
+Jacobian in RoomCO2, a runaway in MoistAir. One cause, a first step
+with no bound on `p`; it is item 18's damping question and was left
+alone.
+
+**SMPM_CurrentSource, its own.** Fourteen members, seven attempts at
+`t = 0` from all-zero (the retries of the run, `|f|` from `2.4e2` up to
+`2.1e9` at the fifth), each fifty steps wandering between `3e2` and
+`3e3` without descent. A machine's current loop with the rotor angle
+inside it; nothing in the trail resembles either breed above.
+
+So the row of four is three families and the neighbour belongs to one
+of them. No tolerance was touched.
+
+Nor under `--solver bdf --stop 1` (`/tmp/m474/nor_bdf.txt`) stops in
+the same place, `step size underflow at t = 0.500000`, so it is not
+the explicit solver's stiffness. The edge at 0.5 is the supply `v`
+(`TD = 0.5, TR = 0.1, V2 = 5`) switching on, the one pulse in the
+model whose first event falls inside the run before the inputs' do. So
+the open question for Roman's decision is narrowed to one event: what
+the system made with `der(v.T0) = 0` does when `v.T0` jumps there.
+
+The pair for the chain, one binary `/tmp/m474/ox4` from the final tree,
+both keys set against both unset (`/tmp/m474/p2off.txt`, `p2on.txt`):
+flatten 969 both, run 797 to 798, runnable 852 / 753 to 852 / 754, the
+run lists (`state/m474/p2off.lst`, `p2on.lst`) differing by
+`InitSpringConstant` alone. No victim, the chain walked to its end, so
+it is taken, with `RUN_FLOOR` 795 and `RUNNABLE_RUN_FLOOR` 751 in the
+same commit (the desk's print less the two swings and TestJunctionIdeal).
