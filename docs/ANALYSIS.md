@@ -56539,3 +56539,20 @@ check's ten steps, and in FourInverters `vin.T0` sits at 2 over the
 whole run with `der(vin.T0) = 0` on every row, because `PER = 10`
 outlasts `StopTime`. A model whose pulse repeats inside its run is the
 probe still owed before the rule is argued for.
+
+The probe owed, made the same evening. `state/m474/FourPer.mo` is
+FourInverters with its input pulse repeating inside the run
+(`vin(PER = 1, PW = 0.4, TR = TF = 0.05, TD = 0.2)`, `--stop 5`, key
+set, `/tmp/m474/fp.txt`). It runs to the end, and `vin.T0` jumps four
+times, to 1.2, 2.2, 3.2 and 4.2, each at its sample. The inverter
+answers every period alike: the first stage's drain `mn1.D.v` is 3.284
+at 1.3 and 3.361 at 4.3, on the way down after the input rises, and
+0.238 and 0.246 at 1.6 and 4.6, low while the input is high. The small
+model says the same at its own jump: at `t = 0.25` `T0` goes from 0 to
+0.25, `v2` from 2.25 to 2, and `i = der(v2)` reads 1 on both sides.
+
+So where the zero was most at risk - at the instant the phase moves -
+nothing in these two runs goes wrong. That is evidence for the rule,
+not proof of it, and it does not touch the charter's case, which is a
+zero taken by state selection: this probe gives the zero to the
+supply loop only and leaves selection as it was.
