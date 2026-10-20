@@ -1725,7 +1725,20 @@ FLATTEN_FLOOR=969
 # list (lines 338, 379 and 481) and stay out:
 #
 #   796 - 2 swings - TestJunctionIdeal = 793 = 792 + 1
-RUN_FLOOR=793
+#
+# And run 794 = 793 + Blocks.Examples.Filter, which runs once a table
+# handed into a walked body stays a table on every road (61d69c1). The
+# runner ran 798 in the judge of e193277 (run 39409365054), the desk
+# 797 on the same code (/tmp/m469/p13_on_ran.lst), and the lower is
+# taken. The runner's one more is IMC_InverterDrive, the model 6ef503d
+# named, and nothing else: its run list (artifacts library-main and
+# library-dear) against the desk's differs by that name alone. The two
+# swings and TestJunctionIdeal stand by name in the desk's run list
+# (lines 339, 380 and 482) and stay out. The census of the head
+# (/tmp/m470/census.txt) prints the same 797 and 753:
+#
+#   797 - 2 swings - TestJunctionIdeal = 794 = 793 + 1
+RUN_FLOOR=794
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -2162,7 +2175,14 @@ RUNNABLE_FLATTEN_FLOOR=852
 # three.
 #
 #   752 - 2 - 1 = 749 = 748 + 1
-RUNNABLE_RUN_FLOOR=749
+#
+# And runnable run 750 = 749 + Blocks.Examples.Filter, a runnable
+# example, by the same desk list and runner print as `RUN_FLOOR`: 754
+# printed (run 39409365054), 753 on the desk, and the lower is taken,
+# less the same three.
+#
+#   753 - 2 - 1 = 750 = 749 + 1
+RUNNABLE_RUN_FLOOR=750
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
