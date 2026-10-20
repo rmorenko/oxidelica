@@ -54934,12 +54934,21 @@ shows rows 0 to 3, the four port equations, with a Jacobian row of
 zeros and a residual of zero. The level starts at 1 m, below all four
 ports (9, 6, 4 and 2 m), so the tank's Remelhe/Poschlad branch should
 take `ports[i].m_flow = 0` while `pre(ports_m_flow_out[i])` holds its
-start of `true`. A zero row says the branch taken does not read the
-flow at all, which is the `ports[i].p = p_ambient` branch, the one for
-`pre(ports_m_flow_out[i]) = false`. The same tank with
+start of `true`. A zero row says the branch taken has no slope in the
+flow at zero flow. Two branches have that: `ports[i].p = p_ambient`,
+the one for `pre(ports_m_flow_out[i]) = false`, and the branch above
+the level, whose `m_flow^2` term is flat at zero. The trail does not
+say which. The same tank started at 9.5 m, above all four ports, is
+refused the same way with rows that read the level but not the flow
+(`/tmp/m467/p/TT95.mo`), so the flat square law at zero flow is a wall
+of its own. The same tank with
 `stiffCharacteristicForEmptyPort = true`, which has no such branch,
 gets past t = 0 and was still running after two minutes when it was
-stopped. So the wall is the outflow flag's `pre`. Small models of the
+stopped. So the wall is in the Remelhe/Poschlad branches: a port law
+with no slope in the flow at zero flow, where the stiff law has one.
+Whether at 1 m it is the flag's `pre` or the square law was not
+settled. The trail prints row 0 in its above-level form, which leans
+towards the square law. Small models of the
 same branch (`/tmp/m467/p/T3.mo` to `T6.mo`, `T10.mo`, `T11.mo`), with
 the hysteresis, the `Evaluate = true` outer `if`, a `for` loop and the
 flag inside a torn block, all run and take the right branch. The tank
@@ -54959,8 +54968,8 @@ settled value into `pre` until the next event comes along. Under
 point. In the language, the initial event is followed by event
 iteration at the same instant until every `pre` equals its value. That
 is a change to the event layer for every model with a discrete start,
-so it was not made here. It needs a pair of its own, and it is a
-candidate for what holds the tank.
+so it needs a pair of its own. The trial below shows it does not hold
+the tank.
 
 ### The `pre` after the start, tried and parked
 
