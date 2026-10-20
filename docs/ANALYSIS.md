@@ -55201,3 +55201,12 @@ The choice is not made on its zero. The direction of a hysteresis loop
 at the start is a question the model answers with the first step, and
 this layer cannot answer it before the step. These models are counted
 above, but what reaches them is not the alias.
+
+A clean form of the reading, without the probe's printing and behind
+`OXIDELICA_MODE_ALIASES=1`, is parked beside the probe
+(`~/oxideflow/park/m468-mode-aliases-clean.diff`). Built as
+`/tmp/m468/ox5`, it gives `A1` the row `y = 2` at t = 0, where the
+binary without the switch gives `y = 1`. It also takes the tank's ports
+into branch 3 by `pre(ports_m_flow_out[i])`. The corpus pair above was
+measured with the probe and not with this form, so the form needs a
+pair of its own before it can stand for the probe's numbers.
