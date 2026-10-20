@@ -54961,3 +54961,28 @@ iteration at the same instant until every `pre` equals its value. That
 is a change to the event layer for every model with a discrete start,
 so it was not made here. It needs a pair of its own, and it is a
 candidate for what holds the tank.
+
+### The `pre` after the start, tried and parked
+
+A trial of the language's reading was built behind a switch
+(`OXIDELICA_NO_PRE_AFTER_START`, parked whole in
+`~/oxideflow/park/m467-pre-after-start.diff`). Once the initial event
+has settled, it lowers `initial()` and goes on iterating at the same
+instant until every `pre` equals its value. `T9` then gives `y = 2`
+from the first step on under `dopri45` and `bdf`, and the switch brings
+back `y = 1`. A test written for it fails under the switch. Over the
+corpus, as a pair of one binary (`/tmp/m467/ox2`, `/tmp/m467/on2.txt`
+against `off2.txt`), both halves print 969 / 796 and runnable 852 /
+752, and the flattened and run lists are the same name for name. The
+tank is not moved by it either.
+
+It was not merged, because it turns one existing test red:
+`a_discrete_start_pins_what_it_was_and_not_what_it_is` in
+`initialisation.rs`. That test asks that the first row shows `y =
+pre(aux) = 5`, the declared start, where the trial writes 3. The
+first row is written after the iteration. So the trial makes the
+output at t = 0 show the settled `pre`, while the test, written for
+`Electrical.Digital`'s wired nodes, wants it to show the start. Both
+can be true only if the point at t = 0 is written between the two
+halves of the initial event. That is a question about what the first
+output row means, and it is left with the parked diff for a decision.
