@@ -56633,3 +56633,13 @@ temperature is the medium's `T` solved from its `h` at the start,
 `T_h` of the NASA ideal gas; a residual that decays with `T` admits
 descent toward infinity, and no bound on `T` stops it. That is the
 next probe for this model, and a medium question, not the phase's.
+
+And the residual names its own target. At `T = 293.15` the trail's
+`|f|` is `1.1883618798647244`, and `p / (R_s T)` there is `1e5 /
+(287.0525 * 293.15) = 1.18836...`; at `586.3` it is `0.59418...`, the
+trail's `0.5941809`. So the block solves `d = p / (R_s T)` against a
+density of zero: the residual is `0 - d` to every printed digit, and
+it has no root at any finite temperature. Something hands the start
+solve a zero where the volume's density or mass should be - the next
+question for this model is which start, and whether it is a zero that
+stands for a value nobody worked out.
