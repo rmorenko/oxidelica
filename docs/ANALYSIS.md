@@ -56018,3 +56018,146 @@ So the narrow filter would take flatten from 969 to 955 on the present
 floors and leave run 797, runnable 852 and 753 untouched. The broad
 variant is the m471 price and is repeated only for the comparison. The
 filter is unchanged and the floors are untouched. Both are Roman's call.
+
+## Shift 473: the open switch is the convergence test's warden, and what the test admits by name
+
+### The family on this head
+
+Asked on `d9f09f2` with one binary (`/tmp/m473/ox`, `--only` from
+`.msl`, `OXIDELICA_WHERE=1`), the four candidates of queue item 30
+refuse as the m470 census said:
+
+| model                                        | refusal on this head                |
+| -------------------------------------------- | ----------------------------------- |
+| `FundamentalWave...SMEE_DOL`                 | underdetermined, `solvers/mod.rs`   |
+| `FundamentalWave...SMEE_Rectifier`           | underdetermined, `solvers/mod.rs`   |
+| `FundamentalWave...IMC_DOL_Polyphase`        | underdetermined, `solvers/mod.rs`   |
+| `QuasiStatic.SinglePhase.Examples.Rectifier` | singular Jacobian, `solvers/mod.rs` |
+
+The matrices were printed on the underdetermined path by the same
+dump the singular path already has under `OXIDELICA_NEWTON_TRAIL`
+(the m372 patch no longer applies, it was raised by hand; binary
+`/tmp/m473/oxprobe`, dumps `/tmp/m473/dump_{dol,rect,imc,qs}.txt`, read
+by `/tmp/m473/sv.py`, parked as `park/m473-sv.py`). Scaled rows first,
+then columns, as the test scales them:
+
+| block                     |   n | smallest pivot | two smallest singular values | rows of the 2e-9 direction                |
+| ------------------------- | --: | -------------: | ---------------------------- | ----------------------------------------- |
+| `SMEE_DOL`                |  26 |         3.2e-9 | 5.2e-13, 2.0e-9              | `switch.idealClosingSwitch[2,3].i`        |
+| `SMEE_Rectifier`          |  27 |         6.4e-9 | 1.0e-12, 4.0e-9              | `idealDiode1.idealDiode[2,3].i`           |
+| `IMC_DOL_Polyphase`       |  59 |         3.7e-9 | 1.1e-9, 1.4e-9               | `idealCloser3.idealClosingSwitch[1..3].i` |
+| `QuasiStatic...Rectifier` |  12 |              0 | 1.7e-17, 2.1e-7              | `idealDiode1.i` beside `load2.i`          |
+
+So the family is three models, not two and not four. `IMC_DOL_Polyphase`
+is the same breed: its small directions run through the open closing
+switches of the three-phase machine and the stator converter rows, as in
+`SMEE_DOL`. The quasi-static `Rectifier` is not: its smallest singular
+value is 1.7e-17, an exact zero, carried by `idealDiode1.s`,
+`idealDiode2.s` and `load2.v` together - two diodes in series whose
+switching parameters the block cannot tell apart, which no threshold
+reaches.
+
+### Where the border lies, and that it is not a matter of scale
+
+The `Goff` series on `SMEE_DOL` (`/tmp/m473/small/G*.mo`, `switch(Goff =
+fill(g, 3))`): the smallest pivot is `3.18e-4 * g` to the digit
+(3.18e-9, 3.18e-8, 6.37e-8 at 1e-5, 1e-4, 2e-4), so against the test's
+1e-7 the border is `Goff = 3.1e-4`; 5e-4, 1e-3 and 1e-2 run. Two
+candidates for "a rank relative to the row's own scale" were measured
+on the dumps and neither moves the border:
+
+- Iterated row-and-column scaling (Ruiz, sixty rounds, `/tmp/m473/ruiz.py`)
+  raises the pivot by a factor of twenty and keeps it proportional to
+  `Goff`: 6.4e-8, 6.4e-7, 1.3e-6 along the same series. The small
+  direction is not the unit of a row or a column; it is the off
+  conductance itself, carried through the machine's rows.
+- The finite-difference step does not touch it either: under
+  `OXIDELICA_FD_STEP` of 1e-6, 1e-7 and 1e-9 the pivot is 3.18e-9 every
+  time. The direction is a fact of the equations, not of the
+  arithmetic.
+
+### The candidate that ran the family and lied on a small model
+
+A probe rule took that last observation literally (`OXIDELICA_M473_STEADY`,
+parked in `park/m473-steady-pivot-and-soft-probe.diff`): a block read
+underdetermined is let through when its smallest scaled pivot is above
+1e-12, comes out the same within a tenth with the step a hundred times
+larger, and the Newton step from the accepted point is below 1e-6 of
+each unknown. Under it all three run - `SMEE_DOL` to 157.404 rad/s at
+`Goff` 1e-5, 1e-4 and 1e-3 alike, to seven digits - and the simulation
+tests stay green (502 of 502), including `1 / x = 0`, which the step
+condition is there for: its pivot is steady too, and its Newton step is
+1.0.
+
+And it gives a wrong number on twelve lines, `park/m473-small/Z.mo`:
+
+```modelica
+model Z
+  parameter Real g = 1e-9;
+  Real x(start = 0), y(start = 0), s(start = 0, fixed = true);
+equation
+  der(s) = 1;
+  x + y = 0;
+  x + (1 + g) * y = g * s;
+end Z;
+```
+
+The answer is `y = s`. Under the candidate, `y(1)` is 1.0000843 at
+`g = 1e-8`, 0.9000 at 1e-9 and 0 at 1e-10, with the pivot steady and
+the Newton step exactly zero each time. The head refuses all three. The
+reason is the convergence test, not the rank test: the block is
+accepted when `|f| <= 1e-10 * (1 + |v|)`, and through an inverse whose
+largest entry is `1/g` that admits a point `1e-10 / g` away from the
+root - a tenth of the answer at 1e-9, all of it at 1e-10. The rank
+test's 1e-7 is the only thing standing between the solver's tolerance
+and that error. Taking it down for steady pivots takes the guard down
+with it.
+
+The instrument for that is the tolerance carried through the inverse:
+for each row `i` and unknown `j`, `|J^-1[j][i]| * 1e-10 * (1 + |v_i|) /
+(1 + |v_j|)`, the largest over the block. On `Z` it is 1e-2, 1e-1 and
+1 at the three `g`. On the family:
+
+| `Goff` (`SMEE_DOL`) | spread | old rule        |
+| ------------------- | -----: | --------------- |
+| 1e-5                | 2.7e-2 | underdetermined |
+| 1e-4                | 2.7e-3 | underdetermined |
+| 1e-3                | 2.7e-4 | runs            |
+| 1e-2                | 2.7e-5 | runs            |
+
+`SMEE_Rectifier` reads 21 and `IMC_DOL_Polyphase` 1.6e-2. The worst
+pair is the same in all three machines: the stator converter's row
+`singlePhaseElectroMagneticConverter[3].port_p.V_m.re - ...` moving
+`der(...singlePhaseElectroMagneticConverter[1].i)`, an unknown that
+stands at 1e-10 at the start. So on the test's own terms the machines
+are what the rank test says they are: at an open conductance of 1e-5
+the converged point does not fix the stator current's derivative to
+better than a few percent of one. The 157.404 rad/s the candidate ran
+to agrees with the `Goff = 1e-3` run to seven digits, which says the
+error does not grow in this model; it does not say the rule is safe,
+and `Z` says it is not.
+
+So the border is not a threshold to be moved. The rank test and the
+convergence test are one guard in two halves, and the open switch sits
+on the seam: the family can be let through only by a convergence test
+that holds each row to what its own unknowns need - which is item 18 -
+and not by a rank test that forgives a direction because it is steady.
+Item 30 waits on item 18; that is the map, and no change goes into the
+tree.
+
+### The head's own quiet wrong numbers on the same seam
+
+Two small models show the tolerance getting through without the rank
+test's help, on `d9f09f2` as it stands (`/tmp/m473/ox`):
+
+- `Z` at `g = 1e-7` runs and gives `y(1) = 0.99996`, at 1e-6
+  `1.000084`, where 1 is right. The rank test reads 1e-7 and lets it by.
+- `park/m473-small/K.mo`, two rows `big*(x + y) = big*(2 + t)` and
+  `big*(x + (1 + g)*y) = ...`, with `big = 1e7` and `g = 1e-8` runs to
+  `x(1) = 0.99976` where 1 is right; with `big = 1` the head refuses it.
+  The size of the rows is what lets it through: `1e-12 * (|lhs| + |rhs|)`
+  is the sides arm of the convergence test, and at sides of 3e7 it
+  admits a residual of 3e-5.
+
+These are the same seam from the other side, and both belong to item
+18's map.
