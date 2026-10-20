@@ -55094,3 +55094,33 @@ refusal, as in the chapters of m462 and m463. The time band printed
 0.940 while the full runs of `X3` and `X0` and the tank's trial shared
 the desk. The trail adds nothing to a run with the switch off but one
 flag read.
+
+### How far the reading reaches
+
+The trail was put to every model that flattens, less the heavy set: 969
+names, each run to 1e-6 s under the switch, one binary
+(`/tmp/m468/ox4`, `/tmp/m468/modes_census.txt`). Of those, 98 settle a
+run-time `if` at the start. 28 choose at least one branch on a zero
+nobody wrote, and 10 on a value left over from an earlier pass. 29
+models do one or the other, and 19 of those 29 run today. The zero comes
+in by these names, counted over mode lines and not over models:
+`portsData_height` 64 times, `portsData_height2` 21,
+`closerWithArc.control` 6, `Hstat` of the hysteresis cores 10 (6 as
+`Hstat` and 4 one level deeper), `flange_a.phi` 2 and `p_ambient` 1.
+So the vessels' conditional input carries most of it.
+Behind it come the switches of `SMEE_LoadDump` and the flux-tube
+hysteresis cores.
+
+Whether such a choice moves a number is a separate question. The first
+row of the 19 running models was written with the parked trial and
+without it, one binary (`/tmp/m468/probe4`, `/tmp/m468/first_row.txt`,
+compared by column name). 16 write the same first row. 3 do not.
+`Tanks.EmptyTanks` differs in 29 names at t = 0: `tank2.s[1]` is -0.499
+without the trial and 38.01 with it, and `tank2.inFlow[1]` is 0 without
+and 1 with. `ControlledTanks` differs in 10 names, `tank1.s[1]` -3.95
+against 0 among them. `TestSimpleTank` differs in one, `tank.s[2]`
+-0.999 against 0. Which of each pair is right was not settled here.
+What is settled is that these models print a start that depends on a
+zero nobody wrote. That is the wrong-number kind, and three of the
+models that run, and count towards the floors, have it in their first
+row. The rows after the first were not compared.
