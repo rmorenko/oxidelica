@@ -56574,3 +56574,25 @@ than the modelcards and the load, most likely the circuit's own shape
 (`mn.D` straight onto `mp.S` with the supply on `mp.D`); it is a
 Spice3 wall of its own, the next line of the map, and was not taken
 further in this shift.
+
+The shape was not it either, and the last difference found was the
+load. FourInverters cut to one stage (`state/m474/One.mo`: its own
+cards, sources and wiring, one `c1`) runs under the key; the same with
+`c1` taken out refuses in the flattening's own terms (`vin.p.i = 0`
+constrains no state), and with `c1` brought down the wall is
+Inverter's exactly. The step is sharp: `C = 1e-7` and above run, `3e-8`
+and below refuse with `underdetermined algebraic loop
+["der(mn1.Dinternal)"]`. And the other way round, Inverter with a
+`10e-6` capacitor on its output (`InvBig.mo`) runs its whole
+experiment, 503 steps. A question that a value of `C` decides is no
+structural question: the refusal is `solvers/mod.rs`'s
+`reads_singular` and `reads_underdetermined` reading a one-member
+block whose only coefficient on `der(Dinternal)` is the size of the
+capacitance hung on the node, against the scale of the rest. Inverter's
+own node carries the transistors' femtofarads and nothing else, and is
+read as dead.
+
+So Inverter's next wall is the rank threshold of item 30, which is in
+Roman's package with the tolerances, and it is left there with this
+small model as its witness: one stage, one capacitor, a sharp change
+between `3e-8` and `1e-7`.
