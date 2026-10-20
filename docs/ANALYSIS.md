@@ -55317,3 +55317,82 @@ open switch's `Goff` (item 30). The hydraulic Newton direction family
 has m424's three probes, none taken, and no decision pending. A fresh
 probe of the row would be a repair of the water formulation's domain
 edge, which is a series of its own and not a map.
+
+### `Blocks.Examples.Filter`: a table handed on inside a walk
+
+With the list of the order done, the run-half names no chapter had
+written in backticks were looked through (`/tmp/m469/runrefused.lst`).
+All but one are parts with a free parameter or an open connector. The
+one example is `Modelica.Blocks.Examples.Filter`, refused as
+`unbalanced model: 29 algebraic equation(s) for 22 unknown(s)`. Of its
+four filters only `ChebyshevI` refuses (`/tmp/m469/f/F_*.mo`, one filter
+each). Its coefficients `c0`, `c1` are `fixed = false` parameters
+settled by an initial equation, and that equation calls
+`Internal.Filter.Utilities.normalizationFactor`, which the run walks
+because `findInterval` holds a `while`. The parameters' rounds could
+not evaluate it, so the equations stayed among the dynamic ones and
+the count came out seven over.
+
+Shrunk by deletion from a whole copy of `normalizationFactor`
+(`S1.mo` to `W3.mo`), the refusal survives every cut but the `while`.
+The smallest model that keeps it is `X1.mo`, twenty lines: a body
+with a table input `c2[:, 2]` whose `while` asks `res(c2, alpha)`. It
+refuses with `unknown variable c2[1]`. The same model with a vector
+(`X2.mo`) runs, and so does the same table read under an `if`
+(`X3.mo`), which the flattening writes out rather than walks.
+
+The cause is one fault met on four roads. A table reaches a walked
+body laid out as `c2[1,1]`, `c2[1,2]`, ... with its two lengths, but
+every place that hands a table on to the next call sent it by its first
+axis alone, as `c2[1]`, `c2[2]`, names nothing holds. The four roads are:
+
+1. a table written where the model calls (`code.rs`, the arguments of
+   a call to a walked body);
+2. a call in an expression the walk writes out (`to_scalar`, which
+   is where the `while` condition goes);
+3. a call the walk works out for its value (`number_of`);
+4. a tuple assignment, `(alpha_min, alpha_max) := findInterval(c1,
+c2)`.
+
+The filter takes all four. Each now hands a table on as rows under both
+lengths, behind `OXIDELICA_NO_TABLES_HANDED_ON`, which keeps the old
+reading. The test `a_table_is_handed_on_whole_from_a_walked_body`
+checks numbers on three models, and it goes red with the switch set
+and with each of the four roads taken out on its own.
+
+The numbers were checked by hand. The MSL algorithm written out in
+Python gives `normalizationFactor({1.5}, [0.8753, 0.5483])` =
+1.187166360632058, and the run gives 1.1871663606320577 (`R2.mo`). For
+the order 3 Chebyshev base filter with 0.5 dB ripple it gives
+`c0 + c1 + cr` = 1.9125437555003895, and the run gives
+1.9125437555003888 (`N3.mo`). `library check .msl --only
+Modelica.Blocks.Examples.Filter` gives 1 flatten and 1 run with the
+change, and 1 and 0 with the switch set.
+
+The model as a whole is a witness on two solvers (`/tmp/m469/f/WF.mo`,
+`WF_dopri45.csv` and `WF_bdf.csv`). The step goes from 0.1 to 1.1 at
+0.1 s, and at 1 s the Chebyshev output reads 1.1112702 on `dopri45`
+against 1.1112687 on `bdf`. Its peak, 1.1893, is above Butterworth's
+1.1815, which is what a ripple in the pass band does to a step.
+Bessel peaks at 1.1075, and critical damping does not overshoot at all.
+
+The corpus pair was taken with one binary built from the final tree
+(`/tmp/m469/ox13`, without the heavy set, `/tmp/m469/p13_off.txt` with
+`OXIDELICA_NO_TABLES_HANDED_ON=1` against `p13_on.txt`, run side by
+side). Without the change it prints 969 / 796 and 852 / 752, and its run
+list is shift 468's name for name (`/tmp/m468/cran_off.lst`). With it,
+969 / 797 and 852 / 753. The flattened lists are the same, and the run
+lists differ by `Modelica.Blocks.Examples.Filter` alone. There are no
+victims. The work of the run half moves by 80 points in 25243666 and
+not at all in Newton steps or Jacobians.
+
+An earlier pair (`p12_*.txt`) was thrown away because its switch was
+spelled `OXIDELICA_NO_WALKED_TABLES`, a name `declared_table` already
+reads. Its off half took the R134a tables down with it, three models
+fewer, which made it look like three victims that were not there.
+
+The floors are not moved in this commit. The desk's run list is the
+lower of the two machines, but AGENTS.md has a floor rise to what the
+runner has printed and not ahead of it. Once the runner's judge prints
+the tree, the run floors go up by one, 793 to 794 and runnable 749 to
+750, both by `Filter`, which is a runnable example.

@@ -168,6 +168,74 @@ fn a_body_nothing_could_inline_is_walked_by_the_run() {
     .contains("without its condition turning false"));
 }
 
+/// A table a walked body holds is handed on to the next call as a
+/// table. The normalization of the Chebyshev filter does this: its
+/// `while` keeps it walked, and it passes its coefficient table `c2`
+/// to the residue it is searching on. Sent by its first axis alone,
+/// the callee found `c2[1]` where it looks for `c2[1,1]`, and the run
+/// refused with an unknown variable.
+#[test]
+fn a_table_is_handed_on_whole_from_a_walked_body() {
+    let result = run("model M \
+         function res input Real c2[:, 2]; input Real alpha; output Real r; \
+         algorithm r := c2[1, 1] + c2[2, 2] - alpha; end res; \
+         function g input Real c2[:, 2]; output Real alpha = 1.0; \
+         algorithm while res(c2, alpha) >= 0 loop alpha := 2 * alpha; end while; end g; \
+         Real a; equation a = g([3.0 + time, 0.5; 0.25, 2.0]); \
+         annotation(experiment(StopTime = 5, Interval = 5)); end M;");
+    let a = result.columns.iter().position(|c| c == "a").unwrap();
+    // At t = 0, c2[1,1] + c2[2,2] = 5: doubling from 1 stops at 8. At
+    // t = 5 it is 10, and doubling goes on to 16.
+    assert_eq!(result.rows[0][a], 8.0);
+    assert_eq!(result.rows.last().unwrap()[a], 16.0);
+
+    // The same table written where the model calls - `[a, b; c, d]` -
+    // and handed by the called body to a body of its own, whose `while`
+    // asks a third: the three roads a table travels into a walk. The
+    // normalization of the Chebyshev filter takes all three. Doubling
+    // from 1 while 1 + 2 + 4 + 3 + time is not below it: 16 at t = 0,
+    // and at t = 9 the sum is 19, so 32.
+    let nested = run("model M \
+         function g input Real c2[:, 2]; output Real alpha; \
+         protected \
+           function res input Real c2[:, 2]; input Real alpha; output Real r; \
+           algorithm r := c2[1, 1] + c2[1, 2] + c2[2, 1] + c2[2, 2] - alpha; end res; \
+           function find input Real c2[:, 2]; output Real alpha = 1.0; \
+           algorithm while res(c2, alpha) >= 0 loop alpha := 2 * alpha; end while; end find; \
+         algorithm alpha := find(c2); end g; \
+         Real a; equation a = g([1.0, 2.0; 4.0, 3.0 + time]); \
+         annotation(experiment(StopTime = 9, Interval = 9)); end M;");
+    let a = nested.columns.iter().position(|c| c == "a").unwrap();
+    assert_eq!(nested.rows[0][a], 16.0);
+    assert_eq!(nested.rows.last().unwrap()[a], 32.0);
+
+    // And a body walked in its own right handing its table to the
+    // next, by the filter's own steps: `g` takes a pair from one body
+    // and hands it with the table to a second, whose answer it then
+    // halves while it stands above the table's last element times
+    // two - a trip count only the run can know, so `g` is walked and
+    // the table travels from a walk into a walk. 16 halves to 8 at
+    // t = 0 (bound 6) and 32 to 16 at t = 9 (bound 24, so 32 stays).
+    let walked = run("model M \
+         function g input Real c2[:, 2]; output Real alpha; \
+         protected \
+           Real lo; Real hi; \
+           function res input Real c2[:, 2]; input Real alpha; output Real r; \
+           algorithm r := c2[1, 1] + c2[1, 2] + c2[2, 1] + c2[2, 2] - alpha; end res; \
+           function find input Real c2[:, 2]; output Real lo; output Real hi; \
+           algorithm lo := 0; hi := 1; \
+             while res(c2, hi) >= 0 loop hi := 2 * hi; end while; end find; \
+           function settle input Real c2[:, 2]; input Real lo; input Real hi; output Real u; \
+           algorithm u := hi + lo * res(c2, hi); end settle; \
+         algorithm (lo, hi) := find(c2); alpha := settle(c2, lo, hi); \
+           while alpha > 2 * c2[2, 2] loop alpha := alpha / 2; end while; end g; \
+         Real a; equation a = g([1.0, 2.0; 4.0, 3.0 + time]); \
+         annotation(experiment(StopTime = 9, Interval = 9)); end M;");
+    let a = walked.columns.iter().position(|c| c == "a").unwrap();
+    assert_eq!(walked.rows[0][a], 4.0);
+    assert_eq!(walked.rows.last().unwrap()[a], 16.0);
+}
+
 /// A call standing on its own inside a body the run walks: nothing
 /// takes its outputs, so what it is there for is the checks it makes.
 #[test]

@@ -716,6 +716,33 @@ fn to_scalar(
             name.clone(),
             args.iter()
                 .map(|arg| match arg {
+                    // A table the frame holds is written out as its
+                    // rows, each element under the two subscripts it
+                    // was laid out by, so that the callee is handed a
+                    // table and finds `c2[1,1]` where it looks. Written
+                    // by its first axis alone it was `{c2[1], c2[2]}`,
+                    // names the frame never held: the normalization of
+                    // the Chebyshev filter asks its residue of the
+                    // coefficient table in the condition of a `while`.
+                    Expr::Ref(held)
+                        if walked_tables_open()
+                            && frame.shapes.get(held).is_some_and(|shape| shape.len() == 2) =>
+                    {
+                        let shape = &frame.shapes[held];
+                        Ok(Expr::Array(
+                            (1..=shape[0])
+                                .map(|row| {
+                                    Expr::Array(
+                                        (1..=shape[1])
+                                            .map(|column| {
+                                                Expr::Ref(format!("{held}[{row},{column}]"))
+                                            })
+                                            .collect(),
+                                    )
+                                })
+                                .collect(),
+                        ))
+                    }
                     Expr::Ref(held) if frame.lengths.contains_key(held) => {
                         let length = frame.lengths[held];
                         Ok(Expr::Array(
@@ -1029,6 +1056,19 @@ fn elements_of(
                     }
                 }
                 match arg {
+                    // A table the body holds goes on as a table: its
+                    // elements row by row under the shape it has, so
+                    // the callee finds `c2[1,1]` where it looks. Sent
+                    // by its first axis alone, the callee's `c2[:, 2]`
+                    // got `c2[1]` and `c2[2]`, which name nothing in a
+                    // table and nothing in the frame.
+                    Expr::Ref(inner) if table_of(inner, frame).is_some() => {
+                        let (names, shape) = table_of(inner, frame).expect("asked just above");
+                        for name in names {
+                            given.push(number_of(&name, frame, programs, time, depth)?);
+                        }
+                        shapes.push(shape);
+                    }
                     Expr::Ref(inner) if frame.lengths.contains_key(inner) => {
                         let length = frame.lengths[inner];
                         for index in 1..=length {
@@ -1642,6 +1682,20 @@ fn run(
                     // write `(r, state) := random(state)`, and a state
                     // read as one number was an array reaching the
                     // evaluator.
+                    // A table goes over as a table, the same as to a
+                    // call standing in an expression: the normalization
+                    // of the Chebyshev filter hands its coefficients on
+                    // this way, `(alpha_min, alpha_max) :=
+                    // findInterval(c1, c2)`.
+                    if let Expr::Ref(inner) = arg {
+                        if let Some((names, shape)) = table_of(inner, frame) {
+                            for name in names {
+                                given.push(number_of(&name, frame, programs, time, depth)?);
+                            }
+                            shapes.push(shape);
+                            continue;
+                        }
+                    }
                     let spread = match arg {
                         Expr::Ref(inner)
                             if frame.lengths.contains_key(inner) && tuple_arrays_open() =>
@@ -1800,6 +1854,41 @@ fn loop_over(
 /// numbers.
 fn tuple_arrays_open() -> bool {
     !switch_set("OXIDELICA_NO_WALKED_TUPLE_ARRAYS")
+}
+
+/// The elements of a table the frame holds, row by row under the
+/// subscripts it was laid out by, and its shape - where the switch is
+/// open and the name is a table of two axes or more. A list of one axis
+/// is not a table here and answers nothing, so that it keeps the road
+/// it had.
+fn table_of(name: &str, frame: &Frame) -> Option<(Vec<Expr>, Vec<usize>)> {
+    if !walked_tables_open() {
+        return None;
+    }
+    let shape = frame.shapes.get(name).filter(|shape| shape.len() > 1)?;
+    let total: usize = shape.iter().product();
+    let mut at = vec![1usize; shape.len()];
+    let mut names = Vec::with_capacity(total);
+    for _ in 0..total {
+        let subscripts: Vec<String> = at.iter().map(|index| index.to_string()).collect();
+        names.push(Expr::Ref(format!("{name}[{}]", subscripts.join(","))));
+        for axis in (0..shape.len()).rev() {
+            at[axis] += 1;
+            if at[axis] <= shape[axis] {
+                break;
+            }
+            at[axis] = 1;
+        }
+    }
+    Some((names, shape.clone()))
+}
+
+/// Whether a table a walked body holds is handed on to a call as a
+/// table. `OXIDELICA_NO_TABLES_HANDED_ON` keeps the old reading, by the
+/// first axis alone, so that one binary gives both halves of a
+/// measurement.
+pub(crate) fn walked_tables_open() -> bool {
+    !switch_set("OXIDELICA_NO_TABLES_HANDED_ON")
 }
 
 /// Whether a record handed on as its constructor goes over as its

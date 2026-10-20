@@ -123,6 +123,36 @@ fn walked_arguments(
                 continue;
             }
         }
+        // A table written out - `{{a, b}, {c, d}}`, which is how the
+        // flattening spells `[a, b; c, d]` - goes over as a table: its
+        // rows one after another under the two lengths, so the callee's
+        // `c2[i, j]` names an element. Read as a list of rows it went
+        // over as a list of one number per row, and the callee's
+        // `c2[1, 1]` named nothing.
+        if crate::walk::walked_tables_open() {
+            if let Expr::Array(rows) = arg {
+                let widths: Option<Vec<usize>> = rows
+                    .iter()
+                    .map(|row| match row {
+                        Expr::Array(items) => Some(items.len()),
+                        _ => None,
+                    })
+                    .collect();
+                if let Some(widths) = widths {
+                    if !widths.is_empty() && widths.iter().all(|width| *width == widths[0]) {
+                        for row in rows {
+                            if let Expr::Array(items) = row {
+                                for item in items {
+                                    given.push(eval(item, ctx)?);
+                                }
+                            }
+                        }
+                        lengths.push(vec![rows.len(), widths[0]]);
+                        continue;
+                    }
+                }
+            }
+        }
         match several_numbers(arg, ctx)? {
             Some(fields) => {
                 lengths.push(vec![fields.len()]);
