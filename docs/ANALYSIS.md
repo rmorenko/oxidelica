@@ -55545,3 +55545,231 @@ for the library step. That step printed 969 / 797 and runnable 852 /
 own, as in shifts 467 to 469: 2276457 Newton steps and 1543390 points,
 the same to the digit as shift 469's, and a ratio of the halves of
 0.989 against the desk band's 0.91.
+
+## Shift 471: the four-bar's chain walked to its end, and the price of a stricter filter
+
+### The verdict on ddb01ab
+
+Run 39426433039 was still in its main library pass when this shift
+ended. Every job that had finished was green, and the dear pass among
+them. The three heavy jobs were skipped, which is the push's own rule
+and not a verdict on the heavy floors. Nothing in the compiler changed
+between e193277 and ddb01ab, so nothing was done.
+
+### `Fourbar1`: six links, five taken by probe
+
+The chain starts where m470 left it: the ring cut by
+`OX_PROBE_RING_ANY`, the model balanced, and index reduction stopping
+on the 36th reduction. Each link below was taken behind a switch of its
+own, the names checked by grep before the build, on binaries
+`/tmp/m471/ox` to `ox7`, each one a new file. All of it is parked as
+`~/oxideflow/park/m471-fourbar1-chain-probe.diff`, and the tree holds
+none of it.
+
+1. **The missing residues** (m470, `OX_PROBE_RING_ANY`). Twelve
+   equalities were written where `Orientation.equalityConstraint` owes
+   three. Taken: `unbalanced` becomes `structurally singular` at the
+   36th reduction (`/tmp/m471/f1_s5.txt`).
+2. **`Connections.rooted` and the cut disagree**
+   (`OX_PROBE_ROOTED_TREE`). This is the answer to the question the
+   malyava asked, and it is neither the supply-once rule nor the choice
+   of victim. `graph_depths` measures depth over every edge of the
+   graph, the closing connection included. The join then cuts that
+   connection, `rev.frame_b.R` against `rev1.frame_a.R`. So `rooted`
+   answers as if the ring were whole: `rev1` computes `frame_b` from
+   `frame_a`, and `b3`'s orientation is written twice, by `rev1` and by
+   `j5`, while nothing writes `rev1.frame_a.R` except the three
+   residues. That is why every road back from the residue went through
+   the same joint equations twice (eq 1518 for `j5.frame_a.R.T[1,2]`).
+   Under the switch the depths are taken over the spanning tree the join
+   draws. `rooted tree cuts: rev.frame_b.R / rev1.frame_a.R` names the
+   same pair the join drops, `oxidelica why ... rev1.frame_a.R.T[2,1]`
+   shows `rev1` now writing `frame_a` from `frame_b`, and the wall moves
+   from the 36th reduction at the positions to the 56th at the
+   velocities (`/tmp/m471/f1_t_trail.txt`). Turning off supply-once
+   (`OXIDELICA_SUPPLY_ONCE=0` or `=4`) without this link does not help.
+   The reduction then runs to 64 and stops on a residue that reaches no
+   state (`/tmp/m471/f1_s0.txt`). With the link it refuses on a
+   derivative of order 4 at reduction 66 (`f1_t_s0.txt`, `f1_t_s4.txt`).
+   So supply-once is not the limit. It is the honest end of a walk that
+   had already gone wrong at `rooted`.
+3. **A demoted state is no ground for a definition**
+   (`OX_PROBE_DUMMY_GROUND`). At the 38th reduction the third residue
+   reaches no state. `OXIDELICA_DEFS_PROBE` shows why: `rev1.frame_a.R.T`
+   is among the candidates, from the joint's own equation, but it never
+   settles. The chain it reads runs through `j5.phi`, `j4.phi` and
+   `j3.phi`, which earlier reductions demoted, and `settle` counts an
+   unknown as ground only when a definition has been accepted for it.
+   Under the switch a demoted state counts as ground. The reduction then
+   completes, after four retreats, and the wall becomes the run
+   (`/tmp/m471/f1_d.txt`). One wider alternative was tried first and
+   thrown away. `OX_PROBE_REACH_MINTED` walked through every unsettled
+   rearrangement, and at a position-level reduction it demoted a
+   velocity, `b1.body.v_0[3]`. A wrong victim is worse than none.
+4. **The block starts from the zero matrix**. With reduction through,
+   the first block of the run is NaN at t = 0, before any Newton step.
+   The derivative of the residue's `atan2` divides by `x^2 + y^2`, and
+   the block's rotation entries have no start, so they begin at 0. This
+   is a family of its own, the start of a block, and not the reducer.
+5. **Starting the rotations at the identity** (`OX_PROBE_RT_START`, a
+   test on the spelling `.R.T[` that is fit only for a probe). The NaN
+   is gone, and the model refuses with `singular Jacobian in algebraic
+loop`, a block of the loop's coordinates and forces
+   (`/tmp/m471/f1_s.txt`).
+6. **The victims, not taken.** The trail under all four switches
+   (`/tmp/m471/f1_s_trail.txt`) says where the singular block comes
+   from. The ring has one degree of freedom, so six of its seven joint
+   coordinates must stop being states at each level. At the positions
+   the last attempt demotes `j5.phi`, `j4.phi`, `j3.phi`, `rev1.phi`,
+   `rev.phi` and `j1.phi`. That is six, but one of them is the one
+   coordinate the model declared `stateSelect = always` and
+   `phi(fixed = true)`, and it is taken on "only `always` to demote" at
+   reduction 38. `j2.s` stays a state. At the velocities `j2.v`, `j5.w`,
+   `j1.w`, `rev1.w`, `rev.w` and `j4.w` go, and `j3.w` stays while
+   `j3.phi` was demoted. So position and velocity disagree for two
+   joints, `j2` and `j3`, and the block of the loop is singular by
+   construction. Every candidate weighs 0 or NaN at the start
+   (`weighs [("j3.w", NaN, ...), ("j4.w", 0.0, ...)]`): the pivot is
+   choosing blind, because the start the weights are read at is not a
+   consistent position of the mechanism. This is the reducer's choice of
+   victim, and it is where the walk stops. One link deeper than here
+   needs either weights read at a consistent start or a rule that keeps
+   a velocity's choice tied to its position's. Neither is a probe.
+
+The six existing reducer switches were swept under links 1 and 2
+(`OXIDELICA_PARTIAL_SENSITIVITY`, `NO_TIE_JOINT`, `NO_RETREAT`,
+`NO_STATE_SELECT`, `NO_DERIVATIVES_AT_REDUCTION`,
+`NO_CONSTANT_CANDIDATES`, `/tmp/m471/k_*.txt`). All six end at the same
+residue that reaches no state.
+
+### Who stands behind the chain
+
+Under links 1 to 3 (`/tmp/m471/n_on_*.txt` against `n_off_*.txt`, one
+binary, `ox5`):
+
+| model                    | without the switches                       | with links 1 to 3                                       |
+| ------------------------ | ------------------------------------------ | ------------------------------------------------------- |
+| `PlanarFourbar`          | structurally singular, `der(der(R_rel.T))` | reduction passes, NaN at t = 0 in `planarRotationAngle` |
+| `Engine1a`               | singular Jacobian in the loop              | underdetermined loop `["cylinder.a"]`                   |
+| `RollingWheelSetDriving` | NaN in `rolling1.e_long_0`                 | NaN in `wheelSet.body1.frame_a.f[2]`, another block     |
+| `PlanarLoops_analytic`   | cannot evaluate parameters `jointRRR`      | the same                                                |
+
+`Fourbar2` and `Engine1b` are heavy and were not run. The heavy cron of
+20 October (run 39398419783, artifact `heavy-a`) has them as
+`initialization is not square: 0 initial equation(s) and 2 ...` and
+`underdetermined algebraic loop ["der(der(b2.r_rel_a[1]))"]`. The row
+`cannot evaluate parameters jointRRP/jointRRR` does not move under the
+switches, so it is a different wall: the analytic joints' parameters,
+not the ring.
+
+So the chain moves `PlanarFourbar` past reduction, as it moves
+`Fourbar1`. It takes both to the run, where each stops at a block that
+starts from values that are not a position of the mechanism.
+
+### The price of a stricter filter, by name
+
+Queue item 34 asks whether `library check` should stop calling a model
+an example when nothing marks it as one to run. This is the price, on
+the census and pair of m470 (`/tmp/m470/raw.txt`, `p_off_flat.lst`,
+`p_off_ran.lst`). The filter is unchanged. To mark each name the way
+the runnable count does, a probe printed `meant_to_run` beside
+`--models` (`OX_PROBE_MODELS_RUNNABLE`, `/tmp/m471/models_mark.tsv`).
+
+The malyava asked for seventeen names that the census holds and this
+file never names, all of them parts. The same grep, a last name against
+the chapters before cae5fab, gives fifteen (`/tmp/m471/never17.txt`),
+not seventeen. And they are not all parts. The premise that they were
+was not confirmed by the measurement:
+
+- Twelve are parts: no `experiment`, no `Icons.Example` anywhere up the
+  `extends` chain. Ten stand at `parameter X has no value`, which is a
+  part waiting for the model that would bind it. `ConstantActuator`
+  stands at `unbalanced` and `BlockMain` at a parameter.
+- Three are real examples: `Spice3.Examples.FourInverters`,
+  `InvertersApartRecord` and `Spice3BenchmarkMosfetCharacterization`.
+  All three extend `Modelica.Icons.Example` and declare an
+  `experiment` (`StopTime=5`, `5` and `1e-7`), and the first documents
+  the outputs it expects. They are refused by `no equation determines
+vin.T0` (`VGS.T0`), which is a compiler wall and not a filter
+  question.
+
+The filter already reads these three as runnable, so a stricter filter
+would keep them. It removes only what `meant_to_run` refuses, and on
+the whole library that is 129 names:
+
+| pile                                      | names | flatten | run | runnable flatten / run |
+| ----------------------------------------- | ----: | ------: | --: | ---------------------: |
+| (a) parts: no experiment, no example icon |   129 |    -117 | -44 |                  0 / 0 |
+| (b) real examples the filter would drop   |     0 |       0 |   0 |                  0 / 0 |
+
+The arithmetic checks against the floors' own numbers: 969 - 117 = 852
+and 797 - 44 = 753, which are exactly the runnable pair. To make pile
+(b) a measurement and not an assumption, all 129 were read in `.msl`
+for an `experiment` or `Icons.Example` in their own body. Seven matches
+came back, and every one was a namesake in the same file:
+`Digital.Examples.Utilities.Counter`, `Counter3`, `HalfAdder` and
+`FullAdder` against the examples of the same names one package up
+(lines 254 to 599 against 1612 to 2022 of `Digital.mo`, the utilities
+carrying neither). `Spice3...InvertersExtendedModel.MNmos` and `MPmos`
+are transistors nested inside an example. `TwoPhaseWater.BaseProperties`
+is a medium's model. So pile (b) is empty by name, and the three Spice3
+examples above are its nearest neighbours: real examples, refused,
+kept.
+
+Where pile (a) stands. In the census, 73 of the 172 run-half refusals
+are parts (`/tmp/m471/parts_flat_notran.txt`), spread over 48 rows: 24
+`parameter X has no value`, 20 `unbalanced model`, 13 `structurally
+singular` and the rest in ones and fours. In the flatten half, 12 of
+the 51 are parts (`parts_flatref.txt`), 8 of them media partial
+functions and 4 clocks. The 44 parts that run
+(`/tmp/m471/parts_ran.txt`) are the floors' cost: 8 `Digital` utilities,
+5 `Clocked` system components, 5 MultiBody, 6 `Analog` utilities and
+the rest one or two to a package. The 14 open components that item 34
+names were listed in `/tmp/m402/open14.txt`, which no longer exists, so
+they cannot be crossed by name here. All 14 flatten and none runs or is
+runnable, so they sit inside the 73 of pile (a) that flatten and do not
+run, and the 117 here is the whole of which their 14 were a sample.
+The broad variant item 34 already priced (117 flat, 43 ran, m402) is
+this one. The run count is one higher now.
+
+### The chain as a whole, as a pair
+
+One binary (`/tmp/m471/ox5`, links 1 to 3), the main pass without the
+heavy set, the switches unset (`/tmp/m471/pair_off.txt`) and all three
+set (`pair_on.txt`), run one after the other:
+
+| half         | flatten | run | runnable flatten | runnable run |
+| ------------ | ------: | --: | ---------------: | -----------: |
+| switches off |     969 | 797 |              852 |          753 |
+| links 1 to 3 |     969 | 783 |              852 |          739 |
+
+The flatten lists are the same name for name. The off half's run list
+is m470's to the name. The run lists differ by 20 (`/tmp/m471/lost.txt`,
+`won.txt`), 17 lost and 3 won, and `Fourbar1` is in neither, because it
+still stops at link 4. The same 20 run under links 1 and 2 alone
+exactly as with no switch (17 run), and under link 3 alone exactly as
+with all three (3 run) (`/tmp/m471/moved_0.txt`, `moved_12.txt`,
+`moved_3.txt`). So the whole price is link 3. Links 1 and 2 cost
+nothing and win nothing by themselves, as m470 found for link 1.
+
+Lost under link 3: fifteen machines and transformers
+(`SMEE_Generator`, `SMPM_Inverter`, `SMPM_VoltageSource`, `SMR_DOL`
+and `SMR_Inverter` of `Electrical.Machines`, `Transformers.AsymmetricalLoad`,
+three `FundamentalWave` synchronous machines, five
+`QuasiStatic.FundamentalWave` machines and `QuasiStatic.FluxTubes...
+QuadraticCoreAirgap`), and two MultiBody, `GearConstraint` and
+`GyroscopicEffects`. `SMR_DOL` shows the kind: `3*smr.lszero.i = 0
+constrains no state`. This is the zero-sequence row of a winding, which
+needs the demoted current to stay unsettled so that the row is read
+through its flux. Won under link 3: `IMC_DOL_Polyphase`,
+`SMEE_LoadDump` and `TestBearingConversion`.
+
+So link 3 as written is a different compiler, not a fix. Read as
+ground, a demoted state changes which definitions settle everywhere,
+and the machines' reductions lean on the present reading. A form that
+could be taken would have to say where a demoted state counts as ground
+and where it does not. The likely line is a position-level kinematic
+chain against a winding's currents, and nothing in the structure
+records that line yet. This is the cost of the series as it stands:
+-17 +3 on the run floors for no model of the loops family, until links
+4 and 6 are taken as well.
