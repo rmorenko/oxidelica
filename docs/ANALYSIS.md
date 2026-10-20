@@ -55278,8 +55278,8 @@ transformers under `Components`).
 ### `the Newton direction of algebraic loop` (10): the same ten as m460
 
 The ten names of the row in shift 467's raw half (`/tmp/m467/raw.txt`)
-are the ten of m460's, name for name (`/tmp/m469/nd.m460.lst` against
-`nd.m467.lst`). All of them are hydraulic and all in `ModelicaTest.Fluid`:
+are the ten of m460's, name for name (`/tmp/m469/newton_row.m460.lst` against
+`newton_row.m467.lst`). All of them are hydraulic and all in `ModelicaTest.Fluid`:
 `SeriesPipes1`, `SeriesPipes2`, `BranchingPipes1`, `2`, `3`, `4`, `13`,
 `14`, `TestTemperature1` and `TestMultiPortTraceSubstances`. The row was
 mapped in m424 (nine of ten: a liquid's pressure read back through a
