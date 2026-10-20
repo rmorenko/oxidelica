@@ -55155,9 +55155,14 @@ row of the three models above, which is the point of it.
 There is a second wall, and it is not the same as the first. Run on its
 own under `simulate` with the model's tolerance of 1e-5 and stop time
 of 5000 s, the tank under the trial gets to t = 133.2 s
-(`/tmp/m468/p/TT_trail.txt`). There, as the level falls past the port
-at 2 m, port 4 takes branch 2 by `aboveLevel[4] = 1`, and the run is
-refused as `singular Jacobian` over `ports[4].m_flow` and four more.
+(`/tmp/m468/p/TT_trail.txt`). There the level has risen to 2.001 m,
+past the port at 2 m and its hysteresis, and port 4 takes branch 2 by
+`aboveLevel[4] = 1` with `ports[4].m_flow = 0`. Its row is the square
+law above the level, flat in the flow at zero, and the run is refused
+as `singular Jacobian` over `ports[4].m_flow` and four more. That is
+the wall shift 467 found with the tank started above every port
+(`/tmp/m467/p/TT95.mo`), now met on the way up, so the second wall is
+the square law and the first was the unwritten zero.
 The two runners do not disagree. `library check` runs ten of the
 model's steps (`run_a_little` in the command line, 41 points under
 `--only`), and the second wall stands far past them. So the model the
