@@ -56057,6 +56057,34 @@ value is 1.7e-17, an exact zero, carried by `idealDiode1.s`,
 switching parameters the block cannot tell apart, which no threshold
 reaches.
 
+This reverses one line of the m372 triage, and it is named as a
+reversal. The queue's triage of eight refused models with ideal
+switches put
+`Modelica.Magnetic.FundamentalWave.Examples.BasicMachines.InductionMachines.ComparisonPolyphase.IMC_DOL_Polyphase`
+on an exact direction of a five-phase star (item 22), refused as
+singular or for its Newton direction, and found the Goff wall to be
+two models wide. On `d9f09f2` the same model is refused as
+underdetermined, its two smallest singular values are 1.1e-9 and
+1.4e-9 rather than an exact zero, the rows carrying them are the
+three-phase machine's `idealCloser3.idealClosingSwitch[k].i`, and the
+probe rule below lets it run. Two weeks of tree have moved it from
+item 22's breed into item 30's, so the wall is three models wide now.
+
+Homonyms, so that no later reader adds two models into one: the three
+of this family are all of `Modelica.Magnetic.FundamentalWave`. The
+`Modelica.Electrical.Machines.Examples.SynchronousMachines.SMEE_DOL`
+and `...SMEE_Rectifier` of the same names belong to item 22 in the
+triage, where they were refused; on this head both run (they are in
+the run list of `/tmp/m473/pair_off.txt` and in the convergence map
+below), so the triage's line on them is out of date as well. Where the
+map below names a `Machines...` model, it is the `Electrical.Machines`
+one.
+
+Item 30 is taken from the queue only on Roman's decision, and widening
+a guard is his word in any case, so no change of the rank test goes
+into the tree whatever its pair prints. The rule below was built as a
+probe and measured as one.
+
 ### Where the border lies, and that it is not a matter of scale
 
 The `Goff` series on `SMEE_DOL` (`/tmp/m473/small/G*.mo`, `switch(Goff =
