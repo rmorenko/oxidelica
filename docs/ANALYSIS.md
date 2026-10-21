@@ -56796,6 +56796,15 @@ the weights but the choice itself: a
 selection the weights at the initialised point call better is, in
 five models, one the run cannot start on.
 
+The two variants were then run over all 103 models whose states the
+second reduction changed, beside the same set without the key, one
+binary `/tmp/m475_ox5` (`state/m475/sel_off.txt`, `sel_anch.txt`,
+`sel_both.txt`): 100 run without the key, 96 with the anchors kept,
+96 with the anchors kept and the second pass only where a tie was
+broken. Both variants lose the same five named above and gain
+SMPM_Braking to the check's horizon, so outside the eight names the
+probe moves nothing in either direction.
+
 **SMPM_Braking, the one gained.** Under the key its second reduction
 demotes `smpm.phiMechanical` and keeps `smpm.airGap.psi_ms[2]`. That
 is the model whose mid-run re-selection at t = 9e-4 named different
