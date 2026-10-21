@@ -57235,3 +57235,33 @@ after m383 from some other wall. Which wall cannot be told, because
 m383's file is gone. `SMPM_CurrentSource` is outside the net, so the map
 says nothing about it either way. What can be told is that the four of
 today are three breeds (m474), and none of them is m383's swinging tank.
+
+### With the time left: queue item 21's fifteen at t = 0, on this head
+
+Item 21's road, the parser dropping `stateSelect`, has been gone since
+e3a6005 (10.10), and the brief of 422 asked how many of m344's fifteen
+models refusing at t = 0 still stand. They were read by name against
+the head's run list (`state/m476/desk_ran.lst`), its census
+(`/tmp/m474c/raw.txt`) and `scripts/heavy_models.txt`. Nothing was
+run again.
+
+| m344 member                                                | on 8f7aeb0                                                                                           |
+| ---------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `IdealGases.Air`, `IdealGases.Nitrogen`                    | run                                                                                                  |
+| `DryAirNasa` (all three of that name)                      | run                                                                                                  |
+| `WaterIF97_ph` (both), `WaterIF97OnePhase_ph`              | run                                                                                                  |
+| `TestWaterPumpStorage`, `TestWaterPumpPowerCharacteristic` | run                                                                                                  |
+| `Glycol47` (both)                                          | run                                                                                                  |
+| `IMC_Transformer` (all four), `SMPM_Mains`                 | run                                                                                                  |
+| `Essotherm650`                                             | `MediaTestModels.Incompressible` runs; `TestAllProperties.IncompleteMedia` refuses on `Pr` (item 42) |
+| `TestMultiPortTraceSubstances`                             | `the Newton direction of algebraic loop` (item 50)                                                   |
+| `DynamicPipeInitialization`, `R134a1`, `R134a2`            | in the heavy set, not in this census                                                                 |
+
+The names are the short ones m344 used, so where several models share
+a name every one of them is given, and all of them run except the two
+named. So of the fifteen names, ten run on the head, one is the
+`Essotherm650` homonym that refuses for item 42, one is item 50's
+giant, and three left the main pass with the heavy set. Nothing of
+item 21 is left in the main pass beyond what items 42 and 50 already
+hold. Whether the three heavy ones still stand at t = 0 is the heavy
+run's to say and was not asked here.
