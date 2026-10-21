@@ -56668,3 +56668,194 @@ parked: 3 under `vin.T0`, 2 under `vinN.T0`, the rest single. The top
 of the run half is `the Newton direction of algebraic loop` (10),
 `singular Jacobian` (9) and `underdetermined algebraic loop` (8),
 which is where this shift's two Spice3 stragglers would arrive.
+
+## Shift 475: the blind tie at 0.0 weighed again at the initialised point
+
+Item 13 of the queue proposed reducing twice: the first selection as
+it is, then a second with the weights read where the initialisation
+left the model. This shift built that as a probe behind a key, ran it
+on the family by name and over the corpus, and put nothing in the
+tree. The probe is parked as
+`~/oxideflow/park/m475-reweigh-at-init-probe.diff`, the small models
+and the lists are in `state/m475/`.
+
+**The verdict on e0d19a4 first.** Run 39509721028 finished green:
+the main pass, the dear pass and the judge of the library all
+succeeded, so the floors 795 / 751 hold on the runner.
+
+**Where the re-selection lives, and what the probe reuses.** A run
+that stalls asks for a new compilation in `simulate`
+(`solvers/mod.rs`, the `Stalled` arm), which calls
+`compile_at(model, Some(ResumePoint { time, values }))`. Everything a
+second reduction needs hangs off that one argument: `resuming` in
+`choose_the_victim` turns on the weight through the definitions
+(`weigh_at_start`), and the same flag turns off three things the first
+build does - the anchors of `fixed = true` starts, the retreat, and
+the tie rule that drops the undetermined. The probe reuses it whole.
+After `solve_initialization` and `check_block_regularity`, under
+`OXIDELICA_REWEIGH_AT_INIT`, it evaluates the plan once at the
+initialised states (`solve_plan_once`), gathers states, algebraics,
+discretes and parameters into a point, compiles again from that point,
+and keeps the second model only where it names other states, with
+`resume` set back to false so the run still takes its initial event.
+
+**The small models, on the head.** `SVnoTrap.mo` (from m474) still
+refuses with its own wall: reduction 3 weighs `sweptVolume.m` and
+`sweptVolume.U` both at 0.0 and demotes `U`, and the block
+`["sweptVolume.mb_flow", "der(sweptVolume.medium.h)"]` is `NaN` at
+t = 0 after the temperature solve has run from 293.15 to 2438179.
+`TJ2.mo`, rebuilt from the m321 chapter (`state/m475/TJ2.mo`), no
+longer refuses on the head: the same tie demotes `junctionVolume.U`,
+and the model runs to 1 s with `m = 0.0011612276`, `U = 248.9123`,
+`p = 1e5`. Its wall of m321 was the difference step, taken since.
+
+**Under the key, the family stops in the initialisation.** The
+probe prints which phase refused (`OXIDELICA_REWEIGH_PROBE`):
+
+```text
+model                                     under the key
+SVnoTrap (TestSweptVolume, no trapezoid)  refused in the initialisation
+TestMixingVolumesPressureStates           refused in the initialisation
+PumpingSystem                             refused in the initialisation
+SMPM_CurrentSource (Machines)             refused in the initialisation
+SMPM_CurrentSource (FundamentalWave, QS)  structurally singular, unchanged
+TestSweptVolume                           the T0 wall (trapezoid), unchanged
+BranchingPipes17                          runs either way
+TJ2                                       runs either way, same digits
+```
+
+That is the circle m333 named, measured rather than reasoned: the
+initialisation is solved on the plan the first selection made, and on
+that plan the start is not solvable, so there is no initialised point
+for a second reduction to read. Reducing twice helps only a model
+whose first selection is good enough to initialise and bad enough to
+fail later. None of the family is that. Where the second pass did
+reach, `BranchingPipes17` and `TJ2` swap to the physical choice
+(demote `m`, keep `U`) and run to the same numbers as without the key.
+
+**The other side of the tie, forced.** A second key,
+`OXIDELICA_TIE_VICTIM`, makes an all-zero tie take a named candidate,
+to see whether the right choice would have been enough:
+
+- SVnoTrap with `m` demoted: `the initialization problem is singular:
+the Newton step does not solve, because its equations do not pin
+down [sweptVolume.U]`, whatever start `U` is given (1, 100, 1e4).
+  The trail shows the temperature and `U` running off together. With
+  `m(start = 0.0011)` instead and `U` demoted as now:
+  `initialization did not converge in 50 Newton iterations`. So the
+  swept volume has a wall in the initialisation on both sides of the
+  tie, and the tie is not its last wall.
+- TestMixingVolumesPressureStates with both `m` demoted: `algebraic
+loop did not converge in 50 Newton iterations`, a different block.
+- PumpingSystem: the tie there is three-way, `reservoir.U`, `.V` and
+  `.m`, taken by order as `V`; with `m`: `singular Jacobian in
+algebraic loop ["pumps.medium.p", ...]`.
+- SMPM_CurrentSource (Machines): reduction 4 takes
+  `smpm.inertiaRotor.phi` on a tie of four. Forced to
+  `smpm.lssigma.i_[1]` the model turns structurally singular; forced
+  to `smpm.airGap.psi_mr[1]` the rotor angle is demoted anyway at
+  reduction 8 and the loop does not converge as before.
+
+**The pair.** One binary, `/tmp/m475_ox3`, both halves from `.msl`
+with `--without scripts/heavy_models.txt` (`/tmp/m475/off.txt`,
+`/tmp/m475/on.txt`, copies in `state/m475/`). Off: 969 flatten / 798
+run, runnable 852 / 754, the run list identical to m474's `p2on.lst`
+line for line. On: 969 / 792, runnable 852 / 749. The flattened lists
+are identical. The run lists (`ran_off.lst`, `ran_on.lst`) differ by
+seven lost and one gained:
+
+```text
+lost   Machines SMEE_Generator
+lost   Machines SMPM_VoltageSource
+lost   QuasiStatic SMEE_Generator
+lost   MultiBody ForceAndTorque
+lost   MultiBody PendulumWithSpringDamper
+lost   MultiBody GyroscopicEffects
+lost   MultiBody RobotR3.Utilities.MechanicalStructure
+gained Machines SMPM_Braking
+```
+
+The second reduction chose other states in 103 models
+(`reselected.lst`), 94 of which still run. The demoted victims say
+why it costs: the machines lose `phiMechanical` and the rotor's `w`
+for a load inertia's, the pendulum loses `revolute.w` for
+`body1.v_0[1]` - the anchors the first build protects and the resumed
+build drops on purpose. Two variants of the probe were then run on
+the eight names: the second pass keeping the anchors
+(`OXIDELICA_REWEIGH_ANCHORED`), and a second pass only where the first
+build broke an all-zero tie (`OXIDELICA_REWEIGH_TIES_ONLY`). Anchors
+kept, ForceAndTorque and PendulumWithSpringDamper run again and
+SMPM_Braking stays won; the other five are lost under every variant,
+at `step size underflow at t = 0` (both SMEE_Generator of Machines,
+GyroscopicEffects), a Newton underflow at t = 0 (SMPM_VoltageSource)
+and a singular Jacobian (the QuasiStatic SMEE_Generator,
+MechanicalStructure). Ties only, five are lost and ForceAndTorque
+runs. So the price is not the weights but the choice itself: a
+selection the weights at the initialised point call better is, in
+five models, one the run cannot start on.
+
+**SMPM_Braking, the one gained.** Under the key its second reduction
+demotes `smpm.phiMechanical` and keeps `smpm.airGap.psi_ms[2]`. That
+is the model whose mid-run re-selection at t = 9e-4 named different
+variables (item 3 below): taken at the start, the same selection the
+monitor would ask for later lets it run.
+
+### The family of the blind tie at 0.0, by name
+
+```text
+model                              chapter   under the probe            next wall
+TestSweptVolume / SVnoTrap         m474      no init point              init singular on U (tie forced) or init 50 steps
+TestMixingVolumesPressureStates    m333      no init point              loop not converged (tie forced to m)
+PumpingSystem                      m333      no init point              singular Jacobian at the pumps (tie forced to m)
+BranchingPipes17                   m320/321  re-selects m, runs         none: runs on the head already
+TJ2 (small)                        m321      re-selects m, runs         none: runs on the head already
+SMPM_CurrentSource (Machines)      m419      no init point              rotor angle demoted at reduction 8 anyway
+SMPM_CurrentSource (FW, QS)        m419      structurally singular      not this family's wall first
+PendulumWithSpringDamper           m397      runs on the head           lost under the probe unless anchors kept
+```
+
+None of the eight is cured by the weight at the initialised point.
+Two are no longer patients (they run on the head), five never reach a
+point to weigh at, and the m397 pendulum's tie, which runs on the
+head, is broken by the probe rather than mended.
+
+**The price in numbers, for the decision.** A probe that only counts
+(`OXIDELICA_TIE_COUNT`, printing every reduction of a first build
+whose candidates all weigh 0.0 and are broken by the walk's order) was
+run with `--only` over the 171 models of the m474 census's run half
+(`state/m475/ties.txt`): 59 of the 171 break at least one such tie,
+594 ties between them; the heaviest are
+`Spice3BenchmarkFourBitBinaryAdder.ONEBIT` (87), `RobotR3.FullRobot`
+(64) and `PlanarFourbar` (46). So 59 models that do not run stand on
+a tie at 0.0 somewhere in their reduction, which is the ceiling of
+what any rule on ties could reach, not a count of what it would win:
+in the family above every member forced to the other side of its tie
+met another wall. Of the named family, SMPM_CurrentSource (7, 5 and
+17 for the three), PumpingSystem, TestMixingVolumesPressureStates and
+MovingActuatedDrive (1 each) and SMPM_Braking (3) are among the 59;
+TestSweptVolume counts 0, because on the head it stops at the `T0`
+wall before its reduction.
+
+### Item 3: the two rows of the head's census by name
+
+From `/tmp/m474c/raw.txt` (271 lines, alive), the rows inside the run
+half (between the section marks at lines 147 and 262):
+
+- `2 step size underflow ... (state re-selection did not help)`:
+  `IMC_InverterDrive`, at t = 0, one of the swings the floors already
+  name (the runner runs it), and `Rotational.Examples.Friction`, at
+  t = 0.006, a wall it has stood at since m331.
+- `the states re-selected at t = N name different variables`, two
+  singles: `MultiBody.Examples.Rotational3DEffects.MovingActuatedDrive`
+  at t = 0.005 (m399's map of the monitor's rebuild) and
+  `Machines.SMPM_Braking` at t = 9e-4 (m406's form A).
+
+Against `docs/ANALYSIS.md` under "The 51 that the run list counts and
+`dopri45` does not finish", where the row `re-selected states name
+different variables` stood at 4: those four were `SMEE_DOL`, both
+`SMR_Inverter` and `ForceAndTorque`, and all four run today
+(`state/m474/ran_on.lst`). So the row did not break up into
+synonyms; its members changed. The old four were cured, and the two
+now in it arrived from other rows. They are the two the probe above
+reaches differently: SMPM_Braking runs under it, MovingActuatedDrive
+does not.
