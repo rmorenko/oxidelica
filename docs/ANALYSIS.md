@@ -56785,20 +56785,26 @@ the eight names: the second pass keeping the anchors
 (`OXIDELICA_REWEIGH_ANCHORED`), and a second pass only where the first
 build broke an all-zero tie (`OXIDELICA_REWEIGH_TIES_ONLY`). Anchors
 kept, ForceAndTorque and PendulumWithSpringDamper run again and
-SMPM_Braking stays won; the other five are lost under every variant,
-at `step size underflow at t = 0` (both SMEE_Generator of Machines,
+SMPM_Braking stays in the run list (to the check's horizon only, see
+below); the other five are lost under every variant, at `step size
+underflow at t = 0` (the Machines SMEE_Generator,
 GyroscopicEffects), a Newton underflow at t = 0 (SMPM_VoltageSource)
 and a singular Jacobian (the QuasiStatic SMEE_Generator,
-MechanicalStructure). Ties only, five are lost and ForceAndTorque
-runs. So the price is not the weights but the choice itself: a
+MechanicalStructure). Ties only, six are lost and of the seven only
+ForceAndTorque runs (`state/m475/var_ties.txt`). So the price is not
+the weights but the choice itself: a
 selection the weights at the initialised point call better is, in
 five models, one the run cannot start on.
 
 **SMPM_Braking, the one gained.** Under the key its second reduction
 demotes `smpm.phiMechanical` and keeps `smpm.airGap.psi_ms[2]`. That
 is the model whose mid-run re-selection at t = 9e-4 named different
-variables (item 3 below): taken at the start, the same selection the
-monitor would ask for later lets it run.
+variables (item 3 below). The gain is the check's horizon and no
+more: `library check` runs ten output steps, and `simulate` to the
+model's own stop time of 0.8 s refuses under the key with the same
+words at t = 0.0115 instead of t = 9e-4, anchors kept or not. The
+selection taken at the start lasts thirteen times longer and then
+fails the same way, so SMPM_Braking is moved, not won.
 
 ### The family of the blind tie at 0.0, by name
 
@@ -56857,5 +56863,6 @@ different variables` stood at 4: those four were `SMEE_DOL`, both
 (`state/m474/ran_on.lst`). So the row did not break up into
 synonyms; its members changed. The old four were cured, and the two
 now in it arrived from other rows. They are the two the probe above
-reaches differently: SMPM_Braking runs under it, MovingActuatedDrive
-does not.
+reaches differently: SMPM_Braking passes the check's ten steps under
+it and still fails at t = 0.0115 of its 0.8 s, MovingActuatedDrive
+does not move.
