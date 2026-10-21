@@ -56902,7 +56902,7 @@ None runs on the other side of its tie. So in the rows the queue
 would take first, the blind tie at 0.0 is present in some members and
 the wall in none of those probed. The 59 of the tie count are a
 ceiling, and every model forced to the other side of its tie this
-shift, seven of them, met another wall, so no model is yet known to
+shift, nine of them with the two below, met another wall, so no model is yet known to
 be won by a rule on ties.
 
 The two singles of item 3 were taken the same way. MovingActuatedDrive
