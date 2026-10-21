@@ -5192,3 +5192,33 @@ fn a_record_array_sized_by_the_declaration_is_summed_whole_up_an_extends() {
         last_of(&result, "y")
     );
 }
+
+#[test]
+fn a_call_filling_several_targets_reads_a_local_record_as_it_now_stands() {
+    // A local record taken whole from an input, a field of it written
+    // over, and then the record handed to a call filling two targets.
+    // The call's outputs name the record's fields, `q.b` and `q.c`,
+    // spelled by the inlining after the body's bindings were put in, so
+    // they have to be bound once more - an assignment of one target
+    // does that. Without it the fields left the body as names nothing
+    // declares, which is the `int_f.m_corDepCap` that stopped the JFET
+    // of `Spice3.Examples.CascodeCircuit`.
+    let result = run("model R record Rec Real a; Real b; Real c; end Rec; \
+         function k input Rec r; input Real u; output Real p; output Real q; \
+           algorithm p := r.b * u; q := r.c + r.a; end k; \
+         function f input Rec r; input Real u; output Real y; protected Rec q; \
+           algorithm q := r; q.a := 10 * u; (q.b, q.c) := k(q, u); y := q.b + q.c; end f; \
+         Rec r0(a = 1, b = 3, c = 4); Real y; \
+         equation y = f(r0, time); \
+         annotation(experiment(StopTime = 1, Interval = 0.5)); end R;");
+    let y = result.columns.iter().position(|c| c == "y").unwrap();
+    for row in &result.rows {
+        let u = row[0];
+        // b = 3u, c = 4 + 10u, so y = 4 + 13u.
+        assert!(
+            (row[y] - (4.0 + 13.0 * u)).abs() < 1e-9,
+            "y = {} at t = {u}",
+            row[y]
+        );
+    }
+}

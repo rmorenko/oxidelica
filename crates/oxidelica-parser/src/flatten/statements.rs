@@ -143,8 +143,25 @@ pub(super) fn execute(
                         targets.len()
                     ));
                 }
+                // The names the call's value held once the bindings were
+                // in are settled; anything else in an output is a name
+                // the inlining made from the caller's spelling - `q.b`
+                // out of a local record `q` handed whole - and may be
+                // bound by an earlier statement, exactly as after the
+                // expansion of an assignment of one target.
+                let mut settled: HashSet<String> = HashSet::new();
+                super::algorithms::walk_expr(&value, &mut |node| {
+                    if let Expr::Ref(name) = node {
+                        settled.insert(name.clone());
+                    }
+                });
+                let rebind = !tuple_outputs_unbound();
                 for (slot, (_, output)) in targets.iter().zip(outputs) {
                     let Some((target, subscripts)) = slot else { continue };
+                    let output = match rebind {
+                        true => substitute_refs_but(&output, bindings, &settled),
+                        false => output,
+                    };
                     if !subscripts.is_empty() {
                         return Err(format!(
                             "`{target}` takes part of an array from a call filling several \
@@ -2234,6 +2251,14 @@ fn loop_constants_open() -> bool {
 /// both numbers.
 fn statement_args_late() -> bool {
     std::env::var_os("OXIDELICA_STATEMENT_ARGS_LATE").is_some()
+}
+
+/// Whether the outputs of a call filling several targets are handed on
+/// without the body's bindings applied to the names the inlining made,
+/// as before. `OXIDELICA_NO_TUPLE_REBIND` is kept so that one binary
+/// gives both numbers.
+fn tuple_outputs_unbound() -> bool {
+    std::env::var_os("OXIDELICA_NO_TUPLE_REBIND").is_some()
 }
 
 /// [`substitute_refs`], leaving alone the names in `settled`.
