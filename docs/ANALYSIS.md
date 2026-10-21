@@ -57844,8 +57844,10 @@ built: the fix is in the event iteration, which every model goes through.
 
 ### The verdict on 65f3a80
 
-Push run 39668349585 at 65f3a80 was still running at 23:06 local, 53 minutes
-after the push. The verdict is left to the review.
+Push run 39668349585 at 65f3a80 finished green, in 1h41m. The judge
+(job 119506660198) printed `OK: 2671 files read, 969 flatten, 799 run;
+runnable 852 flatten, 755 run`, one above the desk's 969 / 798 and
+852 / 754, the runner's usual swing, and above the floors of 795 and 751.
 
 ### The belt of singles, past the soft starter (item 1)
 
@@ -57912,9 +57914,7 @@ the repaired binary, and only `Adder` and `FilterOrder` changed.
 The other singles looked at in the same storey, not built:
 `StateGraph.Examples.Utilities.valve` (8) is a part checked alone whose
 connector `Outflow2` declares its outflow an input that nothing writes;
-`TwoPhaseWater.ExtendedProperties` (11) leaves `dew.d` and `state.d` with no
-equation, because the balance assigns them from `dTp2` and `eta`, the
-records being built without a `setState` giving their density;
+`TwoPhaseWater.ExtendedProperties` (11) is taken in its own section below;
 `DirectCapacitor` and `DirectInductor` (12, 13) leave `currentToVoltage.y1`
 and `ground.p.i`, a part checked alone with its adaptor's derivative output
 open.
@@ -57995,3 +57995,77 @@ the three band judges, coverage over its floor, TOML, the Cyrillic check,
 the unused dependencies and the documentation were green
 (`/tmp/m481/preflight.txt`). The prose steps were red on this chapter
 while it was being written and were taken again on its final text.
+
+### `ExtendedProperties`: a medium's own inputs that never took a start
+
+Shift 481 first wrote here, in 2a02110, that `ExtendedProperties` leaves
+`dew.d` and `state.d` with no equation for want of a `setState`. That was
+read off which names the balance happened to leave over, and it was wrong:
+`oxidelica why` shows an equation for each. What the model is short of is
+a start for its two inputs, `p` and `h`, and it is a chain of two links.
+
+The first link: `PartialMedium.BaseProperties` declares, inside itself,
+`connector InputSpecificEnthalpy = input SpecificEnthalpy`, a short
+connector over a type rather than over `Real`. Written inside a package the
+parser mints such a definition as a connector class of its own; written
+inside a model it is entered among the model's names by `effective_imports`
+in `flatten/scoping.rs`, which resolved it straight through to
+`SpecificEnthalpy`, a bare type. The `input` was lost and `h` was no port.
+Small model `/tmp/m481/small/U6.mo` (eleven lines, a model holding `type
+SpecH`, `connector InP = input SpecH`, `InP h(start = 2)`); the same with
+the type replaced by `Real` (`U7.mo`), or with the connector written in a
+package (`U8.mo`), ran. The trial repair entered the name as the minted
+connector class where one exists, under `OXIDELICA_SHORT_CONNECTOR_AS_TYPE`.
+
+The second link: `BaseProperties` of water writes `h = state.h` and `p =
+state.p`, the model's own input first. The list of names the model states
+outright is read off the left side of every equation, so `h` counted as
+written and took no start. The trial repair left out of that list an
+equation of the top level that equates the model's own input to another
+name, under `OXIDELICA_TOP_INPUT_ALIAS_STATES`. Small model `U2.mo` (a
+top-level `InP h(start = 2)` equated to `state.h`) refused with the key and
+ran without it.
+
+With both, `U6`, `U9` and `U11` (the connector in a base class, the start
+given in the model or through the `extends`) ran, and each refused under
+either key. `ExtendedProperties` went one storey up, to `IF97 medium
+function tsat called with too low pressure p = 0 Pa`: `p` has no start
+written anywhere, a part checked alone with nothing on its pressure.
+
+### The chain measured, and not taken
+
+One binary (`/tmp/m481/ox7`, the tree with both links), three passes
+without the heavy set: both keys set, only the connector key set, neither
+(`state/m481/r_off.txt`, `r_mid.txt`, `r_on.txt`, lists `*.ran`):
+
+```text
+                         flatten / run   runnable
+both keys (old)          969 / 799       852 / 754
+alias link only          969 / 799       852 / 754
+both links               969 / 769       852 / 724
+```
+
+The first list is identical name for name to `q_on.ran` above, the pushed
+tree. The alias link alone moves nothing. The connector link costs 30
+models and wins none, the flattened lists unchanged
+(`state/m481/victims_short_connector.txt`): `MixtureGases`, `MoistAir`, a
+dozen `ModelicaTest.Fluid` tests, the `TestOnly` gas media and the
+`MediaTestModels` of air, nitrogen, natural gas and the incompressible
+media. `MixtureGases` now refuses as `71 algebraic equation(s) for 69
+unknown(s); nothing is left for medium1.p = 100000, medium2.p = 100000`:
+once `p` is a port, a model that states `medium.p` outright gets the start
+as a second equation. The rule that gives an input its start asks whether
+the name is stated on the left of an equation of the model, and
+`medium1.p = 100000` is written by the example one level up, about a
+component's input, which is not the shape that rule was written for.
+
+Both links were reverted, and the tree pushed is the one the first pair
+measured. The chain is queue item 58: the connector link is right about
+what the language says, and wrong as built, because what becomes a port
+has to be met by the start rule knowing who writes the port's value. Not
+attempted again this shift.
+
+Two wrong guesses on the way, both reverted before measuring: that the
+connector was not found because it was written in a base class (`U6` has
+no base and refused all the same), and that `names_a_connector` missed it
+(it was the import that answered first and gave the type).
