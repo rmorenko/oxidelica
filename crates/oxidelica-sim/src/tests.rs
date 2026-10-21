@@ -1003,3 +1003,45 @@ fn a_body_asked_twice_at_one_point_is_walked_once() {
     walked.answer(&name, &[3.5], &[vec![]], 1.0).unwrap();
     assert_eq!(walks(), 3, "a moved time is another point");
 }
+
+#[test]
+fn a_call_on_a_still_value_with_its_own_rule_does_not_move() {
+    // `HeatingSystem` starts a tank at `h_ph(p, h_pT(p, T)[5])[7]`
+    // with every argument a literal, and the inner value arrives
+    // carrying the derivative rule its function declared. Asked
+    // whether that stands still, the old reading did not look inside
+    // the rule's wrapper, so the whole call read as moving and index
+    // reduction refused it as a subscript it cannot differentiate. A
+    // value with a rule is still the value: nothing in it moves, and
+    // its derivative is zero whatever the rule says.
+    let state_rhs = HashMap::new();
+    let params: HashMap<String, f64> = HashMap::new();
+    let dummies = HashMap::new();
+    let alg_defs = HashMap::new();
+    let implicit_defs = HashMap::new();
+    let target = DiffTarget::Time {
+        state_rhs: &state_rhs,
+        params: &params,
+        dummies: &dummies,
+        alg_defs: &alg_defs,
+        implicit_defs: &implicit_defs,
+        holding: &[],
+    };
+    let ruled = Expr::WithDerivative(
+        Box::new(Expr::Number(2.0)),
+        Box::new(Expr::Ref("$seed0".to_string())),
+        vec![("$seed0".to_string(), Expr::Number(101325.0))],
+    );
+    let expr = Expr::Index(
+        Box::new(Expr::Call(
+            "Lib.f".to_string(),
+            vec![Expr::Number(101325.0), ruled],
+        )),
+        vec![Expr::Number(7.0)],
+    );
+    let taken = differentiate(&expr, &target).expect("a call on literals stands still");
+    assert!(
+        matches!(simplify(&taken), Expr::Number(z) if z == 0.0),
+        "{taken:?}"
+    );
+}

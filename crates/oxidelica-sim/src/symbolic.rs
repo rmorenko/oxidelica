@@ -1407,6 +1407,13 @@ fn does_not_move(expr: &Expr, target: &DiffTarget) -> bool {
         Expr::Index(base, subscripts) => {
             does_not_move(base, target) && subscripts.iter().all(|s| does_not_move(s, target))
         }
+        // A value that carries its own derivative rule is still the
+        // value: if nothing in it moves, its rule has nothing to say.
+        Expr::WithDerivative(value, _, _)
+            if !crate::walk::switch_set("OXIDELICA_NO_STILL_WITH_DERIVATIVE") =>
+        {
+            does_not_move(value, target)
+        }
         _ => false,
     }
 }
