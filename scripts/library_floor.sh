@@ -1795,7 +1795,21 @@ FLATTEN_FLOOR=969
 # state/m480/on.ran):
 #
 #   798 - 2 swings - TestJunctionIdeal = 795 = 794 + 1
-RUN_FLOOR=795
+#
+# And run 796 = 795 + Adder
+# (Electrical.Digital.Examples.Utilities.Adder), which runs once a
+# model's own output is no longer taken for the source of a set that
+# also holds one of its inputs. The pair is one binary from the final
+# tree with both keys of m481 set, only the second set, and neither
+# (state/m481/q_off.txt, q_mid.txt, q_on.txt): 969 / 798, 969 / 799
+# and 969 / 799, the flattened lists identical and the run lists
+# differing by that name alone. Adder is not a runnable example, so the
+# runnable floors stay. The runner has not counted this tree, so the
+# desk is taken, less the same three (lines 339, 381 and 483 of
+# state/m481/q_on.ran):
+#
+#   799 - 2 swings - TestJunctionIdeal = 796 = 795 + 1
+RUN_FLOOR=796
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #

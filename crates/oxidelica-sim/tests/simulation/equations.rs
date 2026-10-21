@@ -2798,3 +2798,53 @@ fn a_connect_may_take_one_port_of_each_of_an_array_of_components() {
     assert_eq!(at("k.top[2].e"), 3.0);
     assert_eq!(at("k.top[2].f"), 6.0);
 }
+
+#[test]
+fn a_models_own_output_does_not_source_the_input_wired_to_it() {
+    // A generic adder hands each `a[i]` on to its `s[i]` as well as to
+    // the component doing the work. The set held a top-level input and
+    // a top-level output, and the output was taken for the source
+    // because it was an output: the input was equated to it, nothing
+    // gave either of them a value, and the model was refused as one
+    // equation short. Seen from inside, the model's own output is where
+    // a value leaves, and the input is where one arrives.
+    let result = run("connector RealInput = input Real; \
+         connector RealOutput = output Real; \
+         block Pass RealInput u; RealOutput y; equation y = 2 * u; end Pass; \
+         model M RealInput a(start = 3); RealOutput s; RealOutput z; Pass p; \
+         equation connect(a, p.u); connect(p.u, s); connect(p.y, z); \
+         annotation(experiment(StopTime = 1.0, Interval = 0.5)); end M;");
+    let at = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+    let last = result.rows.last().unwrap();
+    assert_eq!(last[at("a")], 3.0);
+    assert_eq!(last[at("s")], 3.0);
+    assert_eq!(last[at("z")], 6.0);
+}
+
+#[test]
+fn a_block_equating_two_of_its_own_inputs_writes_neither() {
+    // `InverseBlockConstraints` writes `u1 = u2`: two values handed in
+    // from outside, held equal. Read as a definition of `u1`, the
+    // top-level input joined to it was taken for something the model
+    // already writes and given no start, and the mixing unit's filter
+    // was refused one equation short. An adaptor's `u1 = 0` is still a
+    // definition, and the second block keeps it so.
+    let result = run("connector RealInput = input Real; \
+         connector RealOutput = output Real; \
+         block Inv RealInput u1; RealInput u2; RealOutput y1; RealOutput y2; \
+         equation u1 = u2; y1 = y2; end Inv; \
+         block Pin0 RealInput u1; RealOutput y; equation u1 = 0; y = 5; end Pin0; \
+         model M RealInput c_ref(start = 2); RealOutput t; Real c; Inv inv; \
+         RealInput open; Pin0 z; \
+         equation connect(c_ref, inv.u1); inv.u2 = c; c = 3 * inv.y2; \
+         connect(inv.y1, t); connect(open, z.u1); \
+         annotation(experiment(StopTime = 1.0, Interval = 0.5)); end M;");
+    let at = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+    let last = result.rows.last().unwrap();
+    assert_eq!(last[at("c")], 2.0);
+    assert!(
+        (last[at("t")] - 2.0 / 3.0).abs() < 1e-12,
+        "t = {}",
+        last[at("t")]
+    );
+}

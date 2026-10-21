@@ -57839,3 +57839,159 @@ start repair it can reach the 182 starts above as well. It is the same
 wall as queue item 54 (m467, `T9.mo`), seen from a `when initial()` rather
 than a fixed Boolean, and was written there as an addition. It was not
 built: the fix is in the event iteration, which every model goes through.
+
+## Shift 481: the belt of singles past the soft starter, two connection rules at the top of a model, and a state graph that never starts
+
+### The verdict on 65f3a80
+
+Push run 39668349585 at 65f3a80 was still running at 23:06 local, 53 minutes
+after the push. The verdict is left to the review.
+
+### The belt of singles, past the soft starter (item 1)
+
+The census was not taken again: the head differs from m480's census by the
+soft starter alone. The singles were taken from `/tmp/m480/raw.txt` in the
+census's order, the same normalisation as `refusals.sh`
+(`/tmp/m481/kn.txt`, `/tmp/m481/order.txt`, 95 single rows on m480's
+census, 94 on the head). Past `SoftStarter` (3), `Fourbar1` (4) has its
+chain in m470 to m472 and `OneAxis` (5) in m448; `TwoPhaseWater.BaseProperties`
+(6) is a medium's model, m471. The first with no chapter saying where it
+stands was `Modelica.Electrical.Digital.Examples.Utilities.Adder` (7),
+`114 algebraic equation(s) for 116 unknown(s); nothing determines s[1], s[2]`.
+
+### `Adder`: a model's own output taken for the source of its input
+
+`OXIDELICA_BALANCE_PROBE` on the head binary (`/tmp/m480/ox4`) put the
+fault in one set: `connect(a[i], Adder[i].a)` and `connect(Adder[i].a,
+s[i])` join a top-level input, a component's input and a top-level output.
+The set's source was chosen as the first member whose connector is an
+output, which was `s[i]`, and the input `a[i]` was equated to it. Nothing
+writes `s[i]` from inside, and the rule that gives a top-level input its
+start only fires when the input is the source. Both names were left with
+one equation between them. The small model is `/tmp/m481/small/A1.mo`
+(a top-level `RealInput a(start = 3)` passed on to a block and to a
+top-level output); it refused on the head with `4 algebraic equation(s) for
+5 unknown(s)`.
+
+The repair, in `flatten/mod.rs`: a model's own output is the source of a
+set only when neither an output of a component nor a top-level input is in
+it. Seen from inside, the output is where a value leaves.
+`OXIDELICA_TOP_OUTPUT_AS_SOURCE` keeps the old reading. Under the repair
+`A1` runs with `a = s = 3`, `z = 6`, and `Adder` runs. Test
+`a_models_own_output_does_not_source_the_input_wired_to_it`, red under the
+key and green without it.
+
+### `FilterOrder`: a block's equation between two of its own inputs
+
+The next single without a map below `Adder` that the probe put in the same
+layer was `Clocked...ComponentsMixingUnit.FilterOrder` (9, `6 for 7;
+nothing determines inverseBlockConstraints.y2`). `InverseBlockConstraints`
+writes `u1 = u2`, and the list of names the model states outright is read
+off the left side of every equation, so `inverseBlockConstraints.u1` counted
+as written inside. The top-level input `c_ref` joined to it then took no
+start. Small model `/tmp/m481/small/F1.mo`, refused on the head the same way.
+
+The repair leaves out of that list an equation written inside a block that
+equates two of that block's own inputs. Who wrote the equation comes from
+its `origin`, and whether a name is an input from its connector's class.
+A first cut left out every equation whose left side was the block's own
+input, and `DirectCapacitor` went from 30 for 31 to 33 for 31: the adaptor
+writes `u1 = 0` for an input its configuration leaves open, and that does
+define it. Narrowed to input against input, `DirectCapacitor` and
+`DirectInductor` are as they were. `OXIDELICA_OWN_INPUT_STATES` keeps the
+old reading. `F1` runs with `c = 2`, `T_c = 2/3`. `FilterOrder` goes one
+storey up, to `structurally singular model: equation
+Neg(Ref("mixingUnit.wa13")) = 0 constrains no state`: the inverse model's
+index reduction, another family. Test
+`a_block_equating_two_of_its_own_inputs_writes_neither`, which also holds
+an adaptor's `u1 = 0` as a definition, red under the key and green without.
+
+The first 30 names of `order.txt` were run with `--only` on the head and on
+the repaired binary, and only `Adder` and `FilterOrder` changed.
+
+The other singles looked at in the same storey, not built:
+`StateGraph.Examples.Utilities.valve` (8) is a part checked alone whose
+connector `Outflow2` declares its outflow an input that nothing writes;
+`TwoPhaseWater.ExtendedProperties` (11) leaves `dew.d` and `state.d` with no
+equation, because the balance assigns them from `dTp2` and `eta`, the
+records being built without a `setState` giving their density;
+`DirectCapacitor` and `DirectInductor` (12, 13) leave `currentToVoltage.y1`
+and `ground.p.i`, a part checked alone with its adaptor's derivative output
+open.
+
+### The numbers of the 183 starts (item 2)
+
+Three families of m480's list were run on the head binary, with and without
+`OXIDELICA_NO_START_AT_INITIAL_EVENT`, reading the first rows of the CSV:
+
+- noise, `Blocks.Examples.Noise.UniformNoise`: `uniformNoise2.r_raw`
+  0.2518 and `y` 0.00738 at t = 0, the same under the key. The generator's
+  draw is not what the start rule decides, since the clocked `when` fires at
+  the initial instant anyway. Physical;
+- tank, `AST_BatchPlant.Test.TwoTanks`: `tank1.aboveLevel[1] = 1` at t = 0
+  with `level = 3` over a port at the bottom, the same under the key.
+  Physical;
+- state graph, `StateGraph.Examples.FirstExample`: every `.active` is 0 for
+  the whole run, with and without the key. **Wrong.** The initial step owes
+  `active = true` at t = 0.
+
+### Found: the state graph never starts
+
+The nine running `StateGraph.Examples` with an `.active` column
+(`ControlledTanks`, `ExecutionPaths`, `FirstExample` and its two variants,
+`ShowCompositeStep`, `ShowExceptions`, `Utilities.TankController`) hold every
+step's `active` at 0 for the whole run. The small models:
+`/tmp/m481/small/G1.mo` is `InitialStep` in twelve lines (`initial equation
+active = true; pre(newActive) = pre(localActive);` and `localActive =
+pre(newActive); newActive = localActive and not reset;`) and gives 0 where 1
+is owed until `reset`. `G2.mo` writes `pre(newActive) = true` outright and
+still gives 0. `G3.mo` is `G2` with `reset` replaced by `time > 1`, and gives
+1, then 0 after t = 1, as owed.
+
+The layer is `discrete_layer` in `compile.rs`. An initial equation about a
+Boolean is struck off the initial problem and its value goes to `known`,
+but it reaches the run's start only for the names of the discrete layer.
+`newActive` is a Boolean the run solves as an algebraic name, because its
+definition holds no relation (in `G3` the relation makes it discrete), so
+the value is dropped and `$pre.newActive` is seeded from the declaration, 0.
+`G1` adds a second link: `pre(localActive)` cannot be evaluated before the
+run, so the start is an initial problem with `pre` unknowns in it.
+
+`G1` gives the same 0 on the binaries of m443, m473 and m474, so this is old
+and not from m480. Not built: where `pre` unknowns are solved is a design
+question, and it meets queue item 54. Written as queue item 57.
+
+### The pair of three, one binary for the adder and the filter
+
+One binary (`/tmp/m481/ox3`, the same bytes as the final tree's build) in
+three passes without the heavy set: both keys set, only
+`OXIDELICA_OWN_INPUT_STATES` set, and neither (`state/m481/q_off.txt`,
+`q_mid.txt`, `q_on.txt`, lists `*.ran`, `q_on.flat`):
+
+```text
+                         flatten / run   runnable
+both keys (old)          969 / 798       852 / 754
+output rule only         969 / 799       852 / 754
+both rules               969 / 799       852 / 754
+```
+
+The flattened lists are identical across all three. The first run list is
+identical name for name to m480's `on.ran`, the head, which is the desk's
+swing of one above m480's own 798. The second adds
+`Digital.Examples.Utilities.Adder` and loses nothing. The third is identical
+to the second: the own-input rule moves `FilterOrder` one storey and no
+model in or out. Wins 1, victims 0. `Adder` is not a runnable example, so
+only the run floor moves, 795 to 796, the desk less the same three swings
+(lines 339, 381 and 483 of `state/m481/q_on.ran`).
+
+The halves' times on the desk, flattening against running: 3682s / 4163s,
+3709s / 4159s and 3654s / 4162s, three passes at four threads each sharing
+the desk.
+
+The preflight was run on the final tree without its library step, which
+the pair above stands in for (one binary, the final tree, nothing it
+measures changed after it): formatting, clippy, the tests, the examples,
+the three band judges, coverage over its floor, TOML, the Cyrillic check,
+the unused dependencies and the documentation were green
+(`/tmp/m481/preflight.txt`). The prose steps were red on this chapter
+while it was being written and were taken again on its final text.

@@ -1249,11 +1249,44 @@ fn join_the_connections(registry: &HashMap<&str, &ClassDef>, acc: &mut Flat) -> 
     // value below, and a name the model already defines must not be
     // given a second definition: `outflow1.open = valveControl` is
     // the model speaking for one of the two.
+    //
+    // Not a block's equation about its own input, though. `u1 = u2`
+    // in `InverseBlockConstraints` relates two values handed in from
+    // outside; it writes neither, whichever side it happens to put
+    // first. Read as a definition, a top-level input joined to `u1`
+    // took no start because something inside was thought to write it,
+    // and the model came out one equation short. Whose equation it is
+    // comes from where it was written, and whether the name is an
+    // input from its connector, never from how the name is spelt.
+    //
+    // Only where the other side is an input of the same block too. An
+    // adaptor writes `u1 = 0` for an input its configuration leaves
+    // unconnected, and that does give the input its value: read as no
+    // definition, the input took its start as well and the model came
+    // out with two equations for it.
+    let own_input = |equation: &EquationItem, name: &str| {
+        !equation.origin.is_empty()
+            && std::env::var_os("OXIDELICA_OWN_INPUT_STATES").is_none()
+            && name
+                .strip_prefix(equation.origin.as_str())
+                .and_then(|rest| rest.strip_prefix('.'))
+                .is_some_and(|port| !port.contains('.'))
+            && acc
+                .connectors
+                .get(name)
+                .and_then(|of| registry.get(of.as_str()))
+                .is_some_and(|of| of.alias_causality == Causality::Input)
+    };
     let stated_outright: HashSet<String> = acc
         .equations
         .iter()
         .filter_map(|equation| match &equation.lhs {
-            Expr::Ref(name) => Some(name.clone()),
+            Expr::Ref(name)
+                if !(own_input(equation, name)
+                    && matches!(&equation.rhs, Expr::Ref(other) if own_input(equation, other))) =>
+            {
+                Some(name.clone())
+            }
             _ => None,
         })
         .collect();
@@ -1415,10 +1448,23 @@ fn join_the_connections(registry: &HashMap<&str, &ClassDef>, acc: &mut Flat) -> 
                         .and_then(|of| registry.get(of.as_str()))
                         .is_some_and(|of| of.alias_causality == Causality::Input)
             };
+            // An `output` of the model itself is not a source either.
+            // Seen from inside it is where a value is handed out, and
+            // nothing writes it unless something inside the set does.
+            // Taken as the source of a set that also holds a top-level
+            // `input`, the input was equated to it and nothing gave
+            // either of them a value: a generic adder wiring its `a[i]`
+            // straight on to its `s[i]` was refused as one equation
+            // short. So the outputs of components come first, then a
+            // value handed down, and only then the model's own output.
+            let own_output_last = std::env::var_os("OXIDELICA_TOP_OUTPUT_AS_SOURCE").is_none();
+            let inner_output =
+                |path: &str| states_it(path) && (!own_output_last || path.contains('.'));
             let source = members
                 .iter()
-                .find(|(path, _)| states_it(path))
+                .find(|(path, _)| inner_output(path))
                 .or_else(|| members.iter().find(|(path, _)| handed_down(path)))
+                .or_else(|| members.iter().find(|(path, _)| states_it(path)))
                 .unwrap_or(&members[0]);
             for other in members.iter() {
                 if other == source {
