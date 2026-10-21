@@ -57670,3 +57670,172 @@ goes through, and a model taken one storey on. It does not move a count.
 So the item ends with the belt of rows of two mapped whole, the first single
 without a map found and probed, its first wall removed, and the wall behind it
 named as a family that already has a map.
+
+## Shift 480: a fresh census of the head, the belt of singles to its first hole, and a soft starter that began at zero
+
+### The verdict on 6989c6d
+
+Push run 39646491494 at 6989c6d was still running at 19:15 local, an hour and
+a half after the push, with every job finished green but the library's main
+pass. The verdict is left to the review.
+
+### The census of the head, against m478 (item 1)
+
+Taken on the head binary (`/tmp/m480/census.txt`, raw half
+`/tmp/m480/raw.txt`, copies in `state/m480/`), counted by the section marks:
+
+| half               | m478            | m480            |
+| ------------------ | --------------- | --------------- |
+| would not flatten  | 51 in 30 rows   | 51 in 30 rows   |
+| flattened, not run | 170 in 114 rows | 172 in 116 rows |
+
+The run half is 172 = 969 - 797, as the head's pair printed. The flatten half
+is identical line for line. The sorted raw halves differ by four names, and
+each is one of the three things the brief expected:
+
+- the doors of m479: `PolyphaseRectifier` and `ThyristorBridge2mPulse_RLV`
+  arrive. They arrive as two single rows, not one row of two, because their
+  refusals name different exits ("after three steps that did not descend" and
+  "after N iterations"), and the counter reads the words;
+- `CascodeCircuit` leaves `unknown variable X in equation X` (that row, 1,
+  empties) for `` `X` of algebraic loop `` (6 to 7), the NaN of `icGS/cGS`;
+- `HeatingSystem` leaves `cannot differentiate a subscript` (3 to 2) for the
+  new single `der(tank.medium.T): X is not a state of the model`.
+
+Nothing else moved, so there is no finding beyond the expected three.
+`TestTankWithTopPorts` had already left in m478's census.
+
+### The belt of singles, to its first hole (item 2)
+
+The singles were taken by name from the raw half, normalised as
+`refusals.sh` normalises them (`/tmp/m480/singlekinds.txt`, 95 single rows,
+91 names). Each name was looked up in this document. The parameter rows are
+service classes by the census's own section (27 rightly), the unbalanced
+utilities of `AST_BatchPlant`, `Analog.Examples.Utilities`, `RobotR3.Utilities`
+and `StateGraph.Examples.Utilities` are the parts-checked-alone of m307 and
+m432, and the structural rows are the T0 wall (m474), the open components of
+item 34, the machines (m419, m475) and the constraints (m433). Going from the
+top of the census down, the first name with no chapter saying where it
+stands was `PowerConverters.Examples.ACAC.SoftStarter`, refused as
+`1142 algebraic equation(s) for 1141 unknown(s)`. Its only mention was a line
+of the m277 series saying it had changed which equation it names.
+
+### `SoftStarter`: an initial `if` the run decides, counted as a running one
+
+`OXIDELICA_BALANCE_PROBE` on the head binary names thirteen equations
+nothing is left for (`/tmp/m480/soft_probe.txt`). Twelve are the machine's
+flanges and flux ports, which are where the matching ran out; the thirteenth
+is `softStartControl.modeOfOperation = 1`. `SoftStartControl` writes, in its
+initial section, `if start then (if vRef < 1 then mode = Up else mode = On)
+else (...)`, with `start` an input. The small model is twelve lines
+(`/tmp/m480/small/S2.mo`):
+
+```modelica
+model S2
+  Boolean start = time > 0.1;
+  Integer mode;
+initial equation
+  if start then mode = 2; else mode = 1; end if;
+equation
+  when start then mode = 2; end when;
+end S2;
+```
+
+It refused on the head with `2 algebraic equation(s) for 1 unknown(s);
+nothing is left for mode = 1`, and the same `if` written as an expression,
+`mode = if start then 2 else 1` (`S3.mo`), ran. The layer is
+`push_conditional` in `flatten/instantiate.rs`. A decided `if` of an initial
+section moves its branch to the initial equations (`equations.rs` says so
+since the integrator's `initType`), but an undecided one went to
+`acc.conditional` like any other, a mode of the running model. There its
+equation was counted against the running unknowns.
+
+The first repair joins such an `if` to the initial equations, one equation
+per position, each side the chain of conditions over the branches, a side
+that every branch writes alike standing as written. `OXIDELICA_NO_INITIAL_IF_JOINS`
+keeps the old reading. Under it `S2` ran, and printed `mode = 0` at t = 0,
+where 1 is owed. So did `S3`, which needed no repair at all, on the head:
+the soft starter's refusal had been standing in front of a wrong number that
+the expression form already gave.
+
+### The zero behind it: a discrete start only the initial instant can give
+
+`discrete_layer` in `compile.rs` reads an initial equation that names a
+discrete variable as that variable's start and strikes it off the initial
+problem. It evaluates the right side before the run. Where the right side
+reads a signal, as `start` or `u` is, the evaluation fails, the equation is
+struck off all the same, and the start falls to `.unwrap_or(0.0)` a few
+lines on. That is exactly the shape the note on `unwrap_or(0.0)` in
+`AGENTS.md` warns of. `V.mo` is the smallest form: `Real u = 3 + time;`,
+`initial equation y = u;`, `y` assigned by a `when`, and `y` began at 0.
+
+The probe (`OXIDELICA_SIGNAL_START_PROBE` on a scratch binary, taken out
+again; partial pass of 12 progress lines, `state/m480/probe_ss2.txt`) printed
+183 such starts. Grouped by what they read: 128 are the state graph's
+`newActive = pre(localActive)`, 20 the noise generators' `r_raw` and `r`,
+11 `aboveLevel` of the tanks, 10 `SignalExtrema`'s `y_min = u` and
+`y_max = u`. Only one of the 183 had a start written as well, the soft
+starter's mode. `DemonstrateSignalExtrema` began its extrema at 0 on the
+head, which happens to be where its sine starts, so no wrong number shows
+there.
+
+The second repair hands such a start on as what it is, the value at the
+initial instant: a `when initial()` assigning the right side, built after
+the model's own `when` clauses. It applies only to an equation written
+`v = ...`; one written `pre(v) = ...` is left as it was.
+`OXIDELICA_NO_START_AT_INITIAL_EVENT` keeps the old reading. Under the
+repair `S2` and `S3` start at 1, `T3` (`if start then 2 else 7`) at 7, and
+`V` at 3; under the key all of them start at 0 again
+(`/tmp/m480/small/*.c0.csv`, `*.c1.csv`). The soft starter starts its mode
+at 1 (`Off`), turns it to 2 (`Up`) at t = 0.1 with `vRef` re-initialised to
+0.3, and ramps from there (`/tmp/m480/soft.csv`).
+
+Two tests, each seen red under its key and green without it:
+`an_initial_if_the_run_decides_says_where_the_run_begins` (`mode` 3 at the
+start, 2 at the end, refused as unbalanced under the key) and
+`a_discrete_started_from_a_signal_starts_where_the_signal_is` (`y` 3 and `n`
+4 at the start, 0 under the key).
+
+### The pair of three, one binary for the soft starter
+
+One binary (`/tmp/m480/ox4`) from the final tree, three passes without the
+heavy set: both keys set, only the first set, neither
+(`state/m480/p_off.txt`, `p_mid.txt`, `p_on.txt`, lists `*.flat`, `*.ran`):
+
+```text
+                      flatten / run   runnable
+both keys (old)       969 / 797       852 / 753
+start repair only     969 / 797       852 / 753
+both repairs          969 / 798       852 / 754
+```
+
+The flattened lists are identical across all three. The run lists of the
+first two are identical name for name, and identical to `state/m479/on.ran`,
+so the start repair alone moved no model in or out. The third adds
+`SoftStarter` and loses nothing. Wins 1, victims 0. The floors rise by one
+in the same commit, run 794 to 795 and runnable run 750 to 751, less the
+three swings by name (lines 338, 380 and 482 of `state/m480/on.ran`).
+
+What the pair cannot see is the start repair's own worth. It moved no
+verdict, and what it changes in the other 182 starts is a number at the
+start, which no list of names shows. No reference comparison was made for
+them this shift.
+
+### Found on the way, not built: `pre` after the initial event
+
+`W3.mo`: `Real y(start = 7)`, `z = pre(y)`, `when initial() then y = 3;
+elsewhen time > 0.5 then y = pre(y) + 1;`. On the head binary `z` reads 7
+from t = 0 to 0.5 while `y` is 3, and takes 3 only at the next event. At an
+event other than the initial one (`W4.mo`, `when time > 0.1`) `pre(y)`
+follows `y` within the same instant. The event iteration in `events.rs`
+takes one pass at the initial event by design, so that `pre(v)` shows the
+declared start there (MLS 8.6). After that event ends nothing copies the
+value into `$pre.`, and the start stands until the next event, which copies
+it before anything else. So a `when` body at a later event reads the right
+`pre`, and a continuous equation reading `pre` between the two events reads
+the declared start. That is a wrong number in models that write `when
+initial()` and read `pre` of what it assigns outside a `when`, and with the
+start repair it can reach the 182 starts above as well. It is the same
+wall as queue item 54 (m467, `T9.mo`), seen from a `when initial()` rather
+than a fixed Boolean, and was written there as an addition. It was not
+built: the fix is in the event iteration, which every model goes through.

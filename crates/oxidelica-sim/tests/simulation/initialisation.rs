@@ -118,6 +118,41 @@ fn a_discrete_start_pins_what_it_was_and_not_what_it_is() {
 }
 
 #[test]
+fn an_initial_if_the_run_decides_says_where_the_run_begins() {
+    // `SoftStartControl` writes `if start then mode = Up else mode =
+    // Off` among its initial equations, with `start` an input. Carried
+    // as a branch of the running model, the `if` was counted against
+    // the running unknowns and the soft starter was one equation over.
+    // It is one initial equation, and the start is the branch in force.
+    let result = run("model S Integer mode; \
+         initial equation if time < 1 then mode = 3; else mode = 5; end if; \
+         equation when time > 0.5 then mode = 2; end when; \
+         annotation(experiment(StopTime=1.0, Interval=0.1)); end S;");
+    let at = result.columns.iter().position(|c| c == "mode").unwrap();
+    assert_eq!(result.rows[0][at], 3.0);
+    assert_eq!(result.rows.last().unwrap()[at], 2.0);
+}
+
+#[test]
+fn a_discrete_started_from_a_signal_starts_where_the_signal_is() {
+    // `SignalExtrema` writes `y_min = u` among its initial equations,
+    // and `u` is an input only the run knows. The start could not be
+    // worked out before the run and fell to zero without a word, so
+    // `y` began at 0 where `u` stood at 3, and `n` at 0 where neither
+    // branch writes it. Both are what the initial instant assigns.
+    let result = run("model W Real u = 3 + time; Real y; Integer n; \
+         initial equation y = u; n = if u > 2 then 4 else 9; \
+         equation when time > 0.5 then y = pre(y) + 1; n = pre(n) + 1; end when; \
+         annotation(experiment(StopTime=1.0, Interval=0.25)); end W;");
+    let at = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+    assert_eq!(result.rows[0][at("y")], 3.0);
+    assert_eq!(result.rows[0][at("n")], 4.0);
+    let last = result.rows.last().unwrap();
+    assert_eq!(last[at("y")], 4.0);
+    assert_eq!(last[at("n")], 5.0);
+}
+
+#[test]
 fn the_initialisation_problem_is_solved_or_named() {
     // An initial equation that pins nothing.
     // `0 = 0` is satisfied wherever `x` stands, so the refusal owed

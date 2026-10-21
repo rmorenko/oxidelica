@@ -1780,7 +1780,22 @@ FLATTEN_FLOOR=969
 # (lines 337, 379 and 481 of state/m479/on.ran):
 #
 #   797 - 2 swings - TestJunctionIdeal = 794 = 796 - 2
-RUN_FLOOR=794
+#
+# And run 795 = 794 + SoftStarter
+# (PowerConverters.Examples.ACAC.SoftStarter), which runs once an `if`
+# of an initial section whose condition only the run decides joins the
+# initial equations rather than the running ones, and once a discrete
+# start that only the initial instant can work out is assigned there
+# rather than left at zero. The pair is one binary from the final tree
+# with both keys set, one set and neither (state/m480/p_off.txt,
+# p_mid.txt, p_on.txt): 969 / 797, 969 / 797 and
+# 969 / 798, the flattened lists identical and the run lists differing
+# by that name alone. The runner has not counted this tree, so the desk
+# is taken, less the same three (lines 338, 380 and 482 of
+# state/m480/on.ran):
+#
+#   798 - 2 swings - TestJunctionIdeal = 795 = 794 + 1
+RUN_FLOOR=795
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -2244,7 +2259,13 @@ RUNNABLE_FLATTEN_FLOOR=852
 # the same three.
 #
 #   753 - 2 - 1 = 750 = 752 - 2
-RUNNABLE_RUN_FLOOR=750
+#
+# And runnable run 751 = 750 + SoftStarter, a runnable example, by the
+# same pair as `RUN_FLOOR` (753 printed in state/m480/p_off.txt, 754 in
+# p_on.txt), less the same three.
+#
+#   754 - 2 - 1 = 751 = 750 + 1
+RUNNABLE_RUN_FLOOR=751
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and

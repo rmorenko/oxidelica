@@ -4218,7 +4218,23 @@ fn values_at_this_point(
 /// order, which is what keeps the result columns steady.
 /// The discrete layer: the variables, where each one starts, and
 /// which initial equations were spent saying so.
-type DiscreteLayer = (Vec<String>, Vec<f64>, Vec<usize>, Vec<usize>);
+/// Last, the starts only the initial instant can give, as the name and
+/// the value a `when initial()` assigns it.
+type DiscreteLayer = (
+    Vec<String>,
+    Vec<f64>,
+    Vec<usize>,
+    Vec<usize>,
+    Vec<(String, Expr)>,
+);
+
+/// Whether a discrete start that only the initial instant can work out
+/// is assigned there rather than left at the zero it fell to.
+/// `OXIDELICA_NO_START_AT_INITIAL_EVENT` keeps the old reading so that
+/// one binary can be measured both ways.
+fn start_at_initial_event() -> bool {
+    std::env::var_os("OXIDELICA_NO_START_AT_INITIAL_EVENT").is_none()
+}
 
 /// A name one `when` branch assigns twice, told as the other half of
 /// a refusal about a name it never assigns.
@@ -4435,6 +4451,7 @@ fn discrete_layer(
     };
     let mut known = params.clone();
     let mut spent: Vec<usize> = Vec::new();
+    let mut at_initial_event: Vec<(String, Expr)> = Vec::new();
     for (at, equation) in model.initial_equations.iter().enumerate() {
         if let Some(named) = started(&equation.lhs) {
             if kept_between_events(named) {
@@ -4470,6 +4487,16 @@ fn discrete_layer(
                         }) =>
                     {
                         continue
+                    }
+                    // A discrete variable started from a signal cannot
+                    // be given its start before the run, and the zero it
+                    // fell to below was nobody's answer: `mode = if start
+                    // then Up else Off` started at 0 whatever `start`
+                    // was. What the equation says is the value at the
+                    // initial instant, which is exactly what `when
+                    // initial()` assigns, so it is handed on as that.
+                    Err(_) if matches!(&equation.lhs, Expr::Ref(_)) && start_at_initial_event() => {
+                        at_initial_event.push((named.clone(), equation.rhs.clone()));
                     }
                     Err(_) => {}
                 }
@@ -4528,7 +4555,13 @@ fn discrete_layer(
     if let Some(why) = unworkable {
         return err(why);
     }
-    Ok((discretes, discrete_start, spent, defined_here))
+    Ok((
+        discretes,
+        discrete_start,
+        spent,
+        defined_here,
+        at_initial_event,
+    ))
 }
 
 /// Work out the value of every parameter and constant.
@@ -5415,7 +5448,7 @@ pub(crate) fn compile_at(
 
     // 1b. The discrete layer: what changes only at an event, and what
     // each of those starts at.
-    let (discretes, discrete_start, started_discretes, discrete_equations) =
+    let (discretes, discrete_start, started_discretes, discrete_equations, at_initial_event) =
         discrete_layer(model, &params, &resume, &programs)?;
 
     // Where everything stands at the point being compiled for: the
@@ -5566,6 +5599,19 @@ pub(crate) fn compile_at(
         when_clauses.push(WhenClause {
             branches,
             origin: clause.origin.clone(),
+        });
+    }
+    if !at_initial_event.is_empty() {
+        let mut actions = Vec::new();
+        for (target, value) in &at_initial_event {
+            actions.push(WhenAction::Assign(target.clone(), rewrite.expr(value)?));
+        }
+        when_clauses.push(WhenClause {
+            branches: vec![WhenBranch {
+                condition: rewrite.expr(&Expr::Call("initial".to_string(), Vec::new()))?,
+                actions,
+            }],
+            origin: String::new(),
         });
     }
     rewrite.inside_a_when = false;

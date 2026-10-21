@@ -1352,6 +1352,14 @@ pub(super) struct Built {
     pub(super) broke_something: Vec<bool>,
 }
 
+/// Whether an `if` of an `initial equation` section whose condition
+/// only the run can decide joins the initial equations rather than the
+/// running ones. `OXIDELICA_NO_INITIAL_IF_JOINS` keeps the old reading
+/// so that one binary can be measured both ways.
+fn initial_if_joins_initial() -> bool {
+    std::env::var_os("OXIDELICA_NO_INITIAL_IF_JOINS").is_none()
+}
+
 /// Whether an `if` holding no equations at all is allowed to stand
 /// without an `else`. `OXIDELICA_NO_CHECK_ONLY_IF` is kept so that one
 /// binary can be measured both ways.
@@ -1588,6 +1596,44 @@ where
     // compiler to settle a mode about; the guarded checks above are
     // the whole of what it left behind.
     if counts_nothing {
+        return Ok(());
+    }
+    // An `if` written in an `initial equation` section says where the
+    // run begins, whichever way its condition falls, and a branch the
+    // run chooses is a mode of the running model: carried there, its
+    // equations were counted against the running unknowns, and the
+    // soft starter's `if start then mode = Up else mode = Off` left the
+    // model one equation over. Each position is one initial equation,
+    // its two sides chosen by the same chain of conditions - and a side
+    // every branch writes alike stands as written, so that `mode` is
+    // still the name an initial equation pins rather than a choice
+    // between `mode` and `mode`.
+    if if_equation.initial && initial_if_joins_initial() {
+        let last = branches.len() - 1;
+        for position in 0..wanted {
+            let side = |pick: fn(&EquationItem) -> &Expr| {
+                let mut value = pick(&branches[last][position]).clone();
+                if branches
+                    .iter()
+                    .all(|branch| *pick(&branch[position]) == value)
+                {
+                    return value;
+                }
+                for index in (0..last).rev() {
+                    value = Expr::If(
+                        Box::new(conditions[index].clone()),
+                        Box::new(pick(&branches[index][position]).clone()),
+                        Box::new(value),
+                    );
+                }
+                value
+            };
+            acc.initial_equations.push(EquationItem {
+                lhs: side(|equation| &equation.lhs),
+                rhs: side(|equation| &equation.rhs),
+                origin: branches[0][position].origin.clone(),
+            });
+        }
         return Ok(());
     }
     acc.conditional.push(ConditionalEquations {
