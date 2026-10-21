@@ -3971,12 +3971,40 @@ fn settle_modes(
     // so beside it rather than letting it read as an answer.
     let mut unasked: HashMap<String, String> = HashMap::new();
     let mut defined: std::collections::HashSet<String> = std::collections::HashSet::new();
+    // The reading of an alias both ways, and of a definition that can no
+    // longer be asked as its start. `OXIDELICA_NO_MODE_ALIASES` keeps
+    // the old reading, left to right with the last pass's number.
+    let both_ways = mode_aliases_both_ways();
+    let unwritten: std::collections::HashSet<String> = if both_ways {
+        UNWRITTEN.with(|set| set.borrow().clone())
+    } else {
+        std::collections::HashSet::new()
+    };
+    let mut reached: std::collections::HashSet<String> = std::collections::HashSet::new();
     for _ in 0..MAX_DEFINITION_PASSES {
         let mut progress = false;
         for equation in &model.equations {
             let Expr::Ref(name) = &equation.lhs else {
                 continue;
             };
+            // `a = b` where `b` starts at a zero nobody wrote and `a` has
+            // been reached: the connection says `b` is `a`, and read left
+            // to right it would hand `a` the zero instead.
+            if both_ways {
+                if let Expr::Ref(other) = &equation.rhs {
+                    if unwritten.contains(other)
+                        && !reached.contains(other)
+                        && reached.contains(name)
+                    {
+                        if let Some(value) = mode_env.get(name).copied() {
+                            mode_env.insert(other.clone(), value);
+                            reached.insert(other.clone());
+                            progress = true;
+                        }
+                        continue;
+                    }
+                }
+            }
             if resuming && mode_env.contains_key(name) {
                 // A continuation already knows this from the run.
                 continue;
@@ -3995,6 +4023,9 @@ fn settle_modes(
                         unasked.remove(name);
                         defined.insert(name.clone());
                     }
+                    if both_ways {
+                        reached.insert(name.clone());
+                    }
                     if mode_env.insert(name.clone(), value) != Some(value) {
                         progress = true;
                     }
@@ -4002,6 +4033,15 @@ fn settle_modes(
                 Err(why) => {
                     if mode_trail() {
                         unasked.insert(name.clone(), why.0);
+                    }
+                    // What an earlier pass left is not an answer: the
+                    // start is what the name holds until it can be asked.
+                    if both_ways {
+                        if let Some(start) = start_env.get(name).copied() {
+                            if mode_env.insert(name.clone(), start) != Some(start) {
+                                progress = true;
+                            }
+                        }
                     }
                 }
             }
@@ -8858,6 +8898,15 @@ fn reciprocal_solution(
 fn mode_trail() -> bool {
     static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
     *ON.get_or_init(|| std::env::var_os("OXIDELICA_NEWTON_TRAIL").is_some())
+}
+
+/// Whether the start of the modes reads an alias both ways and sends a
+/// definition that can no longer be asked back to its start, rather
+/// than choosing a branch on a zero nobody wrote (docs/ANALYSIS.md,
+/// m468). `OXIDELICA_NO_MODE_ALIASES` keeps the old reading, so one
+/// binary can be measured against itself.
+fn mode_aliases_both_ways() -> bool {
+    !crate::walk::switch_set("OXIDELICA_NO_MODE_ALIASES")
 }
 
 /// What the definitions followed before a mode is chosen came to, as

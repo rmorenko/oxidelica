@@ -57265,3 +57265,59 @@ giant, and three left the main pass with the heavy set. Nothing of
 item 21 is left in the main pass beyond what items 42 and 50 already
 hold. Whether the three heavy ones still stand at t = 0 is the heavy
 run's to say and was not asked here.
+
+## Shift 477: a mode chosen on a zero nobody wrote, merged (item 55)
+
+Roman's word on item 55 was to take it, and the clean form parked by
+m468 (`park/m468-mode-aliases-clean.diff`) is what went in, on the
+head 95865b2, where it applied as it stood. It is one layer, the start
+of the modes in `settle_modes`, and two links of it. An alias `a = b`
+whose `b` starts at a zero nobody wrote is read from the side that has
+been reached, where the fixpoint used to read it only left to right
+and hand `a`'s other side the zero. And a definition the pass can no
+longer ask goes back to its start rather than holding the number an
+earlier pass left. The switch is now on by default, and
+`OXIDELICA_NO_MODE_ALIASES` keeps the old reading so one binary can be
+measured against itself; the name was free in the tree before the
+build.
+
+The witness is m468's `A1.mo`, and it is the test,
+`a_mode_reads_an_alias_from_either_side`: `h = 9; h = h2;
+above = x >= h2;` with `x` held at 1. Its column of `y` from
+`simulate --stop 0.002 --dt 0.001`, written whole:
+
+| reading                     | `y` by row   |
+| --------------------------- | ------------ |
+| `OXIDELICA_NO_MODE_ALIASES` | `1, 1, 2, 2` |
+| default                     | `2, 2, 2`    |
+
+The old reading says 1 at t = 0 and at 0.001, where 2 is right, and
+only the event at 0.001 puts it right. The test was seen red with the
+compiler's half of the change taken out (`[1.0, 1.0, 2.0, 2.0]`
+against `[2.0, 2.0, 2.0]`) and green with it back.
+
+The pair was taken with one binary built from the final tree
+(`/tmp/m477/ox55`), the switch on and then off, without the heavy
+set, and is kept in `~/oxideflow/state/m477/` (`off.txt`, `on.txt`
+and the lists drawn from them):
+
+| half       | flatten / run | runnable flatten / run |
+| ---------- | ------------- | ---------------------- |
+| switch off | 969 / 798     | 852 / 754              |
+| default    | 969 / 799     | 852 / 755              |
+
+The flattened lists are the same line for line. The run lists differ
+by one line, `+ModelicaTest.Fluid.TestComponents.Vessels.TestTankWithTopPorts`,
+and nothing left: no victims. That is the price m469 measured from
+27b8057 on its pair ox5, met again on a head that has moved since. The
+off half is the off half of m475 (969 / 798, 852 / 754). The time per
+model did not move beyond the weather: flattening 3887 ms off and
+3819 ms on, running 3919 ms and 3901 ms.
+
+What the tank's win is worth is what m468 said it is. `library check`
+counts it as running because it takes a few steps, while `simulate`
+under the same reading meets a second wall at t = 133.2 s, port 4 and
+a singular Jacobian. The tank was moved past its first wall, not
+made to run its experiment, and the nine others of m469's twenty-nine
+stand at walls of other families. The floors were not moved in this
+commit: they wait for the runner's number, as the rules say.

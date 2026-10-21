@@ -1553,6 +1553,46 @@ fn a_flag_settled_inside_a_loop_stays_a_flag() {
     );
 }
 
+/// A mode is not chosen on a zero nobody wrote.
+///
+/// `h = h2` is an alias written with the unwritten name on the right.
+/// Read only left to right, the start of the modes handed `h2` the
+/// zero it started at rather than the 9 its other side holds, so
+/// `x >= h2` held at x = 1 and `y` came out 1 where 2 is right - the
+/// same model with `h2 = 9` written directly gives 2.
+/// `OXIDELICA_NO_MODE_ALIASES` keeps the old reading, whose rows at
+/// t = 0 and t = 0.001 say 1 before the first event puts it right.
+#[test]
+fn a_mode_reads_an_alias_from_either_side() {
+    let file = TempFile::new(
+        "mode_alias.mo",
+        "model A1 Real h; Real h2; Real x(start = 1, fixed = true); Real y; \
+         Boolean above; equation h = 9; h = h2; above = x >= h2; der(x) = 0; \
+         if above then y = 1; else y = 2; end if; end A1;",
+    );
+    let run = |off: bool| {
+        let mut command = bin();
+        if off {
+            command.env("OXIDELICA_NO_MODE_ALIASES", "1");
+        }
+        let out = command
+            .args(["simulate", file.path(), "--stop", "0.002", "--dt", "0.001"])
+            .output()
+            .unwrap();
+        assert!(out.status.success(), "{}", stderr(&out));
+        let csv = stdout(&out);
+        let mut lines = csv.lines();
+        let header: Vec<&str> = lines.next().unwrap().split(',').collect();
+        let at = header.iter().position(|column| *column == "y").unwrap();
+        lines
+            .take_while(|line| line.contains(','))
+            .map(|line| line.split(',').nth(at).unwrap().parse::<f64>().unwrap())
+            .collect::<Vec<f64>>()
+    };
+    assert_eq!(run(false), vec![2.0, 2.0, 2.0]);
+    assert_eq!(run(true), vec![1.0, 1.0, 2.0, 2.0]);
+}
+
 /// The value of `name` in the last row the run wrote at `time`.
 fn at_time(csv: &str, name: &str, time: f64) -> f64 {
     let mut lines = csv.lines();
