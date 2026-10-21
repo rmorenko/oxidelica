@@ -56904,3 +56904,15 @@ the wall in none of those probed. The 59 of the tie count are a
 ceiling, and every model forced to the other side of its tie this
 shift, seven of them, met another wall, so no model is yet known to
 be won by a rule on ties.
+
+The two singles of item 3 were taken the same way. MovingActuatedDrive
+breaks one tie, reduction 10 between `r1.w` and
+`bodyCylinder.body.w_a[2]`, and refuses at the same re-selection on
+either side of it (`state/m475/mad_flip.txt`). SMPM_Braking breaks
+three, two at reduction 3 among `smpm.lssigma.i_[1]`,
+`smpm.airGap.psi_mr[1]` and `smpm.inertiaRotor.phi`, one at
+reduction 8 between `smpm.inertiaRotor.phi` and `smpm.friction.phi`.
+Forced to `psi_mr[1]` it refuses at t = 9e-4 as before; forced to
+`lssigma.i_[1]` and `friction.phi` it refuses at t = 0.001, with the
+same two derivatives arriving. Both are walls of the mid-run rebuild,
+not of the first build's tie.
