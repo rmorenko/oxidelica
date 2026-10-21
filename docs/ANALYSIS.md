@@ -57321,3 +57321,64 @@ a singular Jacobian. The tank was moved past its first wall, not
 made to run its experiment, and the nine others of m469's twenty-nine
 stand at walls of other families. The floors were not moved in this
 commit: they wait for the runner's number, as the rules say.
+
+### With the time left: the soft probe under the step test (items 18 and 30)
+
+m473 left one thing unmeasured: whether the step test it parked
+(`park/m473-step-criterion-probe.diff`) removes the fourteen running
+models whose unknowns ran away inside a step, or only the two small
+models of the seam. The soft probe that found the fourteen was run
+again under the step test. Both of m473's diffs apply to b295560 one
+at a time and not together, so the step test was spliced in by hand
+just ahead of the soft probe, which therefore sees only what the step
+test lets through. The probe binary is `/tmp/m477/oxss`, its diff is
+`park/m477-soft-under-step-probe.diff`, and nothing went into the
+tree. The run took the fifty models of m473's map
+(`--only-from soft50.lst`), with the soft probe on in both halves and
+`OXIDELICA_M473_STEPCRIT=1 OXIDELICA_M473_FLOORMASK=1e-14` in the
+second, as m473's pair had it. The files are kept in
+`~/oxideflow/state/m477/soft/`.
+
+The off half is m473's map again: read by m473's `soft.py`, it is
+`soft_map.txt` line for line, apart from two ties in the order of the
+lines. The step test is engaged in the on half, because points go from
+23988214 to 30334567, the 6.35 million m473 put on `Dimmer_RL`. Both
+halves flatten 50 and run 43, and the run lists are identical.
+
+| model of the fourteen                   | unknown                            | without step test | with step test |
+| --------------------------------------- | ---------------------------------- | ----------------: | -------------: |
+| `ControlledSwitchWithArc`               | `switch1.s`                        |            2.9e30 |        no line |
+| `ThyristorBridge2Pulse_RLV`             | `rectifier.thyristor_p1.s`         |            2.2e17 |        no line |
+| `DCPM_Drive`                            | `switch.s`                         |            2.2e17 |          7.1e7 |
+| `Dimmer_RL`                             | `triac.thyristor2.s`               |            1.0e30 |         4.2e18 |
+| `InductorWithHysteresis`                | `core.derHstat`                    |            2.9e14 |         6.6e12 |
+| `IMS_Start` (Machines)                  | `aims.inertiaRotor.a`              |            5.7e28 |           same |
+| `ComparisonPullInStroke`                | `advancedSolenoid.armature.mass.a` |            2.5e26 |           same |
+| `ComparisonQuasiStatic`                 | `advancedSolenoid.c_par1.n.v`      |            1.4e23 |           same |
+| `SMEE_Rectifier`                        | `der(smee.spacePhasorS.i[2])`      |            1.5e20 |           same |
+| `IMC_DOL` (Machines)                    | `aimc.lssigma.v_[2]`               |            1.4e19 |           same |
+| `IMC_YD`                                | `idealOpeningSwitch[2].s`          |            4.1e17 |           same |
+| `SinglePhaseTransformerWithHysteresis1` | `core.derHstat`                    |            1.0e15 |           same |
+| `SinglePhaseTransformerWithHysteresis2` | `core.LossPowerStat`               |            2.7e13 |           same |
+| `ThyristorBridge2Pulse_DC_Drive`        | `dcpm.la.v`                        |            1.9e13 |           same |
+
+"Same" means the worst line is the same to the printed digit, unknown,
+size, residual and sides. Counted the way m473 counted, the running
+models with an unknown above 1e12 go from 14 to 11. Two are gone, one
+falls below 1e12, two shrink and stay above it, and nine are the same.
+Outside the fourteen, `PolyphaseRectifier` also leaves the map, where
+its worst unknown was a diode parameter at 3.9e5.
+
+So the answer to the queue's question is a number, 3 of 14, and it
+says the step test treats the symptom more than the breed. The reason
+can be read off the test itself, not guessed. The step is held to
+`1e-8 * (1 + |v_j|)`, relative to the very unknown that ran away, so a
+Newton step from an acceleration of 5.7e28 passes as easily as its
+residual passes the relative arm. What it catches are the switch
+parameters that are still moving when they are accepted. What it lets
+through are the unknowns that have already arrived somewhere absurd
+and stay there. Mending the nine needs a test that does not scale with
+the runaway, which is m334's row-scaled question again. m473 showed
+that a row scale alone does not mend `Z` or `K`. Nothing was poured
+in, and the tolerances are Roman's under items 18 and 30, with this
+number beside them.
