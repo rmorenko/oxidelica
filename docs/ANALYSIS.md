@@ -57519,3 +57519,154 @@ way: a reach that tells the states of one block apart, or a derivative of a torn
 unknown that the theorem can take in a block that size. Both are a design of
 their own and were not built. The chain was not walked to its end, and that is
 said here so nobody takes it as walked.
+
+## Shift 479: the floor's other doors closed on Roman's word, the census's rows of two by map, and a local record that left a tuple by name
+
+### The verdict on f3f1cb8
+
+Push run 39601886410 at f3f1cb8 finished green. Its judge printed
+`OK: 2671 files read, 969 flatten, 800 run; runnable 852 flatten, 756 run`,
+the same print as b295560's, so the documentation commit and 211b567 between
+them moved nothing on the runner.
+
+### The floor's other doors closed, on Roman's word (item 1, queue item 46)
+
+Roman answered queue item 46 with (a): close only the undetermined
+acceptances. A block accepted on the arithmetic floor outside a validated
+solve, at either exit (after three steps that did not descend, after fifty
+iterations), is now asked the same determinacy question that m425 put to the
+validated solve, and refused when it is undetermined. The determined ones pass
+as before. `OXIDELICA_NO_FLOOR_DOORS` keeps the old reading; the name was
+grepped over the tree before the build and found nowhere.
+
+The refusal names the culprit, the family's words first so that the census
+counts one row: "a block accepted on the arithmetic floor after 50 iterations,
+outside a validated solve, is not determined, in" the model's name and the
+time, followed by the block's unknowns as `underdetermined algebraic loop`
+names them.
+
+The small model is `D` of `systems.rs`
+(`a_block_accepted_on_the_floor_outside_a_validated_solve_is_asked_too`): the
+millionth of the m425 test, reached only once the run is under way, because
+`c = 1 + 1e-6 + exp(-100*time)` starts far from one. With the key set it ran
+and handed on `y` = 0.9999978 at t = 0.1 and 1.00066 at t = 1, where the answer
+is exactly 1. Without the key it refuses at t = 0.4 with the model named. The
+test was seen red with the key set and green without it.
+
+The pair is one binary (`/tmp/m479/ox`), the key set and unset, without the
+heavy set (`state/m479/off.txt`, `on.txt`):
+
+```text
+                 key set (old)   check (new)
+flatten / run    969 / 799       969 / 797
+runnable         852 / 755       852 / 753
+```
+
+The flattened lists are identical. The run lists differ by two names, the two
+the probe of m426 named in advance:
+
+- `Polyphase.Examples.PolyphaseRectifier`, refused at t = 4e-5 after three
+  steps that did not descend, on a block of 19 whose first twelve unknowns are
+  the ideal diodes' `s`.
+- `PowerConverters.Examples.ACDC.RectifierBridge2mPulse.ThyristorBridge2mPulse_RLV`,
+  refused at t = 2e-4 after fifty iterations, on the thyristors' `s`.
+
+That is within the word's bound of two named models, so the run floors come
+down by two in the same commit: run 796 to 794 and runnable run 752 to 750,
+with the arithmetic and the names in `library_floor.sh`. Of the 12939
+acceptances the m426 probe counted through these doors, the other 12936 were
+determined and still pass. That count is the m426 probe's
+(`/tmp/m426/door_corpus_err.txt`) and was not taken again on this head. The
+third undetermined acceptance, `ActuatorWithNoise`'s, belonged to a model that
+did not run before either. Both victims now refuse with a name where they
+handed on a point the equations do not fix. Whether that point changed their
+trajectories is still unmeasured; the refusal is owed either way.
+
+### The run half's rows of three and two, against the maps (item 2)
+
+Read from the census of shift 478 (`/tmp/m478/census.txt`, names from
+`/tmp/m478/raw.txt`), by the section marks: the run half holds 170 models in
+114 rows. Rows of four and more are 40 models, all held by the package or
+mapped, as the brief's table has it. The two rows of four that the m478
+chapter passed over without a word are mapped elsewhere: `the equations of
+algebraic loop` (4) in the m429 table (`PointGravity` m426, `RollingWheel`
+m391, `GearType2` m360/m429, Spice3 `DifferentialPair` under item 30), and
+`did not converge in 50` (4) in the machine family of m406 and m474.
+
+The seven rows of three (21 models) are the m478 chapter's. The eight rows of
+two, 16 models, each with the place its map stands:
+
+```text
+row                                              models                                   map
+an array of N written out (2)                    FlueGasSixComponents, ReferenceMoistAir  s461 (FlueGas and MoistAir, one storey on)
+no equation determines X ... vinN.p.v (2)         Spice3 Nand, Nor                         m474 item 1 (the T0 wall, ten models)
+smpmQS.phiMechanical constrains ... (2)           SMPM_CurrentSource, SMPM_MTPA (QS)       m475 tie table, m419: the machine family
+nN.i = 0 constrains no state (2)                  OpAmpCircuits.Add, Gain                  m472: the open components of item 34
+step size underflow (2)                           IMC_InverterDrive, Rotational Friction   m474 item 3 (a swing, and m331's wall)
+parameter maxLevel has no value (2)               ControlledTankSystem NormalOperation,    service classes (census section
+                                                  TankController                           "by whose fault": 27 of 30 rightly)
+parameter fS has no value (2)                     ControlledDCDrives DcdcInverter,         the same
+                                                  SwitchingDcDc
+parameter f has no value (2)                      OpAmpCircuits.Der, Integrator            the same: `OpAmpCircuits` is a
+                                                                                           service package by the census's rule
+```
+
+So the belt down to the rows of two is mapped whole. That is the result of
+the item rather than an empty one, and the brief's next step is the top
+single outside the package.
+
+### The singles outside the package, and the first without a map
+
+Each single of the run half whose kind is not one of the families above was
+looked up by its model's name in this document. All but one had a chapter
+saying where it stands: `SpeedControl` (m459, a clock that states no
+interval), `ControlledMixingUnit` (m462), `RS` (the `delay(..., 0)` of "A slot
+the run fills has to exist before a switch names it"), `InverseCapacity`
+(m399), `DynamicPipeClosingValve` (m426, m476), `Inverse_sh_TX` (m476, item
+45), the media assertions `MoistAir` and `Essotherm650` (item 42),
+`AmplifierWithOpAmpDetailed` (m442), `ThreePhaseTransformerWithRectifier`
+(m474) and `AdvancedSolenoid` (shift 221).
+
+The one without a map is `Spice3.Examples.CascodeCircuit`, refused as
+`unknown variable int_f.m_corDepCap in equation J1.cc.cGS = ...`. Its only
+mention here is a line of the m289 series saying it moved to that wall. The
+probe is a run of the model with `--only`
+on the head and then a shrink. `int_f` is the protected local record of
+`Spice3.Internal.Fet.jfetNoBypassCode`: the body writes `int_f := in_f`,
+overwrites fields, and at the end hands `int_f` whole to `calculateGateCap`,
+whose outputs fill four fields in one tuple, `(int_f.m_capgs, ...) :=
+calculateGateCap(int_f, ...)`. Shrunk (`/tmp/m479/small/v_K.mo`), the wall
+is one line: `q := r; (q.b) := k1(q, u); y := q.b` refuses with `unknown
+variable q.b`, where `q.b := k1(q, u)` runs. So the layer is the tuple
+assignment of `flatten/statements.rs`. An assignment of one target applies
+the body's bindings once more after expansion to the names the expansion
+made, which is how `q.b` inside the inlined call becomes `r.b`. The tuple
+path inlined the call and bound the targets to its outputs as they came, so
+any field of a record handed whole was left as a name nothing declares.
+
+The fix does for the tuple what the single assignment does: the names the
+call's value held once the bindings were in are settled, and every other name
+in an output is bound once more. `OXIDELICA_NO_TUPLE_REBIND` keeps the old
+reading. The test is
+`a_call_filling_several_targets_reads_a_local_record_as_it_now_stands` in
+`functions.rs`: `y = 4 + 13u` at every output point. It was seen red with the
+key set (`unknown variable q.b`) and green without it.
+
+The pair is one binary (`/tmp/m479/ox2`, built on top of the doors change),
+the key set and unset, without the heavy set (`state/m479/t_off.txt`,
+`t_on.txt`): 969 / 797 and 852 / 753 both ways, the flattened lists and run
+lists identical, no victim. One model moves a storey, which is the census's
+usual shape: the row `unknown variable int_f.m_corDepCap` (1) empties and a
+new single takes `CascodeCircuit`,
+`(J1.icGS / J1.cc.cGS) - (der(J1.G.v) - der(J1.Sinternal)) = 0 ... is NaN at
+t = 0, before any Newton step`. The model card writes `CGS=0, CGD=0`, so
+`cc.cGS` is zero and `der(vGS) = icGS / cGS` is 0/0 at the start. That is the
+Spice3 family of a derivative behind a capacitance of zero (m373, and the
+six-model line of the m411 register), not a new wall. The fix is merged under
+the brief's rule, outside the package and with no victim. Its worth is a
+wrong refusal removed from a path every body with a tuple of record fields
+goes through, and a model taken one storey on. It does not move a count.
+
+So the item ends with the belt of rows of two mapped whole, the first single
+without a map found and probed, its first wall removed, and the wall behind it
+named as a family that already has a map.
