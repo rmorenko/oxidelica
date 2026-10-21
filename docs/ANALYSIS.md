@@ -56875,3 +56875,32 @@ now in it arrived from other rows. They are the two the probe above
 reaches differently: SMPM_Braking passes the check's ten steps under
 it and still fails at t = 0.0115 of its 0.8 s, MovingActuatedDrive
 does not move.
+
+### The top three rows of the run half, against the tie count
+
+With the time left, the three rows at the top of the m474 census's run
+half were set beside the tie count of `state/m475/ties.txt`
+(`state/m475/top3_ties.txt`). `the Newton direction of algebraic
+loop` (10) is all Fluid pipes and junctions and breaks no all-zero tie
+in any of its ten; it is the step-criterion family parked in m473, and
+the tie is not its wall. `underdetermined algebraic loop` (8) is five
+Spice3 models and three FundamentalWave machines, with ties counted 0
+to 87; the Spice3 half is the rank threshold of item 30. `singular
+Jacobian in algebraic loop` (9) holds the four models with a single
+tie of the corpus's shape, and each was forced to the other side of
+it (`OXIDELICA_TIE_VICTIM`, `state/m475/singles_flip.txt`):
+
+```text
+model                              the tie                              forced to           result
+TestTankWithTopPorts               tank.V, tank.m, tank.U               tank.m / tank.V     singular Jacobian, other block / same
+LossyGearDemo2                     Inertia1.phi, bearingFriction.phi    Inertia1.phi        singular Jacobian, same block
+QuasiStatic Rectifier              two reference.gamma                  resistorQS's        singular Jacobian, same block
+TestMixingVolumesPressureStates    the two volumes' m and U             both m              loop not converged (above)
+```
+
+None runs on the other side of its tie. So in the rows the queue
+would take first, the blind tie at 0.0 is present in some members and
+the wall in none of those probed. The 59 of the tie count are a
+ceiling, and every model forced to the other side of its tie this
+shift, eight of them, met another wall, so no model is yet known to
+be won by a rule on ties.
