@@ -1750,7 +1750,19 @@ FLATTEN_FLOOR=969
 # (lines 224, 381 and 483 of state/m474/p2on.lst):
 #
 #   798 - 2 swings - TestJunctionIdeal = 795 = 794 + 1
-RUN_FLOOR=795
+#
+# And run 796 = 795 + Fluid's TestComponents.Vessels.TestTankWithTopPorts,
+# which runs once a mode is chosen on what an alias says rather than on a
+# zero nobody wrote (b295560). The runner printed 969 / 800 and runnable
+# 852 / 756 for b295560, judge job 119179925708 of push run 39576520573
+# (/tmp/m478/ci_judge.log); the desk pair from one binary printed
+# 969 / 799 and 852 / 755, its run lists differing by that name alone
+# (state/m477/off.ran, on.ran). The lower machine is the desk, and the
+# same three stand by name in its run list (lines 339, 381 and 483 of
+# state/m477/on.ran):
+#
+#   799 - 2 swings - TestJunctionIdeal = 796 = 795 + 1
+RUN_FLOOR=796
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -2200,7 +2212,14 @@ RUNNABLE_FLATTEN_FLOOR=852
 # /tmp/m474/p2on.txt, 753 in p2off.txt), less the same three.
 #
 #   754 - 2 - 1 = 751 = 750 + 1
-RUNNABLE_RUN_FLOOR=751
+#
+# And runnable run 752 = 751 + TestTankWithTopPorts, a runnable example,
+# by the same runner job as `RUN_FLOOR` (756 printed, job 119179925708)
+# against 755 on the desk (state/m477/on.txt); the lower is taken, less
+# the same three.
+#
+#   755 - 2 - 1 = 752 = 751 + 1
+RUNNABLE_RUN_FLOOR=752
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
