@@ -56916,3 +56916,322 @@ Forced to `psi_mr[1]` it refuses at t = 9e-4 as before; forced to
 `lssigma.i_[1]` and `friction.phi` it refuses at t = 0.001, with the
 same two derivatives arriving. Both are walls of the mid-run rebuild,
 not of the first build's tie.
+
+## Shift 476: the DECISION package priced on 8f7aeb0, and three loop rows by name
+
+This chapter is the sheet the package for Roman is to be made from:
+one entry per question, with its material, whether the parked patch
+still applies to the head, and its price. Nothing was merged, no probe
+was changed, and no line of code was touched. Every fresh number is from
+one binary built from the head without keys (`/tmp/ox476`, `--only` from
+`.msl`). The per-model outputs are kept in `~/oxideflow/state/m476/only/`,
+with the summary lines in `list1_out.txt` and `list2_out.txt` beside
+them. Where a price would need a corpus pair, it is taken from the
+chapter that measured it and marked "price from" with that SHA. It was
+not measured again.
+
+**The verdict on 0c5505c..8f7aeb0 first.** The six documentation runs
+of the last shift all finished green. The latest is 39529907365 at
+8f7aeb0. Their library jobs were skipped, as a documentation push makes
+them.
+
+**Whether the parked patches still apply.** `git apply --check` was run
+for every patch the package names, on 8f7aeb0:
+
+| patch                                             | applies to the head                                             |
+| ------------------------------------------------- | --------------------------------------------------------------- |
+| `park/m455-grow-from-type-start.diff`             | yes                                                             |
+| `park/m426-floor-door-probe.patch`                | yes                                                             |
+| `state/m423/body_records_links1_4_probe.patch`    | no: two of the three hunks in `flatten/inlining.rs` fail        |
+| `state/m423/whole_array_guard.patch`              | no: the `walk.rs` half reads as already applied, the test fails |
+| `park/m467-pre-after-start.diff`                  | yes                                                             |
+| `park/m468-mode-aliases-clean.diff`               | yes                                                             |
+| `park/m468-mode-env-trial.diff`                   | no: two of the four hunks in `compile.rs` fail                  |
+| `park/m470-orientation-residue-probe.diff`        | yes                                                             |
+| `park/m471-fourbar1-chain-probe.diff`             | yes                                                             |
+| `park/m472-open-port-part-speaker.diff`           | yes                                                             |
+| `park/m472-open-port-part-speaker-with-m430.diff` | yes                                                             |
+| `state/underdet_dump_probe_m372.patch`            | no (known since m473, which raised it by hand)                  |
+| `park/m473-steady-pivot-and-soft-probe.diff`      | yes                                                             |
+| `park/m473-step-criterion-probe.diff`             | yes                                                             |
+| `state/m474/when_still_probe.patch`               | yes                                                             |
+| `park/m475-reweigh-at-init-probe.diff`            | yes                                                             |
+
+The four that do not apply were not raised and not mended. The clean
+form of item 55 is the one its decision is about, and it applies. The
+trial it was cut from does not.
+
+### The sheet
+
+**Item 50: merge the reach grown from type starts (narrow-2)?**
+Material: m455 and m456 (2e4d380), `park/m455-grow-from-type-start.diff`
+(applies). It mends a quiet wrong start: the small model G1 gives
+`U = -248019.85` without it and `T = 293.15` with it. Price from
+2e4d380 (pair ox27, base 956 / 789): +4 run, 0 victims, and the run half
+grows 3788 to 4725 s, almost all of it `TestMultiPortTraceSubstances`.
+On this head all four candidates still refuse, each at the wall its
+chapter named. `TestMultiPortTraceSubstances` refuses on `the Newton
+direction` after 27 s of flattening and 25 s of running. `RoomCO2WithControls`
+is in the `X of algebraic loop` row, `RoomCO2` meets a singular
+Jacobian, and `MediaTestModels.Air.MoistAir` does not converge in 50.
+The pair is on a base thirteen models below the head, so the +4 is to
+be measured again on a fresh pair before any merge. Variants: (1) merge
+and live with the cost, floors by the runner's print; (2) merge and
+carve the giant into the heavy set with a floor; (3) do not merge.
+
+**Item 48: the cone of Jacobian columns, as a series?** Material: m464,
+m465 (75bcbc3) and m466 (fd2348a). No patch, because the structure is
+not built: there is no dependency graph of a torn block to cut a column
+by. Price from 75bcbc3: a column of `DynamicPipeEnergyConservationCheck2`
+drives all 3702 inner assignments where about 54 change. 279982 of the
+280006 solves before leaving t = 0 repeat their arguments bit for bit.
+The model runs 2674.8 s as written and is in the heavy set. The fuller
+runs X3 and X0 did not finish in 180 minutes. The cone changes the
+Jacobian of every torn block, so the price in models needs a pair that
+does not exist yet. Not measured again.
+
+**Items 47 and 49, one question: the rule of the reference.** Material:
+m443 and m445 (fb1f953). No patch, because the rule is not built. Price
+from fb1f953: ten wandering converters stand outside the reference by
+name. Under a set of instants at tau 1e-4 all ten would match, and the
+1.1 ms lie would still be caught. Fresh: `ChopperBuckBoost_DutyCycle`,
+the one the grouping cost, runs on the head. It is still listed in
+`scripts/solver_pair_models.txt` and has no row in the reference. The
+nine converters of m445's event table (`DiodeBridge2Pulse` to
+`PolyphaseTwoLevel_RL`) and `ThyristorCenterTap2mPulse_RLV` are all in
+the head's run list (`state/m476/desk_ran.lst`), and none of them is in
+the pair's list or its reference. So the ten are kept out by the list
+and not by a run that fails. Item 49 measured fresh:
+`LinearWater_pT_Ambient` takes 44.1 s of CPU on this head under each of
+`auto`, `dopri45` and `bdf`. The pair's ceiling is `PAIR_CPU` = 60 s,
+so that is 74% of it, against 59.0 s (98%) when shift 401 measured it.
+That is one quiet point, not a trend, but it moves the question from
+"the line shifts every shift" to "the line has 16 s of room today".
+Variants for 47: (1) instants with tau, (2) keep the count, the ten
+stay out, (3) a hybrid by name. Variants for 49: (a) a ceiling named in
+the line itself, (b) mark the line as not judged, (c) leave it.
+
+**Item 46: close the floor's undetermined doors?** Material: m426
+(c290754), `park/m426-floor-door-probe.patch` (applies). Its corpus file
+`/tmp/m426/door_corpus_err.txt` is gone, and the chapter holds the
+numbers. Price: at most two models, measured fresh. Both
+`PolyphaseRectifier` and `ThyristorBridge2mPulse_RLV` run on this head,
+each through one undetermined acceptance between switchings, so closing
+the doors would put both at risk. Variants: (a) close only the
+undetermined, at most -2; (b) leave it, the risk written down; (c)
+close with an extra solve at that point.
+
+**Item 45: the ReferenceAir chain, link 5 (record operators in the
+walk)?** Material: the m423 and m424 chapters, patches in `state/m423`. The link 1
+to 4 patch no longer applies, and the guard's `walk.rs` half reads as
+already in the tree. Price, fresh: one model.
+`Modelica.Media.Examples.ReferenceAir.Inverse_sh_TX` still refuses at
+t = 0 with `an array reached the evaluator`, after 3.3 s of flattening.
+It is the same and only model. A series of several shifts for one
+model, and the chain has to be rebased before it can be taken.
+
+**Item 42: Essotherm650's table in mPa·s.** Material: m422 (8050fef). No
+patch. Price, fresh: one model, refused by the assertion as before,
+`Pr` = 19525310.107 against a maximum of 1e5 at t = 0 (m422 had
+1.95e7). The question is unchanged: count the MSL data as wrong and
+keep the honest refusal, or bring in a scale. Bringing in a scale is
+Roman's word on tolerances at the border.
+
+**Item 34: an example filter for the fourteen open components?**
+Material: m402 (bea6d5b), m471 (960380a) and m472 (32f5761), with the
+list in `/tmp/m472/open_narrow.txt`. No patch. Price, fresh, from
+`--only-from` on that list: 14 flatten, 0 run, 0 runnable. The narrow
+filter takes flatten 969 to 955 and leaves run, runnable flatten and
+runnable run where they stand. The broad variant is the m471 price,
+-117 flatten and -44 run, and was not measured again. This lowers a
+floor, so it is Roman's word in any case.
+
+**Item 28: the loop's gate reads "no runner" as red.** Material: the
+queue's own entry. `ci_probe` in `flow.sh:125-144` is unchanged on this
+day: a `failure` run is taken as red without its jobs being read. Only
+a `success` with a skipped library job is passed over. No patch. The
+price is a false red count whenever GitHub cannot find a runner. How
+often that has happened since 05.10 was not counted. Variants: (a) pass over a failure whose
+non-success jobs are all cancelled without steps; (b) read only the
+library, test and linter jobs; (c) leave it.
+
+**Item 51: the desk band's top edge 0.91.** Material: the queue's
+points. Fresh points from the preflights kept in `/tmp`: m470 0.989,
+m471 0.999, m472 1.022, m473 1.015 and m474 0.997, all above 0.91. Then
+m475 0.894, inside. The runner at e0d19a4 printed 1.097, inside 0.70 to
+1.50. So the latest desk point is the first inside the band in seven,
+and the edge still reads red more often than not. Widening the guard is
+Roman's word (15.10).
+
+**Item 52: the unit of an inlined local (the Preisach model).**
+Material: m459 (23e2426), `park/m459-unit-of-an-inlined-local/`. No
+patch, because it is a choice of architecture. Fresh: `U5.mo` refuses
+on the head as before, `unit mismatch in J = 1 * M: kg.s-2.A-1 against
+1`, and `HysteresisModelComparison` refuses in flattening with its
+`unit mismatch`. Price: one model.
+
+**Item 53: an unannotated literal read as "no unit" (the thyristor).**
+Material: m460 (3248d3b). No patch. Fresh: `SimpleTriacCircuit` and
+`ThyristorBehaviourTest` both refuse in flattening on `the branches of
+if ... disagree`. Price: two models. It goes with item 52: who carries
+a unit when the text names none.
+
+**Item 54: `pre` after the initial event depends on the solver.**
+Material: m467, `park/m467-pre-after-start.diff` (applies). Fresh on
+`T9.mo`: `dopri45` gives `y = 1` at t = 0 and at 0.4, while `rk4` gives
+1 at t = 0 and 2 at 0.4. That is the answer depending on the solver,
+unchanged. Price from m467 (pair ox2): 969 / 796 both halves, the run
+lists identical. The patch turns
+`a_discrete_start_pins_what_it_was` red. The decision is what the first
+row at t = 0 means.
+
+**Item 55: a mode chosen on a zero nobody wrote.** Material: m468
+(f5ea6fb) and m469 (27b8057). The clean form
+`park/m468-mode-aliases-clean.diff` applies, and the trial does not.
+Fresh on `A1.mo`: `y = 1` at t = 0 and at 0.001, where 2 is right. The
+quiet wrong number stands on the head. Price from 27b8057 (pair ox5):
++1, `TestTankWithTopPorts`, 0 victims. On this head the tank still
+refuses with a singular Jacobian, and under the clean form `simulate`
+meets its second wall at t = 133.2 s (m468). The nine others of the 29
+meet walls of other families, all byte for byte. Asked again on this
+head (`--only-from /tmp/m469/nine.lst`, `state/m476/nine.txt`), all
+nine flatten and none runs, each at the wall m469 named for it. The
+test for a merge is `A1.mo`.
+
+**Item 56, with the analytic joints: closed MultiBody loops at the
+limit of the victim's choice.** Material: m470, m471 (960380a) and m472
+(32f5761), with all three patches applying. Fresh: `Fourbar1` is still
+unbalanced, 2002 equations for 1993 unknowns, after 15 s of
+flattening. `PlanarFourbar` is still structurally singular on
+`der(der(revolute1.R_rel.T[1,1]))`, after 21 s of flattening and 84 s
+of running. Price from 960380a: the chain as one pair costs -17 and
+gains +3, all on link 3, whose dummy ground moves other families. The
+analytic joints' link 3 costs 0 and wins 0 (32f5761). Both stop at the
+same limit, a victim chosen blind on the speeds. One question, not two:
+the rule of the victim's choice, and in its present form nothing is to
+be merged.
+
+**Item 30: the open switch's rank test (Goff = 1e-5).** Material: m372
+and m473 (eada348). The steady-pivot probe applies, and the m372 dump
+does not. Fresh: `SMEE_DOL`, `SMEE_Rectifier` and `IMC_DOL_Polyphase`
+of FundamentalWave all refuse as underdetermined on the head. Price
+from eada348: the steady-pivot rule gives +3 and 0 victims, but `Z.mo`
+shows it lets through a wrong number (`y(1)` = 0.9000 at g = 1e-9, with
+1 right). Item 30 waits on item 18, as m473 mapped it.
+
+**Item 18: the convergence test admits a runaway unknown.** Material:
+m332, m333, m334 and m473 (eada348, ff61ed4). The soft map and the step
+test are in the two m473 patches, and both apply. Fresh: `Z.mo` at g =
+1e-7 runs on the head to `y(1)` = 0.9999641 where 1 is right. The
+quiet wrong number of m473 is reproduced. Price from eada348: 50 models
+make such an acceptance, 43 of them run, and 14 running models have the
+unknown above 1e12. Price from ff61ed4: the step test moves no model
+(969 / 797 both halves, the register identical in 142 rows), costs a
+quarter more points (25243746 to 31588913) and mends `Z` and `K`. The
+sides arm `1e-12 * (|lhs| + |rhs|)` is not touched by a row scale and
+has to be part of whatever repair is chosen.
+
+**The tolerances and the step criterion of m473 (the parked probes).**
+These are the instruments of items 18 and 30 above, priced there:
+`park/m473-steady-pivot-and-soft-probe.diff` (+3 / 0, lies on `Z`) and
+`park/m473-step-criterion-probe.diff` (0 / 0, +25% points, mends the
+small models). The open question is whether the step test removes the
+fourteen runaways inside steps. That would be the soft probe run again
+under the keys, and it was not done.
+
+**The `T0` family: `der(name) = 0` for what a `when` assigns.**
+Material: m474 (e0d19a4), `state/m474/when_still_probe.patch` (applies).
+Price from e0d19a4, already checked: +7 / 0. Fresh: `T.mo` refuses on
+the head with `no equation determines T0`, and so do `Inverter`
+(`vin.T0`) and `Nor` (`vin2.T0`). In the head's census
+(`/tmp/m474c/raw.txt`, run half) the family is ten models in seven rows,
+one of 3 under `vin.T0`, one of 2 under `vinN.T0` and five singles,
+which is what the rows of the register add up to. The charter's caution
+about a rule true between events was probed at a repeating pulse
+(`FourPer.mo`), and nothing went wrong there. It is still a rule of the
+breed the charter parks, so the decision is Roman's.
+
+**The blind tie at 0.0: weigh again at the initialised point?**
+Material: m475 (2cd878f), `park/m475-reweigh-at-init-probe.diff`
+(applies). Price from 2cd878f, already checked: the pair loses 7 and
+wins none, since `SMPM_Braking` is only moved to the check's horizon. Of
+the 171 refused in the run half, 59 break at least one all-zero tie,
+594 ties between them, and that is a ceiling. None of the nine forced to
+the other side of its tie ran. Nothing is to be merged in the present
+form.
+
+**Tail: item 5, printing an expression as model text.** Still a
+subsystem: there is no `impl Display for Expr` in `crates/`. In the
+head's census raw, 62 of the 222 refusal lines carry the compiler's
+inner spelling (`Ref("`, `Bin(`, `Number(`, `Call(`).
+
+**Tail: item 29, the runner's swing.** The runner's print at e0d19a4
+(run 39509721028, the judge) is 969 / 799 and runnable 852 / 755. The
+desk's pair at the same code (m474 `p2on.lst`) is 798 / 754. Read name
+for name, the two run lists differ by
+`Machines.InductionMachines.IMC_InverterDrive` alone, which the runner
+runs and the desk refuses at t = 0. `SpringWithMass` and both
+`SMPM_VoltageSource` run on both. The three swings the floors subtract
+are all named, so this is a statement and not a question. Its only news
+is that the swing is IMC_InverterDrive now, not the two of 16.10.
+
+**A ready repair for the package.** None was found that is not already
+listed above. The narrow example filter (item 34) and the clean mode
+form (item 55) are the two smallest diffs, and both wait on a word.
+
+### Three rows of the run half, by name (item 2)
+
+From `/tmp/m474c/raw.txt` (271 lines, alive; the census was taken on
+35eb88c, and the code is identical to 8f7aeb0), inside the run half
+between the section marks (lines 147 and 262 of `census.txt`, 171
+models in 114 rows):
+
+| row                                    | model                                      | family, and where it is mapped                |
+| -------------------------------------- | ------------------------------------------ | --------------------------------------------- |
+| `` `X` of algebraic loop `` (6)        | `Fluid.Examples.PumpingSystem`             | a start the block never reads (m426 to m428)  |
+|                                        | `TraceSubstances.RoomCO2WithControls`      | moist air, item 50 (m454 to m456)             |
+|                                        | `MultiBody...RollingWheelSetDriving`       | the wheel set's dead row (m429)               |
+|                                        | `MultiBody...RollingWheelSetPulling`       | the wheel set's dead row (m429)               |
+|                                        | `MultiBody...ThreeSprings`                 | a start the block never reads (m426)          |
+|                                        | `Fittings.TestJunctionTraceSubstances`     | moist air (m454, m455)                        |
+| `the equations ... do not mention` (4) | `Spice3BenchmarkDifferentialPair`          | the capacitance written as zero, item 30      |
+|                                        | `MultiBody...PointGravityWithPointMasses2` | a start on a name that is not a state (m426)  |
+|                                        | `MultiBody...Elementary.RollingWheel`      | m391                                          |
+|                                        | `RobotR3.Utilities.GearType2`              | m360, m429                                    |
+| `did not converge in 50` (4)           | `Machines...SMPM_CurrentSource`            | the machine family (m406, m474)               |
+|                                        | `PressureLoss.Bend`                        | a seesaw about zero flow (m474)               |
+|                                        | `PressureLoss.SeveralTestCases`            | a seesaw about zero flow (m474)               |
+|                                        | `MediaTestModels.Air.MoistAir`             | the saturation pair, item 18's damping (m474) |
+
+The first two rows are, name for name, m462's and m470's. Nothing
+joined and nothing left.
+
+The third row is the one the brief asked about. It did not break up
+into synonyms: its members changed. m383's map of the Fluid rows
+counted eight under `did not converge in 50`. Three were tanks that
+swing and drift, `Bend` stood still, two converged too slowly, and two
+were in initialization. On this head:
+
+| m383 member                 | m383 shape      | on 8f7aeb0                                                  |
+| --------------------------- | --------------- | ----------------------------------------------------------- |
+| `TankWithEmptyingPipe2`     | swing and drift | runs (`state/m474/p2on.lst`)                                |
+| `TanksWithEmptyingPipe1`    | swing and drift | runs                                                        |
+| `TanksWithEmptyingPipe2`    | swing and drift | runs                                                        |
+| `PressureLoss.Bend`         | stands still    | still in the row, the same seesaw                           |
+| `TestDensity`               | too slow        | runs                                                        |
+| `DynamicPipeInitialization` | too slow        | carved into `heavy_models.txt` on 12.10, not in this census |
+| `BranchingPipes18`          | initialization  | carved into `heavy_models.txt` on 12.10, not in this census |
+| `DynamicPipeClosingValve`   | initialization  | its own row, `initialization did not converge in 50`        |
+
+So of m383's eight, one stands in the row today (`Bend`), four run, two
+left the main pass with the giants, and one is in the initialisation
+row it was always kept apart in. The other three of today's four are
+`SeveralTestCases` (Bend's breed), `MediaTestModels.Air.MoistAir`
+(Media) and `SMPM_CurrentSource` (Machines). m383 mapped only the 62
+Fluid and Media-with-Fluid models that flattened and did not run.
+`ModelicaTest.Media.TestsWithFluid.MediaTestModels.Air.MoistAir` falls
+inside that net and is not among its eight, so it came into the row
+after m383 from some other wall. Which wall cannot be told, because
+m383's file is gone. `SMPM_CurrentSource` is outside the net, so the map
+says nothing about it either way. What can be told is that the four of
+today are three breeds (m474), and none of them is m383's swinging tank.
