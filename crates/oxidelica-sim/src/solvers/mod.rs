@@ -239,6 +239,15 @@ fn floor_determined_off() -> bool {
     *OFF.get_or_init(|| std::env::var_os("OXIDELICA_NO_FLOOR_DETERMINED").is_some())
 }
 
+/// Whether a block accepted on the arithmetic floor *outside* a
+/// validated solve is let through without the check of determinacy, as
+/// it was before. Off by default; the switch exists so that the two
+/// halves of a measurement come from one binary.
+fn floor_doors_closed() -> bool {
+    static OPEN: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    !*OPEN.get_or_init(|| std::env::var_os("OXIDELICA_NO_FLOOR_DOORS").is_some())
+}
+
 /// Whether to take a Newton step whose direction the line search
 /// could not make descend. Off by default; the switch exists so that
 /// the two halves of a measurement come from one binary.
@@ -1427,10 +1436,33 @@ impl CompiledModel {
         // 1.00058 where the answer is 1. The four library models that
         // used the door (both `Rectifier`s, `CCCVcharging`,
         // `CCCV_Stack`) pass the check at their floor (`/tmp/m425`).
-        // This closes the door on the validated solve only: the floor
-        // is asked outside it too, where nothing validates a block,
-        // and those askings are still taken on the floor's word.
+        // This closes the door on the validated solve; the floor is
+        // asked outside it too, and those doors are the next note's.
         let floor_checked = !floor_determined_off();
+        // And the same question at the floor's other doors, where no
+        // validation is asked for. The probe of shift 426 counted 12939
+        // acceptances through them over the corpus, three of them
+        // undetermined: `PolyphaseRectifier` and
+        // `ThyristorBridge2mPulse_RLV` each stood once on a point where
+        // a family of switch states fits the equations, took whichever
+        // one the iteration last held, and ran on. That is a number
+        // nobody can vouch for, so the acceptance is refused - only the
+        // undetermined one - and the refusal names the model, the time,
+        // the exit and the block, because a refusal that names nothing
+        // is worth less than the number it replaced.
+        let unvalidated_door =
+            |values: &mut [f64], v: &[f64], exit: &str| -> Result<(), SimError> {
+                determined(values, v).or_else(|e| {
+                    // The family's words first and the culprit after, so that
+                    // a census reading kinds counts one row for the family
+                    // rather than one per model.
+                    err(format!(
+                        "a block accepted on the arithmetic floor {exit}, outside a validated \
+                     solve, is not determined, in `{}` at t = {t}: {}",
+                        self.name, e.0
+                    ))
+                })
+            };
 
         let mut seen: Vec<Vec<f64>> = Vec::new();
         let mut damped = false;
@@ -2344,6 +2376,12 @@ impl CompiledModel {
                             }
                             if validate && floor_checked {
                                 determined(values, &v)?;
+                            } else if floor_doors_closed() {
+                                unvalidated_door(
+                                    values,
+                                    &v,
+                                    "after three steps that did not descend",
+                                )?;
                             }
                             return Ok(());
                         }
@@ -2392,6 +2430,8 @@ impl CompiledModel {
             }
             if validate && floor_checked {
                 determined(values, &v)?;
+            } else if floor_doors_closed() {
+                unvalidated_door(values, &v, "after 50 iterations")?;
             }
             return Ok(());
         }

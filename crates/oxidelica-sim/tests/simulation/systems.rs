@@ -68,6 +68,39 @@ fn a_block_accepted_on_the_arithmetic_floor_is_still_asked_whether_it_is_determi
 }
 
 #[test]
+fn a_block_accepted_on_the_floor_outside_a_validated_solve_is_asked_too() {
+    // The same millionth as above, but only once the run is under way:
+    // `c` starts far from one and decays towards `1 + 1e-6`, so the
+    // validated solve at the start sees a determined block, and the
+    // floor is met later, at a step where nothing validates. Taken on
+    // the floor's word there, `y` wandered between 0.9992 and 1.0011
+    // and ended at 1.00066 where the answer is exactly 1.
+    let source = "model D parameter Real B = 1e7; \
+         Real c = 1 + 1e-6 + exp(-100*time); Real x(start = 1); Real y(start = 1); \
+         equation (B + x + y) - B = 2 + time; (B + x + c*y) - B = 1 + time + c; \
+         annotation(experiment(StopTime = 1, Interval = 0.1)); end D;";
+    let model = parse_model(source).unwrap();
+    let outcome = compile(&model).and_then(|compiled| compiled.simulate());
+    match outcome {
+        Err(error) => {
+            assert!(error.0.contains("underdetermined"), "{}", error.0);
+            assert!(error.0.contains("in `D` at t = "), "{}", error.0);
+        }
+        Ok(result) => {
+            let y = result.columns.iter().position(|c| c == "y").unwrap();
+            for row in &result.rows {
+                assert!(
+                    (row[y] - 1.0).abs() < 1e-6,
+                    "y = {} at t = {} handed on from the floor",
+                    row[y],
+                    row[0]
+                );
+            }
+        }
+    }
+}
+
+#[test]
 fn an_inner_assignment_does_not_divide_by_a_sine_folded_to_zero() {
     // A rotation by an angle the parameters fold to zero: solved for
     // `real` from the second row, the plan divides by `sin(0)`, which

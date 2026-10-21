@@ -1762,7 +1762,25 @@ FLATTEN_FLOOR=969
 # state/m477/on.ran):
 #
 #   799 - 2 swings - TestJunctionIdeal = 796 = 795 + 1
-RUN_FLOOR=796
+#
+# And run 794 = 796 - 2, lowered on Roman's word of 21.10 (queue item
+# 46, answer (a)): a block accepted on the arithmetic floor outside a
+# validated solve is now asked whether it is determined, and refused
+# when it is not. The word covers the loss of two named models and only
+# them, and the pair names exactly those two:
+# Polyphase.Examples.PolyphaseRectifier and
+# PowerConverters...RectifierBridge2mPulse.ThyristorBridge2mPulse_RLV,
+# each of which stood once on a point where a family of switch states
+# fits the equations and handed on whichever one it held. The pair is
+# one binary from the final tree, `OXIDELICA_NO_FLOOR_DOORS` set and
+# unset (state/m479/off.txt, on.txt): 969 / 799 to 969 / 797, the
+# flattened lists identical and the run lists differing by those two
+# names alone. The runner has not counted this tree, so the desk is
+# taken, less the same three, which stand by name in its run list
+# (lines 337, 379 and 481 of state/m479/on.ran):
+#
+#   797 - 2 swings - TestJunctionIdeal = 794 = 796 - 2
+RUN_FLOOR=794
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -2219,7 +2237,14 @@ RUNNABLE_FLATTEN_FLOOR=852
 # the same three.
 #
 #   755 - 2 - 1 = 752 = 751 + 1
-RUNNABLE_RUN_FLOOR=752
+#
+# And runnable run 750 = 752 - 2, by the same word and the same pair as
+# `RUN_FLOOR`: both victims are runnable examples, 755 on the desk
+# without the check and 753 with it (state/m479/off.txt, on.txt), less
+# the same three.
+#
+#   753 - 2 - 1 = 750 = 752 - 2
+RUNNABLE_RUN_FLOOR=750
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
