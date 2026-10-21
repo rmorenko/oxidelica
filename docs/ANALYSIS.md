@@ -57382,3 +57382,140 @@ the runaway, which is m334's row-scaled question again. m473 showed
 that a row scale alone does not mend `Z` or `K`. Nothing was poured
 in, and the tolerances are Roman's under items 18 and 30, with this
 number beside them.
+
+## Shift 478: the floors raised by the runner's print, a fresh census of the head, and a still value that carried its own rule
+
+### The verdicts and the floors
+
+The judge of the head, push run 39581615535 at e59ef1c, finished green. It was a
+documentation push, so its library jobs were skipped, and the print the floors
+wait on came from the run before it, 39576520573 at b295560, whose three library
+jobs all finished green. Its judge, job 119179925708 (`/tmp/m478/ci_judge.log`),
+printed
+`OK: 2671 files read, 969 flatten, 800 run; runnable 852 flatten, 756 run` and a
+ratio of 1.176, inside 0.70 to 1.50.
+
+The desk pair of shift 477 printed 969 / 799 and 852 / 755 on the same tree
+(`state/m477/on.txt`). The desk is the lower machine by one model in each
+runnable count, and the floor is set from the lower, less the three swings by
+name, all three of which ran on the desk (lines 339, 381 and 483 of
+`state/m477/on.ran`):
+
+```text
+RUN_FLOOR           799 - SpringWithMass - SMPM_VoltageSource - TestJunctionIdeal = 796 = 795 + 1
+RUNNABLE_RUN_FLOOR  755 - 3 = 752 = 751 + 1
+```
+
+The one model is `TestTankWithTopPorts`, which item 55 let run. The flatten
+floors did not move, because nothing that flattens did.
+
+### The census of the head, against m474c
+
+Taken on the head binary (`/tmp/m478/census.txt`, raw half `/tmp/m478/raw.txt`,
+270 lines), counted by the section marks against `/tmp/m474c/census.txt` (raw
+271 lines):
+
+| half               | m474c           | m478            |
+| ------------------ | --------------- | --------------- |
+| would not flatten  | 51 in 30 rows   | 51 in 30 rows   |
+| flattened, not run | 171 in 114 rows | 170 in 114 rows |
+
+The flatten half is identical line for line. In the run half one line changed:
+`singular Jacobian in algebraic loop` went 9 to 8, and the sorted raw halves
+differ by one name, `TestTankWithTopPorts`, which left that row and now runs.
+Nothing came, nothing moved between walls, and no row split or joined. So
+b295560 changed the reading of modes for every model and moved exactly the one
+it was meant to move, which the pair of shift 477 had said by totals and the
+census now says by rows.
+
+### The top of the run half, against the package
+
+The first two rows are the package's. `the Newton direction of algebraic loop`
+(10) is the water pipes and junctions of item 18, and
+`underdetermined algebraic loop` (8) is the Spice3 capacitances and
+FundamentalWave switches of item 30. The third, `singular Jacobian` (8), is the
+first not locked by name, and every member was asked again under `--only` with
+`OXIDELICA_NEWTON_TRAIL` on the head binary (`/tmp/m478/only/trail_*.txt`,
+`lgd2_trail.txt`). Each refuses at t = 0 at the wall m433 named for it:
+
+```text
+LossyGearDemo2                  rows 2 and 3 identical: the gear's a_a and the bearing's a_relfric, both stuck
+QuasiStatic Rectifier           load2.G ramps from 0, the DC side's rows coincide (m451: a mend lies)
+RoomCO2                         a NaN entry in d(states[1].T)/d(volume.medium.p), moist air (item 50)
+TestMixingVolumesPressureStates the IF97 density row against der(p) (m434)
+Engine1a                        zero rows of crank1's frame translation by a folded parameter (m433)
+SMEE_Generator, _Polyphase, SMEE_LoadDump   FundamentalWave machines (item 30)
+```
+
+`LossyGearDemo2` is worth one sentence more, because the library says it
+outright: its documentation reads that if both friction elements are stuck
+"there is no unique solution". The two rows are the same equation, and the block
+has a free direction by the model's design. That is the switch group of m344 and
+not a solver fault.
+
+The `X of algebraic loop` row (6) is mapped name for name in m476. Of the rows
+of three, `parameter T has no value` and the three `CompositeStep`s are helpers
+that are not work (m416), `vin.T0` is the `T0` family waiting on Roman,
+`initialization is not square` is m470, and `jointRRP.e_ia` is item 56. That
+leaves `cannot differentiate a subscript that survived flattening` (3), and it
+was probed.
+
+### `cannot differentiate a subscript` (3): a still value that carried its own rule
+
+The row is `HeatingSystem` and the two `TestInterpolate*` models. The two tests
+are m454's chain, a derivative of an output of a walked body, and were not
+touched. `HeatingSystem` was a different thing. The equation index reduction
+differentiates, the one determining `tank.medium.p` (`/tmp/m478/raw.txt`, 33978
+characters on one line), is built of
+`waterBaseProp_ph(101325, waterBaseProp_pT(101325, 298.15, 0)[5], 0, 0)[7]` and
+its kin: every argument a literal. The inner value arrives wrapped as
+`WithDerivative`, the form a call takes when its function declared a derivative
+rule, and `does_not_move` in `symbolic.rs` had no arm for that wrapper. It fell
+to `_ => false`, so a call on nothing but literals read as moving, and its
+subscript was refused as one the differentiator cannot take.
+
+The repair is one arm: a value with a rule is still the value, so it stands
+still when what it wraps stands still. That is the rule the differentiator
+already uses, "whatever does not move has a derivative of zero", reaching one
+variant it had walked past, and it is true everywhere. The switch
+`OXIDELICA_NO_STILL_WITH_DERIVATIVE` keeps the old reading. The test is
+`a_call_on_a_still_value_with_its_own_rule_does_not_move`, red under the switch
+and green without it. A small model was tried first (`/tmp/m478/small/W1.mo`,
+`W2.mo`) and does not reproduce it: the inliner folds a call on literals before
+reduction sees it. The one model that carries the shape is a Fluid giant of 140
+s to flatten.
+
+The pair was taken with one binary (`/tmp/m478/ox2`) with the switch set and
+unset, without the heavy set (`/tmp/m478/off.txt`, `on.txt`): 969 / 799 and 852
+/ 755 on both sides, and the flat and run lists identical name for name. The off
+half's run list is also identical to `state/m477/on.ran`. Wins 0, victims 0. The
+register moves by one model and one storey: the `subscript` row goes 3 to 2, and
+a new single reads
+`der(tank.medium.T): tank.medium.T is not a state of the model`. That is a wall
+named rather than a wall removed, and it is merged because the old refusal named
+a fault that was not there.
+
+### `HeatingSystem`, link 2: a steady start on a medium inside a block of 328
+
+`why` and two probes on `ox2` (`/tmp/m478/only/why_T.txt`,
+`heating_initder.txt`, `heating_initprobe.txt`). The tank writes
+`der(tank.medium.T) = 0` as an initial equation, for `SteadyStateInitial`.
+`tank.medium.T` is not a state. It is a torn unknown of one block of 328, with
+296 inner unknowns, and the same is true of all nine media the model holds
+steady (`heater`, `radiator`, both `pipe` media, `tank`).
+`algebraic_definition_derivatives` asks the implicit theorem for each, and every
+one fails, so `der(T)` has no substitute. The swap that would solve such a row
+on its balances instead (`steady_rows_on_balances`, m453) does not take it
+either. Each of the ten written rows "reaches []" through the coarse walk, which
+stops at the block, and was paired with its state only through the pairing of
+lost conditions (`tank.U`, `tank.m`, `heater.Us[1]` and so on). The probe prints
+no `steady row ... solved` line, so none of the nine was swapped. Why was not
+printed: the swap asks the coarse reach through the block, which runs from every
+medium to every state the block reads, and a set of rows narrowed on that reach
+can drop to nothing as soon as one state it reaches is not held by a steady row,
+the tank's `m`, held by its level, being the obvious candidate. That is a
+reading of the code and not a measurement. The next link is one of two either
+way: a reach that tells the states of one block apart, or a derivative of a torn
+unknown that the theorem can take in a block that size. Both are a design of
+their own and were not built. The chain was not walked to its end, and that is
+said here so nobody takes it as walked.
