@@ -58704,3 +58704,213 @@ and every step passed but the prose check, which turned on this
 chapter before it was formatted. The library step is this pair: one
 binary from the final tree, nothing it measures changed after it, the
 halves `f_on.txt` and `f_off.txt` above.
+
+## Shift 485: the nine of the water edge mapped to the hand-over, and five links of a gas mixture's state
+
+### The verdict on 6fbf74e
+
+Run 39738536241 on 6fbf74e finished red, and the line says why:
+the judge (job 119724420475) printed `969 flatten, 803 run; runnable
+852 flatten, 758 run`, which is the 801 / 756 of 13b108f plus
+`SeveralTestCases` and `TestInterpolateParametric`, as expected. It
+turned red on the points band: `points evaluated is 457143 against
+415001 written here (1.101547x), outside 100000 per million`. The
+judge of 13b108f (job 119655055209) had already printed 453390,
+x1.093, which is the drift of the series. The last 3753 points are
+the two new runners, and the desk's m484 pair moved by exactly that
+(25244219 to 25247972, `state/m484/f_off.txt`, `f_on.txt`). Newton
+steps stayed inside, 944777 against 904754. Commit 33eb406 moves the
+points centre to the runner's 457143. It also raises `RUN_FLOOR`
+797 to 799 and `RUNNABLE_RUN_FLOOR` 752 to 754, taken from the lower
+machine, the desk's 802 / 757, less the three that swing
+(`SpringWithMass`, `SMPM_VoltageSource` of FundamentalWave,
+`TestJunctionIdeal`). The flatten floors are unchanged. The names band
+stayed inside at 1672242797, the m484 centre to the digit.
+
+### The census before
+
+`/tmp/m485/census.txt` (raw half `/tmp/m485/raw.txt`), taken on the
+head 6fbf74e with `refusals.sh .msl both`. Counted between the
+section markers: would not flatten 51 models in 30 rows, flattened and
+would not run 167 models in 113 rows. The run half is the reference
+the brief named (169 of m483 less `SeveralTestCases` and
+`TestInterpolateParametric`). The top row, `the Newton direction of
+algebraic loop`, holds 10.
+
+### The nine of the water edge: the trail of `N1` contradicts the guess
+
+The brief guessed that a Newton step landing where the residual is
+not a number should be cut back to the largest finite fraction. The
+trail of `N1` (`state/m424/N1.mo`, `OXIDELICA_NEWTON_TRAIL`) shows
+that this cut is already there, at `solvers/mod.rs:1516`: from
+`p = 5.45e5` at `t = 3e-4` the full step goes to `-2.2e8`, the
+residual is NaN, and nine halvings bring it back to `1.1e5`, the
+first finite point. After that the line search crawls (`lambda`
+4.9e-4, 7.6e-6, 3.8e-6) and the descent guard stops it. The crawl is
+not a fault of the search. The residual at that point is `-99.7` in
+density, and the root of the stage is `d - 998 = -100`, which needs
+`4.5e-7 * (p - 1e5) = -100`, so `p = -2.2e8`. The root lies outside
+the domain of the water law. The stage of the explicit solver asks
+for a point that does not exist, so no step inside the block can
+find one. The wall sits in the integrator that put the stage there,
+not in the Newton step.
+
+That moves the question to the hand-over, and two facts settle it,
+both measured on `N1`:
+
+- the refusal comes on a stage of the _first_ step (`t = 3e-4`, `t0
+= 0`), and the narrow hand-over, the default since c0e2c67, hands
+  over only once a step has been accepted, so it never fires;
+- under `--solver bdf` the corrector meets the same edge at
+  `t = 1e-3`, and the BDF loop takes an `Outside` refusal as the end
+  of the run (`bdf.rs:186`) rather than as a step too long.
+
+A probe made `Outside` a rejected step in BDF (kept as
+`state/m485/bdf_edge_reject.diff`, key `OXIDELICA_BDF_EDGE_ENDS`).
+`N1` then runs under `bdf` and under `OXIDELICA_EDGE_HANDOFF=all`, and
+gives `p = 101000.617` at 0.01 s (by hand, at rest, `1e5 + 1/1e-3`).
+It still refuses under the default. The nine through `--only` from
+`.msl`, one at a time, under 12 GB caps
+(`state/m485/ox1def.sum`, `ox1all.sum`, `ox0all.sum`):
+
+```text
+                    default hand-over       EDGE_HANDOFF=all
+head (ox0)          0 of 9 (census)         2: BranchingPipes3 410 s, SeriesPipes2 426 s
+BDF edge probe      0 of 9                  4: BranchingPipes3 372 s, SeriesPipes2 388 s,
+                                               BranchingPipes13 414 s, BranchingPipes14 614 s
+```
+
+Under `all` with the probe, `BranchingPipes1`, `2` and `4` refused
+after 1848 s to 2314 s. `SeriesPipes1` and `TestTemperature1` were
+stopped at 38 minutes of processor time without an answer. So the BDF
+change wins nothing alone. Together with the wide hand-over it wins
+two of the nine beyond what the wide hand-over wins alone, at six to
+ten minutes a model. The wide hand-over is queue item 38 and waits for
+Roman's word (m408: it doubled the run half). The probe was not merged
+and no corpus pair was spent on it: with no model won under the
+default, the pair could only have counted victims of a change that
+buys nothing. The question for the review is the m408 price against
+these four, plus two for the probe.
+
+### `FlueGasSixComponents`: five links taken, the sixth is a min
+
+The m484 map put the model at a record input of the walked
+`MixtureGasNasa.dynamicViscosity`. That input was handed as
+`{p, T, {X[1..6]}}` where the body declares `ThermodynamicState
+state`. The chain was walked to its end with probes and taken as one
+series, each link under its own key:
+
+1. **The state was never laid out** (`carried.rs`, `records_as_arrays`).
+   `handed_record_fields` measured `X[nX]` with `const_eval` and no
+   scope. `nX` is a constant of the medium, so the list came back
+   empty and the record was skipped. The length is now asked in the
+   body's own scope (`handed_record_fields_in`).
+   `OXIDELICA_NO_SCOPED_RECORD_LENGTHS`.
+2. **A record constructor assigned whole** (`walk.rs`, `elements_of`).
+   `state := ThermodynamicState(p = p, T = T, X = X)` in `setState_psX`
+   was read as a scalar and refused as one number given to a name held
+   element by element. A constructor whose every argument is named and
+   none is text is now its fields in order, arrays spread.
+   `OXIDELICA_NO_WALKED_CONSTRUCTOR_LISTS`.
+3. **A function handed over is a callee** (`arrays.rs`,
+   `medium_read_here`; `carried.rs`, `on_the_line_enclosed`).
+   `T_psX` reads nothing of its medium itself. It hands its own
+   `T_psX.f_nonlinear` to `solveOneNonlinearEquation`, and that one
+   calls `specificEntropyOfpTX`, which binds a local on `data.MM`.
+   Two gaps hid it: the gathering of callees skipped the function
+   handed by `function f(...)`, and `on_the_line` took the package of
+   a nested function to be the function that encloses it. So `T_psX`
+   was carried under the base's name, and the walk met `data.MM`.
+   `OXIDELICA_NO_HANDED_CALLEES`, `OXIDELICA_NO_NESTED_LINE`.
+4. **A walked record answer laid out by fields, not numbers**
+   (`arrays.rs`, `standing_call`; `inlining.rs`,
+   `bind_record_argument`). A body answering with `{p, T, X[6]}` is
+   eight numbers end to end. The flat model counted three places, one
+   per field, and the next call asked for `state[4]`, which nothing
+   answered. The answer now stands as eight places. A body that takes
+   the record regroups a flat list of exactly the laid-out length into
+   its fields. The nested reading was tried first and failed: the
+   places are re-indexed flat further on (`subscript 4 is outside an
+array of 3`). `OXIDELICA_NO_NESTED_RECORD_ANSWERS`,
+   `OXIDELICA_NO_REGROUPED_RECORDS`.
+5. **A field of a picked constructor** (`walk.rs`, `to_scalar`).
+   `fluidConstants[i].criticalTemperature`, with `fluidConstants` a
+   list of `FluidConstants(...)` and `i` a loop index, reached the
+   evaluator as an unresolved subscript. It is now the named argument
+   of the constructor the index picks.
+   `OXIDELICA_NO_WALKED_CONSTRUCTOR_FIELDS`.
+
+The sixth wall is not of this family:
+`assertion failed: dddX[1] went below its min of 0 [dddX[1] =
+-1.214]`. The test model declares `Medium.Density dddX[nX] =
+Medium.density_derX(state)`, and a derivative of density by a mass
+fraction is negative for a heavy component: `-d * MM / MM_i` comes to
+about `-1.18 * 1.03` here. The number is right and the bound on it is
+the model's own. Whether a `min` of a type used for a derivative
+should be an assert is a question about the language, not about the
+walk, so the chain stops there and is parked.
+
+The small model `state/m485/small/G5.mo` (a medium with a state
+`{p, T, X[nX]}`, `setState` then `visc`, both walked) is red with the
+series off and gives `eta = 8392.3295` with it on, which is
+`301 * (0.2/0.028 + 0.3/0.032 + 0.5/0.044)` by hand. It is the test
+`a_medium_state_holding_an_array_travels_through_two_walked_bodies`
+(`functions.rs`), seen red under each of the four keys of links 1, 2
+and 4. Links 3 and 5 have no small witness: `G6.mo` reaches both
+roads and runs without either key, because a body that simple is
+inlined before the walk. Their only witness is
+`FlueGasSixComponents` through `--only`, which this chapter says
+outright rather than implying a test.
+
+**The pair.** One binary, `/tmp/m485/oxp`, run from the root without
+the heavy models, under 20 GB caps, `--list`. The seven keys were
+unset for `on.txt` and set for `off.txt`
+(`state/m485/pair/on.txt`, `off.txt`, lists `on.ran`, `off.ran`,
+`on.flat`, `off.flat`):
+
+```text
+                 series off                 series on
+flatten / run    969 / 802                  969 / 802
+runnable         852 / 757                  852 / 757
+run half         167 models in 139 rows     167 models in 138 rows
+```
+
+The flattened lists and the run lists agree name for name, so there
+are no victims and no wins. The off half is the m484 `f_on.ran` to the
+name. Two models went one storey up, and the rows show it while the
+sums do not:
+
+- `FlueGasSixComponents` left `subscripts and arrays survive
+flattening only as scalars: an array of N written out` (2 to 0) for
+  `dddX[1] went below its min` (1 to 2, beside
+  `TestAllProperties.MoistAir`, which already stood there);
+- `IncompleteMedia.ReferenceMoistAir`, the other model of that row,
+  now refuses at run time with `an array reached the evaluator:
+{0.0368, 0.0511}` (1 to 2, beside `ReferenceAir.Inverse_sh_TX`).
+  That is item 45's wall, reached one storey later, and item 45
+  belongs to Roman's package, so it was not touched.
+
+A series that moves no number does not merge on the rule, and this
+one was merged anyway, with the reasons stated. The pair shows it is
+pure for everything but the two models it names. The four links of
+the small model are the same faults that give a wrong reading on the
+road a record takes into a walk. And the model's next wall is a bound
+the model sets, not a link of this family. The keys stay so a later
+shift can price any link alone.
+
+### The moving table (item 3): a map
+
+`TestInterpolateTimeVarying` refuses honestly since m484. The small
+model `state/m485/small/D7.mo` is `D6` of m484 with
+`tabx = {0..5} + 0.1*time*ones(6)`, and it refuses in the same words.
+The place is `derived.rs:247`: `derive` takes _every_ array input as
+standing still (`still_array`), because a derived body has no way to
+lay out the rate of an array. Under the specification, the derivative
+of `interpolate(x, y, xi)` with a moving `x` and `y` is the full
+total derivative, and `smoothOrder(normallyConstant = x, normallyConstant
+= y)` promises smoothness only where those inputs do not move. A
+moving table is outside the promise, so the refusal is correct. To
+run the model, the derived body would need array rates as inputs
+(`der(x)[i]`, `der(y)[i]`) and a rule for the hunted index, which
+stays piecewise constant. That is a writer of derived bodies with
+array rates: one link, but not a local one. No code was written.
