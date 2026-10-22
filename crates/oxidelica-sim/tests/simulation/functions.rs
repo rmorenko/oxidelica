@@ -5286,3 +5286,38 @@ fn a_record_of_constants_handed_on_whole_keeps_its_constants() {
         );
     }
 }
+
+#[test]
+fn a_table_hunt_taken_as_a_tuple_is_differentiated_through_its_body() {
+    // `Vectors.interpolate` of the library, cut down: a `while` hunts the
+    // row, the two outputs are taken as a tuple, and the model asks for
+    // `der(x)`. Four links stood in the way: the promise written as
+    // `smoothOrder(normallyConstant = x) = 100` was not read as an
+    // order, `x[i]` of a still array with a hunted `i` was refused as a
+    // subscript, the first output of the tuple was refused as one too,
+    // and a promise of a hundred orders wrote bodies for minutes. The
+    // slope of the squares between the rows is 1, 3, 5.
+    let result = run("model D6 function interp input Real x[:]; \
+         input Real y[size(x, 1)]; input Real xi; output Real yi; \
+         output Integer iNew = 1; protected Integer i = 1; algorithm \
+         while i < size(x, 1) - 1 and xi >= x[i + 1] loop i := i + 1; end while; \
+         yi := y[i] + (y[i + 1] - y[i])*(xi - x[i])/(x[i + 1] - x[i]); iNew := i; \
+         annotation(smoothOrder(normallyConstant = x, normallyConstant = y) = 100); \
+         end interp; \
+         parameter Real tabx[:] = {0, 1, 2, 3, 4, 5}; \
+         parameter Real taby[:] = tabx .* tabx; Real x, y; Integer i; \
+         equation (x, i) = interp(tabx, taby, time); y = der(x); \
+         annotation(experiment(StopTime = 2.5, Interval = 0.5)); end D6;");
+    let (x, y) = (
+        result.columns.iter().position(|c| c == "x").unwrap(),
+        result.columns.iter().position(|c| c == "y").unwrap(),
+    );
+    for row in &result.rows {
+        let t = row[0];
+        let slope = 2.0 * t.floor() + 1.0;
+        assert!((row[y] - slope).abs() < 1e-9, "y = {} at t = {t}", row[y]);
+        let row_at = t.floor();
+        let line = row_at * row_at + slope * (t - row_at);
+        assert!((row[x] - line).abs() < 1e-9, "x = {} at t = {t}", row[x]);
+    }
+}

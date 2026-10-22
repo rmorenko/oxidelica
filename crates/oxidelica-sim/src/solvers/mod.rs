@@ -281,6 +281,15 @@ fn slivers_count() -> bool {
     *ON.get_or_init(|| std::env::var_os("OXIDELICA_SLIVER_STEPS").is_some())
 }
 
+/// Whether a one-unknown Newton step that turns back across a root is
+/// taken whole, as it was before such a step was cut to the secant's
+/// share. Off by default; the switch exists so that the two halves of
+/// a measurement come from one binary.
+fn no_secant_turn() -> bool {
+    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ON.get_or_init(|| std::env::var_os("OXIDELICA_NO_SECANT_TURN").is_some())
+}
+
 /// Whether a converged block's Jacobian is divided through by its
 /// columns before its rows, as it was before the order was turned
 /// round. Off by default; `OXIDELICA_COLUMNS_FIRST=1` keeps both halves
@@ -1480,6 +1489,10 @@ impl CompiledModel {
         // The matrix the last step was taken on, for the floor a block
         // that runs out of iterations is judged against.
         let mut last_jac: Option<Vec<Vec<f64>>> = None;
+        // The residual at the point the last step left, beside the
+        // footing, so that a step back across a root can be measured
+        // against the two points either side of it.
+        let mut footing_f: Option<Vec<f64>> = None;
         for iteration in 0..50 {
             oxidelica_parser::work::tick(oxidelica_parser::work::Step::Newton);
             self.count_newton(t)?;
@@ -2263,7 +2276,40 @@ impl CompiledModel {
             // describes. `PumpAndValve` walks its enthalpies to 1e19
             // on the first such step and never comes back; shortened
             // until the residual falls, it runs.
-            damped |= circling || rescued;
+            // A step of one unknown that turns back across the root it
+            // has just jumped over, and is not much shorter than the
+            // jump, is an overshoot that is not settling. The flow
+            // through a fitting goes as the square root of its pressure
+            // drop, near enough, and Newton on such a law from either
+            // side lands on the other side about as far out: the water
+            // bends of `SeveralTestCases` swing `dp` 1000, -804, 782,
+            // -628 ... shrinking by a quarter a step, and a resistance
+            // of the same model swings about 2.5e-10 the same way, so
+            // fifty iterations end where a hundred and fifty would
+            // have converged. Nothing returns, so the circle test does
+            // not see it, and every swing descends a little, so the
+            // line search does not either (the shrunk model and its
+            // trail are `state/m483/small/B1.mo`, `/tmp/m484/W_on.txt`).
+            // With the root bracketed by the last two points, the
+            // secant between them is a better step than Newton's, and
+            // that share of the Newton step is where the line search
+            // starts. `OXIDELICA_NO_SECANT_TURN` takes the whole step.
+            let mut turn: Option<f64> = None;
+            if n == 1 && !no_secant_turn() {
+                if let (Some((from, last, _)), Some(f0)) = (&footing, &footing_f) {
+                    let (x0, f0, x1, f1) = (from[0], f0[0], v[0], f[0]);
+                    if f0 * f1 < 0.0 && last[0] * dv[0] < 0.0 && dv[0].abs() > 0.25 * last[0].abs()
+                    {
+                        let share = f1 * (x1 - x0) / (f1 - f0) / dv[0];
+                        turn = Some(if share > 0.0 && share <= 1.0 {
+                            share
+                        } else {
+                            0.5
+                        });
+                    }
+                }
+            }
+            damped |= circling || rescued || turn.is_some();
             let mut next = full;
             let mut taken = 1.0f64;
             if damped {
@@ -2302,6 +2348,10 @@ impl CompiledModel {
                 };
                 let before = norm(&f);
                 let mut lambda = 1.0f64;
+                if let Some(share) = turn {
+                    lambda = share;
+                    next = (0..n).map(|j| v[j] - lambda * dv[j]).collect();
+                }
                 let mut descended = false;
                 for _ in 0..20 {
                     if next.iter().all(|value| value.is_finite())
@@ -2416,6 +2466,7 @@ impl CompiledModel {
                 }
             }
             footing = Some((v.clone(), dv, taken));
+            footing_f = Some(f.clone());
             v = next;
             if !reach_floor_off() {
                 last_jac = Some(jac);

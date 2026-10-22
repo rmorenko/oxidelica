@@ -670,6 +670,40 @@ pub(crate) fn differentiate_at(
         _ if matches!(target, DiffTarget::Time { .. }) && does_not_move(expr, target) => {
             Expr::Number(0.0)
         }
+        // Inside a walked body, an element of an array that stands
+        // still stands still too, whichever element the body picks.
+        // A subscript is an Integer, and an Integer does not move
+        // continuously: between the instants it changes the element is
+        // one number, and at those instants the body's `smoothOrder`
+        // is the promise that the road taken on either side agrees.
+        // `Vectors.interpolate` reads `x[i]` after hunting `i` with a
+        // `while`, and the derivative was refused for a subscript it
+        // could not see still. The array is checked at the call, as
+        // every still array input is. `OXIDELICA_NO_STILL_ELEMENT`
+        // keeps the old reading.
+        Expr::Index(base, _)
+            if IN_BODY.with(|on| on.get())
+                && matches!(target, DiffTarget::Time { .. })
+                && does_not_move(base, target)
+                && !crate::walk::switch_set("OXIDELICA_NO_STILL_ELEMENT") =>
+        {
+            Expr::Number(0.0)
+        }
+        // The first output of a walked call taken out of its tuple is
+        // the value the derived body is the rate of: `derive` writes
+        // the rate of a body's first output and of nothing else. So
+        // `(x, i) = interpolate(...)` differentiates `x` as the
+        // single-output call would have been, and any other output
+        // is refused as before. `OXIDELICA_NO_FIRST_OUTPUT_RATE`
+        // keeps the old reading.
+        Expr::Index(base, subscripts)
+            if matches!(subscripts.as_slice(), [Expr::Number(k)] if *k == 1.0)
+                && matches!(base.as_ref(), Expr::Call(name, _)
+                    if crate::derived::derivative_of(name).is_some())
+                && !crate::walk::switch_set("OXIDELICA_NO_FIRST_OUTPUT_RATE") =>
+        {
+            d(base)?
+        }
         // The same truth for the other target, asked where it matters:
         // a slope in one name holds every other name still, so a call
         // that does not mention the name has a slope of nothing in it,

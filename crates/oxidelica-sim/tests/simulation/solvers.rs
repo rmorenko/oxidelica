@@ -1512,3 +1512,25 @@ fn a_clock_block_names_its_solver_by_name_and_by_parameter() {
         "reached {reached}"
     );
 }
+
+#[test]
+fn a_root_overshot_from_either_side_is_taken_by_the_secant() {
+    // A flow going as `dp^0.53`, smoothed at zero, solved for `dp` from
+    // a start of 1000. Newton on such a law lands on the other side of
+    // the root about as far out as it stood, shrinking by a quarter a
+    // step: nothing returns, so the circle test does not see it, and
+    // every swing descends a little, so the line search does not either.
+    // The water bends of `SeveralTestCases` swing so and ran out of
+    // their fifty iterations. A step of one unknown that turns back
+    // across the root it has just jumped over is cut to the secant's
+    // share of it, and the root is reached.
+    let result = run("model P5 Real m = 10*sin(6.283185307179586*time); \
+         Real dp(start = 1000); equation m = dp*(dp^2 + 1e-4)^(-0.235); \
+         annotation(experiment(StopTime = 0.25, Interval = 0.25)); end P5;");
+    let dp = last_of(&result, "dp");
+    let flow = dp * (dp * dp + 1e-4f64).powf(-0.235);
+    assert!(
+        dp > 0.0 && (flow - 10.0).abs() < 1e-6,
+        "dp = {dp}, flow = {flow}"
+    );
+}

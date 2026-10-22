@@ -115,11 +115,27 @@ fn straight(class: &ClassDef) -> bool {
 /// can ask for. A derived body holds the order it was given and no
 /// more, which is what brings the writing out to an end.
 fn order_of(class: &ClassDef, ceiling: f64) -> f64 {
-    match straight(class) {
+    let promised = match straight(class) {
         true => smooth_order(class).max(ceiling),
         false => smooth_order(class),
+    };
+    match walk::switch_set("OXIDELICA_ALL_ORDERS") {
+        true => promised,
+        false => promised.min(WRITTEN_ORDERS),
     }
 }
+
+/// How many orders of derivative are written out for one body, however
+/// many it promises. Each order is a body holding the one before it,
+/// so the work doubles with every order, and a promise of a hundred -
+/// `Vectors.interpolate` makes one, the `Complex` operators make
+/// others - is a hundred bodies that never finish being written: a
+/// twelve-line model sat in this loop for minutes on end. Five is the
+/// largest order the library promises short of a hundred, so nothing
+/// that was written before is written differently, and no model asks
+/// index reduction for a fifth derivative of a function call.
+/// `OXIDELICA_ALL_ORDERS` writes out every order promised.
+const WRITTEN_ORDERS: f64 = 5.0;
 
 /// Whether a declaration holds a number with a rate of change. A
 /// Boolean, an Integer and a String do not move continuously, and

@@ -998,6 +998,23 @@ impl Parser {
                 let Expr::Call(called, args) = self.primary()? else {
                     return Err(self.err(format!("`{name}` is not an annotation this reads")));
                 };
+                // `smoothOrder(normallyConstant = x) = 100` is an order
+                // with a qualification in front of it, and the order is
+                // what a reader of the entry asks for. Read as a call it
+                // had no `=` to stand on, the entry was skipped, and the
+                // function promised nothing: `Vectors.interpolate` is
+                // written so. The inputs it names are read where the
+                // derivative is written out, which takes every array
+                // input as still and checks it at the call.
+                // `OXIDELICA_NO_QUALIFIED_ORDER` keeps the old reading.
+                if called == "smoothOrder"
+                    && self.peek() == &Token::Assign
+                    && std::env::var_os("OXIDELICA_NO_QUALIFIED_ORDER").is_none()
+                {
+                    self.bump();
+                    let value = self.expr()?;
+                    return Ok(Expr::NamedArg(called, Box::new(value)));
+                }
                 Ok(Expr::Call(called, args))
             }
             // A bare word says something by being there at all.
