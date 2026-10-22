@@ -59246,3 +59246,51 @@ work line is the runner's of 0386ae9 to the digit in names
 with the final binary was not taken: it was started, then stopped
 with its tree when the retries' wording changed, and the preflight's
 pass is the measurement of the final tree instead.
+
+## Shift 487: the verdict on 3d112cc, and the narrow loosening of `min` measured
+
+**The verdict.** Run 39776140759 at 3d112cc is green: `OK: 2671 files
+read, 969 flatten, 803 run; runnable 852 flatten, 758 run`, names 1672611846. The run half's census (`/tmp/m487/census.txt`) is 167
+models over 112 rows, the same as m486 row for row in count.
+
+**Does the flat model know where a bound came from.** Not today. A
+bound reaches a component by two roads in `flatten/inheritance.rs`,
+the alias modifiers and the type's attributes, and both write
+`component.min` without a mark: `start` has had `start_from_type`
+since it was needed, `min` and `max` had nothing. So (c) was not
+executable as the tree stands, and the probe had to add the mark
+first: a field `bounds_from_type` set only where the type's
+attribute fills an empty bound. A third finding came with it: a bound
+written from above, `Tank t(h(min = 0.5))`, does not reach the flat
+model at all - with `Real h` the assertion is absent, and with a
+typed `h` the type's `min = 0` is what is checked
+(`state/m487_probe/Outer*.mo`). So "written in the model" can only
+mean "written on the declaration itself"; a modifier from an
+enclosing class is lost before provenance could be asked.
+
+**Volume.** Under `OXIDELICA_BOUND_TALLY` over the main pass, 898
+models: 75361 bound checks come from a type and 24630 are written on
+the declaration, 99991 in all. Three in four checks are the type's,
+so the loosening is not narrow by volume: it switches off 75361
+checks to win the models below.
+
+**The pair.** One binary, `--without scripts/heavy_models.txt`, under
+`CAP_GB=24`, key `OXIDELICA_SKIP_TYPE_BOUNDS` off and on
+(`state/m487_probe/pair_off.txt`, `pair_on.txt`): 969 flatten both,
+802 run against 805, runnable 757 against 760. Gains by name:
+`FlueGasSixComponents`, `MoistAir`, and one not expected,
+`IncompleteMedia.Essotherm650`, refused today with `Pr` = 19525310
+above the `max = 1e5` of `Media.Interfaces.Types.PrandtlNumber`. A
+Prandtl number of two times ten to the seven for a thermal oil at
+its start is either a wrong viscosity or conductivity or a medium
+outside its table, and the probe hides which. Losses: none.
+
+**The guard where it is needed.** `Rep.mo`, `Guard.mo`: a bound
+written on the declaration (`Real x(min = 0)`, and a typed variable
+repeating it, `Level x(min = 0)`) still refuses at t = 1.001 with the
+key on, the same line as without. `Typed.mo`, the type's bound alone,
+falls silent under the key, as designed.
+
+The probe is parked as `state/m487_probe/type_bounds_probe.patch`,
+not merged. Items 1 to 5 of brief 486 were not taken: Roman's word
+on (c) came first and took the shift.
