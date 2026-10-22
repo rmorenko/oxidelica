@@ -59294,3 +59294,142 @@ falls silent under the key, as designed.
 The probe is parked as `state/m487_probe/type_bounds_probe.patch`,
 not merged. Items 1 to 5 of brief 486 were not taken: Roman's word
 on (c) came first and took the shift.
+
+## Shift 488: a bound written from above delivered, and five maps of the torn blocks
+
+**The verdict.** Taken at review: run 39811320126 at 44eb409 is green
+and docs-only, the library jobs skipped by right; the numerical judge
+of the tree is still 39776140759 at 3d112cc. The run half's census
+with the base binary (`/tmp/m488/census.txt`) is 167 models over 112
+rows, the reference to the row.
+
+### Where the bound was lost
+
+Roman's word was to mend the hole m487 found: `Tank t(h(min = 0.5))`
+reaches the flat model without its bound. The address is
+`flatten/components.rs`, where a component of a class is given what
+the enclosing modifier says about it. That place read
+`<name>.start`, `<name>.stateSelect` and `<name>.fixed` out of the
+modifiers handed down and never asked for `<name>.min`, `.max` or
+`.nominal`, so those stayed in the list unread and the flat component
+kept the declaration's bound or the type's. A debug print of the
+modifiers on `Outer3.mo` showed `["h.min"]` arriving and going
+nowhere. It was not lost earlier: the type road (`resolve_type`) only
+fills a bound that is empty, and the modifier arrives after it.
+
+The mend reads the three attributes beside `start` and lets them
+outrank the declaration and the type, as a start handed down does.
+`OXIDELICA_NO_BOUND_MODIFIER=1` drops them, so one binary gives both
+numbers. The extends road was not found to lose anything: `Outer`
+(the bound on the declaration through a typed `Level`) and `Typed`
+check the same before and after.
+
+The small models, `state/m487_probe/Outer*.mo`, under one binary:
+`Outer2` (`Real h`, `min = 0` from above) ran to the end without the
+mend and is refused at t = 1.001 with it; `Outer3` (`Level h`,
+`min = 0.5` from above) was checked against the type's 0 at t =
+1.001 and is now refused at t = 0.501 against 0.5. The test
+`a_bound_handed_down_by_a_modifier_is_held` (`equations.rs`) holds
+both shapes and was seen red under the key.
+
+### The size of the hole
+
+The tally of m487 (`OXIDELICA_BOUND_TALLY`, from the parked probe,
+with a modifier from above counted as written in the model) over the
+main pass, 898 models, one binary, key off and on, `CAP_GB=20`
+(`/tmp/m488/pair/off.txt`, `on.txt`):
+
+|        | from the type | on the declaration or from above | all    |
+| ------ | ------------- | -------------------------------- | ------ |
+| before | 75361         | 24630                            | 99991  |
+| after  | 73987         | 26074                            | 100061 |
+
+So 1444 bounds the authors wrote were being dropped: 1374 of them
+were checked anyway, against the type's bound instead of the
+author's, and 70 were checked against nothing. They sit in 109 models,
+almost all of the fluid library (`DynamicPipeEnergyConservationCheck`
+84, `SeveralTestCases` 39, `TestSources` 38,
+`TestJunctionTraceSubstances` 34). The split m487 gave Roman for
+(a)/(c) moves by about two points: three checks in four still come
+from a type.
+
+**The pair.** 969 flatten and 802 run both ways, and the lists of
+models that run are identical (`off.ran`, `on.ran`, 802 lines, no
+diff). No model that ran was breaking a bound its author wrote, and
+none was won. The floors do not move.
+
+### Item 1: the starts of the torn block (`ThreeSprings` and the wheel sets)
+
+Who computed `spring1`'s start: nobody. `ThreeSprings.mo:25` writes
+`lineForce(r_rel_0(start = {-0.2, -0.2, 0.2}))` for `spring1` alone,
+and `length` and `s` read 0.3464 from it through `read_starts`.
+`spring2` is given no start, and its `frame_a` is the massless point
+between the springs, so `r_rel_0[3]` and everything after it start at
+zero. The same mechanism reached `spring2` and found nothing to read.
+
+A probe (`OXIDELICA_SEED_BLOCK`, parked in
+`state/m488/seed_and_inner_probe.patch`) runs four passes of the
+block's own assignments before Newton - inner ones, then each residual
+written `x = ...` for one of its torn unknowns - keeping only finite
+values. On `ThreeSprings` it fills `spring2`: `length` and `s` 0.4123,
+`e_rel_0` (0.970, -0.243, 0). The infinite start is gone, and the
+refusal becomes `did not converge in 50 Newton iterations`: the
+block's own starts are now consistent, and the Newton solve of 31
+unknowns from the position of the massless point still does not
+settle. Neither wheel set moves: `RollingWheelSetDriving` refuses on
+the same `e_long_0[1]`, and `RollingWheelSetPulling` on the revolute
+torque. So none of the three ran, and nothing was merged. The next
+wall is where the massless point stands, which the model never says.
+
+### Item 2: the wild `h` (`TestJunctionTraceSubstances`)
+
+A print of the block's first evaluation (`OXIDELICA_INNER_PRINT`,
+same patch) settles which of the four inputs it is: none of them. The
+junction's `medium.h` is not computed from `h_pTX` in the block at all
+but backwards, as `medium.u + R_s*T`, and `u = U/m` where `U` and `m`
+are states of the volume. On the first evaluation the states stand at
+`junction1.U = -24788.74` and `junction1.m = 0.1`. So `u` is -247887,
+`h` is -163226.499, and it reaches `port_2.h_outflow` and the mean.
+`m = 0.1` is `V*d` with `d = 1`, not the density of air (about 1.2),
+and the `U` is consistent with neither. So the wall is the starts of a
+volume's mass and energy states, which the initialisation fixes and
+the first evaluation reads before they agree with `h_pTX`. It is its
+own breed, not the water's edge. `RoomCO2WithControls` stands on the
+same `volume.U = m*u` and was not printed further.
+
+### Item 3: `CascodeCircuit`, the solve through a zero coefficient
+
+`J1.cc.cGS` is not a parameter. It is a variable bound by an `if` on
+`m_bInit` (-1e40 on init) and on the gate voltage, whose two branches
+are `m_tCGS * f(v)` with `m_tCGS = 0` from the modelcard. The plan's
+fold (`compile.rs`, the `settled` fixpoint) finds a zero only where a
+body comes to a number after substitution, and an `if` on a
+continuous condition does not. Small models: `Z6.mo`, `c = a*x` with
+`a = 0`, runs. `Z5.mo`, `c = if x < 0.5 then a*f(x) else a*x`, is
+refused `der(x) = i / c ... is -inf at t = 0, before any Newton step`,
+the Cascode text. The mend would fold an `if` whose every branch is
+zero. With the `m_bInit` branch of -1e40 in front it would still not
+fold in Cascode, so it is not local and was not taken.
+
+### Item 4: `PumpingSystem`
+
+The same print: the block computes `reservoir.medium.h` as `u + p/d`,
+and the reservoir starts with `level = 0` (`level_start_eps`), so `V`
+and `m` are zero, `h` is NaN and `d` downstream is NaN. It is the
+breed of item 2, a volume's `h` read back through states that are not
+yet consistent, here an empty tank. It is not the water's edge.
+
+### Item 5: the underdetermined row (8 in m487's raw)
+
+By name from `/tmp/m487/raw.txt`: five `Spice3` (`MNmos`, `MPmos`,
+`NAND`, `ONEBIT`, `RtlInverter`) are the Cascode breed. In
+`RtlInverter`, `Q1.icapbx = if m_bInit then 0 else cc.capbx *
+der(Q1.vbx)`, with `capbx` from `bjtNoBypassCode`, zero for that
+transistor, so `der(Q1.vbx)` is not determined. In `MNmos` it is
+`icBS = cc.cBS * (der(B.v) - der(Sinternal))`. Three
+`FundamentalWave` machines (`IMC_DOL_Polyphase`, `SMEE_DOL`,
+`SMEE_Rectifier`) have ideal switches `s` and air-gap fluxes in the
+loop, the breed of the machines. The two "arithmetic floor" lines in
+the same raw file (`PolyphaseRectifier`, `ThyristorBridge2mPulse_RLV`)
+are another row. So the row is two breeds: a capacitance that the
+model data sets to zero, and the machines.

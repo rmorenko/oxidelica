@@ -1206,6 +1206,29 @@ fn a_bound_written_out_holds_each_element_to_its_own() {
 }
 
 #[test]
+fn a_bound_handed_down_by_a_modifier_is_held() {
+    // `Tank t(h(min = 0.5))` writes the bound from the class above,
+    // and it used to be dropped on the way to the flat model: an
+    // untyped `h` was checked against nothing, a typed one against
+    // its type's zero. The level crosses 0.5 at t = 0.5, so the
+    // refusal must come there and name the bound the author wrote.
+    for declared in ["", "min = 0, "] {
+        let source = format!(
+            "model M model Tank Real h({declared}start = 1, fixed = true); \
+             equation der(h) = -1; end Tank; \
+             Tank t(h(min = 0.5, max = 2)); \
+             annotation(experiment(StopTime = 0.8)); end M;"
+        );
+        let broken = run_on(&source, SolverMethod::Dopri45)
+            .expect_err("the level goes under the bound written from above");
+        assert!(
+            broken.contains("`t.h` went below its min of 0.5"),
+            "{declared}: {broken}"
+        );
+    }
+}
+
+#[test]
 fn a_bound_written_out_names_the_element_that_broke_it() {
     // And the assertion is the one Modelica means: the second element
     // against the second bound, naming itself when it goes under.

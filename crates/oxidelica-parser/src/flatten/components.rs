@@ -1771,6 +1771,26 @@ pub(super) fn instantiate_one(
             if let Some(value) = modifier(&format!("{}.stateSelect", component.name)) {
                 flat.state_select = Some(value);
             }
+            // A bound handed down - `Tank t(h(min = 0.5))` - outranks
+            // the declaration's and the type's, exactly as a start
+            // handed down does. It used to be read nowhere: the flat
+            // model carried the declaration's bound or none, and a
+            // limit the model's author wrote by hand was never
+            // checked. Worked out the way a start is, and left as
+            // written where it cannot be, since a bound is held to
+            // rather than built from. `OXIDELICA_NO_BOUND_MODIFIER=1`
+            // drops it as before, so that one binary gives both numbers.
+            if bound_modifiers_open() {
+                for (attribute, slot) in [
+                    ("min", &mut flat.min),
+                    ("max", &mut flat.max),
+                    ("nominal", &mut flat.nominal),
+                ] {
+                    if let Some(value) = modifier(&format!("{}.{attribute}", component.name)) {
+                        *slot = Some(work_out(&value).unwrap_or(value));
+                    }
+                }
+            }
             if let Some(value) =
                 modifier(&format!("{}.fixed", component.name)).filter(|_| site.fixed.is_none())
             {
@@ -2454,6 +2474,13 @@ fn per_axis_modifiers_open() -> bool {
 /// gives both numbers.
 fn redeclare_slices_open() -> bool {
     std::env::var_os("OXIDELICA_NO_REDECLARE_SLICES").is_none()
+}
+
+/// Whether a `min`, `max` or `nominal` handed down by an enclosing
+/// modifier reaches the flat model. `OXIDELICA_NO_BOUND_MODIFIER=1`
+/// drops it, as before, so that one binary gives both numbers.
+fn bound_modifiers_open() -> bool {
+    std::env::var_os("OXIDELICA_NO_BOUND_MODIFIER").is_none()
 }
 
 /// Record a `fixed` handed to one scalar: a literal is the flag itself,
