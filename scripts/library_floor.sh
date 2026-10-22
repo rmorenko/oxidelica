@@ -1818,7 +1818,18 @@ FLATTEN_FLOOR=969
 # FundamentalWave and TestJunctionIdeal:
 #
 #   800 - 3 = 797 = 796 + Bend
-RUN_FLOOR=797
+#
+# Raised to 799 by PressureLoss.SeveralTestCases and
+# Math.TestInterpolateParametric, which the secant across an overshot
+# root and the derivative of a table hunt let run (0dbc757). The judge
+# of 6fbf74e (job 119724420475) printed 969 / 803 and runnable
+# 852 / 758; the desk pair of m484 printed 802 / 757
+# (state/m484/f_on.txt). From the lower, the desk, less the same three
+# that swing - SpringWithMass, SMPM_VoltageSource of FundamentalWave
+# and TestJunctionIdeal:
+#
+#   802 - 3 = 799 = 797 + 2
+RUN_FLOOR=799
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -2293,7 +2304,12 @@ RUNNABLE_FLATTEN_FLOOR=852
 # example: 755 printed on the desk, 756 by the runner.
 #
 #   755 - 3 = 752 = 751 + Bend
-RUNNABLE_RUN_FLOOR=752
+#
+# And 754 by the same judge and pair, both models being runnable
+# examples: 757 printed on the desk, 758 by the runner.
+#
+#   757 - 3 = 754 = 752 + 2
+RUNNABLE_RUN_FLOOR=754
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
@@ -2801,7 +2817,18 @@ WORK_BODIES=1330083
 #
 #   points  30133306 - 29718305 = 415001
 #   newton  43574546 - 42669792 = 904754
-WORK_POINTS=415001
+#
+# Moved to the runner's print for 6fbf74e (job 119724420475), which
+# turned red on points alone, 457143 against 415001, x1.102. The judge
+# of 13b108f (job 119655055209) already printed 453390, x1.093, the
+# drift of the series since the centre was drawn; the last 3753 are
+# SeveralTestCases and TestInterpolateParametric, which run now, and
+# the desk's pair over them moved by exactly that (25244219 to
+# 25247972 points, state/m484/f_off.txt and f_on.txt). Newton steps
+# stayed inside (944777 against 904754, x1.044) and are not moved:
+#
+#   points  30212813 - 29755670 = 457143
+WORK_POINTS=457143
 WORK_POINTS_PPM=100000
 WORK_NEWTON=904754
 WORK_NEWTON_PPM=100000
