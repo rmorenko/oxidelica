@@ -58530,3 +58530,177 @@ after it
 step, which this pair stands in for: one binary from the final tree,
 nothing the step measures changed after it, and the two halves named
 above.
+
+## Shift 484: the verdict on 13b108f, a root overshot from either side, and the derivative of a table hunt
+
+### The verdict, and the floors
+
+The judge of 13b108f (job 119655055209 of run 39719620240) was red,
+and on one line alone: the names looked up, 1672242797 against a
+centre of 1668297756, 2365 per million above it and outside the band
+of 2000. The counts were the ones expected:
+`969 flatten and 801 run`, runnable `852 flatten and 756 run`. The m483
+pair printed exactly 1672242797 with records matched by field name and
+1671049009 without (`state/m483/pair/on.txt`, `off.txt`), the second
+being what the judge of 8a8a152 printed. So the change of m483 looks up
+714 names per million more, the centre had already drifted 1651 per
+million up before it, and the two together crossed the band. The
+centre is moved to the runner's print, and the run floors rise by
+`PressureLoss.Bend` from the desk, less the three that swing
+(`SpringWithMass`, `SMPM_VoltageSource` of FundamentalWave,
+`TestJunctionIdeal`): `RUN_FLOOR` 800 - 3 = 797, `RUNNABLE_RUN_FLOOR`
+755 - 3 = 752. The flatten floors were not touched. One commit,
+cca6ea6.
+
+### The seesaw about zero flow: not a descent that was too easy
+
+The brief asked for a probe of sufficient descent, after m483 saw the
+full step of `B1.mo` (the shrunk `SeveralTestCases`) go to the mirror
+of where it stood with a residual smaller by two parts in a million.
+That trail was taken on the law that was wrong by eight orders of
+magnitude. On today's tree the trail of `B1.mo` is a different one
+(`/tmp/m484/B1_on.txt`): `dp` 1000, -804, 782, -628 ... with `|f|`
+falling from 23.1 to about 2 and then wandering in a round of six,
+-20.49, 17.40, -13.51, 11.07, -16.04, 13.35 and back. The line search
+was never asked: nothing had returned within the four remembered
+points, so the block was never damped. An Armijo condition
+(`|f_new| < (1 - 1e-4 λ)|f|`, under a key) left the trail byte for
+byte the same. Remembering eight points instead of four sees the round
+of six, damps, and `B1.mo` runs, but the whole `SeveralTestCases`
+then stops on its next block, `from_mflow.dp`, which is not a circle
+at all: an overshoot with a change of sign every step, shrinking by
+about a quarter a step, fifty iterations short of the root
+(`/tmp/m484/W_on.txt`). Halving such a step moved the refusal to the
+third block, `from_mflow2.dp`, crawling at a half step about 2.5e-10.
+
+What all three blocks share is a flow going as a power of `dp` below
+one, smoothed at zero: Newton from either side lands on the other side
+about as far out. So the rule taken is the one that fits that shape:
+a step of one unknown that turns back across the root it has just
+jumped over (the residual changed sign, the step reverses the last
+one, and it is not under a quarter of it) is cut to the secant's share
+between the two points either side, and the line search starts there.
+`OXIDELICA_NO_SECANT_TURN` takes the whole step. With it alone,
+without Armijo and with four points remembered, `B1.mo` and
+`SeveralTestCases` both run to their stop time, `S1.mo` and `S2.mo`
+stay green. The Armijo condition and the window of eight were measured
+as not needed for either and are not kept (both probes in
+`state/m484/probe_all.diff`).
+
+`SeveralTestCases` at t = 0.179 gives `from_mflow.dp` = 3501.7 Pa at
+9.02 kg/s through the edged bend and `from_mflow3.dp` = 184.2 Pa
+through the curved one, and both turn sign with the flow. Its whole
+second of simulated time costs 295 s under `simulate` (1735 steps;
+409 s on the final binary beside a corpus pass, `/tmp/m484/W12.log`),
+which the check's ten steps do not see. It is not a giant of the
+corpus pass, but it is a model to watch if the run half grows.
+
+The small model without the library is `P5`: `m = dp*(dp^2 +
+1e-4)^(-0.235)` with `m = 10 sin(2πt)` from `dp = 1000`. It refuses in
+50 iterations under the key and runs without it, the flow matching to
+1e-9. The test is
+`a_root_overshot_from_either_side_is_taken_by_the_secant`
+(`solvers.rs`), red under the key.
+
+**The pair** (`state/m484/p1_on.txt`, `p1_off.txt`, lists `p1_*.ran`),
+one binary `/tmp/m484/ox6`, the rule on and then under the key, under
+a ceiling of 24 GB, without the heavy set:
+
+```text
+                 whole step (old)   secant (new)
+flatten / run    969 / 800          969 / 801
+runnable         852 / 755          852 / 756
+```
+
+The flattened lists are identical, the run lists differ by
+`SeveralTestCases` alone. No victims.
+
+### `TestInterpolate`: the chain of m454 walked to its end
+
+m454 and s460 left `TestInterpolateParametric` and
+`TestInterpolateTimeVarying` at `cannot differentiate a subscript that
+survived flattening`: `(x, i) = Vectors.interpolate(...)` with
+`y = der(x)`. The chain had four links, all local, each found by a
+small model in `state/m484/small/`:
+
+1. `D4` and `D5`, `x = interp(...)` of a local copy of the body,
+   refused alike: the body's derivative is never written. Printed at
+   `with_derivative_bodies`, `D4.interp` was refused for `x[i]`, and
+   `D5`, with the library's own annotation, was not tried at all. The
+   library writes `smoothOrder(normallyConstant = x, normallyConstant =
+y) = 100`, which the annotation reader took as a call with nothing
+   after it and skipped. Now read as the order
+   (`parser/classes.rs`, `OXIDELICA_NO_QUALIFIED_ORDER`).
+2. `x[i]` inside the body, an element of a still array input with a
+   hunted Integer subscript. An Integer does not move continuously, so
+   inside a walked body an element of a still array has a rate of
+   nothing (`symbolic.rs`, `OXIDELICA_NO_STILL_ELEMENT`). The array
+   itself is still checked at the call, as every still array input is.
+3. Built with both, `D4` did not refuse and did not finish: the body
+   promises a hundred orders and a derived body was written for each,
+   each holding the one before. The writing out is now held to five
+   orders, the largest the library promises short of a hundred
+   (`derived.rs`, `WRITTEN_ORDERS`, `OXIDELICA_ALL_ORDERS`). A phase
+   that had no ceiling, found by a model that sat in it for minutes.
+4. `D1`, the tuple, refused `interpolate(...)[1]`. The derived body is
+   the rate of the first output, so the first output of a walked call
+   with a derived body is differentiated as the call
+   (`symbolic.rs`, `OXIDELICA_NO_FIRST_OUTPUT_RATE`).
+
+`D1` then gives `y` = 1, 3, 5, 7, 9 between the rows and `xIntegrated`
+within 2e-3 of `x` at 4.5 s. `TestInterpolateParametric` runs under
+`--only`. `TestInterpolateTimeVarying` refuses now with
+`cannot differentiate Modelica.Math.Vectors.interpolate: its derivative
+reads the array handed as input 1 as still, and ... moves`: its table
+is `{0, ..., 5} + 0.1*time`, and the derivative written takes the table
+as standing. That refusal is the one `Handed::Still` exists to give,
+and the model needs a derivative with array rates, which this does not
+write. Honest, a wall of another breed, and the end of this chain.
+
+The test `a_table_hunt_taken_as_a_tuple_is_differentiated_through_its_body`
+(`functions.rs`) is `D6`, a local hunt with the library's annotation,
+taken as a tuple and differentiated; it checks `x` and `y` at every
+point and is red under each of the three switches of links 1, 2 and 4.
+
+### `FlueGasSixComponents`: one storey further than the map said
+
+s461 put it at a record constructor under an `if` in the walk. Probed
+today (`state/m484/flue_probe.diff`, not kept), the refusal is raised
+at `code.rs` compiling an argument of the walked
+`MixtureGasNasa.dynamicViscosity`: its input `state` is a
+`ThermodynamicState` with no dimensions, and what is handed is the
+record written out as `{p, T, {X[1], ..., X[6]}}`. `record_numbers`
+seats such a ragged record as one list only where the input is
+declared `Real[N]` (the `Orientation` of the frames arrives as
+`Real[12]`); here nothing seated it, so the inner list reached the
+compiler as an array. The next link is whoever lays a record input of
+a walked body out as its numbers, which is a layer of its own, so no
+code was written.
+
+### The final pair
+
+One binary from the final tree, `/tmp/m484/ox12`, everything on, then
+all five switches of this shift set (`/tmp/m484/f_on.txt`,
+`f_off.txt`, copied to `state/m484/`):
+
+```text
+                 all five switches (old)   this shift (new)
+flatten / run    969 / 800                 969 / 802
+runnable         852 / 755                 852 / 757
+```
+
+The flattened lists are identical. The run lists differ by
+`PressureLoss.SeveralTestCases` and `Math.TestInterpolateParametric`,
+both runnable examples, and the old half is the old half of the first
+pair to the name (`p1_off.ran`), so there are no victims. The names
+looked up are 1672242797 both ways, the new centre to the digit. The
+floors are not moved in this commit: the desk is not the runner, and
+a floor rises to what the runner prints. Once the judge prints this
+tree, `RUN_FLOOR` and `RUNNABLE_RUN_FLOOR` go up by two, by these two
+names, from the lower machine less the three that swing.
+
+The preflight of the final code was taken whole (`/tmp/m484/preflight.txt`)
+and every step passed but the prose check, which turned on this
+chapter before it was formatted. The library step is this pair: one
+binary from the final tree, nothing it measures changed after it, the
+halves `f_on.txt` and `f_off.txt` above.
