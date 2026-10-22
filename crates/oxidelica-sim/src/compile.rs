@@ -442,6 +442,28 @@ fn build_plan(
                     .needs
                     .iter()
                     .any(|n| matches!(settled.get(n), Some(v) if *v == 0.0));
+                // And a third, as cheap: a conditional whose branches
+                // are the same number, which is that number whatever
+                // its condition reads. `c = if x < 0.5 then a*f(x)
+                // else a*x` with `a = 0` arrives here as `if x < 0.5
+                // then 0 else 0`, reads a state, and without this is
+                // never settled - so `i = c*der(x)` is divided by it.
+                let flat_if = matches!(
+                    candidate.body,
+                    Expr::If(_, a, b) if matches!(
+                        (a.as_ref(), b.as_ref()),
+                        (Expr::Number(x), Expr::Number(y)) if x == y
+                    )
+                ) && !crate::walk::switch_set("OXIDELICA_NO_FLAT_IF");
+                if flat_if {
+                    if let Expr::If(_, a, _) = candidate.body {
+                        if let Expr::Number(value) = a.as_ref() {
+                            settled.insert(candidate.name.to_string(), *value);
+                            grew = true;
+                            return false;
+                        }
+                    }
+                }
                 if !all_known && !has_zero {
                     return true;
                 }
@@ -3747,10 +3769,53 @@ fn split_equations(
     // reading it the other way would claim a second definition of
     // `der(x)`. Equations are taken in the order they were written, so
     // which one defines a derivative is settled and repeatable.
+    //
+    // Not where the rearrangement divides by a name whose own equation
+    // folds to zero on every branch: `i = c*der(x)` beside `c = if x <
+    // 0.5 then 0 else 0` says nothing about `der(x)`, and `der(x) =
+    // i/c` is an infinity handed to the solver as though it were a
+    // value. Left as it is, the equation reaches the layer that can
+    // say the derivative is undetermined.
+    let zero_names: std::collections::HashSet<String> =
+        if crate::walk::switch_set("OXIDELICA_NO_FLAT_IF") {
+            std::collections::HashSet::new()
+        } else {
+            algebraic_eqs
+                .iter()
+                .filter_map(|(l, r)| match (l, r) {
+                    (Expr::Ref(name), Expr::If(_, a, b))
+                        if matches!(
+                            (a.as_ref(), b.as_ref()),
+                            (Expr::Number(x), Expr::Number(y)) if *x == 0.0 && *y == 0.0
+                        ) =>
+                    {
+                        Some(name.clone())
+                    }
+                    _ => None,
+                })
+                .collect()
+        };
+    let divides_by_zero = |value: &Expr| -> bool {
+        fn walk(e: &Expr, zeros: &std::collections::HashSet<String>) -> bool {
+            if let Expr::Bin(BinOp::Div, _, d) = e {
+                if matches!(d.as_ref(), Expr::Ref(n) if zeros.contains(n)) {
+                    return true;
+                }
+            }
+            let mut hit = false;
+            e.map_children(&mut |c| {
+                hit |= walk(c, zeros);
+                c.clone()
+            });
+            hit
+        }
+        !zero_names.is_empty() && walk(value, &zero_names)
+    };
     let mut left_over = Vec::new();
     for (lhs, rhs) in std::mem::take(&mut algebraic_eqs) {
-        let taken = isolate_der(&lhs, &rhs)
-            .filter(|(state, value)| !state_rhs.contains_key(state) && !value.contains_der());
+        let taken = isolate_der(&lhs, &rhs).filter(|(state, value)| {
+            !state_rhs.contains_key(state) && !value.contains_der() && !divides_by_zero(value)
+        });
         match taken {
             Some((state, value)) => {
                 if !continuous.contains(&state.as_str()) {

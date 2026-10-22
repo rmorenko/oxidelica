@@ -59433,3 +59433,118 @@ loop, the breed of the machines. The two "arithmetic floor" lines in
 the same raw file (`PolyphaseRectifier`, `ThyristorBridge2mPulse_RLV`)
 are another row. So the row is two breeds: a capacitance that the
 model data sets to zero, and the machines.
+
+## Shift 489: a derivative not solved through a zero on every branch, and three maps
+
+### Item 0: the verdict on baab304, and the bound counters
+
+Run 39823613590 (headSha baab304) was still `in_progress` at the start
+of the shift, the two before it (44eb409, 3d112cc) `success`. The
+counters of the m488 pair, summed by `BOUND_TALLY` over
+`/tmp/m488/pair/off.txt` and `on.txt`: off `type=75361 model=24630
+total=99991`, on `type=73987 model=26074 total=100061`, as the
+question to Roman stated them. Roman's word came the same day: (a),
+bounds from the type stay.
+
+### Item 2: the solve through a coefficient that is zero on every branch
+
+The address. `Z5.mo` (`c = if x < 0.5 then a*f(x) else a*x`, `a = 0`,
+`i = c*der(x)`, `i = 1 - x - der(x)`) is refused `der(x) = i / c ...
+is -inf at t = 0`. The division is not written by the plan's linear
+solve: it is `isolate_der` in `split_equations` (`compile.rs`), which
+rearranges `i = c*der(x)` into `der(x) = i/c` before any layer asks
+what `c` is. By then flattening has already folded `c`'s body to `if
+x < 0.5 then 0 else 0`, and the plan's `settled` fixpoint skips it
+too, because the body reads the state `x` and is neither all known
+nor carries a known zero.
+
+The mend, behind `OXIDELICA_NO_FLAT_IF`: `isolate_der` does not take
+a rearrangement that divides by a name whose equation is a
+conditional with both branches the literal zero, and the fixpoint
+settles a name whose body is a conditional with both branches the same
+number. Z5 then runs, `x(1) = 0.668908`, against `1 - 0.9/e =
+0.668908`. The test
+`a_derivative_is_not_solved_by_dividing_by_a_coefficient_that_is_zero_on_every_branch`
+fails under the key.
+
+A wider first form folded such a conditional inside `simplify` itself,
+for every expression. It cost six `PowerConverters` models (the
+`HBridge` three, `DiodeBridge2mPulse`, `SinglePhaseTwoLevel_RL`,
+`ThyristorBridge2mPulse_RLV_Characteristic`), refused for events that
+do not come to rest at t = 0: a conditional on a switch's state folded
+away is a relation the event machinery no longer sees. The wider form
+was reverted, and the narrow form gives all six back under `--only`.
+
+The measure, a pair from one binary (`/tmp/m489/oxB`), the main pass
+without the heavy models: on `/tmp/m489/on.txt`, off
+`/tmp/m489/off.txt`. On: 969 flatten, 802 run, the run list identical
+to the head's (`/tmp/m488/pair/on.txt`), and the run half of the
+refusals identical line for line. No wins and no victims, so the floors
+do not move.
+
+Who moved: nobody in the corpus. `CascodeCircuit`'s `J1.cc.cGS` keeps
+the `m_bInit` branch of -1e40 in front, so it is not zero on every
+branch, which is the second wall the map named and was not taken. The
+five `Spice3` of the underdetermined row (`MNmos`, `RtlInverter`,
+`DifferentialPair`, `NAND`, `ONEBIT`) stand on the same refusals as
+before: their capacitances are products of data and voltages that are
+not literal zeros after flattening. The change is a correctness fix
+for the small breed, with no model of the library in it yet.
+
+### Item 1: the seeded starts of the three, by name
+
+From the m488 background run (`/tmp/m488/seedwhy_*.txt`, binary `ox4`
+with `OXIDELICA_SEED_BLOCK=1`). `ThreeSprings`: with the seeds, the
+loop of 31 unknowns does not converge in 50 iterations, the spring
+directions `spring*.e_a`, `lineForce.e_rel_0`, lengths and
+`der(body1.Q[*])` among them. `RollingWheelSetDriving`: NaN before
+any step on `rolling1.e_long_0[1] = aux[1] / sqrt(aux[1]^2 +
+aux[2]^2)`, a normalisation of a zero vector, and the four restarts
+(1e-6, 1e-3, 1, 1000) end in non-convergence or a singular Jacobian.
+`RollingWheelSetPulling`: NaN before any step on
+`revolute.frame_b.f[2] = ... / revolute.R_rel.T[2,2]`, a division by
+a rotation entry that starts at zero, and the restarts end in a Newton
+direction that does not reduce or non-convergence. So the two wheel
+sets fail on a zero start of a direction (a normalised vector and a
+rotation entry), and `ThreeSprings` on convergence itself. None ran.
+
+### Item 3: the starts of a volume against queue item 21
+
+Item 21's premise, that `stateSelect` is thrown away by the parser,
+no longer holds: `declarations.rs:86` reads it, `components.rs` carries
+it through flattening and `compile.rs` builds the `STATE_SELECT` table
+that index reduction consults. But that table decides ties of the
+reduction only. A volume's `U` and `m` are states because the model
+writes `der(U)` and `der(m)`, and no reduction runs there to pick
+`p, T` instead. `RoomCO2WithControls` is refused in
+`MoistAir.T_phX`, where `h` read back from the states lies outside
+the bracket 190..647 K (`f(190) = 75640`, `f(647) = 575206`, same
+sign). So the breed is the choice of states of a volume, `U, m`
+against `p, T`, and not the delivery of `stateSelect`. Item 21 should
+be re-worded to that before anyone takes it.
+
+### Item 4: the FundamentalWave three
+
+`SMEE_DOL` and `IMC_DOL_Polyphase` are refused underdetermined with
+the ideal switches' `s` in the block
+(`switch.idealClosingSwitch[1..3].s`, `idealCloserM...s`) beside the
+air-gap fluxes. The switches are `IdealSwitch` with `Goff = 1e-5`,
+the shape of queue item 30 (a small conductance read by the rank test
+as no equation). A map only. Item 30 is in Roman's packet.
+
+The off half closes the pair: `/tmp/m489/off.txt` 969 flatten, 802
+run, its run list and its run half of the refusals identical to the
+on half's. The desk preflight (`--quick`, final tree) printed 969 / 802
+and runnable 852 / 757, above every floor, and went red on the work
+band only (points 3.385x), the desk band m485 to m488 already named.
+
+### The rest of the time: `LossyGearDemo2`, from the singular row
+
+Of the eight `singular Jacobian` models, `LossyGearDemo2` is the
+smallest. Its block is `gear.quadrant2`, `gear.quadrant4`, `gear.sa`,
+`bearingFriction.sa`, `gear.flange_a.tau`: two friction elements in
+series whose sliding variables `sa` enter only through branches chosen
+by `locked`, `startForward` and `pre(mode)`. With both elements read as
+locked at the start, each `sa` is decided by the other's torque alone,
+and the block loses rank. The breed is the choice of mode at the start,
+kin to queue item 55 (`settle_modes`), and not the solver. A map only.

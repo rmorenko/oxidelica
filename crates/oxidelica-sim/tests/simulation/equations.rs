@@ -2871,3 +2871,22 @@ fn a_block_equating_two_of_its_own_inputs_writes_neither() {
         last[at("t")]
     );
 }
+
+#[test]
+fn a_derivative_is_not_solved_by_dividing_by_a_coefficient_that_is_zero_on_every_branch() {
+    // A Spice3 junction writes its charge current as `i = c*der(v)`
+    // with a capacitance `c` that is a conditional over the voltage,
+    // and a model whose data give that capacitance as zero makes the
+    // conditional zero on both branches. Rearranged into `der(x) = i/c`
+    // the plan divides by it and the run is refused with an infinity
+    // naming the solver. With `c = 0` the equation says `i = 0`, and
+    // the other one gives `der(x) = 1 - x`, so x(1) = 1 - 0.9/e.
+    let result = run("model Z5 parameter Real a = 0; \
+         Real x(start = 0.1, fixed = true); Real c; Real i; \
+         equation c = if x < 0.5 then a * (1 / sqrt(1 - x)) else a * x; \
+         i = c * der(x); i = 1 - x - der(x); \
+         annotation(experiment(StopTime = 1, Tolerance = 1e-10)); end Z5;");
+    let x = result.rows.last().unwrap()[1];
+    let expected = 1.0 - 0.9 * (-1.0f64).exp();
+    assert!((x - expected).abs() < 1e-6, "x(1)={x}, expected {expected}");
+}
