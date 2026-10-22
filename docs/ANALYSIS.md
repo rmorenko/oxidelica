@@ -59101,14 +59101,17 @@ block stands at 1000000.0, the `nominal` of the media's
 `SpecificEnthalpy` and not any enthalpy of the model, while `p`, `T`
 and the mass fractions stand at the model's starts. The residual of
 `pipe2.port_b.h_outflow` is 1163226.4989951896, which is 1e6 less the
-mixed `h` of -163226.499 handed to the bracket. With both flows at
-their floor of 1e-10 the mixing is a plain mean, so the junction's
-side would be about -371716 J/kg. `h_pTX` at 293.15 K gives that only
-for a water fraction near -0.15 (`state/m486/small/HX.mo`: -0.1 gives
--231728), so the junction's `Xi` at the start is the suspect, not its
-`T`. That is an inference from the arithmetic and was not traced. The
-next link is what the junction's `Xi` is computed from at the start,
-and it was not reached in the time.
+mixed `h` of -163226.499 handed to the bracket. Where it comes from is
+open. The junction's side reads `junction1.medium.h = h_pTX(p, T,
+{Xi[1], 1 - Xi[1]})`, and the trail has the junction's `p` at 101325
+and `T` at 293.15, with `Xi[1]` starting at 0.01 (`why` on
+`junction1.medium.X[1]`). At those values `h_pTX` is `h_default`,
+45262.58, the same as the sensor's side, and a mean of two such
+values cannot be -163226. So one of the four inputs of that mean is
+not what its start says at the moment the bracket is called (a flow
+weight away from its floor of 1e-10, or an `h_outflow` that the run
+holds under another name). The next link is to print the four
+inputs of the mean at the first evaluation.
 
 **A printer that told a wrong number, mended.** The first reading of
 the trace's binding came out at 129262.58, exactly `h_default +
@@ -59169,8 +59172,25 @@ starting at 0 (`/tmp/m486/z/Z.mo`, which has no real root), is
 refused the same way, and its four retries all end on the Newton
 direction. So the next wall of the three MultiBody models is the
 Newton solve of a 31-unknown block from a start nobody worked out,
-which is the initialisation's business, and the text that names it
-is one line of code away.
+which is the initialisation's business.
+
+The refusal now says so. When the retries were made and all failed,
+the first refusal is kept and what each retry met is added to it:
+`started again with its zero starts moved, it was refused from
+0.000001 on the Newton direction of algebraic loop does not reduce
+the residual at t = 0, ..., from 1 on singular Jacobian in algebraic
+loop, from 1000 on algebraic loop did not converge in 50 Newton
+iterations` for `ThreeSprings`. A retry refused on the first wall
+again, as every start is when a parameter it reads is NaN, adds
+nothing and is left out. The kind of the refusal, the list of
+unknowns and the words before it are unchanged, so the census counts
+the same rows. Three tests held the old text exactly and now hold the
+longer one, and each says more than before: `1 / x = 0` is
+underdetermined from every moved start, and the two walked guards are
+refused from 1 and 1e3 on the Newton direction and on the domain. The
+test
+`a_block_retried_from_moved_starts_says_what_the_retries_met`
+(`systems.rs`, the model `Z` above) was seen red without the change.
 
 **`CascodeCircuit`.** Its `J1` and `J2` are written with
 `modelcard(CGS = 0, CGD = 0)`, so `cc.cGS = 0` is the model's own
@@ -59205,7 +59225,24 @@ gain is one model, and it may meet a wall beyond. No code was written.
 
 ### What was pushed
 
-One commit, the printer: `ast.rs`, the `grouped` change and its test.
-Nothing the compiler computes changed, so the corpus cannot move, and
-the preflight's library step was run as usual. The floors are not
-moved.
+Two commits. The printer: `ast.rs`, the `grouped` change and its
+test. The refusal of a retried block: `solvers/mod.rs`, the retries'
+words added to the text, and its test. Neither changes what the
+compiler computes, only what it says, so no model can move. The
+floors are not moved.
+
+The full preflight of the final tree (`/tmp/m486/pf_full.txt`) passed
+every step but the library one, which went red on the desk alone and
+by the same two lines as m485's (`/tmp/m485/preflight.txt`), to the
+digit: `CEILING: run/flatten ratio is 1.013, and the band is
+0.64..0.91`, and `WORK: points evaluated is 1547620 against 457143
+written here (3.385418x)` beside `work apart: Dimmer_RL 23700356
+points`. The runner counts `Dimmer_RL` at 29755670 points and the
+desk at 23700356, so the desk's points apart are the desk's own and
+not a change of this tree. The counts of the same step are 969
+flatten and 802 run, runnable 852 and 757, above the floors, and the
+work line is the runner's of 0386ae9 to the digit in names
+(1672611846). It was not run again, as the brief asks. The census
+with the final binary was not taken: it was started, then stopped
+with its tree when the retries' wording changed, and the preflight's
+pass is the measurement of the final tree instead.

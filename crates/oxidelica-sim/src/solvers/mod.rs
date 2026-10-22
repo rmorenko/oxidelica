@@ -160,6 +160,25 @@ fn inner_loudness_off() -> bool {
     *OFF.get_or_init(|| std::env::var_os("OXIDELICA_NO_INNER_LOUDNESS").is_some())
 }
 
+/// What a retried block's refusal says, without the list of the
+/// loop's unknowns that the first refusal already gave: `singular
+/// Jacobian in algebraic loop`, `the Newton direction of algebraic loop
+/// does not reduce the residual`. The words before the list and the
+/// first clause after it are the kind; the numbers after are the
+/// retry's own and stay out, so the sentence stays readable.
+fn retry_gist(said: &str) -> String {
+    let Some(open) = said.find(" [\"") else {
+        return said.chars().take(120).collect();
+    };
+    let head = &said[..open];
+    let tail = said[open..]
+        .find("\"]")
+        .map_or("", |close| &said[open + close + 2..]);
+    let clause = tail.split([':', ';', ',']).next().unwrap_or("").trim_end();
+    let clause: String = clause.chars().take(80).collect();
+    format!("on {head}{clause}")
+}
+
 /// Whether a converged block keeps the reason a walk left behind on a
 /// trial point it stepped away from. Off by default; the switch keeps
 /// both halves of a measurement in one binary.
@@ -1059,6 +1078,7 @@ impl CompiledModel {
         if !block.iter().any(|&i| alg_guess[i] == 0.0) {
             return first;
         }
+        let mut met: Vec<String> = Vec::new();
         for magnitude in [1e-6, 1e-3, 1.0, 1e3] {
             let start: Vec<f64> = block
                 .iter()
@@ -1072,11 +1092,32 @@ impl CompiledModel {
                 .collect();
             let again =
                 self.solve_implicit_block_from(t, values, stage, alg_guess, validate, Some(&start));
-            if again.is_ok() {
-                return again;
+            match again {
+                Ok(()) => return again,
+                // A retry refused on the same wall - still not
+                // evaluable where it starts, as a NaN parameter makes
+                // every start - has nothing to add to the first words.
+                Err(error) if error.0.contains("before any Newton step") => {}
+                Err(error) => met.push(format!("from {magnitude} {}", retry_gist(&error.0))),
             }
         }
-        first
+        // The first refusal is the one kept, since it says what the
+        // model's own start gives; but the retries were made and what
+        // they met is the wall that actually stopped the block. Left
+        // out, `ThreeSprings` read as a division by a zero start for a
+        // shift after the retries had already got past it, onto a
+        // Newton solve that would not settle.
+        match first {
+            Err(error) if !met.is_empty() => {
+                let said = format!(
+                    "{}; started again with its zero starts moved, it was refused {}",
+                    error.0,
+                    met.join(", ")
+                );
+                Err(error.reworded(said))
+            }
+            other => other,
+        }
     }
 
     fn solve_implicit_block_from(

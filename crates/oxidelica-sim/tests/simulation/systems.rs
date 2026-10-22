@@ -645,7 +645,11 @@ fn an_algebraic_loop_that_comes_apart_says_so() {
         ),
         "`1 / x = 0` of algebraic loop [\"x\"] is inf at t = 0, before any \
          Newton step: the equations cannot be evaluated at the values the \
-         block starts from; and every value the residual reads is a finite number"
+         block starts from; and every value the residual reads is a finite number; \
+         started again with its zero starts moved, it was refused from 0.000001 on \
+         underdetermined algebraic loop, from 0.001 on underdetermined algebraic \
+         loop, from 1 on underdetermined algebraic loop, from 1000 on \
+         underdetermined algebraic loop"
     );
 
     // The other way a loop fails: `x^2 * y = 1` where y is sin(t),
@@ -1196,7 +1200,9 @@ fn a_function_that_refused_inside_a_loop_says_why() {
         refused,
         "`(W.guard(x) + x) + 3 = 0` of algebraic loop [\"x\"] is NaN at t = 0, \
          before any Newton step, because a function it calls could not be \
-         walked: guard: u must exceed one"
+         walked: guard: u must exceed one; started again with its zero starts \
+         moved, it was refused from 1000 on the Newton direction of algebraic \
+         loop does not reduce the residual at t = 0"
     );
 }
 
@@ -1279,7 +1285,10 @@ fn a_model_that_refuses_in_prose_is_quoted_whole_with_its_numbers() {
         refused,
         "`(P.shout(x) + x) + 3 = 0` of algebraic loop [\"x\"] is NaN at t = 0, \
          before any Newton step, because a function it calls could not be \
-         walked: u is 0, which is below one"
+         walked: u is 0, which is below one; started again with its zero starts \
+         moved, it was refused from 1 on algebraic loop stepped outside the domain \
+         of its own equations at t = 0, from 1000 on the Newton direction of \
+         algebraic loop does not reduce the residual at t = 0"
     );
 }
 
@@ -1828,4 +1837,39 @@ fn a_constraining_clause_modifies_what_redeclares_it() {
     let last = result.rows.len() - 1;
     let y = result.rows[last][result.columns.iter().position(|c| c == "y").unwrap()];
     assert!((y - 3.0).abs() < 1e-12, "y = {y}");
+}
+
+/// A block that cannot be evaluated where it starts is tried again with
+/// its zero starts moved, and the refusal says what those tries met.
+///
+/// `ThreeSprings` was read for a shift as a division by a spring
+/// length that starts at zero - and the retries had already got past
+/// that, onto a Newton solve that would not settle. The refusal kept
+/// only the first try. Here `x + 1/y = 0` with `y = x` has no real
+/// root: from zero the quotient is infinite, and from every start the
+/// retries give the Newton direction stops descending.
+#[test]
+fn a_block_retried_from_moved_starts_says_what_the_retries_met() {
+    let refused = compile(
+        &parse_model(
+            "model Z Real x(start = 0); Real y(start = 0); \
+             equation x + 1/y = 0; y = x; \
+             annotation(experiment(StopTime = 1, Interval = 0.5)); end Z;",
+        )
+        .unwrap(),
+    )
+    .and_then(|model| model.simulate())
+    .expect_err("there is no real root to find")
+    .to_string();
+    assert!(
+        refused.contains("is inf at t = 0, before any Newton step"),
+        "{refused}"
+    );
+    assert!(
+        refused.contains(
+            "started again with its zero starts moved, it was refused from 0.000001 on \
+             the Newton direction of algebraic loop does not reduce the residual"
+        ) && refused.contains("from 1000 on the Newton direction"),
+        "{refused}"
+    );
 }
