@@ -1809,7 +1809,16 @@ FLATTEN_FLOOR=969
 # state/m481/q_on.ran):
 #
 #   799 - 2 swings - TestJunctionIdeal = 796 = 795 + 1
-RUN_FLOOR=796
+#
+# Raised to 797 by PressureLoss.Bend, which the bends' records read by
+# field name let run. The judge of 13b108f (job 119655055209) printed
+# 969 / 801 and runnable 852 / 756; the desk pair of m483 printed
+# 800 / 755 (state/m483/pair/on.txt). From the lower, the desk, less
+# the same three that swing - SpringWithMass, SMPM_VoltageSource of
+# FundamentalWave and TestJunctionIdeal:
+#
+#   800 - 3 = 797 = 796 + Bend
+RUN_FLOOR=797
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -2279,7 +2288,12 @@ RUNNABLE_FLATTEN_FLOOR=852
 # p_on.txt), less the same three.
 #
 #   754 - 2 - 1 = 751 = 750 + 1
-RUNNABLE_RUN_FLOOR=751
+#
+# And 752 by the same pair and the same three, Bend being a runnable
+# example: 755 printed on the desk, 756 by the runner.
+#
+#   755 - 3 = 752 = 751 + Bend
+RUNNABLE_RUN_FLOOR=752
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
@@ -3186,7 +3200,20 @@ WORK_PERCENT=5
 # the 8903853 added. The lists hold no loss, and 529 and 1974 jacobians
 # apart both ways. Without the move this line would turn red for a
 # model won, 7164 per million above the old centre.
-WORK_NAMES=1668297756
+#
+# Moved to 1672242797, which the judge of 13b108f printed (job
+# 119655055209) and turned red on, 2365 per million above the old
+# centre. The m483 pair from one binary, `OXIDELICA_RECORDS_BY_PLACE`
+# set against unset, printed 1671049009 and 1672242797
+# (state/m483/pair/off.txt, on.txt), the second to the digit what the
+# runner printed: reading a record handed to an input of another type
+# by its field names looks up 1193788 names more, 714 per million.
+# The flattened lists of the two halves are identical (off4.flat,
+# on4.flat) and the run lists differ by PressureLoss.Bend alone, a
+# model won. The old centre had already been drifting up to it: the
+# judge of 8a8a152 printed 1671049009, 2365 - 714 = 1651 per million
+# above it and still inside.
+WORK_NAMES=1672242797
 WORK_NAMES_PPM=2000
 
 # The band, as a function, so that it can be seen red without a library
