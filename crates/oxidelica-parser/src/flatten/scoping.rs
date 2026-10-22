@@ -169,6 +169,24 @@ pub(super) fn effective_imports(
         if replacement.is_none() && !alias.modifiers.is_empty() {
             super::statements::remember_alias_modifiers(&target, alias.modifiers.clone());
         }
+        // A short connector definition is a connector, wherever it was
+        // written. The parser mints one as a class of its own beside
+        // the class that wrote it, and that class is what keeps the
+        // `input` or `output` of the definition: resolved straight
+        // through to its target, `connector InputSpecificEnthalpy =
+        // input SpecificEnthalpy` inside a medium's `BaseProperties`
+        // arrived at a bare type, and `h` was no port at all.
+        let minted = format!("{}.{}", class.name, alias.name);
+        let target = match replacement.is_none()
+            && alias.connector
+            && std::env::var_os("OXIDELICA_SHORT_CONNECTOR_AS_TYPE").is_none()
+            && registry
+                .get(minted.as_str())
+                .is_some_and(|c| c.kind == ClassKind::Connector)
+        {
+            true => minted,
+            false => target,
+        };
         imports.push((alias.name.clone(), target));
     }
     Ok(imports)

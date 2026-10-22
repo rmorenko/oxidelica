@@ -1277,13 +1277,50 @@ fn join_the_connections(registry: &HashMap<&str, &ClassDef>, acc: &mut Flat) -> 
                 .and_then(|of| registry.get(of.as_str()))
                 .is_some_and(|of| of.alias_causality == Causality::Input)
     };
+    // Nor the model's own input equated, at the top level, to another
+    // name. `h = state.h` in a medium's `BaseProperties` relates the
+    // value handed in to a record the model computes from it, and the
+    // order the two were written in says nothing about which is given.
+    let top_input_alias = |equation: &EquationItem, name: &str| {
+        equation.origin.is_empty()
+            && std::env::var_os("OXIDELICA_TOP_INPUT_ALIAS_STATES").is_none()
+            && !name.contains('.')
+            && matches!(&equation.rhs, Expr::Ref(_))
+            && acc
+                .connectors
+                .get(name)
+                .and_then(|of| registry.get(of.as_str()))
+                .is_some_and(|of| of.alias_causality == Causality::Input)
+    };
+    // A causal connector a model declares for itself, rather than one
+    // a package hands to everybody, is how a class says which of its
+    // values the class using it must supply. A medium's
+    // `BaseProperties` declares `InputAbsolutePressure` and its two
+    // neighbours inside itself for exactly that: of `p`, `h` and `Xi`
+    // the volume around it writes two, by equations that need not name
+    // either on the left - `m = fluidVolume * medium.d` decides `p`
+    // through the density. Such an input of a component is the level
+    // above's to supply, and a start given as well is a second
+    // definition: thirty models of the fluid and media libraries came
+    // out with one equation too many that way. The connector's owner
+    // is the class the parser minted it beside, and its kind is asked
+    // of the registry. The input of a model's own top level is not
+    // reached here, and neither is a connector of a package.
+    let declared_for_the_user = |connector: &str| {
+        std::env::var_os("OXIDELICA_LOCAL_INPUT_START").is_none()
+            && connector
+                .rsplit_once('.')
+                .and_then(|(owner, _)| registry.get(owner))
+                .is_some_and(|owner| owner.kind != ClassKind::Package)
+    };
     let stated_outright: HashSet<String> = acc
         .equations
         .iter()
         .filter_map(|equation| match &equation.lhs {
             Expr::Ref(name)
                 if !(own_input(equation, name)
-                    && matches!(&equation.rhs, Expr::Ref(other) if own_input(equation, other))) =>
+                    && matches!(&equation.rhs, Expr::Ref(other) if own_input(equation, other)))
+                    && !top_input_alias(equation, name) =>
             {
                 Some(name.clone())
             }
@@ -1383,6 +1420,7 @@ fn join_the_connections(registry: &HashMap<&str, &ClassDef>, acc: &mut Flat) -> 
                 && class.alias_causality == Causality::Input
                 && never_joined.contains(members[0].0)
                 && !stated_outright.contains(members[0].0)
+                && !(members[0].0.contains('.') && declared_for_the_user(&class_name))
             {
                 let declared = acc.components.iter().find(|c| c.name == members[0].0);
                 let value = match declared.and_then(|c| c.start.clone()) {

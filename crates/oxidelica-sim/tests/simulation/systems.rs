@@ -949,6 +949,60 @@ fn an_unconnected_causal_connector_stands_at_its_start() {
 }
 
 #[test]
+fn a_short_connector_written_inside_a_model_keeps_its_input() {
+    // A medium's `BaseProperties` declares `connector
+    // InputSpecificEnthalpy = input SpecificEnthalpy` inside itself.
+    // Written in a model rather than a package, the name resolved
+    // straight through to the type, the `input` was lost, and `h` was
+    // an unknown nothing determines.
+    let result = run("model U6 \
+           type SpecH = Real(unit = \"J/kg\"); \
+           connector InP = input SpecH; \
+           record St Real h; end St; \
+           InP h(start = 2); St state; Real y; \
+         equation h = state.h; y = 3 * state.h; \
+           annotation(experiment(StopTime = 1)); end U6;");
+    let y = result.columns.iter().position(|c| c == "y").unwrap();
+    assert_eq!(result.rows[0][y], 6.0, "y = 3 * 2");
+}
+
+#[test]
+fn a_top_level_input_equated_to_a_name_still_takes_its_start() {
+    // `h = state.h` relates the model's own input to a record it
+    // computes from it. Read off the left side as the model stating
+    // `h`, the input took no start and `state.h` had nothing to say.
+    let result = run("model U2 \
+           connector InP = input Real; \
+           record St Real h; end St; \
+           InP h(start = 2); St state; Real y; \
+         equation h = state.h; y = 3 * state.h; \
+           annotation(experiment(StopTime = 1)); end U2;");
+    let y = result.columns.iter().position(|c| c == "y").unwrap();
+    assert_eq!(result.rows[0][y], 6.0, "y = 3 * 2");
+}
+
+#[test]
+fn an_input_a_component_declares_for_itself_is_left_to_the_level_above() {
+    // The connector is written inside the component, which is how a
+    // medium says which of its values the volume around it supplies.
+    // The level above determines `comp.u` through `comp.y = x`, never
+    // naming it on the left; given its start as well, the model had
+    // three equations for two unknowns.
+    let result = run("package P \
+           model C connector InP = input Real; InP u(start = 5); Real y; \
+           equation y = 2 * u; end C; \
+           model M C comp; Real x(start = 1, fixed = true); \
+           equation der(x) = -x; comp.y = x; \
+             annotation(experiment(StopTime = 1)); end M; \
+         end P;");
+    let u = result.columns.iter().position(|c| c == "comp.u").unwrap();
+    assert!(
+        (result.rows[0][u] - 0.5).abs() < 1e-9,
+        "comp.u = x / 2 at the start, not its own start of 5"
+    );
+}
+
+#[test]
 fn an_input_of_the_model_itself_stands_at_its_start() {
     // A block asked for on its own, rather than as a component of an
     // example, is the whole of the run: its own `input` is a value

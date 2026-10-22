@@ -58069,3 +58069,169 @@ Two wrong guesses on the way, both reverted before measuring: that the
 connector was not found because it was written in a base class (`U6` has
 no base and refused all the same), and that `names_a_connector` missed it
 (it was the import that answered first and gave the type).
+
+## Shift 482: the verdicts of two runs, the price of a short connector, and a start the rule never wrote
+
+### The two runs
+
+`gh run list --branch main` at the start of the shift: 39688147043 for
+5ca6f67 finished green (its push touched only the chapter, so the library
+jobs were skipped). 39681600474 for 2a02110 had its tests on three
+platforms, the coverage and linters job and the dear pass green, and its
+main library pass still running at 1h11m. It finished green later in
+the shift, and the judge's line, read from the run's log, is `OK: 2671
+files read, 969 flatten, 800 run; runnable 852 flatten, 755 run`, above
+the floors of 796 and 751 and one model above the desk's 799 and 754,
+which is the swinging model the floors already allow for.
+
+### How many short connectors the defect touches
+
+`grep -rnE '^\s*connector [A-Za-z_][A-Za-z0-9_]* *= *(input|output) '
+.msl --include=*.mo` gives 23 declarations (a looser pattern allowing
+any whitespace gives 23 as well, and none is split over lines). Split by
+the class each is written in (`/tmp/m482split.txt`, a walk of the
+enclosing `package`/`model`/`end` lines up to the declaration):
+
+```text
+file of its own (one class to a file)    5   Clocked ClockInput/Output/VectorInput,
+                                             ComplexBlocks ComplexInput/Output
+inside a package                        12   Blocks.Interfaces (10), Electrical.Digital (2)
+inside a model                           6   Media.PartialMedium.BaseProperties (3),
+                                             the same three in ModelicaReference's text
+total                                   23
+```
+
+So the defect reaches three declarations of the library that a model can
+use, all in one class: `InputAbsolutePressure`, `InputSpecificEnthalpy`
+and `InputMassFraction` of `BaseProperties`; the three in
+`ModelicaReference` are inside a documentation string. It is invisible
+to the eye because the seventeen others, among them `RealInput` and
+`RealOutput` at `Blocks/Interfaces.mo:7,38` on which the whole block
+library stands, are minted as connector classes by the parser: were
+those losing their `input` the corpus would hardly flatten at all.
+
+### The start rule, probed before it was built
+
+The brief's reading of the thirty victims of shift 481 was that
+`medium1.p = 100000` is an equation the example writes one level up,
+about a component's input, which the start rule does not see. Probed, it
+is not: no example writes that equation. Small model `S1`
+(`/tmp/m482/small/`, a component holding `InP u(start = 5)` and a level
+above writing `comp.u = 100000`) ran on the head as it stood, the
+equation of the level above already counted as stating the input; `S2`,
+the same with nothing writing `comp.u`, ran at the start. What refused
+was `S3`: the level above writes `comp.y = x`, and so decides `comp.u`
+without ever naming it on the left. `3 algebraic equation(s) for 2
+unknown(s); nothing is left for comp.u = 5`.
+
+The `medium1.p = 100000` of `MixtureGases` is the compiler's own start,
+written for an input nothing named on the left (`p(start = 1.e5)` in the
+example's modifier). `OXIDELICA_BALANCE_PROBE` over the thirty under both
+links (`state/m482/probe1.txt`) gives the same shape in all of them: the
+volume around a medium decides two of `p`, `h`, `Xi` through equations
+like `m = fluidVolume * medium.d` or `medium.p = p_start` in the initial
+section, the pressure of a port, the static head of a vessel. The surplus
+the matching names is wherever it happens to land, which is why the
+refusals read so differently - `volume.U = 0`, `tank.ports[2].p =
+tank.vessel_ps_static[2]`, `source_left.p_in_internal = source_left.p_in`.
+
+So the rule built is not about equations of the level above. A causal
+connector a model declares inside itself, rather than one a package
+hands out, is how that model says which of its values the class using
+it supplies; an input of a component declared that way takes no start.
+The owner is the class the parser minted the connector beside, its kind
+asked of the registry. Key `OXIDELICA_LOCAL_INPUT_START`, test
+`an_input_a_component_declares_for_itself_is_left_to_the_level_above`
+(`S3`, `comp.u` comes out 0.5 from `x`, not its start of 5), red under
+the key. The links of item 58 were rebuilt as the chapter of shift 481
+describes them, under their old keys, with tests
+`a_short_connector_written_inside_a_model_keeps_its_input` (`U6`) and
+`a_top_level_input_equated_to_a_name_still_takes_its_start` (`U2`), each
+red under its own key.
+
+### Measured
+
+One binary (`/tmp/m482/ox4`), four passes without the heavy set
+(`state/m482/p_off.txt`, `p_on.txt`, `p_all.txt`, `p_local.txt`, lists
+`*.ran`):
+
+```text
+                                           flatten / run   runnable
+both links off                             969 / 799       852 / 754
+both links on                              969 / 769       852 / 724
+links + no start for any deep input        969 / 799       852 / 754
+links + no start for a model's own conn.   969 / 799       852 / 754
+```
+
+The first is identical name for name to `state/m481/r_off.ran`. The
+second loses the thirty of `victims_short_connector.txt` exactly. Both
+of the last two have a run list identical to the first, and the
+flattened lists of all four are the same: all thirty back, none lost,
+none won. The broader of the two (no start for any input below the top
+level) turns `a_short_connector_inside_a_package_keeps_its_direction`
+red, a Digital-style input of a package left unwired that is meant to
+stand at its start, so the narrower one was taken.
+
+What it buys is not a model. Before it the `input` of `BaseProperties`
+was lost silently, and `p`, `h` and `Xi` of every medium were read as
+plain variables: a wrong reading of the language that happened to
+balance. The one change of the census it makes is
+`TwoPhaseWater.ExtendedProperties`, which goes from `50 algebraic
+equation(s) for 52 unknown(s)` to `IF97 medium function tsat called
+with too low pressure p = 0 Pa`, a storey up, as the chapter of shift 481
+said it would: a part checked alone, nothing giving its pressure. The
+floors are not moved; the print did not move.
+
+The run list was taken a fifth time from the binary of the final tree
+(`/tmp/m482/ox5`, `state/m482/p_final.txt`, `final.ran`): 969 / 799 and
+852 / 754, both lists identical name for name to `off.ran`.
+
+### The census of the head after the medium inputs
+
+Taken on the same final tree (`state/m482/census.txt`, raw half
+`state/m482/raw.txt`) and diffed line by line against
+`state/m480/census.txt`, by the bounds of the sections. The half that
+would not flatten is the same, 51 models in 30 rows. The half that
+flattened and would not run:
+
+```text
+                         models   rows   single rows   names under them   rows of 2+ / models
+m480 (65f3a80~)          172      116    95            94                 21 / 77
+m482 (this tree)         170      113    91            90                 22 / 79
+```
+
+The brief expected the Adder alone and the line of `ExtendedProperties`.
+The raw lists by name (`/tmp/m482/raw480.n`, `raw482.n`) account for
+every difference, and the m480 census stood on 65f3a80's parent, so
+three of them are the two commits since rather than this one:
+
+- `Digital.Examples.Utilities.Adder` leaves (`nothing determines s[1],
+s[2]`), 2a02110, expected.
+- `PowerConverters.Examples.ACAC.SoftStarter` leaves (`nothing is left
+for imc.friction.flange.phi = ...`), 65f3a80: it runs now.
+- `Clocked...ComponentsMixingUnit.FilterOrder` moves from `nothing
+determines inverseBlockConstraints.y2` to `structurally singular
+model: equation -mixingUnit.wa13 = 0 constrains no state`. Under
+  `OXIDELICA_OWN_INPUT_STATES` it goes back, so it is 2a02110's
+  `InverseBlockConstraints` rule, a storey up, and not this change.
+- `TwoPhaseWater.BaseProperties` (`nothing determines sat.psat,
+state.T`) and `ExtendedProperties` (`nothing determines dTp2, eta`)
+  both move to `IF97 medium function tsat called with too low pressure
+p = 0 Pa`, a new row of two. Under the three keys of this change both
+  go back, so both are this change. The brief named one of them.
+- The raw report's own summary of kinds at its head lost its row of two
+  `singular Jacobian ... smeeM.airGap` and gained the `tsat` row, which
+  is that summary's cut-off moving and not a model: both `SMEE`
+  generators are in both raw lists with the same refusal, and the
+  census row `8 singular Jacobian in algebraic loop` is the same in
+  both.
+
+The arithmetic closes: five single rows leave (Adder, SoftStarter,
+FilterOrder's old row, the two `TwoPhaseWater` rows), one single and one
+row of two arrive, so 116 - 5 + 2 = 113 rows, 95 - 5 + 1 = 91 singles, 21 +
+1 = 22 rows of two or more, and the sum falls by the two models that now
+run.
+
+The new reference for the shifts after this one: the run half 170
+models in 113 rows, 91 single rows over 90 names, 22 rows of two or
+more holding 79 models.
