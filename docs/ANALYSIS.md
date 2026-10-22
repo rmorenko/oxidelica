@@ -59548,3 +59548,109 @@ by `locked`, `startForward` and `pre(mode)`. With both elements read as
 locked at the start, each `sa` is decided by the other's torque alone,
 and the block loses rank. The breed is the choice of mode at the start,
 kin to queue item 55 (`settle_modes`), and not the solver. A map only.
+
+## Shift 490: the narrow-2 pair on the head, and the maps of three rows
+
+### Item 0: the verdict on ca36cca
+
+Run 39847797363 (headSha ca36cca) was still `in_progress` at the start
+of the shift and an hour later. The run before it (baab304) was
+`success`.
+
+### Item 1: the narrow-2 pair on the head
+
+`park/m455-grow-from-type-start.diff` applied to ca36cca without a
+change. One binary (`/tmp/m490/ox`), the main pass without the heavy
+models, the key `OXIDELICA_NO_GROW_FROM_TYPE_START=1` off and on: on
+`/tmp/m490/on.txt`, off `/tmp/m490/off.txt`. With the patch the run
+list is the head's (`/tmp/m489/on.txt`, 969 / 802) plus four, and
+nothing lost: `RoomCO2`, `RoomCO2WithControls`,
+`TestMultiPortTraceSubstances` and
+`MediaTestModels.Air.MoistAir`, the same four that m456 found.
+`FlueGasSixComponents` and `TestAllProperties.MoistAir` still flatten
+and do not run. The off half has the head's run list line for line
+(802) and the same flattened list, so the four are the patch's alone.
+The run half takes 4901 s on against 3832 s off, 1069 s more.
+`TestMultiPortTraceSubstances` alone runs for 849 s, the dearest model
+of the pass, and `RoomCO2WithControls` for 154 s. The patch is not
+merged; the question is Roman's.
+
+### Item 2: the singular Jacobian row, by name
+
+Each from `--only` on `.msl` with `OXIDELICA_NEWTON_TRAIL=1`
+(`/tmp/m490/p_*.txt`, binary `/tmp/m489/oxB`). All seven fail at the
+first Newton step at t = 0. The rank and the null vector were read from
+the printed Jacobian.
+
+- `Rectifier` (QuasiStatic): 12 unknowns, rank 11. The null vector is
+  `idealDiode1.s`, `idealDiode2.s` and `load2.v` in equal parts, and
+  the rows of the diodes carry `Goff = 1e-5` beside slopes of 20. The
+  modes of the ideal diodes at the start: kin to items 30 and 55.
+- `RoomCO2`: one entry of the Jacobian is NaN, the column of
+  `volume.medium.p` in the row of `pipe.flowModel.states[1].T`, an
+  inverse `T_phX` through `solveOneNonlinearEquation`. The starts of a
+  volume, items 50 and 21, and it runs in the narrow-2 pair of item 1.
+- `SMEE_Generator`, `SMEE_Generator_Polyphase`, `SMEE_LoadDump`: rank
+  one short (two for the Polyphase, one per machine). The null vector
+  is the derivatives of the air-gap potentials `der(airGap.V_mss.*)`
+  and the stator currents `der(stator...singlePhaseElectroMagneticConverter[k].i)`.
+  The machines' breed (the reduced air gap), as in m489 item 4.
+- `Engine1a`: three rows of the block have a zero gradient (rank 27 of
+  30). Each is a row of `crank1.frameTranslation` matched on
+  `crank1.frameTranslation.frame_a.R.T[2,3]` or its derivatives, whose
+  coefficient is `crank1.frameTranslation.r[2]`, and `r = {0.1, 0, 0}`.
+  The matching took an entry through a parameter equal to zero. That
+  is the breed of m489 item 2 with a parameter in place of a
+  conditional, and new as a row: a map only.
+- `TestMixingVolumesPressureStates`: rank 23 of 24, the null vector is
+  `der(mixingVolume1.medium.p)` alone, whose column holds entries of
+  5e-7 to 1.5e-3. The states of a volume chosen as `p, h`: kin to item
+  21, and the rank test reading small entries, kin to item 30.
+
+### The rest of the time: four rows further down, by name
+
+`the equations of algebraic loop` (4): `PointGravityWithPointMasses2`
+fails on `der(fixedTranslation.frame_a.R.T[1,3])` not mentioned by its
+block, the `Engine1a` breed (a fixed translation whose vector has a
+zero where the rotation entry is read). `RollingWheel` on
+`der_angles[2]` the same way, through a rolling contact.
+`Spice3BenchmarkDifferentialPair` on `der(Q2.vbx)`, the Cascode breed
+of m487 item 5 (a capacitance zero in the data). `GearType2` on
+`bearingFriction.sa`, the friction mode at the start (item 55).
+
+`initialization is not square` (3): `GearType1` is again
+`bearingFriction.sa` behind every left-out condition (item 55).
+`NonCircularPipes` has 8 written conditions for 6 states and, without
+the surplus, a family free along `annulus_pipe.Us[2]`: the states of a
+pipe (item 21). `ThreePhaseTransformerWithRectifier` without the
+surplus does not pin `core3.Hstat` and `core3.MagRel`: the hysteresis
+of the third core, a breed of its own.
+
+`structurally singular ... vin.p.v` (3, and 2 more with `vin1`,
+`vin2`): `V_pulse.T0` is assigned only in a `when` and read under
+`time`, so index reduction asks for `der(T0)` through a MOS gate. What
+a `when` assigns does not move between events, but AGENTS.md records
+why that rule is not used at reduction. A map only.
+
+`parameter T has no value` (3, the OpAmp circuits `Derivative`,
+`FirstOrder`, `PI`): `T` is declared without a value in the library
+and the examples set none. The refusal is right.
+
+`cannot evaluate parameters [jointRRP.e_ia ...]` (3): `why` says
+`jointRRP.jointUSP.e2_ia` is declared nowhere in the flat model. It is
+`final parameter e2_ia = rod1.e2_ia` in `JointUSP`, and `rod1.e2_ia`
+is `normalize(cross(n1_a, eRod_ia))` in `UniversalSpherical`. A small
+chain of three final array parameters (`F1.mo`) runs, so the loss is
+in `rod1` itself. `rod1` is flattened (`why` finds
+`jointRRP.jointUSP.rod1.f_rod`), but its `e2_ia` is declared nowhere.
+In the same class `rodLength` is `final parameter (fixed = false)` and
+`eRod_ia` is `normalizeWithAssert(rRod_ia)`. A small model with a
+`fixed = false` parameter beside the chain (`F3.mo`) also runs, so
+that is not it either. Unmapped below that.
+
+`algebraic loop [...]` (3), read from the messages in
+`/tmp/m488/raw.txt`: `OneTank` steps outside the domain of its own
+equations at t = 0 on `tank.ports[1].m_flow`, `MeasuringTemperature`
+does not settle a loop of tank densities and enthalpies, and
+`TestSuddenExpansion` has a root on either side of
+`suddenExpansion1.m_flow`. Three different walls, none probed further.
