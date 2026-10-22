@@ -58235,3 +58235,298 @@ run.
 The new reference for the shifts after this one: the run half 170
 models in 113 rows, 91 single rows over 90 names, 22 rows of two or
 more holding 79 models.
+
+## Shift 483: the verdict on 8a8a152, the run half's rows of two and more against their maps, and what the kernel of a singular block names
+
+Nothing in the compiler was changed. Every probe of this chapter is a
+patch kept outside the tree (`state/m483/rank_probe.patch`,
+`state/m483/row_units_probe.patch`, the module itself as
+`state/m483/rank_probe.rs`).
+
+### The verdict on 8a8a152
+
+Push run 39705921337 at 8a8a152 finished green, all its jobs. Its judge
+(job 119602432862, `state/m483/ci_judge.log`) printed
+`OK: 2671 files read, 969 flatten, 800 run; runnable 852 flatten, 755 run`,
+the same print as 2a02110's. The floors were not moved: the desk prints
+799 / 754, which less the three swings by name is 796 / 751, the floors
+as they stand.
+
+### The run half's rows of two and more, against their maps (item 1)
+
+Read from the m482 census (`state/m482/census.txt`, raw half
+`state/m482/raw.txt`), by the section marks, the rows keyed with the
+census's own normalisation so that a model lands in the row that counts
+it (`state/m483/rows2_named.tsv`). The run half holds 170 models in 113
+rows. The rows of two and more are 22 rows holding 79 models, which is
+the reference of shift 482 to the model.
+
+The membership was checked against the two censuses before it by name
+(`/tmp/m474c/raw.txt`, `/tmp/m478/raw.txt`). Between m478 and m482 the
+only rows of two and more whose names changed are `` `X` of algebraic
+loop `` (6 to 7, `CascodeCircuit` arriving from m479's tuple fix), the
+new `tsat` row (the two `TwoPhaseWater` examples, m482) and
+`cannot differentiate a subscript` (3 to 2, `HeatingSystem` leaving in
+m478). The `Newton direction` row is m469's ten to the name
+(`/tmp/m469/newton_row.m467.lst`).
+
+| row (count)                               | models                                                                                                                                                      | map                                                                                                                                                | left open outside Roman's package                                                                                                                                          |
+| ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| the Newton direction (10)                 | `SeriesPipes1`, `2`, `BranchingPipes1`, `2`, `3`, `4`, `13`, `14`, `TestTemperature1`; `TestMultiPortTraceSubstances`                                       | nine: a first step out of the water's domain (m424, m444, m469); the tenth: item 50                                                                | the nine: m424's three probes, none taken, no decision pending. A repair of the domain edge is a series, not a map                                                         |
+| singular Jacobian (8)                     | QS `Rectifier`, `RoomCO2`, `SMEE_Generator`, `_Polyphase`, `SMEE_LoadDump`, `Engine1a`, `LossyGearDemo2`, `TestMixingVolumesPressureStates`                 | item 22, m406, m433, m478; probed again below                                                                                                      | `TestMixingVolumesPressureStates` (below); the rest are the package's or a library's own free direction                                                                    |
+| underdetermined (8)                       | `MNmos`, `MPmos`, `NAND`, `ONEBIT`, `Spice3BenchmarkRtlInverter`; `SMEE_DOL`, `SMEE_Rectifier`, `IMC_DOL_Polyphase`                                         | item 30 (m372, m388, m425, m473), probed again below                                                                                               | none: the threshold of the rank tests is Roman's                                                                                                                           |
+| `` `X` of algebraic loop `` (7)           | `CascodeCircuit`, `PumpingSystem`, `RoomCO2WithControls`, `RollingWheelSetDriving`, `RollingWheelSetPulling`, `ThreeSprings`, `TestJunctionTraceSubstances` | m426, m429, m476; `CascodeCircuit` m479 (a capacitance written as zero, item 30)                                                                   | `ThreeSprings` and `PumpingSystem`: m426's "first point from inner starts", queued as the cheapest wall and parked (`m428-first-point-probes.patch`); the rest are package |
+| did not converge in 50 (4)                | Machines `SMPM_CurrentSource`, `PressureLoss.Bend`, `SeveralTestCases`, `MediaTestModels.Air.MoistAir`                                                      | m474, m476                                                                                                                                         | `Bend` and `SeveralTestCases`, the seesaw about zero flow, have a trail and no probe of a repair                                                                           |
+| the equations of algebraic loop (4)       | `Spice3BenchmarkDifferentialPair`, `PointGravityWithPointMasses2`, `RollingWheel`, `GearType2`                                                              | m429, m476 (item 30, m426, m391, m360)                                                                                                             | none new                                                                                                                                                                   |
+| algebraic loop ... (3)                    | `AST_BatchPlant.Test.OneTank`, `Explanatory.MeasuringTemperature`, `TestSuddenExpansion`                                                                    | `OneTank` and `MeasuringTemperature` step out of the water's domain (m452, m469); `TestSuddenExpansion` has a solution on either side (m242, m426) | the three are named, none is in the package; m469 lists them under walls of other families                                                                                 |
+| cannot evaluate parameters `jointRRP` (3) | `Engine1b_analytic`, `CylinderBase`, `Cylinder_analytic_CAD`                                                                                                | item 56 (m472)                                                                                                                                     | none                                                                                                                                                                       |
+| initialization is not square (3)          | `NonCircularPipes`, `ThreePhaseTransformerWithRectifier`, `GearType1`                                                                                       | m416, m448, m470 (a surplus behind the medium, the library's typo, a utility with open flanges)                                                    | none                                                                                                                                                                       |
+| parameter T has no value (3)              | `OpAmpCircuits.Derivative`, `FirstOrder`, `PI`                                                                                                              | service classes, refusing rightly (m416, the census's own section)                                                                                 | none                                                                                                                                                                       |
+| no equation determines `vin.T0` (3)       | Spice3 `FourInverters`, `InvertersApartRecord`, `InvertersExtendedModel`                                                                                    | the `T0` family (m474), Roman's                                                                                                                    | none                                                                                                                                                                       |
+| nothing is left for `initStep` (3)        | `CompositeStep`, `CompositeStep1`, `CompositeStep2`                                                                                                         | item 57 (m481), not to be built                                                                                                                    | none                                                                                                                                                                       |
+| `tsat` at p = 0 (2)                       | `TwoPhaseWater.BaseProperties`, `ExtendedProperties`                                                                                                        | m481, m482: parts checked alone, nothing gives their pressure                                                                                      | none: the example of the package, `TestTwoPhaseStates`, gives `p(start = 2000, fixed = true)`                                                                              |
+| parameter `f`, `fS`, `maxLevel` (2 each)  | `OpAmpCircuits.Der`, `Integrator`; `DcdcInverter`, `SwitchingDcDc`; `NormalOperation`, `TankController`                                                     | service classes (m479)                                                                                                                             | none                                                                                                                                                                       |
+| step size underflow (2)                   | `IMC_InverterDrive`, `Rotational.Examples.Friction`                                                                                                         | m474 item 3, the runner's swing (m476)                                                                                                             | none new                                                                                                                                                                   |
+| cannot differentiate a subscript (2)      | `TestInterpolateParametric`, `TestInterpolateTimeVarying`                                                                                                   | m454: two links, the tuple's road to the walk and a derivative of a walked output                                                                  | the chain: m454's probe moves both one storey, the second link was never walked                                                                                            |
+| `n2.i = 0` constrains no state (2)        | `OpAmpCircuits.Add`, `Gain`                                                                                                                                 | item 34 (m472)                                                                                                                                     | none                                                                                                                                                                       |
+| `smpmQS.phiMechanical` (2)                | QS `SMPM_CurrentSource`, `SMPM_MTPA`                                                                                                                        | m475's tie table, the machine family                                                                                                               | none new                                                                                                                                                                   |
+| no equation determines `vinN.T0` (2)      | Spice3 `Nand`, `Nor`                                                                                                                                        | the `T0` family (m474)                                                                                                                             | none                                                                                                                                                                       |
+| an array of N written out (2)             | `FlueGasSixComponents`, `IncompleteMedia.ReferenceMoistAir`                                                                                                 | s460, s461: a chain with no visible end                                                                                                            | the chain: `ReferenceMoistAir` reaches item 45's wall, `FlueGasSixComponents` a record constructor under an `if` in the walk                                               |
+
+Every row has a chapter, so there is no row without a map. The last
+column is not empty outside Roman's package. Five pieces of work stand
+on rows of two and more and wait on no word of his:
+
+1. the water pipes' first step out of the domain, nine models, m424's
+   probes untaken;
+2. the `TestInterpolate*` chain, two models, link 2 unwalked (m454);
+3. the `FlueGasSixComponents` record constructor in the walk, one model,
+   the next link of s461's chain;
+4. the seesaw about zero flow, `Bend` and `SeveralTestCases`, mapped by
+   trail only (m474);
+5. `TestMixingVolumesPressureStates`, mapped below.
+
+`ThreeSprings` and `PumpingSystem`'s first point from inner starts
+(m426, m428) is a sixth, but it was parked as a change that moves which
+point a run starts from, which this document treats as a different
+compiler until it is measured, so it is listed apart.
+
+### What the kernel of a singular block names (item 2)
+
+A probe behind `OXIDELICA_RANK_PROBE` prints, at the two refusals of a
+block that will not solve (`singular Jacobian`, where no step comes
+back, and `underdetermined`, where the converged block is read
+singular), the zero rows and zero columns, the rows parallel to each
+other, the smallest pivot raw and under both scalings, and the smallest
+singular values with the right and left singular vectors named: the
+columns the kernel moves and the rows that depend on each other. The
+singular values come from a one-sided Jacobi of the rows-first scaled
+matrix, written for the probe since the crate carries no linear algebra
+of its own. Each model was asked under `--only` from `.msl`. The outputs
+are `state/m483/rank/` (first pass), `rank2/` (with every row's
+entries), `rank3/` (with the scaled solves) and `rank_under/` (the
+underdetermined row).
+
+The singular-Jacobian row, at t = 0 in every case:
+
+| model                             | zero rows / cols | smallest singular / max | what the kernel names                                                                                                            | breed                                                                |
+| --------------------------------- | ---------------- | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| `LossyGearDemo2`                  | 0 / 0            | 2.6e-161                | rows 2 and 3 parallel: the gear's `a_a` and the bearing's `a_relfric`; the columns are the gear's quadrants, `sa` and the torque | a free direction the library documents (both stuck), m344's switches |
+| QS `Rectifier`                    | 0 / 0            | 6.0e-157, 4.9e-8        | `load2.v` against `idealDiode1.s` and `2.s`; rows 3 and 7, the diode's current and the load's, are the same row                  | two branches of a switch answering the same thing (m406)             |
+| `SMEE_Generator`                  | 0 / 0            | 9.5e-158                | rows 0 and 1 parallel, `V_msr.re` and `Phi_sr.re`: at `gamma = 0` `rotator.im = sin(0)` is zero and both read `Phi_ss.re` alone  | the rotor-frame pair (m406, item 30)                                 |
+| `SMEE_Generator_Polyphase`        | 0 / 0            | 3.1e-156, 6.3e-156      | the same pair twice, `smeeM` and `smee3`                                                                                         | the same                                                             |
+| `SMEE_LoadDump`                   | 0 / 0            | 4.1e-19                 | `airGap.V_msr.im` and `port_sp.Phi.im = Phi_ss.im`, through the load inductor and the voltage sensor                             | the rotor-frame pair, joined in m416                                 |
+| `Engine1a`                        | 3 / 0            | 9.4e-158 (three)        | three zero rows of `crank1`'s frame translation and its two derivatives                                                          | a parameter folded to zero (m433)                                    |
+| `RoomCO2`                         | 0 / 0            | not taken               | one entry is NaN: `d(pipe.flowModel.states[1].T)/d(volume.medium.p)`, inside `solveOneNonlinearEquation`                         | moist air at a pressure out of range (item 50, m474)                 |
+| `TestMixingVolumesPressureStates` | 0 / 0            | 1.8e-9 (rows first)     | `der(mixingVolume1.medium.p)` and `der(...h)` at 0.707 each; under columns-first scaling the matrix is not singular at all       | units, not structure (below)                                         |
+
+Seven of eight are what their chapters say, and the kernel now names
+them where the old maps had a row or a scale. None of them has a zero
+row except `Engine1a`, so the item 22 note "at some of them there is no
+zero row, a probe of the rank is needed" is answered: where there is no
+zero row, there is a pair of rows that are the same row at that point,
+and the pair is a fact about the model at its start, not about the
+solver.
+
+`TestMixingVolumesPressureStates` is the exception. Its entries span
+7.9e6 (`simpleGenericOrifice2.state_a.h` against
+`mixingVolume2.medium.p`) down to 4.5e-7 (`medium.d` against `p` in the
+IF97 formulation, m344), so the raw smallest pivot is 5.3e-15, under the
+`1e-14` floor of `solve_linear`. Scaled by columns and then rows the
+smallest pivot is 4.1e-3 and the ratio of singular values 8.1e-4: the
+block is determined. The step's own rescue scales the columns only, and
+its pivot stays at 5.3e-15, so the rescue never fires. A probe that
+divided the rows too in that rescue (`OXIDELICA_PROBE_ROW_UNITS`,
+`state/m483/row_units_probe.patch`) gets a step at t = 0, `der(p)`
+moved by 2.7e9, and then Newton wanders for fifty iterations with
+`der(mixingVolume1.medium.p)` between -1e10 and -2.6e11 and refuses as
+`did not converge in 50` (`state/m483/tmvps_rowunits.txt`). So the
+first wall is units, and the second is the one m434 named: the IF97
+density row against `der(p)`, which a scaled step does not settle. One
+model, one storey, not a run.
+
+The underdetermined row, read the same way:
+
+| model                        | zero rows / cols                         | what the kernel names                                                                                                    |
+| ---------------------------- | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `MNmos`, `MPmos`             | 1 / 4                                    | `der(Dinternal)`, `der(B.v)`, `der(G.v)`, `der(Sinternal)` never mentioned: the four capacitances are zero at the start  |
+| `NAND`                       | 0 / 1                                    | `der(Q2.vbx)`, behind `capbx`, plus three more directions at 1e-27 to 3e-17 from the other transistors' `icapbx` rows    |
+| `ONEBIT`                     | 0 / 9                                    | `der(X1.Q2.vbx)` to `der(X9.Q2.vbx)`, a defect of 78 in 113                                                              |
+| `Spice3BenchmarkRtlInverter` | 1 / 1                                    | `der(Q1.vbx)`, the block of one                                                                                          |
+| `SMEE_DOL`, `SMEE_Rectifier` | 0 / 0, smallest 1.7e-13 and 3.4e-13      | stator currents' and air-gap voltage's derivatives, the left vectors on the open switch's or diode's `i = s * Goff` rows |
+| `IMC_DOL_Polyphase`          | 0 / 0, four singular values under 1.1e-7 | the same for `aimc3`, and for `aimcM` the five switches' `s` with the star's potential                                   |
+
+So the underdetermined row is item 30's two halves exactly: the five
+Spice3 circuits have whole columns that are zero, a derivative behind a
+capacitance a function writes as zero, and the three FundamentalWave
+machines have no zero anywhere and fall under the threshold on the
+size of the open switch's conductance. Their steps solve, raw and
+scaled, and only the rank test reads them as singular. Nothing new was
+found in this row, and the probe is the one that says so by name.
+
+The threshold of the rank tests was not touched, as the brief asked.
+
+### With the time left: a record of another type matched by place, and the bend that gave 3.3e8 Pa
+
+The list of the brief was done in half an hour, and the brief's next
+step for the time left is a small model for a row whose map is a trail
+only. The seesaw about zero flow (`PressureLoss.Bend`,
+`SeveralTestCases`, m474) was taken. Shrunk from `SeveralTestCases` to
+one `CurvedBend` between a mass-flow source and a fixed boundary
+(`state/m483/small/B1.mo`), it refuses in a second with the same
+`did not converge in 50` on `bend.dp`. The trail
+(`state/m483/small/B1_trail.txt`) is the m474 seesaw exactly: `dp` goes
+1000, -999.9955, 999.9909 ... with the full step taken every time and
+`|f|` at 1.2713e-3 throughout. Two hand-written square-root laws, with
+and without the library's regularisation (`S1.mo`, `S2.mo`), run, so
+the seesaw is not the shape of the law alone. A probe asking the line
+search for a sufficient fall (`(1 - 1e-4 lambda)` of the residual, under
+a key, not kept) halves the first step and then seesaws about zero
+instead, so the line search is not it either.
+
+The residual is the clue: 1.27e-3 kg/s of flow missing for a `dp` of
+1000 Pa through a pipe of ten centimetres. The bend's own functions,
+called with the geometry of the example (`B4.mo`), give a pressure loss
+of 3.3e8 Pa for 1 kg/s and a regularisation `dp_small` of 61870 Pa.
+By hand the law gives about 3 Pa, and the same function called with its
+records written out by name (`B5.mo`) gives 2.78 Pa. So the function is
+right and what it is handed is not.
+
+**The cause.** `Fittings.Bends.CurvedBend.Geometry` declares its fields
+`d_hyd, R_0, delta, K`, and the `Dissipation` input it is handed to,
+`dp_curvedOverall_IN_con`, declares the same four as `d_hyd, delta, K,
+R_0`. The language matches a record to another record type by the names
+of the fields. The compiler wrote the record out as its fields in the
+order of its own type and the body bound them to the input's fields by
+place, so the radius of curvature was read as the angle of turning, the
+angle as the roughness and the roughness as the radius. The smallest
+model is `R1.mo`, eighteen lines without the library: a record `A`
+declaring `d, r, delta, k` handed to a function taking a `B` that
+declares `d, delta, k, r`. It gives 1215.000025 where 1152.00025 is
+right, and the same call with the record rebuilt as a `B` by name
+(`/tmp/m483/R1.mo` with `B(d = a.d, ...)`) gives 1152.00025. A record of
+one type on both sides (`/tmp/m483/R3.mo`) was always right. Nothing
+refused any of it: a wrong number given quietly.
+
+There are three roads into the fault, and `R2.mo` holds all three: the
+record named (`f(a)`), the record built in the call (`f(A(d = 1, r =
+2))`), and a body that took the record as an `A` and hands it on whole
+to a function taking a `B` (`g(a)` calling `f(a)`). The bend takes the
+third: `massFlowRate` takes the `Fittings` geometry and hands it to the
+`Dissipation` function. The first two are mended in `arrays.rs`
+(`records_matched_by_name`): where an argument of one record type meets
+an input of another, its fields are put in the input's order by name.
+The third is mended where a record handed on is bound (`inlining.rs`,
+`bind_record_argument`): the bare name is bound to the record rebuilt
+from its list, which says whose order the list is in, so the callee's
+own reading reorders it. That road is not taken where the body hands a
+function over, because the specialised copy reads the list as it came:
+taken there too, `a_record_handed_to_a_standing_call_reaches_the_run_by_its_own_fields`
+went red, and that is how the narrowing was found.
+`OXIDELICA_RECORDS_BY_PLACE` keeps the old reading for all three. The
+test `a_record_of_another_type_is_matched_to_an_input_by_field_name`
+(`functions.rs`) checks 1152.00025 on all three roads. It is green with
+the change and red under the key (`y1 = 1215.000025`), and the whole
+suite passes with it.
+
+What it does to the bends, from one binary (`/tmp/m483/oxn2`), the key
+set and unset:
+
+- `B4.mo`: `dp` at 1 kg/s 3.3e8 Pa to 2.78 Pa, `dp_small` 61870 Pa to
+  0.013 Pa (by hand, about 0.0065 Pa in the laminar branch).
+- `ModelicaTest.Fluid.TestComponents.NewFittings.Bends.CurvedBend`
+  is counted as running by `library check` both ways, which runs ten
+  steps. Run to its stop time with `simulate`, it refused under the key
+  (`did not converge in 50` on `fitting2.V_flow, fitting2.dp`) and runs
+  without it. At t = 1 it gives 24.97 kg/s at `dp` = 2e5 Pa. The law by hand, with air at 5e5 Pa and 303.15 K
+  upstream (5.75 kg/m³), gives 199975 Pa at 24.97 kg/s.
+- `NewFittings.Bends.EdgedBend` refuses both ways, the same refusal. Its
+  geometry has the same field order as its `Dissipation` input, so the
+  change has nothing to reorder there.
+- `NewFittings.Orifices.ThickEdgedOrifice` and
+  `GenericResistances.VolumeFlowRate` give the same output byte for byte
+  both ways.
+- `B1.mo`, the shrunk `SeveralTestCases`, still refuses. Its seesaw is
+  now about zero at the right scale (`dp` 1000, -804, 782, -628 ...,
+  `|f|` falling from 23.1 slowly), so the seesaw of m474 is a second
+  wall and not this one. Before the change it stood on a law that was
+  wrong by eight orders of magnitude, so its trail said nothing about
+  the solver.
+- `ModelicaTest.Fluid.Dissipation.TestCases.PressureLoss.Bend`, one of the
+  two models of the seesaw row, runs under `--only` (`/tmp/m483/w/WB.csv`).
+  At 1 kg/s of air it gives `dp` = 1476.6 Pa through both of its bends,
+  the one driven by flow and the one driven by pressure, the same to the
+  digit. By hand, with the air at 1e5 Pa and 293.15 K and its viscosity
+  taken as 1.8e-5 Pa s, the law gives 1441 Pa. The viscosity is
+  approximate, and the 2.4 % between them is about that size.
+  `SeveralTestCases` still refuses on `from_mflow3.dp`, the water bend
+  that `B1.mo` was shrunk from, at the second wall above.
+
+**A first pair, and a ninth narrowing.** The first corpus half
+(`/tmp/m483/oxn2`, the change on, `/tmp/m483/rp/on_oxn2.txt`) printed
+960 flatten and 800 run against 969 and 799 on the m482 lists
+(`state/m482/p_final.txt`, `final.ran`). By name it gained
+`PressureLoss.Bend` and lost nine Spice3 MOS models from flattening:
+`Inverter`, `FourInverters`, `InvertersApartRecord`,
+`InvertersExtendedModel` and its `MNmos` and `MPmos`, `Nand`, `Nor` and
+`Spice3BenchmarkMosfetCharacterization`. Asked under `--only`, each now
+said `function Mos1.drainCur wants 21 field(s) for in_C, got 0`.
+`SpiceConstants` is a record of constants only, and a record constructor
+takes no constants (12.6.1). Rebuilt as a call to carry its order on,
+it carried nothing. So the third road rebuilds a record only where every
+field is one a constructor takes. The test
+`a_record_of_constants_handed_on_whole_keeps_its_constants` holds that
+shape in a record of two constants handed on through two bodies. It went
+red without the narrowing (`wants 2 field(s) for c, got 0`) and is green
+with it. Under the narrowed binary all nine flatten again under `--only`,
+and `Bend` and `NewFittings.Bends.CurvedBend` still run. The half that
+read the key was stopped, and the pair was taken again from the final
+tree.
+
+**The pair from the final tree.** One binary built from the tree being
+committed (`/tmp/m483/oxn4`), without the heavy set, the change on and
+then `OXIDELICA_RECORDS_BY_PLACE=1`, one after the other under a ceiling
+of 20 GB (`state/m483/pair/on.txt`, `off.txt`, lists beside them):
+
+```text
+                 by place (old)   by name (new)
+flatten / run    969 / 799        969 / 800
+runnable         852 / 754        852 / 755
+```
+
+The flattened lists are identical. The run lists differ by one name,
+`ModelicaTest.Fluid.Dissipation.TestCases.PressureLoss.Bend`, a runnable
+example. The old half is the m482 lists (`state/m482/p_final.txt`,
+`final.ran`) to the name, so there are no victims. The floors are not
+moved in this commit: the desk is the lower machine, and a floor rises
+to what the runner has printed. Once the runner's judge prints this
+tree, the run floors go up by one, `RUN_FLOOR` 796 to 797 and
+`RUNNABLE_RUN_FLOOR` 751 to 752, both by `PressureLoss.Bend`.
+
+The preflight of the tree was taken whole before the narrowing
+(`/tmp/m483/preflight.txt`, its coverage step passing) and `--quick`
+after it
+(`/tmp/m483/preflight_quick.txt`), both green apart from the library
+step, which this pair stands in for: one binary from the final tree,
+nothing the step measures changed after it, and the two halves named
+above.
