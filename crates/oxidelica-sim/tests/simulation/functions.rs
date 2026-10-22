@@ -5222,3 +5222,67 @@ fn a_call_filling_several_targets_reads_a_local_record_as_it_now_stands() {
         );
     }
 }
+
+#[test]
+fn a_record_of_another_type_is_matched_to_an_input_by_field_name() {
+    // A record is compatible with any other whose fields have the same
+    // names, and a call hands it over field for field by name. Here `A`
+    // declares `d, r, delta, k` and the function takes a `B` declaring
+    // `d, delta, k, r`, the same four in another order - the shape of
+    // the standard library's bends, which hand their `Fittings`
+    // geometry to a `Dissipation` input. Matched by place, `r` was read
+    // as `delta` and the bend's pressure loss came out 3.3e8 Pa where
+    // 2.8 Pa is right. Three roads: the record named, the record built
+    // in the call, and the record handed on whole by a body that took
+    // it as an `A`.
+    let result = run("model R \
+           record A Real d; Real r; Real delta = 1.5; Real k = 2.5e-5; end A; \
+           record B Real d = 0.1; Real delta = 0.5; Real k = 0; Real r = 0.05; end B; \
+           function f input B b; output Real y; \
+             algorithm y := 1000 * b.d + 100 * b.delta + 10 * b.k + b.r; end f; \
+           function g input A a; output Real y; algorithm y := f(a); end g; \
+           parameter A a(d = 1, r = 2); \
+           Real y1 = f(a); Real y2 = g(a); Real y3 = f(A(d = 1, r = 2)); \
+           annotation(experiment(StopTime = 1, Interval = 0.5)); end R;");
+    for name in ["y1", "y2", "y3"] {
+        let at = result.columns.iter().position(|c| c == name).unwrap();
+        for row in &result.rows {
+            // 1000 * 1 + 100 * 1.5 + 10 * 2.5e-5 + 2.
+            assert!(
+                (row[at] - 1152.00025).abs() < 1e-9,
+                "{name} = {} at t = {}",
+                row[at],
+                row[0]
+            );
+        }
+    }
+}
+
+#[test]
+fn a_record_of_constants_handed_on_whole_keeps_its_constants() {
+    // A record of nothing but constants, taken whole by one body and
+    // handed on to another - the Spice3 transistors hand their
+    // `SpiceConstants` from `mos1Precalc` down to `drainCur` that way.
+    // A constructor takes no constants (12.6.1), so rebuilding such a
+    // record as a call to keep the order of its fields leaves it with
+    // none, and the callee was refused for wanting twenty-one and
+    // getting nothing. The order is the record's own on both sides
+    // here, so nothing is to be rebuilt.
+    let result = run("model R \
+           record C constant Real a = 2; constant Real b = 3; end C; \
+           function f input C c; input Real u; output Real y; \
+             algorithm y := c.a * u + c.b; end f; \
+           function g input C c; input Real u; output Real y; \
+             algorithm y := f(c, u); end g; \
+           constant C k; Real y = g(k, time); \
+           annotation(experiment(StopTime = 1, Interval = 0.5)); end R;");
+    let y = result.columns.iter().position(|c| c == "y").unwrap();
+    for row in &result.rows {
+        assert!(
+            (row[y] - (2.0 * row[0] + 3.0)).abs() < 1e-12,
+            "y = {} at t = {}",
+            row[y],
+            row[0]
+        );
+    }
+}

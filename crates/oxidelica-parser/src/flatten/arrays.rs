@@ -1469,6 +1469,9 @@ pub(super) fn expand_call(
                         .iter()
                         .map(&recur)
                         .collect::<Result<Vec<_>, String>>()?;
+                    let values = records_matched_by_name(
+                        class, args, values, shapes, registry, scope, imports,
+                    );
                     // A function written for one record handed a whole
                     // array of them is called once per element, which
                     // is the vectorization the language gives every
@@ -2316,6 +2319,82 @@ fn field_of_one(item: &Value, fields: &[String], path: &str) -> Result<Value, St
     }
 }
 
+/// A record handed to an input of another record type, its fields put
+/// in the order the input declares them.
+///
+/// A record arrives at a call written out as its fields, in the order
+/// its own type declares them, and the body binds them to the input's
+/// fields by place. Where the two types are one, the places agree.
+/// Where they are two - which the language allows, a record being
+/// compatible with any other whose fields have the same names - the
+/// places do not: the bends of the standard library hand their
+/// `Fittings` geometry, `d_hyd, R_0, delta, K`, to a `Dissipation`
+/// input declared `d_hyd, delta, K, R_0`, and read by place the radius
+/// of curvature became the angle of turning. The bend then gave a
+/// pressure loss of 3.3e8 Pa for one kilogram a second through a pipe
+/// of ten centimetres, and nothing refused it. Matched by name, as the
+/// language says, each field goes where its name is.
+///
+/// Only where both are records, the value has one item per field of
+/// the record handed over, and the names are the same set: anything
+/// else is left as it came. `OXIDELICA_RECORDS_BY_PLACE` keeps the old
+/// reading so that one binary gives both numbers.
+fn records_matched_by_name(
+    class: &ClassDef,
+    args: &[Expr],
+    values: Vec<Value>,
+    shapes: &Shapes,
+    registry: &HashMap<&str, &ClassDef>,
+    scope: &str,
+    imports: &[(String, String)],
+) -> Vec<Value> {
+    if std::env::var_os("OXIDELICA_RECORDS_BY_PLACE").is_some() {
+        return values;
+    }
+    if args.iter().any(|arg| matches!(arg, Expr::NamedArg(..))) {
+        return values;
+    }
+    let inputs: Vec<Component> = inlining::function_components(registry, class, 0)
+        .into_iter()
+        .filter(|c| c.causality == Causality::Input)
+        .collect();
+    values
+        .into_iter()
+        .enumerate()
+        .map(|(index, value)| {
+            let reordered = (|| {
+                let input = inputs.get(index)?;
+                if !input.dimensions.is_empty() {
+                    return None;
+                }
+                let wanted = record_fields::record_input_class(registry, class, input)?;
+                let given = record_class_of(args.get(index)?, shapes, registry, scope, imports)?;
+                let given = registry.get(given.as_str())?;
+                if given.name == wanted.name {
+                    return None;
+                }
+                let Value::Array(items) = &value else {
+                    return None;
+                };
+                let from = record_fields_of(registry, given, 0);
+                let to = record_fields_of(registry, wanted, 0);
+                if from == to || from.len() != items.len() || from.len() != to.len() {
+                    return None;
+                }
+                let placed: Option<Vec<Value>> = to
+                    .iter()
+                    .map(|field| {
+                        let at = from.iter().position(|f| f == field)?;
+                        Some(items[at].clone())
+                    })
+                    .collect();
+                placed.map(Value::Array)
+            })();
+            reordered.unwrap_or(value)
+        })
+        .collect()
+}
+
 /// The records of a list handed to an input that takes an array of
 /// them, written back as records rather than as their fields.
 ///
@@ -2394,7 +2473,7 @@ fn argument_is_named(argument: &Expr) -> bool {
 
 /// Whether calling a record with its fields in order builds exactly
 /// those fields.
-fn rebuilt_as_written(
+pub(super) fn rebuilt_as_written(
     registry: &HashMap<&str, &ClassDef>,
     record: &ClassDef,
     fields: &[String],

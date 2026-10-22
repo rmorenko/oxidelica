@@ -2823,12 +2823,46 @@ fn bind_record_argument(
         // belongs to - which is a guess about who owns it, and one
         // nothing declares. Handed on as an argument, the whole list is
         // exactly what the callee takes.
-        return Ok(class.algorithm.iter().any(hands_a_function_over)
+        let hands_function = class.algorithm.iter().any(hands_a_function_over);
+        let handed_on = hands_function
             || (records_handed_on_open()
                 && class
                     .algorithm
                     .iter()
-                    .any(|statement| hands_a_name_on(statement, &input.name))));
+                    .any(|statement| hands_a_name_on(statement, &input.name)));
+        // Handed on, the list says nothing of the record it was, and
+        // the callee may take another record type with the same fields
+        // in another order: `massFlowRate` of a bend takes the
+        // `Fittings` geometry and hands it to the `Dissipation`
+        // function, whose input declares its fields otherwise. So the
+        // name is bound to the record built from the list, which says
+        // whose order the list is in, wherever building it gives
+        // exactly those fields back. Not where the body hands a
+        // function over: the specialized copy takes the fields as the
+        // list they came in, and a call of the record there is a
+        // shape it does not read.
+        if handed_on && !hands_function && std::env::var_os("OXIDELICA_RECORDS_BY_PLACE").is_none()
+        {
+            if let Some(of) = record_fields::record_input_class(registry, class, input) {
+                // A constructor takes the fields a record may vary and
+                // not its constants (12.6.1): `SpiceConstants` is all
+                // constants, and built as a call it came out with none
+                // of the twenty-one the Spice3 transistors read. So the
+                // record is rebuilt only where every field is one a
+                // constructor takes.
+                let all_free = record_fields::record_components(registry, of, 0)
+                    .iter()
+                    .all(|field| field.variability != Variability::Constant);
+                if all_free && super::arrays::rebuilt_as_written(registry, of, &fields) {
+                    bindings.insert(
+                        input.name.clone(),
+                        Expr::Call(of.name.clone(), items.clone()),
+                    );
+                    return Ok(false);
+                }
+            }
+        }
+        return Ok(handed_on);
     }
     // A record handed over by name rather than written out is the
     // commoner way of it: the caller has the record as a variable and
