@@ -1241,7 +1241,17 @@ impl Expr {
     /// `a - (b - c)` does not read as `a - b - c`, and bracketing every
     /// compound part says the truth at the cost of a few brackets
     /// nobody needed.
+    ///
+    /// A value carrying its derivative's rule is printed as the value
+    /// alone, so it is grouped as the value would be. Without that the
+    /// liquid term of `MoistAir.h_pTX`, `enthalpyOfWater(T) * X_liquid`
+    /// with the splice inlined, was printed `a * 1 + b * (1 - 1) *
+    /// X_liquid` where the run computes `(a * 1 + b * (1 - 1)) *
+    /// X_liquid`, and a reader worked the wrong number out of it.
     fn grouped(&self) -> String {
+        if let Expr::WithDerivative(value, ..) = self {
+            return value.grouped();
+        }
         let compound = matches!(
             self,
             Expr::Bin(..)
@@ -1428,6 +1438,18 @@ mod tests {
         );
         // The rule beside a call is not shown: nobody wrote it.
         assert_eq!(Expr::WithDerivative(x(), one(), Vec::new()).describe(), "x");
+        // And it is grouped as what is shown: a sum carrying its rule,
+        // multiplied, keeps its brackets.
+        let sum = Box::new(Expr::Bin(BinOp::Add, x(), one()));
+        assert_eq!(
+            Expr::Bin(
+                BinOp::Mul,
+                Box::new(Expr::WithDerivative(sum, one(), Vec::new())),
+                x()
+            )
+            .describe(),
+            "(x + 1) * x"
+        );
 
         assert_eq!(
             Expr::Index(x(), vec![*one(), Expr::ColonSubscript]).describe(),

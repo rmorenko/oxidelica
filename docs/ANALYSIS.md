@@ -58914,3 +58914,298 @@ run the model, the derived body would need array rates as inputs
 (`der(x)[i]`, `der(y)[i]`) and a rule for the hunted index, which
 stays piecewise constant. That is a writer of derived bodies with
 array rates: one link, but not a local one. No code was written.
+
+## Shift 486: the zero-step hand-over priced, the policy of `min` mapped, and the seven of "NaN before the first Newton step" taken apart
+
+### The verdict on 0386ae9
+
+Run 39754729786 (push, head 0386ae9) is green, and it did run the
+library: the main and dear passes finished and the judge printed
+`OK: 2671 files read, 969 flatten, 803 run; runnable 852 flatten, 758
+run` and `OK: 6911ms per model flattening, 7788ms running`, ratio
+1.127. Its work line reads 1672611846 names, 221 ppm above the centre
+1672242797, and 457147 points apart from `Dimmer_RL` (30212817 less
+29755670), 9 ppm above the centre 457143. Both bands are inside, so
+the two centres moved by cca6ea6 and 33eb406 hold on the first judge
+that ran on them. 803 / 758 is the floors 799 / 754 plus the three
+named swings and `IMC_DOL`, as expected. The floors are not moved.
+
+### The census of m486, before
+
+`/tmp/m486/census.txt` (raw `/tmp/m486/raw.txt`), head 0386ae9,
+`refusals.sh .msl both`, counted between the section markers: would
+not flatten 51 models in 30 rows, flattened and would not run 167
+models in 112 rows. Against m485, model by model on the raw half,
+exactly two lines changed and both are the two the brief allowed:
+`FlueGasSixComponents` now refuses on `dddX[1] went below its min`,
+and `IncompleteMedia.ReferenceMoistAir` on `an array reached the
+evaluator`. The rows go 113 to 112 because the row `subscripts and
+arrays survive flattening only as scalars: an array of N written out`
+held exactly those two and is now empty.
+
+### The hand-over at zero accepted steps (item 1)
+
+**The probe is the wide reading already.** The explicit solver hands
+an edge over when `EdgeHandoff::takes(t > t0)` says so
+(`solvers/dopri.rs:362`), and `t` moves only on an accepted step
+(`dopri.rs:791`). So "moved" is exactly "at least one step accepted".
+The narrow default takes `moved`. A switch taking `!moved` adds the
+complement, and the two together are `Always`, which is `=all`. Every
+one of the nine refuses on a stage of the first step (m410, m485), so
+for these nine the zero-step switch _is_ `=all`, and for any other
+model the union with the default is `=all` too. No separate binary
+was built for it. The m485 numbers under `=all` with the BDF edge
+probe are the numbers of this probe: four of nine.
+
+**The price of the five that are not won.** One binary
+(`/tmp/m486/oxt`: head plus `state/m485/bdf_edge_reject.diff` plus a
+trail of BDF steps under `OXIDELICA_BDF_TRAIL`), `--only` from `.msl`,
+`OXIDELICA_EDGE_HANDOFF=all`, five at once, 25 minute caps
+(`/tmp/m486/nine/lose.*.txt`, `lose.sum`). All five were cut by the
+cap with no answer, at 1503 to 1505 s of desk time and 20 minutes of
+processor each, peak 0.3 GB. m485 had `BranchingPipes1`, `2` and `4`
+refuse at 1848 to 2314 s and `SeriesPipes1` and `TestTemperature1`
+still grinding at 38 minutes. Where each stood when cut:
+
+```text
+                   tries  rejected  smallest h  t reached
+TestTemperature1       9         6     1.5e-8     1.3e-10
+SeriesPipes1          46         1     3.8e-11    3.0e-6
+BranchingPipes4       88        33     1.5e-8     1.8e-4
+BranchingPipes1       29         3     1.0e-6     5.0e-4
+BranchingPipes2       11         2     8.9e-6     3.0e-3
+```
+
+The stop time is 5 s. A BDF step here costs tens of seconds, because
+each Newton iteration walks the water formulation, so the cost is in
+the price of one step and not in their number. The same wall m285
+found for the Newton ceiling (`lib.rs:721`).
+
+**Nothing cheap tells a winner from a loser.** The four winners under
+the same binary (`/tmp/m486/nine/win.*.txt`, `win.sum`): 345 s
+`BranchingPipes3`, 361 s `SeriesPipes2`, 381 s `BranchingPipes13`, 522
+s `BranchingPipes14`. Their highest Newton count in one output
+interval (`OXIDELICA_NEWTON_PEAK`) is 277, 1657, 340 and 1254, and
+their totals are 467 to 2090. Losers that refused in m485 held 1093 to 10433. The ranges overlap. Worse, `BranchingPipes2` (lost) and
+`BranchingPipes3` (won) take the same eleven BDF tries to `t =
+3.026e-3` with the same step sizes, digit for digit, so no counter
+taken early in the run can split them.
+
+**The ceiling BDF has.** It has two, and neither is a ceiling of time:
+`steps > 20_000_000` Newton iterations (`bdf.rs:191`) and a step
+shorter than `stop * 1e-14` (`bdf.rs:312`, 5e-14 here). `SeriesPipes1`
+stood at `h = 3.8e-11` after 46 tries, so the second is three orders
+of magnitude away, and at tens of seconds a try the first is years
+away. `OXIDELICA_MAX_NEWTON_ONE_INTERVAL` exists and is unset by
+default for the reason m285 gives. So under the probe the five would
+cost the corpus at least 5 times 25 minutes of processor each pass
+and end in no answer, against four models won at six to nine minutes
+apiece.
+
+**Not merged.** The rule of the brief was a win with no victims _and_
+a named price with a ceiling. The price is named (at least 125
+processor minutes a pass) and there is no ceiling that would stop it,
+so no corpus pair was spent. The probe diff is kept as
+`state/m486/probes_all.diff` (it holds the BDF edge change of m485,
+the trail, and the probe of item 2). What would make it mergeable is
+a budget of evaluated points or Newton iterations per segment of the
+_implicit_ solver once it has been handed an edge at zero steps,
+chosen against the four winners' 467 to 2090 Newton iterations. That
+is a decision about where to refuse a run that might finish, which
+is the same choice m285 declined for the explicit solver, and it is
+left to the review.
+
+### The policy of `min` (item 2): a map and a probe, not merged
+
+**Who sets the assert.** We do, on every component.
+`bound_asserts` (`compile.rs:4652`) turns every `min` and `max` of
+every flat component into a run-time assertion, beside the asserts
+the model writes. The checker (`check.rs:120`) refuses the bounds it
+can settle before the run. `docs/COMPLIANCE.md` says so and the tests
+`a_bound_broken_only_by_the_run_is_reported_where_it_broke` and
+`a_bound_written_out_names_the_element_that_broke_it` hold it.
+
+**What the specification says.** Section 4.8.1 defines `Real` with
+`min = -Inf, max = +Inf` and the equation `assert(min <= value and
+value <= max, "Variable value out of limit")`. So the assertion is
+the language's, on every variable, parameters or not. Nothing there
+narrows it to states or to inputs. Tools that run these two models
+must check it differently, and how is not in the specification and
+was not measured here.
+
+**The two models.** `ModelicaTest.Media.TestAllProperties` declares
+`Medium.Density dddX[nX] = Medium.density_derX(state)`, and `Density`
+carries `min = 0`. A derivative of density by a mass fraction is
+negative for any component heavier than the mixture's mean. So the
+model sets a bound its own equation breaks, and the number is right:
+
+- `FlueGasSixComponents`: `dddX[1] = -1.214168020001487`, and by hand
+  `-d * MM / MM_N2 = -1.17908 * 0.0288469 / 0.0280134 =
+-1.214168020001487`, to the digit.
+- `MoistAir`: `dddX[1] = -0.71092473959958`, and by hand from the
+  MSL formula with `X_w = 0.01`, `T = 298.15`, `p = 101325`:
+  `-0.71092713`. The difference in the sixth digit is the density,
+  1.1767676 by hand against 1.1767622 here, from constants of the gas
+  law rounded differently.
+
+**The probe.** `OXIDELICA_PROBE_SOFT_BOUNDS` (in the kept diff) left
+out the bound asserts of every component that is not a parameter or
+a constant. Under it both models run to their stop time
+(`/tmp/m486/min_flue_soft.txt`, `min_moist_soft.txt`), against the
+refusal without it (`min_flue_hard.txt`, `min_moist_hard.txt`). The
+probe drops 103 bounds in `FlueGasSixComponents` and 69 in `MoistAir`,
+which is the measure of what such a policy gives up: every one of
+them is a check the specification asks for. Not merged, as the brief
+said. The question for Roman: the specification's assert on every
+variable makes these two refusals correct, so taking them means
+choosing to read a `min` on a derived quantity as less than the
+language says.
+
+### The seven of "NaN before the first Newton step" (item 3)
+
+From the m485 raw half (`/tmp/m485/raw.txt`), and the same words in
+`/tmp/m486/raw.txt`:
+
+- `Modelica.Fluid.Examples.TraceSubstances.RoomCO2WithControls` and
+  `ModelicaTest.Fluid.TestComponents.Fittings.TestJunctionTraceSubstances`:
+  `solveOneNonlinearEquation` of `MoistAir.T_phX` with `fa =
+75640.42244260639` and `fb = 575206.3141813253` on 190..647 K.
+- `Modelica.Mechanics.MultiBody.Examples.Elementary.RollingWheelSetDriving`
+  and `RollingWheelSetPulling`: NaN in the wheel joint, every value
+  read finite.
+- `Modelica.Mechanics.MultiBody.Examples.Elementary.ThreeSprings`:
+  `-inf` in `e_rel_0 = r_rel_0 / s`.
+- `Modelica.Electrical.Spice3.Examples.CascodeCircuit`: NaN in
+  `J1.icGS / J1.cc.cGS - (der(J1.G.v) - der(J1.Sinternal))`.
+- `Modelica.Fluid.Examples.PumpingSystem`: `visc_dTp` called with `d =
+NaN` on initialisation.
+
+**The bracket of the trace substances.** Both models give the same
+`fa` and `fb`. The small model `state/m486/small/H190.mo` evaluates
+`MoistAir.h_pTX(101325, T, {0.01, 0.99})` at 190 and 647 K as
+-87586.077 and 411979.815, and the `h` that both differences give is
+the same, -163226.49901351 J/kg, to eight digits. So `p` and `X` are
+what the start says and `h` is not: -163226 J/kg is moist air at
+about 100 K (`state/m486/small/H163.mo`: `h_pTX` at 100 K is -179148,
+at 273.15 K is 8138, and `h_default` is 45262.58). In
+`TestJunctionTraceSubstances` the `h` handed to the bracket is a
+mixing of `junction1.port_2.h_outflow = junction1.medium.h` and
+`traceSubstance2.port.h_outflow`. The second is `h_default`,
+45262.58, read off the printed binding (below). So the wild value
+comes from the junction's medium, whose `h` is
+`h_pTX(junction1.medium.p, junction1.medium.T, Xi)` and whose `T`
+starts at `junction1.T_start`. The Newton trail of the first
+evaluation (`OXIDELICA_NEWTON_TRAIL`, `/tmp/m486/tj_trail.txt`) shows
+the block's 34 unknowns at their starts: every `h_outflow` of the
+block stands at 1000000.0, the `nominal` of the media's
+`SpecificEnthalpy` and not any enthalpy of the model, while `p`, `T`
+and the mass fractions stand at the model's starts. The residual of
+`pipe2.port_b.h_outflow` is 1163226.4989951896, which is 1e6 less the
+mixed `h` of -163226.499 handed to the bracket. With both flows at
+their floor of 1e-10 the mixing is a plain mean, so the junction's
+side would be about -371716 J/kg. `h_pTX` at 293.15 K gives that only
+for a water fraction near -0.15 (`state/m486/small/HX.mo`: -0.1 gives
+-231728), so the junction's `Xi` at the start is the suspect, not its
+`T`. That is an inference from the arithmetic and was not traced. The
+next link is what the junction's `Xi` is computed from at the start,
+and it was not reached in the time.
+
+**A printer that told a wrong number, mended.** The first reading of
+the trace's binding came out at 129262.58, exactly `h_default +
+84000`, and 84000 is `enthalpyOfWater(293.15)`, a term that should be
+multiplied by `X_liquid = 0`. The small model
+`state/m486/small/HW.mo` shows the compiler computes it right (`a =
+enthalpyOfWater(T) * 0 = 0`), and the fault was in how the term was
+_printed_: `why` showed `((4200 * (T - 273.15)) * 1) + ((1 - 1) *
+(...)) * xl`. The splice is inlined as a value carrying its derivative
+rule, `Expr::WithDerivative`, and `describe` prints that as the value
+alone, but `grouped` did not bracket it, so `(a + b) * x` read as `a +
+b * x`. A reader of `why` or of any refusal quoting such an equation
+would work out a wrong number from it. `grouped` now brackets a
+`WithDerivative` as it would its value (`ast.rs`), and the test
+`every_shape_of_expression_can_be_spelled` holds `(x + 1) * x`. It
+was seen red without the fix (`"x + 1 * x"`). Read again with the
+mended printer, the binding evaluates to 45262.582490480156, which is
+`h_default` to the digit. Nothing the compiler computes changes, so no
+number of the corpus can move. The commit says so.
+
+**`ThreeSprings`.** `s = max(length, s_small)` with `s_small = 1e-10`
+(`LineForceBase.mo:45`), so `s` cannot be zero where the equation
+stands, and `r_rel_0[1] / s = -inf` means the block was evaluated with
+`s` taken from its start (0, the fallback of `SI.Position`) rather
+than from that equation. The loop holds both `spring2.lineForce.s`
+and `e_rel_0`. The Newton trail of the first evaluation
+(`/tmp/m486/ts_trail.txt`, 31 unknowns) settles it: `spring1`'s
+`length` and `s` start at 0.3464, which is its true distance, but
+`spring2`'s `length`, `s` and `r_rel_0[3]` all start at 0, and the
+residuals read `e_rel_0[1]` -inf, `e_rel_0[2]` +inf and `s` NaN. So
+the torn block evaluates `r_rel_0 / s` on the start of `s` and not
+after the guarded maximum, and only for the spring whose starts
+nobody worked out. The wheel sets are the same breed, traced for
+`RollingWheelSetDriving` (`/tmp/m486/rw_trail.txt`): the rolling
+joints' `aux` and `e_long_0` start at 0, so `aux[1] / sqrt(aux[1]^2 +
+aux[2]^2 + 0)` is 0/0 and `e_long_0[1..3]` of both wheels read NaN on
+the first evaluation, which spreads to `body1.a_0[2]` and the two
+revolute accelerations. `RollingWheelSetPulling` was not traced but
+names the same joint. So three models stand on one layer, a torn
+block reading a denominator from its start. Not mended here.
+
+The cure for that layer already exists and runs: a block refused
+before any Newton step with a start of zeros is tried again with its
+zero starts at 1e-6, 1e-3, 1 and 1e3 (`solvers/mod.rs:1052`,
+`OXIDELICA_NO_ZERO_STEP`). The same trail shows all four retries on
+`ThreeSprings`, five times over, and every one of them evaluates
+finitely (`|f|` 5.8e5, 5.8e2, 69.6 and 6.3e7). None converges, and
+the refusal printed is that of the first try, the infinite one. So the
+text of the refusal names the wall the retry already climbed, and the
+wall that stops the model is whatever the retries met, which the
+refusal does not say. A probe printing each retry's own refusal (kept
+as `state/m486/retry_probe.diff`, key `X_RETRY`, not merged) answers
+it. On `ThreeSprings`, five blocks over: from 1e-6 and 1e-3 the
+Newton direction does not reduce the residual, from 1 the Jacobian is
+singular, and from 1e3 the loop does not converge in 50 iterations.
+The smallest model of the same shape, `x + 1/y = 0, y = x` with both
+starting at 0 (`/tmp/m486/z/Z.mo`, which has no real root), is
+refused the same way, and its four retries all end on the Newton
+direction. So the next wall of the three MultiBody models is the
+Newton solve of a 31-unknown block from a start nobody worked out,
+which is the initialisation's business, and the text that names it
+is one line of code away.
+
+**`CascodeCircuit`.** Its `J1` and `J2` are written with
+`modelcard(CGS = 0, CGD = 0)`, so `cc.cGS = 0` is the model's own
+data and `icGS = cc.cGS * der(vGS)` is right. What is wrong is that
+the block was solved for `der(vGS)` _through_ that equation, as
+`icGS / cc.cGS`, which is 0/0. A coefficient that is a parameter and
+zero should leave the equation as `icGS = 0` and not be divided
+through. That is the symbolic solve of the block, and it is a
+separate layer from the three above.
+
+**`PumpingSystem`.** `visc_dTp` with `d = NaN` on initialisation, one
+link before the pumps' IF97 edge that m410 handed over. Not probed.
+
+So the row of seven is at most four layers: the junction's start `h`
+(two, traced to the junction's side), a torn block reading its
+denominator from a start (three, two traced), a block divided through
+by a zero parameter (one, by reading) and IF97 at the start (one, not
+probed). The middle one is the widest, and it is one layer under
+three models of MultiBody: the place to start next.
+
+### The moving table (item 4): a map
+
+The wall at `derived.rs:247` holds one model in the census:
+`ModelicaTest.Math.TestInterpolateTimeVarying` ("its derivative reads
+the array handed as input 1 as still"). No other model in either raw
+half names it. `AdvancedSolenoid` refuses on a differentiation of
+another kind. So the series is one link for one model: a writer of
+derived bodies that takes array rates as inputs (`der(x)[i]`), laid
+out as the walk lays out the value, plus a rule for the index the body
+hunts with, which is piecewise constant. Its cost is the writer. Its
+gain is one model, and it may meet a wall beyond. No code was written.
+
+### What was pushed
+
+One commit, the printer: `ast.rs`, the `grouped` change and its test.
+Nothing the compiler computes changed, so the corpus cannot move, and
+the preflight's library step was run as usual. The floors are not
+moved.
