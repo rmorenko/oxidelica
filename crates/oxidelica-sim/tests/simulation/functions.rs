@@ -611,7 +611,12 @@ fn a_walked_body_answers_with_a_record() {
     // A record of more than plain numbers is left as it was written:
     // a name and a subscript are not enough for it, and the model is
     // told what does not add up rather than given a guess.
-    let model = parse_model(
+    // Since the walk's answer for such a record is laid out as its
+    // numbers - three here, `a` and the two of `v` - the flattening
+    // itself sees three places against a record of two fields and says
+    // so; before, the model flattened and compile found it unbalanced.
+    // Either is a refusal naming the mismatch, and neither is a guess.
+    let trouble = match parse_model(
         "package P record Deep Real a; Real v[2]; end Deep; end P; \
          model M function boundary input Real p; input Real go; output P.Deep pro; \
          protected Integer k; \
@@ -619,10 +624,16 @@ fn a_walked_body_answers_with_a_record() {
          end boundary; \
          P.Deep q; Real y; equation q = boundary(time, time); y = q.a; \
          annotation(experiment(StopTime = 1, Interval = 1)); end M;",
-    )
-    .expect("parses");
-    let trouble = compile(&model).expect_err("a record of more than numbers");
-    assert!(trouble.to_string().contains("unbalanced"), "{trouble}");
+    ) {
+        Err(refused) => refused.to_string(),
+        Ok(model) => compile(&model)
+            .expect_err("a record of more than numbers")
+            .to_string(),
+    };
+    assert!(
+        trouble.contains("unbalanced") || trouble.contains("between shapes [2] and [3]"),
+        "{trouble}"
+    );
 }
 
 /// A value handed down an `extends` reaches the run as a number.
@@ -5320,4 +5331,40 @@ fn a_table_hunt_taken_as_a_tuple_is_differentiated_through_its_body() {
         let line = row_at * row_at + slope * (t - row_at);
         assert!((row[x] - line).abs() < 1e-9, "x = {} at t = {t}", row[x]);
     }
+}
+
+#[test]
+fn a_medium_state_holding_an_array_travels_through_two_walked_bodies() {
+    // `FlueGasSixComponents` without the library around it: a medium's
+    // state is `{p, T, X[nX]}` with `nX` a constant of the package, one
+    // walked body builds it from a constructor and another reads it
+    // field by field. Four links stood in the way: the state was not
+    // laid out at all because `X[nX]` was measured without the package,
+    // the constructor assigned whole was refused as one number, the
+    // eight numbers the walk answered with were taken as three fields'
+    // places, and the reader that wanted three fields was handed five.
+    // The sum is worked out by hand: 301 times the fractions over the
+    // molar masses.
+    let result = run(
+        "package G5 package Base constant Real MMs[:]; constant Integer nX = 3; \
+         record State Real p; Real T; Real X[nX]; end State; \
+         function visc input State state; output Real eta; protected Integer k; \
+         algorithm k := 0; while k < state.T / 1000 loop k := k + 1; end while; \
+         eta := state.T * sum(state.X[i] / MMs[i] for i in 1:nX); end visc; \
+         function setState input Real p; input Real T; input Real X[:]; \
+         output State state; protected Integer k; \
+         algorithm k := 0; while k < T / 1000 loop k := k + 1; end while; \
+         state := State(p = p, T = T, X = X); end setState; end Base; \
+         package Gas extends Base(MMs = {0.028, 0.032, 0.044}); end Gas; end G5; \
+         model M Real T(start = 300, fixed = true); Real X[3] = {0.2, 0.3, 0.5}; Real eta; \
+         equation der(T) = 1; eta = G5.Gas.visc(G5.Gas.setState(1e5, T, {X[1], X[2], X[3]})); \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    );
+    let at = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+    let hand = 301.0 * (0.2 / 0.028 + 0.3 / 0.032 + 0.5 / 0.044);
+    let eta = result.rows.last().unwrap()[at("eta")];
+    assert!(
+        (eta - hand).abs() < 1e-9 * hand,
+        "eta = {eta}, by hand {hand}"
+    );
 }

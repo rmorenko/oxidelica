@@ -588,6 +588,44 @@ fn to_scalar(
 ) -> Result<Expr, SimError> {
     let recur = |e: &Expr| to_scalar(e, frame, programs, time, depth);
     Ok(match expr {
+        // A field of a record written out as its constructor -
+        // `fluidConstants[i].criticalTemperature`, where the medium's
+        // `fluidConstants` reached the body as a list of
+        // `FluidConstants(chemicalFormula = "N2", ...,
+        // criticalTemperature = 126.2, ...)` and the body picks one by
+        // a loop index - is the argument of that name, once the index
+        // has picked the constructor. Left whole it reached the
+        // evaluator as a subscript nobody had resolved
+        // (`FlueGasSixComponents`). Anything else is itself, as before.
+        Expr::Member(base, field) if !switch_set("OXIDELICA_NO_WALKED_CONSTRUCTOR_FIELDS") => {
+            let picked = match base.as_ref() {
+                Expr::Index(list, subscripts) => match (list.as_ref(), subscripts.as_slice()) {
+                    (Expr::Array(items), [one]) if !matches!(one, Expr::Range(..)) => {
+                        let at = index_of(one, frame, programs, time, depth)?;
+                        usize::try_from(at)
+                            .ok()
+                            .and_then(|at| at.checked_sub(1))
+                            .and_then(|at| items.get(at))
+                    }
+                    _ => None,
+                },
+                other => Some(other),
+            };
+            let named = match picked {
+                Some(Expr::Call(name, args)) if !programs.contains_key(name) => {
+                    args.iter().find_map(|arg| match arg {
+                        Expr::NamedArg(given, value) if given == field => Some(value.as_ref()),
+                        _ => None,
+                    })
+                }
+                _ => None,
+            };
+            match named {
+                Some(value) => recur(value)?,
+                None => expr.clone(),
+            }
+        }
+        Expr::Member(..) => expr.clone(),
         // `v[i]` where the body decides `i`: the element's own name.
         Expr::Index(base, subscripts) => {
             // A constant written out in place - `c[i]` where the
@@ -796,7 +834,6 @@ fn to_scalar(
         | Expr::Str(_)
         | Expr::Time
         | Expr::WithDerivative(..)
-        | Expr::Member(..)
         | Expr::Array(_)
         | Expr::MatrixRows(_)
         | Expr::Elementwise(..)
@@ -1231,6 +1268,37 @@ fn elements_of(
             for value in values {
                 let one = put_for(body, name, value);
                 items.push(to_scalar(&one, frame, programs, time, depth)?);
+            }
+            Some(items)
+        }
+        // A record written as its constructor, every field named and
+        // none of them text - `ThermodynamicState(p = p, T = T, X = X)`
+        // - is its fields in the order written, which is the order the
+        // flattening writes a constructor in: the record's own, the same
+        // order a record held element by element is laid out in. An
+        // array field goes over as its elements. The ideal gas mixtures
+        // assign one to a whole `state` (`setState_psX`), and read as a
+        // scalar it was refused as one number given to a name held
+        // element by element (`FlueGasSixComponents`). A constructor
+        // with text among its fields is `constructor_numbers`' to read.
+        Expr::Call(name, args)
+            if !programs.contains_key(name)
+                && !args.is_empty()
+                && args.iter().all(|arg| matches!(arg, Expr::NamedArg(..)))
+                && !switch_set("OXIDELICA_NO_WALKED_CONSTRUCTOR_LISTS") =>
+        {
+            let mut items = Vec::new();
+            for arg in args {
+                let Expr::NamedArg(_, value) = arg else {
+                    unreachable!("every argument was asked to be named just above")
+                };
+                if matches!(value.as_ref(), Expr::Str(_)) {
+                    return Ok(None);
+                }
+                match elements_of(value, frame, programs, time, depth)? {
+                    Some(inner) => items.extend(inner),
+                    None => items.push(to_scalar(value, frame, programs, time, depth)?),
+                }
             }
             Some(items)
         }

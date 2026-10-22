@@ -613,6 +613,44 @@ pub(super) fn on_the_line(
         })
 }
 
+/// [`on_the_line`] for a function written inside another function, as
+/// well as one written in a package: the package is the nearest class
+/// enclosing it that the registry holds as one, each step asked of the
+/// registry. `T_psX` of the ideal gas mixtures hands its own
+/// `T_psX.f_nonlinear` to the solver, and the package of that one by its
+/// name alone is `T_psX`, which no medium extends - so the question
+/// whether `T_psX` reads its medium through what it calls came back no,
+/// it was carried under the name that wrote it, and the entropy its
+/// residual asks for read the base's `data.MM`, a name nobody declares
+/// (`FlueGasSixComponents`). `handed_under_mark` already walks up this
+/// way; `OXIDELICA_NO_NESTED_LINE` asks by the name alone, as before.
+pub(super) fn on_the_line_enclosed(
+    class: &ClassDef,
+    registry: &HashMap<&str, &ClassDef>,
+    medium: &str,
+) -> bool {
+    if on_the_line(class, registry, medium) {
+        return true;
+    }
+    if class.kind != ClassKind::Function || std::env::var_os("OXIDELICA_NO_NESTED_LINE").is_some() {
+        return false;
+    }
+    let mut enclosing = class.name.as_str();
+    let package = loop {
+        let Some((outer, _)) = enclosing.rsplit_once('.') else {
+            return false;
+        };
+        enclosing = outer;
+        let Some(held) = registry.get(outer) else {
+            return false;
+        };
+        if held.kind == ClassKind::Package {
+            break outer;
+        }
+    };
+    package != medium && super::inlining::descends_from(registry, medium, package)
+}
+
 thread_local! {
     /// The medium the copy being prepared was carried under, where one
     /// is: what the calls it makes are named under.
@@ -888,8 +926,18 @@ fn records_as_arrays(
     registry: &HashMap<&str, &ClassDef>,
 ) -> HashMap<String, Expr> {
     let mut renamed: HashMap<String, Expr> = HashMap::new();
+    let (scope, imports) = (class.name.clone(), class.imports.clone());
+    let length = |d: &Expr| {
+        const_eval(d, &HashMap::new()).or_else(|| {
+            if std::env::var_os("OXIDELICA_NO_SCOPED_RECORD_LENGTHS").is_some() {
+                return None;
+            }
+            let named = substitute_class_constants(d, registry, &scope, &imports, &[]);
+            const_eval(&named, &HashMap::new())
+        })
+    };
     for component in &mut class.components {
-        let Some(of) = lookup(registry, &component.type_name, &class.name, &class.imports)
+        let Some(of) = lookup(registry, &component.type_name, &scope, &imports)
             .filter(|of| of.kind == ClassKind::Record)
         else {
             continue;
@@ -899,7 +947,8 @@ fn records_as_arrays(
         // passed over here altogether, and its every field reached the
         // run as a name nothing declared - which is how the NASA gas
         // data, seven coefficients at a time, stopped at `data.Tlimit`.
-        let members = record_fields::handed_record_fields(registry, of);
+        let members =
+            record_fields::handed_record_fields_in(registry, of, Some((&scope, &imports)));
         let plain = of
             .components
             .iter()
@@ -925,7 +974,7 @@ fn records_as_arrays(
                 let shape: Option<Vec<i64>> = field
                     .dimensions
                     .iter()
-                    .map(|d| const_eval(d, &HashMap::new()).map(|n| n as i64))
+                    .map(|d| length(d).map(|n| n as i64))
                     .collect();
                 let Some(shape) = shape else { continue };
                 let whole = format!("{}.{}", component.name, field.name);

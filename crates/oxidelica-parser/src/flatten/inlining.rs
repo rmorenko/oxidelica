@@ -2763,6 +2763,58 @@ fn enclosing_records_open() -> bool {
     std::env::var_os("OXIDELICA_NO_ENCLOSING_RECORDS").is_none()
 }
 
+/// A record handed as its numbers end to end, put back into its fields:
+/// each array field takes as many places as it is long, read where the
+/// function was written. Only where the list is flat, is longer than the
+/// fields, and comes to exactly the laid-out length; anything else is
+/// left as it was for the count below to refuse by name.
+/// `OXIDELICA_NO_REGROUPED_RECORDS` leaves every list as it came.
+fn regrouped_fields(
+    class: &ClassDef,
+    input: &Component,
+    arg: &Expr,
+    wanted: usize,
+    registry: &HashMap<&str, &ClassDef>,
+) -> Option<Expr> {
+    let Expr::Array(items) = arg else {
+        return None;
+    };
+    if items.len() <= wanted
+        || items.iter().any(|item| matches!(item, Expr::Array(_)))
+        || std::env::var_os("OXIDELICA_NO_REGROUPED_RECORDS").is_some()
+    {
+        return None;
+    }
+    let of = record_fields::record_input_class(registry, class, input)?;
+    let laid =
+        record_fields::handed_record_fields_in(registry, of, Some((&class.name, &class.imports)));
+    if laid.len() != items.len() {
+        return None;
+    }
+    let mut rest = items.iter();
+    let mut out = Vec::with_capacity(wanted);
+    for field in record_fields::record_components(registry, of, 0) {
+        let taken = laid
+            .iter()
+            .filter(|name| {
+                name.as_str() == field.name
+                    || name
+                        .strip_prefix(field.name.as_str())
+                        .is_some_and(|tail| tail.starts_with('['))
+            })
+            .count();
+        if taken == 0 {
+            continue;
+        }
+        match field.dimensions.as_slice() {
+            [] => out.push(rest.next()?.clone()),
+            [_] => out.push(Expr::Array(rest.by_ref().take(taken).cloned().collect())),
+            _ => return None,
+        }
+    }
+    (out.len() == wanted && rest.next().is_none()).then_some(Expr::Array(out))
+}
+
 /// Bind what a record argument stands for, field by field, and say
 /// whether the bare name is still to be bound to the whole of it.
 ///
@@ -2785,6 +2837,18 @@ fn bind_record_argument(
         .filter(|_| input.dimensions.is_empty())
     else {
         return Ok(true);
+    };
+    // A record answered by a body the run walks arrives as its numbers
+    // end to end, an array field element by element, and is taken back
+    // into its fields here: the gas mixtures' `{p, T, X[6]}` is eight
+    // places where three fields are read (`FlueGasSixComponents`).
+    let regrouped;
+    let arg = match regrouped_fields(class, input, arg, fields.len(), registry) {
+        Some(grouped) => {
+            regrouped = grouped;
+            &regrouped
+        }
+        None => arg,
     };
     if let Expr::Array(items) = arg {
         if items.len() != fields.len() {

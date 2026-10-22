@@ -979,6 +979,25 @@ fn standing_call(
             .filter(|members| *members > 0),
         _ => None,
     });
+    // A record with an array among its fields is answered by the walk
+    // as its numbers end to end, the array element by element - eight
+    // for a gas mixture's `{p, T, X[6]}` - and taken here as three
+    // places it put `X` on the third number alone and the walk's
+    // fourth number nowhere: the call that handed that state on asked
+    // for `state[4]`, which nothing answered (`FlueGasSixComponents`).
+    // Such a record stands as its fields with the array nested, the
+    // way a record handed whole is written out, each number at the
+    // place the walk lays it. `OXIDELICA_NO_NESTED_RECORD_ANSWERS`
+    // counts one place per field, as before.
+    if let Some(nested) = answer
+        .filter(|answer| answer.dimensions.is_empty())
+        .filter(|_| std::env::var_os("OXIDELICA_NO_NESTED_RECORD_ANSWERS").is_none())
+        .and_then(|answer| lookup(registry, &answer.type_name, &class.name, imports))
+        .filter(|of| of.kind == ClassKind::Record)
+        .and_then(|of| nested_record_answer(&call, of, class, registry))
+    {
+        return Ok(nested);
+    }
     Ok(match length {
         None if sized_by_input => {
             return Err(format!(
@@ -1000,6 +1019,44 @@ fn standing_call(
                 .collect(),
         ),
     })
+}
+
+/// The places of a walked record answer, one per number the walk lays
+/// out - an array field element by element, text left out - in the
+/// order of [`super::record_fields::handed_record_fields`]. `None`
+/// where no field is an array, which is the old one-place-per-field
+/// reading and stays it, or where a length cannot be seen from the
+/// function's own scope: a guessed length would put every number after
+/// it in the wrong seat. A body that takes the record reads it field by
+/// field and regroups the places (`bind_record_argument`).
+fn nested_record_answer(
+    call: &Expr,
+    of: &ClassDef,
+    class: &ClassDef,
+    registry: &HashMap<&str, &ClassDef>,
+) -> Option<Value> {
+    let fields = super::record_fields::record_components(registry, of, 0);
+    if fields.iter().all(|field| field.dimensions.is_empty()) {
+        return None;
+    }
+    let laid = super::record_fields::handed_record_fields_in(
+        registry,
+        of,
+        Some((&class.name, &class.imports)),
+    );
+    if laid.is_empty() {
+        return None;
+    }
+    Some(Value::Array(
+        (1..=laid.len())
+            .map(|at| {
+                Value::Scalar(Expr::Index(
+                    Box::new(call.clone()),
+                    vec![Expr::Number(at as f64)],
+                ))
+            })
+            .collect(),
+    ))
 }
 
 /// Whether an output written `Y[size(X, 1)]` is walked and taken at the
@@ -3668,6 +3725,37 @@ fn medium_read_here(class: &ClassDef, registry: &HashMap<&str, &ClassDef>, mediu
             );
         }
     }
+    // And a function handed over - `solveOneNonlinearEquation(function
+    // f_nonlinear(p = p, s = s, X = X), ...)` - is a call the body makes
+    // as surely as one it writes out: the solver calls it back. The
+    // gathering above files the solver and not what it was handed, so
+    // `T_psX`, which reads nothing of its medium itself, was taken for a
+    // body the medium changes nothing in. Carried under the name that
+    // wrote it, it handed the base's `f_nonlinear` on, and the entropy
+    // that one asks for read `data.MM`, a name nobody declares
+    // (`FlueGasSixComponents`). `OXIDELICA_NO_HANDED_CALLEES` asks as
+    // before.
+    if std::env::var_os("OXIDELICA_NO_HANDED_CALLEES").is_none() {
+        let mut handed: Vec<&str> = Vec::new();
+        for expr in &exprs {
+            expr.for_each(&mut |inner| {
+                if let Expr::Call(head, partial) = inner {
+                    if head == PARTIAL_CALL {
+                        if let Some(Expr::Ref(target)) = partial.first() {
+                            handed.push(target.as_str());
+                        }
+                    }
+                }
+            });
+        }
+        for target in handed {
+            if let Some(found) = lookup(registry, target, &class.name, &class.imports) {
+                if found.kind == ClassKind::Function && !calls.contains(&found.name) {
+                    calls.push(found.name.clone());
+                }
+            }
+        }
+    }
     calls.into_iter().any(|called| {
         registry.get(called.as_str()).is_some_and(|callee| {
             // A callee the medium redeclared is a different body under
@@ -3680,7 +3768,7 @@ fn medium_read_here(class: &ClassDef, registry: &HashMap<&str, &ClassDef>, mediu
                     inlining::redeclared_under(callee, registry, medium),
                     *callee,
                 ))
-                || super::carried::on_the_line(callee, registry, medium)
+                || super::carried::on_the_line_enclosed(callee, registry, medium)
                     && reads_its_medium(callee, registry, medium)
         })
     })

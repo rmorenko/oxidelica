@@ -194,6 +194,41 @@ pub(super) fn handed_record_fields(
     registry: &HashMap<&str, &ClassDef>,
     of: &ClassDef,
 ) -> Vec<String> {
+    handed_record_fields_in(registry, of, None)
+}
+
+/// Whether a record's array field sized by a constant of a package is
+/// measured where the record is used. `OXIDELICA_NO_SCOPED_RECORD_LENGTHS`
+/// keeps the old reading, which measured it by the bare number alone,
+/// so that one binary gives both numbers.
+fn scoped_record_lengths_open() -> bool {
+    std::env::var_os("OXIDELICA_NO_SCOPED_RECORD_LENGTHS").is_none()
+}
+
+/// [`handed_record_fields`], with the length of an array field asked
+/// in `scope` where the bare number is not written. A medium's state
+/// holds `X[nX]`, and `nX` is a constant of the medium rather than a
+/// number: measured on its own it is nothing, the list came back empty,
+/// and a body carried out to the walk with `input ThermodynamicState
+/// state` was left with a record nothing had laid out. The ideal gas
+/// mixtures' `dynamicViscosity` was then handed `{p, T, {X[1], ...}}`
+/// and the inner list reached the run as an array where a number was
+/// wanted (`FlueGasSixComponents`). The scope is the body's own, the
+/// one its statements are read in, so the length is the one the body
+/// itself would read.
+pub(super) fn handed_record_fields_in(
+    registry: &HashMap<&str, &ClassDef>,
+    of: &ClassDef,
+    scope: Option<(&str, &[(String, String)])>,
+) -> Vec<String> {
+    let length = |d: &Expr| {
+        const_eval(d, &HashMap::new()).or_else(|| {
+            let (name, imports) = scope.filter(|_| scoped_record_lengths_open())?;
+            let named =
+                super::constants::substitute_class_constants(d, registry, name, imports, &[]);
+            const_eval(&named, &HashMap::new())
+        })
+    };
     let mut out = Vec::new();
     for field in record_components(registry, of, 0) {
         if matches!(
@@ -209,7 +244,7 @@ pub(super) fn handed_record_fields(
         let shape: Option<Vec<i64>> = field
             .dimensions
             .iter()
-            .map(|d| const_eval(d, &HashMap::new()).map(|n| n as i64))
+            .map(|d| length(d).map(|n| n as i64))
             .collect();
         let Some(shape) = shape else {
             return Vec::new();
