@@ -60150,6 +60150,31 @@ same call refuses on `rawRealFFT`, an external C function
 fold into a balanced tree, or bind it once rather than substitute it,
 would buy no FFT model by itself.
 
+`RAM` refuses at 32, 48 and 64 alike in about a second, so it is a
+loop in the walk and not a deep tree. The small model `/tmp/m495/rm9.mo`
+writes `mem_word[i] := T.X01Table[dataIn[i]]` from the Digital tables
+inside the same `if`, and it runs. `ram.mo`, the real `DLATRAM` fed by
+six `Set` sources, reproduces the refusal word for word. Writing the
+memory back (`rm10.mo`, `mem[int_addr,1:2] := mem_word` after `if
+initial() then mem := ...`) meets a different refusal first, `pre()
+takes a variable, not an expression`. Below that is a wider one that
+needs no RAM at all. `/tmp/m495/pr3.mo` is five lines: an algorithm
+assigns `m[a] := time` with `a` a parameter, and it is refused as
+`unbalanced: nothing determines m[1], m[3], m[4]`. The language counts
+the whole array as assigned by the algorithm, holding the other
+elements at their starts. The same write inside a `when` runs
+(`pr4.mo`). So the RAM chain has at least three links: the walk's
+loop on `dataIn[1]`, `pre` of a sliced element, and the algorithm's
+partial write outside a `when`. None of them was taken.
+
+`GenerateRandomNumbers` writes `state1024 :=
+Xorshift1024star.initialState(localSeed, globalSeed)` in a `when
+initial()`, a 33-element state built through
+`initialStateWithXorshift64star`'s loop. At 48 it unrolls for 175 s
+and 26.7 GB and then refuses `state1024` as never declared. It is the
+memory case of the depth ceiling, as recorded for the Fluid base
+classes, and not a candidate for raising it.
+
 ### Item 4: the census on b1cdc9a
 
 `state/m495/census.txt`: would-not-flatten 51 on 30 rows, the run half
