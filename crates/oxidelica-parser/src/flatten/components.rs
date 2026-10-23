@@ -1132,11 +1132,11 @@ fn spread_over_elements(
 
 /// The written dimensions of `sibling.member`, where the sibling is a
 /// plain component of `class` and the member's dimensions are numbers.
-fn sibling_member_written_shape<'r>(
+fn sibling_member_written_shape(
     name: &str,
     prefix: &str,
     class: &ClassDef,
-    registry: &HashMap<&str, &'r ClassDef>,
+    registry: &HashMap<&str, &ClassDef>,
     scope: &str,
     imports: &[(String, String)],
 ) -> Option<Vec<i64>> {
