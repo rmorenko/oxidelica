@@ -163,6 +163,17 @@ behind an environment switch and run the corpus twice from one binary,
 so that the only thing that differs between the numbers is the thing
 being measured.
 
+And a pair compares the time of both halves, not the lists alone. Two
+changes in one week made the run half a quarter dearer and passed
+their pairs with victims 0: one of them let six models through a wall
+of parameters into index reduction, where each burned minutes and was
+refused at 0 points - and a refusal adds nothing to any list or work
+counter, so the lists came back identical while the minutes piled up.
+The witness is the `time:` line the corpus prints for each half, so a
+pair quotes it from both runs beside the lists, and a "victims 0"
+without those seconds is half a measurement. CI's run-over-flatten
+band judges the same thing, but it judges it a commit late.
+
 Reproduce small before measuring large. Three shifts went on the
 corpus at five minutes a run, reasoning about shapes from the outside,
 for a fault that a twelve-line model showed in one second - and the
