@@ -2506,27 +2506,6 @@ fn a_value_reading_a_component_declared_below_is_read_with_its_shape() {
     }
 }
 
-/// A parameter array bound to the array of a component declared below
-/// it reads that array element by element.
-///
-/// `JointUSP` writes `e2_ia = rod1.e2_ia` above `rod1`. Where the
-/// parameter was split into elements the rod had not been built, so
-/// every element was bound to the whole array and the run refused with
-/// a parameter nothing gives a value to.
-#[test]
-fn a_parameter_array_bound_to_a_component_below_reads_its_elements() {
-    let result = run("model M \
-           model Inner parameter Real e[3] = {0.6, 0.8, 0}; end Inner; \
-           parameter Real e_ia[3] = inner1.e; \
-           Inner inner1; \
-           Real x(start = 0, fixed = true); \
-         equation der(x) = e_ia[2]; \
-         annotation(experiment(StopTime = 1, Interval = 0.5)); end M;");
-    let at = result.columns.iter().position(|c| c == "x").unwrap();
-    let x = result.rows.last().unwrap()[at];
-    assert!((x - 0.8).abs() < 1e-9, "{x}");
-}
-
 #[test]
 fn a_member_of_one_element_of_an_array_of_components_keeps_its_shape() {
     // `ports[1].Xi = {0.5}` where each port carries `Xi[1]`: how every

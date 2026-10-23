@@ -475,7 +475,6 @@ pub(super) fn instantiate_components(
                 expr,
                 what,
                 prefixed,
-                class,
                 &component,
                 &element_names,
                 registry,
@@ -996,7 +995,6 @@ fn spread_over_elements(
     expr: &Expr,
     what: &str,
     prefixed: bool,
-    class: &ClassDef,
     component: &Component,
     element_names: &[String],
     registry: &HashMap<&str, &ClassDef>,
@@ -1090,32 +1088,6 @@ fn spread_over_elements(
             return Ok(per_element);
         }
     }
-    // A member of a sibling declared further down: `e2_ia =
-    // rod1.e2_ia` standing above `rod1` in `JointUSP`. The sibling has
-    // not been built yet, so nothing has measured the member, and the
-    // whole array was handed to every element - a name no parameter
-    // can be worked out from. The member's own declaration says its
-    // length where it is written as a number, and only then is the
-    // name taken apart. `OXIDELICA_NO_SIBLING_ARRAY_BINDING` keeps the
-    // old road.
-    if items.len() == 1
-        && element_names.len() > 1
-        && std::env::var_os("OXIDELICA_NO_SIBLING_ARRAY_BINDING").is_none()
-    {
-        if let Expr::Ref(name) = &items[0] {
-            if let Some(shape) =
-                sibling_member_written_shape(name, prefix, class, registry, scope, imports)
-            {
-                let indices = index_tuples(&shape);
-                if indices.len() == element_names.len() {
-                    return Ok(indices
-                        .into_iter()
-                        .map(|at| Expr::Ref(element_name(name, &at)))
-                        .collect());
-                }
-            }
-        }
-    }
     if items.len() == 1 && element_names.len() > 1 {
         return Ok(vec![items[0].clone(); element_names.len()]);
     }
@@ -1128,73 +1100,6 @@ fn spread_over_elements(
         ));
     }
     Ok(items)
-}
-
-/// The written dimensions of `sibling.member`, where the sibling is a
-/// plain component of `class` and the member's dimensions are numbers.
-fn sibling_member_written_shape(
-    name: &str,
-    prefix: &str,
-    class: &ClassDef,
-    registry: &HashMap<&str, &ClassDef>,
-    scope: &str,
-    imports: &[(String, String)],
-) -> Option<Vec<i64>> {
-    let local = name.strip_prefix(prefix)?;
-    if local.contains('[') {
-        return None;
-    }
-    let mut parts = local.split('.');
-    let head = parts.next()?;
-    let path: Vec<&str> = parts.collect();
-    if path.is_empty() {
-        return None;
-    }
-    let sibling = class.components.iter().find(|c| c.name == head)?;
-    if !sibling.dimensions.is_empty() {
-        return None;
-    }
-    // A dimension written as a number is one no modifier can change,
-    // but a redeclared class may not be the class the text names: a
-    // component redeclared or replaceable on the way is not read.
-    if !sibling.redeclares.is_empty() || sibling.replaceable {
-        return None;
-    }
-    fn find_member<'a>(
-        of: &'a ClassDef,
-        member: &str,
-        registry: &HashMap<&'a str, &'a ClassDef>,
-        depth: usize,
-    ) -> Option<(&'a ClassDef, &'a Component)> {
-        if depth > 8 {
-            return None;
-        }
-        if let Some(found) = of.components.iter().find(|c| c.name == member) {
-            return Some((of, found));
-        }
-        of.extends.iter().find_map(|extend| {
-            let base = lookup(registry, &extend.base, &of.name, &of.imports)?;
-            find_member(base, member, registry, depth + 1)
-        })
-    }
-    let mut of = lookup(registry, &sibling.type_name, scope, imports)?;
-    let (last, between) = path.split_last()?;
-    for step in between {
-        let (owner, found) = find_member(of, step, registry, 0)?;
-        if !found.dimensions.is_empty() || !found.redeclares.is_empty() || found.replaceable {
-            return None;
-        }
-        of = lookup(registry, &found.type_name, &owner.name, &owner.imports)?;
-    }
-    let (_, found) = find_member(of, last, registry, 0)?;
-    let mut shape = Vec::new();
-    for dim in &found.dimensions {
-        match dim {
-            Expr::Number(n) if *n >= 1.0 && n.fract() == 0.0 => shape.push(*n as i64),
-            _ => return None,
-        }
-    }
-    (!shape.is_empty()).then_some(shape)
 }
 
 /// One value written over an array of the class above, taken apart

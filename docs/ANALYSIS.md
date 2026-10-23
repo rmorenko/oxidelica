@@ -60214,3 +60214,53 @@ points 1549174 against 457143 and Newton 2309534 against 904754, the
 same to the digit as m494, and the ratio printed as 1.698 (m494:
 1.709). The main pass prints 956/800 and the whole count 969/806, as
 the pair does.
+
+## Shift 496: the run half's growth named, and the carrier taken out
+
+The library judge went red twice on the ratio of the two halves (1.595
+at 5593ffd, 1.914 at 3524585, band 0.70..1.50) while every work
+counter stayed the same to the digit. The pairs of shifts 491 to 495
+printed the same 25249530 points and 36691006 Newton on both halves,
+and their run times climbed anyway: 3938 ms a model off against 5071
+on in m491, 6043 against 6062 in m495. A pair that compares lists and
+work counters cannot see a model that spends minutes and then refuses,
+because a refusal adds no points.
+
+One binary (`/tmp/m496/ox`, head ea615d9), the main pass three times
+in a row, written to `/tmp/m496/t_{off,on,off2}.txt`:
+
+```text
+both switches set   flatten 3834 ms  run 4944 ms  ratio 1.29
+head                flatten 3630 ms  run 6233 ms  ratio 1.72
+both switches set   flatten 3888 ms  run 4998 ms  ratio 1.29
+```
+
+The off-on-off order rules out drift. The `--slow 15` list of the head
+holds four names absent from the switched list: the two
+`EngineV6_analytic` at 434 s and 353 s, `Engine1b_analytic` at 261 s and
+`PlanarLoops_analytic` at 169 s, which add up to the 1249 s
+difference. These are the models f7282ae moved from `cannot evaluate
+parameters` to the walls behind it. One at a time under `--only`
+(`/tmp/m496/six.txt`, `/tmp/m496/pl_*.txt`): `Engine1b_analytic` runs
+227 s at head, 226 s with `OXIDELICA_NO_OWN_SUBTREE_SEAM`, and 1 ms with
+`OXIDELICA_NO_SIBLING_ARRAY_BINDING`. `PlanarLoops_analytic` runs 145 s
+against 1 ms. Both end `structurally singular` at 0 points. A sample
+of the 145 s puts it in `reduce_index_once`, through
+`differentiate_at`, `simplify` and `eval`, cloning and dropping
+expressions: index reduction on a model it then refuses.
+
+So the carrier is f7282ae alone, and 2ae4763 is cleared by number.
+`Dimmer_RL`, the judge's top model by points, is the same 84 s and
+23700356 points under all three settings (`/tmp/m496/d_*.txt`). The
+change gained no model, so its price is about a quarter of the run half
+for one emptied census row. It is reverted. What it found still holds:
+`e2_ia = rod1.e2_ia` above its component can be read by the member's
+written dimension. It comes back only together with whatever makes the
+six refusals cheap, which is a ceiling on index reduction's work and
+that is a decision of its own.
+
+The revert measured on its own binary (`/tmp/m496/ox2`, the final
+tree's compiler), main pass into `/tmp/m496/t_rev.txt`: flatten 3788
+ms, run 4976 ms, ratio 1.31, work 25249530 points and 36691006 Newton.
+Its flat and ran lists match the switched pass line for line, so the
+revert costs no model. The floors stay where they are.
