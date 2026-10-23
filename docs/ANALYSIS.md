@@ -59982,7 +59982,7 @@ it is mapped here rather than fixed.
 
 - `OneTank`: Newton at t = 0 from `m_flow = 0` takes one step to
   -89.1 and the residual of `pipe.port_a.m_flow + tank.ports[1].m_flow
-  = 0` turns NaN. Twenty halvings back toward zero never reach a
+= 0` turns NaN. Twenty halvings back toward zero never reach a
   finite point again, so the domain is lost on the first step. That
   is the start-mode family of item 55 (the flow's start is the edge of
   the domain) and not a tolerance question.
@@ -60021,8 +60021,7 @@ or 55, and it is left mapped.
 ### Item 4: the census on 5593ffd
 
 `/tmp/m494/census.txt`, copied to `state/m494`: would-not-flatten 51
-models on 30 rows, the run half 163 on 113 rows. Against m492 (163 on
-112) the diff of rows is exactly the expected one. Four rows empty: the
+models on 30 rows, the run half 163 on 113 rows. Against m492 (163 on 112) the diff of rows is exactly the expected one. Four rows empty: the
 3 `jointRRP.e_ia` and the three singles (`jointRRRN`,
 `engine.cylinderN`, `cylinderN`). Five appear: one structurally
 singular (`Engine1b_analytic`) and four unbalanced rows holding the
