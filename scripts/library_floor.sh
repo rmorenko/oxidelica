@@ -1829,7 +1829,18 @@ FLATTEN_FLOOR=969
 # and TestJunctionIdeal:
 #
 #   802 - 3 = 799 = 797 + 2
-RUN_FLOOR=799
+#
+# Raised to 803 by the four the narrow-2 merge lets run (8784fce):
+# Fluid's TraceSubstances.RoomCO2 and RoomCO2WithControls,
+# TestMultiPortTraceSubstances and MediaTestModels.Air.MoistAir. The
+# judge of 8784fce (job 120369329657 of push run 39930241700) printed
+# 969 / 807 and runnable 852 / 762; the desk pair of m491 printed
+# 969 / 806 and 852 / 761 (state/m491/on.txt). From the lower, the
+# desk, less the same three that swing, which stand by name in its run
+# list (lines 341, 383 and 487 of state/m491/on.ran):
+#
+#   806 - 3 = 803 = 799 + 4
+RUN_FLOOR=803
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -2309,7 +2320,12 @@ RUNNABLE_FLATTEN_FLOOR=852
 # examples: 757 printed on the desk, 758 by the runner.
 #
 #   757 - 3 = 754 = 752 + 2
-RUNNABLE_RUN_FLOOR=754
+#
+# And 758 by the same judge and pair, the four of the narrow-2 merge
+# being runnable examples: 761 printed on the desk, 762 by the runner.
+#
+#   761 - 3 = 758 = 754 + 4
+RUNNABLE_RUN_FLOOR=758
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
