@@ -2911,3 +2911,24 @@ fn a_derivative_is_not_solved_by_dividing_by_a_coefficient_that_is_zero_on_every
     let expected = 1.0 - 0.9 * (-1.0f64).exp();
     assert!((x - expected).abs() < 1e-6, "x(1)={x}, expected {expected}");
 }
+
+#[test]
+fn an_algorithm_writing_one_element_holds_the_rest_at_their_start() {
+    // 11.1.2: an algorithm that assigns an element of an array assigns
+    // the whole of it, the elements it leaves alone initialised from
+    // their start. `m[2] := time` was refused as nothing determining
+    // the other three.
+    let result = run("model M \
+         Real m[4](start = {1, 2, 3, 4}); \
+         algorithm m[2] := 2 * time; \
+         annotation(experiment(StopTime = 1.0, Interval = 0.5)); end M;");
+    let last = result.rows.last().unwrap();
+    let value = |name: &str| {
+        let at = result.columns.iter().position(|c| c == name).unwrap();
+        last[at]
+    };
+    assert!((value("m[2]") - 2.0).abs() < 1e-12);
+    assert_eq!(value("m[1]"), 1.0);
+    assert_eq!(value("m[3]"), 3.0);
+    assert_eq!(value("m[4]"), 4.0);
+}

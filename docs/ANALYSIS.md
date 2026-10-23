@@ -60175,6 +60175,26 @@ and 26.7 GB and then refuses `state1024` as never declared. It is the
 memory case of the depth ceiling, as recorded for the Fluid base
 classes, and not a candidate for raising it.
 
+### A link of the RAM chain taken: one element written by an algorithm
+
+`pr5.mo` (`Real m[4]; algorithm m[2] := time;`) was refused as
+unbalanced. Specification 11.1.2 says an algorithm that assigns an
+element assigns the whole array, and the elements it leaves alone are
+initialised from their start each time the section runs. Now
+`run_algorithm_sections` (`equations.rs`) writes `m[k] = start` for
+every element of a continuous array whose sibling the section wrote.
+`OXIDELICA_NO_ALGORITHM_ARRAY_START=1` refuses as before. The test
+`an_algorithm_writing_one_element_holds_the_rest_at_their_start` is
+red under the switch and green without it.
+
+The pair was taken on one binary, `/tmp/m495/ox1`
+(`/tmp/m495/{on,off}.txt`). The on half prints 969 flatten and 806
+run, its run list is name for name that of `state/m494/on.ran`, and
+the work counters agree to the digit (25249530 points, 1672623500
+names). No model in the corpus reaches the rule yet. `RAM` stands on
+the walk's loop in front of it. The change is a correction of what
+the language says rather than a win, and the floors stand.
+
 ### Item 4: the census on b1cdc9a
 
 `state/m495/census.txt`: would-not-flatten 51 on 30 rows, the run half

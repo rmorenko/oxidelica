@@ -263,6 +263,7 @@ fn run_algorithm_sections(
         for (condition, message) in section_asserts {
             acc.asserts.push((resolve_here(&condition)?, message));
         }
+        let boundary = acc.equations.len();
         for name in assigned {
             let value = bindings
                 .get(&name)
@@ -274,6 +275,46 @@ fn run_algorithm_sections(
                 &expand_here(value, &no_loop_vars)?,
                 acc,
             )?;
+        }
+        // An algorithm that writes one element of an array writes the
+        // whole of it (11.1.2): the elements it leaves alone are
+        // initialised from their start, every time the section runs.
+        // `m[2] := time` was refused as nothing determining `m[1]`.
+        if std::env::var_os("OXIDELICA_NO_ALGORITHM_ARRAY_START").is_none() {
+            let written: HashSet<String> = acc.equations[boundary..]
+                .iter()
+                .filter_map(|e| match &e.lhs {
+                    Expr::Ref(n) => Some(n.clone()),
+                    _ => None,
+                })
+                .collect();
+            let bases: HashSet<&str> = written
+                .iter()
+                .filter(|n| n.ends_with(']'))
+                .filter_map(|n| n.split_once('[').map(|(b, _)| b))
+                .collect();
+            let mut held = Vec::new();
+            for component in &acc.components {
+                let Some((base, _)) = component.name.split_once('[') else {
+                    continue;
+                };
+                if !component.name.ends_with(']')
+                    || !bases.contains(base)
+                    || written.contains(&component.name)
+                    || component.variability != Variability::Continuous
+                {
+                    continue;
+                }
+                let Some(start) = component.start.clone() else {
+                    continue;
+                };
+                held.push(EquationItem {
+                    lhs: Expr::Ref(component.name.clone()),
+                    rhs: start,
+                    origin: acc.origin.clone(),
+                });
+            }
+            acc.equations.extend(held);
         }
     }
 
