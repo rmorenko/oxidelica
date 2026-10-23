@@ -60205,3 +60205,12 @@ unbalanced rows (`connectingRod` 2, `engine.bearing`, `bodyN`,
 2, `rodN.frame_a`, `cylinderN.jointRRP` and `engine.cylinderN`):
 the five models of m494 item 1, five for five. The rows are 113
 against 113.
+
+### The preflight
+
+`/tmp/m495/preflight.txt`, on 9c0cdcf: every step is green but the
+library step. That step is red with the known desk numbers: work
+points 1549174 against 457143 and Newton 2309534 against 904754, the
+same to the digit as m494, and the ratio printed as 1.698 (m494:
+1.709). The main pass prints 956/800 and the whole count 969/806, as
+the pair does.
