@@ -60097,7 +60097,17 @@ also a refusal, and its 1.1M points are the whole of the excess over
 the recorded remainder. The runner runs it. The fork is the first
 step at t = 0, which is before any event, so it is the start (or the
 step the solver picks there) that differs between the machines, not
-the order of the models. Nothing was moved in the bands.
+the order of the models. `OXIDELICA_NEWTON_TRAIL=1` (stopped after
+five minutes and 1.08 GB) shows where the points go. There are only two
+mode lines, both `branch 2 of 8` of the PWM's `time < T0 + ...`. The
+solver then creeps: 426376 distinct times all within the digits of
+t = 3.0987e-7, and each loop converges in one or two Newton
+iterations (657515 at 0, 168020 at 1, 353 at 2). So the dear mode is
+not a loop that fails to converge. It is a step that collapses at one
+instant three tenths of a microsecond in, with every loop solved. That
+is the shape the event-density ceiling was written for, and here it
+ends in an underflow before the ceiling is reached. Nothing was moved
+in the bands.
 
 ### Item 3: `nested deeper than the compiler follows` (7)
 
