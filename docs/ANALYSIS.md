@@ -60206,7 +60206,7 @@ unbalanced rows (`connectingRod` 2, `engine.bearing`, `bodyN`,
 the five models of m494 item 1, five for five. The rows are 113
 against 113.
 
-### The preflight
+### The preflight of shift 495
 
 `/tmp/m495/preflight.txt`, on 9c0cdcf: every step is green but the
 library step. That step is red with the known desk numbers: work
@@ -60264,3 +60264,20 @@ tree's compiler), main pass into `/tmp/m496/t_rev.txt`: flatten 3788
 ms, run 4976 ms, ratio 1.31, work 25249530 points and 36691006 Newton.
 Its flat and ran lists match the switched pass line for line, so the
 revert costs no model. The floors stay where they are.
+
+### The verdict on ea615d9
+
+Run 40007844680: both library passes green, the judge red at ratio
+2.057 (flatten 7964 ms, run 16383 ms over the whole count), the third
+red point after 1.595 and 1.914, still climbing as the runner's
+flatten half fell. The coverage job is red for a reason of its own,
+markdownlint MD024 on a second `### The preflight` heading in the
+shift 495 chapter. That heading is renamed here.
+
+### The preflight of shift 496
+
+`/tmp/m496/preflight.txt`, on the revert: every step is green but the
+library step, red with the known desk numbers, points 1549174 and
+Newton 2309534 to the digit as in m495. The desk ratio printed 1.272
+against m495's 1.698, the same fall the pair showed. The main pass
+prints 956 run and the whole count 969, as before.
