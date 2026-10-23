@@ -6141,7 +6141,63 @@ pub(crate) fn compile_at(
                     grown.extend(named.iter().copied());
                 }
             }
-            wanted_names.extend(grown);
+            wanted_names.extend(grown.iter().copied());
+            // One step further, but only from a name the reach took in
+            // whose start is its type's. Such a start is put in at
+            // round 4 for whatever is still unread, and from then on it
+            // reads other starts as though the model had said it: a
+            // moist-air volume's `R_s` stood at `CPNOM = 1000`, its
+            // `u = h - R_s*T` came out 208 kJ/kg low, and the silent
+            // energy `U = m*u` began the run there, where the block
+            // over `p`, `T` and `phi` has no step to take. The equation
+            // that gives `R_s` its value reads `X_liquid` and
+            // `X_steam`, one equation further than the reach went, so
+            // they are taken in too. Growing every name twice reads
+            // the same, and pays a second walk from all of them.
+            // `OXIDELICA_NO_GROW_FROM_TYPE_START=1` keeps the old reach.
+            if std::env::var_os("OXIDELICA_NO_GROW_FROM_TYPE_START").is_none() {
+                let typed: std::collections::HashSet<&str> = match type_starts_stated {
+                    true => std::collections::HashSet::new(),
+                    false => model
+                        .components
+                        .iter()
+                        .filter(|c| c.start_from_type)
+                        .map(|c| c.name.as_str())
+                        .collect(),
+                };
+                let from: std::collections::HashSet<&str> = grown
+                    .iter()
+                    .copied()
+                    .filter(|name| typed.contains(name))
+                    .collect();
+                let mut again: Vec<&str> = Vec::new();
+                let own_only = std::env::var_os("OXPROBE_GROW_ANY_EQUATION").is_none();
+                for (index, (lhs, rhs)) in algebraic_eqs.iter().enumerate() {
+                    if own_only {
+                        let Some(&var) = matched_var.get(index) else {
+                            continue;
+                        };
+                        if !unknowns
+                            .get(var)
+                            .is_some_and(|name| from.contains(name.as_str()))
+                        {
+                            continue;
+                        }
+                        named.clear();
+                        lhs.collect_refs(&mut named);
+                        rhs.collect_refs(&mut named);
+                        again.extend(named.iter().copied());
+                        continue;
+                    }
+                    named.clear();
+                    lhs.collect_refs(&mut named);
+                    rhs.collect_refs(&mut named);
+                    if named.iter().any(|name| from.contains(name)) {
+                        again.extend(named.iter().copied());
+                    }
+                }
+                wanted_names.extend(again);
+            }
         }
         // Read until nothing more can be read, and not past a few
         // rounds. One equation's answer is what makes the next one
@@ -6316,6 +6372,15 @@ pub(crate) fn compile_at(
                     );
                     if let Ok(value) = value {
                         if value.is_finite() {
+                            if let Some(f) = std::env::var_os("OXPROBE_READ_START") {
+                                if f.to_string_lossy().split(',').any(|f| name.contains(f)) {
+                                    eprintln!(
+                                        "read-start-probe: pass {pass} round {round} {name} = {value} from {} = {}",
+                                        lhs.describe(),
+                                        rhs.describe()
+                                    );
+                                }
+                            }
                             read_starts.insert(name, value);
                             stated.insert(name.to_string(), value);
                         }
@@ -6348,6 +6413,12 @@ pub(crate) fn compile_at(
     let algebraic_start: Vec<f64> = ordered_algs
         .iter()
         .map(|name| {
+            if std::env::var_os("OXPROBE_STARTS").is_some() {
+                eprintln!(
+                    "start-probe {name} read {:?}",
+                    read_starts.get(name.as_str()),
+                );
+            }
             resumed(name)
                 .or_else(|| {
                     model

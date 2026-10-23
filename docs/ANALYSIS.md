@@ -59654,3 +59654,65 @@ equations at t = 0 on `tank.ports[1].m_flow`, `MeasuringTemperature`
 does not settle a loop of tank densities and enthalpies, and
 `TestSuddenExpansion` has a root on either side of
 `suddenExpansion1.m_flow`. Three different walls, none probed further.
+
+## Shift 491: the narrow-2 merged, on Roman's word
+
+### The verdicts left open
+
+Run 39847797363 (ca36cca) finished `success` in 1h37m. Run
+39859676312 (0352e9d, the chapter of shift 490) is `failure` in the
+coverage and linters job, and not for the tree: `apt` on the runner
+reported `dpkg was interrupted` four attempts running and the job gave
+up before a line of the project was built.
+
+### The merge
+
+`park/m455-grow-from-type-start.diff` applied to 0352e9d without a
+change, as shift 490 found. The key
+`OXIDELICA_NO_GROW_FROM_TYPE_START=1` stays and gives back the old
+reading. The witness is the small model of the test
+`a_start_from_a_type_waits_for_its_own_equation_before_it_reads_another`:
+under the key it fails with `U = -248019.85`, read with `R_s = 1000`;
+without it it passes, the start being read at the written 293.15 K.
+
+### The prediction for CI, written before the runner speaks
+
+The main library pass took 72 to 83 minutes. Expected now: 107 to 118
+minutes against the ceiling of 180, a margin of 1.53x. The ground:
+1069 s more on the desk (shift 490, `/tmp/m490/{on,off}.txt`) times
+1.95, the ratio of runner to desk on the main pass (7394 s against
+3795 s, one tree, both halves without the heavy models). If the runner
+lands outside that band, the factor 1.95 is unfit and every later
+estimate of the price on CI has to be taken again: the next review
+says which it was. The floors do not move in this commit. They wait
+for the runner's print, and rise in a commit of their own from the
+lower machine.
+
+### The pair on the merged tree
+
+One binary from the final tree (`/tmp/m491/ox`), the main pass
+without the heavy models, under a cap of 24 GB: with the change
+`/tmp/m491/on.txt`, under the key `/tmp/m491/off.txt`. With the change
+969 flatten and 806 run (runnable 852 and 761); under the key 969 and
+802 (852 and 757). The run lists differ by exactly the four expected
+and by nothing else: `Fluid.Examples.TraceSubstances.RoomCO2`,
+`RoomCO2WithControls`,
+`ModelicaTest.Fluid.TestComponents.Fittings.TestMultiPortTraceSubstances`
+and `ModelicaTest.Media.TestsWithFluid.MediaTestModels.Air.MoistAir`.
+No model lost. Both halves equal shift 490's lists line for line.
+The run half takes 4914 s against 3816 s, 1098 s more;
+`TestMultiPortTraceSubstances` alone runs 857.7 s and
+`RoomCO2WithControls` 149.4 s. The ratio of running to flattening
+with the change is 4914 / 3978 = 1.24, inside the band.
+
+### The preflight on the desk
+
+Every step passed but the library one, and that one on bands and not
+on counts: 969 / 806, runnable 852 / 761, all above the floors
+(`/tmp/m491/preflight.txt`). The ratio of running to flattening is
+1.275 against a band of 0.64 to 0.91. Under the key, the same tree
+gives 3816 / 3828 = 1.00, so the ratio was already over that band
+before the change. The change adds what the pair measured. The work
+bands read points at 3.389x and Newton at 2.553x. Those match the
+desk's known red of m485 to m489 (3.385x), which is recorded by number
+and not run again. The runner's print judges both.

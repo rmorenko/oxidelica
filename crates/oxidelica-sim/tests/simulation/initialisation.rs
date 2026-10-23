@@ -1562,6 +1562,47 @@ fn a_start_from_a_type_gives_way_to_one_the_starts_determine() {
     );
 }
 
+/// A start from a type does not read another start before the
+/// equation that gives it its value has been asked.
+///
+/// A moist-air volume's energy `U = m*u` declares no start, so it is
+/// read from `u = h - R_s*T`. The gas constant `R_s` has only its
+/// type's 1000 (`CPNOM`), and its own equation reads the steam
+/// fraction, one equation further than the reach of the reading went.
+/// So `u` was read with `R_s = 1000`, 208 kJ/kg low, and the run began
+/// there: here at a temperature of 2.45 K, in `Modelica.Fluid` at a
+/// state where the block over `p`, `T` and `phi` had no step to take.
+/// With the reach grown from the type-started name, `R_s` is 288.80
+/// and the run begins at the 293.15 K the model wrote.
+#[test]
+fn a_start_from_a_type_waits_for_its_own_equation_before_it_reads_another() {
+    let model = parse_model(
+        "package Media type GasConstant = Real(start = 1000); end Media; \
+         model M parameter Real X = 0.01; parameter Real cp = 1006; \
+         parameter Real hv = 2501014.5; Real U; Real m; Real h; \
+         Media.GasConstant R_s; Real X_steam; Real T(start = 293.15); \
+         equation der(U) = 0; U = m * (h - R_s * T); m = 1; \
+         h = cp * (T - 273.15) + X * hv; \
+         R_s = 287.0512 * (1 - X_steam) + 461.5233 * X_steam; X_steam = X; end M;",
+    )
+    .unwrap();
+    let compiled = compile(&model).unwrap();
+    let index = compiled
+        .states
+        .iter()
+        .position(|had| had == "U")
+        .unwrap_or_else(|| panic!("U among {:?}", compiled.states));
+    let r_s = 287.0512 * 0.99 + 461.5233 * 0.01;
+    let h = 1006.0 * 20.0 + 0.01 * 2501014.5;
+    let expected = h - r_s * 293.15;
+    let u = compiled.initial[index];
+    assert!(
+        (u - expected).abs() < 1e-6,
+        "U = {u}, read with R_s = {} rather than {r_s}",
+        (h - u) / 293.15
+    );
+}
+
 /// An initial problem solved to the floor of its arithmetic counts as
 /// solved, where the floor is set by the size of the row's terms.
 ///
