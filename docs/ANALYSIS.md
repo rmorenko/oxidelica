@@ -59864,3 +59864,65 @@ of 2 written out` (`events.rs:427`). The same function with a `Real`
   Both `IMC_withLosses` leave `der(aimc.airGap.psi_mr)` undetermined
   through `spacePhasor_r.v_`, which is the machines' reduced air gap of
   m489 item 4 and not a new breed.
+
+## Shift 493: the jointRRP parameter wall, and three rows probed
+
+### Item 0: the two runs
+
+The scheduled run of the heavy models on 0352e9d (39929470559) came
+out green. The push run on 3ad0316 (39941101641) had all its jobs
+green but the main library pass, still running at the time of the
+last look.
+
+### Item 1: a parameter array bound to a component declared below
+
+`JointUSP` writes `e2_ia = rod1.e2_ia` above `rod1`, and `JointRRR`
+writes `e_b = jointUSR.revolute.e`, a path two storeys deep. The
+array of the component below had not been measured when the
+parameter was split, so every element was bound to the whole array.
+The member's declaration writes its length as a number, and now the
+name is taken apart by it (`OXIDELICA_NO_SIBLING_ARRAY_BINDING`
+restores the old road). The test is
+`a_parameter_array_bound_to_a_component_below_reads_its_elements`,
+red under the switch.
+
+One binary (`/tmp/m493/ox3`), both halves (`state/m493/{on,off}.txt`):
+969 flatten and 806 run each way, identical by name. The row moved
+one storey, and no count moved:
+
+- `Engine1b_analytic`: to `structurally singular ... der(world.frame_b...)`;
+- `PlanarLoops_analytic`: to `unbalanced 3951 for 3975`, with
+  `body1.a_0[2]` and `bodyN.z_a` undetermined;
+- both `EngineV6_analytic`, `CylinderBase`, `Cylinder_analytic_CAD`:
+  to `unbalanced`, six to thirty-six short.
+
+### Item 2: Engine1a, the mechanism
+
+The zero coefficient `crank1.frameTranslation.r[2]` is spared on
+purpose. `named_zero` in `compile.rs` quenches a product with a
+parameter worth zero, but not an element of an array parameter,
+because quenching those cost `GearConstraint` (the comment above
+`named_zero`). `OXIDELICA_QUENCH_ELEMENTS=1` lifts the exemption. On
+Engine1a it moves the refusal from `singular Jacobian` to
+`structurally singular ... der(piston.frame_...)`, and the model
+still does not run (`/tmp/m493/ea_qe.txt`). So this is not a local
+fix. Whether an element of a vector parameter is a structural zero is
+the policy layer the brief reserves for Roman, and nothing was
+changed.
+
+### Item 3: two rows probed
+
+- `n2.i = 0 constrains no state` (`Gain`, `Add`): `PartialOpAmp`
+  extends `FourPin` and leaves its pins open. These are the open
+  components of item 34 (m472), not a new breed.
+- `smpmQS.phiMechanical` (QS `SMPM_CurrentSource`, `SMPM_MTPA`): the
+  same refusal as m475's tie table, the machine family.
+
+### Item 4: the underdetermined row (8)
+
+Probed again on this head, and the split matches m487 item 5. Five
+are Spice3 (`MNmos`, `MPmos`, `NAND`, `ONEBIT`, `RtlInverter`, a
+capacitance the data sets to zero). Three are machines: `SMEE_DOL`
+and `SMEE_Rectifier` (item 30, Roman's) and `IMC_DOL_Polyphase`
+(ideal switches with the air gap). The next rows down (`initStep`,
+`vin.T0`) are mapped in m416 and m474.
