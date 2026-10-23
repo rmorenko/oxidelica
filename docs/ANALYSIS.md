@@ -60050,3 +60050,89 @@ against 904754, the same figures to the digit, and the desk ratio
 (1.709). The pair's two halves print identical work (25249530 points,
 36691006 Newton, `state/m494/{on,off}.txt`), so the change moves none
 of it. The counts held: 956/800 main plus 13/6 dear is 806 run.
+
+## Shift 495: four maps, no change to the compiler
+
+### Item 0: the CI verdicts
+
+The run for b1cdc9a (39983412289) is green. It touched prose only, so
+the library jobs were skipped by path. The run for 3524585
+(39983352507) shows the coverage and linters job red, `test on
+macos-latest` cancelled, and the dear pass green. Its main pass was
+still going at 18:47. The red ratio on 5593ffd (1.595) has had no
+library run since that could confirm or clear it, so it is not yet
+known whether it is weather.
+
+### Item 1: `derHstat = 0` on the alias of a derivative
+
+The small model `/tmp/m495/h5.mo` has `Hstat` as an algebraic,
+`derHstat = der(Hstat)` and the initial equation `derHstat = 0`. It
+prints `written derHstat = 0 reaches [], took Hstat` and runs. The
+alias reaching nothing is the same as in the transformer, and so is
+the elimination that hands it a leftover state. On its own, that does
+not refuse the model. The width was measured with
+`OXIDELICA_INIT_PROBE=1` (`/tmp/m495/p1_*.txt`). Four models write the
+condition, and all four `reach []`: `SinglePhaseTransformerWithHysteresis1`
+and `2`, `InductorWithHysteresis` (as a demoted start) and the
+transformer. Three of them run. The mechanism is
+`match_initial_conditions` (`compile.rs`). Its reach is built from
+explicit stages only, `derHstat` is solved inside the hysteresis
+block, and the walk reads a name in a block as reaching nothing. So
+the breed is the coarseness the comment there chose on purpose
+(`FreeBody`), not a gap of its own. The transformer refuses for a
+different reason, the same as in s416: it is two conditions over
+because of the library's own `I2Fixed`/`MagRelFixed` choice, and
+solved without the two surplus rows it is singular in `core3.Hstat`
+and `core3.MagRel`. No change was made, because one written into the
+matching would undo a choice taken for a measured reason, and it
+would not buy the one model that refuses.
+
+### Item 2: IMC_InverterDrive on the desk
+
+Under `--only`, the desk refuses it with `step size underflow at t =
+0.000000` after 1100990 points and 1382578 Newton in 166 s. In the
+pair of m494 it is listed under `flat` with the same refusal
+(`state/m494/on.txt:2099`). So on the desk the expensive mode is
+also a refusal, and its 1.1M points are the whole of the excess over
+the recorded remainder. The runner runs it. The fork is the first
+step at t = 0, which is before any event, so it is the start (or the
+step the solver picks there) that differs between the machines, not
+the order of the models. Nothing was moved in the bands.
+
+### Item 3: `nested deeper than the compiler follows` (7)
+
+The ceiling is `MAX_DEPTH = 32` (`flatten/mod.rs:98`), and the
+expression refusals come from `arrays.rs:27` and `names.rs:579`.
+The seven are RealFFT1, RealFFT2, Rectifier6pulseFFT and
+Rectifier12pulseFFT (a sum `Bin(Add, ...)`), `Digital.Examples.RAM`
+(`dLATRAM.dataIn[1]`), `Random.Examples.GenerateRandomNumbers`
+(`{localSeed, globalSeed}`) and `TestWallFriction` (`zeta2_at_a`).
+Five were probed with the ceiling read from `OX_DEPTH`. The probe
+binary is `/tmp/m495/oxd` and the change was taken out afterwards.
+The log is `/tmp/m495/p3_depth.txt`:
+
+| model                 | 32               | 48                        | 64                 |
+| --------------------- | ---------------- | ------------------------- | ------------------ |
+| RealFFT1              | refused, 0.19 GB | refused                   | refused            |
+| Rectifier6pulseFFT    | refused, 15 s    | refused                   | refused            |
+| RAM                   | refused          | refused                   | refused            |
+| GenerateRandomNumbers | refused, 0.28 GB | `state1024` wall, 26.7 GB | killed at 26.6 GB  |
+| TestWallFriction      | refused          | runs, 0.83 GB, 3 s        | runs, 9.9 GB, 55 s |
+
+So the seven are not one depth. The FFT and RAM depths are not
+reached by 64, and they are a recursion rather than a deep tree.
+`TestWallFriction` is bought at 48, but its memory grows twelvefold
+from 48 to 64. `GenerateRandomNumbers` costs 26.7 GB at 48 and then
+meets a wall of its own. Raising the ceiling is a decision about
+memory, not a fix, and the numbers above are its price.
+
+### Item 4: the census on b1cdc9a
+
+`state/m495/census.txt`: would-not-flatten 51 on 30 rows, the run half
+163 on 113, counted between the section bounds. Against m494, the
+would-not-flatten half is identical. The run half loses four
+unbalanced rows (`connectingRod` 2, `engine.bearing`, `bodyN`,
+`bearing`) and gains four structurally singular rows (`piston.frame_b`
+2, `rodN.frame_a`, `cylinderN.jointRRP` and `engine.cylinderN`):
+the five models of m494 item 1, five for five. The rows are 113
+against 113.
