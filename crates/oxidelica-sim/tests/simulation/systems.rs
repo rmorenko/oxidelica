@@ -1873,3 +1873,32 @@ fn a_block_retried_from_moved_starts_says_what_the_retries_met() {
         "{refused}"
     );
 }
+
+#[test]
+fn a_port_drawn_by_a_part_of_its_own_class_still_carries_no_flow_outward() {
+    // A multibody joint draws each of its frames with a shape whose
+    // modifier reads the frame, `Shape s(r = m.r)`. That binding is an
+    // equation of `s` by origin, and the port's owner is `j`, so the
+    // flattener read it as the level above speaking about `j.m` and
+    // withheld the zero owed to the flow through a frame nobody
+    // connects. Six equations a frame went missing, and the analytic
+    // loops of the multibody library - `CylinderBase`,
+    // `PlanarLoops_analytic`, the `EngineV6_analytic` pair - were
+    // refused as unbalanced.
+    let result = run("package P \
+           connector Fr Real r; flow Real f; end Fr; \
+           model Shape input Real r; end Shape; \
+           model Part Fr a; Fr b; equation a.r = b.r; a.f + b.f = 0; end Part; \
+           model J Fr a; Fr m; Part p; Shape s(r = m.r); \
+           equation connect(a, p.a); connect(p.b, m); end J; \
+           model Src Fr c; equation c.r = sin(time); end Src; \
+           model M Src src; J j; \
+           equation connect(src.c, j.a); \
+             annotation(experiment(StopTime = 1)); end M; \
+         end P;");
+    // The open frame carries nothing, so neither does the frame the
+    // source drives.
+    let f = result.columns.iter().position(|c| c == "src.c.f").unwrap();
+    let last = result.rows.last().unwrap();
+    assert!(last[f] == 0.0, "src.c.f = {}", last[f]);
+}

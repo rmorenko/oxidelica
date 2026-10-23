@@ -59926,3 +59926,118 @@ capacitance the data sets to zero). Three are machines: `SMEE_DOL`
 and `SMEE_Rectifier` (item 30, Roman's) and `IMC_DOL_Polyphase`
 (ideal switches with the air gap). The next rows down (`initStep`,
 `vin.T0`) are mapped in m416 and m474.
+
+## Shift 494: the open frames of the analytic loops, and three maps
+
+### Item 0: the push run
+
+The push run on 5593ffd (39958039684) had every job green but the
+main library pass, still running at the last look.
+
+### Item 1: the analytic loops, link by link
+
+The five unbalanced models that f7282ae lifted from the jointRRP
+parameters (`CylinderBase`, `Cylinder_analytic_CAD`,
+`PlanarLoops_analytic`, both `EngineV6_analytic`) are one breed, and
+it is a local one, not item 56. Each was short six equations for
+every frame of a `JointRRP`/`JointRRR` left unconnected outside:
+`CylinderBase` 6 (`frame_im`), a crank with a bare `JointRRR` 12, the
+same joint between two fixed frames 18 (`frame_ia`, `frame_ib`,
+`frame_im`). Turning the joint's animation off made the 18 run, which
+named the layer. Each frame is drawn by a shape whose modifier reads
+it, `FixedShape shape_im(r = frame_im.r_0, R = frame_im.R)`. The flat
+model files that binding as an equation of `jointRRR.shape_im`, the
+port's owner is `jointRRR`, and the seam rule in `flatten/mod.rs` took
+any origin other than the owner itself for the level above speaking
+about the port. So the zero owed to the flow through an open frame was
+withheld. The fix counts the owner's own subtree as inside.
+
+This is not a new finding. It is the park of shift 472 come alive:
+`~/oxideflow/park/m472-open-port-part-speaker.diff` (commit 32f5761's
+note) made the same change in the same place, `from_above` in
+`join_the_connections`, under `OXIDELICA_OLD_PORT_SPEAKER`. It was
+parked because its pair moved no model, since that day the six still
+stood a storey lower at the jointRRP parameters, the wall f7282ae
+took. The two differ only in the name of the switch and the test. The
+second park, `m472-open-port-part-speaker-with-m430.diff`, holds the
+same hunk plus the m430 sibling-member probe. The small model is the
+test,
+`a_port_drawn_by_a_part_of_its_own_class_still_carries_no_flow_outward`
+(red under `OXIDELICA_NO_OWN_SUBTREE_SEAM=1` with
+`nothing determines j.p.b.f`).
+
+The second link: on the fixed binary all five move to `structurally
+singular` (`/tmp/m494/six_on.txt`). `CylinderBase` stops at
+`piston.frame_b.R.T[3,3] = piston.frameTranslation.frame_b.R.T[3,3]
+constrains no state`, and `PlanarLoops_analytic` at
+`rod1.frame_a.R.T[2,2] = rev.frame_b.R.T[2,2]` after 77 reductions,
+with `supply-once` refusing the loop's frame orientations a second
+differentiation (`/tmp/m494/pl4.txt`). `Engine1b_analytic` already
+stood there with `der(world.frame_b.R.T)`. That is one wall: index
+reduction through an orientation that the overconstrained graph should
+have cut, the limit item 56 maps for `Fourbar1`. So it is Roman's, and
+it is mapped here rather than fixed.
+
+### Item 2: the `algebraic loop` row (3)
+
+- `OneTank`: Newton at t = 0 from `m_flow = 0` takes one step to
+  -89.1 and the residual of `pipe.port_a.m_flow + tank.ports[1].m_flow
+  = 0` turns NaN. Twenty halvings back toward zero never reach a
+  finite point again, so the domain is lost on the first step. That
+  is the start-mode family of item 55 (the flow's start is the edge of
+  the domain) and not a tolerance question.
+- `TestSuddenExpansion`: `suddenExpansion1.m_flow` has a root on
+  either side of zero at t = 0. The two-way pressure loss is symmetric
+  and the start gives no sign, which is the start-mode family of item 55
+  again.
+- `MeasuringTemperature`: a loop of 51 unknowns over four open tanks'
+  densities, velocities and enthalpies. From the zero start, a large
+  part of the residuals are NaN on the first evaluation, among them
+  the `portVelocities` rows, which divide by `ports_penetration` and
+  `medium.d`. The uniform guesses of 1e-6 to 1000 stay NaN. A start
+  with the tank densities near 1000 converges in two iterations to
+  5.7e-14. The loop is solvable,
+  and what is missing is a start for the densities, which is the volume
+  state-choice family of item 21.
+
+Logs: `/tmp/m494/p2_{OneTank,MeasuringTemperature,TestSuddenExpansion}.txt`.
+
+### Item 3: ThreePhaseTransformerWithRectifier
+
+The model writes `transformer.coreN.derHstat = 0` as an initial
+equation for all three cores, with `derHstat = der(Hstat)`. The
+initialisation probe says each of the three `reaches []`. The equation
+names a variable whose definition is a derivative, and the matching
+does not see through the alias to `Hstat`. The first one is then given
+`core3.MagRel` by elimination and the other two take nothing. The
+small model `hw.mo` (one core, `derHstat = der(Hstat)` with `der(B) =
+mu0*der(Hstat)`) runs, and there the equation reaches `B`. The
+difference is that in the transformer `Hstat` is an algebraic of the
+hysteresis branches and no state's derivative. So a written initial
+equation on the alias of a derivative of an algebraic reaches nothing.
+That is a breed of its own in the initialisation matching, not item 21
+or 55, and it is left mapped.
+
+### Item 4: the census on 5593ffd
+
+`/tmp/m494/census.txt`, copied to `state/m494`: would-not-flatten 51
+models on 30 rows, the run half 163 on 113 rows. Against m492 (163 on
+112) the diff of rows is exactly the expected one. Four rows empty: the
+3 `jointRRP.e_ia` and the three singles (`jointRRRN`,
+`engine.cylinderN`, `cylinderN`). Five appear: one structurally
+singular (`Engine1b_analytic`) and four unbalanced rows holding the
+other five models. So 112 - 4 + 5 = 113, and the sum holds at 163.
+
+### Item 5: the top unprobed row, `singular Jacobian` (7)
+
+Of the seven, `Engine1a` is mapped in m493, the three `SMEE` machines
+are the air-gap family of the machines, and `RollingWheelSetDriving`
+belongs to item 56. Two were probed. `LossyGearDemo2` branches on
+`gear.locked` and `bearingFriction.locked` (mode probe, family A),
+which is the start mode of item 55. `QuasiStatic.SinglePhase.Examples.Rectifier`
+starts its loop of twelve at all zeros, where
+`vDC = abs(vQS)*conversionFactor` is evaluated at `vQS = 0`, the one
+point where the modulus of a complex number has no slope. The small
+models `ad.mo` (a modulus whose loop leaves the origin) run, so the
+open question is the Jacobian of `abs` of a `Complex` at zero, which
+is left mapped.

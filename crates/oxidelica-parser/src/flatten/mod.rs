@@ -1076,7 +1076,21 @@ fn join_the_connections(registry: &HashMap<&str, &ClassDef>, acc: &mut Flat) -> 
             // The instance holding the port: an equation written there
             // is the port's own class speaking, and anywhere else is
             // the level above.
+            // Inside means the owner's own subtree, not the owner
+            // alone: a modifier written in the owner's class on one of
+            // its parts, `Shape s(r = m.r)`, is an equation of `s` by
+            // origin and still the port's own class speaking. Read as
+            // the level above, every multibody joint that draws its
+            // frames lost the zero owed to the flow through an open
+            // frame, six equations a frame.
+            // `OXIDELICA_NO_OWN_SUBTREE_SEAM` keeps the old reading.
             let from_above = match path.rsplit_once('.') {
+                Some((owner, _)) if own_subtree_seam() => {
+                    equation.origin != owner
+                        && !(equation.origin.len() > owner.len()
+                            && equation.origin.starts_with(owner)
+                            && equation.origin.as_bytes()[owner.len()] == b'.')
+                }
                 Some((owner, _)) => equation.origin != owner,
                 None => true,
             };
@@ -3337,4 +3351,11 @@ impl Transport {
             negative,
         })
     }
+}
+
+/// Whether an equation written anywhere in a port owner's subtree counts
+/// as the owner speaking about the port. `OXIDELICA_NO_OWN_SUBTREE_SEAM`
+/// keeps the old reading, where only the owner itself did.
+fn own_subtree_seam() -> bool {
+    std::env::var_os("OXIDELICA_NO_OWN_SUBTREE_SEAM").is_none()
 }
