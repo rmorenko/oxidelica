@@ -60136,6 +60136,20 @@ from 48 to 64. `GenerateRandomNumbers` costs 26.7 GB at 48 and then
 meets a wall of its own. Raising the ceiling is a decision about
 memory, not a fix, and the numbers above are its price.
 
+The four FFT models come down to one small model, `/tmp/m495/yg.mo`.
+A function computes `u_DC := sum(u)/size(u,1)` and then writes
+`fill(u_DC, nfi)` or `u - fill(u_DC, n)` into an output that is called
+from an algorithm (`when` or `if`). It refuses for a buffer of 28 and
+runs for 26 (`yq26.mo`, `yn28.mo`). Called from an equation (`yj.mo`),
+or with a scalar output (`yh.mo`), it runs at 30. So the depth is the
+`sum` unrolled into a chain of `n` additions and substituted into every
+element of the filled array. The examples' buffers are 200 or more.
+Behind it stands a second wall: with a buffer of 4 (`yf.mo`), the
+same call refuses on `rawRealFFT`, an external C function
+(`ModelicaFFT_kiss_fftr`) the compiler has no body for. Making `sum`
+fold into a balanced tree, or bind it once rather than substitute it,
+would buy no FFT model by itself.
+
 ### Item 4: the census on b1cdc9a
 
 `state/m495/census.txt`: would-not-flatten 51 on 30 rows, the run half
