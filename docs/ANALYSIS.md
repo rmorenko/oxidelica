@@ -59824,3 +59824,43 @@ Each from `--only` on `.msl` with `OXIDELICA_NEWTON_TRAIL=1`
   guarded divisor with a state behind it) runs, because there `s` is
   solved before the loop and is not inside it. It is not yet
   reproduced small.
+
+### The rest of the time: the small rows below the top of the queue
+
+- `an array reached the evaluator` (2, `ReferenceAir.Inverse_sh_TX` and
+  `TestAllProperties.IncompleteMedia.ReferenceMoistAir`): both stop in
+  `Ice09_Utilities.ice09BaseProp_pT` on the protected
+  `final Complex[2] t = {Complex(...), Complex(...)}`. A small model
+  (`state/m492/C2.mo`) with an array of `Complex` protected in a
+  function and read by subscript refuses earlier, with
+  `subscripts and arrays survive flattening only as scalars: an array
+of 2 written out` (`events.rs:427`). The same function with a `Real`
+  array (`C4.mo`) or a single protected `Complex` (`C5.mo`) runs. The
+  breed is an array of records inside a function body, and it is new as
+  a map.
+- `IF97 ... tsat called with too low pressure p = 0` (2): the two
+  models are `TwoPhaseWater.BaseProperties` and `ExtendedProperties`,
+  which are the medium's own models and not examples. Nothing in them
+  gives `p` a value or a start, and IF97 refuses `tsat(0)` correctly.
+  The example built on them, `TestTwoPhaseStates`, sets `p` and is not
+  in this row.
+- `parameter maxLevel / fS / f has no value` (2 each): `why` gives
+  each one as declared with no binding (`TankController`,
+  `NormalOperation`, `SwitchingDcDc`, `DcdcInverter`, and OpAmp `Der`,
+  `Integrator`). These are utilities and templates of the library that
+  their examples parameterise. The refusal is right, as for the OpAmp
+  `T` row of m490.
+- `step size underflow` (2): `Rotational.Examples.Friction` stops at
+  t = 0.006 under `dopri45` and `bdf`. Under `rk4` it says what it is:
+  the event at t = 0.007 does not settle, with `clutch.startForward`
+  and `clutch.mode` changing every round. That is the friction mode of
+  item 55. `IMC_InverterDrive` is the model that swings between the
+  machines and is already known.
+- `unbalanced model` singles (21): most of them are utilities with
+  open connectors (`AST_BatchPlant.ControllerUtilities`, `InnerTank`,
+  `RobotR3.Utilities`, `StateGraph.Examples.Utilities`,
+  `DirectCapacitor`, `DirectInductor`, `ConstantActuator`). Of the
+  examples, `Fourbar1` is mapped in m470 to m472 and `OneAxis` in m448.
+  Both `IMC_withLosses` leave `der(aimc.airGap.psi_mr)` undetermined
+  through `spacePhasor_r.v_`, which is the machines' reduced air gap of
+  m489 item 4 and not a new breed.
