@@ -59716,3 +59716,111 @@ before the change. The change adds what the pair measured. The work
 bands read points at 3.389x and Newton at 2.553x. Those match the
 desk's known red of m485 to m489 (3.385x), which is recorded by number
 and not run again. The runner's print judges both.
+
+## Shift 492: the census on the merged head, and four maps
+
+### Item 0: the verdict on 8784fce and the prediction
+
+Push run 39930241700 finished `success`. The main library pass ran from
+09:13:17Z to 10:35:15Z, which is 82 minutes, against the 107 to 118
+predicted in shift 491. The prediction missed low by 25 minutes or
+more, so the factor 1.95 is unfit and later prices on CI have to be
+taken again. The judge (job 120369329657) printed 969 / 807 and
+runnable 852 / 762, with a ratio of 1.197 inside 0.70 to 1.50. The run
+floors rise in a commit of their own from the desk, the lower machine:
+806 - 3 = 803 and 761 - 3 = 758. The scheduled run 39929470559 (0352e9d,
+heavy models) was still in progress when the shift closed.
+
+### Item 1: the census
+
+`refusals.sh .msl both` on 8784fce (`/tmp/m492/census.txt`, raw
+`/tmp/m492/raw.txt`), counted between the section marks. Would not
+flatten: 51 models on 30 rows, as before. Flattened and would not
+run: 163 models on 112 rows, against 167 on 112 in `/tmp/m488`. The
+models gone by name are exactly the four of the narrow-2 merge
+(`RoomCO2`, `RoomCO2WithControls`, `TestMultiPortTraceSubstances`,
+`MediaTestModels.Air.MoistAir`) and no model is new. Four rows each
+lost one model and none emptied: `Newton direction` 10 to 9,
+`singular Jacobian` 8 to 7 (`RoomCO2`), `` `X` of algebraic loop`` 7 to
+6, and `did not converge in N Newton iterations` 2 to 1. The top of the
+queue is unchanged: Newton direction (parked m486), underdetermined
+(item 30), singular Jacobian (mapped m490).
+
+### Item 2: Engine1a, the zero that comes from a parameter
+
+Small models in `state/m492`. A planar loop closed through a fixed
+translation with a zero entry (`E2.mo`) and the same with the entry
+made 1e-4 (`E3.mo`) both stop on the same `structurally singular ...
+t1.frame_b.R.T[2,2]` wall, so neither is the breed. The witness is
+Engine1a itself. `EA0.mo` (the example as written) refuses with the
+`singular Jacobian` of m490. `EA1.mo` is the same with
+`crank1(r = {0.1, 1e-6, 0})` and runs to 0.1 s. So the parameter's zero
+alone decides it: matching takes `crank1.frameTranslation.frame_a.R.T[2,3]`
+through a coefficient `r[2]` that is zero by value. Whether a parameter's
+value may be read as a structural zero is a policy question and is not
+changed here.
+
+### Item 3: jointRRP, where `e2_ia` goes
+
+`why` on the elements answers what `why` on the array did not:
+`jointRRP.jointUSP.rod1.e2_ia[1]` is declared and bound correctly, and
+`jointRRP.jointUSP.e2_ia[1]` is bound to `jointRRP.jointUSP.rod1.e2_ia`,
+the whole array without a subscript. The split into elements loses the
+index. The small model (`state/m492/J6.mo`, flat `J8.mo`):
+
+```modelica
+model J8
+  model Inner
+    parameter Real e[3] = {0.6, 0.8, 0};
+  end Inner;
+  parameter Real e_ia[3] = inner1.e;
+  Inner inner1;
+  Real x(start = 0, fixed = true);
+equation
+  der(x) = e_ia[2];
+end J8;
+```
+
+It refuses with `cannot evaluate parameters [e_ia[1] = inner1.e, ...]`
+raised at `compile.rs:5273`. The same model with `Inner inner1;`
+written above the parameter (`J2.mo`) runs to x = 0.894. A flat array
+declared below (`J7.mo`) also runs. So the fault is an array binding
+to a component's array declared later in the class: when the binding
+is split the component's shape is not yet known, and the reference is
+left whole. In `JointUSP`, `e2_ia = rod1.e2_ia` stands above `rod1`.
+The `each final unit` and `fixed = false` beside it do not matter
+(`J5.mo` runs). The fix belongs where the binding is split, and is
+left for the next brief.
+
+### Item 4: three walls of the `algebraic loop` rows
+
+Each from `--only` on `.msl` with `OXIDELICA_NEWTON_TRAIL=1`
+(`/tmp/m492/p_*.txt`).
+
+- `OneTank`: a loop of one unknown, `tank.ports[1].m_flow`. Newton from
+  0 has a residual of 89.1 and its first full step goes to -89.1, where
+  `pipe.port_a.m_flow + tank.ports[1].m_flow = 0` is NaN. Twenty
+  halvings bring the step back to -1.7e-4 and the residual is still NaN,
+  so the domain ends at zero flow itself and a negative flow out of the
+  tank's port is outside the `StaticPipe` equations. A wall of its own.
+  It is kin to the domain cases of the starts, not to a mode.
+- `TestSuddenExpansion`: one unknown, `suddenExpansion1.m_flow`, whose
+  equations hold a regularised `if m_flow > m_flow_small` on density and
+  loss. The solver finds a root on either side and refuses to choose.
+  This is the refusal working as written. The physical answer is the
+  sign the pressures give, so it is kin to item 55's choice of a mode
+  at the start.
+- `MeasuringTemperature`: a block of more than fifty unknowns (the
+  `Tsat` of three flow sensors, densities, enthalpies and velocities
+  of six tanks), and the residual is NaN at the first point from every
+  moved start (0, 1e-6, 1e-3, 1). This is the water property calls
+  meeting zero starts, kin to items 50 and 21.
+- `ThreeSprings`, from the `` `X` of algebraic loop`` row: the loop holds
+  `spring1/2.lineForce.s` as unknowns starting at 0, and
+  `e_rel_0 = r_rel_0 / s` is -inf before any step. The guard
+  `s = if length > s_small then length else s_small` is in the same
+  block but is not used to start `s`. This is the start of an unknown
+  that is a divisor. A first small model (`state/m492/S1.mo`, the
+  guarded divisor with a state behind it) runs, because there `s` is
+  solved before the loop and is not inside it. It is not yet
+  reproduced small.
