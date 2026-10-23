@@ -60041,3 +60041,13 @@ point where the modulus of a complex number has no slope. The small
 models `ad.mo` (a modulus whose loop leaves the origin) run, so the
 open question is the Jacobian of `abs` of a `Complex` at zero, which
 is left mapped.
+
+### The preflight
+
+Everything passed but the library step, and that step fails on the
+desk in the same way it did for shift 493 (`/tmp/m493/preflight2.txt`):
+the work band, with points 1549174 against 457143 and Newton 2309534
+against 904754, the same figures to the digit, and the desk ratio
+(1.709). The pair's two halves print identical work (25249530 points,
+36691006 Newton, `state/m494/{on,off}.txt`), so the change moves none
+of it. The counts held: 956/800 main plus 13/6 dear is 806 run.
