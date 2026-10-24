@@ -61504,3 +61504,16 @@ run, runnable 855 and 763, the same as `/tmp/m503/on.txt`, and is red
 only on the desk's time band (`CEILING: run/flatten ratio is 1.250,
 and the band is 0.64..0.91`). The compiler code in the tree is the
 head's: the rule of item 1 is parked, not merged.
+
+Read again on a hint, from the same two files. The run half costs
+6617 ms per model off and 7016 ms on, 6.0% dearer, while flattening,
+which the floor does not touch, went 6283 to 6578 ms. The pair ran
+side by side, so the run half's own rise is the price to quote, and
+it stands above the 2% this desk's pairs have shown. The probe also
+changes what the refusals say, not only how many there are. Under the
+key `GearType2` goes from `the equations of algebraic loop
+["bearingFriction.sa"] do not mention ...` to `algebraic loop
+diverged: ["bearingFriction.sa"]`. `ThyristorBridge2mPulse_RLV` leaves
+`a block accepted on the arithmetic floor after 50 iterations`. The
+relative floor lets Newton go further, and some of the models it
+reaches diverge there instead of being refused at the pivot.
