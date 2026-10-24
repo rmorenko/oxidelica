@@ -61019,3 +61019,89 @@ the new binary, so this shift's change does not reach it. Under
 index reduction already mapped above (rows 7 to 9 of
 `der(transformer.l2sigma.plug_p.reference.gamma)`), not the root
 check.
+
+## Shift 503: a parameter of the top answered for its namesake below
+
+### Item 0: the three CI verdicts
+
+`40087755731` (eae8911, the judge of the new code) was still in its
+library main pass at the start of the shift. Every other job had
+passed, so its floors wait for the next review. `40080299278`
+(583d1cd) finished green throughout, judge included. The scheduled
+`40078893236` (fbec2ed) finished green too: heavy pass a, pass b and
+their sum.
+
+### Item 1: singles of the run half against the maps
+
+Every single of the run half in `/tmp/m499/census.txt` (lines 146 to 259) has a map by model name in this document. The models are
+`AdvancedSolenoid`, `TestInterpolateTimeVarying`, `TestSweptVolume`,
+the two `Test33`, the three `IMC_Initialize`, `HeatingSystem`,
+`BranchingDynamicPipes`, `HeatExchangerSimulation`,
+`AmplifierWithOpAmpDetailed`, `ControlledMixingUnit`,
+`SMR_CurrentSource`, `InverseCapacity`, `DynamicPipeClosingValve` and
+`TestBearingConversion`. The five `der(...) is not a state` rows are
+two families: the three `IMC_Initialize` machines, and the media
+temperatures of three Fluid models. Both are mapped.
+
+### Item 2: the flatten half, and the one without a map
+
+Every refused model of the flatten half has a map by name except
+`FundamentalWave...ComparisonPolyphase.IMS_Start_Polyphase`, with
+``fill` needs a length the compiler can see:
+aims3.thermalAmbient.thermalCollectorRotor.m``. The probe shrank it to
+five lines:
+
+```modelica
+model Port parameter Integer mr = 3; Real y[mr]; end Port;
+model B parameter Integer m = 3; Port port; end B;
+model A extends B(port(mr = mr)); parameter Integer mr = m; end A;
+model M parameter Integer mr = 5; A a; end M;
+```
+
+`a.port.y` was built five wide where three is meant. That is a wrong
+shape, not a refusal. While `settle_parameters` works, `A`'s own `mr`
+cannot settle yet because it waits on the base for `m`. At its end,
+the function pours in the model's table of settled numbers, and a
+parameter of the top of the model is filed there under its bare
+name. So the top's `mr = 5` filled the gap that `A`'s unsettled `mr`
+had left, and the port was measured against it. The same thing
+happens through `acc.numbers` in `components.rs`. In the library,
+`IM_SlipRing` declares `mr = m` and hands
+`thermalAmbient(final mr = mr)` down, while the example declares its
+own `mr = 5` and builds the machine with `m = m3` (3).
+
+The fix: a class below the top no longer takes a bare name from
+those tables when it declares a component of that name itself.
+`OXIDELICA_ROOT_NAMES_SHADOW` restores the old reading. The test
+`a_parameter_of_the_top_does_not_answer_for_a_namesake_below` fails
+with the switch (5 against 3) and passes without it. With the fix,
+`IMS_Start_Polyphase` flattens and stops at
+`underdetermined algebraic loop` on `aimsM.airGap`. That is the
+known wall of its sibling `IMC_DOL_Polyphase`.
+
+The pair was taken with one binary built from the final code
+(`/tmp/m503/ox2`), off under the switch and on without it, run one
+after the other with the heavy models left out. Off is
+`/tmp/m503/off.txt` and on is `/tmp/m503/on.txt`. Off printed 972 / 809
+and runnable 854 / 763. On printed 973 / 809 and runnable 855 / 763.
+The only difference in the lists is the flattened `IMS_Start_Polyphase`,
+so there are no victims. The run counters grew by 17 points and 49
+newton, which is that model reaching the run half and refusing there.
+The flatten counters grew by 861 classes and 9855 expansions, the
+same model's flattening.
+
+The time lines were 7532 / 9050 s off and 7550 / 9008 s on. Neither is
+compared with m502 (3814 / 4774). The desk was on battery that hour,
+and macOS lowers the clock ceiling on battery and keeps lowering it as
+the battery drains. A third half, off again with the same binary, went
+to `/tmp/m503/off2.txt` to show whether the weather held between the
+halves.
+
+### Item 0, later: the judge
+
+`40087755731` finished green. Its judge (job 120879696214) printed
+972 / 810 and runnable 854 / 764, inside the band at 1.447. The floors
+were raised in a commit of their own: flatten 972 and runnable flatten
+854, printed by both machines. The run floors are 806 and 760, taken
+from the desk (809 and 763) less the three models that swing. Files
+stays at 2671.

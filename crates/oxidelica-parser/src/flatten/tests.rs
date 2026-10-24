@@ -1286,3 +1286,28 @@ fn a_function_two_aliases_filled_in_differently_is_refused_where_neither_is_mean
         "{refused}"
     );
 }
+
+#[test]
+fn a_parameter_of_the_top_does_not_answer_for_a_namesake_below() {
+    // `A` hands its base's port `mr = mr`, and its own `mr = m` waits on
+    // the base for `m`. The top of the model has an `mr` of its own, and
+    // read by the bare name it stood in for `A`'s: the port was built
+    // five wide where three is meant. A slip-ring machine's rotor
+    // collector inside a five-phase example refused that way.
+    let classes = crate::parser::parse_file(
+        "package L \
+           model Port parameter Integer mr = 3; Real y[mr]; end Port; \
+           model B parameter Integer m = 3; Port port; end B; \
+           model A extends B(port(mr = mr)); parameter Integer mr = m; end A; \
+           model M parameter Integer mr = 5; A a; end M; \
+         end L;",
+    )
+    .unwrap();
+    let model = super::flatten(&classes, "L.M").unwrap();
+    let elements = model
+        .components
+        .iter()
+        .filter(|c| c.name.starts_with("a.port.y["))
+        .count();
+    assert_eq!(elements, 3, "the port is as wide as `A` says");
+}

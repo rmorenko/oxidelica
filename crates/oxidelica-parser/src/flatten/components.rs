@@ -81,8 +81,22 @@ pub(super) fn instantiate_components(
         let minted = counted < acc.numbers.len();
         while counted < acc.numbers.len() {
             let (name, value) = &acc.numbers[counted];
-            local_consts.entry(name.clone()).or_insert(*value);
             counted += 1;
+            // A bare name is a number of the top of the model, and a
+            // class below that declares the same spelling means its
+            // own: see `settle_parameters`, which keeps the same rule.
+            if !prefix.is_empty()
+                && !name.contains('.')
+                && std::env::var_os("OXIDELICA_ROOT_NAMES_SHADOW").is_none()
+                && class
+                    .components
+                    .iter()
+                    .chain(inherited.iter().map(|(component, _)| component))
+                    .any(|component| &component.name == name)
+            {
+                continue;
+            }
+            local_consts.entry(name.clone()).or_insert(*value);
         }
         // An element that has just become a number changes what a
         // body folds to, and the ledger of inlined bodies was written

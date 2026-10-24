@@ -1262,7 +1262,30 @@ fn settle_parameters(
     // `drawn.n` is, and `drawn` is not below it but above. The names
     // are full paths, so nothing here can be mistaken for anything
     // else; what this class says itself still wins.
+    //
+    // Except that a bare name in that table is a parameter of the top
+    // of the model, and a class one floor down that declares a name of
+    // the same spelling means its own. Where its own did not settle
+    // here, the top's took the place: `extends B(port(mr = mr))` with
+    // `parameter Integer mr = m` waiting on the base measured the port
+    // against the model's `mr = 5`, and a slip-ring machine's rotor
+    // collector came out five wide where it is three. A name this class
+    // declares and could not settle stays unsettled, which is asked
+    // again later; the top's number is a wrong one settled for good.
+    // `OXIDELICA_ROOT_NAMES_SHADOW` keeps the old reading.
+    let declares = |name: &str| {
+        class
+            .components
+            .iter()
+            .chain(inherited.iter().map(|(component, _)| component))
+            .any(|component| component.name == name)
+    };
+    let shadow_open =
+        !prefix.is_empty() && std::env::var_os("OXIDELICA_ROOT_NAMES_SHADOW").is_none();
     for (name, value) in &acc.const_values {
+        if shadow_open && !name.contains('.') && declares(name) {
+            continue;
+        }
         if !local_consts.contains_key(name) {
             local_consts.insert(name.clone(), *value);
             inlining::Inlined::forget();
