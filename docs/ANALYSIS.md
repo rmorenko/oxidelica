@@ -61105,3 +61105,12 @@ were raised in a commit of their own: flatten 972 and runnable flatten
 854, printed by both machines. The run floors are 806 and 760, taken
 from the desk (809 and 763) less the three models that swing. Files
 stays at 2671.
+
+The third half printed 7383 / 8855 s, with every work counter equal to
+the first off half's down to the digit. That is 2% under the first, so
+the weather held across the three halves and the time of the pair can
+be read: on (7550 / 9008) is level with off. The preflight
+(`/tmp/m503/pre.txt`) passed everything it ran, coverage included at
+93.19% of lines. Its library step was left out and replaced by the
+pair: one binary, the same bytes as the final tree's build (`cmp`), and
+nothing measured changed after it.
