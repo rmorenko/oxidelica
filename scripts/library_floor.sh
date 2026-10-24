@@ -564,7 +564,14 @@ FILES_FLOOR=2671
 # (/tmp/m502/on.txt) printed 972 / 809 and 854 / 763.
 #
 #   971 + 1 = 972
-FLATTEN_FLOOR=972
+#
+# And 973 by the tree of 19f2c55, counted by the judge of 6d683d8
+# (push run 40102876975, job 120922213566), which printed 973 / 810
+# and runnable 855 / 764, ratio 1.445; the desk pair of m503
+# (/tmp/m503/on.txt) printed 973 / 809 and 855 / 763.
+#
+#   972 + 1 = 973
+FLATTEN_FLOOR=973
 # The two run floors came down by one, and the one is named: giving a
 # record constructor called with no arguments the values its `extends`
 # stated took `Modelica.Thermal.FluidHeatFlow.Examples.WaterPump` out
@@ -2126,7 +2133,11 @@ RUN_FLOOR=806
 # And runnable flatten 854 = 853 + Transformer, a runnable example:
 # 854 printed by the judge of eae8911 (job 120879696214 of push run 40087755731) and the
 # desk pair of m502 (/tmp/m502/on.txt).
-RUNNABLE_FLATTEN_FLOOR=854
+#
+# And runnable flatten 855 = 854 + 1: printed by the judge of 6d683d8
+# (job 120922213566 of push run 40102876975) and the desk pair of m503
+# (/tmp/m503/on.txt).
+RUNNABLE_FLATTEN_FLOOR=855
 # And runnable run 674 = 671 + the three batteries, all runnable
 # examples, by the same runner job as `RUN_FLOOR` (d58700e, job
 # 112530851204).
