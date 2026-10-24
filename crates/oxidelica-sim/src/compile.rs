@@ -3394,6 +3394,14 @@ fn quench_zero_variables() -> bool {
     std::env::var_os("OXIDELICA_NO_ZERO_VAR").is_none()
 }
 
+/// Whether a conditional with zero on both branches is zero throughout.
+/// On by default, and with it the division's denominator is judged by
+/// the whole walk, so `x / (z * 2)` with `z` zero is not called zero.
+/// `OXIDELICA_NO_ZERO_IF=1` brings back the old reading of both.
+fn quench_zero_if() -> bool {
+    std::env::var_os("OXIDELICA_NO_ZERO_IF").is_none()
+}
+
 /// A denominator that cannot be read as a zero: anything but a
 /// parameter worth zero or a literal zero. `0/0` is not zero, it is no
 /// number at all, and the quench must not answer it with one.
@@ -3435,20 +3443,39 @@ fn zero_throughout(
     params: &HashMap<String, f64>,
     zeros: &std::collections::HashSet<String>,
 ) -> bool {
+    zero_throughout_with(expr, params, zeros, quench_zero_if())
+}
+
+/// `zero_throughout` with the conditional rule given rather than read
+/// from the environment, so a test can ask both halves at once.
+fn zero_throughout_with(
+    expr: &Expr,
+    params: &HashMap<String, f64>,
+    zeros: &std::collections::HashSet<String>,
+    zero_if: bool,
+) -> bool {
+    let z = |e: &Expr| zero_throughout_with(e, params, zeros, zero_if);
     match expr {
         Expr::Ref(name) if zeros.contains(name.as_str()) => true,
-        Expr::Neg(inner) => zero_throughout(inner, params, zeros),
-        Expr::Bin(BinOp::Add | BinOp::Sub, a, b) => {
-            zero_throughout(a, params, zeros) && zero_throughout(b, params, zeros)
-        }
-        Expr::Bin(BinOp::Mul, a, b) => {
-            zero_throughout(a, params, zeros) || zero_throughout(b, params, zeros)
-        }
+        Expr::Neg(inner) => z(inner),
+        Expr::Bin(BinOp::Add | BinOp::Sub, a, b) => z(a) && z(b),
+        Expr::Bin(BinOp::Mul, a, b) => z(a) || z(b),
         Expr::Bin(BinOp::Div, a, b) => {
-            zero_throughout(a, params, zeros)
-                && not_a_known_zero(b, params)
-                && !matches!(&**b, Expr::Ref(name) if zeros.contains(name.as_str()))
+            z(a) && if zero_if {
+                // With the rule the denominator is judged by the
+                // whole walk, so a zero that only a conditional or a
+                // product of zeros carries cannot pass for a divisor:
+                // `0/0` is no number at all.
+                !z(b)
+            } else {
+                not_a_known_zero(b, params)
+                    && !matches!(&**b, Expr::Ref(name) if zeros.contains(name.as_str()))
+            }
         }
+        // Both branches zero: zero whichever branch holds. The
+        // condition is never read, so no branch is chosen on a value
+        // that may move.
+        Expr::If(_, then, other) if zero_if => z(then) && z(other),
         _ => zero_parameter(expr, params),
     }
 }
@@ -9559,5 +9586,57 @@ mod mode_trail_tests {
     fn a_mode_chosen_on_a_reached_input_says_nothing_of_a_zero() {
         let said = line(&["above", "h2"]);
         assert!(!said.contains("nobody wrote"), "{said}");
+    }
+}
+
+#[cfg(test)]
+mod zero_if_tests {
+    use super::zero_throughout_with;
+    use crate::*;
+    use oxidelica_parser::BinOp;
+    use std::collections::HashSet;
+
+    fn r(name: &str) -> Expr {
+        Expr::Ref(name.to_string())
+    }
+
+    fn cond(a: Expr, b: Expr) -> Expr {
+        Expr::If(Box::new(r("c")), Box::new(a), Box::new(b))
+    }
+
+    fn div(a: Expr, b: Expr) -> Expr {
+        Expr::Bin(BinOp::Div, Box::new(a), Box::new(b))
+    }
+
+    /// A conditional with zero on both branches is zero with the rule
+    /// whatever its condition, one with a live branch is not, and the
+    /// old reading (`OXIDELICA_NO_ZERO_IF`) knows no such rule.
+    #[test]
+    fn a_conditional_zero_on_both_branches_is_zero_throughout() {
+        let params: HashMap<String, f64> = [("c0".to_string(), 0.0)].into_iter().collect();
+        let zeros: HashSet<String> = ["z".to_string()].into_iter().collect();
+        let both = cond(Expr::Number(0.0), r("c0"));
+        let live = cond(r("z"), r("x"));
+        assert!(zero_throughout_with(&both, &params, &zeros, true));
+        assert!(!zero_throughout_with(&both, &params, &zeros, false));
+        assert!(!zero_throughout_with(&live, &params, &zeros, true));
+    }
+
+    /// `0/0` is no number: a denominator the walk reads as zero keeps
+    /// the quotient from being called zero, whether the zero comes
+    /// through a conditional or through a product of a zero variable.
+    #[test]
+    fn a_denominator_that_is_zero_throughout_does_not_quench() {
+        let params = HashMap::new();
+        let zeros: HashSet<String> = ["z".to_string()].into_iter().collect();
+        let by_if = div(r("z"), cond(Expr::Number(0.0), Expr::Number(0.0)));
+        let by_product = div(
+            r("z"),
+            Expr::Bin(BinOp::Mul, Box::new(r("z")), Box::new(Expr::Number(2.0))),
+        );
+        let live = div(r("z"), r("x"));
+        assert!(!zero_throughout_with(&by_if, &params, &zeros, true));
+        assert!(!zero_throughout_with(&by_product, &params, &zeros, true));
+        assert!(zero_throughout_with(&live, &params, &zeros, true));
     }
 }
