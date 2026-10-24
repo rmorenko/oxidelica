@@ -61495,3 +61495,12 @@ to the pivot itself and can never trip, so the path the flat floor
 used to hand the block to no longer opens. A relative floor would
 need its own floor for the one-row case, which says again that it is
 a solver of its own.
+
+### The preflight of shift 506
+
+`scripts/preflight.sh --quick` (`/tmp/m506/pf.txt`): formatting,
+clippy and tests green. The library step counts 973 flatten and 809
+run, runnable 855 and 763, the same as `/tmp/m503/on.txt`, and is red
+only on the desk's time band (`CEILING: run/flatten ratio is 1.250,
+and the band is 0.64..0.91`). The compiler code in the tree is the
+head's: the rule of item 1 is parked, not merged.
