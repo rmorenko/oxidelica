@@ -61114,3 +61114,68 @@ be read: on (7550 / 9008) is level with off. The preflight
 93.19% of lines. Its library step was left out and replaced by the
 pair: one binary, the same bytes as the final tree's build (`cmp`), and
 nothing measured changed after it.
+
+## Shift 504: the Spice3 capacitances of the underdetermined row
+
+### Item 0: the judge
+
+Run 40102876975 (head 6d683d8) still had its main library pass in
+progress at 17:44 and again at the close; every other job had finished
+green. The floors stay where they are: they are not raised ahead of
+the judge.
+
+### Item 1: where the zero is lost
+
+`Spice3BenchmarkRtlInverter` is refused
+`underdetermined algebraic loop ["der(Q1.vbx)"]`. Asked with
+`oxidelica why Modelica.Electrical.Spice3.Examples.Spice3BenchmarkRtlInverter Q1.cc.capbx`,
+the capacitance comes out of flattening as element `[8]` of a call to
+`Spice3.Internal.Bjt.bjtNoBypassCode(...)` whose arguments are the
+modelcard records and the pin voltages. The zero lives inside that
+body: `aux2 := in_c.m_tBCcap*(1 - in_p.m_baseFractionBCcap)`
+(`Spice3.mo:9748`), and `XCJC` defaults to `1.0` (`Spice3.mo:5040`),
+so `aux2` is zero and `junctionCapRevised(aux2, vbx, ...)`
+(`Spice3.mo:9749`, body at `:5767`) returns `capin*sarg` or
+`capin/f2*(...)`, zero on both of its branches. The call reads the
+state `vbx`, so nothing evaluates it before the run, and the rule of
+shift 489 (a conditional whose branches are both the literal zero)
+never sees a conditional at all: it sees an opaque call.
+
+`MNmos` and `MPmos` are the same breed one layer over: the modelcard
+writes `CBD=0, CBS=0` (`Spice3.mo:349`), and
+`out_cc.cBS := if in_m_bInit then 1e-15 else (m_capbsb + m_capbss)`
+(`Spice3.mo:7062`) carries two `junctionCapRevised` results of a zero
+input. Their refusal lists are identical byte for byte. `NAND` and
+`ONEBIT` list `vbc`, `vbx` and clamp diodes; their modelcards set
+`CJC` but not `XCJC`, so `capbx` is the same zero as in RtlInverter.
+So the five are one family: a capacitance zero for every value of the
+state, known only to someone who partially evaluates an algorithm
+body with one argument known and another not.
+
+The small model `Z6.mo` (a function `cap(capin, v)` with two branches
+each a multiple of `capin`, `c0 = 0`, `i = c*der(w)`) is red on the
+head binary, refused
+`the equations of algebraic loop ["der(w)"] do not mention ["der(w)"] at t = 0`.
+The wording differs from the library's, so it reproduces the layer
+(an opaque zero factor of a derivative) but not the exact refusal:
+the library's call returns a record and is subscripted.
+
+### Item 1c: not built
+
+The mend is not a few lines. It needs the plan to learn that a
+function output is zero for every value of an unknown input, which is
+partial evaluation of algorithm bodies (here `bjtNoBypassCode`, a few
+hundred lines with branches on the state) or a symbolic "zero times
+anything" pass through calls. Either is architectural and touches
+every model that calls a body, so it was mapped and not built. If
+taken, it would take all five Spice3 models together; the three
+machines of the same row are another breed.
+
+### Preflight
+
+`scripts/preflight.sh --quick` on this tree (`/tmp/m504/pf.txt`): all
+steps green except the library step, red only on its time band
+(`CEILING: run/flatten ratio is 1.271, and the band is 0.64..0.91`).
+Its counts are the head's: runnable 855 flatten and 763 run, the same
+as `/tmp/m503/on.txt`. No code changed in this shift, so the band is
+the desk's weather.
