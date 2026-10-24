@@ -61285,3 +61285,31 @@ of the block such that the residual is exactly zero at the start, as
 in RtlInverter (where the probe read `v=[0.0] f=[-0.0] raw=[[0.0]]`).
 With a non-zero residual the same model is refused by the neighbouring
 `do not mention` check instead, which is the DifferentialPair wording.
+
+### Item 2: the traces, and three probes deeper
+
+`NAND` asked about `Q1.cc.capbx` gives the RtlInverter shape exactly:
+`Q1.cc.capbx = Modelica.Electrical.Spice3.Internal.Bjt.bjtNoBypassCode(...)`
+and `Q1.icapbx = if Q1.m_bInit then 0 else Q1.cc.capbx * der(Q1.vbx)`.
+`MNmos` asked about `cc.cBS` gives the inlined conditional over
+`c2.m_tCBSb` described under item 1b, with
+`icBS = cc.cBS * (der(B.v) - der(Sinternal))`.
+
+Three rows of the singular-Jacobian half, probed with
+`OXIDELICA_NEWTON_TRAIL=1` and `--only` (`/tmp/m505/lgd2.txt`,
+`/tmp/m505/qsr.txt`), not built on:
+
+- `LossyGearDemo2`: rows 2 and 3 of the five-row block are the same,
+  `gear.a_a` and `bearingFriction.a_relfric` both reading only
+  `gear.sa` and `gear.flange_a.tau`, and `bearingFriction.sa` appears
+  in row 4 alone. The two frictions are tied through one acceleration
+  and the block cannot tell their modes apart.
+- `QuasiStatic.SinglePhase.Examples.Rectifier`: rows 3
+  (`idealDiode1.i`) and 7 (`load2.i`) of the twelve-row block are
+  identical, so the first diode and the load are one current to the
+  Jacobian at the start.
+- `MultiBody.Examples.Elementary.ThreeSprings`: refused because
+  `spring2.lineForce.s` is an unknown of the block starting at zero,
+  and `e_rel_0[1] = r_rel_0[1] / s` is `-inf` before any Newton step.
+  The `s_small` guard is in the equation for `s`, which the block does
+  not evaluate before dividing.
