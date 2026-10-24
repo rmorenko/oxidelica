@@ -61322,3 +61322,6 @@ Three rows of the singular-Jacobian half, probed with
   three times and reads it as exactly zero. The two volumes are written
   alike, so why one density derivative comes out zero is the next
   question, not answered here.
+  The two rows are word for word the same once the volume's name is
+  taken out, so the difference is in the values the first volume
+  starts from, not in the structure the compiler built.
