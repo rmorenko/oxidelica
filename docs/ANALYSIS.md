@@ -61171,7 +61171,7 @@ every model that calls a body, so it was mapped and not built. If
 taken, it would take all five Spice3 models together; the three
 machines of the same row are another breed.
 
-### Preflight
+### The preflight of shift 504
 
 `scripts/preflight.sh --quick` on this tree (`/tmp/m504/pf.txt`): all
 steps green except the library step, red only on its time band
