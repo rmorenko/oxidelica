@@ -1352,6 +1352,25 @@ fn join_the_connections(registry: &HashMap<&str, &ClassDef>, acc: &mut Flat) -> 
     // met, or the tree loses track of what it has already tied.
     let mut lone: HashMap<String, usize> = HashMap::new();
     let mut next_part = branch_parts.values().copied().max().map_or(0, |n| n + 1);
+    // The parts holding a declared root. A connection joining two of
+    // them is the breakable edge the forest breaks so that each tree
+    // keeps one root, the same edge `choose_roots` broke, and it
+    // writes no equality: each root states its own reference.
+    let mut rooted_parts: HashSet<usize> = HashSet::new();
+    let join_roots = std::env::var_os("OXIDELICA_JOIN_ROOTS").is_some();
+    for clause in acc.connection_graph.iter().filter(|_| !join_roots) {
+        if let GraphClause::Root(node) = clause {
+            let part = match branch_parts.get(node) {
+                Some(part) => *part,
+                None => *lone.entry(node.clone()).or_insert_with(|| {
+                    let part = next_part;
+                    next_part += 1;
+                    part
+                }),
+            };
+            rooted_parts.insert(part);
+        }
+    }
     fn tie_root(tied: &mut HashMap<usize, usize>, part: usize) -> usize {
         match tied.get(&part).copied() {
             Some(up) if up != part => {
@@ -1772,6 +1791,7 @@ fn join_the_connections(registry: &HashMap<&str, &ClassDef>, acc: &mut Flat) -> 
                                lone: &mut HashMap<String, usize>,
                                next: &mut usize,
                                tied: &mut HashMap<usize, usize>,
+                               rooted_parts: &mut HashSet<usize>,
                                tree: &mut Option<usize>|
                  -> bool {
                     if !empty_constraint {
@@ -1790,7 +1810,13 @@ fn join_the_connections(registry: &HashMap<&str, &ClassDef>, acc: &mut Flat) -> 
                             if ra == rb {
                                 return false;
                             }
+                            if rooted_parts.contains(&ra) && rooted_parts.contains(&rb) {
+                                return false;
+                            }
                             tied.insert(ra, rb);
+                            if rooted_parts.contains(&ra) {
+                                rooted_parts.insert(rb);
+                            }
                             true
                         }
                     }
@@ -1801,10 +1827,18 @@ fn join_the_connections(registry: &HashMap<&str, &ClassDef>, acc: &mut Flat) -> 
                     &mut lone,
                     &mut next_part,
                     &mut tied,
+                    &mut rooted_parts,
                     &mut tree,
                 );
                 for (other, _) in &members[1..] {
-                    if !carries(other, &mut lone, &mut next_part, &mut tied, &mut tree) {
+                    if !carries(
+                        other,
+                        &mut lone,
+                        &mut next_part,
+                        &mut tied,
+                        &mut rooted_parts,
+                        &mut tree,
+                    ) {
                         // `OXIDELICA_RING_PROBE=1` names what the
                         // spanning tree decided not to write: which
                         // pair of connectors, which member, and which

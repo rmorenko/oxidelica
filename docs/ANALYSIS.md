@@ -60896,3 +60896,116 @@ unit check. `SimpleAir.setState_psX` in `Media/package.mo` adds
 `s/cp_const + log(reference_T)` to `R_gas*log(p/reference_p)`, which
 lacks a division by `cp_const`: the library's own error, and the
 refusal is right. Not to be fixed here.
+
+## Shift 502: two roots that only connections join are two trees
+
+### Item 0: the verdicts on 583d1cd and fbec2ed
+
+Run 40080299278 (headSha 583d1cd) is not a prose-only run: the push
+held `typos.toml`, which `.github/workflows/ci.yml:69` does not count
+as prose, so the library passes went ahead and judge the floors for
+the head's code. When this shift looked, coverage and linters,
+advisories and the three test jobs had passed and the main and dear
+passes were still running. Run 40078893236 (the scheduled run on
+fbec2ed) had its heavy passes a and b still running. Neither verdict
+was ready, and nothing was owed a fix.
+
+### Item 1: the forest breaks the connection between two roots
+
+Section 9.4 makes a `connect` between two overconstrained connectors a
+breakable edge and a `Connections.branch` an unbreakable one. Two
+declared roots are an error only where unbreakable edges tie them
+together. `choose_roots` (`connections.rs`) joined parts along every
+edge, written branches and connections alike, and refused
+`QuasiStatic.SinglePhase.Examples.Transformer` for "more than one
+root". Its two roots, `voltageSource.pin_p.reference` and
+`load.pin_p.reference` (a `VariableCurrentSource`, which extends
+`Interfaces.Source` and declares the root), are joined only through
+connections.
+
+The small model is `state/m502/TwoRoots.mo`: two sources, each
+declaring a root and writing its own `gamma = w*time`, joined through
+a resistor and a ground. It was refused before the change.
+
+The change has two halves, and both must break the same edges.
+`choose_roots` joins the written branches first, then takes a
+connection only where it does not join two parts that each already
+hold a declared root. That is the least breaking that leaves every
+tree one root. The connection sets in `mod.rs`, where the spanning
+tree already decides which equalities are written, mark the parts
+holding a declared root and write no equality across a connection
+that joins two of them. Written, that equality would hold one angle
+to the two values its two sources state, which is the
+over-determination the comment on `choose_roots` warns of. A graph
+with one root, or none, breaks exactly what it broke before:
+`DoublePendulum` and `SeriesResonance` give the same work counters to
+the digit with and without the change. `OXIDELICA_JOIN_ROOTS=1`
+restores the old reading for a pair from one binary.
+
+With the change `TwoRoots` runs and gives the physics: the angles
+stay 2 and 5 rad at t = 1 and the current is (3 - 1)/2 = 1. The test
+`two_roots_joined_by_connections_are_two_trees` checks those three
+numbers. With the switch it fails on "more than one root". The parser
+test `an_overconstrained_graph_is_broken_at_a_root` used to assert
+the refusal for exactly this shape. Now it asserts the refusal for
+two roots a written branch ties together, and that both roots stand
+where only connections join them. `Transformer` runs under
+`--only`.
+
+The pair was taken with one binary, `/tmp/m502/ox2`, built from the
+final code: `/tmp/m502/off.txt` with `OXIDELICA_JOIN_ROOTS=1`, and
+`/tmp/m502/on.txt` without. Flatten went from 971 to 972 and run from
+808 to 809, and the runnable pair from 853 / 762 to 854 / 763. The
+lists differ by exactly `Transformer`, flat and ran, so there are no
+victims. The time lines are 3838 s / 4792 s off and 3814 s / 4774 s
+on. The floors are not moved: they rise by the runner's print, not by
+the desk's.
+
+### Item 2: the twos of the run half
+
+All five rows of two that the brief named already have maps, and none
+needed a probe. The two `smpmQS.phiMechanical` models belong to m475's
+tie table, the machine family. In `step size underflow`,
+`IMC_InverterDrive` is a swing the floors name and
+`Rotational.Examples.Friction` has stood at its wall since m331. For
+`an array reached the evaluator` there is m420's map: three walls of
+`Complex` in walked bodies, starting at `Ice09_Utilities`. The two
+`tsat ... p = 0` models are the medium's own `BaseProperties` models,
+where nothing gives `p` a value, so they are owed.
+
+The two `went below its min` were the one row whose honesty had been
+stated rather than shown, so it was checked. `FlueGasSixComponents`
+and `TestAllProperties.MoistAir` both declare
+`Medium.Density dddX[nX] = Medium.density_derX(state)` (in
+`ModelicaTest/Media.mo`, lines 40 and 182). `Density` carries
+`min = 0`, and the derivative of a mixture's density by a mass
+fraction is negative for any component lighter than the mean, as
+water vapour is in air (m485 measured -0.71). So the bound the test
+writes is the one broken, and the language's own assertion is owed.
+
+### Item 3: singles of the run half
+
+Against the maps, the singles of the run half without one by name are
+`parameter ... has no value` in templates. These are `u_min`,
+`lambda` and `mu` in `UniformDensity`, `WeibullDensity` and
+`NormalDensity`, `Ga` in `NonlinearResistor`, `Td` in `IdealDcDc`,
+`length` in `BasicHX`, and `crossArea` in
+`TankWith3InletOutletArraysWithEvaporatorCondensor`. Each is declared
+without a binding inside a `Utilities` or `BaseClasses` package, and
+the example that uses it supplies the value: `uniformDensity(u_min=-4,
+u_max=4)` in `Blocks/package.mo`. So they are owed, the same breed as
+m495's `maxLevel / fS / f`. `unknown function previous` is
+`SpeedControl`, whose clock states no interval (m459).
+
+### Preflight of shift 502
+
+`scripts/preflight.sh --quick` (`/tmp/m502/pre.txt`) passed
+formatting, clippy, the tests and the examples. Its library step
+printed 972 / 809 and 854 / 763, the same as the pair, and was red
+on the desk's bands: ratio 1.267 against 0.64..0.91, and the points
+and newton counts apart from `Dimmer_RL`. The work counters of the
+pair's off half, which is the head's reading, equal the head's
+counters in the brief (points 25249656, newton 36691006). The change
+adds 60 points and 128 newton, which are `Transformer`'s own (60 and
+128 under `--only`). So the band reads the desk, not the change, and
+the runner's print is the judge.

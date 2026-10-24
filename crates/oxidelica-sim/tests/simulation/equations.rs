@@ -2911,3 +2911,24 @@ fn an_algorithm_writing_one_element_holds_the_rest_at_their_start() {
     assert_eq!(value("m[3]"), 3.0);
     assert_eq!(value("m[4]"), 4.0);
 }
+
+/// Two declared roots joined only by connections are two trees of the
+/// overconstrained graph, not one tree with a root too many: 9.4 makes
+/// a connection the breakable edge, and the forest breaks the one
+/// between them. Each source states its own reference angle, so the
+/// broken connection writes no equality between the angles - written,
+/// the two sources would hold one angle to two values. The
+/// quasi-static `Transformer` example is two sources so joined, and
+/// was refused for "more than one root".
+#[test]
+fn two_roots_joined_by_connections_are_two_trees() {
+    let result = run("model TwoRoots  type Angle = Real; record Reference Angle gamma; function equalityConstraint input Reference r1; input Reference r2; output Real residue[0]; algorithm end equalityConstraint; end Reference; connector Pin Real v; flow Real i; Reference reference; end Pin; model Source Pin p; Pin n; parameter Real V = 1; parameter Real w = 2; equation Connections.root(p.reference); Connections.branch(p.reference, n.reference); p.reference.gamma = n.reference.gamma; p.reference.gamma = w*time; p.v - n.v = V; p.i + n.i = 0; end Source; model Resistor Pin p; Pin n; parameter Real R = 2; equation Connections.branch(p.reference, n.reference); p.reference.gamma = n.reference.gamma; p.v - n.v = R*p.i; p.i + n.i = 0; end Resistor; model Ground Pin p; equation Connections.potentialRoot(p.reference, 256); p.v = 0; end Ground; Source a(V = 3); Source b(V = 1, w = 5); Resistor r; Ground g; equation connect(a.p, r.p); connect(r.n, b.p); connect(a.n, g.p); connect(b.n, g.p);  \
+         annotation(experiment(StopTime=1.0, Interval=0.5)); end TwoRoots;");
+    let at = |name: &str| {
+        let column = result.columns.iter().position(|c| c == name).unwrap();
+        result.rows.last().unwrap()[column]
+    };
+    assert!((at("a.p.reference.gamma") - 2.0).abs() < 1e-9);
+    assert!((at("b.p.reference.gamma") - 5.0).abs() < 1e-9);
+    assert!((at("r.p.i") - 1.0).abs() < 1e-9, "i={}", at("r.p.i"));
+}

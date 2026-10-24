@@ -841,11 +841,36 @@ pub(super) fn choose_roots(
             .position(|known| known == name)
             .expect("edges name nodes of the graph")
     };
-    for (a, b) in &edges {
+    // The written branches first: they cannot be broken, so two roots
+    // they tie together are two roots of one tree, and that is refused
+    // below. A connection is a breakable edge (9.4), and one joining
+    // two trees that each hold a declared root is the edge the forest
+    // breaks - the least breaking that leaves every tree one root. The
+    // connection sets break the same edges when they write equalities.
+    let written = clauses
+        .iter()
+        .filter(|clause| matches!(clause, GraphClause::Branch(..)))
+        .count();
+    let declares = |index: usize| {
+        clauses
+            .iter()
+            .any(|clause| matches!(clause, GraphClause::Root(node) if node == &nodes[index]))
+    };
+    let mut rooted: Vec<bool> = (0..nodes.len()).map(declares).collect();
+    for (number, (a, b)) in edges.iter().enumerate() {
         let (ra, rb) = (root_of(&mut parent, at(a)), root_of(&mut parent, at(b)));
-        if ra != rb {
-            parent[ra] = rb;
+        if ra == rb {
+            continue;
         }
+        if number >= written
+            && rooted[ra]
+            && rooted[rb]
+            && std::env::var_os("OXIDELICA_JOIN_ROOTS").is_none()
+        {
+            continue;
+        }
+        parent[ra] = rb;
+        rooted[rb] = rooted[rb] || rooted[ra];
     }
 
     let mut chosen: HashMap<String, bool> =

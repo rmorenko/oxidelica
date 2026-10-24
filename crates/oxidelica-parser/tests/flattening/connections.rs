@@ -384,11 +384,28 @@ fn an_overconstrained_graph_is_broken_at_a_root() {
         "{FRAMES} model M Body arm; Real y; equation y = 1; end M;"
     ))
     .contains("has no root"));
-    // Two declared roots in one part is one too many.
+    // Two declared roots a written branch ties together is one too
+    // many: a branch cannot be broken.
     assert!(err(&format!(
-        "{FRAMES} model Anchor Frame p; equation p.r = 0; Connections.root(p); end Anchor; model M Anchor one; Anchor two; Body arm; equation connect(one.p, arm.a); connect(arm.b, two.p); end M;"
+        "{FRAMES} model M Body arm; equation Connections.root(arm.a); Connections.root(arm.b); end M;"
     ))
     .contains("more than one root"));
+    // Two declared roots that only connections join are two trees: a
+    // connection is the breakable edge, and the forest breaks it.
+    let two = parse_model(&format!(
+        "{FRAMES} model Anchor Frame p; equation p.r = 0; Connections.root(p); end Anchor; model M Anchor one; Anchor two; Body arm; Real both; equation connect(one.p, arm.a); connect(arm.b, two.p); both = if Connections.isRoot(one.p) and Connections.isRoot(two.p) then 1 else 0; end M;"
+    ))
+    .unwrap();
+    let both = two
+        .equations
+        .iter()
+        .find(|e| format!("{:?}", e.lhs) == "Ref(\"both\")")
+        .expect("an equation for both");
+    assert!(
+        format!("{:?}", both.rhs).contains("Bool(true)"),
+        "{:?}",
+        both.rhs
+    );
     // A potential root serves where no root was declared, and the
     // answer is found wherever in an expression it was asked. `rooted`
     // is asked of `arm.a`, the near end of the branch `Body` writes, so
