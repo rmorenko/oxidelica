@@ -557,7 +557,14 @@ FILES_FLOOR=2671
 # 853 / 762. Both machines flatten the same 971.
 #
 #   969 + 2 = 971
-FLATTEN_FLOOR=971
+#
+# And 972 by QuasiStatic.SinglePhase.Examples.Transformer (b73fd9b):
+# the judge of eae8911 (job 120879696214 of push run 40087755731)
+# printed 972 / 810 and runnable 854 / 764; the desk pair of m502
+# (/tmp/m502/on.txt) printed 972 / 809 and 854 / 763.
+#
+#   971 + 1 = 972
+FLATTEN_FLOOR=972
 # The two run floors came down by one, and the one is named: giving a
 # record constructor called with no arguments the values its `extends`
 # stated took `Modelica.Thermal.FluidHeatFlow.Examples.WaterPump` out
@@ -1853,7 +1860,13 @@ FLATTEN_FLOOR=971
 # three that swing, all three in /tmp/m499/on.list:
 #
 #   808 - 3 = 805 = 803 + 2
-RUN_FLOOR=805
+#
+# Raised to 806 by Transformer, by the judge of eae8911 (job 120879696214 of push run 40087755731),
+# 810, and the desk pair of m502, 809 (/tmp/m502/on.txt). From the
+# lower, the desk, less the same three that swing:
+#
+#   809 - 3 = 806 = 805 + 1
+RUN_FLOOR=806
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -2109,7 +2122,11 @@ RUN_FLOOR=805
 # And runnable flatten 853 = 852 + the one of those two that is a
 # runnable example (which one is not looked up here): 853 printed on
 # both machines.
-RUNNABLE_FLATTEN_FLOOR=853
+#
+# And runnable flatten 854 = 853 + Transformer, a runnable example:
+# 854 printed by the judge of eae8911 (job 120879696214 of push run 40087755731) and the
+# desk pair of m502 (/tmp/m502/on.txt).
+RUNNABLE_FLATTEN_FLOOR=854
 # And runnable run 674 = 671 + the three batteries, all runnable
 # examples, by the same runner job as `RUN_FLOOR` (d58700e, job
 # 112530851204).
@@ -2347,7 +2364,12 @@ RUNNABLE_FLATTEN_FLOOR=853
 # a runnable example: 762 on the desk, 763 by the runner.
 #
 #   762 - 3 = 759 = 758 + 1
-RUNNABLE_RUN_FLOOR=759
+#
+# And 760 by Transformer, a runnable example: 763 on the desk
+# (/tmp/m502/on.txt), 764 by the judge of eae8911 (job 120879696214 of push run 40087755731).
+#
+#   763 - 3 = 760 = 759 + 1
+RUNNABLE_RUN_FLOOR=760
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
