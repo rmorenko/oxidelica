@@ -61587,3 +61587,182 @@ although its own equation gives `-1e40` while `J1.m_bInit` holds. So
 the zero comes from solving for a derivative through a coefficient the
 block has not evaluated yet, which is a different layer from the
 `ThreeSprings` division the library writes itself.
+
+## Shift 508: the singles of the census folded into families, and a map of the top one
+
+The verdicts first. CI on `164e0da` (run 40135978404) is green. The
+run on `99f0504` (40135927700) was still going when the shift began,
+so its verdict is not ready here. The floors are not moved.
+
+### The run half folded by the whole text
+
+The rows of a census are cut to a width: 66 of the 112 rows of the
+run half of `/tmp/m499/census.txt` stand at 125 characters, and a
+phrase that falls past the cut is invisible in the row. So the run
+half was folded from `/tmp/m499/raw.txt`, one line per model, by the
+fixed part of the whole message (`/tmp/m508/fold.sh`, output in
+`/tmp/m508/fold499.txt`). The counts, models of the run half:
+
+| family                                                            | models |
+| ----------------------------------------------------------------- | -----: |
+| `equation X ... constrains no state`                              |     34 |
+| `parameter X has no value`                                        |     24 |
+| `unbalanced model: ...`                                           |     21 |
+| the Newton direction of an algebraic loop                         |     11 |
+| `no equation determines X, whose derivative the equation`         |     10 |
+| `underdetermined algebraic loop`                                  |      8 |
+| `singular Jacobian in algebraic loop`                             |      7 |
+| `der(X): X is not a state of the model`                           |      6 |
+| `cannot evaluate parameters [...]`                                |      6 |
+| `initialization is not square`                                    |      3 |
+| `assertion failed`                                                |      3 |
+| `step size underflow`, `cannot differentiate`, two evaluator rows | 2 each |
+| singles of their own text                                         |     21 |
+
+This agrees with the brief's own count on every family it named. The
+difference of six on `parameter X has no value` (24 here, 27 + 3 = 30
+in the third section of the census) is the six MultiBody models with
+`cannot evaluate parameters [... e_ia ...]`: `Engine1b_analytic`,
+`EngineV6_analytic` twice (the example and its `Utilities` class),
+`PlanarLoops_analytic`, `CylinderBase` and `Cylinder_analytic_CAD`.
+The third section counts them as parameters without a value, and the
+second section gives them a row of their own wording.
+
+### The fresh census against the reference
+
+`/tmp/m508/census.txt`, taken on `164e0da`: the flatten half 47 models
+in 27 rows (49 in 29 in m499), the run half 164 in 112 rows (163 in
+112). Read by name from the two raw files, two models moved:
+`QuasiStatic.SinglePhase.Examples.Transformer` no longer refuses to
+flatten and runs, and `IMS_Start_Polyphase` went from a `fill` with an
+unseen length in the flatten half to `underdetermined algebraic loop`
+in the run half. The texts that drifted are four, all named in the
+m506 and m507 chapters: `NAND` and `ONEBIT` keep `underdetermined
+algebraic loop` on a one-name block, `RollingWheelSetPulling` joins
+`RollingWheelSetDriving` at `e_long_0[1] = ...`, and
+`IMS_Start_Polyphase` is the one above. The folded families
+(`/tmp/m508/fold508.txt`) differ from m499 only there: the Newton
+direction 11 to 10, `underdetermined algebraic loop` 8 to 9, the
+`e_long_0` row 1 to 2.
+
+### The families against the maps
+
+- `constrains no state`, 34: mapped in shift 218 (helpers), m312 (the
+  kinds A to E) and m313/m314 (the singular subset). The map is older
+  than the tree: the singular-subset search has stood since m314, and
+  the kinds were never probed below the reading. Refreshed below.
+- `unbalanced model`, 21: mapped in shifts 472, 492 and 494 (the
+  analytic joints' open ports). Of the 21, 14 sit under `Utilities`,
+  `Components`, `BaseClasses` or `ControllerUtilities`; the examples
+  left are `IMC_Initialize`, `IMC_withLosses`, `BranchingDynamicPipes`,
+  `HeatExchangerSimulation`, `HeatingSystem`, `Fourbar1`, `OneAxis`
+  and the two `CombiTable2D*.Test33`. No map takes them by name.
+- `no equation determines X, whose derivative`, 10: the Spice3
+  inverters and gates (`vin.T0`, `vinN.T0`), mapped in shifts 474 and
+  483, and fresh for those seven; `DirectCapacitor`, `DirectInductor`
+  and `Spice3BenchmarkMosfetCharacterization` have no map by name.
+- `der(X): X is not a state of the model`, 6: mapped in m416 and
+  shifts 478 and 480 on twenty models. That map is older than more
+  than half of its victims; what remains is six.
+- `cannot differentiate`, 2: shift 484, fresh.
+- `cannot evaluate parameters`, 6: shifts 500, 501 and 507, fresh,
+  and parked on Roman's word.
+
+### `constrains no state`: the 34 probed again
+
+Seventeen of the 34 are classes under `Utilities`, `Components`,
+`BaseClasses`, `Parts` or `OpAmpCircuits`, the helpers that shift 218
+and kind A of m312 found refusing rightly. The other seventeen
+(`/tmp/m508/cns_ex.lst`) were run one by one from the root `.msl`
+with `--only`, `--refused`, `OXIDELICA_WHERE=1` and
+`OXIDELICA_VICTIM_PROBE=1` on one binary (`/tmp/m508/ox1`, outputs
+`/tmp/m508/p/r1.txt` to `r17.txt`). Every refusal is raised at
+`compile.rs:2728`, the refusal after the singular subset has been
+tried. They split in two by what the last reduction printed.
+
+Eleven end on `victim: <none>` with `raw reach: []`: the equation and
+every member of its subset reach no state at all.
+
+- The plug's per-pin current balance: `ActuatorWithNoise` and
+  `SMPM_NoLoad` (the last reduction is on
+  `spacePhasorS.spacePhasor.i_[2]`).
+- A flow balance of a port: `BatchPlant_StandardWater`
+  (`B5.InnerTankSide[1].port.m_flow`) and `TanksWithOverflow`
+  (`overflow.port_a.m_flow + overflow.port_b.m_flow`).
+- An alias of a magnetic potential: `IMC_DOL_CommonLeakage` and the
+  non-quasi-static `SMPM_CurrentSource` (`port_p.V_m.re` and `.im`).
+- MultiBody: `PrismaticConstraint` (an `R.T` entry from the
+  quaternions `Q`), `SphericalConstraint` and `UniversalConstraint`
+  (both `constraint.r_rel_a[3] = 0`), and `PlanarFourbar` (an `R_rel.T`
+  entry of `revolute1`) after 73 reductions.
+
+Six end with a victim found, and are refused on the member after it:
+
+- The quasi-static machines `SMPM_CurrentSource`, `SMPM_MTPA` and
+  `SMR_CurrentSource` on `phiMechanical = flange.phi -
+internalSupport.phi`, whose reach is `phiMechanical` and
+  `strayLoad.phi`, the victim `strayLoad.phi`.
+- `TransformerTestbench` on `plug_p.reference.gamma`, the reach two
+  reference angles of the inductors and the resistor, with three
+  angles already spent.
+- `FullRobot` on `axis1.motor.speed.flange.phi =
+Jmotor.flange_a.phi`, the victim `speed.flange.phi`.
+- `TestBearingConversion` on `inertia19.w = <a sine>`, the victim
+  `inertia19.w`.
+- `RevoluteConstraint` on an orientation residual, the victim
+  `freeMotionScalarInit.derd[2].u`.
+
+So the 34 are three groups and not one: seventeen helpers that refuse
+rightly, eleven where the reach is truly empty (kinds B and C of m312
+and its kind E), and six where the subset search found a victim and
+still ended at the wall. The six are the new reading. Their refusal
+text is the same as the eleven, but the probe shows a reduction that
+had something to demote, which is a different layer: the question for
+them is why the member taken in place did not end the singular
+subset, not why the reach is empty. Not built: a map first, a change
+in a shift of its own.
+
+### A delta over the ratio, scouted
+
+The band in `scripts/library_floor.sh` (`ratio_verdict`, at the
+`RATIO_LOW`/`RATIO_HIGH` lines) prints the run-over-flatten ratio of
+one pass and judges it against 0.70..1.67. It compares nothing with
+an earlier print.
+
+What is at hand in `.github/workflows/ci.yml`: the main and dear
+passes already upload `main.txt` and `dear.txt` as artifacts
+(`library-main`, `library-dear`) and the judge downloads them in the
+same run. No retention is set, so they live the repository default.
+The artifact of an earlier green run is not reached by
+`actions/download-artifact@v4` without a `run-id` and a token with
+`actions: read`, which the workflow does not hold today. A file in
+the tree costs a commit per green print and races the next push; an
+artifact costs one step and a permission, and dies with its retention.
+The artifact is the cheaper road.
+
+The same set of models is the run list (`--list`) of both prints, by
+name; where the floors rise the set changes, and the delta should be
+taken over the intersection of the two lists, with the models outside
+it named.
+
+The desk's own noise from the pairs at hand, ratio of the per-model
+milliseconds (run over flatten):
+
+```text
+m503 on       9258 / 7402 = 1.251
+m506 pv_off   6617 / 6283 = 1.053
+m506 pv_on    7016 / 6578 = 1.067
+m507 off      5123 / 3884 = 1.319
+m507 on       4995 / 3710 = 1.346
+```
+
+Within one pair the two halves differ by 1.3% (m506) and 2.1% (m507);
+across shifts on the same desk the ratio runs 1.05 to 1.35, a factor
+of 1.28, wider than the runner's room of 1.158. So a delta between two
+prints of one run is tight, and a delta between runs on different
+days carries the weather the band was built to cancel. The plan, for
+a later series: (1) a step that downloads the last green judge's
+artifact by `run-id`; (2) the delta of the per-model times over the
+intersection of the two run lists, not of the ratio; (3) the edge from
+the runner's own spread of five green prints, not the desk's; (4) the
+band kept beside it until the delta has been seen red once.
