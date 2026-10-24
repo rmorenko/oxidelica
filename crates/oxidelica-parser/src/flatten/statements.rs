@@ -253,9 +253,35 @@ pub(super) fn execute(
                 // a decomposition - is laid out there in the names it
                 // was handed, and a local array of the body named
                 // after that is a name nothing else knows.
+                // A scalar String input has no array structure for the
+                // array layer to keep, and what such an argument nearly
+                // always is - the message of `Streams.error`, built of
+                // `String(index)` and `repeat(n, " ")` - is read for its
+                // text alone. Sent through the layer it spends depth on
+                // every storey of the message, and a scan called from a
+                // loop inside a block ran out of it there: the call was
+                // left standing and the number it read was lost. So
+                // where the layer gives up on depth over such an input,
+                // the text is handed on as written; anything the layer
+                // does answer is taken from it exactly as before.
+                let inputs: Vec<Component> = match string_args_open() {
+                    true => inlining::function_components(registry, called, 0)
+                        .into_iter()
+                        .filter(|c| c.causality == Causality::Input)
+                        .collect(),
+                    false => Vec::new(),
+                };
+                let is_text = |place: usize, arg: &Expr| {
+                    let input = match arg {
+                        Expr::NamedArg(n, _) => inputs.iter().find(|c| c.name == *n),
+                        _ => inputs.get(place),
+                    };
+                    input.is_some_and(|c| c.type_name == "String" && c.dimensions.is_empty())
+                };
                 let values = args
                     .iter()
-                    .map(|arg| match statement_args_late() {
+                    .enumerate()
+                    .map(|(place, arg)| match statement_args_late() {
                         true => expand(arg, &shapes, registry, scope, imports, depth + 1),
                         false => expand(
                             &substitute_refs(arg, bindings),
@@ -265,7 +291,11 @@ pub(super) fn execute(
                             imports,
                             depth + 1,
                         ),
-                    })
+                    }
+                    .or_else(|why| match why.contains(NO_BOTTOM) && is_text(place, arg) {
+                        true => Ok(Value::Scalar(substitute_refs(arg, bindings))),
+                        false => Err(why),
+                    }))
                     .collect::<Result<Vec<_>, String>>()?;
                 let argument_shapes: Vec<Vec<i64>> = values.iter().map(shape_i64).collect();
                 let arguments: Vec<Expr> = values
@@ -2388,6 +2418,14 @@ fn loop_constants_open() -> bool {
 /// both numbers.
 fn statement_args_late() -> bool {
     std::env::var_os("OXIDELICA_STATEMENT_ARGS_LATE").is_some()
+}
+
+/// Whether a scalar String argument of a call standing as a statement
+/// is handed on as written rather than through the array layer.
+/// `OXIDELICA_NO_STRING_ARGS` closes the road, so that one binary gives
+/// both numbers.
+fn string_args_open() -> bool {
+    std::env::var_os("OXIDELICA_NO_STRING_ARGS").is_none()
 }
 
 /// Whether the outputs of a call filling several targets are handed on

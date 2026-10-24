@@ -3753,3 +3753,43 @@ fn a_body_condition_asks_its_constants_before_the_arguments() {
         "{one} for one name handed, {twenty} for twenty"
     );
 }
+
+/// A scan called in a loop inside a block keeps the number it read.
+///
+/// `Strings.scanInteger` complains through `syntaxError`, whose message
+/// is a long sum of strings. Handed through the array layer, that
+/// message spent a storey of depth on every term, and from a loop
+/// inside a block the count ran out: the whole scan was left standing
+/// and the line it was given reached the strings as a String where a
+/// number belonged. The RAM of the digital library reads its memory
+/// that way. `OXIDELICA_NO_STRING_ARGS` is the road before.
+#[test]
+fn a_scan_in_a_nested_loop_keeps_the_number_it_read() {
+    let dir = std::env::temp_dir().join("oxidelica_nested_scan_test");
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(dir.join("data.txt"), "7 9\n").unwrap();
+    let path = dir
+        .join("data.txt")
+        .display()
+        .to_string()
+        .replace('\\', "/");
+    let source = include_str!("nested_scan.mo").replace("DATA", &path);
+    let m = parse_model(&source).expect("a scan this compiler can read");
+    let _ = std::fs::remove_dir_all(&dir);
+    let read = |name: &str| {
+        let equation = m
+            .equations
+            .iter()
+            .find(|e| matches!(&e.lhs, Expr::Ref(n) if n == name))
+            .unwrap_or_else(|| panic!("no equation for {name}"));
+        let text = format!("{:?}", equation.rhs);
+        assert!(
+            !text.contains("scanInteger"),
+            "{name} left standing: {text}"
+        );
+        text
+    };
+    assert!(read("m[1]").contains("Number(7.0)"), "{}", read("m[1]"));
+    assert!(read("m[2]").contains("Number(9.0)"), "{}", read("m[2]"));
+}
