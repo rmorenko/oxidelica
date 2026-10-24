@@ -61313,3 +61313,12 @@ Three rows of the singular-Jacobian half, probed with
   and `e_rel_0[1] = r_rel_0[1] / s` is `-inf` before any Newton step.
   The `s_small` guard is in the equation for `s`, which the block does
   not evaluate before dividing.
+- `ModelicaTest.Fluid.TestComponents.Vessels.TestMixingVolumesPressureStates`
+  (`/tmp/m505/tmv.txt`): the 24-row block has rank 23, and its null
+  direction is `der(mixingVolume1.medium.p)`. The mass balance of the
+  second volume (row 20) reads its pressure derivative with
+  `-5.06e-7`, the compressibility of liquid water, while the same
+  balance of the first volume (row 22) names `der(mixingVolume1.medium.p)`
+  three times and reads it as exactly zero. The two volumes are written
+  alike, so why one density derivative comes out zero is the next
+  question, not answered here.
