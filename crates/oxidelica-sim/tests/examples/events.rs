@@ -457,3 +457,64 @@ fn newton_work_past_its_ceiling_names_the_model_and_the_interval() {
     assert!(why.contains("more than 3 Newton iterations"), "{why}");
     assert!(why.contains("t = "), "{why}");
 }
+
+/// The last value of `column` in a run of `source`.
+fn last_of(source: &str, column: &str) -> f64 {
+    let out = compile(&parse_model(source).unwrap())
+        .expect("the model compiles")
+        .simulate()
+        .expect("the model runs");
+    let at = out
+        .columns
+        .iter()
+        .position(|c| c == column)
+        .expect("the column is in the output");
+    out.rows.last().expect("the run has a row")[at]
+}
+
+#[test]
+fn an_array_written_whole_in_one_branch_and_by_element_in_another_merges_once() {
+    // One branch writes `ns[i]` in a loop and the other writes `ns`
+    // whole. Merged under two names, each element was given two
+    // equations and the event at the start never came to rest.
+    let source = "model U3 Integer RE = if time > 0.5 then 4 else 3; \
+         Integer ns[2](start = {1, 1}); \
+         algorithm \
+         if RE == 4 then for i in 1:2 loop ns[i] := 5 + i; end for; \
+         else ns := fill(7, 2); end if; \
+         annotation(experiment(StopTime = 1, Interval = 0.1)); end U3;";
+    assert_eq!(last_of(source, "ns[1]"), 6.0);
+    assert_eq!(last_of(source, "ns[2]"), 7.0);
+}
+
+#[test]
+fn an_element_written_at_a_run_time_place_after_a_whole_write_keeps_the_rest() {
+    // `m := {3, 4}` at the start, then `m[k] := 9` at a place only
+    // the run knows: the element the place does not name keeps what
+    // the whole write gave it.
+    let source = "model X3 Integer k = if time > 0.5 then 2 else 1; \
+         Integer m[2](start = {1, 1}); \
+         algorithm \
+         if initial() then m := {3, 4}; end if; \
+         if k > 1 then m[k] := 9; end if; \
+         annotation(experiment(StopTime = 1, Interval = 0.1)); end X3;";
+    assert_eq!(last_of(source, "m[1]"), 3.0);
+    assert_eq!(last_of(source, "m[2]"), 9.0);
+}
+
+#[test]
+fn a_whole_shift_of_an_event_clock_skips_its_first_edges() {
+    // `sin(2 pi t) > 0` rises eleven times before 10.2 s. Shifted by
+    // two whole ticks the clock fires on the last nine; sub-sampled by
+    // two (edges 1, 3, ..., 11) and shifted by one, on the last five.
+    let source = "model S1 Clock c = Clock(sin(6.283*time) > 0, 0.1); \
+         Integer n(start = 0); Integer m(start = 0); Integer k(start = 0); \
+         equation \
+         when c then n = previous(n) + 1; end when; \
+         when shiftSample(c, 2, 1) then m = previous(m) + 1; end when; \
+         when shiftSample(subSample(c, 2), 1, 1) then k = previous(k) + 1; end when; \
+         annotation(experiment(StopTime = 10.2, Interval = 0.01)); end S1;";
+    assert_eq!(last_of(source, "n"), 11.0);
+    assert_eq!(last_of(source, "m"), 9.0);
+    assert_eq!(last_of(source, "k"), 5.0);
+}

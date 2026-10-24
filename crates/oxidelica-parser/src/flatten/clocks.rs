@@ -248,6 +248,17 @@ impl ClockSpec {
         self.rate.num
     }
 
+    /// How many rising edges of an event clock's root pass before its
+    /// first tick: a `shiftSample` by whole intervals, counted in the
+    /// root's edges. Zero for a periodic clock, whose shift is in when
+    /// its first tick falls instead.
+    pub(super) fn edges_skipped(&self) -> i64 {
+        match self.root {
+            Root::When(..) if self.shift.den == 1 => self.shift.num,
+            _ => 0,
+        }
+    }
+
     /// How to name this clock in a message.
     pub(super) fn describe(&self) -> String {
         match (&self.root, self.interval()) {
@@ -360,8 +371,19 @@ impl ClockSpec {
     fn shifted(&self, counter: i64, resolution: i64, back: bool) -> Result<ClockSpec, String> {
         // A shift is a fraction of an interval, and `shiftSample` is
         // written in the specification as a `superSample` followed by a
-        // `subSample` - so it is out of reach for the same reason.
-        self.periodic_only(if back { "backSample" } else { "shiftSample" })?;
+        // `subSample` - so it is out of reach for the same reason. Except
+        // where the fraction is whole: shifted by whole intervals, an
+        // event clock is the same clock with its first ticks skipped,
+        // and a counter of rising edges says which those are without
+        // knowing when any edge falls. `FractionalDelay` of the clocked
+        // library is written with `resolution = 1` for exactly this.
+        let counted = matches!(self.root, Root::When(..))
+            && resolution != 0
+            && counter % resolution == 0
+            && event_shift_open();
+        if !counted {
+            self.periodic_only(if back { "backSample" } else { "shiftSample" })?;
+        }
         let step = self
             .rate
             .times(Ratio::new(i128::from(counter), i128::from(resolution))?)?;
@@ -1469,4 +1491,11 @@ pub(super) fn collect_immediate_refs<'a>(expr: &'a Expr, out: &mut Vec<&'a str>)
         }
         _ => {}
     }
+}
+
+/// Whether an event clock may be shifted by whole intervals.
+/// `OXIDELICA_NO_EVENT_SHIFT` keeps the old refusal, so that one binary
+/// gives both numbers.
+fn event_shift_open() -> bool {
+    std::env::var_os("OXIDELICA_NO_EVENT_SHIFT").is_none()
 }

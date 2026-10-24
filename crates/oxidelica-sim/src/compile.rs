@@ -8997,7 +8997,7 @@ fn redundant_init_off() -> bool {
 /// An expression as source text, for a refusal that names a written
 /// equation. What it cannot spell it shows as the tree, which is
 /// longer but still the expression rather than a guess at it.
-fn expression_text(expr: &Expr) -> String {
+pub(crate) fn expression_text(expr: &Expr) -> String {
     match expr {
         Expr::Number(value) => format!("{value}"),
         Expr::Ref(name) => name.clone(),

@@ -520,7 +520,11 @@ pub(super) fn partition_clocks(model: &mut Model) -> Result<(), String> {
                 ))
             }
         };
-        if spec.interval().is_none() && spec.every_nth() > 1 {
+        // A whole `shiftSample` of an event clock skips the first edges
+        // as well: the same counter starts that many further back, so
+        // its first firing edge is the one after them.
+        let skipped_edges = spec.edges_skipped();
+        if spec.interval().is_none() && (spec.every_nth() > 1 || skipped_edges > 0) {
             let skipped = format!("$every{clock}");
             let due = Expr::Rel(
                 crate::ast::RelOp::Ge,
@@ -529,11 +533,20 @@ pub(super) fn partition_clocks(model: &mut Model) -> Result<(), String> {
             );
             for (target, value) in &mut actions {
                 *value = Expr::If(
-                    Box::new(Expr::Rel(
-                        crate::ast::RelOp::Lt,
-                        Box::new(Expr::Ref(skipped.clone())),
-                        Box::new(Expr::Number(0.5)),
-                    )),
+                    // Under a shift the counter starts below zero and
+                    // passes zero on its way up through the edges it
+                    // skips, so the edge that fires is the one that is
+                    // due rather than one that leaves the counter at
+                    // zero.
+                    Box::new(if skipped_edges > 0 {
+                        due.clone()
+                    } else {
+                        Expr::Rel(
+                            crate::ast::RelOp::Lt,
+                            Box::new(Expr::Ref(skipped.clone())),
+                            Box::new(Expr::Number(0.5)),
+                        )
+                    }),
                     Box::new(value.clone()),
                     Box::new(Expr::Call(
                         "pre".to_string(),
@@ -552,7 +565,11 @@ pub(super) fn partition_clocks(model: &mut Model) -> Result<(), String> {
             // Counting from one short of the factor makes the first
             // edge a firing one, as 16.5 asks: the sub-sampled clock's
             // first activation is its argument's first activation.
-            bookkeeping.push((skipped, clock, spec.every_nth() as f64 - 1.0));
+            bookkeeping.push((
+                skipped,
+                clock,
+                (spec.every_nth() - 1 - skipped_edges) as f64,
+            ));
         }
 
         // The equations of a partition are equations, in no order of

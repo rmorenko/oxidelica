@@ -255,7 +255,10 @@ impl EventRewrite<'_> {
     /// integral just before the `reinit` that clears it.
     pub(crate) fn pre_of(&mut self, arg: &Expr, builtin: &str) -> Result<Expr, SimError> {
         let Expr::Ref(name) = arg else {
-            return err(format!("{builtin}() takes a variable, not an expression"));
+            return err(format!(
+                "{builtin}() takes a variable, not an expression: {}",
+                crate::compile::expression_text(arg)
+            ));
         };
         if !self.discretes.iter().any(|d| d == name) {
             let by_type = self.discrete_valued.iter().any(|d| d == name);

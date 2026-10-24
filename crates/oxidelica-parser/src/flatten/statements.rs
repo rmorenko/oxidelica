@@ -746,6 +746,13 @@ fn written_at_run_time(
             let element = element_name(target, &indices);
             if indices.len() == subscripts.len()
                 && !bindings.contains_key(&element)
+                // An array an earlier statement bound whole already says
+                // what the element holds, and the merge takes it apart
+                // into elements: `pre` here would be read through that
+                // binding once the whole is split, and come out as `pre`
+                // of an expression.
+                && (!bindings.contains_key(target)
+                    || std::env::var_os("OXIDELICA_NO_MERGE_ELEMENTS").is_some())
                 && held(&element)
             {
                 branches.push(StatementBranch {
@@ -1790,6 +1797,39 @@ fn one_if_statement(
         }
         outcomes.push((condition, local));
     }
+    // One array, one spelling. A branch that writes `ns := fill(7, 2)`
+    // binds the bare name, and one that writes `ns[i]` in a loop binds
+    // the elements: merged as they stand, those are two names, each
+    // given its own fallback, and the flat model gets two answers for
+    // every element. Where any side spells an array by its elements,
+    // every side's whole binding is taken apart the way
+    // `one_assignment` takes one apart before an element is written.
+    let mut before = before;
+    if std::env::var_os("OXIDELICA_NO_MERGE_ELEMENTS").is_none() {
+        for name in split_whole_arrays(&mut before, &mut outcomes, sizes) {
+            // The elements no branch touched keep what the whole held,
+            // under their own names, since the whole name is gone.
+            if bindings.remove(&name).is_some() {
+                for indices in index_tuples(&sizes[&name]) {
+                    let one = element_name(&name, &indices);
+                    if let Some(value) = before.get(&one) {
+                        bindings.insert(one, value.clone());
+                    }
+                }
+            }
+            // What the algorithm assigns is now the elements, not the
+            // name that no binding answers for any more.
+            if let Some(at) = assigned.iter().position(|a| *a == name) {
+                assigned.remove(at);
+                for indices in index_tuples(&sizes[&name]) {
+                    let one = element_name(&name, &indices);
+                    if !assigned.contains(&one) {
+                        assigned.push(one);
+                    }
+                }
+            }
+        }
+    }
     // Every variable any branch wrote gets one merged value.
     let mut touched: Vec<String> = Vec::new();
     for (_, local) in &outcomes {
@@ -1968,6 +2008,103 @@ fn one_if_statement(
         bindings.insert(name, value);
     }
     Ok(None)
+}
+
+/// Take apart, on every side of an `if`, the whole binding of an array
+/// that some side binds element by element. An array whose shape is not
+/// known, or whose whole value does not come to that many elements, is
+/// left as it was.
+fn split_whole_arrays(
+    before: &mut HashMap<String, Expr>,
+    outcomes: &mut [(Option<Expr>, HashMap<String, Expr>)],
+    sizes: &HashMap<String, Vec<i64>>,
+) -> Vec<String> {
+    let mut by_element: HashSet<String> = HashSet::new();
+    for map in std::iter::once(&*before).chain(outcomes.iter().map(|(_, l)| l)) {
+        for name in map.keys() {
+            if let Some((whole, _)) = name.split_once('[') {
+                if sizes.contains_key(whole) {
+                    by_element.insert(whole.to_string());
+                }
+            }
+        }
+    }
+    fn leaves(expr: &Expr, out: &mut Vec<Expr>) {
+        match expr {
+            Expr::Array(items) => items.iter().for_each(|i| leaves(i, out)),
+            one => out.push(one.clone()),
+        }
+    }
+    // A whole value as one item per element. An earlier merge leaves
+    // `if c then {3, 4} else pre(m)`, which is no list on its face but
+    // is one element by element: each arm is taken apart and the
+    // condition put over every element, and `pre` of the whole array
+    // is `pre` of each element. What cannot be taken apart this way
+    // answers None and the binding stays as it was.
+    fn elementwise(expr: &Expr, name: &str, tuples: &[Vec<i64>]) -> Option<Vec<Expr>> {
+        match expr {
+            Expr::Array(_) => {
+                let mut items = Vec::new();
+                leaves(expr, &mut items);
+                (items.len() == tuples.len()).then_some(items)
+            }
+            Expr::If(c, a, b) => {
+                let a = elementwise(a, name, tuples)?;
+                let b = elementwise(b, name, tuples)?;
+                Some(
+                    a.into_iter()
+                        .zip(b)
+                        .map(|(a, b)| Expr::If(c.clone(), Box::new(a), Box::new(b)))
+                        .collect(),
+                )
+            }
+            Expr::Call(f, args)
+                if f == "pre" && matches!(args.as_slice(), [Expr::Ref(n)] if n == name) =>
+            {
+                Some(
+                    tuples
+                        .iter()
+                        .map(|at| {
+                            Expr::Call("pre".to_string(), vec![Expr::Ref(element_name(name, at))])
+                        })
+                        .collect(),
+                )
+            }
+            _ => None,
+        }
+    }
+    let split = |map: &mut HashMap<String, Expr>, name: &str, shape: &[i64]| -> bool {
+        let Some(whole) = map.get(name) else {
+            return false;
+        };
+        let tuples = index_tuples(shape);
+        let Some(items) = elementwise(whole, name, &tuples) else {
+            return false;
+        };
+        if tuples.len() != items.len() {
+            return false;
+        }
+        map.remove(name);
+        for (indices, item) in tuples.into_iter().zip(items) {
+            map.entry(element_name(name, &indices)).or_insert(item);
+        }
+        true
+    };
+    let mut taken_apart = Vec::new();
+    for name in by_element {
+        let Some(shape) = sizes.get(&name) else {
+            continue;
+        };
+        let mut any = split(before, &name, shape);
+        for (_, local) in outcomes.iter_mut() {
+            any |= split(local, &name, shape);
+        }
+        if any {
+            taken_apart.push(name);
+        }
+    }
+    taken_apart.sort();
+    taken_apart
 }
 
 thread_local! {
