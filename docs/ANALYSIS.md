@@ -61467,3 +61467,24 @@ equation which cannot be evaluated before the first Newton step:
 
 Nothing was built for this family. Guards and Newton budgets belong
 to Roman.
+
+### Item 2: the pivot floor measured on the corpus
+
+The probe of `state/m506/pivot-rel.probe.patch` was taken as a corpus
+pair from one binary (`/tmp/m506/ox4`; `/tmp/m506/pv_off.txt`,
+`/tmp/m506/pv_on.txt`). Both halves print 973 flatten and 809 run,
+runnable 855 and 763, and the totals hide a trade: one victim,
+`Electrical.Analog.Examples.OvervoltageProtection`, and one gain,
+`Fluid.Examples.NonCircularPipes`. Ten more models changed their
+refusal without running, among them `SMEE_Generator`,
+`SMPM_CurrentSource`, `ThyristorBridge2mPulse_RLV`, `GearType2`,
+`LossyGearDemo2`, `TestSuddenExpansion` and both rolling wheel sets.
+
+```text
+off  time: flattening 6408s over 1020 models (6283ms each); running 6439s over 973 (6617ms each)
+on   time: flattening 6709s over 1020 models (6578ms each); running 6826s over 973 (7016ms each)
+```
+
+A floor relative to the row is therefore a different solver rather
+than a fix, and it is left as a probe. Its victim is worth the next
+look before anything is built on it.
