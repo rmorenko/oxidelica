@@ -61337,3 +61337,11 @@ Three rows of the singular-Jacobian half, probed with
   zero is the one whose start is a steady state. Whether the zero
   column is a true property of the steady start or a value the
   initialisation left behind is not settled by this shift.
+
+### The preflight of shift 505
+
+`scripts/preflight.sh --quick` (`/tmp/m505/pf.txt`): formatting,
+clippy and tests green; the library step counts 973 flatten and 809
+run, runnable 855 and 763, the same as `/tmp/m503/on.txt`, and is red
+only on the desk's time band (`CEILING: run/flatten ratio is 1.258,
+and the band is 0.64..0.91`). No compiler code changed in this shift.
