@@ -60810,3 +60810,89 @@ map, with no code.
 
 It already has a map (m426, m429, m476, m492, with `ThreeSprings` in
 m492). Nothing new was probed.
+
+## Shift 501: the wall the six analytic loops reach under the parked patch
+
+### Item 0: the verdicts
+
+Run 40068395085 (47abd7c, the judge of code 77007fe) finished green.
+Its judge printed 971 / 809 and runnable 853 / 763, which is the floors
+plus the swinging models, so the floors stay where they are. Its ratio
+was 1.411, inside the band, and its work counters are those of the
+setting: 91874247 expansions and 1291288 bodies.
+
+Run 40075537541 (fbec2ed, the notes of shift 500) was red in the
+spelling step and in nothing else: the checker read the `abd` of the
+hash `47abd7c` as a misspelled word. `typos.toml` now names it, with a
+comment saying why, and the checker is clean on the tree.
+
+### Item 1: six models, one wall
+
+Under the parked patch (`/tmp/m500/oxa`, alive) all six models leave
+`cannot evaluate parameters [... e_ia ...]` and all six are refused at
+the same line, `crates/oxidelica-sim/src/compile.rs:2728`, the
+singular-subset retry after index reduction, each with "nor did the
+31 other equations of its singular subset tried in its place". The
+head binary (`/tmp/m499/ox`) refuses all six on the parameters, as
+the census said. Texts and times are in `~/oxideflow/state/m501/`
+(`full.*.txt`, `head.*.txt`, `patch.*.txt`, `times.txt`).
+
+| Model                             | head | patch | equation the patch is refused on                   |
+| --------------------------------- | ---- | ----- | -------------------------------------------------- |
+| `Utilities.CylinderBase`          | 6 s  | 27 s  | `piston.frame_b.R.T[3,3] = ...frameTranslation...` |
+| `Utilities.Cylinder_analytic_CAD` | 7 s  | 27 s  | the same                                           |
+| `Utilities.EngineV6_analytic`     | 34 s | 423 s | `der(...rod2.frame_b.r_0[3]) - ... = 0`            |
+| `PlanarLoops_analytic`            | 7 s  | 123 s | `rod1.frame_a.R.T[2,2] = rev.frame_b.R.T[2,2]`     |
+| `Engine1b_analytic`               | 30 s | 209 s | `der(world.frame_b.R.T[2,2]) = 0`                  |
+| `EngineV6_analytic`               | 27 s | 330 s | a velocity row of `jointUSP.relativePosition`      |
+
+The texts differ, but the layer does not: every refused row is a
+connection equality or a differentiated one on a frame's rotation or
+position, on the ring that the analytic joint closes. `oxidelica why`
+on `piston.frame_b.R.T[3,3]` of `CylinderBase` shows nothing missing:
+two plain connection equations, one to `jointRRP.frame_ib` and one to
+`piston.frameTranslation.frame_b` (`why_cb.txt`). So this is one
+family, and it is the wall of shifts 470 and 471: the reducer meeting
+a closed MultiBody loop whose constraints come through rotation
+entries, where every road back to a state passes the same joint
+equations twice (`dependent-row` and `supply-once` lines in the probe
+below, as for `Fourbar1`). It is item 56 of the queue, in Roman's
+packet, and nothing was changed there.
+
+### Where the price sits
+
+`PlanarLoops_analytic` was run once more under the patch with the
+victim probe on and each line stamped (`planar_probe.txt`). Flattening
+took 7 s, and then the reducer ran its whole sequence four times over:
+77 reductions per pass, at about 37 s, 37 s, 32 s and 9 s, with the
+singular-subset retries at reductions 29, 72 to 75 taking up to member
+24 of 32. So the 123 s are not one dear step but a reduction repeated
+from the start several times, each repeat ending at the same wall. A
+cheap refusal would have to say before the first repeat that the ring
+cannot be reduced, and where that question could be asked is a matter
+for the review, not a change of this shift.
+
+### Item 2: rows of the flatten half
+
+The rows from the top of the flatten half down to the twos already
+have maps: written outside Modelica (C and FORTRAN), partial functions
+(m463 and earlier), the depth of an expression (m500), the partial
+`BaseProperties`, the flexible size of `t_new.columns`, the thyristor
+branches (item 53) and the Clock interval. Of the singles two had
+none.
+
+`QuasiStatic.SinglePhase.Examples.Transformer` is refused in the
+connection graph, `connections.rs:872`: `voltageSource` and `load`
+each declare `Connections.root` on their `pin_p.reference`, and
+`IdealTransformer` writes three `Connections.branch` between its four
+pins, so both sources sit in one part of the graph. The check is the
+one the specification asks for, and the open question is whether the
+library means the two roots to be in one part or the compiler joins
+parts the transformer keeps apart. A single in its own layer, not
+probed deeper.
+
+`ModelicaTest.Media.TestAllProperties.SimpleAir` is refused by the
+unit check. `SimpleAir.setState_psX` in `Media/package.mo` adds
+`s/cp_const + log(reference_T)` to `R_gas*log(p/reference_p)`, which
+lacks a division by `cp_const`: the library's own error, and the
+refusal is right. Not to be fixed here.

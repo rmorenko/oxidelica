@@ -27,3 +27,6 @@ OT = "OT"
 # `aSav` and `bSav` are what the Preisach hysteresis of the FluxTubes
 # library calls its saved turning points, so `Sav` is a name.
 Sav = "Sav"
+# `abd` turns up inside short commit hashes quoted in the analysis
+# notes (`47abd7c`), which are names and not words.
+abd = "abd"
