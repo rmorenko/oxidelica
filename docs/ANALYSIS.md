@@ -61766,3 +61766,17 @@ artifact by `run-id`; (2) the delta of the per-model times over the
 intersection of the two run lists, not of the ratio; (3) the edge from
 the runner's own spread of five green prints, not the desk's; (4) the
 band kept beside it until the delta has been seen red once.
+
+### The preflight of shift 508
+
+The library step of `/tmp/m508/preflight.txt` gives 960 + 13 = 973
+flatten and 803 + 6 = 809 run, runnable 844 + 11 = 855 and 758 + 5 =
+763, the same as the m507 pair. Its summed work line is the m507
+pair's to the digit (25249733 points, 36691336 newton). The step is
+red on the work band alone: with `Dimmer_RL` set apart the desk counts
+1549377 points and 2309864 newton against the 457143 and 904754
+written for the runner, a factor of 3.39 and 2.55. The m507 preflight
+took this step as substituted (`unchecked`), so this is the first
+desk print of the band on this tree. The tree changed only in this
+document, and CI on `164e0da` is green, so the difference is the desk
+against the runner, not a regression. The band is not touched here.
