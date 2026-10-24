@@ -61179,3 +61179,109 @@ steps green except the library step, red only on its time band
 Its counts are the head's: runnable 855 flatten and 763 run, the same
 as `/tmp/m503/on.txt`. No code changed in this shift, so the band is
 the desk's weather.
+
+## Shift 505: the price of carrying the Spice3 zero
+
+### Item 0: the judges
+
+Run 40102876975 (head 6d683d8) finished green. Its library job
+120922213566 printed
+`OK: 2671 files read, 973 flatten, 810 run; runnable 855 flatten, 764 run`
+and `ratio: run/flatten is 1.445, inside 0.70..1.50`, so
+`FLATTEN_FLOOR` went 972 to 973 and `RUNNABLE_FLATTEN_FLOOR` 854 to
+855 in a commit of their own. The run floors stay at 806 and 760, set
+by the desk, the smaller machine. Run 40110903672 (c5ae5a6) is red on
+markdownlint, the duplicate heading already mended in ed99302. Run
+40110927907 (ed99302) was still going when this shift began, and is
+left to the next reading.
+
+### Item 1a: an evaluator of bodies exists
+
+A parameter bound to `cap(0, 0.3)`, with the body of `Z6`, comes out
+of `why` as `bound to: 0 * exp(-0.3)` and `settled as: a parameter
+worth 0` (`/tmp/m505/Za.mo`). The evaluator is the inliner,
+`inline_function` in `crates/oxidelica-parser/src/flatten/inlining.rs`,
+called from `constants.rs`, `names.rs` and `arrays.rs`: a body is
+written out in place of the call and the constant layer then folds
+what it can. There is no separate evaluator of a body at known
+arguments, and none is needed: the inliner already does partial
+evaluation, writing the known arguments into the body and leaving the
+unknown ones as they are.
+
+So the m504 map was wrong about the layer. The call to
+`bjtNoBypassCode` is not left standing because it reads a state: a
+probe printing why `inline_function_outputs` failed (an environment
+switch, reverted) gives, for every transistor,
+`an expression did not come to an end here, nested deeper than the
+compiler follows: Rel(Gt, Ref("Q1.dev1.m_bICvbeIsGiven"), Number(0.5))`.
+The body is refused by the depth ceiling, and the call is then left
+standing for the run to walk, which is where the zero becomes
+invisible. `MAX_DEPTH` is not to be raised (the 48 experiment killed
+the corpus pass), so "inline it" is not the road either.
+
+### Item 1b: the payoff, by name
+
+Read from `/tmp/m499/raw.txt` and probed with `--only` on this head:
+
+- `bjtNoBypassCode` left standing by the depth ceiling, the zero
+  `capbx` behind it: `Spice3BenchmarkRtlInverter`,
+  `Spice3BenchmarkFourBitBinaryAdder.NAND`,
+  `Spice3BenchmarkFourBitBinaryAdder.ONEBIT`, and one not in the m504
+  list, `Spice3BenchmarkDifferentialPair`, refused
+  `the equations of algebraic loop ["der(Q2.vbx)"] do not mention ...`.
+  NAND and ONEBIT also leave `junctionVoltage23SPICE3` standing for
+  their clamp diodes, by the same ceiling. ONEBIT is a dear model
+  (carved out of the main pass), so what stands behind its wall is not
+  known.
+- `InvertersExtendedModel.MNmos` and `MPmos` are not this breed: no
+  call is left standing, the capacitance `cc.cBS` is inlined whole and
+  its zero is a parameter, `c2.m_tCBSb`, bound to a quotient over
+  `p.m_capBS`. The zero is in the parameter, which the quench reads
+  only as a bare name; the conditional around it is what hides it.
+
+So the payoff of the breed proper is four models, of which NAND and
+ONEBIT may stand on further walls, and two neighbours whose zero is
+behind a conditional rather than a call. Nothing else in either half
+of the m499 census names an underdetermined `der(...)` block.
+
+### Item 1c: the narrow alternative
+
+The quench of zero factors lives in the run's compiler,
+`crates/oxidelica-sim/src/compile.rs`: `quench_zero_der` (a product of
+a zero parameter and anything holding a derivative) and
+`zero_variables` with `zero_throughout`, which settle that a variable
+is zero for the whole run. `zero_throughout` knows `Neg`, `Add`,
+`Sub`, `Mul`, `Div` and a name; it does not know `If` or `Call`.
+
+Two narrow mends follow, each a few lines in that one function, and
+neither is the whole answer:
+
+- an `If` whose both branches are `zero_throughout` is zero
+  throughout. That reaches the shape `if w < 0.5 then 0 * exp(-w)
+else (0 / 2) * (1 + w)`, which is what `Z6` with a literal zero
+  becomes (`/tmp/m505/Z6L.mo`, refused `step size underflow`), and
+  plausibly the MNmos shape if the parameter quotient is also read as
+  zero. Remember m489: folding a conditional on a state cost six
+  PowerConverters, so the rule must answer only "zero on every
+  branch", never pick a branch.
+- the standing call cannot be helped from here: the run's compiler
+  sees `bjtNoBypassCode(...)[8]` with no body. Reaching it means
+  either inlining only the outputs asked for (a slice of the body,
+  so the depth ceiling is met by less), or asking the flattener for
+  "this output is zero whatever the unknown inputs" while it still
+  holds the body. Both are in the flattener and neither is a few
+  lines: the first changes what every inlined record-valued call
+  writes, the second is a second walk of the body.
+
+### Item 1d: the small model of the exact form
+
+`/tmp/m505/Zr4.mo` is red on the head binary with the library's words:
+`underdetermined algebraic loop ["der(w)"]: the equations do not
+determine a unique solution`. It needs three things the earlier `Z6`
+lacked: a function answering with a record, whose `while` keeps it
+from being inlined so that the call stands as the library's does; the
+field taken from the record and multiplied by `der(w)`; and the rest
+of the block such that the residual is exactly zero at the start, as
+in RtlInverter (where the probe read `v=[0.0] f=[-0.0] raw=[[0.0]]`).
+With a non-zero residual the same model is refused by the neighbouring
+`do not mention` check instead, which is the DifferentialPair wording.
