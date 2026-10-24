@@ -2472,8 +2472,21 @@ UNREAD_CEILING=0
 # 2026-10-14 two quiet desk passes of 1.149 and 1.177 fell above that,
 # and the edges were worked over all three points to 0.80 and 1.36.
 # The arithmetic is in `scripts/preflight.sh`.
+#
+# On 2026-10-24 the runner's ceiling was raised from 1.50 to 1.67 and
+# the floor left at 0.70. The green judge prints of 23 and 24 October
+# ran 1.383, 1.398, 1.411, 1.420, 1.445 and 1.447, the last 3.7% under
+# the old ceiling, and between 8784fce (1.197) and 3ad0316 (1.398) no
+# compiler change stood at all, so the instrument's own weather is a
+# factor of about 1.168. The ceiling is the top of that row worked by
+# the same room of 15.8%: 1.447 x 1.158 = 1.6756, written 1.67, rounded
+# down as before. What it no longer catches, said outright: the first
+# print of the autumn regression f7282ae was 1.595 and would pass under
+# this ceiling; only its second run, 1.914, would have been caught. The
+# ceiling is a stopgap, and the cure is a delta over one fixed set of
+# models rather than a band on one print.
 RATIO_LOW="${RATIO_LOW:-0.70}"
-RATIO_HIGH="${RATIO_HIGH:-1.50}"
+RATIO_HIGH="${RATIO_HIGH:-1.67}"
 
 # The band itself, as a function, so that it can be seen red without a
 # library pass: `library_floor.sh --ratio-check <flatten ms> <run ms>`
