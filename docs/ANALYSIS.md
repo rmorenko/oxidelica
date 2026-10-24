@@ -61325,3 +61325,7 @@ Three rows of the singular-Jacobian half, probed with
   The two rows are word for word the same once the volume's name is
   taken out, so the difference is in the values the first volume
   starts from, not in the structure the compiler built.
+  Asked with `why`, the second volume's enthalpy has an initial
+  equation, `mixingVolume2.medium.h = mixingVolume2.h_start`, and the
+  first volume's has none: the two volumes start from different
+  initialisations, which is where to look next.
