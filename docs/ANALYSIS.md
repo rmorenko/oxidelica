@@ -60434,3 +60434,154 @@ a decision on the expansions band.
 Run 40039156456 finished green in every job, the judge included. The
 ratio series 1.595 / 1.914 / 2.057 is closed by the revert, with the
 fourth point back inside the band.
+
+## Shift 498: the `if` merge spells an array once, and an event clock takes a whole shift
+
+### Item 0: the verdict on 5ee5eda
+
+Run 40050265952 finished with success. The library jobs and the test
+matrix were skipped, since the commit touched prose only. Advisories,
+"what the push touched", and coverage and linters were green.
+
+### Item 1: the merge of `if` branches spells an array once
+
+The cause was mapped in m497: `one_assignment` binds an array written
+whole under its bare name (`ns`) and an element written in a `for`
+under the element's name (`ns[1]`). The merge in `one_if_statement`
+saw two names and gave each its own fallback. Before the names are
+merged, `split_whole_arrays` now takes a whole binding apart into
+elements on every side (before the `if` and in each branch) wherever
+some side binds that array by its elements. `assigned` and the
+bindings outside follow the elements. A whole value that is no list
+on its face is taken apart through its form: `if c then {3, 4} else
+pre(m)` becomes one `if` per element, and `pre(m)` becomes
+`pre(m[k])`. A place written at run time (`m[k] := 9`) now gives the
+element it does not name no `pre` of its own when the array is
+already bound whole, because the whole binding says what that element
+holds. `OXIDELICA_NO_MERGE_ELEMENTS=1` keeps the old reading.
+
+The small models in `/tmp/m497`, then `/tmp/m498`, run without the
+switch and refuse with it:
+
+- `u3.mo`: under the switch the event at t = 0 does not come to rest.
+  Without it the run gives `ns = {7, 7}` before 0.5 s and `{5, 5}`
+  after.
+- `t7.mo`: the same shape that was refused as an event that does not
+  come to rest now runs, with `ns = {5, 6}` at the end.
+- `x3.mo` (`m := {3, 4}` under `if initial()`, then `m[k] := 9` under
+  `if k > 1`): refused under the switch, and `m = {3, 9}` without it.
+- `w5.mo` (the `DLATRAM` body): under the switch it is refused with
+  `pre() takes a variable, not an expression`. Without it, it is
+  refused one wall further on (see below).
+
+The `pre()` refusal at `oxidelica-sim/src/events.rs:258` now names
+the expression it was handed. That is how the second half of the
+mechanism was found: the run-time place writer was building
+`pre(m[2])` and the split then read it through `m`'s whole binding.
+
+Tests:
+`an_array_written_whole_in_one_branch_and_by_element_in_another_merges_once`
+and
+`an_element_written_at_a_run_time_place_after_a_whole_write_keeps_the_rest`
+(`tests/examples/events.rs`). Both check numbers, and both go red
+under the switch.
+
+Item 1b, the three symptoms. The double equation (`u3`) and the event
+that does not come to rest (`t7`) are cured. The `nested deeper ...
+dLATRAM.dataIn` link is not. `Modelica.Electrical.Digital.Examples.RAM`
+under `--only` is refused with `an expression did not come to an end
+here, nested deeper than the compiler follows` both with and without
+the switch (8818 expansions before the change, 9256 after). In the
+copies, `rm_.mo` moves off it (under the switch it is refused at
+depth, without it at the String wall below), and `vc.mo` runs. The
+whole RAM model still stands at depth, which is the inlined `address`
+of link 1 in m497 and not the merge.
+
+### The next wall of the RAM chain: a String in a nested block of a body
+
+Behind the merge, `w5.mo`, `rm_.mo` and `dl.mo` refuse with
+``0 0 0 0 # addr0` is a String, and a String has no value an
+equation can hold``. This is a wall of the head as well as of the
+change: `/tmp/m496/ox2` refuses `g24.mo` the same way. Shrunk in
+`/tmp/m498`, also parked in `state/m498`:
+
+- `g35.mo`: a function reads `data := readLine(f, 1)`, then `for i in
+1:1 loop for j in 1:2 loop m[j] := scanInteger(data, 1)`, and is
+  called as `if initial() then m := g(fileName); end if;`. Refused.
+- `g40.mo`: the same with one loop and not two. Runs.
+- `g36.mo`: the outer loop replaced by `if true then ... end if`.
+  Refused. So the trigger is a loop inside a nested block.
+- `g37.mo`: a nested block with no loop in it. Runs.
+- `g34.mo`: `g35`'s body called from an equation, not under an `if`.
+  Runs and settles `m[1,2] = 0`.
+
+A probe print in `strings::fold` shows what reaches the flat model:
+`m[1,1] = if initial() then scanInteger(ModelicaInternal_readLine(
+fileName, 1), 1) else pre(m[1,1])`. The `scanInteger` wrapper was
+left uninlined, with the String read standing as its argument. The
+address is the road a function body takes when it is called under a
+model `if`, where the nested loop around the read keeps the wrapper
+from being settled. That is the next link. It is not taken here: it
+belongs to inlining and not to the merge.
+
+### Item 2: a whole `shiftSample` of an event clock
+
+`shifted` in `flatten/clocks.rs` refused every `shiftSample` on an
+event clock. Now a shift by a whole number of intervals (`counter %
+resolution == 0`) is allowed on one, and is counted in rising edges.
+`ClockSpec::edges_skipped` gives the count, and `partition_clocks`
+starts the `$every` counter that much further back. Where a shift is
+present the firing test is `due` (the counter reaching the factor),
+not "the counter is zero", since a shifted counter passes zero on its
+way up. A fractional shift is refused as before.
+`OXIDELICA_NO_EVENT_SHIFT=1` keeps the old refusal.
+
+The probe, `--only` before and after:
+
+- `Modelica.Clocked.Examples.Systems.EngineThrottleControl`: refused
+  at `shiftSample asks where a tick falls between two others` before,
+  and runs after (63 points).
+- `...Utilities.ComponentsThrottleControl.Engine`: the same, and runs
+  after (63 points).
+
+Test: `a_whole_shift_of_an_event_clock_skips_its_first_edges`. Over
+10.2 s, `sin(2 pi t) > 0` rises 11 times. `shiftSample(c, 2, 1)`
+fires 9 times, and `shiftSample(subSample(c, 2), 1, 1)` fires 5
+times. The test is red under the switch.
+
+### Item 3
+
+All four candidate rows have already been probed: the flexible size
+at `ANALYSIS.md` "The flexible size: a record handed whole", the
+thyristor branches (item 52 of Roman's package, not to be touched),
+the Clock without an interval (`CylinderAirCharge`,
+`InductionToPowerDelay`, helpers with a free clock input), and
+`AbsoluteClocks` (two exact clocks of different roots). No probe was
+needed.
+
+### The pair for items 1 and 2
+
+One binary, `/tmp/m498/ox2`, built from the final tree, with the
+halves run one after the other on a desk with nothing else on it. The
+off half sets both switches (`OXIDELICA_NO_MERGE_ELEMENTS=1
+OXIDELICA_NO_EVENT_SHIFT=1`, `/tmp/m498/off.txt`). The on half sets
+neither (`/tmp/m498/on.txt`).
+
+- off: 969 flatten, 806 run, and 1775 lines in `off.list`, identical
+  to m497's `off.list` from the head. `time: flattening 3878s over
+1020 models (3802ms each); running 4662s over 969 (4811ms each)`.
+- on: 971 flatten, 808 run, and 1779 lines in `on.list`. `time:
+flattening 3682s over 1020 models (3610ms each); running 4603s over
+971 (4741ms each)`.
+
+The diff is four lines and no victims: `flat` and `ran` for
+`Clocked.Examples.Systems.EngineThrottleControl` and
+`Clocked.Examples.Systems.Utilities.ComponentsThrottleControl.Engine`.
+Both belong to item 2. Item 1 wins no corpus model, because the RAM
+model stands at the depth wall in front of it. Its cost shows in the
+work counters: expansions went from 91871359 to 91874907 (+3548, or
+0.004%), bodies from 1291379 to 1291340, and names from 1672623320 to 1672587390. Points went from 25249530 to 25249656, the +126 being the
+two new models at 63 each. Newton was 36691006 in both halves.
+
+The floors were not moved, as the brief asked. A rise is for the
+runner's print.
