@@ -61345,3 +61345,125 @@ clippy and tests green; the library step counts 973 flatten and 809
 run, runnable 855 and 763, the same as `/tmp/m503/on.txt`, and is red
 only on the desk's time band (`CEILING: run/flatten ratio is 1.258,
 and the band is 0.64..0.91`). No compiler code changed in this shift.
+
+## Shift 506: a conditional with zero on both branches, behind a key
+
+### Item 0: the judges and the ceiling
+
+Run 40115005625, on the head of shift 505, was still going when this shift began,
+and is left to the next reading. On Roman's word of 24 October the
+runner's ratio ceiling went from 1.50 to 1.67 in a commit of its own
+(`df2dc3b`), with the floor of 0.70 and the desk's edges of 0.64 to
+0.91 untouched. The arithmetic and the price are in the comment above
+`RATIO_HIGH` in `scripts/library_floor.sh`: the top of the green row
+of 23 and 24 October, 1.447, times the file's own room of 1.158, and
+the first print of f7282ae, 1.595, would now pass.
+
+### Item 1: the rule and its guard
+
+`zero_throughout` in `crates/oxidelica-sim/src/compile.rs` learned,
+under `OXIDELICA_ZERO_IF=1` and off by default, that a conditional
+whose two branches are both zero throughout is zero throughout. The
+condition is never read, so no branch is chosen on a value that may
+move. Under the same key the denominator of a quotient is judged by
+the whole walk, `!zero_throughout(b)`, rather than by the two narrow
+guards: without that, `x / (if c then 0 else 0)` would have passed
+both guards and been called zero. The same hole stands today, without
+the key, in a narrower form: `a / (zeroVar * 2)`, with `zeroVar` in
+the set of zeros, passes both guards because the denominator is not a
+bare name. The key closes it too. Without the key it is left as it
+was, named here.
+
+Two unit tests (`zero_if_tests`) were seen red with the conditional
+arm and the new guard disabled, and green with them.
+
+The probes, from one binary (`/tmp/m506/ox1`):
+
+- `/tmp/m505/Z6L.mo`: off, `step size underflow at t = 0.000000`. On,
+  it runs, with `c = 0`, `i = 0` and `w = v = exp(-t)`, which is the
+  model's answer.
+- `/tmp/m505/Zr4.mo`, the boundary: `underdetermined algebraic loop
+["der(w)"]` word for word on both sides. The call stands, and the
+  rule does not know calls.
+- `/tmp/m506/Zd.mo`, a quotient by `if v > 0.5 then 0 else 0`: `NaN`
+  on both sides, not a zero.
+- `InvertersExtendedModel.MNmos` and `MPmos` under `--only`:
+  `underdetermined algebraic loop ["der(Dinternal)", "der(B.v)"...`
+  on both sides. The rule does not reach their zero.
+
+### Item 1: the corpus pair
+
+One binary, `/tmp/m506/ox2`, the two halves run side by side
+(`/tmp/m506/off.txt`, `/tmp/m506/on.txt`). Both print 973 flatten and
+809 run, runnable 855 and 763, the numbers of `/tmp/m503/on.txt`. The
+lists of flattened and run models are identical line for line:
+victims 0, gains 0. No PowerConverters model moved.
+
+```text
+off  time: flattening 6397s over 1020 models (6272ms each); running 6322s over 973 (6497ms each)
+on   time: flattening 6776s over 1020 models (6643ms each); running 6295s over 973 (6470ms each)
+```
+
+The two ran at once on one machine, so the seconds are dearer than a
+pass alone, and the flattening difference of 6% falls in a half the
+rule does not touch. The run half, where the rule lives, is the same
+within 0.4%, and newton work went from 36691183 to 36691336.
+
+One row moved in the register of the run half: `RollingWheelSetPulling`
+left `wheelSet.wheelSetJoint.revolute.tau = ...` and joined
+`RollingWheelSetDriving` at `wheelSet.wheelSetJoint.rolling1.e_long_0[1]
+= ...`, which `--only` confirms (`/tmp/m506/pl_off.txt`,
+`/tmp/m506/pl_on.txt`). It is a wall moved and not a wall removed:
+one refusal now reads as two.
+
+The change is parked, not merged: `state/m506/zero-if.patch`.
+
+### Item 2: TestMixingVolumesPressureStates
+
+`why` on both pressures (`/tmp/m506/why_p.txt`): only the first
+volume carries `initial equation: der(mixingVolume1.medium.p) = 0`,
+from `massDynamics = SteadyStateInitial`. Its `sat.Tsat` also stays a
+call to `tsat`, where the second volume's is inlined.
+
+The 24-row block of `/tmp/m505/tmv.txt` is not singular in structure.
+A maximum matching covers all 24 rows, and with each row and column
+scaled by its largest entry the rank is 24 and the condition 9.9e8,
+against 2.9e23 unscaled. `solve_linear` in
+`crates/oxidelica-sim/src/linear.rs` refuses a pivot under a flat
+`1e-14`, and an emulation on the traced matrix stops at the column of
+`der(mixingVolume1.medium.h)` with a pivot of 2.9e-15. Scaled by rows
+the smallest pivot is 6.5e-9. The rows of this block are mass
+balances of liquid water, whose coefficients are compressibilities of
+5e-7. So the zero column read in shift 505 is a threshold set without
+units rather than a property of the steady start.
+
+A probe behind `OXIDELICA_PIVOT_REL=1`, a pivot floor relative to its
+row, moved the model one wall on: `algebraic loop did not converge in
+50 Newton iterations`. It does not run. The probe is reverted and kept
+as `state/m506/pivot-rel.probe.patch`. A pivot floor is read by every
+linear solve, so this is a change to the whole solver and wants a
+corpus pair of its own before anything is said about it.
+
+### Item 2: dividing by an unknown that starts at zero
+
+From `/tmp/m499/raw.txt`, the run half's refusals that name an
+equation which cannot be evaluated before the first Newton step:
+
+- `MultiBody.Examples.Elementary.ThreeSprings`:
+  `e_rel_0[1] = r_rel_0[1] / s`, `-inf`. A division by a start of
+  zero.
+- `MultiBody.Examples.Elementary.RollingWheelSetDriving`:
+  `e_long_0[1] = aux[1] / sqrt(aux[1]^2 + aux[2]^2 + 0)`, `NaN`. Zero
+  over zero, the same family. `RollingWheelSetPulling` joins it under
+  the key of item 1.
+- `Spice3.Examples.CascodeCircuit`: `J1.icGS / J1.cc.cGS`, `NaN`, a
+  capacitance that starts at zero. The same family, through the
+  Spice3 capacitances.
+- `Fluid.Examples.PumpingSystem` and
+  `ModelicaTest.Fluid.TestComponents.Fittings.TestJunctionTraceSubstances`:
+  `NaN` from a medium function walked on values it does not accept
+  (density NaN, a root not bracketed). A different family, not a
+  division.
+
+Nothing was built for this family. Guards and Newton budgets belong
+to Roman.
