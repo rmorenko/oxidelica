@@ -60712,3 +60712,101 @@ Its counts were 971 / 808 and 853 / 762, above the new floors, and its
 work counters equal the pair's on half to the digit (expansions
 91874247, points 25249656, newton 36691006). That is the band, not
 the code (`/tmp/m499/preflight.txt`).
+
+## Shift 500: an array bound above the component it reads, parked on time
+
+### Item 0: the verdict for 47abd7c
+
+Run 40068395085 was still in progress at the start of the shift. It
+was not waited for.
+
+### Item 1: the six `_analytic` models at `e_ia`
+
+The address. `why` on `PlanarLoops_analytic` showed that
+`jointRRR1.e_ia[1]` was bound to `jointRRR1.jointUSR.e2_ia`, which is
+the whole array and a name the flat model does not declare. The
+declaration `final parameter Real e_ia[3] = jointUSR.e2_ia` in
+`JointRRR` (and `JointRRP`) stands above the `jointUSR` it reads. When
+the declaration is spread over its elements (`components.rs`,
+`spread_over_elements`), `jointUSR` has not been built, so nothing
+knows that `e2_ia` is an array, and every element takes the whole
+name. The `fixed = false` parameters `n_b` and `rodLength` named in the
+refusal are not a second wall. They are answered by the
+initialisation, and the refusal lists them only because it lists
+everything still pending.
+
+The smallest model is eleven lines (`state/m500/s11.mo`):
+`final parameter Real eo[3] = i.e; Inner i;`, with `Inner` holding
+`e = r/sqrt(r*r)`. It is refused. The same model with `Inner i` written
+first runs. So the cause is the order of declarations. By `raw.txt`,
+all six models are on `jointUSP`/`jointUSR` inside
+`JointRRP`/`JointRRR`, so this is one wall, not two.
+
+The change tried. After the model is built, every shape is known. A
+pass gave an element bound to a bare name the element of that name at
+its own subscripts, but only where the two arrays have exactly the
+same shape. It was behind `OXIDELICA_NO_LATE_ARRAY_BINDING`, with a
+test checking `x` ends at `exp(-0.8)`, green on and red under the
+switch.
+
+The control, `--only` from `.msl` (`/tmp/m500/six_before_after.txt`).
+`Engine1b_analytic`, `EngineV6_analytic` and `PlanarLoops_analytic`
+leave `cannot evaluate parameters` and stand at
+`structurally singular model`, the next wall. None of them runs.
+
+The pair, one binary `/tmp/m500/ox`, halves in sequence. Off
+(`/tmp/m500/off.txt`): 971 / 808, 853 / 762,
+`time: flattening 3685s ... running 4578s`. On (`/tmp/m500/on.txt`):
+971 / 808, 853 / 762, `time: flattening 3556s ... running 5868s`. The
+lists are 1779 lines on both sides with no difference, and the work
+counters are identical to the digit (expansions 91874247, bodies
+1291288, points 25249656, newton 36691006). So there are no victims,
+and the run half is 1290 seconds dearer.
+
+The time is the models that moved. Timed alone, off against on
+(`state/m500/three_times.txt`): `PlanarLoops_analytic` 8s to 123s,
+`Engine1b_analytic` 29s to 208s, `EngineV6_analytic` 27s to 311s.
+That is 578 seconds on three names. The other three of the family were
+not timed. Each is now refused at `structurally singular` after
+minutes in index reduction, and a refusal adds nothing to any list or
+counter. This is the shape the notes warn about: models let through a
+cheap wall into a dear one, for no model gained.
+
+So the change is not merged. It is parked as
+`state/m500/late-array-binding.patch` with the small model. It should
+be taken together with whatever clears `structurally singular` for
+this family, or with a cheap refusal ahead of index reduction.
+
+### Item 2: the map of the depth an `if` chain costs
+
+The chain is built in `statements.rs` (around line 2011), where an
+unrolled `for ... if time >= t[i] then y := x[i]` folds its outcomes
+into a right-nested `Expr::If(c, taken, otherwise)`. That is one link
+per row, so a table of n rows is n storeys deep. Two readers charge a
+storey per link:
+
+1. `arrays::expand`, arm `Expr::If` (around line 408). `recur` on the
+   `otherwise` branch is `expand(.., depth + 1)`, and the wall is
+   `arrays.rs:27`.
+2. `names::resolve`, arm `Expr::If` (around line 957). `recur` on the
+   second branch is `resolve(.., depth + 1)`, and the wall is
+   `names.rs:579`.
+
+The series that would follow, one switch per link, each measured on
+`state/m499/t31.mo` (it must run), with `t30.mo` as the control and
+the RAM `--only` (109 rows) for the chain:
+
+- link a: `expand` walks the `else` of an `If` at the same depth, as
+  a loop over the chain rather than a recursion;
+- link b: the same in `resolve`;
+- link c: whoever reads the chain after them (the event detector and
+  the run's walk), not probed this shift.
+
+Both a and b must land before `t31` can move, so neither is local
+alone. Under the brief's ban the ceiling stays. It is parked as this
+map, with no code.
+
+### Item 3: the `X` of algebraic loop row
+
+It already has a map (m426, m429, m476, m492, with `ThreeSprings` in
+m492). Nothing new was probed.
