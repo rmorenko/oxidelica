@@ -550,7 +550,14 @@ FILES_FLOOR=2671
 # count has swung between them.
 #
 #   968 + 1 = 969
-FLATTEN_FLOOR=969
+#
+# And flatten 971 = 969 + EngineThrottleControl and
+# ComponentsThrottleControl.Engine of Clocked (acdb28d). the judge of 5bdd695 (job 120788355488 of push run 40059091482)
+# printed 971 / 809 and runnable 853 / 763; the desk pair of m498 and m499 (/tmp/m498/on.txt, /tmp/m499/on.txt) printed 971 / 808 and
+# 853 / 762. Both machines flatten the same 971.
+#
+#   969 + 2 = 971
+FLATTEN_FLOOR=971
 # The two run floors came down by one, and the one is named: giving a
 # record constructor called with no arguments the values its `extends`
 # stated took `Modelica.Thermal.FluidHeatFlow.Examples.WaterPump` out
@@ -1840,7 +1847,13 @@ FLATTEN_FLOOR=969
 # list (lines 341, 383 and 487 of state/m491/on.ran):
 #
 #   806 - 3 = 803 = 799 + 4
-RUN_FLOOR=803
+#
+# Raised to 805 by the same two of Clocked. From the lower, the desk
+# (808; the runner's extra name is IMC_InverterDrive), less the same
+# three that swing, all three in /tmp/m499/on.list:
+#
+#   808 - 3 = 805 = 803 + 2
+RUN_FLOOR=805
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -2092,7 +2105,11 @@ RUN_FLOOR=803
 # And runnable flatten 852 = 851 + TestTankWithTopPorts of
 # `FLATTEN_FLOOR`, a runnable example, by the same desk pair
 # (/tmp/m467/on.txt, off.txt).
-RUNNABLE_FLATTEN_FLOOR=852
+#
+# And runnable flatten 853 = 852 + the one of those two that is a
+# runnable example (which one is not looked up here): 853 printed on
+# both machines.
+RUNNABLE_FLATTEN_FLOOR=853
 # And runnable run 674 = 671 + the three batteries, all runnable
 # examples, by the same runner job as `RUN_FLOOR` (d58700e, job
 # 112530851204).
@@ -2325,7 +2342,12 @@ RUNNABLE_FLATTEN_FLOOR=852
 # being runnable examples: 761 printed on the desk, 762 by the runner.
 #
 #   761 - 3 = 758 = 754 + 4
-RUNNABLE_RUN_FLOOR=758
+#
+# And 759 by the same judge and pair, one of the two of Clocked being
+# a runnable example: 762 on the desk, 763 by the runner.
+#
+#   762 - 3 = 759 = 758 + 1
+RUNNABLE_RUN_FLOOR=759
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
