@@ -60585,3 +60585,130 @@ two new models at 63 each. Newton was 36691006 in both halves.
 
 The floors were not moved, as the brief asked. A rise is for the
 runner's print.
+
+## Shift 499: a message stops eating the depth of the scan it guards
+
+### Item 0: the verdict on 5bdd695
+
+Run 40059091482 was still in progress when the shift began. It
+finished with success at 05:21Z, inside the shift. The judge (job 120788355488) printed 971 / 809 and runnable 853 / 763 with a ratio
+of 1.383. The desk printed 971 / 808 and 853 / 762, and the one name
+apart is IMC_InverterDrive. All five floors were taken in one commit,
+462e79f, from the lower machine less the three that swing: 2671,
+971, 805 = 808 - 3, 853, and 759 = 762 - 3.
+
+### Item 1: the inlining link of the RAM chain
+
+The address. A temporary print at `inline_function` named the refusal
+behind the standing wrapper in `g35` and `g36`:
+`Modelica.Utilities.Strings.scanInteger` failed with `an expression
+did not come to an end here, nested deeper than the compiler follows:
+Ref("fileName")`. A backtrace put it in the arguments of a call
+standing as a statement (`statements.rs`, `Statement::Call`), and the
+call was `Streams.error` inside `syntaxError`. Its message is
+`"Syntax error at character " + String(index) + ... + message`, and
+the array layer spends a storey on every term. The depth at
+`Streams.error` was 13 in `g35` against 12 in `g40`. The extra loop
+storey is what tipped the message over the ceiling. So the boundary
+drawn in m498 (a loop inside a nested block) was not about loops at
+all, but about how much depth was left when the message was read.
+`g34` ran because an equation enters the body at a lower count.
+
+The change. Where the array layer refuses on depth over an argument
+whose input is a scalar `String`, the text is handed on as written. A
+string has no array structure to keep. Anything the layer answers is
+taken as before. `OXIDELICA_NO_STRING_ARGS=1` keeps the old road.
+
+The test is
+`a_scan_in_a_nested_loop_keeps_the_number_it_read`
+(`tests/flattening/algorithms.rs`, model `nested_scan.mo`, a copy of
+the library bodies with `readLine` on a temporary file holding `7 9`).
+It checks that `m[1]` is 7 and `m[2]` is 9 with no scan left standing.
+It is green without the switch and red under it, with the m498
+message. A synthetic version with a short message never reached the
+wall, which is why the copy keeps `syntaxError` whole.
+
+The chain. `g35` and `g36` run without the switch and refuse under
+it. `Modelica.Electrical.Digital.Examples.RAM --only` is refused both
+ways with `an expression did not come to an end here, nested deeper
+than the compiler follows: Time`. Its flattening work fell from 9256
+expansions and 140 bodies to 8584 and 88, because `getMemory` now
+inlines.
+
+### Item 2: the depth wall of the RAM is the table source, not the address
+
+A print of every name an algorithm assigns, with the nesting of its
+value, gave `int_addr` depth 9, `mem[*]` 19, `nextstate[*]` 33 and the
+`Sources.Table` output `y` 81. `address` is not inlined at all
+(`a branch holding break or return needs a condition the compiler can
+decide`) and is left for the run to walk, as intended. The refusal on
+`Time` comes from `Table`, whose `for i in 1:n loop if time >= t[i]
+then y := x[i]; end if; end for;` unrolls into a chain of one `if`
+per row. The small models `state/m499/t30.mo` and `t31.mo`, a lone
+`Table` of 30 and 31 rows, run and refuse respectively. The RAM's
+table has 109 rows.
+
+The cure is in the content: an else-chain should not cost a storey
+per link. But the storey is charged by both `arrays::expand` and
+`names::resolve`, and what reads the chain afterwards would face the
+same depth. That is not one local change, and the brief forbids the
+ceiling. So it is parked as a map, and the next link is "an `if`
+chain from an unrolled loop counted as depth".
+
+### The pair for item 1
+
+One binary, `/tmp/m499/ox`, built from 77007fe. The halves ran one
+after the other with nothing beside them. The off half set
+`OXIDELICA_NO_STRING_ARGS=1` (`/tmp/m499/off.txt`), and the on half
+set nothing (`/tmp/m499/on.txt`).
+
+- off: 971 flatten, 808 run, 1779 lines in `off.list`, identical to
+  m498's `on.list` from the head. `time: flattening 3725s over 1020
+models (3652ms each); running 4599s over 971 (4737ms each)`.
+- on: 971 flatten, 808 run, 1779 lines in `on.list`. `time:
+flattening 3643s over 1020 models (3571ms each); running 4574s over
+971 (4710ms each)`.
+
+The diff is empty: no victims and no wins. The RAM stands at the
+table wall of item 2. The off half's work counters match m498's on
+half to the digit (expansions 91874907, bodies 1291340, points
+25249656, newton 36691006). On, expansions are 91874247 (-660),
+bodies 1291288 (-52) and names 1672582583 (-4807), and points and
+newton are unchanged. The RAM alone accounts for -672 expansions
+under `--only` (9256 to 8584). The other +12 are spread over models
+not named here. The floors were not moved.
+
+### Item 3: a fresh census against m495
+
+Taken with the binary of 77007fe (`/tmp/m499/census.txt`, raw half in
+`/tmp/m499/raw.txt`) and counted by section bounds. Would not flatten:
+49 models in 29 rows, against 51 in 30 for m495. Flattened and would
+not run: 163 models in 112 rows, against 163 in 113.
+
+The flatten half lost the two rows the ThrottleControl pair stood at
+(`an event clock has no answer`, 2 models), and the RAM moved from
+`dLATRAM.dataIn[N]` to `Time`, which is the table wall of item 2.
+
+The run half kept its total but moved a family. Six MultiBody
+`_analytic` models (`Engine1b_analytic`, `EngineV6_analytic`,
+`PlanarLoops_analytic`, `Utilities.CylinderBase`,
+`Utilities.Cylinder_analytic_CAD`, `Utilities.EngineV6_analytic`) left
+five `structurally singular model` rows and now stand at `cannot
+evaluate parameters [... e_ia[N] = ...jointUSP.eN_ia ...]`, in four
+rows. That is the same models one wall further along, through the work
+of m496 and m498. The pair of this shift moved no list, so it is not
+this change. This is the family to probe first in the next brief.
+
+The top of the queue. Flatten: C functions with no body of their own
+here (7), partial functions never redeclared (5), a sum nested past
+the depth (4). Run: the Newton direction of an algebraic loop (9), an
+underdetermined loop (8), a singular Jacobian (7).
+
+### Preflight
+
+Everything passed but the library step, which was red on the desk's
+ratio alone (`run/flatten ratio is 1.266, and the band is 0.64..0.91`).
+Its counts were 971 / 808 and 853 / 762, above the new floors, and its
+work counters equal the pair's on half to the digit (expansions
+91874247, points 25249656, newton 36691006). That is the band, not
+the code (`/tmp/m499/preflight.txt`).
