@@ -61488,3 +61488,10 @@ on   time: flattening 6709s over 1020 models (6578ms each); running 6826s over 9
 A floor relative to the row is therefore a different solver rather
 than a fix, and it is left as a probe. Its victim is worth the next
 look before anything is built on it.
+
+The victim, under `--only`: `algebraic loop diverged: ["zDiode.v"]`,
+a block of one unknown. There a floor relative to the row is relative
+to the pivot itself and can never trip, so the path the flat floor
+used to hand the block to no longer opens. A relative floor would
+need its own floor for the one-row case, which says again that it is
+a solver of its own.
