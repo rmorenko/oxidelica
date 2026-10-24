@@ -61517,3 +61517,55 @@ diverged: ["bearingFriction.sa"]`. `ThyristorBridge2mPulse_RLV` leaves
 `a block accepted on the arithmetic floor after 50 iterations`. The
 relative floor lets Newton go further, and some of the models it
 reaches diverge there instead of being refused at the pivot.
+
+## Shift 507: the conditional zero merged
+
+The verdicts first. CI on the head of shift 506 (run 40124848613) is green; the
+run on `13b3051` (40124814095) was still going when the shift began.
+The floors are not moved here.
+
+On Roman's word the parked change of shift 506 is merged into the
+default, both parts together under one opt-out key,
+`OXIDELICA_NO_ZERO_IF`: a conditional with zero on both branches is
+zero throughout, its condition never read, and the denominator of a
+quotient is judged by the whole walk of zeros. The second part closes
+a hole that stood in the tree without the first: `a / (zeroVar * 2)`,
+with `zeroVar` in the set of zeros, passed both of the old guards
+and was called zero. The two tests carried over from the park,
+`a_denominator_that_is_zero_throughout_does_not_quench` and
+`a_conditional_zero_on_both_branches_is_zero_throughout`, were seen
+red without the change in shift 506.
+
+The corpus pair, from one binary built from the final tree
+(`/tmp/m507/ox1`; `/tmp/m507/off.txt` under the key, `/tmp/m507/on.txt`
+without), run one half after the other. Both print 973 flatten and 809
+run, runnable 855 and 763. The `flat` and `ran` lists are identical
+line for line: no victims and no gains.
+
+```text
+off  time: flattening 3962s over 1020 models (3884ms each); running 4985s over 973 (5123ms each)
+on   time: flattening 3784s over 1020 models (3710ms each); running 4860s over 973 (4995ms each)
+```
+
+Only refusals moved, as in shift 506: `RollingWheelSetPulling` joins
+`RollingWheelSetDriving` at `e_long_0[1] = ...`, and the two Spice3
+adder models, `NAND` and `ONEBIT`, keep `underdetermined algebraic
+loop` on a smaller block (`["der(Q4.vbe)"]`, `["der(X9.Q4.vbe)"]`).
+The newton counter rose by 153 of 36.7 million.
+
+### The run half against the maps
+
+Every row of the run half of `/tmp/m499/census.txt` with more than one
+model was read against this document, and each already has a map: the
+Newton direction (eight `ModelicaTest.Fluid.TestPipesAndValves` models,
+parked since shift 486), `underdetermined algebraic loop` (Spice3 and
+the machines), the singular Jacobian, `jointRRP.e_ia`, the IF97
+`tsat`, `dddX` and the array in a walked body. No row went unmapped.
+
+One finding on the start-zero family: in `ThreeSprings`,
+`oxidelica why` shows `spring2.lineForce.s = if length > s_small then
+length else s_small`. The value can never be below `s_small`, yet the
+algebraic block starts it at zero and divides `r_rel_0[1]` by it. The
+start a block takes for a variable defined by a `max`-like conditional
+ignores the floor the equation itself writes. Not built: guards for
+the family belong to Roman.
