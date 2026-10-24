@@ -61569,3 +61569,21 @@ algebraic block starts it at zero and divides `r_rel_0[1]` by it. The
 start a block takes for a variable defined by a `max`-like conditional
 ignores the floor the equation itself writes. Not built: guards for
 the family belong to Roman.
+
+Two more readings of the family, both probes and nothing built.
+
+A small model of the `ThreeSprings` shape, `/tmp/m507/Zs.mo`, divides
+by `s = if len > s_small then len else s_small` with every start at
+zero, and it runs. A floored quantity started at zero is therefore not
+enough on its own to stop a block, and `ThreeSprings` stands on more
+than that one division.
+
+In `CascodeCircuit` the division is not written by the library. The
+model says `J1.icGS = J1.cc.cGS * der(J1.vGS)`, and the residual the
+refusal quotes, `(J1.icGS / J1.cc.cGS) - (der(J1.G.v) -
+der(J1.Sinternal))`, is that equation solved for the derivative. The
+coefficient divided by is an unknown of the block with `start: 0`,
+although its own equation gives `-1e40` while `J1.m_bInit` holds. So
+the zero comes from solving for a derivative through a coefficient the
+block has not evaluated yet, which is a different layer from the
+`ThreeSprings` division the library writes itself.
