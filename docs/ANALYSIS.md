@@ -60281,3 +60281,156 @@ library step, red with the known desk numbers, points 1549174 and
 Newton 2309534 to the digit as in m495. The desk ratio printed 1.272
 against m495's 1.698, the same fall the pair showed. The main pass
 prints 956 run and the whole count 969, as before.
+
+## Shift 497: the sum folded as a tree, the RAM chain mapped to its end
+
+### Item 1: a pair compares the time of both halves
+
+The paragraph is in `AGENTS.md` after "Two numbers are comparable
+only if the same binary produced them". From this shift on, a pair
+quotes the `time:` line of both halves beside the lists.
+
+### Item 2: `sum` as a balanced tree
+
+`sum_of` (`flatten/arrays.rs`) built a chain of additions n storeys
+deep, and an FFT body's `sum(u)` of thirty elements went deeper than
+`MAX_DEPTH`. It now builds a balanced tree, log n deep.
+`OXIDELICA_NO_BALANCED_SUM=1` brings back the chain. `/tmp/m495/yg.mo`
+is refused under the switch and runs without it. The test
+`the_sum_of_a_long_array_stands_inside_what_the_compiler_follows` is
+red under the switch and green without it. Products, `min`/`max` and
+the walk's own `fold` (`walk.rs`) are left as chains, because no
+refusal named them.
+
+What it buys, by `--only` on `/tmp/m497/ox`: `Rectifier6pulseFFT`
+passes the depth wall and stops at the next one, `rawRealFFT` is
+`ModelicaFFT_kiss_fftr` in C. That is the external-C family, so no
+model is won. Its flattening time rises from 13 s to 33 s, because
+the expansion now goes further before the refusal. The pair is in
+`/tmp/m497/t_off.txt` and `t_on.txt` (see the numbers below).
+
+### Item 3: the RAM chain walked to its end
+
+All of it was reproduced on copies of `DLATRAM` in `/tmp/m497`:
+
+1. `nested deeper ... dLATRAM.dataIn[1]`. It shows only with the
+   final line `yy := nextstate;` present. A copy without that line
+   (`dl.mo`) skips it, and `rm_.mo` with it brings it back. Removing
+   the `if initial()` read of `getMemory` does not change it (`vc.mo`).
+   Replacing `address(n_addr, addr)` with `1` takes it away (`vd.mo`).
+   So the depth comes from the inlined `address` call substituted
+   through the whole read section into `yy`.
+2. `pre() takes a variable, not an expression`
+   (`oxidelica-sim/src/events.rs:258`). A probe printing the argument
+   shows a whole `If` over `RE`, with `pre(nextstate[1])` inside it.
+3. The cause behind 2, at its smallest in `/tmp/m497/u3.mo`: one
+   branch writes `ns[i]` in a `for` and another writes `ns := fill(7,
+2)` whole. The merge then produces two equations for `ns[1]`, `ns[1]
+= if c then 5 else pre(ns[1])` and `ns[1] = if c then pre(ns[1])
+else 7`. Written element by element in both branches (`u4.mo`) or
+   whole in both (`u5.mo`), it runs. `t7.mo` is the same shape
+   refused as an event that does not come to rest.
+4. The end: `w4.mo`, the real `DLATRAM` body with every whole-array
+   write rewritten element by element (and `getMemory` kept), runs.
+   `w5.mo`, which keeps only the `mem` slice write and changes nothing
+   else, does not. So the chain ends in a run, and links 1-3 are one
+   family: the merge in `one_if_statement` (`flatten/statements.rs`,
+   the `touched` loop) keys a whole-array write and an element write
+   under different names.
+
+The last link is the `if` merge, which every algorithm crosses. I do
+not count it as local, so it was not taken this shift. The map is
+ready for a series.
+
+### Item 4: IMC_InverterDrive does not fork on one machine
+
+The premise does not hold. `--only`, run twice on `/tmp/m497/ox`
+(`/tmp/m497/imc1.txt`, `imc2.txt`), refuses both times with `step
+size underflow at t = 0.000000`, at 1100674 points and 1381803
+Newton to the digit, in 77 s and 75 s. All four corpus passes of
+m496 (`t_off`, `t_on`, `t_off2`, `t_rev`) list it under `flat` with
+the same refusal. The desk is deterministic, and the fork is between
+the desk and the runner, as m495 item 2 recorded. One loose end is
+`EVER_GROUNDED` (`compile.rs:4165`), a thread-local carried across
+models in one process. It is cleared at the start of each reduction
+(`compile.rs:1738`), so it does not carry between models.
+`minted_defs` is iterated as a HashMap, but only into `or_insert`, so
+the order does not change the result. No source of nondeterminism
+was found.
+
+### Item 5: the event-clock `shiftSample` row (2)
+
+`EngineThrottleControl` and `ComponentsThrottleControl.Engine`
+refuse at `clocks.rs` `periodic_only`. The source is
+`RealSignals.NonPeriodic.FractionalDelay(shift = 1, resolution = 1)`
+in `InductionToPowerDelay`, on a rotational event clock. The block
+says it is prepared "for usage in event-clock partitions". With
+`resolution = 1` the shift is a whole number of ticks, which a
+counter can answer without knowing when a tick falls. The refusal is
+therefore stricter than it needs to be for whole shifts. This was
+not taken: it is a map only.
+
+### The pair for item 2
+
+One binary, `/tmp/m497/ox`, built from the final tree. The off half is
+`OXIDELICA_NO_BALANCED_SUM=1` (`/tmp/m497/t_off.txt`) and the on half
+is without the switch (`/tmp/m497/t_on_par.txt`). Both print 969
+flatten and 806 run. The run lists (`off.list`, `on.list`) are 1775
+lines each and identical, so there are no victims. The off half's
+work counters match the m496 base `t_rev.txt` to the digit.
+
+The time lines:
+
+- off: `flattening 4192s over 1020 models (4110ms each); running
+5483s over 969 (5659ms each)`
+- on: `flattening 7461s over 1020 models (7315ms each); running
+6647s over 969 (6860ms each)`
+
+The on half ran beside the off half and a preflight library pass,
+three corpora on one desk, so its seconds are not comparable with the
+off half's. The witness was taken quietly instead: one model at a
+time under `--only`, alternating off/on (`/tmp/m497/ctl.txt`).
+
+- `HeatingSystem` flattens in 155/154 s off and 154/153 s on.
+- `LinearWater_pT` flattens in 43.1/43.3 s off and 42.9/42.8 s on.
+- `Cylinder` flattens in 34.2 s off and 35.2 s on.
+
+These were the dearest of the on half's list. The growth in that
+list is the shared machine and not the change. Expansions rose 2.6%
+(91871359 to 94238153), which is the FFT bodies now expanded past the
+depth wall before being refused at the C call.
+
+The repair for the last link of item 3 has an address. `one_assignment`
+binds an array assigned whole under its bare name (`ns`), and an
+element written by a `for` under its element name (`ns[1]`). The merge
+in `one_if_statement` then sees two names and gives each a fallback of
+`pre`, which is where the two equations for one element come from.
+The repair would take the whole value apart into elements at the merge
+whenever any branch writes elements, the same way `one_assignment`
+already does for a name bound whole and then written element by
+element. It crosses every algorithm, so it is left for a series with
+its own pair.
+
+### Item 2 parked: the preflight on b75d556
+
+`/tmp/m497/preflight.txt` reports every step green except the library
+step. That step prints `CEILING: run/flatten ratio is 1.222` (the desk
+band, a known state) and `WORK: expansions is 94238153 against
+88798455 written here (1.061259x), outside 50000 per million`. The
+second line is new: m496 printed 91871359, which is 1.035x. The
+points and Newton figures (1547041 / 2312973) also differ from the
+known 1549174 / 2309534. The difference is `IMC_InverterDrive`, whose
+refused run takes 1100674 points with the tree sum and 1100990 under
+`OXIDELICA_NO_BALANCED_SUM=1` and on `/tmp/m496/ox2`
+(`/tmp/m497/imc_off.txt`, `imc_ox2.txt`). Reassociation reaches that
+model's run. The change wins no model and would turn the work band
+red. Bands are not ours to move, so the change never left the desk.
+It is parked, with its test, as `state/m497/0001-*.patch`. Taking it needs
+either a narrower fold (only where a chain would pass `MAX_DEPTH`) or
+a decision on the expansions band.
+
+### Item 0: the verdict on 22ca3e2
+
+Run 40039156456 finished green in every job, the judge included. The
+ratio series 1.595 / 1.914 / 2.057 is closed by the revert, with the
+fourth point back inside the band.
