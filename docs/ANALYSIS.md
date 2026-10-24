@@ -61329,3 +61329,11 @@ Three rows of the singular-Jacobian half, probed with
   equation, `mixingVolume2.medium.h = mixingVolume2.h_start`, and the
   first volume's has none: the two volumes start from different
   initialisations, which is where to look next.
+  The model's source says why: `mixingVolume1` is declared with
+  `energyDynamics` and `massDynamics` both `SteadyStateInitial`, while
+  `mixingVolume2` takes the system's `FixedInitial` and
+  `DynamicFreeInitial`. So the first volume is initialised by
+  `der(...) = 0`, and the block whose pressure derivative reads as
+  zero is the one whose start is a steady state. Whether the zero
+  column is a true property of the steady start or a value the
+  initialisation left behind is not settled by this shift.
