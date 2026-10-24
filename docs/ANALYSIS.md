@@ -61009,3 +61009,13 @@ counters in the brief (points 25249656, newton 36691006). The change
 adds 60 points and 128 newton, which are `Transformer`'s own (60 and
 128 under `--only`). So the band reads the desk, not the change, and
 the runner's print is the judge.
+
+`QuasiStatic.Machines.Examples.TransformerTestbench`, the one
+`reference.gamma` single of the run half, was probed because it lives
+in the same graph. It refuses with the same text under the old and
+the new binary, so this shift's change does not reach it. Under
+`OXIDELICA_RING_PROBE` its rings are dropped inside the
+`plugToPins` adaptors only. Its wall is the repeated alias row of
+index reduction already mapped above (rows 7 to 9 of
+`der(transformer.l2sigma.plug_p.reference.gamma)`), not the root
+check.
