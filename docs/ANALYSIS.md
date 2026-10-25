@@ -62426,3 +62426,83 @@ r3 does, on `transformer.l2sigma.plug_p.reference.gamma`
 place runs (`TT8.mo`). So the wall is the sensor on the secondary,
 whose `plugToPins` and single-phase branches carry the reference
 through the delta side, and it is parked with this map.
+
+## m514: the fixed frames to a small model, and the anchor that would not shrink
+
+### The verdicts for c9c8cac and the cron on ecd0bd5
+
+Run 40179148127 for `c9c8cac` finished green: the commit touched
+documents only, so the library jobs were skipped and judged no floor.
+The scheduled run 40178654837 on `ecd0bd5` was still in progress at
+the start of the shift, so its verdict is not recorded here.
+
+### The fixed frames, to a model of four components
+
+The MultiBody `RevoluteConstraint` was cut while its refusal stood.
+`/tmp/m514/f/C5.mo` keeps `world`, a `FixedRotation`, the
+`Joints.Constraints.Revolute` and a `BodyShape`, and refuses with the
+same row as r12. `/tmp/m514/f/E1.mo` (a `FixedTranslation` and a
+`Body`) and `D4.mo` refuse in the same family on other rows.
+
+The victim probe on `E1` names the mechanism. The constraint's power
+balance writes `der(frame_a.r_0)` and the flattener leaves the fixed
+frame's `r_0` and `R.T` as unknowns tied to `world` by bare aliases.
+They become candidate states. Reductions 7 to 17 then differentiate
+`world.frame_b.r_0[i] = ft.frame_a.r_0[i]` and
+`world.frame_b.R.T[i,j] = ft.frame_a.R.T[i,j]`, each an identity
+between constants, and every one of them demotes a real state of the
+body (`b.frame_a.r_0[1]`, `b.v_0[3]`, `b.Q[1]`, ...) until none is
+left. So the answer to the brief's question is the first of its three:
+a constant not folded before the reduction, not a true relation.
+
+Three probes were walked as a chain, all behind switches and all
+parked in `state/m514/frame_chain.patch` (the first alone also as
+`still_der.patch`):
+
+1. `OXIDELICA_STILL_DER`: `der` of a continuous variable held equal to
+   constants is zero. It moves the wall and wins nothing: the four
+   models then refuse on `der(frame_b.r_0) * R.T`.
+2. `OXIDELICA_STILL_FOLD`: such variables are folded into the
+   parameters before the matching, and the identities left with no
+   unknown are checked and dropped. `E1` and `D4` pass the reduction
+   and stop at a loop of the body; the four library models now stop on
+   `constraint.r_rel_a[2]`, where reduction 3 demotes
+   `bodyOfConstraint.r_0[1]`, an alias of the already demoted
+   `constraint.frame_b.r_0[1]`.
+3. `OXIDELICA_DER_ALIAS_REP`: `der` of a member of a bare alias class
+   is written as `der` of one member whose derivative is stated.
+   Revolute, Spherical and Universal then pass index reduction and
+   refuse in the run: Revolute on a block through
+   `FreeMotionScalarInit` where nothing changes at t = 0, Spherical on
+   an array reaching the evaluator in `planarRotationAngle`, Universal
+   on a singular Jacobian. Prismatic still refuses on
+   `der(constraint.frame_b.R.T[2,3]) - der(bodyOfConstraint.frame_a.R.T[2,3])`.
+
+The chain is not walked to its end: link 4 is in the run half and is
+three different refusals. No model won, so nothing was taken.
+
+### The anchor, which did not shrink
+
+Two small rotational models with angle and speed fixed at the start
+(`/tmp/m514/a/A1.mo`, `A2.mo`, the second with an explicit
+`phiM = rotor.phi - stator.phi`, `wM = der(phiM)`) both run. The
+anchor wall is parked by the brief's two attempts. Run under the frame
+chain, all four anchor models keep their refusal word for word
+(`/tmp/m514/an/r1.txt` to `r4.txt`), so the two families are not one
+breed. My word: the frame series is the cheaper one. Its first two
+links are mapped and a small model reproduces them, while the anchor
+has no small model yet.
+
+### The valve loop of `TanksWithEmptyingPipe2`
+
+With `silent_chain.patch` (binary `/tmp/m514/oxsc`, not merged), the
+loop over `valveDiscrete.V_flow`, the three pipe flows and
+`tank3.ports[1].m_flow` does not diverge (`/tmp/m514/T2trail.txt`).
+From zero starts Newton alternates for 28 iterations between
+`|f|` near 1e2 and an overshoot in `pipe2` up to 2.1e5, then
+decreases linearly and reaches the quadratic phase at iteration 47.
+At iteration 49 `|f|` = 5.3e-7, and after the last step the residual
+is 2.3e-10 against a reach of 1.9e4, which the floor test does not
+accept. It is the budget of 50 iterations, not a wrong start. This
+is the road to the patch: a better first guess for the pipe flows, or
+a damped first step, would let it converge.
