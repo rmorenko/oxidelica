@@ -16,13 +16,18 @@ floors it will not let drop. Quote the numbers before and after a
 change; a change that moves none of them should say why it was worth
 making anyway.
 
-A commit that moves the numbers moves the floors in the same commit.
-This was learned the hard way: twenty-three models were won over a
-session and the floors left where they were, so a regression giving
-all twenty-three back would have passed CI without a word. A ratchet
-that is not wound is not a ratchet. There are five floors and the
-runnable pair is easy to forget - take all five from one run of the
-script rather than from what the commit messages said.
+A commit that moves the numbers moves the floors in the same commit -
+when the runner is the one that printed them. This was learned the
+hard way: twenty-three models were won over a session and the floors
+left where they were, so a regression giving all twenty-three back
+would have passed CI without a word. A ratchet that is not wound is
+not a ratchet. There are five floors and the runnable pair is easy to
+forget - take all five from one run of the script rather than from
+what the commit messages said. Where only the desk has counted the
+tree, the two halves part: the change lands in its own commit and the
+floors follow in the next, after the judge has printed. Twice an order
+to wind the ratchet from a desk print was written and struck before it
+ran, because this line was read without the one below it.
 
 And the floor is raised whenever a measurement comes out above it, not
 only when the shift's own change is what raised it. The ratchet as
