@@ -62820,3 +62820,19 @@ and not the frame rule. A stator held at zero is still for the whole
 run, so the fold is right about the value. What it changes is which
 states index reduction keeps, and the next probe for this model is to
 diff the demoted states off against on.
+
+### The judge of 6fef118
+
+The push run 40199290194 is red, and only its judge is: job
+121212082719, on the single line `WORK: jacobians counted apart is
+143 against 1974`. Every floor holds. It printed 973 flatten and 811
+run, runnable 855 and 765, and the ratio 1.360 inside its band. The
+143 are the two solenoids under the silent chain, now the default.
+With the same binary under `--only` (`/tmp/m516/solenoids.txt`),
+`ComparisonQuasiStatic` goes from 1841 with `OXIDELICA_NO_SILENT_CHAIN`
+to 10 without it, and `ComparisonPullInStroke` stays at 133. That is
+10 + 133 = 143 to the digit. It is the same breed as 61533d5: which
+difference step the run takes. The centre of that band is not moved
+in this shift, because the work order forbids touching bands. The
+floors stay at 806 and 760 too, because a red judge does not raise
+them.
