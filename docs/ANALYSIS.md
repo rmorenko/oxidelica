@@ -62433,8 +62433,9 @@ through the delta side, and it is parked with this map.
 
 Run 40179148127 for `c9c8cac` finished green: the commit touched
 documents only, so the library jobs were skipped and judged no floor.
-The scheduled run 40178654837 on `ecd0bd5` was still in progress at
-the start of the shift, so its verdict is not recorded here.
+The scheduled run 40178654837 on `ecd0bd5`, which carries the heavy
+models, was still running at the start of the shift and finished
+green by the time of the push.
 
 ### The fixed frames, to a model of four components
 
