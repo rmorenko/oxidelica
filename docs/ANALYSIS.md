@@ -62677,3 +62677,14 @@ the mode at t = 0 should leave to the pipe. This was probed with
 `ports[i].p`, which the pipe should then give. So whether the singular
 subset comes from the compiler's matching or from the model is still
 open.
+
+The pair again with the halves in sequence, same binary `/tmp/m515/oxm4`
+(built on 7a0909f, without the silent chain), files
+`/tmp/m515/sq_off.txt` and `sq_on.txt`, run lists `sq_off.ran` and
+`sq_on.ran`. The lists are the same as in the parallel pair: off 809,
+on 811, the same two won and none lost. Time: flattening 3813s off
+against 4149s on, running 4899s off against 5213s on. So the fold
+makes both halves dearer, by 8.8% and 6.4%. Work: points 25249733 to
+24751705, Newton 36691336 to 36258105, Jacobians 526 to 10631. The
+twentyfold rise in Jacobians is the line to explain before taking
+the fold.
