@@ -62555,3 +62555,74 @@ not merged, because merging the silent chain is not this shift's to
 decide. The budget is a global ceiling, and fifty-to-sixty applies to
 every loop. The pair shows no victim and a shorter run half, but a
 taking should still name why sixty and not another number.
+
+## m515: the silent chain taken, and the fold narrowed by modes and frames
+
+### The silent chain and a budget of sixty
+
+The chain that reads a start-less state through start-less names, up
+to four equations deep, and a Newton budget of sixty instead of fifty
+are now the default. `OXIDELICA_NO_SILENT_CHAIN` restores both at
+once. The default is exactly what the on half of the pair `oxsc2`
+measured (`OXPROBE_SILENT_CHAIN` and `OXPROBE_NEWTON_BUDGET=60`, see
+`/tmp/m514/pair2.sh`). The second probe of that patch,
+`OXPROBE_GROW_FROM_SILENT`, was not set on the pair and is not taken.
+The reason for sixty is the valve loop of `TanksWithEmptyingPipe2`. It
+swings for 28 iterations, turns quadratic at the 47th, stands at
+`|f|` = 5e-7 on the 50th and settles at about the 51st. The ceiling is
+shared by every loop. The corpus pair answers what that costs: no
+model lost, and the run half went from 4838s to 4264s.
+
+`TanksWithEmptyingPipe2` already ran before the change and still
+runs. The win is `AST_BatchPlant.Test.OneTank`. Next on the open-tank
+road, `Fluid.Examples.Tanks.TanksWithOverflow` refuses as structurally
+singular on `lowerTank.ports[2]`, with or without the chain.
+
+### The seven losses of the narrow fold, by mechanism
+
+Probed with `/tmp/m514/ox6` under the narrow fold
+(`/tmp/m515/v/`):
+
+- `CascadeControlledDrive` (three models) and `PathPlanning1` and `6`
+  are one breed. The fold takes the names of `KinematicPTP2`, which
+  an undecided `if` equation writes. The names are still within one
+  mode and not across the run. At the first mode change the new
+  compilation keeps them as unknowns, so the table gains 23 or 27
+  columns and `continuation.rs:86` refuses. Small model:
+  `/tmp/m515/s/K5.mo` (`s = a` before t = 0.5, `s = a + (time-0.5)`
+  after) refuses the same way.
+- `Fourbar_analytic` and `GearConstraint` are a second breed. The fold
+  takes half a frame: the diagonal of `R.T`, `R.w` and some of the
+  `r_0`. The off-diagonal of `R.T` stays an unknown, held by an alias
+  to a moving frame (`world.frame_b.R.T[1,2] = b3.frame_a.R.T[1,2]`).
+  The reduction then demotes different body states (victim lists in
+  `/tmp/m515/fbv_off.txt` and `fbv_on.txt`, 41 against 43).
+
+Two narrowings were probed in `/tmp/m515/wt` behind switches:
+`OXIDELICA_STILL_FOLD_MODED`, which does not fold a name an undecided
+`if` equation writes, and `OXIDELICA_STILL_FOLD_WHOLE`, which folds a
+frame whole or not at all and then refolds. Over the twenty models of
+m514, with one binary for both halves (`/tmp/m515/oxm4`, files
+`moded_off.txt` and `whole_on.txt`), there were no losses and the two
+wins were kept (`IMC_InverterDrive`, `InverseCapacity`). None of the
+four frame models runs. Run half 504s off, 454s on. `WHOLE` recognises a frame by
+the spelling of its names (`.r_0[`, `.R.T[`, `.R.w[`). That is
+acceptable for a probe and not for the tree, because the structure
+should record which names make a frame. With `WHOLE`, 200 of 217 folded
+names in `Fourbar_analytic` are dropped again (93 of 99 in
+`GearConstraint`). This shift did not check whether the 17 that stay
+are exactly the frames a chain from `world` proves fixed. Parked as
+`state/m515/fold_moded_whole.patch`. A corpus pair was not taken
+during this shift.
+
+### The run link of `RevoluteConstraint`
+
+Under the frame chain (`/tmp/m514/ox6`, `STILL_FOLD`, `STILL_DER`,
+`DER_ALIAS_REP`) the block has 69 unknowns.
+`OXIDELICA_DEAD_PROBE` finds two columns that are "never mentioned":
+`der(constraint.R_rel.T[1,3])` and
+`der(freeMotionScalarInit.initAngle.angle[2])`. These are unknowns
+with no equation of the block naming them. The convergence test does
+not accept a diverged unknown here, so this is not the breed of item 18.
+It is a matching that put two derivatives into the block with nothing
+to determine them, which belongs to the reduction half.

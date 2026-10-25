@@ -6225,6 +6225,48 @@ pub(crate) fn compile_at(
                 }
                 wanted_names.extend(again);
             }
+            // A state with no start is read through a chain of names
+            // with no start either, up to four equations deep: an open
+            // tank's mass waits on `fluidVolume`, which waits on `V`,
+            // which a level says. One equation of reach left the mass
+            // at no value at all. `OXIDELICA_NO_SILENT_CHAIN` returns
+            // the old reach, together with the old Newton budget.
+            if !crate::silent_chain_disabled() {
+                let silent: std::collections::HashSet<&str> = model
+                    .components
+                    .iter()
+                    .filter(|c| c.start.is_none() && c.variability == Variability::Continuous)
+                    .map(|c| c.name.as_str())
+                    .collect();
+                let mut frontier: std::collections::HashSet<&str> = states
+                    .iter()
+                    .map(String::as_str)
+                    .filter(|state| silent.contains(state) && resumed(state).is_none())
+                    .collect();
+                let mut seen: std::collections::HashSet<&str> = frontier.clone();
+                for _ in 0..4 {
+                    if frontier.is_empty() {
+                        break;
+                    }
+                    let mut next: std::collections::HashSet<&str> =
+                        std::collections::HashSet::new();
+                    for (lhs, rhs) in &algebraic_eqs {
+                        named.clear();
+                        lhs.collect_refs(&mut named);
+                        rhs.collect_refs(&mut named);
+                        if !named.iter().any(|name| frontier.contains(name)) {
+                            continue;
+                        }
+                        for name in named.iter().copied() {
+                            if silent.contains(name) && seen.insert(name) {
+                                next.insert(name);
+                            }
+                        }
+                    }
+                    wanted_names.extend(next.iter().copied());
+                    frontier = next;
+                }
+            }
         }
         // Read until nothing more can be read, and not past a few
         // rounds. One equation's answer is what makes the next one

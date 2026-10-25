@@ -1534,7 +1534,17 @@ impl CompiledModel {
         // footing, so that a step back across a root can be measured
         // against the two points either side of it.
         let mut footing_f: Option<Vec<f64>> = None;
-        for iteration in 0..50 {
+        // Sixty, not fifty: the valve loop of TanksWithEmptyingPipe2
+        // swings for 28 iterations, turns quadratic at the 47th, stands
+        // at |f| = 5e-7 on the 50th and settles on about the 51st. The
+        // ceiling is shared by every loop; measured over the corpus it
+        // cost no model and made the run half cheaper.
+        let budget: usize = if crate::silent_chain_disabled() {
+            50
+        } else {
+            60
+        };
+        for iteration in 0..budget {
             oxidelica_parser::work::tick(oxidelica_parser::work::Step::Newton);
             self.count_newton(t)?;
             let parts = residual_parts(values, &v);

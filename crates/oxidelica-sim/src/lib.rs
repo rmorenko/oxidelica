@@ -30,6 +30,13 @@ mod symbolic;
 mod tests;
 mod walk;
 
+/// `OXIDELICA_NO_SILENT_CHAIN` returns the reading of a start-less
+/// state to one equation of reach and the Newton budget to fifty, both
+/// at once, since the two were measured together.
+pub(crate) fn silent_chain_disabled() -> bool {
+    std::env::var_os("OXIDELICA_NO_SILENT_CHAIN").is_some()
+}
+
 pub use compile::{compile, lower_the_ceiling_here, CeilingGuard};
 
 use code::*;

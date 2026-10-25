@@ -2236,3 +2236,34 @@ fn a_discrete_start_read_from_a_signal_is_still_spent() {
     let last = result.rows.last().unwrap();
     assert!((last[y] - 2.0).abs() < 1e-9, "y_max(1) = {}", last[y]);
 }
+
+/// A silent state is read through a chain of silent names, not one
+/// equation of it.
+///
+/// An open tank carries its mass and energy as states with no start,
+/// and what says where they begin is a level three equations away:
+/// `V = A*level`, `fluidVolume = V`, `m = fluidVolume*d`. The reach of
+/// the reading stopped one equation from the state, so `V` and
+/// `fluidVolume` were never asked, the mass began at zero and the
+/// specific energy `U/m` the medium reads was not a number at t = 0.
+#[test]
+fn a_silent_state_is_read_through_a_chain_of_silent_names() {
+    let model = parse_model(
+        "model M parameter Real A = 2; parameter Real d = 1000; \
+         Real level(start = 1.5); Real V; Real fV; Real m; Real u(start = 4); Real U; \
+         equation V = A * level; fV = V; m = fV * d; U = m * u; \
+         der(m) = 0; der(U) = 0; end M;",
+    )
+    .unwrap();
+    let compiled = compile(&model).unwrap();
+    let state = |name: &str| {
+        let index = compiled
+            .states
+            .iter()
+            .position(|had| had == name)
+            .unwrap_or_else(|| panic!("{name} among {:?}", compiled.states));
+        compiled.initial[index]
+    };
+    assert!((state("m") - 3000.0).abs() < 1e-9, "m = {}", state("m"));
+    assert!((state("U") - 12000.0).abs() < 1e-9, "U = {}", state("U"));
+}
