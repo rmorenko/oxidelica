@@ -62808,3 +62808,15 @@ The fold is not taken in this shift. The Jacobians are explained and
 belong to the won model. The frame no longer depends on the spelling
 of its names. The cost that is left has a name and a reproduction of
 one model.
+
+The fold of that machine is small and of one kind. Under the four
+switches (`OXPROBE_FOLD_LIST`, `/tmp/m516/qt_folded.txt`) it folds 16
+names, all of them `phi` angles of a fixed stator: `fixed.flange`,
+`internalSupport`, `airGap.support`, `friction.support`,
+`strayLoad.support` and both flanges and the body of `inertiaStator`,
+eight in the machine `imc` and eight in `imcQS`. `FRAME` finds 246
+graph frames and drops nothing here, so the cost is the fold itself
+and not the frame rule. A stator held at zero is still for the whole
+run, so the fold is right about the value. What it changes is which
+states index reduction keeps, and the next probe for this model is to
+diff the demoted states off against on.
