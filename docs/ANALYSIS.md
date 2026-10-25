@@ -62316,3 +62316,12 @@ t = 0 (raised at `crates/oxidelica-sim/src/solvers/mod.rs:916` under
 `OXIDELICA_WHERE=1`), with `tank.medium.T` an algebraic variable of the
 run. Eleven lines reproduce it, and that is the starting point for the
 next shift on this wall.
+
+### The preflight of shift 512
+
+The compiler is untouched. The library step of
+`/tmp/m512/preflight.txt` printed 973 flatten / 809 run, runnable
+855 / 763, and the work sum 25249733 points / 36691336 Newton steps,
+the digits of `/tmp/m511/preflight.txt`. It is red only on the desk's
+ratio band (1.272) and the WORK rest. Tests, linters, coverage and the
+prose checks passed.
