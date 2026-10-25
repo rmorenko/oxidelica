@@ -61946,3 +61946,14 @@ Newton steps, the same digits as `/tmp/m508/preflight.txt`. It is red
 on the two lines the desk always prints: the run/flatten ratio of the
 desk band at 1.277 (1.265 in m508), and the WORK rest, which is
 `IMC_InverterDrive` as measured above. Every other step passed.
+
+The question about the quasi-static machines has a first answer:
+`phiMechanical` and `wMechanical` are both declared `fixed=true` in
+the example (`SMPM_CurrentSource.mo:30-31`), so `phiMechanical` is
+anchored and the walk prefers the free `strayLoad.phi` at reduction 19. Reduction 20 then tries 23 members, and each adds a row the
+system holds: `wMechanical - der(inertiaRotor.phi) = 0`, or
+`wMechanical` against `der(referenceCurrentSourceQS.plug_p.reference.gamma)`
+through the controller's gains. The current source's reference angle
+is tied to the rotor speed by the controller, and with both
+mechanical starts fixed the two angles leave one relation and no free
+state - an anchoring question rather than a gearbox one.
