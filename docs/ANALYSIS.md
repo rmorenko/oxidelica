@@ -62525,3 +62525,13 @@ different compiler, not a fix: it takes names out of the running as
 states and as unknowns that the present choice stands on. A narrower
 fold, limited to the frames a constraint joint differentiates, is the
 next step for the frame series.
+
+A narrower fold, `OXIDELICA_STILL_FOLD_NARROW` (only the still names
+connected through still equations to one written under `der`), was run
+over the sixteen names of the pair and the four frame models
+(`/tmp/m514/narrow_on.txt`, binary `/tmp/m514/ox6`). It keeps both
+wins and gives back seven of the fourteen losses. Seven are still lost:
+the three `CascadeControlledDrive` models, `Fourbar_analytic`,
+`GearConstraint`, `PathPlanning1` and `PathPlanning6`. None of the four
+frame models runs. Parked as `state/m514/frame_chain_narrow.patch`.
+The seven that are still lost are the list for the next narrowing.
