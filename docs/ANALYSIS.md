@@ -62688,3 +62688,123 @@ makes both halves dearer, by 8.8% and 6.4%. Work: points 25249733 to
 24751705, Newton 36691336 to 36258105, Jacobians 526 to 10631. The
 twentyfold rise in Jacobians is the line to explain before taking
 the fold.
+
+## m516: the twentyfold Jacobians named, and the frame read from the graph
+
+### Where the Jacobians of the fold come from
+
+The rise from 526 to 10631 Jacobians under the fold is one model. On
+the twenty models of m514, with one binary for every rung
+(`/tmp/m516/oxf`, head 6fef118 with the m515 patch, files
+`/tmp/m516/l_{off,f,n,nm,nmw}.txt` with `OXIDELICA_WORK_EACH`), the
+Jacobians are 0 without the fold and 10007 under every rung of it:
+`STILL_FOLD` alone, with `NARROW`, with `MODED` and with `WHOLE`. All
+10007 belong to `IMC_InverterDrive`. Without the fold it is refused
+with a step size underflow at t = 0 and builds none. Under the fold
+it runs, on the implicit solver, and builds 10007. 10631 - 526 is
+10105, which is this model and a remainder of 98. So the twentyfold
+rise is not the fold making the old models dearer: it is the price
+of a model the fold wins. Its points fall the other way, 1100990
+off (the refused attempt) against 594163 on, which is why points and
+Newton fall while the Jacobians rise.
+
+The line that builds them is the reset after an event in the
+implicit solver, `crates/oxidelica-sim/src/solvers/bdf.rs:420`
+(`jac = None` after "the history is meaningless across a
+discontinuity"). A probe counting the reason for each rebuild
+(`OXPROBE_JAC_WHY`, binary `/tmp/m516/oxj`, not in the tree, counts
+in `/tmp/m516/jacwhy.txt`) gives for `IMC_InverterDrive` under the
+fold: 10000 after an event, 4 first builds, 2 after a rejected step
+and 1 at the fifth Newton iteration. The inverter switches on a
+pulse width modulation, so every switching is an event, and each
+event throws the matrix away. That is code of the tree and not of the
+fold, so it cannot be cut inside the fold's patch. Whether a matrix
+may survive an event whose mode leaves the state equations alone is
+a question for the solver, and one with its own risk.
+
+### The frame read from the connection graph
+
+`OXIDELICA_STILL_FOLD_FRAME` replaces the spelling test of `WHOLE`.
+A frame is a connector holding a node of the overconstrained graph:
+every `Connections.root`, `potentialRoot` and `branch` names a record
+like `world.frame_b.R`, and the connector above it is the frame. Its
+members are the continuous, non-flow components under that connector.
+A frame is kept only if all its members are folded at the moment it is
+judged, which is after `NARROW`. Otherwise every folded member of it is
+dropped and the rest is folded again. Parked as
+`state/m516/fold_frame.patch` (the m515 patch plus this).
+
+The check on `Fourbar_analytic` that m515 left open: the 17 names that
+stay under `WHOLE` are not frames at all. They are `shape.r`, `box.r`
+and `cylinder.r` of the animation, `b2.body.w_a` and `b2.body.g_0`.
+After the refold only the three of `g_0` stay. No frame of the model
+reaches the threshold of 15 members of `WHOLE`: the most is 9,
+`world.frame_b`, whose six off-diagonal entries of `R.T` `NARROW` has
+already removed. So `WHOLE` in practice dropped every frame. `FRAME`
+gives the same: 102 of 217 dropped, three names of `g_0` kept, and the
+model runs.
+
+The order m515 proposed was also probed, and it loses. A frame proved
+whole before `NARROW` and then kept past it
+(`OXIDELICA_STILL_FOLD_FRAME_PIN`) finds six such frames in
+`Fourbar_analytic` (`world.frame_b`, both frames of `b3`,
+`j1.frame_a`, `jointSSP.prismatic.frame_a` and one `frame_resolve`).
+It keeps 183 names, and the model is refused with a singular Jacobian
+in the loop of `j1.frame_b.t`. A frame fixed from `world` stays an
+unknown for the model to run, so the question of m515 has a negative
+answer, and the pin is not part of the proposal.
+
+The ladder over the twenty models, one binary (`/tmp/m516/oxg4`, file
+`/tmp/m516/l_nmf.txt` against `l_nmw.txt` of `oxf`): `FRAME` runs the
+same 16 models as `WHOLE`, and the run lists are identical. Work is
+identical too: 597062 points, 930122 Newton, 10007 Jacobians. Both
+wins (`IMC_InverterDrive`, `InverseCapacity`) are kept, and there are
+no losses against the 14 of the half without the fold. The small
+models agree byte for byte: `K4` and `K5` of m515 give the same CSV
+under `WHOLE` and `FRAME`, and `C5` of m514 refuses the same way
+under both.
+
+### The joint link of `RevoluteConstraint`
+
+`why` on `freeMotionScalarInit.initAngle.angle[2]` with the head's
+binary, without the m514 keys, files `/tmp/m516/why_rev_{off,on}.txt`:
+the model is refused before the run with or without the fold, as
+structurally singular on `der(constraint.frame_a.R.T[1,1]) = 0`. In
+the equations of `R_rel.w` the derivative of `angle[2]` is still
+multiplied by the `if sequence_start[k] == ...` choices over the
+parameter. So the derivative keeps its parameter choice through
+differentiation, and the dead column of m515 does not come from
+differentiation losing the branch. What remains is the matching, the
+breed of courting. That reading was taken without the frame chain of
+`/tmp/m514/ox6`, so it settles the branch and not the column.
+
+### The pair of `FRAME`, the halves in sequence
+
+One binary (`/tmp/m516/oxg4`, head 6fef118 plus
+`state/m516/fold_frame.patch`), both halves without the heavy models,
+run one after the other, with `OXIDELICA_WORK_EACH`. Files are
+`/tmp/m516/p_off.txt` and `p_on.txt`, and the run lists are `p_off.ran`
+and `p_on.ran`. The on half sets `STILL_FOLD`, `NARROW`, `MODED` and
+`FRAME`. Off: 973 flatten, 810 run. On: 973 / 812. Two are won,
+`IMC_InverterDrive` and `InverseCapacity`, and none is lost. Time:
+flattening 4055s off against 4266s on, and running 4514s against
+4748s, which is 5.2% dearer. Work: points 25216785 to 24719228, Newton
+36621637 to 36191208, and Jacobians 516 to 10616 (143 apart in both).
+The off half's work matches the reference preflight of m515 to the
+digit.
+
+Of the 234 seconds the run half gained, 106 are one model:
+`QuasiStatic.FundamentalWave...InductionMachines.IMC_Transformer`. It
+is not weather. Run alone under `--only`, one after the other
+(`/tmp/m516/qt_off.txt` and `qt_on.txt`), it takes 145s off and 231s
+on, with points 1105 to 2530, Newton 7259 to 13664 and Jacobians 3
+to 11. It runs in both halves, so the fold changes how hard its run
+is and not whether it runs. Which folded name does that is the next
+question before the fold is taken. The rest is spread thinly, and
+the dearest gains after it are `TestMultiPortTraceSubstances` (+26s),
+`Engine1a` (+14s) and `UniversalConstraint` (+11s).
+
+The fold is not taken in this shift. The Jacobians are explained and
+belong to the won model. The frame no longer depends on the spelling
+of its names. The cost that is left has a name and a reproduction of
+one model.
