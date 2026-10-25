@@ -62290,3 +62290,22 @@ stator star). It is a fluid one: a tank port whose flow is held at
 zero, after the tank's level has already lost its state to the pinned
 pressure. This is reading only. The next move is a small model, an
 open tank with a closed port.
+
+A small open tank (`/tmp/m512/tank/Tank2.mo`: an `OpenTank` with two
+ports, one fed by a `MassFlowSource_T` and one left open, constant
+property water, `use_T_start=true`) does not reach the wall. It
+refuses first on `tank.medium.T = NaN` against the medium's range,
+although `why` shows the start as `tank.T_start`. That is a refusal
+of its own and is noted rather than chased in this shift.
+
+Three more files of the empty reach, read the same way:
+
+| file | model                                   | last reduction                                           | wall         |
+| ---- | --------------------------------------- | -------------------------------------------------------- | ------------ |
+| r6   | FundamentalWave `IMC_DOL_CommonLeakage` | implied rows on the stator's `strayPermeance` potentials | stator star  |
+| r7   | FundamentalWave `SMPM_CurrentSource`    | `der(smpm.flange.phi) - der(angleSensor.flange.phi) = 0` | anchor       |
+| r11  | MultiBody `PrismaticConstraint`         | `der(fixedRotation.frame_a.R.T[2,2]) = 0`                | fixed frames |
+
+So of the six files read so far, r1, r2 and r6 are the stator star,
+r7 is the anchor, r11 is the fixed frames, and r4 and r5 are the open
+tank, the fifth wall.
