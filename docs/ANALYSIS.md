@@ -62661,3 +62661,19 @@ Taking the fold still needs a pair with the halves in sequence. It
 also needs `WHOLE` rewritten so the structure records which names make
 a frame, instead of a test on the spelling of the names. The patch
 stays parked in `state/m515/fold_moded_whole.patch`.
+
+### The next wall of the open tank
+
+`Fluid.Examples.Tanks.TanksWithOverflow` refuses as structurally
+singular on `lowerTank.ports[2].m_flow = 0`. That port is the overflow
+inlet at a height of 6 m, above the starting level of 2 m. The zero
+comes from the branch the vessel takes for a port above its level. The
+same port's flow is also tied to `overflow.port_b.m_flow` by the
+connection. With the port dry, both say what one unknown is, and the
+pipe has nothing left to determine. The open question is which side
+the mode at t = 0 should leave to the pipe. This was probed with
+`why` only, and nothing was changed. On paper the mode balances
+(`Vessels.mo:381`): in the same branch `s[i]` is defined from
+`ports[i].p`, which the pipe should then give. So whether the singular
+subset comes from the compiler's matching or from the model is still
+open.
