@@ -62070,3 +62070,121 @@ Newton steps, the digits of `/tmp/m509/preflight.txt`. It is red on
 the two lines the desk always prints, the desk band at 1.287 and the
 WORK rest. Tests, linters and coverage passed. CI for `8a87dd7` and
 `bf006e9` finished green.
+
+## m511: where the retreat from a reduction with no state gives up
+
+### CI of shift 510
+
+Run 40157391982 for `1ce817a` finished green.
+
+### The boundary
+
+The parked switch of m510 (`state/m510/retreat_singular.patch`) sends a
+walk whose reduction constrains no state back to its latest victim.
+Its cost was the models that retreat four times and are refused all
+the same, each pass repeating the reductions before it. The boundary
+added this shift remembers where the last such walk ended, as the pair
+of the reduction number and the refusal's text, in a thread-local
+cleared with `REFUSED_VICTIMS`. A walk that ends at the same pair does
+not retreat again and returns the refusal unchanged.
+
+### Measured one by one
+
+Each model under `--only` on `.msl`, one binary (`/tmp/ox3`, switch
+off and on), seconds of the whole check from `/tmp/m511/six.txt`, next
+to the m510 pair of the switch without the boundary:
+
+| model                             | off | on, boundary | m510 off/on |
+| --------------------------------- | --: | -----------: | ----------: |
+| `Loops.Utilities.Cylinder`        |  85 |          132 |      51/317 |
+| `Constraints.RevoluteConstraint`  |  36 |           64 |      44/251 |
+| `Constraints.PrismaticConstraint` |  31 |           55 |      36/213 |
+| `Constraints.UniversalConstraint` |  69 |          101 |      94/215 |
+| `Constraints.SphericalConstraint` |  30 |           53 |       ?/194 |
+| `Loops.Engine1a`                  |  97 |          160 |     100/198 |
+
+Every one is under twice its own off time, where m510 was up to six
+times. `RevoluteConstraint` now retreats once (reduction 39) where it
+retreated four times. `G3` still runs under the switch, `i10.w` =
+0.0796 at t = 0.25 as in `/tmp/m510/g3_refused.txt`. The model the
+switch wins is the QuasiStatic `TransformerTestbench` (the m510 run
+lists differ by it alone), and it still runs with the boundary, 184 s
+under `--only`: its retreats at reductions 27 and 32 are different
+ends, which the boundary does not cut.
+
+### The 164 that do not run
+
+`--only-from /tmp/m510/norun.lst --slow 20`: the run half is 2544 s
+with the boundary (`/tmp/m511/son.txt`) against 2031 s off and 3363 s
+for the switch without it (`/tmp/m510/soff.txt`, `son.txt`). One of
+the 164 runs, the QuasiStatic `TransformerTestbench`, and its own run
+is 222.7 s (`slowest run` in `son.txt`): that is the price of the win.
+The other 163 stand where they stood and cost 2544 - 223 = 2321 s
+against 2031 s, so the refusals spend 290 s more than off. Without the
+boundary the same spend was about 1112 s (1332 - 220). The boundary
+cuts the time wasted on refusals to a quarter.
+
+Two hundred and ninety seconds is hundreds and not tens, so the switch
+is not taken as a default this shift. The default form, with the key
+`OXIDELICA_NO_RETREAT_SINGULAR` and the boundary, is parked in
+`state/m511/retreat_singular_boundary_default.patch`; the corpus pair
+below was taken with that form built.
+
+### The top two of the empty reach, read
+
+Lines 1 and 2 of `/tmp/m508/cns_ex.lst`, `/tmp/m508/p/r1.txt` and
+`r2.txt`.
+
+`SynchronousMachines.SMPM_NoLoad` (r2) takes, at reductions 1 to 12,
+the air gap's flux linkages `psi_ms[1]`, `psi_ms[2]`, `psi_mr[1]`, the
+stray currents `lssigma.i_[1]`, `i_[2]`, `lszero.i` and every rotor
+angle of the machine (`inertiaRotor`, `inertiaStator`, `friction`,
+`permanentMagnet`, `strayLoad`, `speed.phi`), and ends at reduction 13
+with eighteen members offering no victim, all of them star-point
+current sums of the stator plugs whose derivatives are rows the system
+already holds. `Noise.ActuatorWithNoise` (r1) holds the same machine
+as `motor.smpm` behind a gearbox with a lossy gear on a fixed support
+and an elasto-gap, and ends at reduction 18 the same way, on the
+current sums of `motor.smpm`.
+
+Both belong to a fourth wall rather than to the three already named:
+not a prefer pair over one relation (the gearbox of r1 is passed at
+reductions 3 to 5 without trouble), not an anchor, and not a fixed
+frame. The machine's currents are spent as states on one side of the
+star point while the sum that closes the star is left with nothing to
+take. Under the switch with the boundary both retreat twice
+(`ActuatorWithNoise` at reductions 7 and 17, victims
+`motor.smpm.inertiaRotor.phi` and `motor.smpm.airGap.psi_mr[2]`) and
+are refused
+the same way, so the boundary gives up on them in two passes. No small
+model was tried: the wall needs the machine's space-phasor
+transformation, which is a library's worth of classes.
+
+### The corpus pair of shift 511
+
+One binary built with the parked default form (`/tmp/m511/ox4`),
+`--list --without scripts/heavy_models.txt`, the key set for the off
+half: `/tmp/m511/off.txt` printed 973 flatten / 809 run, runnable 855 /
+763, the digits of the m510 reference, and `/tmp/m511/on.txt` printed
+973 / 810, runnable 855 / 764. The run lists (`off.ran`, `on.ran`)
+differ by one line, the QuasiStatic `TransformerTestbench` gained, and
+no model is lost; `GearConstraint` runs in both. The time lines:
+
+```text
+off  flattening 3880s over 1020 models; running 4883s over 973
+on   flattening 3809s over 1020 models; running 5447s over 973
+```
+
+The run half is 564 s (11.5%) dearer with the boundary, against
+1158 s (23%) for the switch without it in m510. The pair is clean;
+the price is the one named above, and whether it is worth one model is
+left to the next review, with the patch parked.
+
+### The preflight of shift 511
+
+The compiler is untouched on this tree (the boundary is parked). The
+library step of `/tmp/m511/preflight.txt` printed, main pass plus dear
+pass, 973 flatten / 809 run, runnable 855 / 763, and the work sum
+25249733 points / 36691336 Newton steps, the digits of
+`/tmp/m510/preflight.txt`. It is red on the WORK rest the desk always
+prints. Tests, linters and coverage passed.
