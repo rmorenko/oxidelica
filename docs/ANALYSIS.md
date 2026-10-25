@@ -62626,3 +62626,38 @@ with no equation of the block naming them. The convergence test does
 not accept a diverged unknown here, so this is not the breed of item 18.
 It is a matching that put two derivatives into the block with nothing
 to determine them, which belongs to the reduction half.
+
+Order matters for `WHOLE`. Placed after `NARROW`, it leaves the fixed
+frames of `world` half folded: `NARROW` has already removed the
+off-diagonal of `R.T`, so `RevoluteConstraint` and
+`SphericalConstraint` refuse on
+`world.frame_b.R.T[3,3] = fixedRotation.frame_a.R.T[3,3]`. Without
+`NARROW`, `WHOLE` keeps 1201 of 1507 folded names in Revolute, which
+returns it to the old row `constraint.r_rel_a[2]`, and
+`Fourbar_analytic` is lost again to the singular Jacobian. So the
+working order is `NARROW` and then `WHOLE`. A frame proved fixed from
+`world` would have to be read before `NARROW` cuts it, which is the
+shape the third narrowing should take in the tree.
+
+`why` on `freeMotionScalarInit.initAngle.angle[2]` shows it named
+only inside the nine `R_rel.T[i,j]` equations of `initAngle`, each
+term chosen by `if sequence_start[k] == ...` over a parameter. Why its
+derivative reaches the block with no row that moves under it is not
+settled. Whether the derivative of those parameter-chosen branches
+keeps the branch a parameter picks is the next question for this
+link.
+
+### The corpus pair for `NARROW`, `MODED` and `WHOLE`
+
+One binary (`/tmp/m515/oxm4`), both halves without the heavy models,
+files `/tmp/m515/fw_off.txt` and `fw_on.txt`, run lists `fw_off.ran`
+and `fw_on.ran`. Off: 973 flatten, 809 run; runnable 855 / 763. On:
+973 / 811; runnable 855 / 764. Two won, `IMC_InverterDrive` and
+`HeatTransfer.Examples.Utilities.InverseCapacity`, and none lost, so
+all fourteen losses of the wide fold are back. The time of this pair
+was not measured: the two halves ran at once and finished at different
+moments, so their seconds are not comparable and none are quoted.
+Taking the fold still needs a pair with the halves in sequence. It
+also needs `WHOLE` rewritten so the structure records which names make
+a frame, instead of a test on the spelling of the names. The patch
+stays parked in `state/m515/fold_moded_whole.patch`.
