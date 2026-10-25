@@ -62535,3 +62535,22 @@ the three `CascadeControlledDrive` models, `Fourbar_analytic`,
 `GearConstraint`, `PathPlanning1` and `PathPlanning6`. None of the four
 frame models runs. Parked as `state/m514/frame_chain_narrow.patch`.
 The seven that are still lost are the list for the next narrowing.
+
+### The valve loop with sixty iterations
+
+A probe in a worktree only, `OXPROBE_NEWTON_BUDGET`, lets the loop
+take more than fifty steps. With sixty and `silent_chain.patch`,
+`TanksWithEmptyingPipe2` runs to the end. At t = 1 it reads the same
+masses and energies as the run without the patch, to the last digit
+but one (`/tmp/m514/T2b.csv` against `T2base.csv`). Measured as a pair
+with one binary (`/tmp/m514/oxsc2`, files `sc_off.txt` and
+`sc_on.txt`, both without the heavy models). Off: 973 flatten, 809
+run; runnable 855 / 763. On: 973 / 810, runnable 855 / 764. Time of
+the run half 4838s off, 4264s on. One won,
+`AST_BatchPlant.Test.OneTank`, and none lost. So the condition the
+brief set for the silent chain is met once the budget is sixty. The
+two together are parked as `state/m514/silent_chain_budget60.patch`,
+not merged, because merging the silent chain is not this shift's to
+decide. The budget is a global ceiling, and fifty-to-sixty applies to
+every loop. The pair shows no victim and a shorter run half, but a
+taking should still name why sixty and not another number.
