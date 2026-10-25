@@ -62325,3 +62325,104 @@ The compiler is untouched. The library step of
 the digits of `/tmp/m511/preflight.txt`. It is red only on the desk's
 ratio band (1.272) and the WORK rest. Tests, linters, coverage and the
 prose checks passed.
+
+## m513: the open tank's NaN, read through a chain of silent names
+
+### The verdict for ecd0bd5
+
+Run 40168486010 for `ecd0bd5` finished green. The judge printed
+`OK: 2671 files read, 973 flatten, 810 run; runnable 855 flatten, 764
+run` at 08:20:39, before the observer step began, so the observer
+could not have written over `main.txt`. 810 and 764 are the runner's
+side of the known swing, one above the desk's 809 and 763. The
+observer printed `previous print: run 40135927700`, `delta: 804 models
+ran in both prints`, `flatten 3497s -> 3841s (1.099); run 5592s ->
+5951s (1.064)` and `0 per-model doublings`. Both ratios are inside
+0.8 to 1.2. The first print on the runner is therefore a sensible one.
+
+### Where the start of the tank was lost
+
+`/tmp/m512/tank/Tank3.mo` refused at t = 0 with `tank.medium.T = NaN`.
+`why` gives `tank.medium.T` its start, but the medium's temperature is
+an algebraic variable: the states are `tank.m` and `tank.U`, neither
+with a start. `system.energyDynamics` is `DynamicFreeInitial`, so the
+tank writes no initial equation, and the states begin where the start
+reading puts them. With `system(energyDynamics = FixedInitial)` the
+same eleven lines run, which places the fault in the reading and not
+in the medium.
+
+`OXPROBE_READ_START` shows what was read: `tank.medium.u` and
+`tank.medium.d`, nothing else. What says where the mass begins is
+three equations from it, `V = crossArea*level`, `fluidVolume = V`,
+`m = fluidVolume*d`, and the reach of the reading grows one equation
+from what wants a start, then one step further only from names whose
+start is their type's. `V` and `fluidVolume` have no start at all, so
+they were never asked, `m` began at zero and `u = U/m` was not a
+number.
+
+Both halves of the reach have to widen for the chain to be read: the
+second step taken from silent names too, and taken over any equation
+naming them rather than only the one matched to them. Either alone
+leaves Tank3 refused. Both together read `V = 1`, `fluidVolume = 1`,
+`m = 995.586`, `U = 8.33e7`, and the run ends after a second at level
+1.001, mass 996.586 kg and 293.15 K.
+
+Measured as a pair with one binary (`/tmp/m513/off.txt`,
+`/tmp/m513/on.txt`), that wide reach gave 973 / 809 against 973 / 808:
+`AST_BatchPlant.Test.OneTank` won, `TanksWithEmptyingPipe2` and
+`InverseParameterization` lost. The second step from any equation reads
+flows and pressures that have nothing to do with a silent state
+(`pump.V_flow`, `pipe1.port_b.m_flow = -0.4`, `orifice.state_b.p`),
+and that is what cost `InverseParameterization`.
+
+The narrower reach follows only silent names, from the silent states
+outward, for up to four equations. A second pair with one binary
+(`/tmp/m513/off2.txt`, `/tmp/m513/on2.txt`) gave 973 / 809 on both
+halves, runnable 855 / 763 on both, with the run half at 4615s against
+4239s. It is an exchange and not a gain: `OneTank` wins and
+`TanksWithEmptyingPipe2` is lost. The victim's initial equations are
+matched the same way in both halves. The only difference in its starts
+is `V` and `fluidVolume` of the three tanks, read now as 9.1, 1.1 and
+6.1, which are the true values. The loop over the valve and the three
+pipe flows then does not converge at t = 0. That is a guess that went
+the wrong way for a Newton solve, not a wrong number. The patch is
+parked as `state/m513/silent_chain.patch` behind `OXPROBE_SILENT_CHAIN`,
+with its test, `a_silent_state_is_read_through_a_chain_of_silent_names`
+(`m = 0` without the reach, 3000 with it). The way forward is the
+valve loop of `TanksWithEmptyingPipe2` at its true volumes, and the
+patch is to be taken only when that loop converges.
+
+The closed-port tank `Tank2.mo` runs with the patch.
+`TanksWithOverflow` does not: with or without it, it refuses on
+`lowerTank.ports[2]` constraining no state, the fifth wall itself.
+
+### The empty reach, read to the end
+
+| file | model                                           | wall                    |
+| ---- | ----------------------------------------------- | ----------------------- |
+| r3   | QuasiStatic `TransformerTestbench`              | QS reference angle (TT) |
+| r8   | QS FundamentalWave `SMPM_CurrentSource`         | anchor                  |
+| r9   | QS FundamentalWave `SMPM_MTPA`                  | anchor                  |
+| r10  | QS FundamentalWave `SMR_CurrentSource`          | anchor                  |
+| r12  | MultiBody `RevoluteConstraint`                  | fixed frames            |
+| r13  | MultiBody `SphericalConstraint`                 | fixed frames            |
+| r14  | MultiBody `UniversalConstraint`                 | fixed frames            |
+| r15  | MultiBody `PlanarFourbar`                       | planar loop, new        |
+| r16  | MultiBody `RobotR3.FullRobot`                   | gearbox                 |
+| r17  | ModelicaTest `Rotational.TestBearingConversion` | gearbox                 |
+
+Over all seventeen files: anchor 4 (r7–r10), fixed frames 4 (r11–r14),
+stator star 3 (r1, r2, r6), open tank 2 (r4, r5), gearbox 2 (r16,
+r17), the QS transformer 1 (r3), the planar loop 1 (r15). The anchor
+and the fixed frames tie at four each.
+
+### The transformer, one element at a time
+
+Added to `TTSmall3` one at a time: a polyphase `CurrentSensor` and a
+`PowerSensor` on the primary run (`/tmp/m513/tt/TT4.mo`, `TT5.mo`); a
+`CurrentSensor` between the secondary and the load refuses exactly as
+r3 does, on `transformer.l2sigma.plug_p.reference.gamma`
+(`TT6.mo`, and alone in `TT9.mo`). A polyphase resistor in the same
+place runs (`TT8.mo`). So the wall is the sensor on the secondary,
+whose `plugToPins` and single-phase branches carry the reference
+through the delta side, and it is parked with this map.
