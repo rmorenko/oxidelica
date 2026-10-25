@@ -61680,7 +61680,7 @@ with `--only`, `--refused`, `OXIDELICA_WHERE=1` and
 `compile.rs:2728`, the refusal after the singular subset has been
 tried. They split in two by what the last reduction printed.
 
-Eleven end on `victim: <none>` with `raw reach: []`: the equation and
+Ten end on `victim: <none>` with `raw reach: []`: the equation and
 every member of its subset reach no state at all.
 
 - The plug's per-pin current balance: `ActuatorWithNoise` and
@@ -61696,7 +61696,7 @@ every member of its subset reach no state at all.
   (both `constraint.r_rel_a[3] = 0`), and `PlanarFourbar` (an `R_rel.T`
   entry of `revolute1`) after 73 reductions.
 
-Six end with a victim found, and are refused on the member after it:
+Seven end with a victim found, and are refused on the member after it:
 
 - The quasi-static machines `SMPM_CurrentSource`, `SMPM_MTPA` and
   `SMR_CurrentSource` on `phiMechanical = flange.phi -
@@ -61713,10 +61713,10 @@ Jmotor.flange_a.phi`, the victim `speed.flange.phi`.
   `freeMotionScalarInit.derd[2].u`.
 
 So the 34 are three groups and not one: seventeen helpers that refuse
-rightly, eleven where the reach is truly empty (kinds B and C of m312
-and its kind E), and six where the subset search found a victim and
-still ended at the wall. The six are the new reading. Their refusal
-text is the same as the eleven, but the probe shows a reduction that
+rightly, ten where the reach is truly empty (kinds B and C of m312
+and its kind E), and seven where the subset search found a victim and
+still ended at the wall. The seven are the new reading. Their refusal
+text is the same as the ten, but the probe shows a reduction that
 had something to demote, which is a different layer: the question for
 them is why the member taken in place did not end the singular
 subset, not why the reach is empty. Not built: a map first, a change
@@ -61780,3 +61780,169 @@ took this step as substituted (`unchecked`), so this is the first
 desk print of the band on this tree. The tree changed only in this
 document, and CI on `164e0da` is green, so the difference is the desk
 against the runner, not a regression. The band is not touched here.
+
+## Shift 509: the seven with a victim, one gearbox at the bottom
+
+### Verdicts
+
+CI on `a01dccf` (run 40141710615) is green. The run of `99f0504`
+(40135927700) had every job green but the main library pass, which was
+still running at its ninety-seventh minute when the shift began. Its
+tree is covered by the green `164e0da` after it, so there is nothing
+to mend.
+
+### The numbers of m508 corrected
+
+The m508 chapter named its two groups "eleven" and "six" and listed
+ten and seven names. Counted with `grep -l 'victim: <none>'` over
+`/tmp/m508/p/r*.txt`, the empty reach is in ten files (r1, r2, r4, r5,
+r6, r7, r11, r13, r14, r15) and absent from seven (r3, r8, r9, r10,
+r12, r16, r17). The numbers are corrected above, the lists untouched.
+
+### The mechanism, on a gearbox
+
+The seven do not share one layer. In all seven the victim the probe
+printed belongs to an _earlier_ reduction, and the reduction that
+refuses comes after it: it either finds a member whose differentiated
+row the system already holds (`dependent-row`, five of them) or an
+implied row (`implied-row`, `TransformerTestbench` and `FullRobot`).
+So the question m508 left - why the member taken in place did not end
+the subset - has the answer that it did end it, and the next
+reduction is the one that has nothing.
+
+`TestBearingConversion` reduces to a model of six components, kept in
+`/tmp/m509/G3.mo`: a sine torque on an inertia, a
+`Rotational.Components.Gearbox` with `useSupport=true` on a `Fixed`,
+and a second inertia. It refuses with the same text in 0.4 seconds.
+With `useSupport=false` and no `Fixed` it runs, so the wall is the
+supported gearbox itself, whose `phi_rel`/`w_rel` and those of its
+inner `elastoBacklash` are two pairs of `StateSelect.prefer` states
+over one relation.
+
+The probe of the small model shows the walk:
+
+```text
+reduction 3  weighs g.elastoBacklash.phi_rel, g.phi_rel   -> g.phi_rel
+reduction 5  weighs g.w_rel, i11.w (slope 1 each)         -> i11.w
+reduction 6  weighs g.w_rel, g.elastoBacklash.w_rel, i10.w
+             all slope 0, no companion favoured           -> i10.w
+reduction 7  g.w_rel - g.elastoBacklash.w_rel = 0: the member adds a
+             row the system holds -> constrains no state
+```
+
+At reduction 3 `g.phi_rel` is demoted, which makes `g.w_rel` its
+companion. At reduction 6 every slope is zero at the start, and
+`choose_the_victim` favours companions only where their sensitivity
+is above zero, so the companion is passed over and `i10.w` taken.
+`g.w_rel` stays a state beside `g.elastoBacklash.w_rel`, and the
+hidden constraint between them has nothing left to demote.
+
+### A switch, measured
+
+`OXIDELICA_FLAT_COMPANION=1` makes the companion favoured when every
+state the constraint reaches has a zero slope. On the small model
+reduction 6 then takes `g.w_rel` and the model runs (also with the
+starts of the original fixed, `/tmp/m509/G.mo`). Over the seven, run
+one at a time with `simulate` from one binary
+(`/tmp/m509/seven_offon.txt`): six refuse with the same text on and
+off, and `TestBearingConversion` passes the wall and is refused one
+step later - "the states re-selected at t = 2.8e-13 name different
+variables than the run so far", fifteen derivatives of `gear2_2`
+arriving. So the switch moves one of the seven one storey up and none
+to running.
+
+### The WORK band of the desk, by name
+
+The m508 preflight printed the desk's rest of work at 1549377 points
+and 2309864 Newton steps against the runner's 457143 and 904754, a
+difference of 1092234 and 1405110. The guess that the three swinging
+models make it up does not hold: run one at a time with
+`/tmp/m508/ox1`, `SpringWithMass` costs 52 points and 142 steps,
+`SMPM_VoltageSource` of FundamentalWave 185 and 522,
+`TestJunctionIdeal` 50 and 117 - 287 and 781 together. The difference
+is one model: `IMC_InverterDrive` runs on the desk at 1100990 points
+and 1382578 steps (the second line of both "dearest" lists of
+`/tmp/m508/preflight.txt`), and the floors' arithmetic has long noted
+that it is the model where the desk and the runner part. Taken away,
+the rest is -8756 points and +22532 steps, inside the band's tenth. So
+the red band of the desk is `IMC_InverterDrive`, not the swings. The
+band and the lists are not touched.
+
+### Runner times for a delta over the ratio
+
+The five latest green runs carrying the `library-main` artifact
+(40124814095, 40115005625, 40102876975, 40087755731, 40080299278; the
+three newest docs-only runs have no library job) give 851 models that
+evaluate points in all five (`/tmp/m509/runs/spread.txt`). The
+largest over the smallest of the five times, per model:
+
+```text
+run      all 851:   median 1.560  p90 1.708  p99 1.981  max 6.31
+run      >= 100 ms: 252 models, median 1.581  p90 1.684  max 2.08
+flatten  >= 100 ms: 353 models, median 1.591  p90 1.739  max 2.17
+run as a share of its pass total, >= 100 ms:
+                    median 1.582  p90 1.739  p99 1.825  max 2.01
+```
+
+The pass totals for the same runs: run 9438 to 10224 s, flatten 6218
+to 7288 s, ratio 1.403 to 1.590. A model's time divided by its own
+pass's total spreads as widely as the raw time, so the weather on the
+runner is not shared evenly across one pass: a per-model delta would
+need an edge near a factor of two to stay quiet on green runs, and a
+delta judged that loosely sees only a model that has doubled.
+
+`FullRobot`, the second model of the seven read the same way
+(`/tmp/m508/p/r16.txt`), walks twice (a retreat at line 1023) and
+dies at reduction 13 of the second walk on rows of `axis1.gear`, the
+robot's own gear with a `spring.phi_rel` preferred as a state:
+reduction 12 weighs `Jmotor.phi`, `initializeFlange.phi_flange` and
+`gear.spring.phi_rel`, all at slope zero, and takes the flange, and
+every member at 13 then adds a row the system holds. The same shape
+as the gearbox, but here the companion rule of the switch does not
+reach it - the switch leaves its refusal unchanged - because what
+reduction 12 passed over is a relative state that was never a
+companion. `TransformerTestbench` ends on implied rows of reference
+angles and the three quasi-static machines on `phiMechanical`; their
+layers are not mapped further here.
+
+The corpus pair under the switch, one binary (`/tmp/m509/ox1`, built
+on `a01dccf` with the switch) and both halves without the heavy set
+(`/tmp/m509/off.txt`, `/tmp/m509/on.txt`):
+
+```text
+off  973 flatten / 809 run, runnable 855 / 763
+     time: flattening 4145s, running 5047s
+on   973 flatten / 808 run, runnable 855 / 762
+     time: flattening 3902s, running 4884s
+```
+
+The diff of the run lists is one name and no gain:
+`Rotational3DEffects.GearConstraint` runs off and is refused on, at
+the same wall (`gearConstraint.w_b - actuatedRevolute_b.w = 0`
+constrains no state, six other members tried). A companion favoured on
+flat slopes is a definition-shaped change, and its victims moved: it
+costs one model, wins none, and moves `TestBearingConversion` only to
+the next wall. Not built, the code is reverted. What the gearbox wants
+is not a companion rule but a choice between two preferred relative
+states over one relation - `g.w_rel` against
+`g.elastoBacklash.w_rel` - which is the same wall `GearConstraint`
+stands at from the other side, and the next shift on this family
+should start from `/tmp/m509/G3.mo` with both of them in view.
+
+One more reading for the three quasi-static machines
+(`/tmp/m508/p/r9.txt`): at reduction 19 the raw reach is
+`phiMechanical` at slope 1 and `strayLoad.phi` at slope 0, but only
+`strayLoad.phi` is weighed, and it is taken. Reduction 20 then ends
+on implied rows of the reference angles of the current source and
+the resistor. Why `phiMechanical` is left out of the weighing at 19
+is the question for that model, and it is not the gearbox's.
+
+### The preflight of shift 509
+
+The compiler is untouched on this tree (the switch was reverted). The
+library step of `/tmp/m509/preflight.txt` printed 973 flatten / 809
+run, runnable 855 / 763, and the work sum 25249733 points / 36691336
+Newton steps, the same digits as `/tmp/m508/preflight.txt`. It is red
+on the two lines the desk always prints: the run/flatten ratio of the
+desk band at 1.277 (1.265 in m508), and the WORK rest, which is
+`IMC_InverterDrive` as measured above. Every other step passed.
