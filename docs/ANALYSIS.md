@@ -62309,3 +62309,10 @@ Three more files of the empty reach, read the same way:
 So of the six files read so far, r1, r2 and r6 are the stator star,
 r7 is the anchor, r11 is the fixed frames, and r4 and r5 are the open
 tank, the fifth wall.
+
+The NaN does not need the second port. `/tmp/m512/tank/Tank3.mo`, one
+`OpenTank` port fed by one `MassFlowSource_T`, refuses the same way at
+t = 0 (raised at `crates/oxidelica-sim/src/solvers/mod.rs:916` under
+`OXIDELICA_WHERE=1`), with `tank.medium.T` an algebraic variable of the
+run. Eleven lines reproduce it, and that is the starting point for the
+next shift on this wall.
