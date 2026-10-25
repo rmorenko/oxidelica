@@ -62836,3 +62836,15 @@ difference step the run takes. The centre of that band is not moved
 in this shift, because the work order forbids touching bands. The
 floors stay at 806 and 760 too, because a red judge does not raise
 them.
+
+The diff of demoted states for that machine, off against on
+(`OXIDELICA_VICTIM_PROBE`, `/tmp/m516/qv_off.txt` and `qv_on.txt`,
+65 against 63 victims), names what changes. Off, the reduction demotes
+`inertiaStator.phi` and `loadInertia.w` of each machine. On, the
+stator angle is folded away and is no longer there to demote, so the
+reduction demotes `inertiaRotor.w` instead, and `loadInertia.w` stays a
+state. The same swap appears in `imc` and `imcQS`. The fold is right
+about the stator, but it moves the choice of rotor speed and load speed
+between the two inertias the rotor shaft joins, and the run that picks
+the rotor's speed takes twice the steps. So the fold makes a different
+compiler, by the rule of `AGENTS.md`, and is not just a fix.
