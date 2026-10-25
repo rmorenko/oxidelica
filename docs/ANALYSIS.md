@@ -61957,3 +61957,116 @@ through the controller's gains. The current source's reference angle
 is tied to the rotor speed by the controller, and with both
 mechanical starts fixed the two angles leave one relation and no free
 state - an anchoring question rather than a gearbox one.
+
+## m510: why reduction 7 of the gearbox does not retreat
+
+### The answer, measured
+
+The retreat at `compile.rs:3219` is never asked. On `/tmp/m509/G3.mo`
+a probe printing its three conditions apart, under
+`OXIDELICA_WHERE`, gave `may=true` and `free` equal to `candidates`
+(2, 3, 2, 1, 2, 3) at reductions 1 to 6, and printed nothing at
+reduction 7. Reduction 7 never reaches the choice of a victim: its one
+member, `g.w_rel - g.elastoBacklash.w_rel = 0`, is differentiated,
+its row `g.a_rel - g.elastoBacklash.a_rel = 0` is one the system
+already holds, the dependent-row check returns `Ok(false)` before any
+candidate is built, and the member loop ends in the refusal "constrains
+no state". The retreat is written for a reduction left with only
+anchored states. A reduction left with no row at all is a different
+end, and nothing sends it back. So this is not a narrow condition with
+a fear behind it. The second way a walk can end was never wired to the
+retreat. Nothing in `G3` is anchored, so `candidates` would have been
+irrelevant anyway.
+
+FullRobot's retreats (`/tmp/m508/p/r1.txt`, `r14.txt`, `r15.txt`)
+are all of the anchored kind, which is why it, and not `G3`, is seen
+retreating.
+
+### The fork, and that it is the right one
+
+A temporary `OX_REFUSE=6:i10.w` refused that victim at reduction 6,
+and the walk then took `g.elastoBacklash.w_rel` and the model ran:
+`i10.w` = `i11.w` = 0.0796 at t = 0.25 and 0.1592 at t = 0.5, which
+is (1 - cos(2*pi*t))/(2*pi*2) to four digits, both inertias turning
+together through the stiff gear (`/tmp/m510/g3_refused.txt`).
+
+### A switch, measured and parked
+
+`OXIDELICA_RETREAT_SINGULAR` (patch in `state/m510`) sends a walk
+whose reduction ends in "constrains no state" back to the latest
+victim, by the same `RETREAT_TO` and the same budget of four. Kept to
+the first walk, as the anchor rule is, it only moved the refusal: the
+lossy gear's mode change rebuilds the gearbox at the start and the
+rebuild took `i10.w` again. Allowed at a rebuild too, `G3` runs with
+the numbers above.
+
+The pair, one binary `/tmp/m510/ox2`, `/tmp/m510/off.txt` and
+`on.txt`: flatten 973 / 973, run 809 / 810, runnable 855/763 against
+855/764. Victims 0. The one won is
+`QuasiStatic.Machines.Examples.TransformerTestbench`, by two retreats
+(reductions 27 and 32, reference angles). The off list is identical to
+`/tmp/m509/off.ran`. `GearConstraint` runs in both halves, and its
+walk under `--only` never ends in the dependent row the switch reads,
+so the switch does not touch it. The fork that loses it under
+`FLAT_COMPANION` is not this one.
+
+The time is the price. The run half went from 5008 s to 6166 s. Timed
+over only the 164 models that flatten and do not run
+(`/tmp/m510/soff.txt`, `son.txt`), it went from 2031 s to 3363 s:
+`Loops.Utilities.Cylinder` 51 to 317 s, `RevoluteConstraint` 44 to
+251, `PrismaticConstraint` 36 to 213, `UniversalConstraint` 94 to
+215, `SphericalConstraint` to 194, `Engine1a` 100 to 198. These are
+walks that retreat four times, repeat the reductions before each
+retreat, and are refused at the end anyway. `FullRobot`
+(retreats at 12, 13, 13, 12) and `RevoluteConstraint` (39, 38, 38, 38)
+are among them. The model won costs 220 s to run on its own. One model
+for a fifth more run time is not a trade the floors should hold, so
+the switch is not in the tree.
+
+What would make it cheap: a retreat whose victim is already known to
+be useless, as in `RevoluteConstraint` where the same reduction is
+sent back three times with three different victims, should give up
+after the first walk that ends where the last one did. That bound is
+the next question, not a parameter to tune now.
+
+### The small model
+
+Two self-contained models without the library, a gear between two
+inertias with prefer pairs on both the relative angle and the
+backlash angle (`/tmp/m510/s/S1.mo`, `S2.mo`), do not reproduce the
+wall: their walks pick `phi_g`, `phi2` or `eb_phi_rel` and never land on
+the dependent row. The wall needs the lossy gear's support equations,
+which is why the test of a future fix has to be `G3` itself on `.msl`.
+
+### RevoluteConstraint and FullRobot, read
+
+`RevoluteConstraint` (`/tmp/m508/p/r12.txt`, line 12 of
+`cns_ex.lst`) ends at reduction 40 on
+`der(constraint.frame_a.R.T[1,1]) = 0`, and every member of its
+singular set offers a row of the same kind: the derivative of a
+position or orientation entry of `world.frame_b` or of
+`fixedRotation`, frames that do not move. This is neither the gearbox
+wall (no prefer pair over one relation) nor the anchor wall (no fixed
+start involved). It is a third kind: a constraint between a moving
+body and a fixed frame whose differentiated rows are all zeros the
+system already holds, so the relation that should pin the body's
+orientation has been spent on the fixed side. Under the parked switch
+it retreats four times (39, 38, 38, 38) and is refused the same way.
+
+`FullRobot` under the switch retreats at 12, 13, 13 and 12 (victims
+`axis1.motor.speed.flange.phi`, `emf.phi`, `Jmotor.phi`) and does not
+run. Its reduction 12 weighs `Jmotor.phi`,
+`initializeFlange.phi_flange` and `gear.spring.phi_rel` all at zero
+and takes the flange, the same shape as reduction 6 of `G3`. But the
+victim worth refusing there is two retreats deep, and a budget of four
+spent on the latest victim each time does not reach it.
+
+### The preflight of shift 510
+
+The compiler is untouched on this tree (the switch is parked). The
+library step of `/tmp/m510/preflight.txt` printed 973 flatten / 809
+run, runnable 855 / 763, and the work sum 25249733 points / 36691336
+Newton steps, the digits of `/tmp/m509/preflight.txt`. It is red on
+the two lines the desk always prints, the desk band at 1.287 and the
+WORK rest. Tests, linters and coverage passed. CI for `8a87dd7` and
+`bf006e9` finished green.
