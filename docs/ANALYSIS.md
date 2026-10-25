@@ -62188,3 +62188,105 @@ pass, 973 flatten / 809 run, runnable 855 / 763, and the work sum
 25249733 points / 36691336 Newton steps, the digits of
 `/tmp/m510/preflight.txt`. It is red on the WORK rest the desk always
 prints. Tests, linters and coverage passed.
+
+## m512: a delta over one set of models, as an observer
+
+The verdict of CI on `578c1e2`, the docs-only head: run 40165432664,
+headSha `578c1e2a`, conclusion success (the library job skipped, as on
+every docs run).
+
+### The script
+
+`scripts/ratio_delta.sh <previous main.txt> <current main.txt>` reads
+two prints of the main library pass. It takes the models both prints
+list as `ran`, sums their flatten and run milliseconds from the `work`
+lines, and prints both sums and their ratio. It names the models that
+ran in one print and not the other, and it lists the models whose
+time at least doubled from a previous time of at least one second.
+The doubling comes from m509: the runner's per-model p99 is about 2,
+so anything smaller is the runner's own spread. The one-second floor
+is there because a millisecond model doubles on noise alone. Bad
+arguments exit 2 with a usage line. A delta never changes the exit
+status: the script prints and nothing else.
+
+### Checked on the runner's own prints
+
+The prints are the `library-main` artifacts of the last three green
+runs that carried the library job, picked by whether the artifact
+exists and not by colour (`/tmp/m512/r<id>/main.txt`, print in
+`/tmp/m512/delta_local.txt`):
+
+```text
+40135927700 against itself   804 in both  flatten 1.000  run 1.000
+40124814095 -> 40135927700   804 in both  flatten 0.978  run 0.915
+40115005625 -> 40124814095   804 in both  flatten 0.835  run 0.950
+40115005625 -> 40135927700   804 in both  flatten 0.816  run 0.869
+```
+
+None of these pairs has a per-model doubling. The run ratios between
+days sit inside the m509 spread of the run sum (9438 to 10224 s, about
+8.3%) or at its edge (0.869 spans two days). The flatten sum is the
+noisier of the two: 0.835 in one step is wider than anything m509
+measured, because m509 measured run sums only. So a delta judged on
+flatten would need a band of its own, and that is one more reason for
+it to stay an observer. Two edits by hand were caught as they should
+be. A `ran` line removed shows up as `previous only:` and the count
+falls by one. `Filter`'s run raised from 21 to 2000 ms is not named at
+the default one-second floor and is named at `OUTLIER_MS=10`.
+
+### The observer step in the judge
+
+The `library` job (the judge) gets one new step,
+`The delta against the last green print (observer)`, plus
+`permissions: contents: read, actions: read`. A job-level permissions
+block replaces the defaults rather than adding to them, so leaving out
+`contents: read` would break the job's checkouts. The step walks the
+recent successful runs of `ci.yml` on main, skips its own run, and
+uses `gh run download -n library-main` to fetch the artifact from the
+first run that has one. Two conditions keep it away from the verdict:
+
+1. it downloads into `prev/` and never into the root, where the job's
+   own `main.txt` lies and the floors are judged from it;
+2. it stands after `Judge the two together`, so even a wrong path
+   could only reach a verdict that has already been given.
+
+It also carries `continue-on-error: true` and `if: always()`. Job
+names, timeouts, bands and WORK lists are untouched. The step's script
+was extracted from the yml and run on the desk in a scratch directory
+holding a copy of `main.txt`. It fetched run 40135927700 into `prev/`,
+printed 1.000 / 1.000, and left `main.txt` byte for byte as it was.
+What the desk cannot show is the runner's token. The first log of the
+judge after this push is the check, and its `OK:` line must still
+read 973 / 809, runnable 855 / 763.
+
+### The QuasiStatic transformer, small: parked after two tries
+
+`Modelica.Electrical.QuasiStatic.Machines.Examples.TransformerTestbench`
+under `--only` from `.msl` refuses as
+`structurally singular model: equation Ref("transformer.l2sig...`.
+The Machines `TransformerTestbench` runs (311 points). Two small
+models were written in `/tmp/m512/tt`. `TTSmall.mo` is a source, a
+star and a ground, the `Yd01` with its primary star point grounded,
+and a resistive load on a star. `TTSmall3.mo` is the same with the
+example's dangling `earth` resistor of 1e6 on `groundT`, as the
+example wires it. Both run to 0.1 s. So the wall is not in the
+transformer and a ground. It stands on what the small models leave
+out: the power and current sensors, and the delta-connected voltage
+sensors that tie the two sides together. Parked at two tries, as
+the m509 note allows.
+
+### r4 and r5 of the empty reach: a fifth wall, the open tank
+
+`/tmp/m508/p/r4.txt` is `AST_BatchPlant.BatchPlant_StandardWater` and
+`r5.txt` is `Tanks.TanksWithOverflow`. Both refuse on
+`equation Ref("…ports[k].m_flow") = Number(0.0) constrains no state`.
+The reductions before that are one per open tank,
+`tank.medium.p = tank.p_ambient`, each demoting the tank's `V`, with
+`m` and `U` beside it in the reach. In r4 the weight of all three is
+zero, and in r5 it is non-zero on the later walks. The refusing
+reduction then has an empty reach (`victim: <none>`). This matches
+none of the four walls m511 named (gearbox, anchor, fixed frames,
+stator star). It is a fluid one: a tank port whose flow is held at
+zero, after the tank's level has already lost its state to the pinned
+pressure. This is reading only. The next move is a small model, an
+open tank with a closed port.

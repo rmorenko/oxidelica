@@ -272,6 +272,12 @@ jobs:
     # Builds the binary to ask it which models each pass reads, then
     # judges the two reports; nothing here reads a model.
     timeout-minutes: 30
+    # A job's permissions replace the defaults rather than add to them,
+    # so the checkouts' read is written out beside the artifacts' read
+    # that the delta needs.
+    permissions:
+      contents: read
+      actions: read
     steps:
       - uses: actions/checkout@v5
 
@@ -298,6 +304,30 @@ jobs:
         run: |
           cargo build --release -p oxidelica-cli
           ./scripts/library_floor.sh --judge .msl main.txt dear.txt
+
+      # An observer, not a judge: the print of this pass against the
+      # print of the last green run of main that carried one. It never
+      # fails the job, and it stands after the verdict and downloads
+      # into prev/ so that the previous `main.txt` cannot land on top of
+      # the one the floors were just judged by.
+      - name: The delta against the last green print (observer)
+        if: always()
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for id in $(gh run list -R "$GITHUB_REPOSITORY" --branch main \
+              --workflow ci.yml --status success --limit 30 \
+              --json databaseId -q '.[].databaseId'); do
+            [ "$id" = "$GITHUB_RUN_ID" ] && continue
+            if gh run download "$id" -R "$GITHUB_REPOSITORY" \
+                -n library-main -D prev/ 2>/dev/null; then
+              echo "previous print: run $id"
+              ./scripts/ratio_delta.sh prev/main.txt main.txt
+              exit 0
+            fi
+          done
+          echo "no previous green print with library-main found"
 
   # The models the check above does not measure, measured here. Three
   # `Spice3` benchmarks cost seventy-two percent of the run half between
