@@ -62506,3 +62506,22 @@ is 2.3e-10 against a reach of 1.9e4, which the floor test does not
 accept. It is the budget of 50 iterations, not a wrong start. This
 is the road to the patch: a better first guess for the pipe flows, or
 a damped first step, would let it converge.
+
+### What the first link costs the library
+
+`OXIDELICA_STILL_FOLD` alone was measured as a pair with one binary
+(`/tmp/m514/ox3`, files `/tmp/m514/off.txt` and `/tmp/m514/on.txt`,
+both without the heavy models). Off: 973 flatten, 809 run; runnable
+855 / 763, the reference of m513 to the digit. On: 973 / 797, runnable
+855 / 752. Time of the run half 4741s off, 3027s on. Two won,
+`IMC_InverterDrive` and `HeatTransfer.Examples.Utilities.InverseCapacity`;
+fourteen lost: the three `CascadeControlledDrive` models,
+`AD_DA_conversion`, `ThreePhaseTwoLevel_PWM`,
+`MomentumBalanceFittings`, `PendulumWithSpringDamper`,
+`Fourbar_analytic`, `GearConstraint`, `PathPlanning1`,
+`PathPlanning6`, `PumpAndValve`, `DynamicPipeEnergyConservationCheck`
+and `TestSimpleTank`. Folding every variable held at a constant is a
+different compiler, not a fix: it takes names out of the running as
+states and as unknowns that the present choice stands on. A narrower
+fold, limited to the frames a constraint joint differentiates, is the
+next step for the frame series.
