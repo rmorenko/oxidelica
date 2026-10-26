@@ -63237,3 +63237,34 @@ switch is still open. The same circuit with `Goff = 1e-3` runs to
 and a floating node held only through `Goff` is the ingredient; the
 refusal the machines give is not reproduced yet, and the small model
 is not yet the machines' wall.
+
+### Both halves from the probe binary, by name
+
+The probe pass with the key on was stopped at 22:25 after 315 CPU
+minutes: 966 of 1020 done, and the one model open was the quasi-static
+`IMC_Transformer`, started near 20:52 and not finished after more than
+5600 s (149 s alone with the key off). The off half was then run with
+the same probe binary and no key (`/tmp/m520/off_order.txt`): 973 of
+1020 flatten and 810 run, run half 4249 s, the counts of every earlier
+off half.
+
+Joined model by model over the 965 both halves finished
+(`/tmp/m520/diff.txt`, wall time per model, flattening and running
+together), the on half costs 6413 s more. The largest shares are
+`TestMultiPortTraceSubstances` (+469 s), `BatchPlant_StandardWater`
+(+272 s), `HeatingSystem` (+220 s), `TestDensity` (+187 s),
+`RoomCO2WithControls` (+182 s), the three non-quasi-static
+`IMC_Transformer` (+132, +125, +120 s, each from about 6 s off), and
+then a long run of Fluid tests, `Engine1a`, `Dimmer_RL` and
+`Cylinder` near +100 s each. Two caveats bound this: the on half had
+four single `--only` runs beside it between 21:07 and 21:24 and the
+off half had none, so part of every share from that stretch is
+company; and these are wall times, so a model dear to flatten gains
+from company without the key touching it. The single off runs above
+make that concrete for `BatchPlant_StandardWater` and `HeatingSystem`,
+refused at the run in about a second. The three `IMC_Transformer`
+models are the clean signal: about 6 s to about 130 s, twentyfold,
+the same machine family as the quasi-static owner. The key's tail is
+therefore one owner that does not finish, a transformer family that
+pays twentyfold, and a diffuse rest whose size cannot be told from
+company without a pair run alone.
