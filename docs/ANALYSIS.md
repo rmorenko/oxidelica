@@ -63110,3 +63110,11 @@ the IF97 water meets them. With `SteadyStateInitial` instead of
 the domain of its own equations (`/tmp/m519/sp1_sys.mo`), which says
 the IF97 loop is fragile from the start rather than broken by the
 initial condition alone.
+
+The family holds beyond `SMEE_DOL`: `IMC_DOL_Polyphase` with both
+closers at `Goff = 1e-3` and `SMEE_Rectifier` with both diode banks at
+`Goff = 1e-3` run to 0.2 s (`/tmp/m519/imc_goff.mo`,
+`rect_goff.mo`), where with the library's `1e-5` they are refused at
+the start. Three of the four underdetermined machines are therefore
+one wall, the relative pivot test against an open switch;
+`IMS_Start_Polyphase` was not probed.
