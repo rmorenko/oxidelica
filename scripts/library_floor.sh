@@ -3170,7 +3170,20 @@ WORK_JACOBIANS_PPM=100000
 # IMC_YDarc's, against 2 on the desk. Without it the pair is the
 # solenoids' 1974 on both machines (desk 1841 + 133, `--only`), and
 # the centre stands where it was.
-WORK_JACOBIANS_APART=1974
+#
+# Moved to 143 on 2026-10-26 (m518): after the chain of 5f6a40b the
+# quasi-static solenoid counts ten Jacobians apart instead of 1841:
+#
+#   ComparisonQuasiStatic  1841 ->  10
+#   ComparisonPullInStroke  133 -> 133
+#                          1974 -> 143
+#
+# Both machines printed the same 143: the judge (job 121212082719 of
+# run 40199290194) and the desk (/tmp/m516/solenoids.txt, /tmp/m517).
+# The answer did not move: armature position agrees to 2.57e-14 m and
+# coil current to 1.54e-6 A of 1.2 (/tmp/m517/agree.txt), the same
+# order as the precedent above and twenty times better on the current.
+WORK_JACOBIANS_APART=143
 WORK_JACOBIANS_APART_PPM=900000
 WORK_PERCENT=5
 # The names looked up, held to a band of their own in parts per
