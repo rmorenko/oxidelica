@@ -179,6 +179,18 @@ pair quotes it from both runs beside the lists, and a "victims 0"
 without those seconds is half a measurement. CI's run-over-flatten
 band judges the same thing, but it judges it a commit late.
 
+What a pair costs is a question with a standing answer, given by Roman
+on 26 October: a change goes in without a word of his own when all
+three hold. The run lists of both halves agree line for line, not only
+in their count. The run half is no more than 6% dearer, taken from a
+pair made with one binary, the halves one after the other, and counted
+from the off half. And the models that made it dearer are named, with
+why. Miss any of the three and the change goes to the park and the
+question to him, as before: victims go to him at any price, and more
+than 6% goes to him whatever it wins. The rule is about the run half.
+A flattening half that moves visibly is a finding of its own, carried
+as a question rather than hidden under the six percent.
+
 Reproduce small before measuring large. Three shifts went on the
 corpus at five minutes a run, reasoning about shapes from the outside,
 for a fault that a twelve-line model showed in one second - and the
