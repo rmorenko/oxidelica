@@ -63005,3 +63005,22 @@ The quasi-static `IMC_Transformer` is the likeliest owner of the
 corpus's two lost hours. Off it runs in 149 s. On, run alone under a
 16 GB cap with no watchdog, it had held one core at 230 MB for more
 than sixteen minutes and not finished (`/tmp/m518/qs_on.txt`).
+
+### The census on this tree
+
+`scripts/refusals.sh .msl both` on the tree of this shift
+(`/tmp/m518/census.txt`, raw in `/tmp/m518/raw.txt`), counted between
+the section markers, gives 47 models in 27 rows that do not flatten and
+163 in 112 rows that flatten and do not run. The census of m508
+(`/tmp/m508/census.txt`) gave 47 / 27 and 164 / 112. The one model
+that left is `AST_BatchPlant.Test.OneTank`, which m508 refused because
+its loop on `tank.ports[1].m_flow` stepped outside its domain at t = 0.
+It now runs, and nothing took its place.
+
+The top row, nine underdetermined algebraic loops, is the Spice3
+transistors on `der(Q1.vbx)` and the FundamentalWave machines on
+`airGap.V_mss`. Under `OXIDELICA_WHERE=1` the refusal comes from
+`solvers/mod.rs:1458`, the relative-singularity test of a block. The
+Spice3 half is the chain already mapped above, read by
+`icapbx = if m_bInit then 0 else cc.capbx * der(vbx)`. It is not
+taken again here.
