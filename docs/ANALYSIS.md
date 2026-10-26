@@ -63001,10 +63001,22 @@ Jacobians and pays for them with thirty thousand points.
 between the two entry points found on `IMC_InverterDrive`, so no CSV
 could be compared.
 
-The quasi-static `IMC_Transformer` is the likeliest owner of the
-corpus's two lost hours. Off it runs in 149 s. On, run alone under a
-16 GB cap with no watchdog, it had held one core at 230 MB for more
-than sixteen minutes and not finished (`/tmp/m518/qs_on.txt`).
+The quasi-static `IMC_Transformer` is the likeliest owner of most of
+the lost time. Off it runs in 149 s. On, run alone under a 16 GB cap
+with no watchdog, it held one core at 230 MB for 39 minutes of wall
+time without finishing, and was stopped (`/tmp/m518/qs_on.txt`).
+
+The arithmetic does not close, and it is stated as it stands. The
+corpus pair puts the key's cost at 11602 - 4627 = 6975 s. The five
+induction machines that finished account for 166 s of it, and the
+quasi-static one for at least 2340 - 149 = 2191 s. That is at least
+2357 of 6975 s, and the rest is unexplained. The rest has two possible
+readings. One is a model outside the event families that this slice
+did not reach. The other is that 11602 s is inflated, because the on
+half shared the desk with other work. A clean on half was started at
+18:08 with nothing else running (`/tmp/m518/c_on2.txt`, start in
+`c_on2.start`), and it decides between them. Until it prints, the
+sum of the slice is not the price of the key.
 
 ### The census on this tree
 
