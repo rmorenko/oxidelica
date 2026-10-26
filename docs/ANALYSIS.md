@@ -63162,3 +63162,78 @@ place of `scripts/heavy_models.txt` rather than adding to it, so a
 file of one name let the giants back in and the pass read 1042
 models instead of 1020 (`/tmp/m519/on_wo_qs_bad1042.txt`). The
 second start named the giants and the transformer together.
+
+## m520: the owners of the kept Jacobian's tail, by name
+
+### The slice without the quasi-static transformer, finished
+
+The slice of m519 finished on its own (`/tmp/m519/on_wo_qs.txt`):
+1019 models, 972 flatten and 809 run, its run half 8444 s. The second
+whole on half ran 11337 s (`/tmp/m518/c_on2.txt`), so taking
+`QuasiStatic...InductionMachines.IMC_Transformer` out took 2893 s off
+the run half; its own off time is 149 s. Against the off half's
+4627 s (`/tmp/m517/c_off.txt`) the slice still costs 3817 s more: the
+transformer owns about 43% of the key's 6710 s, and 57% stands
+elsewhere.
+
+### The run order, named
+
+A probe binary (the parked key and fold, plus a line before and after
+each model with its time; `~/oxideflow/state/m520/order-probe.diff`,
+not committed) ran the usual 1020 models with the key on
+(`/tmp/m520/on_order.txt`). It reached the 918 marker at 1653 s, and
+the two models started and not finished there were the quasi-static
+`IMC_Transformer` and
+`ModelicaTest.Fluid.TestComponents.Fittings.TestMultiPortTraceSubstances`.
+The second finished at 1228 s on; alone, with the key off and the
+same binary, it ran in 970 s (`/tmp/m520/off_TestMultiPortTraceSubstances.txt`),
+so its share is about 258 s. The transformer started near 790 s into
+the pass and at 2700 s had not finished, over 1900 s against 149 s off.
+
+The two named owners add to about 3150 s of the 6710 s. The rest,
+about 3550 s, is not a third giant waiting at the marker: when the
+probe stood at 918 only these two were open. It is spread over the
+models that finished before the marker. The dearest of those with the
+key on were `BatchPlant_StandardWater` (581 s), `TestDensity` (460 s)
+and `HeatingSystem` (457 s); alone with the key off the first and the
+third were refused at the run in about one second after 341 s and
+288 s of flattening, so their cost is flattening under company and not
+the key, and `TestDensity` ran 418 s off against 460 s on. The sum of
+the shares does not close: the diffuse half needs a per-model off
+list from the same probe binary to be named, which is one more corpus
+and was not taken beside this one.
+
+### The rows of five and four
+
+The census row `X of algebraic loop [...]` (5, `/tmp/m518/census.txt`)
+is a residual that is NaN or infinite before any Newton step. Three of
+the five are MultiBody (`ThreeSprings`, `RollingWheelSetDriving`,
+`RollingWheelSetPulling`): a direction normalised by a length that is
+zero at the zero starts (`r_rel_0[1] / s`, `aux[1] / sqrt(...)`), and
+`oxidelica why` on `spring2.lineForce.s` shows it bound only through
+`if length > s_small then length else s_small`, which the block reads
+before it is set. The other two are apart: `CascodeCircuit` divides by
+a junction capacitance, and `TestJunctionTraceSubstances` calls a
+medium function whose bracket does not hold. One family of three and
+two singles.
+
+The row `the equations of algebraic loop [...]` (4) is the dead column
+test. `Spice3BenchmarkDifferentialPair` is the mapped `der(Q2.vbx)`
+chain. `GearType2` dies on `bearingFriction.sa`, the friction's mode
+variable, the same layer as `LossyGearDemo2` in the singular row of
+m519. `PointGravityWithPointMasses2` and `RollingWheel` die on a
+second derivative of an orientation. Three layers in four models.
+
+### A small model of the Goff wall
+
+A single-phase source, an `IdealClosingSwitch` with `Goff = 1e-5`
+closing at 0.1 s, and a resistor and inductor of either unit or
+machine scale runs to its stop time (`/tmp/m520/g_*.mo`). A
+three-phase source through a polyphase closer into a load whose star
+floats (`/tmp/m520/g3_1e-5.mo`) is refused, but not as underdetermined:
+the solver exceeds its evaluation budget at t = 0.056 s while the
+switch is still open. The same circuit with `Goff = 1e-3` runs to
+0.2 s (`g3_1e-3.mo`). So the switch's conductance decides it again,
+and a floating node held only through `Goff` is the ingredient; the
+refusal the machines give is not reproduced yet, and the small model
+is not yet the machines' wall.
