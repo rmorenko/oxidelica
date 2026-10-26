@@ -63129,3 +63129,18 @@ does not share a layer with the machines. `LossyGearDemo2` is refused
 on `gear.quadrant2`, `gear.quadrant4`, `gear.sa` and
 `bearingFriction.sa`, the friction's mode variables, and is a third
 layer. The row of eight is a scatter of at least three walls.
+
+### The second on half, finished
+
+The second on half finished on its own at 20:19
+(`/tmp/m518/c_on2.txt`): 973 of 1020 flatten and 810 run, 855 of 891
+runnable flatten and 764 run, the same counts as the off half
+(`/tmp/m517/c_off.txt`). Its run half took 11337 s against the off
+half's 4627 s, 6710 s more, and against 11602 s for the first on half.
+The two on halves agree to within 3% while their company differed, so
+the price of the key in the corpus is about 6700 s, all of it after
+the 918 marker. Between 18:27 and 20:19 the counter stood at 918 while
+the process took one core whole, 204 to 251 CPU minutes over the last
+45 minutes of that stretch: one model, or a few, past that marker.
+The slice without the quasi-static `IMC_Transformer`, which names the
+owner, was started at 20:19 (`/tmp/m519/on_wo_qs.txt`).
