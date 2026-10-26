@@ -63119,3 +63119,13 @@ the start. All four underdetermined machines are therefore one wall, the
 relative pivot test against an open switch: `IMS_Start_Polyphase`
 with its closers at `Goff = 1e-3` runs to 0.2 s as well
 (`/tmp/m519/ims_goff.mo`).
+
+Two of the singular row probed apart. The quasi-static `Rectifier`
+is refused while its `VariableConductor` loads stand at the ramp's
+zero; the same model with `ramp(offset = 0.01)` runs to its stop
+time (`/tmp/m519/qsrect_load.mo`). Its wall is a load of exactly
+zero, the converter's `vDC = abs(vQS)` with nothing drawn on it. It
+does not share a layer with the machines. `LossyGearDemo2` is refused
+on `gear.quadrant2`, `gear.quadrant4`, `gear.sa` and
+`bearingFriction.sa`, the friction's mode variables, and is a third
+layer. The row of eight is a scatter of at least three walls.
