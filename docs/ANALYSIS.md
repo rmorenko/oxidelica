@@ -62937,3 +62937,71 @@ order. Without a change to the compiler it cannot be steered either.
 The only handle a model has is `stateSelect`, and the MSL inertias
 leave it at default on both sides. Any change to it is a change to
 how states are selected, and none is made in this shift.
+
+## m518: what the Jacobian kept across an event costs the corpus
+
+### Both halves of the key's corpus pair
+
+Both halves of the m517 pair ran on one binary,
+`/tmp/m517/ox_fold_key`, with the fold on and
+`OXIDELICA_KEEP_JACOBIAN_AT_EVENT` off and then on
+(`/tmp/m517/c_off.txt`, `c_on.txt`). Off printed 973 / 810 and
+855 / 764, with work 25216785 points and 36621637 newton, the m516
+reference to the digit. On printed the same counts, and the run lists
+agree line for line: no model lost, none won. Points rose to 25360514
+(+0.6%), newton to 37364761 (+2%), and the run half went from 4627 s
+to 11602 s. The halves did not share a desk evenly: on ran next to
+other work, off did not. That cannot account for a factor of 2.5,
+though. Up to the 918th model the two halves were level (966 s
+against 971 s). After that, on took over two hours of wall time and
+off took about ten minutes.
+
+The list printed after a pass is alphabetical and not the order of the
+run, so positions 919 to 1020 of it are not the tail the counter saw.
+Those 102 names, run one at a time with the key on, took a second
+each (`/tmp/m518/tail_on.txt`).
+
+### Where the time went
+
+The 224 models of the event-heavy families that run (Analog,
+PowerConverters, Machines, FundamentalWave, Spice3, Digital,
+Multiphase, Batteries) were each run with `--only`, off then on, with
+a five-minute watchdog (`/tmp/m518/ev_pairs.txt`). Six cost more
+with the key on, and all six are induction machines:
+
+```text
+Machines InductionMachines.IMC_Transformer        5 s ->  54 s
+Machines Transformers.IMC_Transformer             5 s ->  53 s
+FundamentalWave IMC_Transformer                   7 s ->  47 s
+FundamentalWave IMS_Start                         3 s ->  10 s
+QuasiStatic.FundamentalWave IMC_Transformer     149 s -> killed at 300 s
+QuasiStatic.FundamentalWave IMS_Start            22 s ->  44 s
+```
+
+Over the whole slice it was 1066 s against at least 1424 s.
+`Dimmer_RL`, the corpus's largest consumer of work, is unchanged at
+94 s against 94 s.
+
+The pair on `Machines...InductionMachines.IMC_Transformer`, 3×2,
+alternating sides (`/tmp/m518/victim_summary.txt`), had a spread of
+zero in every repeat:
+
+```text
+off  4 s   1873 points    8718 newton  6 jacobians
+on  49 s  32672 points  113136 newton  2 jacobians
+```
+
+Here the cost does show in the counters, seventeen times the points
+and thirteen times the newton. This is a victim by the measure Roman
+set ("newton grows"), and the key stays in the park. The guess that
+a rejected step at `h *= 0.25` is where the time goes was not measured
+in this shift. What the numbers show is that the key saves four
+Jacobians and pays for them with thirty thousand points.
+`simulate` refuses this model as structurally singular, the same gap
+between the two entry points found on `IMC_InverterDrive`, so no CSV
+could be compared.
+
+The quasi-static `IMC_Transformer` is the likeliest owner of the
+corpus's two lost hours. Off it runs in 149 s. On, run alone under a
+16 GB cap with no watchdog, it had held one core at 230 MB for more
+than sixteen minutes and not finished (`/tmp/m518/qs_on.txt`).
