@@ -63144,3 +63144,21 @@ the process took one core whole, 204 to 251 CPU minutes over the last
 45 minutes of that stretch: one model, or a few, past that marker.
 The slice without the quasi-static `IMC_Transformer`, which names the
 owner, was started at 20:19 (`/tmp/m519/on_wo_qs.txt`).
+
+### The slice without the quasi-static transformer
+
+The same binary with the key on, run with the carved-out giants and
+`Modelica.Magnetic.QuasiStatic.FundamentalWave.Examples.BasicMachines.InductionMachines.IMC_Transformer`
+left out (`/tmp/m519/skip_heavy_qs.txt`, 1019 models), reached the
+918 marker at 1617 s and then stood there: ten minutes later the
+counter was unchanged and the process had gone from 240 to 256 CPU
+minutes, one core whole (`/tmp/m519/on_wo_qs.txt`). The tail did not
+collapse, so the quasi-static transformer is not the only owner of
+the 6700 s. The next instrument is the run order with a time per model
+(a probe naming each model before it runs), not another corpus.
+
+A first start of this slice was thrown away: `--without` takes the
+place of `scripts/heavy_models.txt` rather than adding to it, so a
+file of one name let the giants back in and the pass read 1042
+models instead of 1020 (`/tmp/m519/on_wo_qs_bad1042.txt`). The
+second start named the giants and the transformer together.
