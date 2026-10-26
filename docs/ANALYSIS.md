@@ -63098,3 +63098,13 @@ all stop at t = 0.0008 on `pipe1.mediums[1].p` with a residual of
 scatter: the machines above, `LossyGearDemo2` on its quadrants,
 `PumpingSystem` on the pump medium, the quasi-static `Rectifier` on
 `vDC`, and MultiBody. Probed with `library check .msl --only`.
+
+Probed further on `SeriesPipes1`: the same model with
+`Modelica.Media.Water.ConstantPropertyLiquidWater` redeclared as the
+medium runs to its stop time of 1 s (`/tmp/m519/sp1_liq.mo`), so the
+pipes, the valve and the orifice are sound and the family lives where
+the IF97 water meets them. With `SteadyStateInitial` instead of
+`FixedInitial` it is refused earlier and differently, stepping outside
+the domain of its own equations (`/tmp/m519/sp1_sys.mo`), which says
+the IF97 loop is fragile from the start rather than broken by the
+initial condition alone.
