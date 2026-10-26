@@ -63083,8 +63083,10 @@ direction under the relative pivot threshold of `1e-7 * scale` in
 coefficients are of order 1e3. The block is determined; the test
 reads the units. `SMEE_Generator` and `SMEE_LoadDump`, refused in the
 singular Jacobian row on `smeeM.airGap.V_mss`, carry the same
-`Goff = 1e-5` switch and are likely the same family under another
-message. A three-element circuit with an ideal closer and an inductor
+`Goff = 1e-5` switch, but they are not shown to be the same family:
+`SMEE_LoadDump` with its `CloserWithArc` raised to `Goff = 1e-3` is
+still refused as singular on `smee.airGap.V_mss.re`
+(`/tmp/m519/ld_goff.mo`), so its wall stands somewhere else. A three-element circuit with an ideal closer and an inductor
 runs at both `startTime=0` and `0.5` (`/tmp/m519/sw_0.mo`,
 `sw_05.mo`), so the small reproduction needs the machine's scale
 beside the switch; it is not written yet. No compiler change here.
