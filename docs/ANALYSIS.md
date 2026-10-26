@@ -63036,3 +63036,13 @@ transistors on `der(Q1.vbx)` and the FundamentalWave machines on
 Spice3 half is the chain already mapped above, read by
 `icapbx = if m_bInit then 0 else cc.capbx * der(vbx)`. It is not
 taken again here.
+
+### The clean on half, as far as it got
+
+The clean on half reached 918 of 1020 models at 957 s, level with both
+earlier halves (966 s and 971 s). It then stood at that marker for
+more than forty minutes of wall time with nothing else on the desk
+(`/tmp/m518/c_on2.txt`, checked at 19:07). The off half crossed the
+same stretch in about ten minutes. So most of the extra time in the
+11602 s is not from sharing the desk: the tail itself is slow under
+the key. The file finishes on its own and has the final run time.
