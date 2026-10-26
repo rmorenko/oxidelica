@@ -63046,3 +63046,55 @@ more than forty minutes of wall time with nothing else on the desk
 same stretch in about ten minutes. So most of the extra time in the
 11602 s is not from sharing the desk: the tail itself is slow under
 the key. The file finishes on its own and has the final run time.
+
+## m519: the open switch under the machines, and the tail still chewing
+
+### The second on half, corrected
+
+The m518 chapter called its second on half clean. It was not: it was
+started at 18:08 while that shift was still probing, pushing and
+taking a census beside it, so it is the second on half, also run with
+a working shift on the desk. What does not depend on the company is
+the marker at 918 of 1020: the first on half crossed it at 971 s, the
+second at 957 s (`/tmp/m518/c_on2.txt`), under different company. Up
+to the tail the two keep step, so the extra time sits in the tail and
+not in sharing the desk. At 19:24 of this shift the process had 199
+minutes of CPU and the file still stood at 918; no `c_on2.done`. The
+decisive slice without the quasi-static transformer was not started,
+because two corpora side by side would spoil both.
+
+### `airGap.V_mss`: an open ideal switch read as a dead column
+
+The other half of the top run row is four FundamentalWave machines:
+`IMC_DOL_Polyphase`, `IMS_Start_Polyphase`, `SMEE_DOL` and
+`SMEE_Rectifier` (`/tmp/m518/raw.txt`). Each of their blocks carries
+the `s` of ideal switches or diodes beside `airGap.V_mss`. Probed on
+`SMEE_DOL`, refused at `solvers/mod.rs:1458` at the start of the run:
+
+- the switch closed from the start (`booleanStep(startTime=-1)`): runs;
+- closing at 0.1 instead of 0: refused the same way at once;
+- closing at 0.1 with `Goff = 1e-2` or `1e-3`: runs to 0.2;
+- with `Goff = 1e-4`, or the model's own `1e-5`: refused.
+
+So it is not the Spice3 breed (an `if` branch with an initial zero).
+It is an open switch whose conductance `Goff = 1e-5` puts its
+direction under the relative pivot threshold of `1e-7 * scale` in
+`linear.rs:208`, after equilibration, beside a machine whose
+coefficients are of order 1e3. The block is determined; the test
+reads the units. `SMEE_Generator` and `SMEE_LoadDump`, refused in the
+singular Jacobian row on `smeeM.airGap.V_mss`, carry the same
+`Goff = 1e-5` switch and are likely the same family under another
+message. A three-element circuit with an ideal closer and an inductor
+runs at both `startTime=0` and `0.5` (`/tmp/m519/sw_0.mo`,
+`sw_05.mo`), so the small reproduction needs the machine's scale
+beside the switch; it is not written yet. No compiler change here.
+
+### The next two rows
+
+The Newton-direction row (9 models in the m518 census) is one family:
+the Fluid pipe tests (`SeriesPipes1`, `BranchingPipes1` and siblings)
+all stop at t = 0.0008 on `pipe1.mediums[1].p` with a residual of
+3.8e4 that no step reduces. The singular Jacobian row (8) is a
+scatter: the machines above, `LossyGearDemo2` on its quadrants,
+`PumpingSystem` on the pump medium, the quasi-static `Rectifier` on
+`vDC`, and MultiBody. Probed with `library check .msl --only`.
