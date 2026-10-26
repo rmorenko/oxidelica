@@ -1873,7 +1873,13 @@ FLATTEN_FLOOR=973
 # lower, the desk, less the same three that swing:
 #
 #   809 - 3 = 806 = 805 + 1
-RUN_FLOOR=806
+#
+# Raised to 807 by the judge of run 40199290194 (job 121212082719),
+# 973 / 811, and the desk, 973 / 810 (/tmp/m517/c_off.txt). From the
+# lower, the desk, less the same three that swing:
+#
+#   810 - 3 = 807 = 806 + 1
+RUN_FLOOR=807
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -2380,7 +2386,12 @@ RUNNABLE_FLATTEN_FLOOR=855
 # (/tmp/m502/on.txt), 764 by the judge of eae8911 (job 120879696214 of push run 40087755731).
 #
 #   763 - 3 = 760 = 759 + 1
-RUNNABLE_RUN_FLOOR=760
+#
+# And 761 by the same judge, 855 / 765, and desk, 855 / 764
+# (/tmp/m517/c_off.txt):
+#
+#   764 - 3 = 761 = 760 + 1
+RUNNABLE_RUN_FLOOR=761
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
