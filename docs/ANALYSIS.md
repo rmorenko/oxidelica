@@ -62848,3 +62848,92 @@ about the stator, but it moves the choice of rotor speed and load speed
 between the two inertias the rotor shaft joins, and the run that picks
 the rotor's speed takes twice the steps. So the fold makes a different
 compiler, by the rule of `AGENTS.md`, and is not just a fix.
+
+## m517: the Jacobian kept across an event, measured on one model
+
+### The solenoids' answer under the silent chain
+
+Before the centre of the `jacobians apart` band is moved, the answer it
+counts was checked. One binary of f6a794c (`/tmp/m517/ox_head`), the
+two solenoids with the chain as it is now against
+`OXIDELICA_NO_SILENT_CHAIN`, compared column by column over the whole
+experiment (`/tmp/m517/agree.txt`, from the CSV files beside it). In
+`ComparisonQuasiStatic` the armature positions agree to 2.6e-14 m of
+0.005, and the coil and source currents to 1.5e-6 A of 1.2. That is
+closer than the 3e-5 A of the precedent. `ComparisonPullInStroke`
+agrees exactly, which fits its count of 133 staying the same. So the
+fall from 1974 to 143 is about which difference step the run takes,
+and not about the answer. The band itself is not moved in this shift,
+because moving it needs a word from Roman that has not come yet.
+
+### Keeping the Jacobian at an event
+
+The event block of the BDF solver (`bdf.rs`, at the comment "the
+history is meaningless across a discontinuity") cleared the history,
+the order, the counter and the Jacobian. The comment gives a reason
+for the first three and none for the Jacobian. A stale matrix is
+already replaced by Newton itself at the fourth iteration. An opt-in
+switch, `OXIDELICA_KEEP_JACOBIAN_AT_EVENT`, keeps the matrix at that
+one place. The clearing after a rejected step and after a jump the
+history cannot represent stays as it was. The default does not change
+by a byte. The patch is parked, together with the fold it was
+measured on (`state/m517/keep_jac_event_with_fold.patch`).
+
+It was measured on `IMC_InverterDrive` alone, under `--only`, with
+one binary built with the parked fold (`/tmp/m517/ox_fold_key`) and
+the four fold switches on. The runs alternated off and on, three of
+each (`/tmp/m517/imc_off_N.txt`, `imc_on_N.txt`):
+
+| run | off run half | on run half |
+| --- | ------------ | ----------- |
+| 1   | 73681 ms     | 44676 ms    |
+| 2   | 74687 ms     | 45190 ms    |
+| 3   | 74641 ms     | 45328 ms    |
+
+The spread of the repeats is 1.0 s off and 0.65 s on, so the
+instrument's own noise is about 1.4%. The gain is 29.4 s, or 39%.
+The work lines are identical across the repeats of each side. Off:
+594163 points, 928586 Newton iterations, 10007 Jacobians. On: 484163
+points, 681483 Newton iterations, 7 Jacobians. So the factorisations
+collapsed, and the Newton count fell instead of growing. The prize is
+real by the measure that was set for it.
+
+What could not be checked is the answer. `simulate` refuses this model
+on both sides as structurally singular. It refuses the constraint
+`der(aimc.inertiaRotor.a) - der(loadInertia.a) = 0`
+(`/tmp/m517/imc_sim_off.log`, `imc_sim_on.log`), so there is no CSV to
+compare. `library check` runs it, which is a separate gap between the
+two entry points. The answer has to be compared before the key is
+considered as a default.
+
+Finding a second switching model to see whether it is a family gave
+no candidate. All fourteen other inverter, chopper and H-bridge
+examples that run under the fold build zero Jacobians, and
+`DCPM_Drive` builds one (`/tmp/m517/pwm_scan2.txt`). They do not run
+under the BDF solver, so the key cannot touch them.
+`IMC_InverterDrive` is on its own among them. The corpus pair is the
+check for "no victims".
+
+### Which inertia the quasi-static transformer machine demotes
+
+`QuasiStatic...IMC_Transformer` was probed with
+`OXIDELICA_VICTIM_PROBE` off and on under the fold
+(`/tmp/m517/qv_off.txt`, `qv_on.txt`). The victim is chosen in
+`compile.rs` by the largest sensitivity. A tie falls to the lower
+`stateSelect`, and then `max_by` takes the last candidate in the walk.
+Off, reduction 63 differentiates `loadInertia.w - imc.inertiaRotor.w
+= 0`. Both candidates weigh 1.0 with `stateSelect` 3 (default), so the
+tie goes to the walk, and the walk's last is `loadInertia.w`. On, the
+stator angle is folded away, the reductions are numbered differently,
+and reduction 62 meets `imc.inertiaRotor.w - imc.wMechanical = 0`
+first. That equation reaches only `imc.inertiaRotor.w`, so there is
+no tie and no choice. The rotor speed is spent before the
+load-coupling equation is reached, and `loadInertia.w` stays a state.
+The same happens in `imcQS`.
+
+So the choice is not steered by any weight. It is steered by the
+order in which the constraints are met, and the fold changes that
+order. Without a change to the compiler it cannot be steered either.
+The only handle a model has is `stateSelect`, and the MSL inertias
+leave it at default on both sides. Any change to it is a change to
+how states are selected, and none is made in this shift.
