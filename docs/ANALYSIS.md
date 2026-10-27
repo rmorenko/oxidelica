@@ -63971,3 +63971,34 @@ and none of the ten was measured: a model of the carved-out set is
 read under `--only` only with `--with-heavy` as well, and all ten
 files `one.*.txt` end on that refusal after 5 s. Which of the ten
 stopped running is still open.
+
+## m527: the ten of the second basket, read one at a time
+
+The ten were run again, one process at a time on an empty desk, with
+the binary of 2a6f414 and `--with-heavy`, under a watch that cut a
+model at 360 s of processor time or 24 GB resident
+(`/tmp/m527/one2.*.txt`, the log `/tmp/m527/one2.log`). One was cut
+there and run again under 1800 s (`/tmp/m527/one3.TWOBIT.txt`). All
+ten finished, all ten flatten, and none of them runs:
+
+| model                           | wall | flatten | run | refused as                      |
+| ------------------------------- | ---: | ------: | --: | ------------------------------- |
+| SeriesPipes12                   | 200s |     27s | 165 | algebraic loop                  |
+| Spice3BenchmarkFourBitAdder     | 221s |     57s | 157 | structurally singular           |
+| TWOBIT                          | 421s |     21s | 393 | underdetermined algebraic loop  |
+| DynamicPipesWithTraceSubstances | 320s |    125s | 193 | algebraic loop                  |
+| BranchingPipes12                | 231s |     27s | 193 | Newton direction of a loop      |
+| BranchingPipes18                | 140s |     37s |  97 | initialization did not converge |
+| R134a2                          |  30s |     11s |  13 | Newton direction of a loop      |
+| R134a1                          |  20s |      9s |   9 | Newton direction of a loop      |
+| MoistAir1                       |  30s |     25s |   1 | initialization problem singular |
+| MoistAir2                       |  30s |     20s |   2 | initialization problem singular |
+
+The run column is seconds of the run half as the check printed it.
+The ten together cost about 27 minutes of wall time alone, and the
+dearest is `TWOBIT` at 421 s. None of them comes near the silence of
+2 h 13 min after the tenth print of the stopped cron, so none of the
+ten is the model that ate its tail. Of the twelve names of the basket
+the only one that does not finish in an hour is
+`DynamicPipeWithNominalLaminarFlow` (more than 3816 s, m526), and it
+is the one candidate left.
