@@ -63911,3 +63911,10 @@ Not settled here: the green log's dear pair, 9-10 at 3161 s against
 order depends on how many threads the machine gives, so the name
 of that pair is not recoverable from the logs; it stays a question
 for the heavy floors once a basket finishes.
+
+The other model left running on the desk,
+`Spice3BenchmarkFourBitBinaryAdder.FOURBIT`, was timed the same way,
+on and off1 side by side (`/tmp/m525/fb.*.txt`). Both were stopped at
+forty minutes with 39:36 of processor each, to the second: the key
+does not touch it, and it is dear on its own, as its 1845 s price of
+19 October already said.
