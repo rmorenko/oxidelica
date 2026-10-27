@@ -63639,7 +63639,9 @@ in algebraic loop` (`solvers/mod.rs:2269`) over a block that holds
 the air gap's `i_sr`, the six `idealDiode[...].s` of the diode bridge,
 `variableResistor.R_actual` and the rotor's acceleration. That is the
 family of ideal switches under a machine that m519 mapped as "the open
-switch under the machines", and the same row holds `SMEE_LoadDump` and
-the `SMEE_Generator` pair, which stop on the same diodes. The model
+switch under the machines". The row it joins is not one family:
+`SMEE_LoadDump` and the `SMEE_Generator` pair stand in it on the air
+gap's `V_mss` and `Phi_ss`, a different wall, with no diode in their
+block (`/tmp/m522/raw.txt`). The model
 moved one wall, the family it reached has a map, and no change was
 made.
