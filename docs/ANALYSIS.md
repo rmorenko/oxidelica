@@ -63337,3 +63337,41 @@ may the three guards move with it, and the work centres on the desk's
 print or only after a judge's.
 
 The floors were not moved.
+
+### The run half's rows of three, probed
+
+The five rows of three in the run half of the m518 census
+(`/tmp/m518/census.txt`, names from `/tmp/m518/raw.txt`), each probed
+under `--only` with one binary of the head (`/tmp/m521/ox_head`):
+
+1. `parameter T has no value`: `OpAmpCircuits.Derivative`, `FirstOrder`
+   and `PI`. They are components, and `T` is declared without a value
+   for the example that uses them to set it (`HighPass` does). The
+   refusal is right.
+2. `unbalanced model ... initStep.inPort[1].occupied`: the three
+   `StateGraph...CompositeStep*`. These are composite steps whose
+   ports are meant to be connected from outside, and two equations are
+   left for them. They are honest too, the same shape as row 1.
+3. `cannot evaluate parameters [jointRRP.e_ia ...]`: four MultiBody
+   engines (`CylinderBase`, `Engine1b_analytic` and both
+   `EngineV6_analytic`), so the row holds one more model than its
+   number. `oxidelica why` follows the bindings `e_ia = jointUSP.e2_ia
+   = rod1.e2_ia` down to `UniversalSpherical`, where `rodLength` is
+   `parameter (fixed = false)` and its only value comes from the
+   initial equation `rodLength = length(rRod_ia)`. `e2_ia` and
+   `eRod_ia` are bound through it. This is one family: a parameter that
+   initialisation computes, read by parameters that are bound to it.
+4. `structurally singular ... vin.p.v = mnN.G.v`: Spice3 inverters.
+   `oxidelica why ... Inverter vin.T0` shows `T0` written only by
+   `when ... sample(vin.TD, vin.PER): vin.T0 = time`, and index
+   reduction asks for its derivative through the pulse source's `v`.
+   This is the case `AGENTS.md` names, "what a `when` assigns does not
+   move", already measured and not taken because it outlives the
+   event. One family, left as it is.
+5. `initialization is not square`: three unrelated models
+   (`NonCircularPipes` 8 for 6, `ThreePhaseTransformerWithRectifier`
+   21 for 23, `GearType1` 2 for 3). This one is scattered.
+
+Two of the five are honest refusals, two are single families (four
+engines behind one `fixed = false` parameter, the Spice3 inverters
+behind a `when`-written time) and one is scattered.
