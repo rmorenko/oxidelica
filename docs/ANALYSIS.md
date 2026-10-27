@@ -63851,3 +63851,63 @@ m522, and `CEILING: run/flatten ratio is 1.118, and the band is
 middle of October (1.222, 1.266 to 1.272, 1.157 in m522), and 1.118
 is the nearest it has come to the band's edge. Nothing to repair, but
 the drift is recorded here.
+
+## m525: the second heavy basket, and who ate its ceiling
+
+The second heavy basket (`scripts/heavy_second.txt`, twelve models)
+went green on 25 October in 90 minutes and has not finished since:
+cancelled at the 240 minute ceiling on 26 and 27 October, and once
+lost to a runner shutdown at 69 minutes. The first basket is walking
+the same way, 119 minutes on 26 October and 156 on 27 October. The
+only compiler change in the window ecd0bd5..f6a794c is 5f6a40b, which
+does two things under one key, `OXIDELICA_NO_SILENT_CHAIN`: it reads a
+start-less state's chain four equations deep instead of one, and it
+raises the Newton budget of every loop from fifty to sixty.
+
+The runner's log does not name models, only `read N of 12`, so the
+order was taken on the desk instead: one binary built from 2a6f414,
+the basket under `OXIDELICA_TRACE=1`, which prints each model as it
+starts and finishes (`/tmp/m525/b.on.txt`). Ten of the twelve were
+done within nineteen minutes. The two left were
+`Spice3BenchmarkFourBitBinaryAdder.FOURBIT`, priced at 1845 s on
+19 October, and `DynamicPipeWithNominalLaminarFlow`, priced at 106 s.
+The second is the suspect: it was the cheapest pipe of the basket.
+
+`DynamicPipeWithNominalLaminarFlow` alone, one thread each, four
+binaries side by side, each under a 24 GB ceiling and a 30 minute
+limit of this shift's own (`/tmp/m525/nlf.*.txt`):
+
+| run                                 | flatten | run      | outcome                   |
+| ----------------------------------- | ------- | -------- | ------------------------- |
+| on, the default                     | -       | > 1800 s | stopped by hand at 30 min |
+| off1, `OXIDELICA_NO_SILENT_CHAIN=1` | 41 s    | 103 s    | refused: singular init    |
+| off2, `OXIDELICA_NO_STILL_FOLD=1`   | -       | > 1800 s | stopped by hand at 30 min |
+| chain on, Newton budget back at 50  | -       | > 1800 s | stopped by hand at 30 min |
+
+The fourth binary is HEAD with the `60` in `solvers/mod.rs` turned
+back to `50` and nothing else, kept out of the tree. Off1's 144 s
+total is the green price of 25 October; the other three spent eighteen
+minutes of processor each before the first check and were still
+working at thirty. So the culprit is 5f6a40b, and within it the deeper
+chain reading and not the Newton budget: with the budget at fifty and
+the chain on, the model is exactly as slow as at HEAD. The fold of
+586c99c is not involved.
+
+Off1 does not run the model either - the initialization is refused as
+singular, 243 points, 245 Newton steps - so the green 25 October
+basket did not run it and the heavy floors did not count it. What the
+chain does is turn a refusal that cost two minutes into a computation
+that does not end in thirty. Whether it would end at all, and run, is
+not known; the probe was stopped, not finished.
+
+Both corpus pairs that admitted 5f6a40b were taken without the heavy
+models, as they are meant to be. So the six percent rule could not
+see this by construction: a pair that passed it took the second
+basket from 90 minutes to more than 241. The rule is blind to the
+heavy baskets, and the scheduled run is the only witness, a day late.
+
+Not settled here: the green log's dear pair, 9-10 at 3161 s against
+323 s on 27 October. The log does not name the models, and the desk
+order depends on how many threads the machine gives, so the name
+of that pair is not recoverable from the logs; it stays a question
+for the heavy floors once a basket finishes.
