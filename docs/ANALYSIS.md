@@ -63503,3 +63503,75 @@ air gap's `i_sr[1]`, a name a torn block solves. That is box 2 of
 shift 227. The three Fluid models (`BranchingDynamicPipes`,
 `HeatExchangerSimulation`, `HeatingSystem`) ask for the derivative of
 a medium's temperature, which is box 4 of shift 227. The map holds.
+
+## m522: the census key folds the run half into families
+
+### The key
+
+`kinds` in `scripts/refusals.sh` now takes out, before the old
+substitutions, five particulars of the flat model that split one
+barrier into rows of one: the model's name at the head of a message
+(the state re-selection refusal begins with it), the dump of the
+equation a singular subset or a derivative named (`Bin(...)`,
+`Ref("...")`), the tail "nor did the N other equations", the name of
+the parameter in `parameter X has no value`, the variable under a
+`der(...)` at the head of a message, and the list after "nothing
+determines" or "nothing is left for". The state re-selection message
+loses what follows "than the run so far".
+
+Smoke on the old raw report `/tmp/m518/raw.txt`, run half only, both
+keys over the same lines (`/tmp/m522/bridge_old.txt`,
+`/tmp/m522/bridge_new.txt`):
+
+| key | rows | singles | models |
+| --- | ---: | ------: | -----: |
+| old |  112 |      91 |    163 |
+| new |   31 |      12 |    163 |
+
+The sum is unchanged and each model stands in one row, since `uniq -c`
+counts each line once. The m508 families keep at least their sizes:
+`constrains no state` 34 (30 plus the four that differed only in the
+"nor did" tail), `parameter X has no value` 24, `nothing determines`
+15, `nothing is left for` 6, `der(X) is not a state` 6, `cannot
+evaluate parameters` 6, `underdetermined algebraic loop` 9. The script's
+own function was checked against the prototype line for line.
+
+### The bridge from old rows to new families
+
+How many old rows each new row gathers (`/tmp/m522/bridge.tsv`):
+`constrains no state` 32 old rows, `parameter X has no value` 19,
+`der(X) is not a state` 6, `cannot evaluate parameters` 4, the state
+re-selection 2 (`SMPM_Braking` with `MovingActuatedDrive`, joined as
+m521 said they belong). Every other new row gathers one old row. A
+census before this shift is compared with one after by that table; a
+row with the same words in both is the same row.
+
+### The twelve singles under the new key
+
+The new key leaves 12 singles where the m521 hand count found 10: the
+two arithmetic-floor refusals are one illness worded twice ("after
+three steps that did not descend" and "after N iterations"), and
+`InverseCapacity` is a single that the fold has since made run. Each
+was asked again with `--only` and `OXIDELICA_WHERE=1` on the present
+tree (`/tmp/m522/singles_where.txt`):
+
+| model                           | wall                                        | line                  | map                            |
+| ------------------------------- | ------------------------------------------- | --------------------- | ------------------------------ |
+| `ControlledMixingUnit`          | discrete never assigned, assigned twice     | `compile.rs:4498`     | shift 503                      |
+| `SpeedControl`                  | unknown function `previous`                 | `code.rs:1223`        | m459, a clock with no interval |
+| `AmplifierWithOpAmpDetailed`    | initialization singular, `opAmp.v_in`       | `compile.rs:9073`     | shift 503                      |
+| `Digital...Utilities.RS`        | `delay(..., 0)`                             | `events.rs:344`       | shift 24x guard                |
+| `Machines...SMPM_CurrentSource` | loop did not converge in 50                 | `solvers/mod.rs:2540` | m513                           |
+| `PolyphaseRectifier`            | arithmetic floor, underdetermined           | `solvers/mod.rs:1509` | shift 488                      |
+| `ThyristorBridge2mPulse_RLV`    | arithmetic floor, underdetermined           | `solvers/mod.rs:1509` | shift 506                      |
+| `AdvancedSolenoid`              | cannot differentiate `abs`                  | `compile.rs:2544`     | shift 503                      |
+| `InverseCapacity`               | none: it runs on the folded tree            |                       | m521                           |
+| `DynamicPipeClosingValve`       | initialization did not converge             | `compile.rs:9185`     | shift 503                      |
+| `TestInterpolateTimeVarying`    | `interpolate` reads a moving table as still | `compile.rs:2419`     | shift 503                      |
+| `Essotherm650`                  | `Pr` above its max at t = 0                 | `solvers/mod.rs:916`  | shift 487                      |
+
+Every one has a map by name in this file, and every one still stands
+at the wall its map names. The two arithmetic-floor models raise from
+one line, so they are one family of two that the key cannot join
+because the two messages say different things about what failed. No
+compiler change was made for this section.

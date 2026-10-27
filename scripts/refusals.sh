@@ -54,8 +54,24 @@ kinds() {
     # message that lists the unknowns of an unbalanced model names
     # thousands of them, and the list is cut off: what is being
     # counted is the kind of barrier, not the model behind it.
-    sed "s/\`[^\`]*\`/\`X\`/g" |
-        sed 's/\[".*/[...]/' |
+    #
+    # The flat model's own particulars are taken out as well, because
+    # they split one barrier into rows of one: the model's name at the
+    # head of a message, the dump of the equation a singular subset
+    # named, the parameter that happened to come first, the variable
+    # under a `der`, and the list of names an unbalanced model or a
+    # loop prints. Measured on the census of 18 October, the run half
+    # went from 112 rows, 91 of them singles, to 31 rows over the same
+    # 163 models.
+    sed -E 's/^Modelica\.[A-Za-z0-9_.]*: //' |
+        sed -E 's/(the )?equation .* (constrains no state|needs|that determines)/\1equation E \2/' |
+        sed -E 's/(index reduction cannot help),.*/\1/' |
+        sed -E 's/parameter [A-Za-z0-9_.]+(\[[^]]*\])? has no value/parameter X has no value/' |
+        sed -E 's/^der\([^)]*\)+: /der(X): /' |
+        sed -E 's/(nothing determines|nothing is left for) .*/\1 [...]/' |
+        sed -E 's/(than the run so far) - .*/\1/' |
+        sed "s/\`[^\`]*\`/\`X\`/g" |
+        sed -E 's/ \[.*/ [...]/' |
         sed 's/[0-9][0-9]*/N/g' |
         cut -c1-120 |
         sort | uniq -c | sort -rn
