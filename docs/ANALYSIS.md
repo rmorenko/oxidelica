@@ -63268,3 +63268,72 @@ the same machine family as the quasi-static owner. The key's tail is
 therefore one owner that does not finish, a transformer family that
 pays twentyfold, and a diffuse rest whose size cannot be told from
 company without a pair run alone.
+
+## m521: the fold made the default, under the six percent rule
+
+Roman ruled on 26 October that a change may go in without his word when
+the run lists of both halves agree line for line, the run half is no
+more than 6% dearer on one binary with the halves in sequence, and the
+cost is named. The rule now stands in `AGENTS.md` beside the paragraph
+on pairs. The fold of m516 (`state/m516/fold_frame.patch`) was the
+first change measured against it.
+
+The configuration that goes in is the one the m516 pair measured:
+`STILL_FOLD`, `NARROW`, `MODED` and `FRAME` together, now the behaviour
+with no key, and `OXIDELICA_NO_STILL_FOLD` turns all four off. The
+narrower keys were folded into the default rather than kept as dead
+switches, since no measurement has been made of them apart from the
+whole. `WHOLE` and `FRAME_PIN` stay probes, off unless set: neither was
+in the measured configuration.
+
+One binary from the final tree (`/tmp/m521/ox`), the off half first and
+the on half after it, nothing else on the machine. Files are
+`/tmp/m521/off.txt` and `/tmp/m521/on.txt`, and the lists
+`off.ran`/`on.ran` and `off.flat`/`on.flat` beside them. Off: 973
+flatten, 810 run, `time: flattening 3797s ... running 4238s`. On: 973
+flatten, 812 run, `time: flattening 3731s ... running 4393s`. The
+flatten lists are equal line for line. The run lists differ by exactly
+two lines, both gains, `IMC_InverterDrive` and `InverseCapacity`, and
+none lost. The run half is 155 s dearer, 3.7%, inside the 5.2% of
+m516. Work: points 25216785 to 24719228, Newton 36621637 to 36191208,
+Jacobians 516 to 10616, each the m516 numbers to the digit. The cost is
+the one m516 named: the two won models' own runs and the quasi-static
+`IMC_Transformer`, whose tie in state selection turns under the fold.
+
+### Why it did not go in
+
+The pair satisfies all three conditions of the rule. The quick preflight
+on the same tree (`/tmp/m521/preflight.txt`) did not pass, and every red
+in it is the fold being the default, not a fault the pair could see:
+
+1. `equations::compile_error_paths` expects
+   `der(x) = 1; x = 2` to be refused as unbalanced. Under the fold `x`
+   is a number, and the refusal now reads
+   `the equation 0 = 1 holds between numbers only and does not hold`.
+   It is still a refusal, and it names the fault, but the test's
+   wording has to be decided about.
+2. The witness of `scripts/victim_witness.sh`, "weighed at the start",
+   expects reduction 86 of
+   `tests/small/a_derivative_name_weighed_at_the_start.mo` to demote
+   `b4.body.v_0[2]`, and gets an empty victim. With
+   `OXIDELICA_NO_STILL_FOLD=1` it prints `b4.body.v_0[2]` again, so the
+   fold decides that tie before the weighing is asked. The same
+   happened before for the zero-carrying variable of m430, and was met
+   by holding that one off in the witness's `before` set.
+3. The work centres of `scripts/library_floor.sh`: Jacobians 10616
+   against 537 (x19.8), points 1018872 against 457143 (x2.23) and
+   Newton 1809736 against 904754 (x2.00). The Jacobians are the 10616
+   m516 already printed; the points and Newton steps are the run of
+   `IMC_InverterDrive`, 594163 and 928586, which ran nowhere before.
+
+Each has an honest answer - a new wording, `OXIDELICA_NO_STILL_FOLD=1`
+in the witness's `before` set, centres moved to a judge's print - but
+each moves a guard, and moving guards is not among the three
+conditions. The rule says what a pair may let in; it says nothing
+about a merge that must also rewrite what the guards expect. So the
+fold goes back to the park with the flip made
+(`state/m521/fold_merge.diff`), and the question goes to the owner:
+may the three guards move with it, and the work centres on the desk's
+print or only after a judge's.
+
+The floors were not moved.
