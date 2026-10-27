@@ -5807,6 +5807,492 @@ pub(crate) fn compile_at(
     } else {
         equations
     };
+    // On unless `OXIDELICA_NO_STILL_FOLD` is set: a continuous
+    // variable an equation holds equal to literals and parameters is a
+    // number for the whole run, and is folded into the parameters
+    // before the matching ever sees it. Every equation left with no
+    // unknown in it is then an identity and goes too - after checking
+    // that it holds, since one that does not is a model that cannot
+    // run and is refused by name rather than dropped.
+    let mut continuous = continuous;
+    // The fold, its narrowing, the moded guard and the frame read from
+    // the connection graph are one configuration, the one measured as a
+    // pair (973/810 to 973/812, no victim, run 5.2% dearer). `WHOLE`
+    // and `FRAME_PIN` below stay probes, off unless set.
+    let equations = if !crate::walk::switch_set("OXIDELICA_NO_STILL_FOLD") {
+        let mut folded: HashMap<String, f64> = HashMap::new();
+        loop {
+            let before = folded.len();
+            for item in &equations {
+                for (side, other) in [(&item.lhs, &item.rhs), (&item.rhs, &item.lhs)] {
+                    let Expr::Ref(name) = side else { continue };
+                    if !continuous.contains(&name.as_str())
+                        || folded.contains_key(name)
+                        || other.contains_der()
+                        || names_time(other)
+                    {
+                        continue;
+                    }
+                    let mut refs = Vec::new();
+                    other.collect_refs(&mut refs);
+                    if !refs.iter().all(|r| params.contains_key(*r)) {
+                        continue;
+                    }
+                    let context = EvalCtx {
+                        vars: &params,
+                        time: 0.0,
+                        programs: Some(&programs),
+                        depth: 0,
+                    };
+                    if let Ok(value) = eval(other, &context) {
+                        if value.is_finite() {
+                            folded.insert(name.clone(), value);
+                            params.insert(name.clone(), value);
+                        }
+                    }
+                }
+            }
+            if folded.len() == before {
+                break;
+            }
+        }
+        // Narrowed under `OXIDELICA_STILL_FOLD_NARROW`: only the still
+        // names connected, through equations among still names, to one
+        // that is written under `der`. The rest stay unknowns as before.
+        // Third narrowing, `OXIDELICA_STILL_FOLD_MODED`: a name any
+        // branch of an undecided `if` equation writes is still only for
+        // the present mode, and the next mode's compilation would keep
+        // it as an unknown - a table that changes columns mid-run.
+        if !folded.is_empty() {
+            let mut moded: Vec<&str> = Vec::new();
+            for conditional in &model.conditional {
+                for branch in &conditional.branches {
+                    for equation in branch {
+                        equation.lhs.collect_refs(&mut moded);
+                        equation.rhs.collect_refs(&mut moded);
+                    }
+                }
+            }
+            let moded: std::collections::HashSet<String> =
+                moded.into_iter().map(str::to_string).collect();
+            // Whatever was folded on the strength of a moded name goes
+            // too: refold from scratch without them.
+            let mut kept: HashMap<String, f64> = HashMap::new();
+            for name in folded.keys() {
+                params.remove(name);
+            }
+            loop {
+                let before = kept.len();
+                for item in &equations {
+                    for (side, other) in [(&item.lhs, &item.rhs), (&item.rhs, &item.lhs)] {
+                        let Expr::Ref(name) = side else { continue };
+                        if !folded.contains_key(name)
+                            || moded.contains(name)
+                            || kept.contains_key(name)
+                        {
+                            continue;
+                        }
+                        let mut refs = Vec::new();
+                        other.collect_refs(&mut refs);
+                        if refs
+                            .iter()
+                            .all(|r| params.contains_key(*r) && !moded.contains(*r))
+                        {
+                            kept.insert(name.clone(), folded[name]);
+                            params.insert(name.clone(), folded[name]);
+                        }
+                    }
+                }
+                if kept.len() == before {
+                    break;
+                }
+            }
+            folded = kept;
+        }
+        // Fifth, `OXIDELICA_STILL_FOLD_FRAME`: the frame read from the
+        // structure rather than from the spelling of its names. A node
+        // of the overconstrained graph is a record the connections
+        // treat as one - `world.frame_b.R` - and the connector holding
+        // it is the frame. Its members are the continuous, non-flow
+        // components under that connector. A frame every member of
+        // which folded is still as a whole, and is kept whole before
+        // `NARROW` can cut it; a frame only partly folded is unfolded.
+        let frame_switch = true;
+        let mut whole_frames: std::collections::HashSet<String> = std::collections::HashSet::new();
+        let mut frame_members: HashMap<String, Vec<String>> = HashMap::new();
+        if frame_switch && !folded.is_empty() {
+            let mut frames: std::collections::HashSet<String> = std::collections::HashSet::new();
+            for clause in &model.connection_graph {
+                let nodes = match clause {
+                    oxidelica_parser::ast::GraphClause::Root(n)
+                    | oxidelica_parser::ast::GraphClause::PotentialRoot(n, _) => vec![n],
+                    oxidelica_parser::ast::GraphClause::Branch(a, b) => vec![a, b],
+                };
+                for node in nodes {
+                    if let Some((frame, _)) = node.rsplit_once('.') {
+                        frames.insert(frame.to_string());
+                    }
+                }
+            }
+            for component in &model.components {
+                if component.flow || component.variability != Variability::Continuous {
+                    continue;
+                }
+                // The innermost frame holding it: a frame inside a
+                // frame is not a thing a connector can be, but a name
+                // may still have several dotted prefixes.
+                let mut at = component.name.as_str();
+                while let Some((head, _)) = at.rsplit_once('.') {
+                    if frames.contains(head) {
+                        frame_members
+                            .entry(head.to_string())
+                            .or_default()
+                            .push(component.name.clone());
+                        break;
+                    }
+                    at = head;
+                }
+            }
+            for (frame, members) in &frame_members {
+                if members.iter().all(|m| folded.contains_key(m)) {
+                    whole_frames.insert(frame.clone());
+                }
+            }
+            if std::env::var_os("OXPROBE_FOLD_LIST").is_some() {
+                let mut names: Vec<_> = whole_frames.iter().collect();
+                names.sort();
+                eprintln!(
+                    "frame: {} frames, {} whole: {:?}",
+                    frame_members.len(),
+                    whole_frames.len(),
+                    names
+                );
+            }
+        }
+        let in_a_whole_frame = |name: &str| {
+            let mut at = name;
+            while let Some((head, _)) = at.rsplit_once('.') {
+                if whole_frames.contains(head) {
+                    return true;
+                }
+                at = head;
+            }
+            false
+        };
+        if !folded.is_empty() {
+            let mut reached: std::collections::HashSet<String> = std::collections::HashSet::new();
+            let pin = crate::walk::switch_set("OXIDELICA_STILL_FOLD_FRAME_PIN");
+            for name in folded.keys() {
+                if pin && in_a_whole_frame(name) {
+                    reached.insert(name.clone());
+                }
+            }
+            for item in &equations {
+                for side in [&item.lhs, &item.rhs] {
+                    side.for_each(&mut |e| {
+                        if let Some(v) = e.as_der_of() {
+                            if folded.contains_key(v) {
+                                reached.insert(v.to_string());
+                            }
+                        }
+                    });
+                }
+            }
+            loop {
+                let before = reached.len();
+                for item in &equations {
+                    let mut refs = Vec::new();
+                    item.lhs.collect_refs(&mut refs);
+                    item.rhs.collect_refs(&mut refs);
+                    let still: Vec<&str> = refs
+                        .into_iter()
+                        .filter(|r| folded.contains_key(*r))
+                        .collect();
+                    if still.iter().any(|r| reached.contains(*r)) {
+                        for r in still {
+                            reached.insert(r.to_string());
+                        }
+                    }
+                }
+                if reached.len() == before {
+                    break;
+                }
+            }
+            for name in folded.keys() {
+                if !reached.contains(name) {
+                    params.remove(name);
+                }
+            }
+            folded.retain(|name, _| reached.contains(name));
+        }
+        // Fourth, `OXIDELICA_STILL_FOLD_WHOLE`: a frame is folded whole
+        // or not at all. Its position, orientation and angular velocity
+        // are one fact about where the frame is; folding the diagonal of
+        // `R.T` and leaving the rest an unknown hands index reduction
+        // half a frame.
+        if crate::walk::switch_set("OXIDELICA_STILL_FOLD_WHOLE") && !folded.is_empty() {
+            fn frame_of(name: &str) -> Option<&str> {
+                [".r_0[", ".R.T[", ".R.w["]
+                    .iter()
+                    .find_map(|cut| name.rfind(cut).map(|at| &name[..at]))
+            }
+            let mut members: HashMap<String, usize> = HashMap::new();
+            for name in folded.keys() {
+                if let Some(frame) = frame_of(name) {
+                    *members.entry(frame.to_string()).or_default() += 1;
+                }
+            }
+            let drop: std::collections::HashSet<String> = folded
+                .keys()
+                .filter(|name| frame_of(name).is_some_and(|f| members[f] < 15))
+                .cloned()
+                .collect();
+            if std::env::var_os("OXPROBE_FOLD_LIST").is_some() {
+                eprintln!("whole: {} of {} dropped", drop.len(), folded.len());
+            }
+            // Refold without them, so that nothing stays folded on the
+            // strength of a dropped name.
+            for name in folded.keys() {
+                params.remove(name);
+            }
+            let mut kept: HashMap<String, f64> = HashMap::new();
+            loop {
+                let before = kept.len();
+                for item in &equations {
+                    for (side, other) in [(&item.lhs, &item.rhs), (&item.rhs, &item.lhs)] {
+                        let Expr::Ref(name) = side else { continue };
+                        if !folded.contains_key(name)
+                            || drop.contains(name)
+                            || kept.contains_key(name)
+                        {
+                            continue;
+                        }
+                        let mut refs = Vec::new();
+                        other.collect_refs(&mut refs);
+                        if refs.iter().all(|r| params.contains_key(*r)) {
+                            kept.insert(name.clone(), folded[name]);
+                            params.insert(name.clone(), folded[name]);
+                        }
+                    }
+                }
+                if kept.len() == before {
+                    break;
+                }
+            }
+            folded = kept;
+        }
+        if frame_switch && !folded.is_empty() {
+            let drop: std::collections::HashSet<String> = frame_members
+                .iter()
+                // Whole when it is judged, not when it was first seen:
+                // `NARROW` may have cut a frame that folded whole.
+                .filter(|(_, members)| !members.iter().all(|m| folded.contains_key(m)))
+                .flat_map(|(_, members)| members.iter())
+                .filter(|m| folded.contains_key(*m))
+                .cloned()
+                .collect();
+            if std::env::var_os("OXPROBE_FOLD_LIST").is_some() {
+                eprintln!("frame: {} of {} dropped", drop.len(), folded.len());
+            }
+            for name in folded.keys() {
+                params.remove(name);
+            }
+            let mut kept: HashMap<String, f64> = HashMap::new();
+            loop {
+                let before = kept.len();
+                for item in &equations {
+                    for (side, other) in [(&item.lhs, &item.rhs), (&item.rhs, &item.lhs)] {
+                        let Expr::Ref(name) = side else { continue };
+                        if !folded.contains_key(name)
+                            || drop.contains(name)
+                            || kept.contains_key(name)
+                        {
+                            continue;
+                        }
+                        let mut refs = Vec::new();
+                        other.collect_refs(&mut refs);
+                        if refs.iter().all(|r| params.contains_key(*r)) {
+                            kept.insert(name.clone(), folded[name]);
+                            params.insert(name.clone(), folded[name]);
+                        }
+                    }
+                }
+                if kept.len() == before {
+                    break;
+                }
+            }
+            folded = kept;
+        }
+        if std::env::var_os("OXPROBE_FOLD_LIST").is_some() {
+            let mut names: Vec<_> = folded.iter().collect();
+            names.sort_by(|a, b| a.0.cmp(b.0));
+            for (name, value) in names {
+                eprintln!("folded {name} = {value}");
+            }
+        }
+        if folded.is_empty() {
+            equations
+        } else {
+            continuous.retain(|c| !folded.contains_key(*c));
+            fn zero_der(expr: &Expr, folded: &HashMap<String, f64>) -> Expr {
+                if let Some(v) = expr.as_der_of() {
+                    if folded.contains_key(v) {
+                        return Expr::Number(0.0);
+                    }
+                }
+                expr.map_children(&mut |child| zero_der(child, folded))
+            }
+            let mut kept = Vec::with_capacity(equations.len());
+            for item in equations {
+                // What the equation said before the fold, and which of
+                // its names the fold made numbers of: a refusal of
+                // `0 = 1` alone does not say which variable the model
+                // gave two equations to.
+                let written = format!("{} = {}", item.lhs.describe(), item.rhs.describe());
+                let mut read = Vec::new();
+                item.lhs.collect_refs(&mut read);
+                item.rhs.collect_refs(&mut read);
+                let mut held: Vec<String> = read
+                    .iter()
+                    .filter(|r| folded.contains_key(**r))
+                    .map(|r| r.to_string())
+                    .collect();
+                held.sort();
+                held.dedup();
+                let item = EquationItem {
+                    lhs: zero_der(&item.lhs, &folded),
+                    rhs: zero_der(&item.rhs, &folded),
+                    origin: item.origin,
+                };
+                let mut refs = Vec::new();
+                item.lhs.collect_refs(&mut refs);
+                item.rhs.collect_refs(&mut refs);
+                let open = item.lhs.contains_der()
+                    || item.rhs.contains_der()
+                    || names_time(&item.lhs)
+                    || names_time(&item.rhs)
+                    || refs.iter().any(|r| !params.contains_key(*r));
+                if open {
+                    kept.push(item);
+                    continue;
+                }
+                let context = EvalCtx {
+                    vars: &params,
+                    time: 0.0,
+                    programs: Some(&programs),
+                    depth: 0,
+                };
+                let (l, r) = (eval(&item.lhs, &context), eval(&item.rhs, &context));
+                match (l, r) {
+                    (Ok(l), Ok(r)) if (l - r).abs() <= 1e-9 * (1.0 + l.abs().max(r.abs())) => {}
+                    _ => {
+                        let by = if held.is_empty() {
+                            String::new()
+                        } else {
+                            format!(
+                                "; {} held fixed by another equation, so the model is unbalanced",
+                                held.join(", ")
+                            )
+                        };
+                        return err(format!(
+                            "the equation {written} becomes {} = {} with every name a number, and does not hold{by}",
+                            item.lhs.describe(),
+                            item.rhs.describe()
+                        ));
+                    }
+                }
+            }
+            kept
+        }
+    } else {
+        equations
+    };
+    // A second probe, `OXIDELICA_DER_ALIAS_REP`: where `a = b` stands
+    // bare between two continuous names and only one of a class of
+    // such names has its derivative stated by an equation of its own,
+    // `der` of any other member is written as `der` of that one. A
+    // power balance writing `der(frame_b.r_0)` of a frame bolted to a
+    // body otherwise makes the frame's position a second state of the
+    // body's own position.
+    let equations = if crate::walk::switch_set("OXIDELICA_DER_ALIAS_REP") {
+        let mut parent: HashMap<String, String> = HashMap::new();
+        fn root(parent: &HashMap<String, String>, x: &str) -> String {
+            let mut at = x.to_string();
+            while let Some(up) = parent.get(&at) {
+                at = up.clone();
+            }
+            at
+        }
+        for item in &equations {
+            if let (Expr::Ref(a), Expr::Ref(b)) = (&item.lhs, &item.rhs) {
+                if continuous.contains(&a.as_str()) && continuous.contains(&b.as_str()) {
+                    let (ra, rb) = (root(&parent, a), root(&parent, b));
+                    if ra != rb {
+                        parent.insert(ra, rb);
+                    }
+                }
+            }
+        }
+        let stated: Vec<&str> = equations
+            .iter()
+            .filter_map(|item| {
+                item.lhs
+                    .as_der_of()
+                    .filter(|_| !item.rhs.contains_der())
+                    .or_else(|| item.rhs.as_der_of().filter(|_| !item.lhs.contains_der()))
+            })
+            .collect();
+        let mut stated_of: HashMap<String, Vec<String>> = HashMap::new();
+        for s in &stated {
+            if parent.contains_key(*s) || parent.values().any(|v| v == s) {
+                let r = root(&parent, s);
+                let list = stated_of.entry(r).or_default();
+                if !list.iter().any(|x| x == s) {
+                    list.push(s.to_string());
+                }
+            }
+        }
+        let rep: HashMap<String, String> = stated_of
+            .into_iter()
+            .map(|(r, mut list)| {
+                list.sort();
+                (r, list.remove(0))
+            })
+            .collect();
+        if rep.is_empty() {
+            equations
+        } else {
+            fn swap(
+                expr: &Expr,
+                parent: &HashMap<String, String>,
+                rep: &HashMap<String, String>,
+            ) -> Expr {
+                if let Some(v) = expr.as_der_of() {
+                    if let Some(to) = rep.get(&root(parent, v)) {
+                        return Expr::Call("der".into(), vec![Expr::Ref(to.clone())]);
+                    }
+                }
+                expr.map_children(&mut |child| swap(child, parent, rep))
+            }
+            equations
+                .iter()
+                .map(|item| {
+                    // The equation stating the representative keeps
+                    // its own `der`.
+                    if item.lhs.as_der_of().is_some() || item.rhs.as_der_of().is_some() {
+                        return item.clone();
+                    }
+                    EquationItem {
+                        lhs: swap(&item.lhs, &parent, &rep),
+                        rhs: swap(&item.rhs, &parent, &rep),
+                        origin: item.origin.clone(),
+                    }
+                })
+                .collect::<Vec<_>>()
+        }
+    } else {
+        equations
+    };
     let (mut state_rhs, algebraic_eqs, implicit) = split_equations(&equations, &continuous)?;
 
     // 3. What is left to solve for, and whether every name in the

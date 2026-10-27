@@ -62,9 +62,12 @@ check() {
 # zero carried by a variable quenching an ordinary product (m430) takes
 # the frames' identity rotations out of the cone and decides the tie
 # for `b3.body.v_0[2]` before the weighing is asked, so it is held off
-# the same way.
+# the same way. The fold of continuous variables held still (m521)
+# decides the tie before the weighing too, and the model then stops at
+# an algebraic loop with reduction 86 never reached, so it is held off
+# with the rest.
 before=(OXIDELICA_NO_CONSTANT_CANDIDATES=1 OXIDELICA_NO_STATE_SELECT=1
-  OXIDELICA_ZERO_VAR_DER_ONLY=1)
+  OXIDELICA_ZERO_VAR_DER_ONLY=1 OXIDELICA_NO_STILL_FOLD=1)
 check "weighed at the start" 86 "b4.body.v_0[2]" "$(victim_at 86 "${before[@]}")"
 check "starts alone" 86 "r3.w" \
   "$(victim_at 86 "${before[@]}" OXIDELICA_NO_DERIVATIVES_AT_REDUCTION=1)"

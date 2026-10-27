@@ -107,10 +107,12 @@ fn compile_error_paths() {
     );
     // Two equations for one algebraic unknown: unbalanced.
     assert!(compile_err("model M Real y; equation y = 1; y = 2; end M;").contains("unbalanced"));
-    // A state with an extra algebraic equation: unbalanced.
-    assert!(
-        compile_err("model M Real x; equation der(x) = 1; x = 2; end M;").contains("unbalanced")
-    );
+    // A state with an extra algebraic equation: unbalanced. The fold
+    // of variables held still takes `x = 2` first, so the refusal
+    // comes from `der(x) = 1` turned into `0 = 1`, and names `x`.
+    let said = compile_err("model M Real x; equation der(x) = 1; x = 2; end M;");
+    assert!(said.contains("unbalanced"), "{said}");
+    assert!(said.contains("x held fixed"), "{said}");
 
     // The refusal names what nothing determines, not every unknown of
     // the model. The counts alone stand for many different illnesses,
@@ -2931,4 +2933,20 @@ fn two_roots_joined_by_connections_are_two_trees() {
     assert!((at("a.p.reference.gamma") - 2.0).abs() < 1e-9);
     assert!((at("b.p.reference.gamma") - 5.0).abs() < 1e-9);
     assert!((at("r.p.i") - 1.0).abs() < 1e-9, "i={}", at("r.p.i"));
+}
+
+/// A variable an equation holds to a number and that is written under
+/// `der` is folded into the parameters, and its derivative is zero.
+#[test]
+fn a_still_variable_under_der_is_folded_and_does_not_move() {
+    let result = run("model S Real x; Real y; Real z(start = 1.0); \
+         equation x = 2.0; y = der(x); der(z) = -x*z; \
+         annotation(experiment(StopTime=1.0, Interval=0.01, Tolerance=1e-10)); end S;");
+    let last = result.rows.last().unwrap();
+    let at = |name: &str| {
+        let i = result.columns.iter().position(|n| n == name).unwrap();
+        last[i]
+    };
+    assert!(at("y").abs() < 1e-12, "y={}", at("y"));
+    assert!((at("z") - (-2.0f64).exp()).abs() < 1e-6, "z={}", at("z"));
 }

@@ -63356,7 +63356,7 @@ under `--only` with one binary of the head (`/tmp/m521/ox_head`):
    engines (`CylinderBase`, `Engine1b_analytic` and both
    `EngineV6_analytic`), so the row holds one more model than its
    number. `oxidelica why` follows the bindings `e_ia = jointUSP.e2_ia
-   = rod1.e2_ia` down to `UniversalSpherical`, where `rodLength` is
+= rod1.e2_ia` down to `UniversalSpherical`, where `rodLength` is
    `parameter (fixed = false)` and its only value comes from the
    initial equation `rodLength = length(rRod_ia)`. `e2_ia` and
    `eRod_ia` are bound through it. This is one family: a parameter that
@@ -63375,3 +63375,56 @@ under `--only` with one binary of the head (`/tmp/m521/ox_head`):
 Two of the five are honest refusals, two are single families (four
 engines behind one `fixed = false` parameter, the Spice3 inverters
 behind a `when`-written time) and one is scattered.
+
+### The fold goes in, on Roman's word of 27 October
+
+Roman read the pair above against the rule now in `AGENTS.md` and
+found all three conditions met: the run lists differ only by two
+additions, `IMC_InverterDrive` and `InverseCapacity`, with none lost;
+the run half went from 4238 s to 4393 s, 3.7% dearer, counted from the
+off half (`/tmp/m521/off.txt`, `/tmp/m521/on.txt`); flattening grew
+cheaper, 3797 s to 3731 s. The fold is now the default, with
+`OXIDELICA_NO_STILL_FOLD` to have the old compiler back. The probes
+`WHOLE` and `FRAME_PIN` stay in the code, off unless set.
+
+Two things in the tree had to follow it.
+
+- `equations::compile_error_paths` held that `der(x) = 1; x = 2` is
+  refused as unbalanced. With the fold, `x = 2` makes `x` a number
+  first, `der(x) = 1` becomes `0 = 1`, and the refusal said only that
+  `0 = 1` does not hold. It now names the equation as written and the
+  names the fold fixed: "the equation der(x) = 1 becomes 0 = 1 ...; x
+  held fixed by another equation, so the model is unbalanced". The test
+  asks for both words.
+- The witness of reduction 86 printed an empty victim: the fold
+  decides that tie before the weighing at the start is asked, and the
+  model then stops at an algebraic loop before reduction 86. It is held
+  off the same way the constant candidates and `stateSelect` already
+  were, with `OXIDELICA_NO_STILL_FOLD=1` among the keys of its first
+  pair.
+
+### Bands of work after the fold
+
+`IMC_InverterDrive` runs on the desk now and owns the growth of all
+three counts of the run half. Its own print (`--only` with
+`OXIDELICA_WORK_EACH`) is 594163 points, 928586 Newton steps and 10007
+Jacobians. The desk's preflight over the folded tree
+(`/tmp/m521/preflight.txt`) printed 1018872 points, 1809736 Newton
+steps and 10616 Jacobians for the rest.
+
+The Jacobians of that one model are held on a line of their own,
+`WORK_JACOBIANS_OWN`, at 10007 with twenty percent either side. They
+are not added to the solenoids' list: summed with 143 they would own
+that band too. What stays in the main count is 10616 - 10007 = 609,
+which is 1.134 times 537 and outside ten percent, so that centre moves
+to 609. Points and Newton steps have no way to be counted apart from
+a band, so their centres move to the measured 1018872 and 1809736.
+
+Every one of these is a desk number. The first green judge after this
+commit is set against them, and a difference is corrected by the next
+review. The floors are not moved here: the desk prints 812 and 765,
+and the judge has not seen this tree. Re-judged over the two pass
+reports of the preflight with the new centres, every band of work
+holds. The desk ratio is red at 1.156 against 0.64..0.91, as it
+already was on those reports before any centre moved, and it is
+not a band the runner holds.

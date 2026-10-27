@@ -2923,9 +2923,24 @@ WORK_BODIES=1330083
 # stayed inside (944777 against 904754, x1.044) and are not moved:
 #
 #   points  30212813 - 29755670 = 457143
-WORK_POINTS=457143
+#
+# Moved on 2026-10-27 (m521) by the fold of continuous variables held
+# still, on Roman's word of that day: IMC_InverterDrive runs on the
+# desk with the fold, and alone it spends 594163 points and 928586
+# Newton steps (`--only` with OXIDELICA_WORK_EACH, /tmp/m521). The
+# desk's preflight over the folded tree printed the rest at 1018872
+# points and 1809736 Newton steps (/tmp/m521/preflight.txt), x2.229 and
+# x2.000 of the old centres; the owner of the growth is that one model.
+# There is no way yet to count points apart from a band, so the centres
+# move to the measured numbers. These are THE DESK'S numbers and wait
+# for the judge: the first green library job after the fold is set
+# against them, and a difference is corrected by the next review.
+#
+#   points  457143 -> 1018872
+#   newton  904754 -> 1809736
+WORK_POINTS=1018872
 WORK_POINTS_PPM=100000
-WORK_NEWTON=904754
+WORK_NEWTON=1809736
 WORK_NEWTON_PPM=100000
 # And Dimmer_RL, whichever way it falls, centred between the desk's run
 # under the series and the machine's printed refusal:
@@ -3145,8 +3160,26 @@ WORK_DEAREST=12
 # tree (/tmp/m459/pair3/on.txt), where that model is refused. The
 # centre is set at the runner's print: ten percent around 537 is 483.3
 # to 590.7, which holds the desk's 529.
-WORK_JACOBIANS=537
+#
+# Moved on 2026-10-27 (m521), when the fold made IMC_InverterDrive run
+# on the desk as well. Its Jacobians, 10007 by its own print (`--only`
+# with OXIDELICA_WORK_EACH, /tmp/m521), are held on a line of their own
+# below (`WORK_JACOBIANS_OWN`), not here and not among the solenoids'
+# 143. What stays is 10616 - 10007 = 609 on the desk's preflight
+# (/tmp/m521/preflight.txt), x1.134 of 537, outside the band, so the
+# centre moves to the measured rest. A DESK number waiting for the
+# judge, like the points above.
+WORK_JACOBIANS=609
 WORK_JACOBIANS_PPM=100000
+# One model whose Jacobians are held on a line of their own, with a
+# centre of its own: the name and the count. IMC_InverterDrive throws
+# its Jacobian away at every event and builds ten thousand of them,
+# which summed with the rest would own the band, and summed with the
+# solenoids would own theirs. Twenty percent either side: a refusal
+# (0) fires, and so does a run that changes how often it rebuilds.
+# 10007 is the desk's print and waits for the judge.
+WORK_JACOBIANS_OWN="Modelica.Electrical.Machines.Examples.InductionMachines.IMC_InverterDrive 10007"
+WORK_JACOBIANS_OWN_PPM=200000
 # The pair is held on a line of its own and to a band of its own, an
 # order of magnitude wide in either direction rather than five percent:
 # 90% either side of 274 is 27 to 520, so a refusal (0) or the swing to
@@ -3745,7 +3778,20 @@ if [ "$apart_named" -eq 1 ]; then
   jacobians_all="$(work_of jacobians)"
   held "points evaluated" "${points_all:+$((points_all - apart_points_sum))}" "$WORK_POINTS" "$WORK_POINTS_PPM"
   held "newton iterations" "${newton_all:+$((newton_all - apart_newton_sum))}" "$WORK_NEWTON" "$WORK_NEWTON_PPM"
-  held "jacobians" "${jacobians_all:+$((jacobians_all - uncounted_jacobians_sum))}" "$WORK_JACOBIANS" "$WORK_JACOBIANS_PPM"
+  own_jacobians_sum=0
+  if [ -n "$WORK_JACOBIANS_OWN" ]; then
+    read -r own_model own_written <<< "$WORK_JACOBIANS_OWN"
+    own_jacobians="$(echo "$each_work" | awk -v m="$own_model" '$2 == m { print $7 }' || true)"
+    if [ -z "$own_jacobians" ]; then
+      echo "WORK: the report did not say what $own_model cost"
+      status=1
+    else
+      echo "jacobians on their own: $own_model $own_jacobians"
+      held "jacobians of ${own_model##*.}" "$own_jacobians" "$own_written" "$WORK_JACOBIANS_OWN_PPM"
+      own_jacobians_sum="$own_jacobians"
+    fi
+  fi
+  held "jacobians" "${jacobians_all:+$((jacobians_all - uncounted_jacobians_sum - own_jacobians_sum))}" "$WORK_JACOBIANS" "$WORK_JACOBIANS_PPM"
 fi
 held "jacobians counted apart" "$(work_of "jacobians apart")" "$WORK_JACOBIANS_APART" "$WORK_JACOBIANS_APART_PPM"
 
