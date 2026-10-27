@@ -63918,3 +63918,16 @@ on and off1 side by side (`/tmp/m525/fb.*.txt`). Both were stopped at
 forty minutes with 39:36 of processor each, to the second: the key
 does not touch it, and it is dear on its own, as its 1845 s price of
 19 October already said.
+
+### The quasi-static transformer under the Jacobian key
+
+m524 left the rest of the key's price, at most 4100 s, on one run:
+`QuasiStatic...InductionMachines.IMC_Transformer` with
+`OXIDELICA_KEEP_JACOBIAN_AT_EVENT=1`, stopped on 16 GB at its 2707th
+second. Run again alone, one thread, the m517 patch over HEAD, under a
+24 GB ceiling (`/tmp/m525/qs.on.txt`), it was stopped by the ceiling
+script's idle limit after 45 minutes without a line of output, with a
+peak of 0.2 GB. So it is not memory without a floor. The model takes
+more than 2700 s under the key against 228 s without it, and both
+stops, 2707 s then and 2700 s now, look like the same 45 minute idle
+limit rather than a ceiling on memory. Its end is still unmeasured.
