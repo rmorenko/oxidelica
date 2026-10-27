@@ -63615,3 +63615,18 @@ Jacobians 10541, of which `IMC_InverterDrive` 10007 on its own line
 (as on the desk), leaving 534 against the desk's centre of 609. The
 centre moves to 534 and the run floors to 809 and 762, in their own
 commit.
+
+### Map: `FilterOrder`, the fold's new wall
+
+`ComponentsMixingUnit.FilterOrder` is a block under `Utilities` with a
+top-level input `c_ref` that nothing connects, so the flat model holds
+`c_ref = 0` (`oxidelica why ... c_ref`). `InverseBlockConstraints`
+passes it on: `u1 = c_ref`, `u1 = u2`, `u2 = mixingUnit.c`, so the
+concentration is held at zero, and the fold takes `der(mixingUnit.c)`
+as zero. The plant's equation then reads `0 = 0 - 0 + wa13`, where
+`wa13 = c0 * a1 / tau0` is a nonzero parameter, and the fold refuses
+with the contradiction (`compile.rs:6197`). The refusal is right: a
+service class whose reference input is left open is not a model, and
+the new message names the equation that fails where the old one named
+only `-wa13 = 0`. Wall: an open input of a service class. Owner: the
+library, not the compiler. No change.
