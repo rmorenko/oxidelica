@@ -63645,3 +63645,106 @@ gap's `V_mss` and `Phi_ss`, a different wall, with no diode in their
 block (`/tmp/m522/raw.txt`). The model
 moved one wall, the family it reached has a map, and no change was
 made.
+
+## m523: the desk's Jacobians against the runner's, and the census rows by map
+
+### The desk repeats itself
+
+`Modelica.Electrical.PowerConverters.Examples.ACAC.SoftStarter` was run
+three times in a row under `--only` with `OXIDELICA_WORK_EACH=1`, one
+binary (`/tmp/m523/ox1`, built from 518cf63). All three printed 7058
+points, 12725 Newton iterations and 103 Jacobians
+(`/tmp/m523/ss1.txt`, `ss2.txt`, `ss3.txt`). The desk is deterministic
+on the model with the largest difference, so the desk-runner gap is a
+property of the machines and not noise on one of them.
+
+### What rebuilds the Jacobian
+
+The counter ticks in `Simulation::jacobian` (`solvers/mod.rs:2731`),
+whose only caller is the BDF corrector (`bdf.rs:212`). It runs when the
+held matrix is `None` or on the fifth Newton iteration of a step. The
+matrix is dropped in three places: a rejected step (`bdf.rs:302`), a
+state event (`bdf.rs:420`) and a time event that turned a branch
+(`bdf.rs:528`). A probe that prints `t`, `h`, the order and the reason
+at each rebuild is parked as `state/m523/jac_trace.patch` behind
+`OXIDELICA_JAC_TRACE` and is not in the tree.
+
+### The profile
+
+From the probe binary (`/tmp/m523/ss_trace.txt`, `tr_*.txt`):
+
+| model           | Jacobians | start | state event | fifth iteration | rejected step |
+| --------------- | --------: | ----: | ----------: | --------------: | ------------: |
+| `SoftStarter`   |       103 |     1 |         102 |               0 |             0 |
+| `SMEE_LoadDump` |       190 |     1 |         189 |               0 |             0 |
+| `SMR_DOL`       |        29 |     1 |          28 |               0 |             0 |
+| `IMC_DOL`       |         8 |     1 |           6 |               1 |             0 |
+
+In `SoftStarter` 102 of the 103 fall before `t = 2.2e-8`: the
+thyristors chatter through their first commutations at steps of about
+1e-10, each crossing an event and each event a rebuild. `SMR_DOL`
+crosses a cluster at `t = 6.3e-3` at steps of 7.3e-7. So the number of
+Jacobians is one plus the number of state events, and a difference
+between machines is a difference in how many crossings the event
+search finds in a cluster of near roots. That count hangs on the last
+bits of the indicators and the step sizes, and it moves both ways
+between the machines (`/tmp/m522/ci_j.txt` against `desk_j.txt`):
+`SoftStarter` 44 runner and 103 desk, but FundamentalWave
+`IMC_Transformer` 21 runner and 8 desk, `IMS_Start` 8 and 3. Floating
+point in the event search is the candidate for why; it was not
+measured here.
+
+What this means for the three ways out in the queue: a centre of the
+desk's own holds, because the desk repeats itself to the digit. A row
+apart for the named models holds only for as long as their counts
+stay, and the counts are event counts in chattering clusters, which
+the direction of the differences shows are not a fixed offset. The
+choice is not this shift's.
+
+### The run half's rows by map
+
+Every model of the rows below the top of `/tmp/m522/census.txt` was
+looked up by name in this file (`/tmp/m522/keyed_new.tsv`):
+
+| row (models)                            | map                         |
+| --------------------------------------- | --------------------------- |
+| `constrains no state` (33)              | m508, m522                  |
+| `parameter X has no value` (24)         | m508, m522                  |
+| `nothing determines` (15)               | m508                        |
+| `no equation E needs` (10)              | m522, Spice3 `T0`           |
+| the three loop rows (9 each)            | m522 by name                |
+| `nothing is left for` (6)               | m508                        |
+| `der(X) is not a state` (6)             | m508                        |
+| `cannot evaluate parameters` (6)        | m508                        |
+| `` `X` of algebraic loop `` (5)         | m520, rows of five and four |
+| `the equations of algebraic loop` (4)   | m520, rows of five and four |
+| `initialization is not square` (3)      | m521, rows of three         |
+| `an array reached the evaluator` (2)    | shift 492                   |
+| `tsat called with too low pressure` (2) | shift 492                   |
+| `went below its min` (2)                | shift 502, the twos         |
+| `algebraic loop` (2)                    | shifts 494, 506             |
+| eleven singles                          | m522 table of singles       |
+| `FilterOrder` (1)                       | m522, "Map: FilterOrder"    |
+| `MovingActuatedDrive` (1)               | m521, m522, re-selection    |
+| `Rotational.Examples.Friction` (1)      | m331, step size underflow   |
+
+The singles are fourteen, lines 162 to 175 of `/tmp/m522/census.txt`,
+and not twelve as first written here: three of them have their map
+outside the m522 table of singles. The rows sum to 147 and the singles
+to 14, so 161 models, the whole run half. `InverseCapacity` runs and
+is not among them.
+
+No row of the run half is without a map.
+
+### The flatten half's rows by map
+
+The 47 models of the flatten half (`/tmp/m523/flat_inv.tsv`) were
+looked up the same way, first by the last two parts of the name and
+then by the last. Every one has a map: external C and FORTRAN (shift
+460, m275, 461 and the dead-column row), the five partial functions
+(the `PartialMediumFunctions` chapters near line 18066 and 25683, and
+`TankWithTopPorts`), expression depth (shift 495), the Clock rows
+(shift 498), the triac branches and hysteresis units (shift 476). No
+row of the flatten half is without a map either, so the census has no
+unmapped row on this tree, and the next work is a wall, which needs
+Roman's word.
