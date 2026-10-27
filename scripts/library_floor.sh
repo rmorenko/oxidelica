@@ -1879,7 +1879,16 @@ FLATTEN_FLOOR=973
 # lower, the desk, less the same three that swing:
 #
 #   810 - 3 = 807 = 806 + 1
-RUN_FLOOR=807
+#
+# Raised to 809 by the fold of 586c99c, by the judge of push run
+# 40475886296 (job 122130937702), 973 / 812, the same as the desk
+# (/tmp/m521/on.txt). The runner gains InverseCapacity only, since
+# IMC_InverterDrive ran there already (811 + 1); the desk gains both
+# (810 + 2). The two machines print the same for the first time since
+# IMC_InverterDrive parted them. Less the same three that swing:
+#
+#   812 - 3 = 809 = 807 + 2
+RUN_FLOOR=809
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -2391,7 +2400,13 @@ RUNNABLE_FLATTEN_FLOOR=855
 # (/tmp/m517/c_off.txt):
 #
 #   764 - 3 = 761 = 760 + 1
-RUNNABLE_RUN_FLOOR=761
+#
+# And 762 by the judge of 586c99c (job 122130937702), 855 / 765, the
+# same as the desk. InverseCapacity is not a runnable example, and
+# IMC_InverterDrive, which is, already ran on the runner:
+#
+#   765 - 3 = 762 = 761 + 1
+RUNNABLE_RUN_FLOOR=762
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
@@ -3169,7 +3184,14 @@ WORK_DEAREST=12
 # (/tmp/m521/preflight.txt), x1.134 of 537, outside the band, so the
 # centre moves to the measured rest. A DESK number waiting for the
 # judge, like the points above.
-WORK_JACOBIANS=609
+#
+# Moved by the judge of 586c99c (job 122130937702 of push run
+# 40475886296), red on this line alone: 10541 in all, of which
+# IMC_InverterDrive 10007 on its own line (the same to the digit as the
+# desk), so the rest is 10541 - 10007 = 534, x0.877 of 609. The desk's
+# 609 counted Jacobians the runner does not build; the centre is the
+# runner's print, 534.
+WORK_JACOBIANS=534
 WORK_JACOBIANS_PPM=100000
 # One model whose Jacobians are held on a line of their own, with a
 # centre of its own: the name and the count. IMC_InverterDrive throws
@@ -3177,7 +3199,8 @@ WORK_JACOBIANS_PPM=100000
 # which summed with the rest would own the band, and summed with the
 # solenoids would own theirs. Twenty percent either side: a refusal
 # (0) fires, and so does a run that changes how often it rebuilds.
-# 10007 is the desk's print and waits for the judge.
+# 10007 is the desk's print, and the judge of 586c99c (job
+# 122130937702) printed 10007 too.
 WORK_JACOBIANS_OWN="Modelica.Electrical.Machines.Examples.InductionMachines.IMC_InverterDrive 10007"
 WORK_JACOBIANS_OWN_PPM=200000
 # The pair is held on a line of its own and to a band of its own, an
