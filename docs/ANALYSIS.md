@@ -63428,3 +63428,68 @@ reports of the preflight with the new centres, every band of work
 holds. The desk ratio is red at 1.156 against 0.64..0.91, as it
 already was on those reports before any centre moved, and it is
 not a band the runner holds.
+
+### The run half's ninety-one singles, folded
+
+The census of m518 (`/tmp/m518/raw.txt`, the full texts) has 163
+refusals in the run half over 112 rows: rows of 9, 9, 8, 5 and 4, five
+of three, eleven of two and 91 of one. The rows were rebuilt from the
+raw file with the census's own key and came out the same, 91 rows of
+one. Those 91 were then folded by the part of the message that does
+not change, read from the full text and not from the census's line
+cut at 120 characters (`/tmp/m521/singles.tsv`):
+
+| family                                       | singles |
+| -------------------------------------------- | ------: |
+| `equation ... constrains no state`           |      30 |
+| `unbalanced model`                           |      18 |
+| `parameter X has no value`                   |      15 |
+| `der(X): X is not a state of the model`      |       6 |
+| `no equation determines X, whose derivative` |       5 |
+| `cannot evaluate parameters`                 |       3 |
+| `cannot differentiate`                       |       2 |
+| `a block accepted on the arithmetic floor`   |       2 |
+| scattered                                    |      10 |
+
+The finding is about the census, not about the library. Every one of
+the eight families is a row of the m508 table ("The families against
+the maps"). The census splits them into rows of one because its key
+keeps what the message quotes outside backticks: an equation printed
+as `Bin(Add, Neg(Ref("...")), ...)`, a parameter's own name, a
+`der(...)` with the model's path in it. Thirty models refused for one
+reason, "constrains no state", count as thirty kinds. So the 56% of
+the run half in rows of one is the key splitting families, not a
+scatter nobody has probed.
+
+Freshness of the maps, family by family:
+
+- `constrains no state`: the seventeen examples of m508
+  (`/tmp/m508/cns_ex.lst`) were run again one by one with `--only`
+  from the root `.msl` on the folded tree (`/tmp/m521/cns/`). All
+  seventeen are still refused by the same message. None runs. The map
+  holds.
+- `unbalanced model`: fourteen of the 18 are helpers with open
+  connectors. The four examples are both `IMC_withLosses`, `Fourbar1`
+  (m470 to m472) and `OneAxis` (m448). `oxidelica why` on the
+  electrical `IMC_withLosses` gives the same shape the shift 493 note
+  gives: `aimc.friction.w` stands in two equations, one of them
+  `der(aimc.friction.phi)`, and the refusal names the air gap's
+  `spacePhasor_r.v_` first. That is the reduced air gap of m489 item 4.
+- `parameter X has no value`: all 15 are classes under `Utilities`,
+  `BaseClasses` or `ExampleUtilities`, service classes refused rightly.
+  That is the census's own third section (27 service, 3 of its own).
+- The other five families are named in the m508 table with their
+  shifts, and nothing in the 91 adds a model to them that m508 did not
+  list.
+
+The scattered ten are single models, each with a map by name in this
+file, except that two belong together. `SMPM_Braking` and
+`MovingActuatedDrive` both stop on "the states re-selected at t = ...
+name different variables", and the census keeps them apart only
+because that message begins with the model's own name.
+
+What follows for the next shift is about the instrument: a census key
+that strips expression dumps, quoted parameter names and the model's
+own name would give about twenty rows where it now gives 112, and the
+ranking would read as families. No compiler change was made for this
+section.
