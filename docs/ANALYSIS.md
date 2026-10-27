@@ -63493,3 +63493,13 @@ that strips expression dumps, quoted parameter names and the model's
 own name would give about twenty rows where it now gives 112, and the
 ranking would read as families. No compiler change was made for this
 section.
+
+The six `der(X): X is not a state` were run again with `--only` and
+`OXIDELICA_WHERE=1` on the folded tree (`/tmp/m521/cns/`). All six are
+still refused at `compile.rs:31`, the line shift 227 named. In
+`IMC_Initialize` the derivative comes from the initial equation
+`der(aimc.idq_sr) = zeros(2)`, and `aimc.idq_sr[1]` is an alias of the
+air gap's `i_sr[1]`, a name a torn block solves. That is box 2 of
+shift 227. The three Fluid models (`BranchingDynamicPipes`,
+`HeatExchangerSimulation`, `HeatingSystem`) ask for the derivative of
+a medium's temperature, which is box 4 of shift 227. The map holds.
