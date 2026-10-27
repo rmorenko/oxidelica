@@ -3190,7 +3190,13 @@ WORK_DEAREST=12
 # IMC_InverterDrive 10007 on its own line (the same to the digit as the
 # desk), so the rest is 10541 - 10007 = 534, x0.877 of 609. The desk's
 # 609 counted Jacobians the runner does not build; the centre is the
-# runner's print, 534.
+# runner's print, 534. The desk's preflight on the same tree prints
+# 609 and turns this line red on the desk: named model by model
+# (OXIDELICA_WORK_EACH over the fifty models with Jacobians on the
+# runner, /tmp/m522/desk_each.txt against the runner's library-main
+# artifact), the 75 are SoftStarter 103 against 44, and eleven machine
+# models a few apiece either way. Nothing is refused on either side; the
+# two machines rebuild at different steps. The band is the runner's.
 WORK_JACOBIANS=534
 WORK_JACOBIANS_PPM=100000
 # One model whose Jacobians are held on a line of their own, with a
