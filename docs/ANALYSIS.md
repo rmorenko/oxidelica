@@ -63575,3 +63575,43 @@ at the wall its map names. The two arithmetic-floor models raise from
 one line, so they are one family of two that the key cannot join
 because the two messages say different things about what failed. No
 compiler change was made for this section.
+
+### The fresh census under the new key
+
+`/tmp/m522/census.txt` on the folded tree (586c99c and after): the run
+half 161 models in 31 rows, the flatten half 47 in 27. That is 163
+less `IMC_InverterDrive` and `InverseCapacity`, and neither name is in
+the section by name. Held model by model against `/tmp/m518/raw.txt`
+under the same key (`/tmp/m522/keyed_old.tsv`, `keyed_new.tsv`), two
+more models changed wall without leaving, and both changes are the
+fold's: under `OXIDELICA_NO_STILL_FOLD=1` each is back at its old one.
+
+- `ComponentsMixingUnit.FilterOrder` went from `-mixingUnit.wa13 = 0
+constrains no state` to "the equation `der(mixingUnit.c) = ...`
+  becomes `0 = ... + mixingUnit.wa13` with every name a number"
+  (`compile.rs:6197`). The fold now names the contradiction the
+  singular subset only pointed at. A row of one.
+- `SMPM_Braking` went from the state re-selection refusal to
+  `singular Jacobian in algebraic loop` (`solvers/mod.rs:2269`), which
+  takes that row from 8 to 9 and leaves `MovingActuatedDrive` alone in
+  the re-selection row.
+
+The top of the fresh census is `constrains no state` (33) and
+`parameter X has no value` (24), both mapped; the rows after them,
+`nothing determines` (15), `no equation determines X` (10, Spice3
+`T0`) and the three loop rows of nine, have every model mapped by name
+in this file. The queue's first row without a map is not in the run
+half's upper rows.
+
+### The judge of 586c99c
+
+The library judge of push run 40475886296 (job 122130937702) printed
+2671 read, 973 flatten, 812 run, runnable 855 / 765, the same as the
+desk to the digit. The runner had `IMC_InverterDrive` all along and
+gains `InverseCapacity`, so 811 + 1; the desk gains both, 810 + 2. The
+known difference between the machines on `IMC_InverterDrive` is closed
+by the model running on both. The judge went red on one band only:
+Jacobians 10541, of which `IMC_InverterDrive` 10007 on its own line
+(as on the desk), leaving 534 against the desk's centre of 609. The
+centre moves to 534 and the run floors to 809 and 762, in their own
+commit.
