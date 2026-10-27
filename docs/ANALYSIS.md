@@ -63748,3 +63748,106 @@ then by the last. Every one has a map: external C and FORTRAN (shift
 row of the flatten half is without a map either, so the census has no
 unmapped row on this tree, and the next work is a wall, which needs
 Roman's word.
+
+## m524: the Jacobian key, model by model
+
+The m517 key `OXIDELICA_KEEP_JACOBIAN_AT_EVENT` cost the run half
+6710 s on the corpus (11337 s on against 4627 s off), and its owner
+was not named. A model can only pay for the key if it builds Jacobians
+at all, so the candidates were taken by instrument rather than by
+family: every model with a non-zero `jacobians` count in the desk's
+per-model print `/tmp/m522/desk_each.txt`, fifty of them
+(`/tmp/m524/cand.txt`).
+
+Both halves ran on one binary, `/tmp/m524/oxkey`, built from 518cf63
+with `state/m517/keep_jac_event_with_fold.patch`, one model at a time
+with `--only` and `OXIDELICA_WORK_EACH`, off then on, under a
+ten-minute watchdog that never fired (`/tmp/m524/pairs.tsv`, the
+per-model files under `/tmp/m524/off` and `/tmp/m524/on`). The same
+three models refuse on both sides, so the key wins and loses no model
+among the fifty. The run time each model printed, summed
+(`/tmp/m524/diff.txt`):
+
+```text
+off 224366 ms   on 355431 ms   on - off +131064 ms
+dearer under the key +160512 ms, cheaper -29446 ms, net +131 s
+```
+
+The dearest under the key, run milliseconds off and on, then points:
+
+```text
+Machines InductionMachines.IMC_Transformer        4261 -> 47579   1979 -> 32545
+Machines Transformers.IMC_Transformer             4285 -> 46793   1979 -> 32545
+QuasiStatic.FundamentalWave IMS_Start            14392 -> 35403    695 -> 13023
+FundamentalWave IMC_Transformer                   7009 -> 23513   2066 -> 11469
+QuasiStatic.FundamentalWave IMC_YD               12358 -> 22985    698 ->  6973
+QuasiStatic.FundamentalWave IMC_DOL               8845 -> 14980   1154 ->  9730
+FundamentalWave IMS_Start                         2779 ->  8779   2547 -> 23508
+Machines Transformers.Rectifier12pulse            2230 ->  7255   2098 ->  6963
+```
+
+and the one model it makes much cheaper is `IMC_InverterDrive`, 74555
+against 45732 ms, 594163 against 484163 points. Every model that pays
+does so in points, five to seventeen times as many, the m518 shape:
+a few Jacobians saved, tens of thousands of steps paid.
+
+The sum does not close. The fifty candidates account for 131 s of
+6710 s, two percent. The m518 slice had already named the quasi-static
+`IMC_Transformer` as the likeliest owner, and it is not among the
+fifty: it sits in `scripts/dear_models.txt`, so the main pass's
+per-model print never had it. Its own pair is below.
+
+### The quasi-static transformer and the other dear models
+
+The quasi-static `IMC_Transformer` was run on its own on the same
+binary under `~/oxideflow/cap.sh` with a 16 GB ceiling
+(`/tmp/m524/qs_off.txt`, `qs_on.txt`, `qs.tsv`). Off it took 228 s,
+220.5 s of them running, with 2530 points, 13664 newton and 11
+Jacobians. On, it held one core at 0.2 GB and printed nothing for
+45 minutes, and the cap stopped it at 2707 s. That is the m518 finding
+again on a second binary: the key costs this one model at least
+2707 - 228 = 2479 s, and how much more is not known.
+
+The twelve other models of `scripts/dear_models.txt` were run as
+pairs the same way (`/tmp/m524/dear_pairs.tsv`). None of them moves:
+eleven build no Jacobian at all, and `Dimmer_RL`, the corpus's largest
+consumer of work, takes 87 s on both sides with 19 Jacobians against
+one.
+
+### The arithmetic, as it stands
+
+```text
+the fifty candidates of the main pass        +131 s
+the quasi-static IMC_Transformer            >= +2479 s (stopped, unfinished)
+the twelve other dear models                   +0 s
+named                                       >= +2610 s of +6710 s
+```
+
+The rest, at most 4100 s, is either more of the quasi-static
+transformer, which did not finish and so has no upper bound here, or
+a model this shift did not reach. Every model that builds a Jacobian
+in the main pass's per-model print was reached, so a model outside
+them would have to build none on the desk off and still pay under the
+key, which the key cannot make it do. The likelier reading is that
+the corpus on-half's tail was the quasi-static transformer running
+until the pass ended: m517 saw the halves level up to the 918th model
+and on taking two hours more after it, and two hours is what this
+model, unstopped, would take.
+
+That is a reading and not a measurement. The measurement that settles
+it is one run of the quasi-static `IMC_Transformer` alone with the key
+on and no ceiling, timed to its end, which is longer than the rest of
+this shift. The key stays in the park: it wins no model among the
+sixty-three, makes the induction machines five to seventeen times dearer
+by points, and makes `IMC_InverterDrive` 29 s cheaper.
+
+### The desk's two red lines
+
+The preflight on 1b5016e (`/tmp/m524/preflight.txt`) was green but
+for the library step, and that step was red on exactly two known
+lines: `WORK: jacobians is 609 against 534`, the desk count named in
+m522, and `CEILING: run/flatten ratio is 1.118, and the band is
+0.64..0.91`. The desk's ratio has stood outside that band since the
+middle of October (1.222, 1.266 to 1.272, 1.157 in m522), and 1.118
+is the nearest it has come to the band's edge. Nothing to repair, but
+the drift is recorded here.
