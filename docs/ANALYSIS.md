@@ -63931,3 +63931,43 @@ peak of 0.2 GB. So it is not memory without a floor. The model takes
 more than 2700 s under the key against 228 s without it, and both
 stops, 2707 s then and 2700 s now, look like the same 45 minute idle
 limit rather than a ceiling on memory. Its end is still unmeasured.
+
+### The second heavy basket by pairs, and the laminar pipe to its end
+
+The two crons of pass b, the green one of 25 October
+(`/tmp/m525/green.log`) and the one stopped by the job's ceiling on 27
+October (`/tmp/m525/cut.log`), print `read N of 12 models` every second
+model. The seconds between prints, by pair:
+
+| models | green | stopped | ratio |
+| ------ | ----: | ------: | ----: |
+| 1-2    |   583 |     749 |  1.28 |
+| 3-4    |    51 |     467 |  9.16 |
+| 5-6    |   448 |     395 |  0.88 |
+| 7-8    |   264 |    4460 | 16.89 |
+| 9-10   |  3161 |     323 |  0.10 |
+| 11-12  |   894 |  absent |     - |
+
+The stopped run printed its tenth model at 6394 s and nothing more
+until the cancellation at 13:37, 2 h 13 min later. The places are not
+places in `scripts/heavy_second.txt`: `library check` deals the models
+to its threads by turn (`crates/oxidelica-cli/src/main.rs`, the
+`skip(hand).step_by(hands)` loop) and counts a model when it finishes,
+so a print says how many have finished, not which. No name is read
+off a place here, and so the suspected heavy model that stopped
+running is not named from these logs.
+
+The one heavy model measured whole under the Jacobian key,
+`DynamicPipeWithNominalLaminarFlow`, did not finish. A watch sampling
+it every five minutes (`/tmp/m526/watch.log`) cut it at 3816 s of
+processor time, with its resident size flat at 623600 kB for all 63
+minutes: what it spends is time, not memory. Off the key the same
+model is refused in 144 s. At more than an hour it fits no ceiling of
+the second basket, whose first half already stands at 156 of 240
+minutes.
+
+The ten other names of the basket were each run alone with `--only`,
+and none of the ten was measured: a model of the carved-out set is
+read under `--only` only with `--with-heavy` as well, and all ten
+files `one.*.txt` end on that refusal after 5 s. Which of the ten
+stopped running is still open.
