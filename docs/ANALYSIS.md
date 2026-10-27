@@ -63630,3 +63630,16 @@ service class whose reference input is left open is not a model, and
 the new message names the equation that fails where the old one named
 only `-wa13 = 0`. Wall: an open input of a service class. Owner: the
 library, not the compiler. No change.
+
+### Map: `SMPM_Braking`, one row along
+
+Under the fold `SMPM_Braking` no longer stops at the state
+re-selection (t = 0.0009); it goes on and stops on `singular Jacobian
+in algebraic loop` (`solvers/mod.rs:2269`) over a block that holds
+the air gap's `i_sr`, the six `idealDiode[...].s` of the diode bridge,
+`variableResistor.R_actual` and the rotor's acceleration. That is the
+family of ideal switches under a machine that m519 mapped as "the open
+switch under the machines", and the same row holds `SMEE_LoadDump` and
+the `SMEE_Generator` pair, which stop on the same diodes. The model
+moved one wall, the family it reached has a map, and no change was
+made.
