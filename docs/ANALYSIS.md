@@ -64254,3 +64254,14 @@ row moves.
 The stash `stash@{1}` ("WIP on main: 1159508") was byte for byte the
 same as `m531-parked-again` (the diff of the two is 0 lines), so it
 was dropped.
+
+The census of the final tree (`/tmp/m533/census.txt`), counted by
+section bounds, matches m530 in both halves: 47 models in 27 rows that
+would not flatten, and 162 in 31 rows that would not run. A
+docs-only tree leaves it unmoved, as it should. Both `IMC_withLosses`
+of row 15 are still unbalanced by three on the head. The Electrical
+one has 494 equations for 497 unknowns, and the Magnetic one 853 for 856. Both name `aimc.friction.w` and, for the Electrical one,
+`aimc.airGap.spacePhasor_r.v_` first. `oxidelica why` gives
+`friction.w` the same two equations as m521 did, so the gap of m489
+item 4 still stands. The QuasiStatic namesake does not flatten, with
+"an `if` inside `when` gives values to variables".
