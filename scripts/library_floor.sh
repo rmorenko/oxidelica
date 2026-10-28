@@ -1888,7 +1888,14 @@ FLATTEN_FLOOR=973
 # IMC_InverterDrive parted them. Less the same three that swing:
 #
 #   812 - 3 = 809 = 807 + 2
-RUN_FLOOR=809
+#
+# Lowered by one, and the one is named: the silent chain was turned off
+# by default (m529), and `Modelica.Fluid.Examples.AST_BatchPlant.Test.
+# OneTank` ran only through it. The pair of one binary differs by that
+# line alone (/tmp/m529/off.txt 973 / 811, /tmp/m529/on.txt 973 / 812):
+#
+#   809 - OneTank = 808
+RUN_FLOOR=808
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -2406,7 +2413,12 @@ RUNNABLE_FLATTEN_FLOOR=855
 # IMC_InverterDrive, which is, already ran on the runner:
 #
 #   765 - 3 = 762 = 761 + 1
-RUNNABLE_RUN_FLOOR=762
+#
+# And down by the same OneTank, a runnable example (/tmp/m529/off.txt
+# 855 / 764, /tmp/m529/on.txt 855 / 765):
+#
+#   762 - OneTank = 761
+RUNNABLE_RUN_FLOOR=761
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
@@ -3256,7 +3268,13 @@ WORK_JACOBIANS_OWN_PPM=200000
 # The answer did not move: armature position agrees to 2.57e-14 m and
 # coil current to 1.54e-6 A of 1.2 (/tmp/m517/agree.txt), the same
 # order as the precedent above and twenty times better on the current.
-WORK_JACOBIANS_APART=143
+#
+# Returned to 1974 on 2026-10-28 (m529): the chain is off by default,
+# so the consequence of m518 leaves with its cause and the
+# quasi-static solenoid counts 1841 again (10 -> 1841). One binary,
+# /tmp/m529: off 1974 / on 143, and 1841 + 133 = 1974, the value that
+# stood here from 2026-10-05 to 2026-10-26. The band does not move.
+WORK_JACOBIANS_APART=1974
 WORK_JACOBIANS_APART_PPM=900000
 WORK_PERCENT=5
 # The names looked up, held to a band of their own in parts per

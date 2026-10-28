@@ -64116,3 +64116,36 @@ weather, so its 382 s is an upper figure; it lies between the green
 rather than read. Neither the chain alone nor the budget alone
 accounts for the dearer `DynamicPipeInitialization`, and an honest
 answer wants both binaries on an idle desk.
+
+The third red line of the shift's preflight is explained:
+`WORK_JACOBIANS_APART` printed 1974 against a centre of 143
+(`/tmp/m529/preflight.txt`). The centre of 143 was set by m518 under
+the chain, for the quasi-static solenoid's 1841 falling to 10; with
+the chain off by default the cause goes and its consequence with it.
+The pair printed off 1974 and on 143 (`/tmp/m529/off.txt:120`,
+`/tmp/m529/on.txt:120`), and 1974 = 1841 + 133 is the value the
+centre held from 2026-10-05 to 2026-10-26. The centre returns there
+and the band of 90% is unchanged.
+
+Basket a under (b'), one at a time with `--with-heavy --only` and a
+ceiling of 360 s of CPU (`/tmp/m529/a.log`), against the same nine
+under the chain (`/tmp/m528/a.log`):
+
+| model                                 | m528 (chain on)       | m529 (chain off)         |
+| ------------------------------------- | --------------------- | ------------------------ |
+| `IMC_YDarc`                           | cut at 360 s          | cut at 360 s             |
+| `Oscillator`                          | runs, 50 s            | runs, 50 s               |
+| `LineForceWithTwoMasses`              | structurally singular | structurally singular    |
+| `Engine1b`                            | underdetermined loop  | underdetermined loop     |
+| `EngineV6`                            | cut at 360 s          | cut at 360 s             |
+| `Fourbar2`                            | runs, 201 s           | runs, 191 s              |
+| `MoistAir`                            | runs, 30 s            | runs, 30 s               |
+| `DynamicPipeEnergyConservationCheck2` | cut at 360 s          | cut at 360 s             |
+| `DynamicPipesAndFittings`             | refused, 341 s        | singular Jacobian, 336 s |
+| `DynamicPipeInitialization`           | cut at 360 s          | cut at 360 s             |
+| `SeriesPipes13`                       | refused, 350 s        | algebraic loop, 346 s    |
+
+The other two, `DynamicPipeWithNominalLaminarFlow` and
+`DynamicPipeInitialization` without a ceiling, are the named probes
+above (`/tmp/m529/n.*.txt`): a singular initialization and an
+algebraic loop. No model of the basket changed its fate with (b').
