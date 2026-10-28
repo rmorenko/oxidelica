@@ -64149,3 +64149,41 @@ The other two, `DynamicPipeWithNominalLaminarFlow` and
 `DynamicPipeInitialization` without a ceiling, are the named probes
 above (`/tmp/m529/n.*.txt`): a singular initialization and an
 algebraic loop. No model of the basket changed its fate with (b').
+
+## m532: the cheap refusal on `constrains no state`, measured and parked
+
+The boundary parked in m511 ("a walk that ends where the last one
+ended gives up") could not be taken apart from the singular retreat it
+came with: it is written inside the branch `retreat_singular()` opens,
+so on the present default it is code nobody reaches. Probed with
+`OXIDELICA_VICTIM_PROBE=1` on the six analytic loops with m531 on top,
+the repeats are paid in the ordinary anchor retreat instead.
+`Engine1b_analytic` walks six times - a retreat at reduction 52, then
+three more at 72, 71 and 70 over `crank2.body.v_0[1..3]`, each walk
+losing its anchor at the same reduction 89, then the first walk whole.
+`PlanarLoops_analytic` walks three times, and `CylinderBase`,
+`EngineV6_analytic` and both `Utilities` engines once, so for them
+there is nothing to cut. The 33 models of the `constrains no state`
+row retreat twelve times over six models, two apiece.
+
+So the boundary was rebuilt on the anchor retreat, behind
+`OXIDELICA_RETREAT_BOUNDARY`: a walk whose refusal reads as the last
+one's gives up and the first walk is taken whole. Under `--only` with
+a 24 GB ceiling `Engine1b_analytic` went from 263 s to 173 s with the
+same refusal, `PlanarLoops_analytic` 136 to 137 s and `CylinderBase`
+30 to 31 s. The 33-model row ran 515 s off and 520 s on: the row is
+not made cheaper, which was the stake path (b) was chosen for.
+
+The corpus pair, one binary, the halves in turn, m531 held back by its
+key: off 973 flatten and 811 run (855/764 runnable), running 5157 s;
+on 973 and 810 (855/763), running 4867 s. One victim,
+`SynchronousMachines.SMPM_VoltageSource`. Off, it retreats at
+reduction 8 and again at 9, both times refusing
+`smpm.inertiaRotor.phi`, and its third walk runs. On, the second walk
+ends in the same words as the first, the boundary gives up, and the
+first walk taken whole is refused as an algebraic loop on
+`smpm.airGap.gamma`. The rule "the same end means the retreat moved
+nothing" is false: the same end can be reached from a different
+retreat point, and the next walk can still win. A boundary that holds
+would compare what the walk chose, not how it ended. Parked with the
+patch and the files in `state/m532`; nothing of it is in the tree.
