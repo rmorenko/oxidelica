@@ -64187,3 +64187,70 @@ nothing" is false: the same end can be reached from a different
 retreat point, and the next walk can still win. A boundary that holds
 would compare what the walk chose, not how it ended. Parked with the
 patch and the files in `state/m532`; nothing of it is in the tree.
+
+## m533: the zero for what a `when` assigns, measured again on the head
+
+Row 10 of the run half, `no equation determines X, whose derivative
+... needs`, is one family: a name only a `when` assigns (`vin.T0` of
+the Spice3 sources, `trapezoid.T_start`) is asked for its derivative
+by index reduction. The probe of shift 474, `OXIDELICA_WHEN_STILL`,
+answers zero there instead of refusing. It applies to the head
+unchanged and was built as `/tmp/m533/ox533w`. It is not in the tree.
+
+Nor, the one warning sign of 474 (`step size underflow at t =
+0.500000`, its first edge), does not reproduce. Under the key it runs
+to the stop time (`/tmp/m533/nor_full.txt`): `v.v` steps to 5 at 0.5,
+and `mn1.D.v` follows the NOR table, 3.28 at 0.8 with both inputs low,
+0.0013 at 2.4 with both high, and 3.82 at 4.8 with both low again. With
+`OXIDELICA_VICTIM_PROBE=1` each of the six reductions weighs
+only node voltages (`mn1.G.v`, `mp2.G.v`, `mp1.B.v` and the like) and
+demotes one of them. The three `when-still` lines are `vin2.T0`,
+`vin1.T0` and `v.T0`, and none of them is weighed as a state. Without
+the key the model refuses at reduction 2, so there is no off list to
+diff against. So the
+rule did not fail at the edge on this tree. Whatever 474 met at 0.5
+has gone with the 138 commits since. The edge-shift instrument was not
+needed.
+
+The corpus pair, one binary, off half first (`/tmp/m533/p_off.txt`,
+`p_on.txt`), with the heavy models left out by default. Both halves
+flatten 973, and the flat lists are byte for byte equal. Off runs 811
+(855/764 runnable), on runs 815 (855/768). The run lists differ only
+by four additions and lose nothing: `Spice3.Examples.Nor`,
+`Spice3BenchmarkMosfetCharacterization`, `CombiTable2Ds.Test33` and
+`CombiTable2Dv.Test33`. Time: off `flattening 3757s ... running
+4958s`, on `flattening 3799s ... running 4965s`, so the run half is
+0.14% dearer. Victims 0.
+
+That is four and not the seven of 474. `FourInverters`,
+`InvertersApartRecord` and `InvertersExtendedModel` now refuse under
+the key with an algebraic loop on `mp1.icBS` that is NaN at t = 0,
+with the capacitor currents `cc.cGS * (der(G.v) - der(Sinternal))`
+not numbers. A bisect between 474's head `f3f1cb8` and `d8e2e16`
+names `586c99c`, "Fold continuous variables held still by default"
+(`/tmp/m533/bisect.log`). With `OXIDELICA_NO_STILL_FOLD=1` on the same
+binary, all three run again. `FourInverters` then reads as 474 had
+it: `vin.v` 0 to 5, `mn1.D.v` 4.31 at t = 1 and 6.9e-8 at the end. So
+the fold and the zero collide on the inverters. The fold costs nothing
+on the default, because these models refuse earlier there. That is a
+question for whoever decides on the zero, not a victim of either
+change alone.
+
+Full runs under the key (`/tmp/m533/full_*.txt`, `t33*.txt`):
+MosfetCharacterization reaches its end with 4 events, and both Test33
+reach t = 14 with 2 events and `t_new.y = 1`.
+
+Row 33 work count. Two default runs of the 33 models with `ox532b`
+(`/tmp/m533/r33_a.txt`, `r33_b.txt`) give the same `5538 points, 11164
+newton` to the digit, so the count is deterministic. Its fall to 697
+under `OXIDELICA_RETREAT_BOUNDARY` is real, and `OXIDELICA_WORK_EACH`
+names it (`/tmp/m533/we_off.txt`, `we_on.txt`): every model is equal
+but `Blocks.Examples.Noise.ActuatorWithNoise`, 4841 points and 9858
+Newton steps off, against 0 and 0 on. It is refused in both halves
+with the same words. Off, it runs some way before the refusal. On,
+the boundary refuses it before a single point. Nothing else in the
+row moves.
+
+The stash `stash@{1}` ("WIP on main: 1159508") was byte for byte the
+same as `m531-parked-again` (the diff of the two is 0 lines), so it
+was dropped.
