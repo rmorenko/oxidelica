@@ -64276,3 +64276,45 @@ a wrong value. Taking fifteen unknowns out of the system before
 matching makes the capacitor loop start from values that are not
 numbers. Which entry of the loop goes NaN first is the next link, and
 it is not walked here.
+
+## Shift 533: the zero for what a when assigns, taken to the default and parked on the clock
+
+The rule of shift 474 was written as the default. A name only a `when`
+assigns, which is no unknown of the reduction, has its derivative
+supplied as zero in the supply loop, and `OXIDELICA_NO_WHEN_STILL`
+gives the old refusal back. A test guards both sides through a
+thread-local guard rather than the environment. It was not committed,
+and the patch is parked as `when_still_default.patch` beside the m533
+probe.
+
+Two pairs, one binary built from that tree, halves one after the
+other, the second pair in the reverse order and with `--slow 25`:
+
+```text
+pair 1 off  flattening 3858s; running 5039s over 973   811 run
+pair 1 on   flattening 4065s; running 5644s over 973   815 run
+pair 2 on   flattening 7520s; running 9266s over 973   815 run
+pair 2 off  flattening 7029s; running 7744s over 973   811 run
+```
+
+The lists agree line for line except four new names in the run list,
+`Spice3.Examples.Nor`, `Spice3BenchmarkMosfetCharacterization` and both
+`Test33`. There are no victims, and the flattened lists are identical.
+The work counters differ by 883 points and 203 Newton steps, which is
+what four short models cost. So the rule itself does not make the run
+dearer. But the clock says +12% and +20%, with the flattening half,
+which the rule cannot touch, also +5% and +7%. The load average was 14
+during the second pair. The models that moved most,
+`TestMultiPortTraceSubstances` (859s to 1316s) and `TestDensity` (309s
+to 523s), are Fluid models with no `when` the rule could reach. That
+reads as weather, but the standing rule asks for a run half no more
+than 6% dearer on the pair, and neither pair gives it. So the change
+goes to the park rather than in, with the numbers above as the
+question. A pair on a quiet machine is what decides it.
+
+The three inverters (`FourInverters`, `InvertersApartRecord`,
+`InvertersExtendedModel`) under the rule give NaN at t=0 instead of
+"no equation determines", through their collision with the fold of
+586c99c. In the on list, `Inverter` now leads a row naming
+`der(mn.Dinternal)`, and `InvertersApartRecord` leads a row naming
+`mp1.icBS`. `TestSweptVolume` now refuses on its swept-volume loop.
