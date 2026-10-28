@@ -64265,3 +64265,14 @@ one has 494 equations for 497 unknowns, and the Magnetic one 853 for 856. Both n
 `friction.w` the same two equations as m521 did, so the gap of m489
 item 4 still stands. The QuasiStatic namesake does not flatten, with
 "an `if` inside `when` gives values to variables".
+
+What the fold takes from `FourInverters` (`OXPROBE_FOLD_LIST=1`
+under the key) is fifteen grounded node voltages, every `mnK.B.v`,
+`mnK.S.v`, `cK.n.v`, `vin.n.v`, `v.n.v` and `ground.p.v`, each
+folded to 0. All four narrowings of the fold (`NARROW`, `WHOLE`,
+`MODED`, `FRAME`) leave the model refused the same way. The fold is
+physically right about each of those names, so the collision is not
+a wrong value. Taking fifteen unknowns out of the system before
+matching makes the capacitor loop start from values that are not
+numbers. Which entry of the loop goes NaN first is the next link, and
+it is not walked here.
