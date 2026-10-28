@@ -6715,9 +6715,11 @@ pub(crate) fn compile_at(
             // with no start either, up to four equations deep: an open
             // tank's mass waits on `fluidVolume`, which waits on `V`,
             // which a level says. One equation of reach left the mass
-            // at no value at all. `OXIDELICA_NO_SILENT_CHAIN` returns
-            // the old reach, together with the old Newton budget.
-            if !crate::silent_chain_disabled() {
+            // at no value at all. The chain is off unless
+            // `OXIDELICA_SILENT_CHAIN` asks for it: the reach it buys
+            // also lets pipes into an initial residual that costs
+            // minutes and is refused all the same.
+            if crate::silent_chain_enabled() {
                 let silent: std::collections::HashSet<&str> = model
                     .components
                     .iter()

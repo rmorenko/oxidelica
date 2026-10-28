@@ -1539,11 +1539,7 @@ impl CompiledModel {
         // at |f| = 5e-7 on the 50th and settles on about the 51st. The
         // ceiling is shared by every loop; measured over the corpus it
         // cost no model and made the run half cheaper.
-        let budget: usize = if crate::silent_chain_disabled() {
-            50
-        } else {
-            60
-        };
+        let budget: usize = 60;
         for iteration in 0..budget {
             oxidelica_parser::work::tick(oxidelica_parser::work::Step::Newton);
             self.count_newton(t)?;

@@ -1045,3 +1045,35 @@ fn a_call_on_a_still_value_with_its_own_rule_does_not_move() {
         "{taken:?}"
     );
 }
+
+thread_local! {
+    /// Turns the silent chain on for this thread alone, so that a test
+    /// can ask for it without an environment variable every parallel
+    /// compile would read.
+    pub(crate) static SILENT_CHAIN_HERE: std::cell::Cell<bool> =
+        const { std::cell::Cell::new(false) };
+}
+
+/// Under the switch a silent state is read through a chain of silent
+/// names: an open tank's mass waits on `fV`, which waits on `V`, which
+/// a level says.
+#[test]
+fn the_silent_chain_reads_a_state_through_silent_names_when_asked() {
+    let model = parse_model(
+        "model M parameter Real A = 2; parameter Real d = 1000; \
+         Real level(start = 1.5); Real V; Real fV; Real m; Real u(start = 4); Real U; \
+         equation V = A * level; fV = V; m = fV * d; U = m * u; \
+         der(m) = 0; der(U) = 0; end M;",
+    )
+    .unwrap();
+    SILENT_CHAIN_HERE.with(|on| on.set(true));
+    let compiled = compile(&model);
+    SILENT_CHAIN_HERE.with(|on| on.set(false));
+    let compiled = compiled.unwrap();
+    let state = |name: &str| {
+        let index = compiled.states.iter().position(|had| had == name).unwrap();
+        compiled.initial[index]
+    };
+    assert!((state("m") - 3000.0).abs() < 1e-9, "m = {}", state("m"));
+    assert!((state("U") - 12000.0).abs() < 1e-9, "U = {}", state("U"));
+}

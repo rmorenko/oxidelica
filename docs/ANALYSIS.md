@@ -63981,18 +63981,18 @@ model at 360 s of processor time or 24 GB resident
 there and run again under 1800 s (`/tmp/m527/one3.TWOBIT.txt`). All
 ten finished, all ten flatten, and none of them runs:
 
-| model                           | wall | flatten | run | refused as                      |
-| ------------------------------- | ---: | ------: | --: | ------------------------------- |
-| SeriesPipes12                   | 200s |     27s | 165 | algebraic loop                  |
-| Spice3BenchmarkFourBitAdder     | 221s |     57s | 157 | structurally singular           |
-| TWOBIT                          | 421s |     21s | 393 | underdetermined algebraic loop  |
-| DynamicPipesWithTraceSubstances | 320s |    125s | 193 | algebraic loop                  |
-| BranchingPipes12                | 231s |     27s | 193 | Newton direction of a loop      |
-| BranchingPipes18                | 140s |     37s |  97 | initialization did not converge |
-| R134a2                          |  30s |     11s |  13 | Newton direction of a loop      |
-| R134a1                          |  20s |      9s |   9 | Newton direction of a loop      |
-| MoistAir1                       |  30s |     25s |   1 | initialization problem singular |
-| MoistAir2                       |  30s |     20s |   2 | initialization problem singular |
+| model                             | wall | flatten | run | refused as                      |
+| --------------------------------- | ---: | ------: | --: | ------------------------------- |
+| SeriesPipes12                     | 200s |     27s | 165 | algebraic loop                  |
+| Spice3BenchmarkFourBitBinaryAdder | 221s |     57s | 157 | structurally singular           |
+| TWOBIT                            | 421s |     21s | 393 | underdetermined algebraic loop  |
+| DynamicPipesWithTraceSubstances   | 320s |    125s | 193 | algebraic loop                  |
+| BranchingPipes12                  | 231s |     27s | 193 | Newton direction of a loop      |
+| BranchingPipes18                  | 140s |     37s |  97 | initialization did not converge |
+| R134a2                            |  30s |     11s |  13 | Newton direction of a loop      |
+| R134a1                            |  20s |      9s |   9 | Newton direction of a loop      |
+| MoistAir1                         |  30s |     25s |   1 | initialization problem singular |
+| MoistAir2                         |  30s |     20s |   2 | initialization problem singular |
 
 The run column is seconds of the run half as the check printed it.
 The ten together cost about 27 minutes of wall time alone, and the
@@ -64069,3 +64069,50 @@ library rather than a narrow one on the chain. By the terms of the
 answer the next step is (b'): the key made the default, the run floor
 809 -> 808 in a commit of its own, `OneTank` given back. Not done in
 this shift, for lack of the hour its corpus pair needs.
+
+## m529: the silent chain off by default, the budget kept at sixty
+
+By the answer of 27 October, (b'): the reading of a start-less state
+through a chain of start-less names is off by default and switched on
+by `OXIDELICA_SILENT_CHAIN`. The old `OXIDELICA_NO_SILENT_CHAIN` is
+gone, since two handles on one chain are a trap. The Newton budget is
+sixty unconditionally and no longer follows the key. The reading
+under the key is tested inside the crate, behind a thread-local
+switch rather than an environment variable that every parallel compile
+would read; the test outside the crate now holds the default, under
+which the open tank's mass is not read through the chain.
+
+The pair, one binary (`/tmp/m529/ox529`), halves one after the other,
+heavy models out (`/tmp/m529/off.txt`, `/tmp/m529/on.txt`):
+
+| half             | flatten / run | runnable  | flattening | running |
+| ---------------- | ------------- | --------- | ---------- | ------- |
+| default (off)    | 973 / 811     | 855 / 764 | 6803 s     | 8758 s  |
+| `SILENT_CHAIN=1` | 973 / 812     | 855 / 765 | 7237 s     | 8300 s  |
+
+The run lists differ by one line, `AST_BatchPlant.Test.OneTank`, the
+one victim the answer named, and the flattened lists agree. The
+default's run half is 458 s, 5.5%, dearer than the key's: the chain
+made the run cheaper, as the pair of 5f6a40b showed, and the price was
+accepted with (b'). The cron gets back what the chain took from it:
+two pipes no longer pay for a dear initial residual under the chain.
+
+`TanksWithEmptyingPipe2`, for which the budget went to sixty, runs in
+both halves. With the chain off sixty still buys it, so the budget
+keeps its ground without the chain.
+
+The two named probes, one at a time, `--with-heavy --only`, both
+ending in a named refusal (`/tmp/m529/n.*.txt`, `/tmp/m529/b50.DPI.txt`):
+
+| model                               | before the chain, budget 50    | default, budget 60    | chain off, budget 50 (`ox50`) |
+| ----------------------------------- | ------------------------------ | --------------------- | ----------------------------- |
+| `DynamicPipeWithNominalLaminarFlow` | 144 s, singular init           | 195 s, singular init  | not measured                  |
+| `DynamicPipeInitialization`         | 156 s green, 230 s off in m528 | 482 s, algebraic loop | 382 s, 50 Newton iterations   |
+
+So (b') returns both refusals but not their old prices. The `ox50`
+probe ran beside the second half of the corpus pair and shares its
+weather, so its 382 s is an upper figure; it lies between the green
+156 s and the 482 s of the default, and is written as it stands
+rather than read. Neither the chain alone nor the budget alone
+accounts for the dearer `DynamicPipeInitialization`, and an honest
+answer wants both binaries on an idle desk.

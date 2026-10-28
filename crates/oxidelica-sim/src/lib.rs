@@ -30,11 +30,18 @@ mod symbolic;
 mod tests;
 mod walk;
 
-/// `OXIDELICA_NO_SILENT_CHAIN` returns the reading of a start-less
-/// state to one equation of reach and the Newton budget to fifty, both
-/// at once, since the two were measured together.
-pub(crate) fn silent_chain_disabled() -> bool {
-    std::env::var_os("OXIDELICA_NO_SILENT_CHAIN").is_some()
+/// `OXIDELICA_SILENT_CHAIN` reads a start-less state through a chain
+/// of start-less names, up to four equations deep, where by default
+/// the reading reaches one equation. The chain is off by default: it
+/// let two pipes into an initial residual that costs minutes and is
+/// refused at the end all the same. The code stays for a narrower
+/// reach later. The Newton budget does not follow the switch.
+pub(crate) fn silent_chain_enabled() -> bool {
+    #[cfg(test)]
+    if tests::SILENT_CHAIN_HERE.with(std::cell::Cell::get) {
+        return true;
+    }
+    std::env::var_os("OXIDELICA_SILENT_CHAIN").is_some()
 }
 
 pub use compile::{compile, lower_the_ceiling_here, CeilingGuard};

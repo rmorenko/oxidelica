@@ -2237,8 +2237,8 @@ fn a_discrete_start_read_from_a_signal_is_still_spent() {
     assert!((last[y] - 2.0).abs() < 1e-9, "y_max(1) = {}", last[y]);
 }
 
-/// A silent state is read through a chain of silent names, not one
-/// equation of it.
+/// By default a silent state is read through one equation, not a
+/// chain of silent names: the chain is behind `OXIDELICA_SILENT_CHAIN`.
 ///
 /// An open tank carries its mass and energy as states with no start,
 /// and what says where they begin is a level three equations away:
@@ -2246,8 +2246,11 @@ fn a_discrete_start_read_from_a_signal_is_still_spent() {
 /// the reading stopped one equation from the state, so `V` and
 /// `fluidVolume` were never asked, the mass began at zero and the
 /// specific energy `U/m` the medium reads was not a number at t = 0.
+/// The chain that reads it let two pipes into an initial residual that
+/// costs minutes and is refused anyway, so it is off unless asked for;
+/// the reading under the switch is tested inside the crate.
 #[test]
-fn a_silent_state_is_read_through_a_chain_of_silent_names() {
+fn a_silent_state_is_not_read_through_a_chain_by_default() {
     let model = parse_model(
         "model M parameter Real A = 2; parameter Real d = 1000; \
          Real level(start = 1.5); Real V; Real fV; Real m; Real u(start = 4); Real U; \
@@ -2264,6 +2267,9 @@ fn a_silent_state_is_read_through_a_chain_of_silent_names() {
             .unwrap_or_else(|| panic!("{name} among {:?}", compiled.states));
         compiled.initial[index]
     };
-    assert!((state("m") - 3000.0).abs() < 1e-9, "m = {}", state("m"));
-    assert!((state("U") - 12000.0).abs() < 1e-9, "U = {}", state("U"));
+    assert!(
+        (state("m") - 3000.0).abs() > 1.0,
+        "the chain was read without the switch: m = {}",
+        state("m")
+    );
 }
