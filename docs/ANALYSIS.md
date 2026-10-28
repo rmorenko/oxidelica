@@ -64002,3 +64002,70 @@ ten is the model that ate its tail. Of the twelve names of the basket
 the only one that does not finish in an hour is
 `DynamicPipeWithNominalLaminarFlow` (more than 3816 s, m526), and it
 is the one candidate left.
+
+## m528: the first basket one at a time, and where the chain spends
+
+Roman's answer of 27 October took path (a), a ceiling on the work of
+the chain reading with a refusal that names the model, for one shift,
+and (b') - the existing key `OXIDELICA_NO_SILENT_CHAIN` made the
+default - if it does not fit. Before the change the growth of the
+first basket from 119 to 156 minutes was to be explained, because a
+second model of the laminar pipe's kind changes the price of (a).
+
+The eleven of the first basket were run one process at a time on an
+empty desk, the binary of 2a6f414 (`/tmp/m525/ox525`), `--with-heavy`,
+cut at 360 s of processor time (`/tmp/m528/a.*.txt`, log
+`/tmp/m528/a.log`). Green is the run / flatten price of 19 October
+from `scripts/heavy_models.txt`:
+
+| model                               | cpu here | green      | outcome                     |
+| ----------------------------------- | -------: | ---------- | --------------------------- |
+| IMC_YDarc                           |  > 360 s | 798 / 0    | cut                         |
+| Oscillator                          |     40 s | 37 / 1     | runs                        |
+| LineForceWithTwoMasses              |    290 s | 248 / 25   | structurally singular       |
+| Engine1b                            |     90 s | 212 / 34   | underdetermined loop        |
+| EngineV6                            |  > 360 s | 536 / 280  | cut                         |
+| Fourbar2                            |    190 s | 147 / 24   | runs                        |
+| MoistAir                            |     19 s | 0 / 27     | runs                        |
+| DynamicPipeEnergyConservationCheck2 |  > 360 s | 2675 / 136 | cut                         |
+| DynamicPipesAndFittings             |    330 s | 87 / 113   | singular Jacobian in a loop |
+| DynamicPipeInitialization           |  > 360 s | 141 / 15   | cut                         |
+| SeriesPipes13                       |    340 s | 212 / 34   | algebraic loop              |
+
+Three of the four cut were dear before and are cut for that. The
+fourth is not: `DynamicPipeInitialization` was 156 s green and is past
+360 s here. Run again with `OXIDELICA_NO_SILENT_CHAIN=1`, same binary,
+ceiling 900 s (`/tmp/m528/off.*.txt`), it is refused in 230 s with
+"algebraic loop did not converge in 50 Newton iterations", while
+`SeriesPipes13` (340 s) and `DynamicPipesAndFittings` (330 s) cost the
+same off as on and are dear for reasons of their own. So the laminar
+pipe is not alone: the chain turns a second refusal into a run that
+outlasts its ceiling, and that one sits in the first basket, where it
+explains part of its growth.
+
+Where the laminar pipe spends was probed from parked patches
+(`~/oxideflow/state/m528/probe_*.patch`, not in the tree). A sample of
+the process at 3.5 minutes shows every thread in
+`solve_initialization` -> `eval_point` -> `solve_implicit_block_from`
+-> a walked body (`walk::elements_of`), not in the chain reading,
+which is bounded at four rounds and finishes in compilation. No
+`while` in a walked body passes 4096 rounds, on or off. Counting the
+residuals of the initialization with time and Newton totals beside
+them (`/tmp/m528/p5.on.txt`, `/tmp/m528/p5.off.txt`): off and on walk
+together - 64 residuals at 63 s, Newton 66 - and off reaches 128 at
+90 s and then its refusal. On never reaches the 65th-to-128th stretch
+in seven more minutes, and the Newton counter stands still while it
+works. What the chain changes is the start the initialization is
+handed, and from that start one evaluation, not a count of
+iterations, becomes dear.
+
+This is why (a) did not fit the shift. A ceiling on the chain's own
+work bounds nothing that is dear: the chain is cheap and done before
+the run. A ceiling on Newton iterations cannot see a price, as the
+note on `MAX_NEWTON_ONE_INTERVAL` already records. What would bound
+it is a ceiling on the work of one evaluation inside the
+initialization, and that is a new kind of ceiling on the whole
+library rather than a narrow one on the chain. By the terms of the
+answer the next step is (b'): the key made the default, the run floor
+809 -> 808 in a commit of its own, `OneTank` given back. Not done in
+this shift, for lack of the hour its corpus pair needs.
