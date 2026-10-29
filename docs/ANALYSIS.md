@@ -64936,3 +64936,18 @@ the example fixes. With the retreat off, `phiMechanical` is demoted,
 the example's start angle is no longer honoured, and link 3 is what
 follows. The next probe is which row reduction 15 differentiates and
 why it reaches only the angle.
+
+The probe answers it. The retreat is set at reduction 15 on
+`-der(terminalBox.plug_sp.pin[3].i) = 0`, the third phase's Kirchhoff
+row differentiated a second time, with `phiMechanical` the only
+candidate (/tmp/m541/struct_probe2.patch). So link 1 was only half a
+link. Letting the victim walk through a name with no definition lets
+it choose `psi_mr[2]`, but the differentiation of the row still reads
+that current through the settled and implicit definitions, which also
+stop at `airGap.spacePhasor_s.i_[2]`. The row's derivative never holds
+`der(psi_mr[2])`, so demoting the flux determines nothing and the row
+comes back as singular. A working link 1 has to give
+`airGap.spacePhasor_s.i_[2]` a definition both the walk and the
+differentiation read: in the matching, eq 233 or the `lssigma` rows
+that tie it to `psi_mr[2]` through the rotation. The other links are
+not worth walking until this one holds.
