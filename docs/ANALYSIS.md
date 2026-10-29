@@ -64405,3 +64405,116 @@ flattening counters of `both` differ by 299 expansions and 9 bodies,
 the record fields now settled from the site. No model moved either
 way: both inverters and both machines still refuse, now each with a
 true reason.
+
+## m536: the top of the run half, read by layer
+
+The census on `89c1247` (`/tmp/m536/census.txt`) agrees with m534
+model for model: 47 models in 27 rows would not flatten, 158 in 30
+would not run, and the per-model lists of the two raw files
+(`/tmp/m534/raw.txt`, `/tmp/m536/raw.txt`) are identical. The work
+counters of m534 already carry the flattening digits of `89c1247`, so
+m534 was taken on that code, and the expected move of the three
+inverters and the two `IMC_withLosses` is already in it. CI for
+`013b742` and `89c1247` is green, and the judge printed 973 / 815,
+runnable 855 / 768, which is the floor.
+
+The top row, `equation E constrains no state`, holds 33 models. None
+of the six `e_ia` models parked in m531 is among them. By the
+`experiment` annotation the 33 split before any probe:
+
+- 16 are not examples: helpers under `Utilities` and `Components`
+  whose top-level connectors hang open (`OpAmpCircuits.Add`,
+  `Buffer`, `Feedback`, `Gain`, `Analog.Utilities.Nand`,
+  `RealSwitch`, `AnalysatorAC`, `AnalysatorDC`, both
+  `SpringDamperNoRelativeStates`, the four FluxTubes components,
+  `MotorWithCurrentControl` and `Loops.Utilities.Cylinder`). An open
+  flow written `= 0` with nothing on the other side
+  is an honest refusal of a model nobody is meant to run alone, and
+  is not a family.
+- 17 carry an experiment: `ActuatorWithNoise`, the two fluid models
+  of the tank road (`BatchPlant_StandardWater`, `TanksWithOverflow`),
+  `TestBearingConversion`, seven machines (`SMPM_NoLoad`,
+  `TransformerTestbench`, `IMC_DOL_CommonLeakage`, both
+  `SMPM_CurrentSource`, `SMPM_MTPA`, `SMR_CurrentSource`), five
+  MultiBody (`Constraints.*`, `PlanarFourbar`) and `FullRobot`.
+
+The quasi-static machines were shrunk from the real
+`SMR_CurrentSource`, throwing parts out while the refusal survived.
+The quasi-static half alone (`QS.mo`) runs. Adding the
+`CurrentQuasiRMSSensor` in series with the current source (`QS5.mo`,
+48 lines as `E.mo`) brings back the exact refusal on
+`smrQS.phiMechanical`. The whole example with only that sensor taken
+out (`FullNoSens.mo`) runs to 2 s, and both machines end at
+153.22 rad/s. So the sensor is the trigger, and the victim probe of
+`E.mo` (`E_probe.txt`) says how: reductions 3 to 7 are spent on the
+sensor's reference angles (`plugToPin_n[k].plug_n.reference.gamma`
+against `[1]`, the plug's own angle, the source's), 8 to 10 take
+`friction.phi`, `inertiaRotor.phi` and `strayLoad.phi` against
+`phiMechanical`, and reduction 11 finds only rows the system holds.
+The running `QS.mo` takes the same angles in a different order and
+gets through 21 reductions.
+
+Those reference angles reach index reduction at all because
+`omega = der(plug_p.reference.gamma)` in every two-plug element
+differentiates a node of the overconstrained graph, and every alias
+of that node is then a candidate. `TransformerTestbench` spends all 27
+of its reductions on `reference.gamma` names. A tiny circuit with the
+same sensor and a source whose angle follows an inertia (`S2.mo`)
+runs, so the trigger needs the machine's mechanical chain beside it.
+The wall is the choice of states among the aliases of one reference
+angle, not a missing equation. That is the reduction limit, kin to
+Fourbar1, and the family is parked with this map rather than mended.
+The reproductions are in `~/oxideflow/state/m536/`. The next move is
+to ask why alias equalities between nodes that one branch already
+ties together (`connections.rs`, `branch_parts`) are handed to
+reduction as separate unknowns rather than folded before it.
+
+### IMC_withLosses: a length the base settled, asked again
+
+Both `IMC_withLosses` (Electrical and FundamentalWave) were short by
+three equations, and `oxidelica why` on the names the refusal gave
+led to `combiTable1Ds.y[2]`, which no equation wrote, while `y[1]`
+had its interpolation. The example hands its measured data as
+`table = {{Ptable[j], Itable[j], ...} for j in 1:size(Ptable, 1)}`,
+and the table block says `extends SIMO(final nout = size(columns,
+1))`. Shrunk without any table at all (`/tmp/m536/s/Sz9.mo`, 18
+lines): a base `P` with `nout = 1` and `Real y[nout]`, a block
+`extends P(final nout = size(table, 2) - 1)` looping `for i in
+1:nout`, and a site handing it a comprehension over arrays of the
+model. `y` came out two long and the loop ran once. With the base's
+default set to 3 the same model refused `subscript 3 is outside an
+array of 2`, so the loop read the base's default and not the value
+the `extends` handed it.
+
+The cause is in the round that asks the parameters still without a
+value again whenever a declaration adds a length
+(`components.rs`). The base had settled `nout` to two under its full
+path, `t.nout`, and the block's own table had nothing under the
+short name, so the round took the inherited declaration as waiting,
+read its own binding, `1`, and settled the short name to that. The
+loop is read under the short name. Now a parameter of a component
+that already holds a value under its full path is not asked again.
+`OXIDELICA_RESETTLE_INHERITED` keeps the old reading, and the test
+`a_length_a_base_settled_from_a_comprehension_is_not_asked_again` is
+red under it.
+
+The pair, one binary (`/tmp/m536/ox536b`), off then on, without the
+heavy set, load under 4 before each half (`/tmp/m536/u_*.txt`):
+
+```text
+off  973 flatten / 815 run, runnable 855 / 768
+     time: flattening 3822s; running 5020s
+on   973 flatten / 815 run, runnable 855 / 768
+     time: flattening 3777s; running 5065s
+```
+
+The run lists (`/tmp/m536/off.l`, `on.l`, 1788 lines each) are
+identical line for line, and the run work counters agree to the
+digit. The run half is 0.9% dearer, inside the 1.0% the two off halves
+of m535 drifted by. Flattening did 120971 fewer expansions and 534
+fewer bodies. No model moved: both machines now pass the balance
+and refuse one wall further on, the FundamentalWave one on
+`der(aimc.airGap.V_msr.re)` and the Electrical one on
+`der(aimc.idq_sr[1])`, each "not a state of the model". That is a
+row of the census emptied by two and another filled, and the next
+wall is the one to map.

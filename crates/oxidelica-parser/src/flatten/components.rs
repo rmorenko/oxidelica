@@ -120,7 +120,16 @@ pub(super) fn instantiate_components(
                 .iter()
                 .chain(inherited.iter().map(|(component, _)| component))
             {
+                // A base's parameter the `extends` gave a value may be
+                // settled under its full path only, by the base. Its
+                // own declaration is then the losing default: asked
+                // again here, `extends SIMO(final nout = size(columns,
+                // 1))` came back as SIMO's `nout = 1`, and a table
+                // block's loop wrote one output of four.
                 if local_consts.contains_key(&waiting.name)
+                    || (!prefix.is_empty()
+                        && std::env::var_os("OXIDELICA_RESETTLE_INHERITED").is_none()
+                        && local_consts.contains_key(&format!("{prefix}{}", waiting.name)))
                     || !matches!(
                         waiting.variability,
                         Variability::Parameter | Variability::Constant

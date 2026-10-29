@@ -1910,6 +1910,36 @@ fn a_modifier_handed_to_a_base_is_worked_out_where_it_was_written() {
     assert_eq!(at("v"), 2.0);
 }
 
+/// The same, with the table built by a comprehension over arrays of
+/// the model: `table = {{a[j], b[j], c[j]} for j in 1:size(a, 1)}` is
+/// how `IMC_withLosses` hands its measured data to a table block. The
+/// base settles `n` to two under its full path, and the block must
+/// not then ask its own declaration again and take the base's default
+/// of one: the loop wrote `y[1]` alone and `y[2]` was left to nobody.
+#[test]
+fn a_length_a_base_settled_from_a_comprehension_is_not_asked_again() {
+    let result = run("package P partial block MO parameter Integer n = 1; \
+         output Real y[n]; end MO; \
+         block Table extends MO(final n = size(t, 2) - 1); \
+         parameter Real t[:,:]; \
+         equation for i in 1:n loop y[i] = t[2, i + 1]; end for; end Table; \
+         model M parameter Real a[:] = {0, 1, 2}; parameter Real b[:] = {0, 10, 20}; \
+         parameter Real c[:] = {0, 100, 200}; \
+         Table k(t = {{a[j], b[j], c[j]} for j in 1:size(a, 1)}); \
+         Real u; Real v; equation u = k.y[1]; v = k.y[2]; end M; end P;");
+    let last = result.rows.last().unwrap();
+    let at = |name: &str| {
+        result
+            .columns
+            .iter()
+            .position(|c| c == name)
+            .map(|i| last[i])
+            .unwrap_or_else(|| panic!("no column {name} in {:?}", result.columns))
+    };
+    assert_eq!(at("u"), 10.0);
+    assert_eq!(at("v"), 100.0);
+}
+
 /// `min` and `max` take two numbers or one array. A block takes the
 /// longer of two lengths with `max([size(a, 1); size(b, 1)])`, which
 /// is one argument holding both.
