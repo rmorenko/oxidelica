@@ -44,7 +44,9 @@ pub(crate) fn silent_chain_enabled() -> bool {
     std::env::var_os("OXIDELICA_SILENT_CHAIN").is_some()
 }
 
-pub use compile::{compile, lower_the_ceiling_here, CeilingGuard};
+pub use compile::{
+    compile, lower_the_ceiling_here, refuse_when_still_here, CeilingGuard, WhenStillGuard,
+};
 
 use code::*;
 use compile::*;

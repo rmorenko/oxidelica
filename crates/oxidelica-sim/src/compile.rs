@@ -932,6 +932,38 @@ fn max_constraint_nodes() -> usize {
         .unwrap_or(MAX_CONSTRAINT_NODES)
 }
 
+/// Whether a name only a `when` assigns, which is no unknown of the
+/// reduction, has its derivative supplied as zero rather than refused.
+/// Between events such a name does not move, and at an event the
+/// discrete layer is worked out again, so the zero is true wherever the
+/// continuous system reads it. No state is demoted on it: the name was
+/// never a candidate. `OXIDELICA_NO_WHEN_STILL` gives the old refusal
+/// back, and `refuse_when_still_here` does so for one thread.
+fn when_still_open() -> bool {
+    !(crate::walk::switch_set("OXIDELICA_NO_WHEN_STILL") || NO_WHEN_STILL_HERE.with(|c| c.get()))
+}
+
+thread_local! {
+    static NO_WHEN_STILL_HERE: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Refuse, on this thread alone, a derivative of what only a `when`
+/// assigns, as before the zero was supplied. Undone by dropping the
+/// guard; the environment would reach every test compiling beside it.
+pub fn refuse_when_still_here() -> WhenStillGuard {
+    NO_WHEN_STILL_HERE.with(|c| c.set(true));
+    WhenStillGuard(())
+}
+
+/// Puts the supplied zero back.
+pub struct WhenStillGuard(());
+
+impl Drop for WhenStillGuard {
+    fn drop(&mut self) {
+        NO_WHEN_STILL_HERE.with(|c| c.set(false));
+    }
+}
+
 /// The ceiling lowered for this thread alone.
 ///
 /// A test that lowers it through the environment lowers it for every
@@ -1592,6 +1624,10 @@ thread_local! {
     /// earlier free victim on its reach: where the walk should retreat.
     static RETREAT_TO: std::cell::Cell<Option<(usize, String)>> =
         const { std::cell::Cell::new(None) };
+    /// The names only a `when` assigns, for the supply of a reduction
+    /// to answer their derivative with zero between events.
+    pub(crate) static WHEN_STILL: std::cell::RefCell<Vec<String>> =
+        const { std::cell::RefCell::new(Vec::new()) };
 }
 
 /// Whether a reduction refuses a member whose derivative the system
@@ -2492,6 +2528,20 @@ fn reduce_index_once(
                         let index = unknowns.iter().position(|u| u == &name);
                         let Some(source) = index.and_then(|i| matched_eq.get(i).copied().flatten())
                         else {
+                            if index.is_none()
+                                && when_still_open()
+                                && WHEN_STILL.with(|w| w.borrow().iter().any(|n| n == &name))
+                            {
+                                if std::env::var_os("OXIDELICA_VICTIM_PROBE").is_some() {
+                                    eprintln!(
+                                        "when-still: der({name}) = 0 in reduction {reductions}"
+                                    );
+                                }
+                                minted_defs.insert(minted.clone(), Expr::Number(0.0));
+                                unknowns.push(minted.clone());
+                                algebraic_eqs.push((Expr::Ref(minted), Expr::Number(0.0)));
+                                continue;
+                            }
                             return err(format!(
                                 "structurally singular model: no equation determines `{name}`, \
                  whose derivative the equation {lhs:?} = {rhs:?} needs"
@@ -6384,6 +6434,7 @@ pub(crate) fn compile_at(
             }
         }
     });
+    WHEN_STILL.with(|w| *w.borrow_mut() = discretes.clone());
     let Reduction {
         states,
         unknowns,

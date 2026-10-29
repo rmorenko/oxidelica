@@ -64318,3 +64318,31 @@ The three inverters (`FourInverters`, `InvertersApartRecord`,
 586c99c. In the on list, `Inverter` now leads a row naming
 `der(mn.Dinternal)`, and `InvertersApartRecord` leads a row naming
 `mp1.icBS`. `TestSweptVolume` now refuses on its swept-volume loop.
+
+## m534: the zero for what a `when` assigns, a triple on a quiet machine
+
+Shift 533 parked the rule on the clock: two pairs gave the run half
++12% and +20%, with the flattening half the rule cannot touch moving
+too, and the off half itself drifting 54% between the pairs. A pair of
+two halves on a machine that drifts more than the threshold cannot
+judge 6%, so this shift took a triple, off, on, off, from one release
+binary built from the final tree, one half after another, without
+`--slow`, and with the load average taken before each half
+(`/tmp/m534/u_*.txt`):
+
+```text
+off 1  load 2.53  flattening 3898s; running 4942s over 973   811 run
+on     load 3.10  flattening 3726s; running 4904s over 973   815 run
+off 2  load 2.68  flattening 3810s; running 4914s over 973   811 run
+```
+
+The two off halves differ by 28s of 4942, a drift of 0.6%, so the
+machine judges. The on half is 24s cheaper than the mean of the two
+off halves, -0.5%. The run lists agree line for line except four new
+names, `Spice3.Examples.Nor`, `Spice3BenchmarkMosfetCharacterization`
+and both `Test33` (`/tmp/m534/off1.l` against `/tmp/m534/on.l`).
+There are no victims, the flattened lists are identical, and the two
+off lists are identical to each other. The work counters differ by
+883 points and 203 Newton steps, as on 533. All three conditions of
+the standing rule hold, so the change goes in. The 533 numbers were
+weather.

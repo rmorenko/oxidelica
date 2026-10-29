@@ -1902,3 +1902,31 @@ fn a_port_drawn_by_a_part_of_its_own_class_still_carries_no_flow_outward() {
     let last = result.rows.last().unwrap();
     assert!(last[f] == 0.0, "src.c.f = {}", last[f]);
 }
+
+/// What only a `when` assigns does not move between events, so a
+/// reduction that needs its derivative is supplied a zero rather than
+/// refusing the model: `x = time + T0` differentiates to `der(x) = 1`.
+/// No state is demoted on that zero, since `T0` is no unknown of the
+/// reduction. The guard gives the old refusal back for this thread.
+#[test]
+fn what_only_a_when_assigns_is_still_under_differentiation() {
+    let source = "model WS Real T0(start = 0); Real x(start = 0); Real v; \
+         equation when time > 0.5 then T0 = time; end when; \
+         der(x) = v; x = time + T0; \
+         annotation(experiment(StopTime = 1)); end WS;";
+    let result = run(source);
+    let v = result.columns.iter().position(|c| c == "v").unwrap();
+    for row in &result.rows {
+        assert!((row[v] - 1.0).abs() < 1e-9, "v = {}", row[v]);
+    }
+    let model = parse_model(source).unwrap();
+    let error = {
+        let _guard = oxidelica_sim::refuse_when_still_here();
+        compile(&model).unwrap_err()
+    };
+    assert!(
+        error.0.contains("no equation determines `T0`"),
+        "{}",
+        error.0
+    );
+}
