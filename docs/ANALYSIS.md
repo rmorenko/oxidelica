@@ -64859,3 +64859,14 @@ value" row. What else the narrower rule would take out of FLATTEN is
 not measured here: every non-runnable example that flattens, not only
 these 24, which needs one corpus pass with the two rules side by side.
 Moving FLATTEN down is Roman's decision, so nothing was built.
+
+Measured with one corpus pass from bbc5be6 (/tmp/m541/corpus.txt, the
+heavy set left out as usual): 1020 examples, 973 flatten, 818 run, and
+891 runnable, 855 flatten, 771 run, the judge's print to the digit. If
+the first rule took `meant_to_run`, the check would hold the runnable
+pair alone. FLATTEN would fall by 118 models (973 to 855), RUN by 47
+(818 to 771), and FILES and both RUNNABLE floors would not move. So the
+cost of the filter is not the 24 helpers but 118 and 47. The 47 are
+models that are not marked runnable and do run, and dropping them would
+throw away coverage that works. This is the number the question to
+Roman needs.
