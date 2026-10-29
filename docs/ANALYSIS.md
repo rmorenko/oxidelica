@@ -64996,3 +64996,19 @@ candidate is a better first iterate, for example evaluating the rows
 of the block that are explicit in one unknown, like `R = cos(gamma)`,
 before the first Jacobian. It is a solver change and touches every
 loop, so it needs the full pair.
+
+That reading was tested at once and does not hold. `S7` is `S6` with
+`airGap(RotationMatrix(start = identity))`, so the guess puts the
+coefficient at one. The dead column is gone, and the refusal becomes
+"underdetermined algebraic loop ... the equations do not determine a
+unique solution" over the same eight unknowns. So the zero guess hid
+the wall but was not it. Even where every column moves, the block
+built for an open star after the reductions is rank-deficient. That
+fits the matching in the first section of this chapter: the stator
+currents are fixed at zero by the star, and the rotor-frame current
+`i_sr` behind the rotation is the same freedom counted twice. The
+redundant-row reading of m540 is back in play, but for this loop,
+built after reduction, and not for the subset at reduction 13. The
+next shift should take `S7`, print the loop's Jacobian at the guess
+and find the null vector. That says which row is the copy and whether
+its right-hand side agrees.
