@@ -64527,3 +64527,66 @@ Electrical one `der(aimc.idq_sr) = zeros(2)`. These are aliases of
 names a torn block solves, box 2 of shift 227, the same wall the three
 `IMC_Initialize` stand at. The row `der(X): X is not a state` goes
 from 6 to 8 models, and the family is the same.
+
+## m537: the aliases of a reference angle, folded before reduction
+
+The census on `f3e811c` (`/tmp/m537/census.txt`) holds 47 models in
+27 rows that would not flatten and 158 in 30 that would not run,
+the same as m536. Two rows moved, and exactly as expected: `unbalanced
+... nothing determines` went from 15 to 13 and `der(X): X is not a
+state` from 6 to 8, the two `IMC_withLosses` passing from one to the
+other.
+
+The probe asked by m536: whether an equality between two names of
+nodes of the overconstrained graph can be folded before index
+reduction, so that the aliases of one reference angle stop being
+candidate states each. The nodes are read from the structure, not
+from the spelling: the records a `branch`, `root` or `potentialRoot`
+names, closed over equalities of the same field between a node and
+another record, which is how a connection extends the graph. On the
+reproductions of m536 (`~/oxideflow/state/m536/`) the fold takes 162
+names out of `E.mo`, and `E.mo` runs where it was refused; `QS.mo`,
+`S2.mo` and `FullNoSens.mo` still run. The real `SMR_CurrentSource`
+then runs to 2 s and both machines end at 153.219 rad/s, against
+153.22 for `FullNoSens.mo` without the fold, so the number is the
+right one. A small model of the same shape written without the
+library (`/tmp/m537/s/T*.mo`, thirteen tries) runs with the fold and
+without it, so no small witness was found: the wall needs the
+machine's own chain.
+
+The pair, one binary (`/tmp/m537/ox537`), off then on, without the
+heavy set, load under 4 before each half (`/tmp/m537/load_*.txt`),
+files `/tmp/m537/off.txt` and `/tmp/m537/on.txt`:
+
+| half | flatten | run | runnable | run half |
+| ---- | ------- | --- | -------- | -------- |
+| off  | 973     | 815 | 855/768  | 4999 s   |
+| on   | 973     | 816 | 855/769  | 4750 s   |
+
+Won, three: `TransformerTestbench` (QuasiStatic), `SMPM_MTPA` and
+`SMR_CurrentSource`. Lost, two: `IMC_Inverter` (QuasiStatic), now
+refused with `unknown variable aimc.rotorCage.port_p.reference.gamma`
+
+- a name folded away that an equation the fold did not rewrite still
+  reads - and `GyroscopicEffects`, now structurally singular on a
+  `der(body...)` row. Victims go to Roman at any price, so the change
+  is parked, not pushed: `git stash` `m537-graph-alias-fold`, and the
+  patch beside the reproductions as `graph_alias_fold.patch`. Of the
+  seven machines of the row, `SMPM_NoLoad` and both non-quasi-static
+  `SMPM_CurrentSource` are not this family: they stand on a current
+  sum of `terminalBox`, with or without the fold.
+
+Two next moves, both small. The unknown name in `IMC_Inverter` says
+some equations reach the solver by a road the fold does not walk;
+finding it should take that victim back. `GyroscopicEffects` has no
+quasi-static graph at all, so the fold reached it through
+`Connections` of the MultiBody frames: limiting the fold to graphs
+whose nodes are reference angles by structure (a record with one
+field) is the obvious narrowing, and is to be measured, not assumed.
+
+The row `unbalanced ... nothing determines`, 13 models, is no family.
+All thirteen are helpers with no `experiment`, open by design: five
+under `AST_BatchPlant.BaseClasses`, four `RobotR3.Utilities` (open
+`axisControlBus`), the two `Analog.Examples.Utilities` direct blocks
+(open `RealInput`), one FluxTubes component and the StateGraph
+`valve` (open `valveControl`).
