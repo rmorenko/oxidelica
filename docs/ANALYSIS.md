@@ -65049,3 +65049,27 @@ enough by itself. Either `always` does not hold where the walk has
 nothing else to take, or the angle is not the only thing missing.
 The fold is still link 0, but it is not shown to be sufficient.
 Files: /tmp/m541/shrink/S8.mo and S9.mo.
+
+### Second reader, and the first of its predictions checked
+
+The chain, now past five links, went to the consulting model (the
+question and answer are in the scratch question document, m541). Its
+reading: the walk and the differentiation both follow the table of
+definitions, which depends on the order of earlier demotions, while
+the object that decides is the matching's alternating path. The
+compiler already trusts that path in `attempt_order` and the member
+shift. The rule it proposes runs only past the point where today's
+"constrains no state" is final, so by construction it cannot change a
+victim of any model that runs. That claim is checkable as an empty
+victim diff of the corpus. The open-star loop of `S6`/`S7` is a second
+wall with a rule of its own, which keeps one shaft angle.
+
+Its first prediction was free to check and holds. On `S1` with
+`OXIDELICA_SUPPLY_PROBE=1` (/tmp/m541/shrink/supply.txt) the supply
+from the matching is live at reduction 13, with 264 supply lines over
+the run. None of the rows supplied at reduction 13 is one of the
+air-gap rotation rows (151, 152, 163 in the dump numbering) or names
+`airGap.i_ss`, `i_sr`, `i_mr`, `psi` or `RotationMatrix`. So the
+supply goes one matched edge at a time and stops short of the rotation,
+as the reader said. Nothing was built. The gated alternating-path rule
+is the next shift's item, with the victim diff as its witness.
