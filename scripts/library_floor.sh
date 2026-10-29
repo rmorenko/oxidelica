@@ -1903,7 +1903,13 @@ FLATTEN_FLOOR=973
 # both `Test33`. Less the same three that swing:
 #
 #   815 - 3 = 812 = 808 + 4
-RUN_FLOOR=812
+#
+# And up by the three of e5cde1d, `QuasiStatic` `TransformerTestbench`,
+# `SMPM_MTPA` and `SMR_CurrentSource`, by the judge of push run
+# 40925505232 for b555acb, 973 / 818, less the same three that swing:
+#
+#   818 - 3 = 815 = 812 + 3
+RUN_FLOOR=815
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -2432,7 +2438,12 @@ RUNNABLE_FLATTEN_FLOOR=855
 # desk (/tmp/m534/t_on.txt 855 / 768):
 #
 #   768 - 3 = 765 = 761 + 4
-RUNNABLE_RUN_FLOOR=765
+#
+# And by the same three of e5cde1d, by the same judge (push run
+# 40925505232), 855 / 771:
+#
+#   771 - 3 = 768 = 765 + 3
+RUNNABLE_RUN_FLOOR=768
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
