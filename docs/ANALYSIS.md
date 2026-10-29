@@ -65039,3 +65039,13 @@ dropped because it did not move the refusal on its own. With this
 chain mapped, the fold is link 0 of a chain whose next link is now
 known, and it should be measured together with what follows rather
 than alone.
+
+A first test of that, with `StateSelect.always` on `phiMechanical`.
+In `S8` (induction machine) the angle is demoted all the same at the
+eighth reduction and the loop refusal stays. In `S9` (the permanent
+magnet harness) the angle survives as a state, and the refusal at
+reduction 13 stays word for word. So keeping one angle state is not
+enough by itself. Either `always` does not hold where the walk has
+nothing else to take, or the angle is not the only thing missing.
+The fold is still link 0, but it is not shown to be sufficient.
+Files: /tmp/m541/shrink/S8.mo and S9.mo.
