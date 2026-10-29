@@ -64870,3 +64870,15 @@ cost of the filter is not the 24 helpers but 118 and 47. The 47 are
 models that are not marked runnable and do run, and dropping them would
 throw away coverage that works. This is the number the question to
 Roman needs.
+
+A correction to the paragraph above, on one counterexample. A 20-line
+model (/tmp/m541/small/Rot2.mo) puts a current behind the same
+rotation, `is = R(phi) * ir`, with `psi = L*ir` as two flux states and
+`is1 = 0`, `is2 = 0` as the constraints. It runs, and reductions 1 and
+2 demote `psi1` and `psi2` through the rotation. So the rotation block
+does not stop the walk by itself. What SMPM_NoLoad has and the small
+model lacks is an earlier demotion: reduction 5 took
+`smpm.airGap.psi_mr[1]`, so `i_mr[1]` has no settled definition left,
+and only then do eq 151 and eq 152 hold two unsettled names each. The
+next probe is that earlier choice, reduction 5, rather than a block
+rule in the settling.
