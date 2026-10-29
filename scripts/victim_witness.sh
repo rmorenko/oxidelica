@@ -87,17 +87,22 @@ check "half pair unread" 1 "cActuator.armature.stopper_xMax.s_rel" "$(victim_at 
 check "half pair read" 1 "cActuator.armature.mass.s" "$(victim_at 1 OXIDELICA_NO_HALF_PAIRS=1)"
 model="tests/small/a_delta_secondary_does_not_spend_its_angles_twice.mo"
 [ -f "$model" ] || { echo "WITNESS: no model at $model"; exit 1; }
+# The fold of a reference angle's aliases (e5cde1d) takes the
+# transformer's angles out before reduction, so the model reduces
+# nothing at all and reduction 8 is never reached. The rules this
+# triple witnesses still stand behind the fold, so it is held off.
+nofold=(OXIDELICA_NO_GRAPH_ALIAS_FOLD=1)
 check "implied row refused" 8 "transformer.r2.resistor[2].pin_p.reference.gamma" \
-  "$(victim_at 8 OXIDELICA_UNUSED=1)"
+  "$(victim_at 8 "${nofold[@]}")"
 check "implied row taken" 8 "transformer.l2sigma.inductor[2].pin_p.reference.gamma" \
-  "$(victim_at 8 OXIDELICA_IMPLIED_ROW=0 OXIDELICA_SUPPLY_ONCE=0)"
+  "$(victim_at 8 "${nofold[@]}" OXIDELICA_IMPLIED_ROW=0 OXIDELICA_SUPPLY_ONCE=0)"
 # With the chain on (the default since m410) the same member is refused
 # a second time over: the dependence check of `=4`, not the ledger,
 # reads its row as one the system already holds, which is the implied
 # row seen from the linear side. So the implied row alone taken back
 # changes nothing here, and the old victim needs both rules off.
 check "implied row taken, ledger on" 8 "transformer.r2.resistor[2].pin_p.reference.gamma" \
-  "$(victim_at 8 OXIDELICA_IMPLIED_ROW=0)"
+  "$(victim_at 8 "${nofold[@]}" OXIDELICA_IMPLIED_ROW=0)"
 # A row the system already holds, reached through equations that are all
 # different: the star sum of a machine's load stated a second time. With
 # the dependence of the supplied rows read (the default, `=5`), the
