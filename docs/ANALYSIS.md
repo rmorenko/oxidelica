@@ -64821,3 +64821,16 @@ current chain to eq 163 and `psi_mr[2]`. The reach goes through the
 state, not a definition of `i_mr[2]` in the matched direction. The
 probe was reverted. The scripts are in /tmp/m541 (`dump.txt` the
 system, `match.py` the matching), and no pair was taken.
+
+Where the walk stops was found by repeating the settling outside the
+compiler: an equation counts as a definition when only one of its
+unknowns is unsettled. 249 of 429 unknowns settle. `spacePhasorS.i[1]`
+settles, `airGap.i_ss[1]`, `airGap.i_sr[1]` and `airGap.i_mr[2]` do
+not. The stator current reaches the rotor frame only through eq 151
+and eq 152, `i_ss = RotationMatrix * i_sr`, which hold two unknowns
+each, and an implicit definition needs exactly one. So the reach ends
+at the rotation and never gets to eq 163 and `psi_mr[2]`. The candidate
+is a two-by-two block definition: two equations with the same two
+unsettled names, solved together. It is a new rule in the settling,
+which sets which states every model keeps, so it needs the victim
+diff of the whole corpus. It is a map for the next shift, not built.
