@@ -1895,7 +1895,15 @@ FLATTEN_FLOOR=973
 # line alone (/tmp/m529/off.txt 973 / 811, /tmp/m529/on.txt 973 / 812):
 #
 #   809 - OneTank = 808
-RUN_FLOOR=808
+#
+# Raised to 812 by the zero for what a `when` assigns (29dd011), by the
+# judge of push run 40794887161 (job 123225951329), 973 / 815, the same
+# as the desk (/tmp/m534/t_on.txt 973 / 815). The four it gains are
+# `Spice3.Examples.Nor`, `Spice3BenchmarkMosfetCharacterization` and
+# both `Test33`. Less the same three that swing:
+#
+#   815 - 3 = 812 = 808 + 4
+RUN_FLOOR=812
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -2418,7 +2426,13 @@ RUNNABLE_FLATTEN_FLOOR=855
 # 855 / 764, /tmp/m529/on.txt 855 / 765):
 #
 #   762 - OneTank = 761
-RUNNABLE_RUN_FLOOR=761
+#
+# And up by the same four of 29dd011, by the same judge (job
+# 123225951329 of push run 40794887161), 855 / 768, the same as the
+# desk (/tmp/m534/t_on.txt 855 / 768):
+#
+#   768 - 3 = 765 = 761 + 4
+RUNNABLE_RUN_FLOOR=765
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
