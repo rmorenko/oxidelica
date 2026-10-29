@@ -64734,3 +64734,36 @@ section marks): would not flatten 47 models in 27 rows, would not run
 won models left and no row split. The top of the run half is
 "constrains no state" at 29, which is where the three SMPM machines
 above stand or end.
+
+## m540: the flange angles of SMPM_NoLoad are not its wall
+
+The candidate named in m539 was to fold the aliases of a shaft's
+flange angles before index reduction, as e5cde1d folds the aliases of
+a reference angle. Probed on
+`Machines.Examples.SynchronousMachines.SMPM_NoLoad` with
+`OXIDELICA_VICTIM_PROBE=1`, the unfolded run spends reductions 3, 4
+and 7 on flange aliases (`speed.flange.phi = hallSensor.flange.phi`,
+`smpm.inertiaRotor.flange_a.phi = smpm.airGap.flange.phi`,
+`smpm.friction.flange.phi = smpm.flange.phi`) and then refuses with
+"constrains no state" on the third phase's terminal-box current.
+
+A local probe folded every continuous `a = b` equality, not only those
+of the connection graph. The angles left the victim list as intended,
+since the shaft became one name, `hallSensor.flange.phi`. The refusal
+stayed word for word: reductions 9 to 12 demote `smpm.airGap.psi_mr[1]`,
+`smpm.lssigma.spacePhasor_a.i_[2]`, `smpm.lszero.p.i` and
+`smpm.lssigma.spacePhasor_a.i_[1]`, and reduction 13 has no victim.
+The open stator has three Kirchhoff rows that must each take one stator
+current. Reduction 9 is a tie at weight 0 between `smpm.lssigma.i_[1]`
+and `smpm.airGap.psi_mr[1]`, and taking the flux leaves the third row
+with nothing. So the wall is the choice of victim in a tie, not the
+aliases, and the flange fold was not built. The probe was reverted
+without a pair.
+
+The second family at the top of the census, "parameter X has no
+value" (24 models in /tmp/m539/raw.txt), was probed by reading the
+source of four of them. All 24 are `Utilities` or `BaseClasses`
+helpers, and the parameter is one their author declared without a
+default (`OpAmpCircuits.Der.f`, `Loops.Utilities.GasForce2.L`). The
+refusal is honest. The family is the example filter letting helpers
+through, not a fault in evaluation.
