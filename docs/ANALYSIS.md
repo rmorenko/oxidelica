@@ -64980,3 +64980,19 @@ specific to the permanent magnet: any machine on an open star has a
 stator current that is zero by construction, and the loop the
 reduction builds then holds a rotor current no row reads. `S6` is
 about 15 lines and is the test to build link 3 against.
+
+The loop's rows, printed at the refusal by a probe that was then taken
+out, change the reading of link 3. The block is eight unknowns
+(`gamma`, `i_sr[1..2]`, `RotationMatrix[1,1]`, two air-gap and two
+stator voltages), and the iteration stands at zero in all eight. Row 0
+is `RotationMatrix[1,1] = cos(gamma)`, which is 1 at the solution, but
+the guess is 0. Rows 1 and 2, `i_ss = R * i_sr`, read `i_sr` through
+that coefficient, and with it at zero their columns for `i_sr` are
+zero. So `i_sr[1]` is "never mentioned" only at the guess. The model
+mentions it, and one Newton step on row 0 alone would bring the column
+back. Link 3 is the starting point of a loop whose unknowns have no
+start of their own, not a structure that drops a current. The
+candidate is a better first iterate, for example evaluating the rows
+of the block that are explicit in one unknown, like `R = cos(gamma)`,
+before the first Jacobian. It is a solver change and touches every
+loop, so it needs the full pair.
