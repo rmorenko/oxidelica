@@ -64773,3 +64773,18 @@ reduction 9 would take the stator current rather than the flux. The
 refusal stayed word for word. So the tie at reduction 9 is not the
 whole wall either: the next shift should print the victims under the
 reversed order and find which row is still left without a current.
+
+Under the reversed order the victims are, in turn, `smpm.inertiaStator.w`,
+`smpm.airGap.psi_ms[2]`, `speed.phi`, `smpm.airGap.psi_mr[2]`,
+`smpm.lssigma.i_[1]`, `smpm.lssigma.i_[2]`, `smpm.friction.phi`,
+`smpm.inertiaRotor.phi`, `smpm.permanentMagnet.phi`,
+`smpm.strayLoad.phi` and `smpm.lszero.i`. All three stator currents are
+demoted, yet reduction 12 still finds no state in any of its rows. Every
+remaining row is a current row of the space phasor (`spacePhasorS`,
+`lssigma`, `airGap.spacePhasor_s`). So the open stator is not short of a
+victim. It is short of a row the reduction can differentiate into
+something new: the currents are already algebraic, and the singular
+subset is a purely algebraic dependency among them. The next probe is
+whether that subset is consistent and redundant (the zero-sequence row
+of an open Y, which should be dropped and not reduced), not which state
+to demote.
