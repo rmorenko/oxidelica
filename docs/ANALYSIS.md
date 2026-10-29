@@ -64962,3 +64962,21 @@ them has. The likeliest candidate is the order of the reductions
 before 13, where reduction 5 takes `psi_mr[1]` ahead of
 `lssigma.i_[1]`. The next shift should shrink SMPM_NoLoad itself
 rather than grow another synthetic model.
+
+### A smaller witness for link 3
+
+Shrinking the real model gave a better witness than the synthetic ones
+(/tmp/m541/shrink). `S1`, which is the machine, the terminal box, the
+ground and a speed source at a constant, refuses exactly as
+SMPM_NoLoad does. Unfixing the angle (`S3`), taking the speed source
+off `exact` (`S4`) and turning on the damper cage (`S5`) leave the
+refusal word for word, so none of them is the cause. `S6` swaps in an
+`IM_SquirrelCage` with an open star behind the same harness. It passes
+index reduction (13 victims) and goes straight to link 3, the
+algebraic loop over `airGap.gamma` and `i_sr`. With
+`OXIDELICA_DEAD_PROBE=1`, `airGap.gamma` is "flat here only" and
+`airGap.i_sr[1]` is "never mentioned" at t = 0. So link 3 is not
+specific to the permanent magnet: any machine on an open star has a
+stator current that is zero by construction, and the loop the
+reduction builds then holds a rotor current no row reads. `S6` is
+about 15 lines and is the test to build link 3 against.
