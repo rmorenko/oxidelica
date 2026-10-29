@@ -64346,3 +64346,44 @@ off lists are identical to each other. The work counters differ by
 883 points and 203 Newton steps, as on 533. All three conditions of
 the standing rule hold, so the change goes in. The 533 numbers were
 weather.
+
+## m535: the inverters' NaN named, and a field modifier that lost to the record
+
+Under the zero for what a `when` assigns, `FourInverters`,
+`InvertersApartRecord` and `InvertersExtendedModel` stopped refusing
+with `no equation determines vin.T0` and refused instead with a block
+NaN at t = 0 and forty NaN equations, none of them the cause
+(`/tmp/m535/*.on.txt` against `*.off.txt`). The victim probe gives the
+rule nine more reductions, 20 to 28, through `vin.p.v` and the bulk
+node (`/tmp/m535/vic_on.txt`). A single inverter in fifteen lines
+(`/tmp/m535/small/I1.mo`) refuses the same way. The block only reads
+`der(mn1.G.v)`. An explicit stage before it assigns that as
+`mn1.icGB / mn1.cc.cGB`, and the modelcards these examples write
+(`CBD = 0, CBS = 0`) bring that capacitance to zero. The refusal now
+follows a value that is not a number back over the explicit stages to
+the first divisor that came to zero, and names it. All three inverters
+now end with ``der(mp1.G.v) := mn1.icGB / mn1.cc.cGB` divides by
+`mn1.cc.cGB`, which is zero``. They still do not run, and nothing was
+made to run: the quotient is the model's own at that point.
+
+Item 4, both `IMC_withLosses`: `why` showed `aimc.friction.tau = 0`
+and `aimc.strayLoad.tau = 0` chosen, the branch for `PRef <= 0`, where
+the example writes `frictionParameters(PRef = 180)`. Shrunk to
+`/tmp/m535/small/R2.mo`: `parameter Data d(f(P = 180))`, with `Data`
+extending a record that declares `Inner f(P = 0)`, settled `d.f.P` to
+180 and then back to 0 in the record field settler
+(`fields_of_a_record`, the write into `acc.const_values` near
+`instantiate.rs:1029` before the change), which read the
+declaration's own `f(P = 0)` before the site's `f.P = 180`. Without
+the `extends` (`R3`) it was right. That is a silent wrong number, not
+a refusal, the dearest kind there is. With the site's modifier read first, `friction.w` and
+`strayLoad.w` leave the unbalanced list of the Magnetic one, which
+stays short by three with thermal and converter names now
+(`aimc.thermalAmbient.Q_flowTotal`, `stator.electroMagneticConverter.v[3]`).
+The Electrical one still names the air gap's `spacePhasor_r.v_` first.
+
+The two changes sit behind `OXIDELICA_NO_NAN_TRACE` and
+`OXIDELICA_NO_SITE_FIELD`. The triple off / nan / both from one binary
+(`/tmp/m535/ox535q`, `/tmp/m535/t_{off,nan,both}.txt`) was started at
+the end of the shift and had not finished when it was reported, so
+both commits are held back from the push until the lists are compared.
