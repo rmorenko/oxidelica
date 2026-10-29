@@ -64383,7 +64383,25 @@ stays short by three with thermal and converter names now
 The Electrical one still names the air gap's `spacePhasor_r.v_` first.
 
 The two changes sit behind `OXIDELICA_NO_NAN_TRACE` and
-`OXIDELICA_NO_SITE_FIELD`. The triple off / nan / both from one binary
-(`/tmp/m535/ox535q`, `/tmp/m535/t_{off,nan,both}.txt`) was started at
-the end of the shift and had not finished when it was reported, so
-both commits are held back from the push until the lists are compared.
+`OXIDELICA_NO_SITE_FIELD`, and were measured as four halves from one
+binary (`/tmp/m535/ox535q`), one after another, with the load taken
+before each (`/tmp/m535/u_*.txt`). The fourth half repeats the first
+to measure the weather, on a hint from the floor:
+
+```text
+off    both keys   flattening 3880s; running 4982s over 973   815 run
+nan    site key    flattening 3944s; running 4983s over 973   815 run
+both   no key      flattening 3781s; running 4904s over 973   815 run
+off2   both keys   flattening 3858s; running 4933s over 973   815 run
+```
+
+The two off halves drift by 49s of 4982, 1.0%. Against their mean,
+4958s, `nan` is +0.5% and `both` -1.1%, both inside the drift, so the
+series cannot tell those two apart on time and does not try. All four
+run lists (`/tmp/m535/{off,nan,both,off2}.l`) are identical line for
+line, 973 flat and 815 ran, and the runnable pair is 855 / 768 in all
+four. The work counters of the run half are equal to the digit. The
+flattening counters of `both` differ by 299 expansions and 9 bodies,
+the record fields now settled from the site. No model moved either
+way: both inverters and both machines still refuse, now each with a
+true reason.
