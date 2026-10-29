@@ -64590,3 +64590,38 @@ under `AST_BatchPlant.BaseClasses`, four `RobotR3.Utilities` (open
 `axisControlBus`), the two `Analog.Examples.Utilities` direct blocks
 (open `RealInput`), one FluxTubes component and the StateGraph
 `valve` (open `valveControl`).
+
+### The two victims taken back, and what still holds the fold
+
+Both victims were mended in the same shift, each by one `--only`.
+`GyroscopicEffects` was reached through the `Connections` of the
+MultiBody frames, so the fold now keeps only nodes that are records
+of one continuous field, which a reference angle is and a frame is
+not. `IMC_Inverter` wrote `initial equation` on the angle the fold
+took away, and the initial equations are now rewritten through the
+same fold. A small model of that case (`I.mo`) is refused with
+`unknown variable c.p.reference.gamma` without the second part and
+ends at the right angle, 0.5 + 2 \* 1, with it.
+
+The second pair, one binary (`/tmp/m537/ox537c`), files
+`/tmp/m537/off2.txt` and `/tmp/m537/on2.txt`, load under 4:
+
+| half | flatten | run | runnable | run half |
+| ---- | ------- | --- | -------- | -------- |
+| off  | 973     | 815 | 855/768  | 4932 s   |
+| on   | 973     | 818 | 855/771  | 4775 s   |
+
+Won: `TransformerTestbench` (QuasiStatic), `SMPM_MTPA` and
+`SMR_CurrentSource`. Lost: none, the lists otherwise equal to the
+line, and the run half cheaper.
+
+It is still parked, for a reason the corpus cannot see: the preflight
+turned red on `two_roots_joined_by_connections_are_two_trees`, which
+reads `a.p.reference.gamma` from the result. The fold takes the
+folded name out of the model, and with it out of the result's
+columns, so a name the model declares is no longer reported. The
+change is not to land until each folded name is written to the
+result as the name it went into. The fold with both mends and the
+test is `git stash` `m537-graph-alias-fold-v2`, and the patch is
+`graph_alias_fold_v2.patch` beside the reproductions in
+`~/oxideflow/state/m536/`, with `I.mo` and `TR.mo`.
