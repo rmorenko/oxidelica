@@ -64951,3 +64951,14 @@ comes back as singular. A working link 1 has to give
 differentiation read: in the matching, eq 233 or the `lssigma` rows
 that tie it to `psi_mr[2]` through the rotation. The other links are
 not worth walking until this one holds.
+
+Three small models were tried for the open-star wall, all in
+/tmp/m541/small: a current behind a rotation (`Rot2`), stator and
+rotor state pairs tied through it (`Rot4`), and an open star with a
+Clarke transform in front of it (`Rot6`). All three either run or
+refuse on their own balance, and none refuses with "constrains no
+state". So the wall needs something from the machine that none of
+them has. The likeliest candidate is the order of the reductions
+before 13, where reduction 5 takes `psi_mr[1]` ahead of
+`lssigma.i_[1]`. The next shift should shrink SMPM_NoLoad itself
+rather than grow another synthetic model.
