@@ -711,6 +711,26 @@ fn an_algebraic_loop_that_comes_apart_says_so() {
 }
 
 #[test]
+fn a_not_a_number_read_by_a_block_is_followed_to_the_zero_divisor_that_made_it() {
+    // The block only reads `r`; what made `r` infinite is an explicit
+    // assignment before it, `r := 1/c` with `c` at zero. Three Spice3
+    // inverters were refused with forty NaN equations and no cause
+    // until the refusal walked back to the quotient - there,
+    // `der(mn1.G.v) := mn1.icGB/mn1.cc.cGB` with a capacitance of zero.
+    assert_eq!(
+        refused(
+            "model D Real x(start = 0, fixed = true); Real c; Real r; Real u; Real y; \
+             equation der(x) = 1; c = x; r = 1 / c; u = r * y; u * u + y = 3; \
+             annotation(experiment(StopTime = 1, Interval = 0.1)); end D;"
+        ),
+        "`u = r * y` of algebraic loop [\"y\", \"u\"] is NaN at t = 0, before any Newton \
+         step: the equations cannot be evaluated at the values the block starts from; \
+         it reads values that are not numbers: [\"r = inf\"], and the first of those \
+         came from `r := 1 / c` divides by `c`, which is zero"
+    );
+}
+
+#[test]
 fn a_column_lost_to_the_size_of_a_step_is_not_a_column_the_equations_lack() {
     // `z` is written in both equations, and the block was refused as
     // not mentioning it. From `x = 0` the slope of `x^3` is nearly

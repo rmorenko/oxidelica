@@ -4849,6 +4849,23 @@ fn describe(expr: &Expr) -> String {
     }
 }
 
+/// Every divisor an expression divides by, as written and compiled,
+/// so that a value which comes out not a number can be traced to the
+/// quotient that made it rather than left at the name it was stored
+/// under.
+fn divisors_of(expr: &Expr, table: &SlotTable) -> Vec<(String, Code)> {
+    let mut found: Vec<&Expr> = Vec::new();
+    expr.for_each(&mut |e| {
+        if let Expr::Bin(oxidelica_parser::BinOp::Div, _, divisor) = e {
+            found.push(divisor);
+        }
+    });
+    found
+        .into_iter()
+        .filter_map(|d| table.compile(d).ok().map(|code| (d.describe(), code)))
+        .collect()
+}
+
 /// What the parameters came to, the initial equations claimed for
 /// them, and the ordinary equations that turned out to define one.
 type Parameters = (HashMap<String, f64>, Vec<usize>, Vec<usize>, Vec<String>);
@@ -7296,6 +7313,22 @@ pub(crate) fn compile_at(
             PlanStage::Explicit { var, expr } => Ok(AlgStage::Explicit {
                 var: *var,
                 code: table.compile(expr)?,
+                source: expr.describe(),
+                divisors: divisors_of(expr, &table),
+                reads: {
+                    let mut names = Vec::new();
+                    expr.collect_refs(&mut names);
+                    names.sort_unstable();
+                    names.dedup();
+                    names
+                        .into_iter()
+                        .filter_map(|name| {
+                            table
+                                .existing_slot(name)
+                                .map(|slot| (name.to_string(), slot))
+                        })
+                        .collect()
+                },
             }),
             PlanStage::Implicit {
                 vars,
@@ -7318,6 +7351,30 @@ pub(crate) fn compile_at(
                     .map(|(lhs, rhs)| format!("{} = {}", lhs.describe(), rhs.describe()))
                     .collect(),
                 inner_sources: inner.iter().map(|(_, expr)| expr.describe()).collect(),
+                inner_divisors: inner
+                    .iter()
+                    .map(|(_, expr)| divisors_of(expr, &table))
+                    .collect(),
+                inner_reads: inner
+                    .iter()
+                    .map(|(_, expr)| {
+                        let own: std::collections::HashSet<&str> =
+                            vars.iter().map(|&var| ordered_algs[var].as_str()).collect();
+                        let mut names = Vec::new();
+                        expr.collect_refs(&mut names);
+                        names.sort_unstable();
+                        names.dedup();
+                        names
+                            .into_iter()
+                            .filter(|name| !own.contains(name))
+                            .filter_map(|name| {
+                                table
+                                    .existing_slot(name)
+                                    .map(|slot| (name.to_string(), slot))
+                            })
+                            .collect()
+                    })
+                    .collect(),
                 residual_reads: residuals
                     .iter()
                     .map(|(lhs, rhs)| {
@@ -8182,7 +8239,7 @@ impl CompiledModel {
         };
         for stage in &self.stages {
             match stage {
-                AlgStage::Explicit { var, code } => {
+                AlgStage::Explicit { var, code, .. } => {
                     values[self.algebraic_slots[*var]] = code.run(values, 0.0);
                 }
                 stage @ AlgStage::Implicit { .. } => {

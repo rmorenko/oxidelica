@@ -944,7 +944,7 @@ impl CompiledModel {
         self.fill_transports(t, values);
         for stage in &self.stages {
             match stage {
-                AlgStage::Explicit { var, code } => {
+                AlgStage::Explicit { var, code, .. } => {
                     values[self.algebraic_slots[*var]] = code.run(values, t);
                 }
                 stage @ AlgStage::Implicit { .. } => {
@@ -1120,6 +1120,59 @@ impl CompiledModel {
         }
     }
 
+    /// Follow a value that is not a number back through the explicit
+    /// assignments that produced it, to the first quotient whose
+    /// divisor came to zero.
+    ///
+    /// A torn block whose inner value is NaN before Newton has moved
+    /// is usually not at fault: it read a value an explicit stage
+    /// computed earlier, and that one read another. `FourInverters`
+    /// was refused with forty NaN equations and not one of them the
+    /// cause, which was `der(mn1.G.v) := mn1.icGB/mn1.cc.cGB` with a
+    /// modelcard whose capacitance had come to zero. The chain is
+    /// walked over the slots the stages write, at most once per stage,
+    /// and answers `None` where no zero divisor stands at its end.
+    /// `OXIDELICA_NO_NAN_TRACE` gives the refusal without it.
+    fn trace_not_a_number(&self, slot: Slot, values: &[f64], t: f64) -> Option<String> {
+        if crate::walk::switch_set("OXIDELICA_NO_NAN_TRACE") {
+            return None;
+        }
+        let mut seen = std::collections::HashSet::new();
+        let mut queue = vec![slot];
+        while let Some(slot) = queue.pop() {
+            if !seen.insert(slot) {
+                continue;
+            }
+            let Some((var, source, divisors, reads)) =
+                self.stages.iter().find_map(|stage| match stage {
+                    AlgStage::Explicit {
+                        var,
+                        source,
+                        divisors,
+                        reads,
+                        ..
+                    } if self.algebraic_slots[*var] == slot => Some((var, source, divisors, reads)),
+                    _ => None,
+                })
+            else {
+                continue;
+            };
+            if let Some((text, _)) = divisors.iter().find(|(_, code)| code.run(values, t) == 0.0) {
+                return Some(format!(
+                    "`{} := {source}` divides by `{text}`, which is zero",
+                    self.algebraics[*var]
+                ));
+            }
+            queue.extend(
+                reads
+                    .iter()
+                    .filter(|(_, read)| !values[*read].is_finite())
+                    .map(|(_, read)| *read),
+            );
+        }
+        None
+    }
+
     fn solve_implicit_block_from(
         &self,
         t: f64,
@@ -1135,6 +1188,8 @@ impl CompiledModel {
             residuals,
             residual_sources,
             inner_sources,
+            inner_divisors,
+            inner_reads,
             residual_reads,
             ..
         } = stage
@@ -1652,9 +1707,55 @@ impl CompiledModel {
                     // unnamed, it points at the solver, which is the
                     // one place the fault is not.
                     let mut bad_names: Vec<String> = Vec::new();
+                    let mut zero_divisor: Option<String> = None;
                     for (k, (var, _)) in inner.iter().enumerate() {
                         let value = values[self.algebraic_slots[*var]];
                         if !value.is_finite() {
+                            if zero_divisor.is_none()
+                                && !crate::walk::switch_set("OXIDELICA_NO_NAN_TRACE")
+                            {
+                                zero_divisor = inner_divisors.get(k).and_then(|divisors| {
+                                    divisors.iter().find_map(|(text, code)| {
+                                        (code.run(values, t) == 0.0).then(|| {
+                                            format!(
+                                                "`{} := {}` divides by `{text}`, which is zero",
+                                                self.algebraics[*var],
+                                                inner_sources.get(k).map_or("?", String::as_str)
+                                            )
+                                        })
+                                    })
+                                });
+                                if zero_divisor.is_none() {
+                                    let read: Vec<String> = inner_reads
+                                        .get(k)
+                                        .map(|names| {
+                                            names
+                                                .iter()
+                                                .filter(|(_, slot)| !values[*slot].is_finite())
+                                                .map(|(name, slot)| {
+                                                    format!("{name} = {}", values[*slot])
+                                                })
+                                                .collect()
+                                        })
+                                        .unwrap_or_default();
+                                    if !read.is_empty() {
+                                        let origin = inner_reads[k]
+                                            .iter()
+                                            .filter(|(_, slot)| !values[*slot].is_finite())
+                                            .find_map(|(_, slot)| {
+                                                self.trace_not_a_number(*slot, values, t)
+                                            })
+                                            .map_or_else(String::new, |why| {
+                                                format!(", and the first of those came from {why}")
+                                            });
+                                        zero_divisor = Some(format!(
+                                            "`{}` reads values settled before the block that \
+                                             are not numbers: {read:?}{origin}",
+                                            self.algebraics[*var]
+                                        ));
+                                    }
+                                }
+                            }
                             // The assignment, not only the name it
                             // wrote. A torn block recovers its inner
                             // unknowns from explicit expressions, and
@@ -1703,10 +1804,21 @@ impl CompiledModel {
                             // handed to it.
                             "; and every value the residual reads is a finite number".to_string()
                         } else {
-                            format!("; it reads values that are not numbers: {read:?}")
+                            let origin = residual_reads
+                                .get(i)
+                                .into_iter()
+                                .flatten()
+                                .filter(|(_, slot)| !values[*slot].is_finite())
+                                .find_map(|(_, slot)| self.trace_not_a_number(*slot, values, t))
+                                .map_or_else(String::new, |why| {
+                                    format!(", and the first of those came from {why}")
+                                });
+                            format!("; it reads values that are not numbers: {read:?}{origin}")
                         }
                     } else {
-                        format!("; the block's own values are not numbers: {bad_names:?}")
+                        let culprit = zero_divisor
+                            .map_or_else(String::new, |why| format!("; first fault: {why}"));
+                        format!("{culprit}; the block's own values are not numbers: {bad_names:?}")
                     };
                     let which = residual_sources
                         .get(i)

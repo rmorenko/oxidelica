@@ -270,6 +270,13 @@ enum AlgStage {
         var: usize,
         /// What to evaluate.
         code: Code,
+        /// The assignment as the flat model spells it, its divisors
+        /// and the names it reads: what a refusal further on needs to
+        /// follow a value that is not a number back to the quotient
+        /// that produced it.
+        source: String,
+        divisors: Vec<(String, Code)>,
+        reads: Vec<(String, Slot)>,
     },
     /// A simultaneous block, iterated on the torn unknowns.
     Implicit {
@@ -289,6 +296,18 @@ enum AlgStage {
         /// number was written by one of these, and naming the unknown
         /// alone leaves the reader to guess which.
         inner_sources: Vec<String>,
+        /// The divisors each inner assignment divides by, as the flat
+        /// model spells them and compiled. When an inner value is not
+        /// a number at the first evaluation, a divisor that came to
+        /// zero is the culprit, and naming it is the difference
+        /// between a refusal that points at a page of NaN and one
+        /// that points at the quotient - `-icBD/cc.cBD` with a
+        /// modelcard that set the capacitance to nothing.
+        inner_divisors: Vec<Vec<(String, Code)>>,
+        /// The names each inner assignment reads that the block does
+        /// not compute itself, against their slots: a first fault that
+        /// is no zero divisor came in through one of these.
+        inner_reads: Vec<Vec<(String, Slot)>>,
         /// The names each residual reads that are not unknowns of the
         /// block, against the slots they are read from.
         ///
