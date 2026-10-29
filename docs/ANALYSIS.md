@@ -64923,3 +64923,16 @@ any state named by the right-hand side, rather than the chain of
 derivatives, is a wider reach than the rule's comment describes. It is
 a candidate for link 2, and like link 1 it moves the victims of the
 whole corpus.
+
+That reading of link 2 was wrong and is withdrawn on its own probe.
+Printing every anchor `anchored_below` finds shows only
+`smpm.phiMechanical`, reached directly at reductions 3 to 15 and never
+through `inertiaRotor.w`. The retreat is set at reduction 15. There the
+only candidate left is the fixed `phiMechanical`, while reduction 14
+spent the free `w` that the same row reaches, so the walk goes back
+and refuses `w` at 14. So link 2 is a fifteenth reduction the matching
+outside the compiler did not foresee, and its only state is the angle
+the example fixes. With the retreat off, `phiMechanical` is demoted,
+the example's start angle is no longer honoured, and link 3 is what
+follows. The next probe is which row reduction 15 differentiates and
+why it reaches only the angle.
