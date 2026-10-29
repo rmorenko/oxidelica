@@ -64882,3 +64882,31 @@ model lacks is an earlier demotion: reduction 5 took
 and only then do eq 151 and eq 152 hold two unsettled names each. The
 next probe is that earlier choice, reduction 5, rather than a block
 rule in the settling.
+
+### The chain behind SMPM_NoLoad, walked with local probes
+
+Printing the walk at reduction 13 shows where it stops. Phases 1 and 2
+settle all the way to the potential sensor's zero current. Phase 3
+goes through `spacePhasorS.spacePhasor.i_[2]` and `lssigma` to
+`smpm.airGap.spacePhasor_s.i_[2]`, which has neither a settled nor an
+implicit definition, and the walk ends there with no state. Three
+links follow, each found by a probe that was then taken out
+(/tmp/m541/struct_probe.patch).
+
+1. Let the walk go on, at a name with no definition, through every
+   equation that names it. Reduction 13 then takes
+   `smpm.airGap.psi_mr[2]` and reduction 14 takes
+   `smpm.inertiaRotor.w`, the pair the matching asked for. The model
+   still refuses, one wall further on.
+2. The retreat refuses `inertiaRotor.w` as anchored (`wMechanical` has
+   `start=0` in `PartialBasicMachine`) and walks back twice. With
+   `OXIDELICA_NO_RETREAT=1` as well, 14 victims are taken and the
+   reduction ends.
+3. The run then refuses an algebraic loop over `airGap.gamma`, the
+   rotation matrix, `i_sr` and `der(i_sr)`, which "do not mention
+   `der(smpm.airGap.i_sr[1])` at t = 0". At the start the stator
+   current is zero, so the rotation's derivative terms drop out.
+
+Link 1 changes the reach for every model, so it needs the victim diff
+of the whole corpus. Link 2 is the anchor rule. Link 3 is a start
+where a structurally present term is zero in value.
