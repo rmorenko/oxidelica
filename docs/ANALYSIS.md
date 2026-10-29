@@ -64767,3 +64767,9 @@ helpers, and the parameter is one their author declared without a
 default (`OpAmpCircuits.Der.f`, `Loops.Utilities.GasForce2.L`). The
 refusal is honest. The family is the example filter letting helpers
 through, not a fault in evaluation.
+
+A second probe reversed the order the walk breaks a tie in, so that
+reduction 9 would take the stator current rather than the flux. The
+refusal stayed word for word. So the tie at reduction 9 is not the
+whole wall either: the next shift should print the victims under the
+reversed order and find which row is still left without a current.
