@@ -64788,3 +64788,36 @@ subset is a purely algebraic dependency among them. The next probe is
 whether that subset is consistent and redundant (the zero-sequence row
 of an open Y, which should be dropped and not reduced), not which state
 to demote.
+
+## m541: SMPM_NoLoad's last row is not redundant, its state is unreached
+
+m540 guessed that the subset SMPM_NoLoad refuses on is purely
+algebraic, with the zero-sequence row of the open star as a redundant
+row to drop. A local probe printed the whole system at the refusal
+(429 equations, 429 unknowns, states `smpm.phiMechanical`,
+`smpm.inertiaRotor.w` and `smpm.airGap.psi_mr[2]`) and matched it
+outside the compiler. The guess does not hold, so no drop rule was
+built.
+
+The matching leaves two equations free. The first is 364, the
+Kirchhoff row of the third phase at the terminal box. The second is
+407, `smpm.inertiaRotor.w = smpm.wMechanical`, which reaches only the
+speed source (`speed.w = ramp.y`). Both are real constraints on a
+state and neither is a copy. Adding `smpm.inertiaRotor.w` to the
+unknowns frees 407. Adding `smpm.airGap.psi_mr[2]` frees 364, because
+its alternating path runs through the stator currents, the rotation
+matrix and `airGap.i_mr[2]` to eq 163,
+`psi_mr[2] = L[2,1]*i_mr[1] + L[2,2]*i_mr[2]`. With both demoted the
+matching is perfect. That is the textbook picture: an open stator fixes
+the stator current, and the magnet flux that current defines stops
+being a free state.
+
+So the wall is the victim walk, not a dependent row. The structural
+reach from 364 holds 72 equations, eq 163 among them, while the walk
+prints `raw reach: []` for all 19 members of the subset it tried. The
+next probe is why the walk at reduction 13 does not follow the stator
+current chain to eq 163 and `psi_mr[2]`. The reach goes through the
+`alg_defs` and `implicit_defs`, and 163 is a row that constrains a
+state, not a definition of `i_mr[2]` in the matched direction. The
+probe was reverted. The scripts are in /tmp/m541 (`dump.txt` the
+system, `match.py` the matching), and no pair was taken.
