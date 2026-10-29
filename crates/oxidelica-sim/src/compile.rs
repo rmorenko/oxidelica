@@ -6360,6 +6360,144 @@ pub(crate) fn compile_at(
     } else {
         equations
     };
+    // An equality between two names of the overconstrained graph's
+    // nodes is folded before index reduction. The graph says which
+    // records are its nodes - a `branch`, a `root` or a potential one
+    // names them - and an equality of the same field between a node
+    // and another record makes that record a node as well, which is
+    // how a connection extends the graph. Left standing, every alias
+    // of one reference angle is a candidate state of its own: a
+    // current sensor in series with a quasi-static machine spent five
+    // reductions on its plugs' angles, and the rotor's angles were
+    // left with no rows (`SMR_CurrentSource`). Folded, the angle is one
+    // name. `OXIDELICA_NO_GRAPH_ALIAS_FOLD` leaves them standing.
+    let mut graph_alias_map: HashMap<String, Expr> = HashMap::new();
+    let equations = if !crate::walk::switch_set("OXIDELICA_NO_GRAPH_ALIAS_FOLD")
+        && !model.connection_graph.is_empty()
+    {
+        let mut parent: HashMap<String, String> = HashMap::new();
+        fn root(parent: &HashMap<String, String>, x: &str) -> String {
+            let mut at = x.to_string();
+            while let Some(up) = parent.get(&at) {
+                at = up.clone();
+            }
+            at
+        }
+        let mut graph_nodes: std::collections::HashSet<&str> = std::collections::HashSet::new();
+        for clause in &model.connection_graph {
+            match clause {
+                oxidelica_parser::ast::GraphClause::Root(n)
+                | oxidelica_parser::ast::GraphClause::PotentialRoot(n, _) => {
+                    graph_nodes.insert(n);
+                }
+                oxidelica_parser::ast::GraphClause::Branch(a, b) => {
+                    graph_nodes.insert(a);
+                    graph_nodes.insert(b);
+                }
+            }
+        }
+        let mut graph_nodes: std::collections::HashSet<String> =
+            graph_nodes.into_iter().map(str::to_string).collect();
+        loop {
+            let before = graph_nodes.len();
+            for item in &equations {
+                if let (Expr::Ref(a), Expr::Ref(b)) = (&item.lhs, &item.rhs) {
+                    if let (Some((pa, fa)), Some((pb, fb))) =
+                        (a.rsplit_once('.'), b.rsplit_once('.'))
+                    {
+                        if fa == fb {
+                            if graph_nodes.contains(pa) {
+                                graph_nodes.insert(pb.to_string());
+                            }
+                            if graph_nodes.contains(pb) {
+                                graph_nodes.insert(pa.to_string());
+                            }
+                        }
+                    }
+                }
+            }
+            if graph_nodes.len() == before {
+                break;
+            }
+        }
+        if std::env::var_os("OXIDELICA_GRAPH_FOLD_ANY_RECORD").is_none() {
+            let mut fields: HashMap<&str, usize> = HashMap::new();
+            for name in continuous.iter() {
+                if let Some((record, _)) = name.rsplit_once('.') {
+                    *fields.entry(record).or_default() += 1;
+                }
+            }
+            graph_nodes.retain(|node| fields.get(node.as_str()) == Some(&1));
+        }
+        let in_graph = |n: &str| {
+            n.rsplit_once('.')
+                .is_some_and(|(r, _)| graph_nodes.contains(r))
+        };
+        let mut kept = Vec::new();
+        for item in equations {
+            if let (Expr::Ref(a), Expr::Ref(b)) = (&item.lhs, &item.rhs) {
+                if in_graph(a)
+                    && in_graph(b)
+                    && continuous.contains(&a.as_str())
+                    && continuous.contains(&b.as_str())
+                {
+                    let (ra, rb) = (root(&parent, a), root(&parent, b));
+                    if ra != rb {
+                        parent.insert(ra, rb);
+                    }
+                    continue;
+                }
+            }
+            kept.push(item);
+        }
+        let map: HashMap<String, Expr> = parent
+            .keys()
+            .map(|k| (k.clone(), Expr::Ref(root(&parent, k))))
+            .collect();
+        fn sub(e: &Expr, map: &HashMap<String, Expr>) -> Expr {
+            if let Expr::Ref(n) = e {
+                if let Some(to) = map.get(n) {
+                    return to.clone();
+                }
+            }
+            e.map_children(&mut |c| sub(c, map))
+        }
+        continuous.retain(|c| !map.contains_key(*c));
+        let folded = kept
+            .into_iter()
+            .map(|item| EquationItem {
+                lhs: sub(&item.lhs, &map),
+                rhs: sub(&item.rhs, &map),
+                origin: item.origin.clone(),
+            })
+            .collect();
+        graph_alias_map = map;
+        folded
+    } else {
+        equations
+    };
+    // What the initial equations say of a folded name, they say of the
+    // name it was folded into.
+    let initial_equations: Vec<EquationItem> = if graph_alias_map.is_empty() {
+        initial_equations
+    } else {
+        fn sub(e: &Expr, map: &HashMap<String, Expr>) -> Expr {
+            if let Expr::Ref(n) = e {
+                if let Some(to) = map.get(n) {
+                    return to.clone();
+                }
+            }
+            e.map_children(&mut |c| sub(c, map))
+        }
+        initial_equations
+            .iter()
+            .map(|item| EquationItem {
+                lhs: sub(&item.lhs, &graph_alias_map),
+                rhs: sub(&item.rhs, &graph_alias_map),
+                origin: item.origin.clone(),
+            })
+            .collect()
+    };
     let (mut state_rhs, algebraic_eqs, implicit) = split_equations(&equations, &continuous)?;
 
     // 3. What is left to solve for, and whether every name in the
@@ -7528,6 +7666,22 @@ pub(crate) fn compile_at(
         .filter(|(name, _)| !hidden(name))
         .map(|(name, &slot)| (name.clone(), slot))
         .collect();
+    // A name folded into another along the overconstrained graph is
+    // still a variable the model declared, so it keeps its column,
+    // reading the slot of the name it was folded into.
+    let mut output_algebraics = output_algebraics;
+    let mut folded_names: Vec<(&String, &Expr)> = graph_alias_map.iter().collect();
+    folded_names.sort_by(|a, b| a.0.cmp(b.0));
+    for (name, to) in folded_names {
+        if hidden(name) {
+            continue;
+        }
+        if let Expr::Ref(to) = to {
+            if let Some(slot) = table.existing_slot(to) {
+                output_algebraics.push((name.clone(), slot));
+            }
+        }
+    }
 
     let mut compiled = CompiledModel {
         name: model.name.clone(),

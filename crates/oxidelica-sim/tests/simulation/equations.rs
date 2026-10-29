@@ -2998,3 +2998,20 @@ fn a_still_variable_under_der_is_folded_and_does_not_move() {
     assert!(at("y").abs() < 1e-12, "y={}", at("y"));
     assert!((at("z") - (-2.0f64).exp()).abs() < 1e-6, "z={}", at("z"));
 }
+
+/// An alias of a reference angle folded before index reduction is
+/// folded in the initial equations too: a start written on the name
+/// that went away is a start of the name it went into. Without it the
+/// quasi-static `IMC_Inverter` was refused for an unknown variable.
+#[test]
+fn a_folded_reference_angle_keeps_its_initial_equation() {
+    let result = run("model I type Angle = Real; record Reference Angle gamma; function equalityConstraint input Reference r1; input Reference r2; output Real residue[0]; algorithm end equalityConstraint; end Reference; connector Pin Real v; flow Real i; Reference reference; end Pin; model Coil Pin p; Pin n; Real omega; parameter Real w0 = 2; equation Connections.branch(p.reference, n.reference); p.reference.gamma = n.reference.gamma; omega = der(p.reference.gamma); der(omega) = 0; p.v - n.v = p.i; p.i + n.i = 0; initial equation p.reference.gamma = 0.5; omega = w0; end Coil; model Ground Pin p; equation Connections.potentialRoot(p.reference, 256); p.v = 0; end Ground; Coil c; Ground g; equation connect(c.n, g.p); connect(c.p, g.p); \
+         annotation(experiment(StopTime=1.0, Interval=0.5)); end I;");
+    let column = result
+        .columns
+        .iter()
+        .position(|c| c == "c.n.reference.gamma")
+        .unwrap();
+    let gamma = result.rows.last().unwrap()[column];
+    assert!((gamma - 2.5).abs() < 1e-9, "gamma={gamma}");
+}

@@ -64625,3 +64625,54 @@ result as the name it went into. The fold with both mends and the
 test is `git stash` `m537-graph-alias-fold-v2`, and the patch is
 `graph_alias_fold_v2.patch` beside the reproductions in
 `~/oxideflow/state/m536/`, with `I.mo` and `TR.mo`.
+
+## m538: the folded names given their columns, and the terminal box
+
+The fold of m537 dropped every folded name from the result, so a
+declared variable stopped being written and the test
+`two_roots_joined_by_connections_are_two_trees` went red. The mend
+uses the mechanism the result already has: a folded name is put in
+the list of reported algebraics with the slot of the name it was
+folded into, so the column reads the same value without a second
+unknown. The test is green again, `I.mo`, `TR.mo`, `E.mo` and `QS.mo`
+of `~/oxideflow/state/m536/` run, and the real `SMR_CurrentSource`
+ends at 153.2193 rad/s for the quasi-static machine and 153.2195 for
+the transient one.
+
+### The wall named "the sum of the terminal box's currents"
+
+Probed with `library check .msl --refused --only`, one model at a
+time. Of the three machines m537 placed on that wall, only one still
+stands there:
+
+- `Electrical.Machines...SMPM_NoLoad`: structurally singular, the
+  equation `-terminalBox.plugSupply.pin[3].i - terminalBox.plug_sp.pin[3].i = 0`
+  "constrains no state", nor did the 31 others of its singular subset.
+- `Electrical.Machines...SMPM_CurrentSource`: flattens and builds, then
+  an algebraic loop does not converge in 50 Newton iterations over
+  `smpm.airGap.i_sr[1]`, `dqToThreePhase.rotator.angle`, the two
+  `der(smpm.airGap.i_sr[k])` and the voltage sensors' phasors. A
+  different wall.
+- `Magnetic.FundamentalWave...SMPM_CurrentSource`: structurally
+  singular on `der(smpm.flange.phi) - der(angleSensor.flange.phi) = 0`.
+  A different wall again, on the mechanical side.
+
+Where the sum is born, in `SMPM_NoLoad`: the equation is the
+connection set of `terminalBox.plug_sp` and `terminalBox.plugSupply`
+(`connect(plug_sp, plugSupply)` inside `TerminalBox`), not an
+equation any element wrote. At no load the supply plug meets only
+`potentialSensor`, whose pins write `p.i = 0`, so the set pins every
+stator current to zero: `smpm.is[k] = smpm.plug_sp.pin[k].i`, and
+`smpm.spacePhasorS.i[k]` carries it through the transformation
+matrix to `smpm.airGap.i_ss`, which the air gap turns through
+`RotationMatrix` into `i_sr`, whose derivatives are states, and the
+zero sequence into `smpm.spacePhasorS.zero.i` and `lszero`. Three
+constraints on three inductive currents is a consistent index-2
+system, so the refusal reads as reduction failing to reach the states
+through the rotation and transformation matrices from a connection
+set, rather than as a model that is wrong. No small model was written:
+the chain is the machine's own (`why` on `smpm.is[3]`,
+`smpm.spacePhasorS.i[1]`, `smpm.airGap.i_ss[1]` shows each link), and
+it does not fit in fifty lines. Next move: print the singular subset
+of 32 equations for this model and see whether `der(smpm.airGap.i_sr)`
+is in it at all.
