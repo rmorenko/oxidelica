@@ -20,6 +20,24 @@ fn decay_matches_analytic() {
 }
 
 #[test]
+fn a_field_modifier_from_the_site_beats_the_inherited_records_own() {
+    // `Data` extends a record declaring `Inner f(P = 0)`, and the model
+    // writes `d(f(P = 180))`. The branch is chosen on `q = d.f.P`: with
+    // the site's 180 the state decays, with the inner 0 it stands
+    // still. This is the machines' `frictionParameters(PRef = 180)`,
+    // which chose the branch for no friction at all.
+    let result = run("model R record Inner parameter Real P = 0; end Inner; \
+         record Base parameter Inner f(P = 0); end Base; \
+         record Data extends Base; end Data; \
+         parameter Data d(f(P = 180)); parameter Real q = d.f.P; \
+         Real x(start = 1, fixed = true); \
+         equation if q <= 0 then der(x) = 0; else der(x) = -x; end if; \
+         annotation(experiment(StopTime = 1, Interval = 0.1)); end R;");
+    let x = result.rows.last().unwrap()[1];
+    assert!((x - (-1.0f64).exp()).abs() < 1e-4, "x(1) = {x}");
+}
+
+#[test]
 fn pendulum_conserves_energy() {
     let result = run("model P parameter Real g = 9.81; parameter Real L = 1.0; \
          Real phi(start = 0.7); Real w(start = 0.0); \

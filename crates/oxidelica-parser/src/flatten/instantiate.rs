@@ -936,6 +936,7 @@ fn fields_of_a_record(
     component: &Component,
     from_extends: Option<&Expr>,
     whole: Option<&Expr>,
+    site: &[(String, Expr)],
     redeclares: &[Redeclare],
     extended: &[Extend],
     registry: &HashMap<&str, &ClassDef>,
@@ -990,12 +991,29 @@ fn fields_of_a_record(
         }
         // What the model wrote on the declaration, else what the
         // record says of itself.
-        let written = component
-            .modifiers
+        //
+        // And before both, what the site above wrote on the field by
+        // its dotted name: `parameter Data d(f(P = 180))` with `Data`
+        // extending a record that declares `Inner f(P = 0)` hands this
+        // class `f.P = 180`, and the outer modifier is the louder one.
+        // Read the other way round, `d.f.P` settled to the inner zero
+        // after it had settled to 180, and every parameter bound to it
+        // took the zero: the machines' `frictionParameters(PRef = 180)`
+        // chose the branch for no friction at all.
+        let dotted = format!("{}.{}", component.name, field.name);
+        let written = site
             .iter()
-            .find(|(name, _)| name == &field.name)
-            .map(|(_, value)| value.clone())
-            .map(|value| (value, false))
+            .find(|(name, _)| {
+                *name == dotted && std::env::var_os("OXIDELICA_NO_SITE_FIELD").is_none()
+            })
+            .map(|(_, value)| (value.clone(), true))
+            .or_else(|| {
+                component
+                    .modifiers
+                    .iter()
+                    .find(|(name, _)| name == &field.name)
+                    .map(|(_, value)| (value.clone(), false))
+            })
             // A record given a value as a whole - `cell(cellData =
             // cellData)` - says what every one of its fields is
             // worth, and says it louder than the record's own
@@ -1136,6 +1154,7 @@ fn settle_parameters(
                     .iter()
                     .find(|(n, _)| n == &component.name)
                     .map(|(_, e)| e),
+                env_overrides,
                 redeclares,
                 &class.extends,
                 registry,
