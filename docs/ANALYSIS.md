@@ -64910,3 +64910,16 @@ links follow, each found by a probe that was then taken out
 Link 1 changes the reach for every model, so it needs the victim diff
 of the whole corpus. Link 2 is the anchor rule. Link 3 is a start
 where a structurally present term is zero in value.
+
+On link 2: `smpm.inertiaRotor.w` carries no fixed start of its own.
+The one fixed start nearby is `smpm.phiMechanical`, whose start the
+example sets to `pi/p` with `fixed = true`, and `speed.phi` is
+explicitly `fixed = false`. So `w` counts as anchored only through
+`anchored_below`, which follows each state's right-hand side to the
+states it names. That rule was written for `der(s) = v` with `v` fixed.
+Here it reaches the fixed angle through `der(w) = a`, whose right-hand
+side reads the electrical torque and so the rotation angle. Following
+any state named by the right-hand side, rather than the chain of
+derivatives, is a wider reach than the rule's comment describes. It is
+a candidate for link 2, and like link 1 it moves the victims of the
+whole corpus.
