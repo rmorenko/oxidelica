@@ -64834,3 +64834,28 @@ is a two-by-two block definition: two equations with the same two
 unsettled names, solved together. It is a new rule in the settling,
 which sets which states every model keeps, so it needs the victim
 diff of the whole corpus. It is a map for the next shift, not built.
+
+### The example filter and the 24 helpers
+
+`library check` takes a model into the check by its name alone
+(`crates/oxidelica-cli/src/main.rs:776`): any non-partial model whose
+name holds `.Examples.` or `.Test`. A second rule, `meant_to_run`
+(main.rs:1248), marks a model runnable when it has an `experiment` with
+a stop time or extends `Icons.Example`, walked through its bases. That
+rule feeds only the `runnable` line. `OpAmpCircuits.Der` and
+`Loops.Utilities.GasForce2` pass the first rule because they live under
+`Examples`, and fail the second.
+
+Each of the 24 "parameter X has no value" models from /tmp/m539/raw.txt
+was run with `--only`, and all 24 print `runnable examples ... 0`
+(list in /tmp/m541/novalue_runnable.txt). So the runnable pair already
+leaves them out, and none of them is a refusal the runnable floors
+carry. If the first rule took `meant_to_run` as well, these 24 would
+leave the example count and the flatten count, since they flatten
+(`built`), and nothing else would move from them: FILES does not count
+models, RUN loses none since none runs, and RUNNABLE_FLATTEN and
+RUNNABLE_RUN do not hold them. The census would lose its "has no
+value" row. What else the narrower rule would take out of FLATTEN is
+not measured here: every non-runnable example that flattens, not only
+these 24, which needs one corpus pass with the two rules side by side.
+Moving FLATTEN down is Roman's decision, so nothing was built.
