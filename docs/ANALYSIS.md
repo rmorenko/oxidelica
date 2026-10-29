@@ -64676,3 +64676,61 @@ the chain is the machine's own (`why` on `smpm.is[3]`,
 it does not fit in fifty lines. Next move: print the singular subset
 of 32 equations for this model and see whether `der(smpm.airGap.i_sr)`
 is in it at all.
+
+## m539: the three SMPM walls, read by their victims
+
+Probed with `OXIDELICA_VICTIM_PROBE=1 library check .msl --refused
+--only <Class>`, which prints the equation each index reduction
+differentiates and the state it demotes. The three machines that m538
+put on three different walls share one reading: reduction spends the
+machine's states one at a time on equations that do not need them,
+and the equation that does need one arrives after the states are gone.
+
+`Electrical.Machines...SMPM_NoLoad`, after its one retreat (reduction
+4 may not take `smpm.inertiaRotor.phi`): reductions 7 to 10
+differentiate four connection aliases `X.flange.phi =
+smpm.flange.phi`, for `friction`, `inertiaRotor`, `permanentMagnet`
+and `strayLoad`, and demote the angle of each. These are one angle,
+so one demotion would carry the constraint, and the reduction pays
+four. Reductions 5 and 6 differentiate the air gap's current sums
+`airGap.spacePhasor_s.i_[k] + lssigma.spacePhasor_b.i_[k] = 0` and
+demote `airGap.psi_mr[1]` and `lssigma.i_[2]`. Then the terminal
+box's three sums arrive at 11, 12 and 13: the first two demote
+`lszero.i` and `lssigma.i_[1]`, and the third finds no victim, nor do
+the 31 other members of its subset. So the question m538 left - is
+`der(airGap.i_sr)` in the subset - has a plainer answer: the inductive
+currents were already demoted by the time the box's third pin came,
+partly to the air gap's sums, which were differentiated first.
+
+`Magnetic.FundamentalWave...SMPM_CurrentSource`: the same angle
+aliases, then reduction 16 on `smpm.flange.phi = angleSensor.flange.phi`
+demotes `inertiaLoad.w`, the last mechanical state, and at 17 the
+derivative of that alias, `der(smpm.flange.phi) - der(angleSensor.flange.phi) = 0`,
+has nothing left to demote. The mechanical wall of m538 is the end of
+the same spending, not a fold of its own: the flange is an ordinary
+connector, so the alias fold of m537, which only folds the
+overconstrained roots, does not reach it.
+
+`Electrical.Machines...SMPM_CurrentSource` builds, and its reductions
+read the same: four angle aliases demote four angles (9 to 12), and
+the voltage sensor's three pin sums demote `lszero.i`,
+`lssigma.i_[1]` and `phiMechanical`. Its Newton loop of 50 iterations
+over `airGap.i_sr[1]`, `rotator.angle` and the two `der(i_sr[k])` is
+then a system whose states were chosen by that spending, so the
+solver wall is very likely downstream of the same cause rather than a
+fault of the solver.
+
+The candidate cause, for the next series: an alias `a = b` between
+two flanges of one rigid angle is folded, so that differentiating it
+is never needed, which takes reductions 7 to 10 off every machine.
+That adds no definition and removes equations, so by the rules in
+AGENTS.md it is a different compiler and is measured by the victims
+and the run lists of a pair, not by these three models. Not built
+this shift.
+
+The census after e5cde1d (`/tmp/m539/census.txt`, counted between the
+section marks): would not flatten 47 models in 27 rows, would not run
+155 models in 30 rows, against m537's 47 / 27 and 158 / 30. The three
+won models left and no row split. The top of the run half is
+"constrains no state" at 29, which is where the three SMPM machines
+above stand or end.
