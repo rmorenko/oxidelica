@@ -65012,3 +65012,30 @@ built after reduction, and not for the subset at reduction 13. The
 next shift should take `S7`, print the loop's Jacobian at the guess
 and find the null vector. That says which row is the copy and whether
 its right-hand side agrees.
+
+The Jacobian of `S7`'s loop at the guess, printed by a probe that was
+then taken out, answers it. Column 0, `airGap.gamma`, is zero in every
+row. Row 3, `psi_mr[1] = R[1,1]*psi_ms[1] + R[2,1]*psi_ms[2]`, is zero
+in every column. Every other row and column has its own entry. So the
+loop is not a redundant row. It holds a row that names no unknown of
+the loop and an unknown that no row of the loop names. `gamma` is
+`p*(flange.phi - support.phi)`, and in `S6` all five angle states are
+demoted (`inertiaRotor.phi`, `phiMechanical`, `friction.phi`,
+`speed.phi`, `strayLoad.phi`). No state holds the shaft's angle any
+more, so the angle has become an algebraic unknown. The only row that
+could answer for it is the one that reads `psi_mr[1]`, a flux the
+reductions also demoted. The matching put the two together, and at
+the point where they meet the coefficient of `gamma` in that row is
+zero (`dR/dgamma * psi_ms` with every flux at zero).
+
+So the wall in both models is the same fact seen twice: an open
+stator at rest has zero currents and zero fluxes, and the rotor angle
+is then determined only through terms that vanish there. Under a speed
+source the angle should come from `der(phi) = w`, which needs one
+angle state kept. Five reductions demote all five angles, which are
+copies of one shaft angle through the flange equalities. That is
+exactly m539's first candidate, the flange fold that m540 tried and
+dropped because it did not move the refusal on its own. With this
+chain mapped, the fold is link 0 of a chain whose next link is now
+known, and it should be measured together with what follows rather
+than alone.
