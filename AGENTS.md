@@ -109,7 +109,17 @@ a state on the strength of that zero and has built something that
 stops being true the moment the clause fires. Measured, it cost two
 models while the totals did not move. The same shape as `sign(x)` for
 `der(abs(x))`, which is right except at the one point the models care
-about. Before using a rule, ask what outlives it.
+about. The narrow form of the same rule is in the tree, and the
+difference is what the zero is asked to carry. Where it let index
+reduction demote a state, it cost two models; where it only answers
+for a name that `when` alone assigns and that is no unknown of the
+continuous system, nothing demotes on it and the supply cycle stops
+refusing. Measured on a quiet machine, off and on and off again:
+four models won - `Nor`, `Spice3BenchmarkMosfetCharacterization` and
+both `Test33` - none lost, the lists equal to the line, and the
+drift of the two off halves wider than the difference between them
+(29dd011, judge 973 / 815 and runnable 855 / 768). Before using a
+rule, ask what outlives it - and what leans on it.
 
 A rule that is right everywhere beats one that is right almost
 everywhere, even where the second is what other tools do. `abs` under
