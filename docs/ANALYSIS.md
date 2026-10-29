@@ -64518,3 +64518,12 @@ and refuse one wall further on, the FundamentalWave one on
 `der(aimc.idq_sr[1])`, each "not a state of the model". That is a
 row of the census emptied by two and another filled, and the next
 wall is the one to map.
+
+The wall the two machines reach now is a known one. Both refuse at
+`compile.rs:31` on a derivative named by an initial equation of the
+example: the FundamentalWave one writes `der(aimc.airGap.V_msr.re) =
+0` and its three neighbours (`IMC_withLosses.mo:149-152`), and the
+Electrical one `der(aimc.idq_sr) = zeros(2)`. These are aliases of
+names a torn block solves, box 2 of shift 227, the same wall the three
+`IMC_Initialize` stand at. The row `der(X): X is not a state` goes
+from 6 to 8 models, and the family is the same.
