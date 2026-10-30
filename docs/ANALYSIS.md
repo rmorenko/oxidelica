@@ -65073,3 +65073,58 @@ air-gap rotation rows (151, 152, 163 in the dump numbering) or names
 supply goes one matched edge at a time and stops short of the rotation,
 as the reader said. Nothing was built. The gated alternating-path rule
 is the next shift's item, with the victim diff as its witness.
+
+## m542: the alternating path behind the gate of "constrains no state"
+
+The rule m541's second reader proposed, built on the branch `m542-alternating-path` behind
+`OXIDELICA_NO_ALTERNATING_PATH` (on by default). It switches on only
+where the old code was about to refuse with "constrains no state", so a
+model that reduced before reduces exactly as before: the subset's
+members are tried once more, and for each the unknowns on the shortest
+alternating paths of the matching from the member to an equation naming
+a state are taken out of the tables of definitions. Their derivatives
+then come from the supply through the matching. The reach of the victim
+walk follows each of those names through the equation the matching gave
+it. The weights that choose among the states reached are untouched.
+
+One departure from the map, found on the first run. The gate as drawn
+closes on a member refused by the dependent-row check, and on `S1`
+every member of reduction 13 is refused that way, so the path never
+opened. The supply there stops one matched edge short of the rotation,
+at `airGap.spacePhasor_s.i_[2]`, whose derivative an earlier reduction
+had already minted. So the dependent-row refusal is let through the
+gate. The implied-row and supply-once refusals, and any error, still
+close it.
+
+Prediction 2 holds. On `S1` reduction 13 demotes `airGap.psi_mr[2]` and
+reduction 14 demotes `inertiaRotor.w`. There is no reduction 15, the two
+retreats at reductions 3 and 4 are the same as with the rule off, and
+the model runs to its stop time with the stator currents at zero and a
+sine on the terminals. `S9` runs as well. Prediction 3 holds for the
+real model: `Machines.Examples.SynchronousMachines.SMPM_NoLoad` runs
+under `--only` from `.msl` and is refused at the old wall with the
+switch. Prediction 4 holds: `S6` and `S7` refuse as before, at the
+loop over `gamma` and `i_sr`. Both `SMPM_CurrentSource` (Machines
+and FundamentalWave) refuse as before, at a diverging loop and at a
+different singular row. The witness is
+`tests/small/a_constraint_reached_only_along_the_matching.mo` (`S1`
+renamed), added to `scripts/victim_witness.sh`.
+
+The corpus pair, one binary (`/tmp/m542/ox542`), halves one after the
+other, off first (`/tmp/m542/off.txt`, `on.txt`): 973 flatten in both,
+818 run with the rule off and 820 with it on. The run lists differ by
+exactly two lines, both gains:
+`Machines.Examples.SynchronousMachines.SMPM_NoLoad` and
+`Blocks.Examples.Noise.Utilities.Parts.MotorWithCurrentControl`. None
+lost. The time did not pass. The `time:` lines read running 5642s off
+and 7682s on, but flattening, which the rule does not reach, went 4463s
+to 6333s as well, with a Spotlight indexer taking a full core from
+23:43. A second pair over only the 153 models that flatten and do not
+run, where the gate can open at all (`/tmp/m542/toff.txt`, `ton.txt`),
+reads running 2676s against 2866s, which is 7.1%, and flattening
+2534s against 2943s, which is 16%. The weather is plainly in it, since
+flattening grew more than running, but the 26 October rule asks for a
+pair that shows 6% or less, and this one does not. So the change is
+parked on the branch `m542-alternating-path` and not on main. The next
+shift should take the timing pair on a quiet desk. If the run half is
+within 6% there, the change goes in as it stands.
