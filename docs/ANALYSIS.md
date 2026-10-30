@@ -65254,6 +65254,15 @@ is wrong for a component being checked alone, or these classes are not
 models to run at all; which it is decides whether sixteen of the row are
 work or noise.
 
+Corrected in m545: the generalisation above is wider than the
+measurement. Two of the sixteen are not closures at all.
+`TanksWithOverflow` refuses on `lowerTank.ports[2].m_flow = 0`, a port
+connected to `overflow.port_b`, and `oxidelica why` on it lists the
+connection sum and no closure. The zero is the tank's own `else` branch
+(Vessels.mo:381, port above the level), and `BatchPlant_StandardWater`
+refuses on the same branch of `InnerTank` (AST_BatchPlant.mo:963). See
+m545.
+
 The other eleven are the machine and MultiBody chains already mapped in
 m540 to m543, and they stop where those chapters left them. The most
 populated real wall is implied-row on MultiBody (4), which touches the
@@ -65266,3 +65275,77 @@ The census after the merge (`/tmp/m544/census.txt`, against
 29 to 27, the two models of the alternating path. The top of the run
 half is unchanged otherwise: that row at 27, `parameter X has no value`
 24, unbalanced 13, a variable of an algebraic loop 12.
+
+## m545: a connected port at zero flow, a helper by hand, and the unbalanced row
+
+Taken with the binary of edb5fdb. Probes are in `/tmp/m545/probe/`. No
+compiler code was changed.
+
+**TanksWithOverflow is not a closure.** `oxidelica why` on
+`lowerTank.ports[2].m_flow` lists five equations, among them the
+connection sum `lowerTank.ports[2].m_flow + overflow.port_b.m_flow = 0`,
+and no closure: the connection on an element of the port vector is seen.
+The refused zero is written by `OpenTank` itself, in the `else` of its
+port branches, a port above the level that holds back outflow
+(Vessels.mo:381). `OXIDELICA_NEWTON_TRAIL=1` names the modes: at t=10
+both `upperTank.ports[3]` and `lowerTank.ports[2]`, the two ends of the
+overflow pipe, sit at height 6 with the levels at 2 and take that branch
+together. A `StaticPipe` stores no mass, so its two balances then hold
+the same flow twice, and the zero of the second end has nothing left to
+determine. The mode chosen is the physically right one; what is singular
+is the system that the branch, read structurally, leaves behind.
+
+The small model is
+`tests/small/two_ports_above_the_level_zero_the_pipe_twice.mo`, twenty
+lines, two levels, a massless pipe and the same branch, and it refuses
+word for word as the library model does: `equation Ref("m2") =
+Number(0.0) constrains no state`. `BatchPlant_StandardWater` is the same
+wall from a different class: `InnerTank` writes `port.m_flow = 0` in the
+branch above the level (AST_BatchPlant.mo:963), and the refusal is on
+`B5.InnerTankSide[1].port.m_flow`.
+
+So the two are work, but not the work the m544 note pointed to. The
+port vector is not the fault. The fault is that a mode which zeroes both
+ends of a storage-free path leaves one redundant equation of the path,
+and the run would need to drop it, which means recognising a consistent
+redundancy at the mode switch rather than refusing it. That is not a
+small change. It sits with the switch of structure at events, and it is
+parked here as a map, not built.
+
+**The helper, by hand.** `SpringDamperNoRelativeStates` checked alone
+has ten unknowns: `flange_a.s`, `flange_b.s`, `flange_a.f`, `flange_b.f`,
+`s_rel`, `f`, `v_rel`, `f_c`, `f_d` and `lossPower`. It has eight
+equations of its own, and section 9.2 adds `flange_a.f = 0` and
+`flange_b.f = 0`. That makes ten and ten, but the count hides the
+structure. `f` is pinned twice, by `flange_b.f = f` with its closure and
+by `flange_a.f = -f` with its closure, while the two positions share one
+equation, `s_rel = flange_b.s - flange_a.s`, and nothing else names
+them. The class alone is over-determined in its force and
+under-determined in its positions by construction. The refusal is
+lawful, and the helpers of the sixteen are material for the filter of
+which classes are checked as examples, the same breed as items 34 and
+66 of the queue.
+
+**The unbalanced row, by name.** The run half of m544 holds 19 models in
+the two unbalanced wordings (13 "nothing determines", 6 "nothing is
+left for"), and the probe puts them by wall:
+
+| wall                                                     | models | of which examples |
+| -------------------------------------------------------- | -----: | ----------------: |
+| helper with free inputs or outputs (AST controllers)     |      5 |                 0 |
+| helper with free connectors, under by 1 to 4             |      6 |                 0 |
+| StateGraph composite steps, over by 2 (`inPort` aliases) |      4 |                 0 |
+| MultiBody, over (`Fourbar1` by 9, `OneAxis` by 55)       |      2 |                 2 |
+| `DirectCapacitor`, `DirectInductor`, under by 1          |      2 |                 0 |
+
+The five AST rows are `Adapter_Inference`, `Adapter_Superposition`,
+`BufferMain`, `Buffer_Recipe_TBD` and `InnerTank`. The six under by a
+few are `ConstantActuator`, `AxisType1`, `AxisType2`, `Controller`,
+`Motor` and `valve`. The two `Direct*` are counted apart from them
+because their missing name is the current of `ground.p` and a
+`currentToVoltage.y1`. The four StateGraph rows are `CompositeStep`,
+`CompositeStep1`, `CompositeStep2` and `MakeProduct`. The single real wall of the row is MultiBody's two examples, and
+both say "nothing is left for" with a connection-alias equation first.
+That is the over-count of frame equations already mapped in m540 to
+m543. The rest are helpers: the row is noise for the run count and
+material for the same filter as the helper above.
