@@ -65349,3 +65349,93 @@ both say "nothing is left for" with a connection-alias equation first.
 That is the over-count of frame equations already mapped in m540 to
 m543. The rest are helpers: the row is noise for the run count and
 material for the same filter as the helper above.
+
+## m546: the state graph comes alive, and two loop rows by name
+
+**The dead graph (queue item 57).** The small models of m481 were
+rebuilt from the forms recorded in the queue and run on a fresh binary
+(`/tmp/m546/small/`). G2 (`pre(newActive) = true`, `newActive` with no
+relation) gave 0 for the whole run and G3 (the same with `time > 1`)
+gave 1, as on 22 October. G1 as recorded lacked the `active = true`
+of the real `InitialStep` (`StateGraph.mo:2067`); written with it, it
+also gave 0. The picture had not changed.
+
+Two faults stood one behind the other, which is a chain of two links
+taken as one series.
+
+The first is the one the queue named. The value of an initial
+equation about a Boolean the continuous part solves for went into
+`known` and nowhere the run read. The fix seeds `$pre.x` (and the
+algebraic start of `x`) from it, and walks the chain the step writes,
+from `active = true` through `active = localActive` and `localActive =
+pre(newActive)` to `pre(newActive) = pre(localActive)`, through plain
+equalities and `pre` only. This is a substitution over an acyclic
+chain, not an initialisation with `pre` unknowns, so it was built
+rather than parked. Behind `OXIDELICA_NO_PRE_START_ALGEBRAIC`. G1 now
+reads 1 until `reset` at t = 1 and 0 after, G2 reads 1, and G3 stays
+at 1.
+
+The second showed itself only once the graph had a token. With the
+first link in, `FirstExample` and its two variants refused "the event
+at t = 1 does not come to rest", and so did `ShowExceptions` at t = 4.
+The small model `S4.mo` (two steps, two timed transitions, 25 lines)
+refused the same way. A trace of the pass loop showed `ts2` staying at
+0 on the pass where `e2` rose. The conditions a pass ends on were read
+after its values had become `pre`, so the `enableFire` the pass itself
+raised for the step just entered counted as having held already. Its
+`when` never fired, the timer counted from zero, the transition fired
+at once, and the token went back and forth. The conditions are now
+read before the copy, behind `OXIDELICA_NO_EDGE_BEFORE_PRE`. S4 now
+alternates its steps once a second.
+
+Of the examples named in the queue, eight exist under those names
+(`ControlledTanks`, `ExecutionPaths`, `FirstExample` and two variants,
+`ShowCompositeStep`, `ShowExceptions`, `Utilities.TankController`).
+Under both links all eight run, and in each the initial step's
+`.active` is 1 at t = 0 (`/tmp/m546/sg/*.e.csv`). Steps never active
+over the run: `step4`/`step4a` of `ExecutionPaths` and of the
+composite in `ShowCompositeStep`, the three `exitStep`s of
+`ShowExceptions`, and every step but `s1` of
+`Utilities.TankController`, whose start buttons are free inputs. These
+were not checked against a reference result.
+
+The pair, one binary `/tmp/m546/ox546`, both switches on against both
+off, the halves one after the other: 973 / 820 and 855 / 772 both
+ways, and the lists of models flattened and run are identical (1793
+lines, `/tmp/m546/pair/off.l`, `on.l`). The first pair's times are not
+usable. The on half was 36% dearer to run, but it was also 39% dearer
+to flatten with flattening work equal to the digit, and flattening is
+code neither change touches. `sysmond` stood at 98% of a core
+throughout. The second pair (`/tmp/m546/pair2/off.txt`, `on.txt`)
+has the same counts and identical lists again, and its times are
+usable: running 7840 s off against 7906 s on, 0.8% dearer, and
+flattening 6676 s against 6569 s. The run work grew by 635 points and
+nothing else (24754104 to 24754739, Newton and Jacobian counts equal
+to the digit). Those are the rows of the eight graphs, whose steps now
+switch and so put events on the grid. Both halves count 820 run and
+772 runnable run, above the floors of 817 and 769, in both halves
+alike. That rise is not this change's doing, and the floors wait for
+the runner's print.
+
+**The row `der(X): X is not a state`, 6 to 8.** The eight in
+`/tmp/m544/raw.txt` are the six of m416's map plus the two
+`IMC_withLosses` (Electrical and FundamentalWave), which m536 and m537
+already recorded passing from `unbalanced ... nothing determines` into
+this row. The row has the same family and needs no new probe.
+
+**The loop rows, by name.** The rows of the run half naming an
+algebraic loop, Newton direction or singular Jacobian hold 52 models
+in `/tmp/m544/raw.txt`. Of these, 37 are named in the chapters from
+m519 on. Of the other fifteen, nine have older maps:
+`InvertersExtendedModel.MNmos` (shift 506), `MPmos` (shift 247),
+`FourBitBinaryAdder.NAND` and `RtlInverter` (shift 505),
+`MeasuringTemperature` (shift 483), `TestSuddenExpansion`,
+`TestTemperature1`, `TestMixingVolumesPressureStates` (shift 505), and
+`BranchingPipes14` and `BranchingPipes2` (the Newton-direction and
+singular-Jacobian maps of the 100s). Five are named in no chapter at
+all: `SMEE_Generator_Polyphase` (singular Jacobian, though it is a
+member of the m347 star family by its message), and `BranchingPipes3`,
+`BranchingPipes4`, `BranchingPipes13` and `SeriesPipes2`, all "the
+Newton direction of algebraic loop" on `pipe1.mediums`. These four are
+the next to probe. The probe was started and stopped so as not to
+share the machine with the pair.
