@@ -115,4 +115,15 @@ check "dependent row refused" 14 "smee.lssigma.i_[1]" "$(victim_at 14 OXIDELICA_
 check "dependent row refused, ledger first" 14 "smee.lssigma.i_[1]" \
   "$(victim_at 14 OXIDELICA_UNUSED=1)"
 check "dependent row taken" 14 "loadInductor.inductor[1].i" "$(victim_at 14 OXIDELICA_SUPPLY_ONCE=0)"
+# A star row every member of whose subset constrains no state through
+# the table of definitions. Along the matching's alternating path the
+# thirteenth reduction reaches the rotor flux and the fourteenth the
+# rotor speed; without the path the thirteenth demotes nothing and the
+# model is refused there.
+model="tests/small/a_constraint_reached_only_along_the_matching.mo"
+[ -f "$model" ] || { echo "WITNESS: no model at $model"; exit 1; }
+# The thirteenth prints a line for every member tried before the path,
+# so the fourteenth, which only the path reaches, is what is asked.
+check "alternating path" 14 "smpm.inertiaRotor.w" "$(victim_at 14 OXIDELICA_UNUSED=1)"
+check "no alternating path" 13 "<none>" "$(victim_at 13 OXIDELICA_NO_ALTERNATING_PATH=1)"
 exit "$status"
