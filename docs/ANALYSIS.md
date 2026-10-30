@@ -65128,3 +65128,21 @@ pair that shows 6% or less, and this one does not. So the change is
 parked on the branch `m542-alternating-path` and not on main. The next
 shift should take the timing pair on a quiet desk. If the run half is
 within 6% there, the change goes in as it stands.
+
+### Wall B on `S6`, mapped and not built
+
+The victims of `S6` by reduction, from the parked binary (which leaves
+this model as before): 1 `inertiaStator.w`, 2 `airGap.psi_mr[2]`, 3
+`inertiaRotor.phi`, 4 and 5 `airGap.psi_ms[1..2]`, 6 `phiMechanical`, 7
+`friction.phi`, 8 `speed.phi`, 9 `strayLoad.phi`, 10 `lszero.i`, 11 and
+12 `lssigma.i_[1..2]`, 13 `inertiaRotor.w`. The five copies of the shaft
+angle go at 3, 6, 7, 8 and 9. The retreat as written refuses the
+latest spent free victim the constraint reaches, which would be
+`strayLoad.phi` at reduction 9. The walk then has to take the next copy
+at the same reduction, and the angle is lost one copy later. `S8`
+already shows that under `StateSelect.always` the angle goes at
+reduction 8. So a second trigger from init that reuses the retreat
+would have to refuse the angle family as a whole and not one name at a
+time, which is up to four retreats against `MAX_RETREATS = 4`. That is
+measured on one model only and is a map. It touches the victims of
+models that run, so it waits for Roman's word.
