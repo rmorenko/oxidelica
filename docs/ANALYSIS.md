@@ -65436,6 +65436,13 @@ singular-Jacobian maps of the 100s). Five are named in no chapter at
 all: `SMEE_Generator_Polyphase` (singular Jacobian, though it is a
 member of the m347 star family by its message), and `BranchingPipes3`,
 `BranchingPipes4`, `BranchingPipes13` and `SeriesPipes2`, all "the
-Newton direction of algebraic loop" on `pipe1.mediums`. These four are
-the next to probe. The probe was started and stopped so as not to
-share the machine with the pair.
+Newton direction of algebraic loop" on `pipe1.mediums`. Probed with
+`--only` from `.msl` after the pair (`/tmp/m546/p3probe.txt`), all four
+refuse the same way at t = 0.0008, on a loop headed by
+`pipe1.mediums[1].p` and the valves' `dp_turbulent`, with the line
+search buying nothing below 1.5e-5 of the step. By the head of the
+loop and the wording they belong with `BranchingPipes12` and
+`BranchingPipes14`. No Newton trail was taken, so whether they too
+step the pressure into the region where IF97 answers NaN is not
+shown. Their flatten and run halves cost 21 to
+105 s each.
