@@ -65178,3 +65178,22 @@ wording, which the code keeps on purpose so that the census row
 stays put. The rule converts 2 of 29 models. Which of the 27 stop at
 reachability and which at a dependent row is not shown by this pair.
 That needs the victim probe on each one.
+
+### The time pair on the 153, taken twice
+
+Same binary as m542 (/tmp/m542/ox542), the off half first, over
+/tmp/m542/refused.names. The first pair (/tmp/m543/toff.txt, ton.txt)
+gave run 2777s against 2855s (+2.8%) but flatten 2761s against 2885s
+(+4.5%). The rule does not touch flattening, so that much drift means
+the desk was noisy (`sysmond` held a core all shift) and the pair was
+taken again. The second pair (/tmp/m543/toff2.txt, ton2.txt) gave
+flatten 2860s against 2910s (+1.7%) and run 2793s against 2874s
+(+2.9%). Neither half runs a model in either pair, so the run lists
+agree because both are empty. The run half got dearer mostly in
+`Constraints.UniversalConstraint` (149.9s to 171.8s),
+`Spice3BenchmarkFourBitBinaryAdder.ONEBIT` (111.9s to 130.8s) and
+`Constraints.RevoluteConstraint` (63.3s to 75.5s). These are refused
+models where the second attempt is now made before the old refusal
+comes back. Both judges passed: the victim diff is empty and the run
+half is under 6%. So the branch was merged. The floors are not
+touched here, because they rise on the runner's print.
