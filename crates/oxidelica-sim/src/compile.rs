@@ -2874,7 +2874,7 @@ fn reduce_index_once(
                     // did; only a member tried in its place is let go.
                     Err(e) if attempt == 0 && !path_mode => return Err(e),
                     Ok(false) | Err(_) => {
-                        if matches!(outcome, Err(_)) {
+                        if outcome.is_err() {
                             only_empty_reach.set(false);
                         }
                         if attempt == 0 && !path_mode {
