@@ -1909,7 +1909,14 @@ FLATTEN_FLOOR=973
 # 40925505232 for b555acb, 973 / 818, less the same three that swing:
 #
 #   818 - 3 = 815 = 812 + 3
-RUN_FLOOR=815
+#
+# And up by the two of the alternating path (9db0344), `SMPM_NoLoad`
+# and `Noise.Utilities.Parts.MotorWithCurrentControl`, by the judge of
+# push run 40995031093 for 6a40553, 973 / 820, the same as the desk
+# (/tmp/m543/preflight.txt), less the same three that swing:
+#
+#   820 - 3 = 817 = 815 + 2
+RUN_FLOOR=817
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -2443,7 +2450,13 @@ RUNNABLE_FLATTEN_FLOOR=855
 # 40925505232), 855 / 771:
 #
 #   771 - 3 = 768 = 765 + 3
-RUNNABLE_RUN_FLOOR=768
+#
+# And by the alternating path (9db0344), by the same judge (push run
+# 40995031093), 855 / 772. Of its two, only one is in the runnable set,
+# which is why this floor moves by one where the other moves by two:
+#
+#   772 - 3 = 769 = 768 + 1
+RUNNABLE_RUN_FLOOR=769
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
