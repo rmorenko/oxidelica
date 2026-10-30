@@ -826,13 +826,20 @@ impl CompiledModel {
                 }
                 break;
             }
+            // A condition that held at the end of the last pass is not a
+            // fresh edge on the next: a `when` fires on what changed. The
+            // end of the pass is before its values are taken as `pre`:
+            // read after the copy, a condition the copy itself raised -
+            // a state graph's `enableFire` of the step just entered -
+            // counted as having held already, its `when` never fired,
+            // and the transition's timer fired at once from a start of
+            // zero, sending the token back and forth for ever.
+            let held = edge_before_pre().then(|| self.when_conditions(t, values));
             for &(slot, pre) in &self.pre_slots {
                 values[pre] = values[slot];
             }
-            // A condition that held at the end of the last pass is not a
-            // fresh edge on the next: a `when` fires on what changed.
             self.eval_point(t, y, values, &mut scratch, alg_guess)?;
-            before_event = self.when_conditions(t, values);
+            before_event = held.unwrap_or_else(|| self.when_conditions(t, values));
         }
         // The one-shot flags go down with the event, so the conditions
         // remembered for the next one do not see them still raised - a
@@ -965,4 +972,11 @@ mod tests {
         let table = Expr::Array(vec![list.clone(), Expr::Array(vec![n(5.0), n(6.0)])]);
         assert_eq!(picked(&table, &[n(2.0), n(1.0)]), Some(&n(5.0)));
     }
+}
+
+/// Whether the conditions a pass of the event iteration ends on are read
+/// before its values become `pre`. `OXIDELICA_NO_EDGE_BEFORE_PRE` keeps
+/// the old reading, after the copy, so one binary measures both.
+fn edge_before_pre() -> bool {
+    std::env::var_os("OXIDELICA_NO_EDGE_BEFORE_PRE").is_none()
 }

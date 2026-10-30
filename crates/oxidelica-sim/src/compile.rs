@@ -4504,7 +4504,114 @@ type DiscreteLayer = (
     Vec<usize>,
     Vec<usize>,
     Vec<(String, Expr)>,
+    HashMap<String, f64>,
 );
+
+/// Whether `pre(x) = value` in the initial equations seeds `$pre.x` for
+/// a Boolean or Integer the continuous part solves for.
+/// `OXIDELICA_NO_PRE_START_ALGEBRAIC` keeps the old reading, which
+/// seeded it from the declaration whatever the initial equation said.
+fn pre_starts_algebraic() -> bool {
+    std::env::var_os("OXIDELICA_NO_PRE_START_ALGEBRAIC").is_none()
+}
+
+/// Walk the equalities between Booleans and Integers the continuous part
+/// solves for, at the initial instant, and record what each `pre` of
+/// them must have been. `a = b` carries a value either way, `a = pre(b)`
+/// says `pre(b)` is what `a` is at the start, and an initial equation
+/// `pre(a) = pre(b)` carries a value from before the run either way.
+/// Only plain names are walked: anything else is left to the
+/// declaration as before, which is no worse than it was.
+fn propagate_pre_starts(
+    model: &Model,
+    discrete_names: &[String],
+    known: &HashMap<String, f64>,
+    pre_started: &mut HashMap<String, f64>,
+) {
+    let walked = |name: &String| {
+        !discrete_names.contains(name)
+            && model.components.iter().any(|c| {
+                &c.name == name
+                    && c.variability == Variability::Continuous
+                    && (c.type_name == "Boolean" || c.type_name == "Integer")
+            })
+    };
+    // A discrete variable is a place the chain may end: its `pre` is
+    // what the chain says, though the chain is not walked through it.
+    let remembered = |name: &String| {
+        discrete_names.contains(name)
+            && model
+                .components
+                .iter()
+                .any(|c| &c.name == name && (c.type_name == "Boolean" || c.type_name == "Integer"))
+    };
+    let plain = |expr: &Expr| match expr {
+        Expr::Ref(name) => Some(name.clone()),
+        _ => None,
+    };
+    let pre_of = |expr: &Expr| match expr {
+        Expr::Call(name, args) if name == "pre" && args.len() == 1 => plain(&args[0]),
+        _ => None,
+    };
+    let mut now: HashMap<String, f64> = known
+        .iter()
+        .filter(|(name, _)| walked(name))
+        .map(|(name, value)| (name.clone(), *value))
+        .collect();
+    loop {
+        let mut moved = false;
+        for equation in &model.equations {
+            for (one, other) in [
+                (&equation.lhs, &equation.rhs),
+                (&equation.rhs, &equation.lhs),
+            ] {
+                let Some(a) = plain(one).filter(|a| walked(a)) else {
+                    continue;
+                };
+                if let Some(b) = plain(other).filter(|b| walked(b)) {
+                    if let (Some(&value), false) = (now.get(&a), now.contains_key(&b)) {
+                        now.insert(b, value);
+                        moved = true;
+                    }
+                } else if let Some(b) = pre_of(other).filter(|b| walked(b) || remembered(b)) {
+                    match (now.get(&a).copied(), pre_started.get(&b).copied()) {
+                        (Some(value), None) => {
+                            pre_started.insert(b, value);
+                            moved = true;
+                        }
+                        (None, Some(value)) => {
+                            now.insert(a, value);
+                            moved = true;
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
+        for equation in &model.initial_equations {
+            let (Some(a), Some(b)) = (pre_of(&equation.lhs), pre_of(&equation.rhs)) else {
+                continue;
+            };
+            if !walked(&a) || !walked(&b) {
+                continue;
+            }
+            match (pre_started.get(&a).copied(), pre_started.get(&b).copied()) {
+                (Some(value), None) => {
+                    pre_started.insert(b, value);
+                    moved = true;
+                }
+                (None, Some(value)) => {
+                    pre_started.insert(a, value);
+                    moved = true;
+                }
+                _ => {}
+            }
+        }
+        if !moved {
+            break;
+        }
+    }
+}
 
 /// Whether a discrete start that only the initial instant can work out
 /// is assigned there rather than left at the zero it fell to.
@@ -4730,6 +4837,12 @@ fn discrete_layer(
     let mut known = params.clone();
     let mut spent: Vec<usize> = Vec::new();
     let mut at_initial_event: Vec<(String, Expr)> = Vec::new();
+    // `pre(newActive) = true` said what a Boolean was before the run,
+    // and a Boolean the continuous part solves for - the state graph's
+    // `newActive` - is no discrete variable, so the value went into
+    // `known` and nowhere else: `$pre.newActive` was seeded from the
+    // declaration and every step of every graph started inactive.
+    let mut pre_started: HashMap<String, f64> = HashMap::new();
     for (at, equation) in model.initial_equations.iter().enumerate() {
         if let Some(named) = started(&equation.lhs) {
             if kept_between_events(named) {
@@ -4757,6 +4870,12 @@ fn discrete_layer(
                 // of the standard library (m435).
                 match eval(&equation.rhs, &now) {
                     Ok(value) => {
+                        if matches!(&equation.lhs, Expr::Call(..))
+                            && !discrete_names.contains(named)
+                            && pre_starts_algebraic()
+                        {
+                            pre_started.insert(named.clone(), value);
+                        }
                         known.insert(named.clone(), value);
                     }
                     Err(_)
@@ -4779,6 +4898,24 @@ fn discrete_layer(
                     Err(_) => {}
                 }
                 spent.push(at);
+            }
+        }
+    }
+    // The initial step of a state graph says `active = true` and leaves
+    // the rest to a chain: `active = localActive`, `localActive =
+    // pre(newActive)`. What the step is at the first instant is
+    // therefore what `newActive` was before it, and nothing else in the
+    // model can say so: `pre(newActive) = pre(localActive)` asks for a
+    // value from before the run that only the chain holds. The chain is
+    // walked here, name to name, as far as plain equalities reach.
+    if pre_starts_algebraic() {
+        propagate_pre_starts(model, &discrete_names, &known, &mut pre_started);
+        // A discrete variable reached by the chain - `newActive` is one
+        // where its definition holds a relation - starts where the chain
+        // says, unless something above already said otherwise.
+        for name in &discrete_names {
+            if let Some(value) = pre_started.remove(name) {
+                known.entry(name.clone()).or_insert(value);
             }
         }
     }
@@ -4839,6 +4976,7 @@ fn discrete_layer(
         spent,
         defined_here,
         at_initial_event,
+        pre_started,
     ))
 }
 
@@ -5743,8 +5881,14 @@ pub(crate) fn compile_at(
 
     // 1b. The discrete layer: what changes only at an event, and what
     // each of those starts at.
-    let (discretes, discrete_start, started_discretes, discrete_equations, at_initial_event) =
-        discrete_layer(model, &params, &resume, &programs)?;
+    let (
+        discretes,
+        discrete_start,
+        started_discretes,
+        discrete_equations,
+        at_initial_event,
+        pre_started,
+    ) = discrete_layer(model, &params, &resume, &programs)?;
 
     // Where everything stands at the point being compiled for: the
     // pivot that chooses which states to demote reads it, and so does
@@ -7319,6 +7463,11 @@ pub(crate) fn compile_at(
                 );
             }
             resumed(name)
+                // The first event copies the value into its `pre` before
+                // anything is evaluated, so a Boolean the initial
+                // equations started through `pre` has to begin there as
+                // well, or the copy undoes the seeding.
+                .or_else(|| pre_started.get(name.as_str()).copied())
                 .or_else(|| {
                     model
                         .components
@@ -7554,6 +7703,13 @@ pub(crate) fn compile_at(
     // at, which is the same rule the discrete variables above are
     // seeded by.
     for name in &pre_wanted {
+        if let Some(value) = pre_started.get(name) {
+            let pre = table.slot(&format!("$pre.{name}"));
+            table.template[pre] = *value;
+            let slot = table.slot(name);
+            table.template[slot] = *value;
+            continue;
+        }
         let Some(component) = model.components.iter().find(|c| &c.name == name) else {
             continue;
         };

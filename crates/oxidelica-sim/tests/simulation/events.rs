@@ -1585,3 +1585,49 @@ fn a_value_loaded_at_the_initial_event_is_kept() {
         last_of(&result, "x")
     );
 }
+
+/// The initial step of a state graph starts active. `InitialStep` says
+/// `active = true` and leaves the rest to a chain of equalities down to
+/// `pre(newActive)`; the value went into nothing the run read, and every
+/// step of all nine `StateGraph.Examples` that ran stood inactive for the
+/// whole run. `OXIDELICA_NO_PRE_START_ALGEBRAIC` turns this red.
+#[test]
+fn the_initial_step_of_a_graph_starts_active() {
+    let result = run(
+        "model G Boolean active; Boolean localActive; Boolean newActive; \
+         Boolean reset; \
+         initial equation active = true; pre(newActive) = pre(localActive); \
+         equation reset = time > 1; active = localActive; \
+         localActive = pre(newActive); newActive = localActive and not reset; \
+         annotation(experiment(StopTime = 2, Interval = 0.1)); end G;",
+    );
+    let index = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+    assert_eq!(result.rows[0][index("active")], 1.0);
+    assert_eq!(result.rows.last().unwrap()[index("active")], 0.0);
+}
+
+/// A `when` on a condition raised by the pass that moved a token fires
+/// on the next pass. Read after the values became `pre`, the condition
+/// counted as having held already, the timer of the transition out of
+/// the step just entered fired from a start of zero, and the token went
+/// back and forth until the event iteration gave up.
+/// `OXIDELICA_NO_EDGE_BEFORE_PRE` turns this red.
+#[test]
+fn a_token_entering_a_step_starts_its_timer() {
+    let result = run("model S Boolean la1; Boolean na1; Boolean active1; \
+         Boolean la2; Boolean na2; Boolean e1; Boolean f1; Boolean e2; Boolean f2; \
+         discrete Real ts1; discrete Real ts2; \
+         initial equation active1 = true; pre(na1) = pre(la1); pre(na2) = pre(la2); \
+         pre(ts1) = time; pre(ts2) = time; pre(e1) = false; pre(e2) = false; \
+         equation active1 = la1; la1 = pre(na1); la2 = pre(na2); \
+         e1 = la1 and not la2; e2 = la2 and not la1; \
+         when e1 then ts1 = time; end when; when e2 then ts2 = time; end when; \
+         f1 = e1 and time >= ts1 + 1; f2 = e2 and time >= ts2 + 1; \
+         na1 = f2 or (la1 and not f1); na2 = f1 or (la2 and not f2); \
+         annotation(experiment(StopTime = 2.5, Interval = 0.1)); end S;");
+    let index = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+    let last = result.rows.last().unwrap();
+    assert_eq!(last[index("ts2")], 1.0, "the token entered step 2 at t = 1");
+    assert_eq!(last[index("ts1")], 2.0, "and came back at t = 2");
+    assert_eq!(last[index("active1")], 1.0);
+}
