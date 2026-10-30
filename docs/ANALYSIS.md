@@ -65197,3 +65197,72 @@ models where the second attempt is now made before the old refusal
 comes back. Both judges passed: the victim diff is empty and the run
 half is under 6%. So the branch was merged. The floors are not
 touched here, because they rise on the runner's print.
+
+## m544: the 27 "constrains no state" models, wall by wall
+
+Each of the 27 models left in the row (list `/tmp/m543/cns27.names`) was
+run alone from the root, `OXIDELICA_VICTIM_PROBE=1 library check .msl
+--only <model>`, with a binary built from 676b44c. The wall given is the
+last diagnostic line the probe printed before the refusal; the outputs
+are in `/tmp/m544/probe/<model>.txt`. No code was changed.
+
+| wall                                     | models |
+| ---------------------------------------- | -----: |
+| no alternating path (`opens through {}`) |     15 |
+| none printed, empty weighing             |      1 |
+| implied-row                              |      4 |
+| dependent-row                            |      4 |
+| supply-once                              |      3 |
+
+No alternating path, 15: `OpAmpCircuits.Add`, `Buffer`, `Feedback`,
+`Gain`, `Analog.Examples.Utilities.Nand`, `RealSwitch`, Polyphase
+`AnalysatorAC`, `AnalysatorDC`, `BatchPlant_StandardWater`,
+`TanksWithOverflow`, FluxTubes `Transformer1PhaseWithHysteresis`,
+`Transformer3PhaseYyWithHysteresis`, `PermeanceActuator`, and the two
+`SpringDamperNoRelativeStates` (Rotational and Translational).
+
+No line printed, 1: FluxTubes `SimpleSolenoid`. The probe shows
+reduction 3 weighing an empty set on `n.i = 0`, so it belongs with the
+fourteen by its shape: the gate does not open because there is nothing
+to weigh, not because a path was searched and missed.
+
+Implied-row, 4: MultiBody `PrismaticConstraint`, `PlanarFourbar`,
+`Loops.Utilities.Cylinder`, `RobotR3.FullRobot`.
+
+Supply-once, 3: `SMPM_CurrentSource`, MultiBody `SphericalConstraint`,
+`UniversalConstraint`.
+
+Dependent-row, 4: `Noise.ActuatorWithNoise`, `IMC_DOL_CommonLeakage`,
+MultiBody `RevoluteConstraint`, and `ModelicaTest.Rotational.TestBearingConversion`,
+the last after one `hidden-constraint` substitution. Together
+15 + 1 + 4 + 4 + 3 = 27.
+
+The finding that matters is the shape of the sixteen. In every one the
+refused equation is a flow variable of a top-level connector set to zero:
+`n2.i = 0`, `p1.i = 0`, `control.i = 0`, `plug_nv.pin[1].i = 0`,
+`flange_b.tau = 0`, `flange_b.f = 0`, `lowerTank.ports[2]...`. These are
+utility classes checked as if they were examples - each has unconnected
+outer connectors, and the flat model closes them with the zero-flow
+equation of section 9.2. Nothing a state can be reached through ever
+touches that equation, so the alternating path is empty by construction.
+They are not index-reduction failures, and no rule in the reducer will
+win them. `oxidelica why` shows it plainly on the Translational one: `flange_b.f`
+has two equations, `flange_b.f = f` from the class and `flange_b.f = 0`
+from the closure, so the spring force is pinned to zero and the class
+is over-determined in that variable. Either the zero-flow closure on an unconnected outer connector
+is wrong for a component being checked alone, or these classes are not
+models to run at all; which it is decides whether sixteen of the row are
+work or noise.
+
+The other eleven are the machine and MultiBody chains already mapped in
+m540 to m543, and they stop where those chapters left them. The most
+populated real wall is implied-row on MultiBody (4), which touches the
+victims of running models and so waits for Roman, as wall B does.
+
+The census after the merge (`/tmp/m544/census.txt`, against
+`/tmp/m539/census.txt`, counted by section bounds): would not flatten
+47 in 27 rows on both; flattened and would not run 155 in 30 rows to
+153 in 30 rows. The only row that moved is "constrains no state",
+29 to 27, the two models of the alternating path. The top of the run
+half is unchanged otherwise: that row at 27, `parameter X has no value`
+24, unbalanced 13, a variable of an algebraic loop 12.
