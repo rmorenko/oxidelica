@@ -65146,3 +65146,35 @@ would have to refuse the angle family as a whole and not one name at a
 time, which is up to four retreats against `MAX_RETREATS = 4`. That is
 measured on one model only and is a map. It touches the victims of
 models that run, so it waits for Roman's word.
+
+## m543: the victim diff of the alternating path, and where the 27 went
+
+### The gate never opens on a model that runs
+
+Prediction 5 of the second reader was that the gated rule cannot change
+a victim of any model that runs. The cheap way to check it is to ask
+where the gate opens at all. A temporary print at the point where the
+second attempt starts (`path_mode = true`), tagged by thread and read
+beside `OXIDELICA_TRACE`, was built on the branch and run over the 818
+models that ran in the off half of m542 (/tmp/m543/gate.txt). All 818
+flattened and ran, and the print fired on none of them. The same binary
+on `SMPM_NoLoad` alone prints `gate opened at reduction 13`, so the
+pipe can print something other than zero. The intersection with the
+running models is empty, so the victim diff is empty without running a
+pair. This includes the dependent-row exception, which was the main
+suspect for a leak: on these 818 models the second attempt is never
+reached. The print was taken out of the branch afterwards.
+
+### The other 27 of "constrains no state"
+
+The m539 census held 29 models in this row (/tmp/m539/raw.txt). Two of
+them run with the path on: `SMPM_NoLoad` and
+`Noise.Utilities.Parts.MotorWithCurrentControl`. The other 27 were run
+off and on from the m542 binary (/tmp/m543/c27off.txt and c27on.txt).
+Apart from the time lines, the two outputs are equal line for line,
+and all 27 refusals in both still say "constrains no state". So on
+these 27 the second attempt is tried and is refused with the old
+wording, which the code keeps on purpose so that the census row
+stays put. The rule converts 2 of 29 models. Which of the 27 stop at
+reachability and which at a dependent row is not shown by this pair.
+That needs the victim probe on each one.
