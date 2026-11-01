@@ -3139,6 +3139,32 @@ fn drop_the_unbordered(
         .collect()
 }
 
+/// Whether a bordered tie still open prefers the candidates no earlier
+/// reduction weighed. On by default; `OXIDELICA_NO_TIE_FRESH=1` leaves
+/// such a tie to the walk, so that one binary gives both halves.
+fn tie_fresh() -> bool {
+    std::env::var_os("OXIDELICA_NO_TIE_FRESH").is_none()
+}
+
+/// Among candidates the constraint determines alike, keep those no
+/// earlier reduction weighed. A candidate that lost an earlier tie is
+/// bound by that tie's constraint to the state it demoted, and taking
+/// it now demotes both halves of a pair whose sum is already held, so
+/// the block the pair lands in reads the same row twice. A tie with
+/// nothing fresh in it is left as it was.
+fn prefer_the_fresh(candidates: Vec<String>, weighed_before: impl Fn(&str) -> bool) -> Vec<String> {
+    let fresh: Vec<String> = candidates
+        .iter()
+        .filter(|name| !weighed_before(name))
+        .cloned()
+        .collect();
+    if fresh.is_empty() {
+        candidates
+    } else {
+        fresh
+    }
+}
+
 /// Which state a constraint demotes.
 ///
 /// The choice is a pivot: the constraint has to *determine* the
@@ -3512,11 +3538,20 @@ fn choose_the_victim(
         }
         let unread = candidates.iter().any(|n| weigh(n).is_none());
         let kept = drop_the_undetermined(candidates, weigh);
-        if unread && tie_bordered() && kept.len() > 1 {
+        let kept = if unread && tie_bordered() && kept.len() > 1 {
             drop_the_unbordered(kept, |name| {
                 crate::sensitivity::bordered_determines(
                     residual, name, &cone, &held, at_time, programs,
                 )
+            })
+        } else {
+            kept
+        };
+        if unread && tie_fresh() && kept.len() > 1 {
+            prefer_the_fresh(kept, |name| {
+                selection_records
+                    .iter()
+                    .any(|r| r.candidates.iter().any(|c| c == name))
             })
         } else {
             kept
@@ -10453,7 +10488,21 @@ mod held_tests {
 
 #[cfg(test)]
 mod tie_tests {
-    use super::{drop_the_unbordered, drop_the_undetermined};
+    use super::{drop_the_unbordered, drop_the_undetermined, prefer_the_fresh};
+
+    #[test]
+    fn an_open_tie_prefers_what_no_earlier_reduction_weighed() {
+        let before = |name: &str| name != "ex";
+        assert_eq!(
+            prefer_the_fresh(names(&["re", "ex", "cage"]), before),
+            names(&["ex"])
+        );
+        let all_old = |_: &str| true;
+        assert_eq!(
+            prefer_the_fresh(names(&["re", "cage"]), all_old),
+            names(&["re", "cage"])
+        );
+    }
 
     #[test]
     fn a_bordered_tie_keeps_the_determined_and_leaves_a_blind_one_whole() {

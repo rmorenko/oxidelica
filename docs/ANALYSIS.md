@@ -65835,3 +65835,92 @@ a victim by the rule of 26 October. It is a MultiBody loop that
 reaches a blind tie and now has another victim, and that is worth
 knowing before anyone works on `Engine1a`. The SMEE family did not
 leave its row whole: one of three models left it.
+
+## m550: the second wall of SMEE_Generator, and what tells the excitation flux apart
+
+The question of m549 was what distinguishes
+`smeeM.excitation.electroMagneticConverter.Phi.re` from the other two
+fluxes the bordered test lets through at reduction 20 of
+`SMEE_Generator` (FundamentalWave). Traces from `.msl` with
+`OXIDELICA_VICTIM_PROBE=1`, in `/tmp/m550/SMEE_Generatorv.txt` (default)
+and `/tmp/m550/SGf.txt` (forced).
+
+Reduction 20 is the stator's `port_n.Phi.im + port_p.Phi.im = 0`
+between phases 1 and 2. Five candidates, every joint weight unread
+(`None`), every slope 0.0. The bordered test keeps three:
+
+- `stator...[2].Phi.re` - weighed already at reduction 19, where it
+  lost the tie to `stator...[1].Phi.re`;
+- `rotorCage...[2].Phi.re` - weighed already at reduction 18, where it
+  lost the tie to `rotorCage...[1].Phi.re`;
+- `excitation.electroMagneticConverter.Phi.re` - weighed by no earlier
+  reduction.
+
+The walk takes the cage flux. Forced, each of the three was tried:
+the stator and the cage flux leave the block that refuses as
+`singular Jacobian ["smeeM.airGap.V_mss.im", ...]`; the excitation
+flux runs. Forcing the cage flux at 18 instead, so that reduction 20
+sees `rotorCage...[1].Phi.re` as the stale one, changes nothing: the
+walk again takes the stale candidate and the model refuses, and
+forcing the excitation flux on top of that runs. Hypothesis (a) of the
+order, the constraints of the gap are not independent, is what this
+measures and it holds: a candidate that lost an earlier tie is tied to
+that tie's victim by its constraint, and taking it demotes both halves
+of a pair whose sum is already held. (b), rotor side against
+excitation side, is not the criterion: the cage is on the rotor side
+and loses. (c) was not needed.
+
+The criterion, then: among the candidates of an open bordered tie,
+prefer those no earlier reduction weighed. It is in the tree behind
+`OXIDELICA_NO_TIE_FRESH=1` (off restores the bordered tie as m549 left
+it), with `an_open_tie_prefers_what_no_earlier_reduction_weighed`
+over the selection, seen red with the filter taken out.
+
+The forced diff over all reductions: the choices differ at 20 and
+nowhere else. The second walk of the default trace (a singular member
+retried at reduction 14) is absent from the forced one because the
+forced run does not fail.
+
+The small models (`/tmp/m548/mini`): `SD` gives the same CSV byte for
+byte with the key on and off. `SC`, `SE` and `W5` now pick the
+excitation flux at their reduction 8 and run either way, but with
+different states their start differs: no start is fixed on the fluxes,
+so a different state set holds a different start, e.g. the cage current
+`rotorCage.electroMagneticConverter.i[1]` is -143 against -309 at
+t = 0 in `SC`. At t = 0.1 the two agree to 1e-3 relative, away from
+the `arg_` columns that jump between plus and minus pi near zero. That
+is an initial transient on underdetermined starts, not a wrong answer,
+and it is named here because a CSV changed.
+
+`SMEE_LoadDump` takes the same choice at its reduction 14 (the excitation
+flux is the only fresh one of four kept) and still refuses: the run
+fails at its fifth point with `singular Jacobian ["smee.airGap.Phi_ss.im",
+...]`, the same refusal the forced excitation flux gave before the
+change. Forcing the cage flux or `loadInductor.inductor[2].i` there
+gives the same or another singular block. So LoadDump has a wall of
+its own behind this one, in the run rather than at reduction.
+
+### The row `structurally singular: equation E constrains no state`
+
+The 28 models of the m549 census in that row, by name from
+`/tmp/m549/raw.txt`: MultiBody 8 (four `Constraints`, `Engine1a`,
+`PlanarFourbar`, `Cylinder`, `FullRobot`), Analog 6 (four `OpAmpCircuits`,
+`Nand`, `RealSwitch`), FluxTubes 4, Polyphase 2 (`AnalysatorAC/DC`),
+Fluid 2, FundamentalWave 2, and one each from Rotational,
+Translational, Blocks and ModelicaTest. Machines are two of the 28:
+`SMPM_CurrentSource` and `IMC_DOL_CommonLeakage`. The row is not the
+machine family, and work on the machines is not expected to empty it.
+
+### The corpus pair
+
+One binary (`/tmp/m550/ox2`), off half then on half, from the root,
+files `/tmp/m550/p2/off.txt` and `/tmp/m550/p2/on.txt`. Off: 973
+flatten, 821 run, runnable 855 / 773. On: 973, 822, runnable 855 / 774. The run lists differ by one line, `SMEE_Generator` added, and by
+nothing else. Time: running 4763s off against 4903s on, 2.9% dearer;
+flattening 3893s against 3935s. The work counters say the on half did
+less, not more: 24755574 points against 24755548, newton 36269423
+against 36269302, jacobians equal at 10642. So the 2.9% is the desk's
+weather and no model is named as dearer. By `--only` over the machine
+models that run, two moved their point count: `SMEE_Generator` (468
+refused, 469 run) and `SMEE_Generator_Polyphase` (388 against 361,
+fewer, with the excitation flux now the state there as well).
