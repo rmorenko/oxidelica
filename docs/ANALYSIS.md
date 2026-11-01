@@ -65641,3 +65641,46 @@ of the census and every refused line of the raw report, model and
 message, are identical to m544's (`/tmp/m544/census.txt`,
 `/tmp/m544/raw.txt`). The three commits since (m545 to m547) moved
 nothing, as their chapters said.
+
+### The air-gap null vector, small: one machine and its damper cage
+
+The null vector above is not the comparison's own. The three-phase
+`SMEE_Generator` (`/tmp/m548/t_SMEE_Generator.txt`, rank 26 of 27)
+and `SMEE_LoadDump` (rank 35 of 36, left null row
+`smee.airGap.port_sp.Phi.im = Phi_ss.im`) refuse on the same air-gap
+rows (`/tmp/m548/ns_siblings.txt`). So the map belongs to every
+electrically excited machine of FundamentalWave in the row, and m522's
+reading that these stand "on the air gap's `V_mss` and `Phi_ss`, a
+different wall" now has its rows named.
+
+Reproduced in twenty lines (`/tmp/m548/mini/`): one
+`SM_ElectricalExcited` at constant speed, fed by a sine source through
+a `TerminalBox`, excited by a constant current.
+
+| model | change                                    | result                                                                   |
+| ----- | ----------------------------------------- | ------------------------------------------------------------------------ |
+| `SC`  | as the library writes it                  | singular Jacobian, rank 14 of 15, left null row `airGap.Phi_sr.re = ...` |
+| `SD`  | `useDamperCage = false`                   | runs to 0.1 s                                                            |
+| `SE`  | stator to an open `Star` instead of a box | singular Jacobian, rank 11 of 12, the same left null row                 |
+
+The victim traces of `SC` and `SD` (`OXIDELICA_VICTIM_PROBE`,
+`SCv.txt`, `SDv.txt`) are the same reduction for reduction except at
+one place. Reduction 8 of `SC` is on the stator's magnetic balance
+`stator.EMC[1].port_n.Phi.im + ...` and demotes
+`rotorCage.EMC[2].Phi.im`, a flux of the damper cage on the other
+side of the air gap. In `SD`, where there is no cage, the same
+reduction (7) demotes `excitation.electroMagneticConverter.Phi.re`
+and the model runs. The comparison model does exactly the first:
+reductions 12 and 20 demote `smee3` and `smeeM`'s
+`rotorCage.EMC[2].Phi.im` on a stator equation, and both are the only
+reductions of that trace that report a spent candidate
+(`inertiaRotor.phi`, `/tmp/m548/smee_victims.txt`).
+
+So the family is: a stator flux balance reduced onto a rotor-cage
+flux, after which the rotated air-gap pair `Phi_sr = Phi_ss*rotator`
+and `V_msr = V_mss*rotator` reaches the block with one free column of
+`Phi_ss.re` between them, and `der(V_mss)` is left without a row. The
+star is not involved (`SE` refuses with no terminal box). The road is
+the choice of victim across a rotation, which is index reduction and
+touches which states every model keeps; it is mapped, not built. `SC`
+is the small witness for whoever builds it.
