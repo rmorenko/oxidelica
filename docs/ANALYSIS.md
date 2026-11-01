@@ -66007,3 +66007,19 @@ standing still starts. So this is a pivot that is right except at the
 one point the model starts from, not a stale tie. The repair belongs
 to the matching (pick a pivot that does not depend on the angle),
 not to the state choice. Parked with this map.
+
+### The census after the repair
+
+`/tmp/m551/census.txt` against `/tmp/m550/census.txt`, counted by the
+section borders: the flatten half holds 47 refusals in 27 rows, the
+same as before. The run half went from 151 to 150, still in 30 rows.
+Three rows moved. `singular Jacobian in algebraic loop` went 5 to 4,
+which is FundamentalWave `SMEE_LoadDump` leaving. `the equations of
+algebraic loop` went 4 to 5, and `structurally singular model: equation
+E constrains no state` went 28 to 27. That pair is one model,
+`MultiBody.Examples.Loops.Engine1a`: it was refused as structurally
+singular on `der(piston.frame_...)` and is now refused at the equations
+of the loop on `connectingRod.body.z_a[1]`. `--only` with and without
+`OXIDELICA_NO_FOLD_KEEPS_UNKNOWNS` shows the key is what moved it. It
+runs neither way, so it is not a victim: it went one wall further.
+Nothing else moved model by model.
