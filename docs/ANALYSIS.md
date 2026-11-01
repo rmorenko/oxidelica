@@ -66127,3 +66127,17 @@ back to back: `/tmp/m552/p_off.txt`, then `/tmp/m552/p_on.txt` with
 All three conditions of 26 October hold, so the key is on by default
 and `OXIDELICA_NO_THROUGH_RELATIVE=1` restores the old weighing. The
 floors are left for the runner to move.
+
+### The census after the relative weighing
+
+`/tmp/m552/census.txt` was compared with `/tmp/m551/census.txt`, counted by the
+section borders. The flatten half did not move: 47 refusals in 27 rows. The run
+half went from 150 refusals in 30 rows to 148 in 29. `singular Jacobian in
+algebraic loop` fell from 4 to 3 because `SMPM_Braking` left it. The one-model
+row for `MovingActuatedDrive` emptied, which matches the swing the pair
+recorded. `Engine1a` went back from `the equations of algebraic loop` to
+`structurally singular`, so those two rows moved by one each, 5 to 4 and 27 to 28. Two more models kept their row but changed its wording:
+`TestBearingConversion` and `FullRobot`. Under `--only` from `.msl`, the three
+models give the same refusal with the key and without it, and that refusal is
+the one m551 recorded. So the move belongs to the corpus run they sat in, and
+the key did not cause it. Nothing else moved, model by model.
