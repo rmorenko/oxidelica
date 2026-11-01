@@ -66104,7 +66104,7 @@ their package names. So the row is not a compiler wall
 but the corpus counting classes that are not meant to run on their own.
 No code was written for it.
 
-### The corpus pair
+### The corpus pair for the relative weighing
 
 I took one binary (`/tmp/m552/oxr`) from `.msl` and ran the two halves
 back to back: `/tmp/m552/p_off.txt`, then `/tmp/m552/p_on.txt` with
