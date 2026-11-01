@@ -66414,3 +66414,21 @@ that shortens the run in the other. So the next question is not which
 `smooth` to keep. It is why the load torque's `w` near zero, with no event
 at its crossing, drives the step size of `SoftStarter` to underflow at
 t = 1.983.
+
+The death at t = 1.983 depends on the horizon, not on the physics. With the
+patch on, `--stop 2.5`, `--stop 4.4` and `--stop 6` all pass t = 1.983, and
+`--stop 6` ends on the same assertion at t = 4.498 as the off side and the
+bare tree. Up to t = 4.4 the answers agree on the 0.1 s grid:
+`imc.wMechanical` to 2.6e-8 of its peak of 151, stator current to 2.6e-7,
+electrical torque to 4.8e-7, `softStartControl.vRef` to 2.5e-8. Events are
+3958 off and 3956 on. Only the RMS block differs (4.5%, beside switching
+instants). The reason is the step floor in `bdf.rs`, which is relative to
+the horizon: a re-selectable model stalls below `stop * 5e-14` and refuses
+below `stop * 1e-14`. Near t = 1.983, without the event at the load
+torque's `w >= 0`, the step falls between 3e-13 and 5e-13. That passes
+under a horizon of 6 and is refused under a horizon of 10. So the patch
+does not spoil the answer of `SoftStarter`, but it does make the run lean
+on a floor that scales with `StopTime`, and that floor is arbitrary. Only
+a full `simulate` shows the difference: the corpus's ten steps never reach
+it. Whether the floor should be absolute is a question of its own, and the
+patch stays parked until that is settled.
