@@ -914,6 +914,13 @@ fn literal_index_open() -> bool {
     std::env::var_os("OXIDELICA_NO_LITERAL_INDEX").is_none()
 }
 
+/// Whether the conditions a pass of the event iteration ends on are read
+/// before its values become `pre`. `OXIDELICA_NO_EDGE_BEFORE_PRE` keeps
+/// the old reading, after the copy, so one binary measures both.
+fn edge_before_pre() -> bool {
+    std::env::var_os("OXIDELICA_NO_EDGE_BEFORE_PRE").is_none()
+}
+
 /// The element a list written out is read at, where every subscript is
 /// a whole number inside the list. Anything else - a subscript the run
 /// decides, one past the end - is `None`, and the list stays for the
@@ -972,11 +979,4 @@ mod tests {
         let table = Expr::Array(vec![list.clone(), Expr::Array(vec![n(5.0), n(6.0)])]);
         assert_eq!(picked(&table, &[n(2.0), n(1.0)]), Some(&n(5.0)));
     }
-}
-
-/// Whether the conditions a pass of the event iteration ends on are read
-/// before its values become `pre`. `OXIDELICA_NO_EDGE_BEFORE_PRE` keeps
-/// the old reading, after the copy, so one binary measures both.
-fn edge_before_pre() -> bool {
-    std::env::var_os("OXIDELICA_NO_EDGE_BEFORE_PRE").is_none()
 }
