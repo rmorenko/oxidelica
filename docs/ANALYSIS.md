@@ -66023,3 +66023,16 @@ of the loop on `connectingRod.body.z_a[1]`. `--only` with and without
 `OXIDELICA_NO_FOLD_KEEPS_UNKNOWNS` shows the key is what moved it. It
 runs neither way, so it is not a victim: it went one wall further.
 Nothing else moved model by model.
+
+### SMPM_Braking under every key
+
+Every simulator key was switched on in turn against the model
+(`/tmp/m551/SBkeys.txt`, binary `/tmp/m551/oxf`). Only
+`OXIDELICA_QUENCH_ELEMENTS=1` lets it run. That key quenches a term
+multiplied by a zero element of an array parameter. That fits the
+pivot found above, `RotationMatrix[1,2] = -sin(gamma)`, which is zero
+at the start. Whether such an element is a structural zero is the
+policy layer m493 left to Roman, and quenching elements cost
+`GearConstraint` (m318). So nothing was changed. Parked as a
+candidate for that decision, with SMPM_Braking now on its list of
+witnesses beside Engine1a.
