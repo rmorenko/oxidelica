@@ -1925,7 +1925,14 @@ FLATTEN_FLOOR=973
 # TestJunctionIdeal):
 #
 #   821 - 3 = 818
-RUN_FLOOR=818
+#
+# Then 9bd18d2, which prefers in an open bordered tie the states no
+# earlier reduction weighed, won SMEE_Generator of FundamentalWave.
+# The judge of push run 41315515070 for c107c7e printed 973 / 822,
+# runnable 855 / 774, less the same three that swing:
+#
+#   822 - 3 = 819
+RUN_FLOOR=819
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -2468,7 +2475,9 @@ RUNNABLE_FLATTEN_FLOOR=855
 #
 # And SMEE_Generator_Polyphase, won by 9533804, is a runnable example:
 # the judge of 41298725243 printed 855 / 773, so 773 - 3 = 770.
-RUNNABLE_RUN_FLOOR=770
+# And SMEE_Generator of FundamentalWave, won by 9bd18d2, is one too:
+# the judge of 41315515070 printed 855 / 774, so 774 - 3 = 771.
+RUNNABLE_RUN_FLOOR=771
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
