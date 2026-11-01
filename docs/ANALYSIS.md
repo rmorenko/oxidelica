@@ -66141,3 +66141,111 @@ recorded. `Engine1a` went back from `the equations of algebraic loop` to
 models give the same refusal with the key and without it, and that refusal is
 the one m551 recorded. So the move belongs to the corpus run they sat in, and
 the key did not cause it. Nothing else moved, model by model.
+
+## m554: why IMC_DOL went from 3 Jacobians to 57, and three singular blocks
+
+### The fold is the cause, and the answer is the same
+
+The model is
+`Modelica.Magnetic.QuasiStatic.FundamentalWave.Examples.BasicMachines.InductionMachines.IMC_DOL`.
+One binary, built from d182708, was run with `--only` from `.msl` and
+`OXIDELICA_WORK_EACH`, once with `OXIDELICA_NO_GRAPH_ALIAS_FOLD=1` and once
+without it (`/tmp/m554/off.txt`, `/tmp/m554/on.txt`):
+
+- off: 1154 points, 2614 newton, 3 jacobians;
+- on: 2955 points, 5584 newton, 35 jacobians.
+
+The desk prints 35 where the runner printed 57. The direction is the same, and
+the key alone moves it, so e5cde1d is the cause, named by the instrument and not
+only by the window of artefacts.
+
+The answer did not change. `simulate` on both sides (`/tmp/m554/off.csv`,
+`/tmp/m554/on.csv`, 10002 rows, the same 3906 columns) agrees to 2.2e-4 of the
+peak on the transient machine's stator voltages and to 5e-8 on the quasi-static
+one. The final speeds are 150.844017 against 150.844023 and 150.843923 against
+150.843923. The only larger differences are in `arg_*` columns, which jump by
+2π where an angle crosses the branch cut. That is the same angle on either side
+of ±π, not a different solution.
+
+### The mechanism: an empty relation chatters at zero
+
+A temporary trace in the BDF loop, not committed, gave
+`/tmp/m554/evoff.txt` and `/tmp/m554/evon.txt`. Every rebuild of the matrix
+follows an event, so the reading of bdf.rs:420 holds. There are 2 events off and
+34 on, and none of them changes anything. Thirty-four of the 38 crossings are
+indicator 3, which is `quadraticLoadTorque.w`. It crosses zero at levels between
+1e-46 and 1e-35 during the first 5e-10 s, while the transient machine is still at
+rest.
+
+The relation comes from `QuadraticSpeedDependentTorque`:
+`tau = tau_nominal*smooth(1, if w >= 0 then (w/w_nominal)^2 else -(w/w_nominal)^2)`.
+Both branches are zero at `w = 0`, and `smooth(1, ...)` says so to the tool.
+Flattening strips `smooth` and `noEvent` (flatten/names.rs:907), so the relation
+becomes an event indicator. With the fold off, the speed leaves zero cleanly.
+With the fold on, the states are chosen differently: the reference angles of
+the quasi-static sensors and switches are no longer reductions (44 victims off,
+21 on, `/tmp/m554/stoff.txt`, `/tmp/m554/ston.txt`). The start of the transient
+machine then wobbles around exactly zero, and every sign change is one event,
+one restart at order one and one new Jacobian.
+
+So the answer is the same and the cost is named. The fold changed the path. The
+extra price is a relation that the model declares eventless being treated as an
+event, at a point where the speed stands on its threshold.
+
+The candidate fix is to keep `smooth` and `noEvent` as far as indicator
+collection, and not collect relations below them. That is a change for every
+model the library writes with `noEvent`, which is most of Fluid. It changes which
+crossings any model stops at, so it needs a pair of its own and was not taken in
+this shift.
+
+### Three singular blocks: where each one is singular
+
+The three are the ones in `/tmp/m552/raw.txt`. Each was run with
+`OXIDELICA_NEWTON_TRAIL=1` from `.msl` (`/tmp/m554/LossyGearDemo2t.txt`,
+`/tmp/m554/Rectifiert.txt`, `/tmp/m554/TMVt.txt`), and the last matrix of each
+was decomposed by SVD.
+
+- `Modelica.Mechanics.Rotational.Examples.LossyGearDemo2`: 5 by 5, rank 4,
+  at t = 0 at the first solve. Rows 2 and 3 are the same row: the acceleration
+  equation of `gear` (`gear.sa`) and of `bearingFriction` (`bearingFriction.sa`)
+  on the same inertia. Both take `-2.667` on the column of `gear.sa` and nothing
+  on `bearingFriction.sa`. Two stick-slip elements on one rigid body, both
+  free, give two free-sliding accelerations for one degree of freedom. This is a
+  wall of its own: friction-mode logic, not state selection.
+- `Modelica.Electrical.QuasiStatic.SinglePhase.Examples.Rectifier`: 12 by 12,
+  rank 11, at t = 0 at the first Newton step from zero. Rows 3 and 7 are
+  identical: `idealDiode1.i` and `load2.i = load2.G_actual * load2.v`. The null
+  vector is `idealDiode1.s`, `idealDiode2.s` and `load2.v` in equal parts. With
+  every diode in the same state from a zero start, the diode bridge and the load
+  carry one current, and the bridge does not say which diode pair conducts. This
+  is the ideal-switch start problem, which is not the breed of m551 and m552.
+- `ModelicaTest.Fluid.TestComponents.Vessels.TestMixingVolumesPressureStates`:
+  24 by 24, rank 21, at t = 0. There is no zero row or column. Row 4,
+  `mixingVolume2.medium.d = waterBaseProp_ph(p, h, ...)[9]`, carries
+  `-4.5e-7` on `mixingVolume2.medium.p`, which is the compressibility of liquid
+  water, against entries up to 1.2e7 elsewhere. After the rows and columns are
+  scaled, the smallest singular value is 3.2e-9 and the null vector is
+  `der(mixingVolume1.medium.p)` together with `der(mixingVolume1.medium.h)`.
+  So the pressure states of a nearly incompressible medium are not determined,
+  and the pivot fails on one value. This is the closest to m551 and m552, which
+  weighed a column in units unlike its neighbours. It is the candidate for the
+  next series.
+
+So two of the three are other walls and one is related to m552.
+
+### The "nothing determines" row: two more probed
+
+The classification "helpers, not examples" rested on `DirectCapacitor`. Two
+more from other packages were probed with `--only` from `.msl` and read in the
+source:
+
+- `Modelica.Fluid.Examples.AST_BatchPlant.BaseClasses.InnerTank` leaves
+  `aboveLevel, d, h, m_flow_negative, p_ambient, pipeArea` undetermined. Six of
+  them are declared `input Real` at AST_BatchPlant.mo:944-950.
+- `Modelica.Mechanics.MultiBody.Examples.Systems.RobotR3.Utilities.AxisType2`
+  leaves `axisControlBus.motorSpeed`, `initializeFlange.*` and others
+  undetermined. The model has an unconnected `Flange_b flange` and a control
+  bus, so it is a component waiting for a robot.
+
+Both confirm the classification: free inputs, not a wall. This is material for
+the question about the example filter.
