@@ -66271,10 +66271,7 @@ The corpus pair, one binary `/tmp/m554/ox554b`, off half first
 - lost: `HeatingNPN_NORGate`, `HeatingPNP_NORGate` and
   `MultiBody.Examples.Elementary.Surfaces`.
 
-The three victims are real. Run together with `--only-from`, they refuse with
-the key on and run with it off, on the same binary. Each one runs on its own
-under `--only`, which leaves a dependence on what ran before it in the process.
-That is not explained yet. The refusals:
+The three victims are real. Each refuses with the key on and runs with it off, on the same binary, under `--only` from `.msl` alone as well as together with `--only-from /tmp/m554/vict.txt`. The refusals:
 
 - `Surfaces`: `result` is held element by element and was given one number:
   `smooth(0, if length(v) >= eps then v / length(v) else v / eps)`. A `smooth`
