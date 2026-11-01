@@ -65470,3 +65470,46 @@ on the arithmetic floor), `ThreePhaseTransformerWithRectifier` and
 (initialization did not converge). The rows proper are 47 models, of
 which the fifteen named above are outside the m519+ chapters and 32
 inside.
+
+**The four pipe models are the wall of `BranchingPipes14` and
+`SeriesPipes2`.** m546 left open whether `BranchingPipes3`,
+`BranchingPipes4`, `BranchingPipes13` and `SeriesPipes2` step into the
+region where IF97 answers NaN. A Newton trail of each (`--only` from
+`.msl` with `OXIDELICA_NEWTON_TRAIL`, `/tmp/m547/trail_bp3.txt`,
+`trail_bp4.txt`, `trail_bp13.txt`, `trail_sp2.txt`) says they do, all
+four on the first Newton step of the loop at t = 0.0008, from a finite
+residual (3.68 for `BranchingPipes3`):
+
+| model              | first step throws                        | residual |
+| ------------------ | ---------------------------------------- | -------- |
+| `BranchingPipes3`  | `pipe2/3.mediums[1].p` to -2.0e6 Pa      | NaN      |
+| `BranchingPipes4`  | `pipe1.mediums[1].p` to 1.15e7, h -5.3e8 | NaN      |
+| `BranchingPipes13` | p to 2.28e7 and -1.03e7 Pa               | NaN      |
+| `SeriesPipes2`     | `pipe1.mediums[1].p` to -1.77e7 Pa       | NaN      |
+
+The line search halves back to a finite residual and finds no
+descent, which is the refusal's "no step to take from here". This is
+the map of the 100s (the first Newton step of the fourth stage thrown
+out of the water's domain by a step too long for the problem), and the
+four are members of it, not a new family. No code was written: the
+road ends in the step length against IF97's domain, the same wall that
+map priced at hours per model when the step was cut.
+
+**`SMEE_Generator_Polyphase` has moved from the m347 map.** m546 put
+it in the m347 star family by the wording of its refusal. Probed with
+`--only` from `.msl` and `OXIDELICA_VICTIM_PROBE`
+(`/tmp/m547/smee_victims.txt`), the mechanism m347 named is gone:
+m347 found that for the five-phase machine "there is no such
+reduction, `i0` stays a state". Now there is one. Reduction 27 is on
+`terminalBox3.starpoint.i = 0` and demotes
+`smee3.stator.zeroInductor.i0`, and reduction 30 is on
+`smeeM.stator.zeroInductor.m * i0 = 0` and demotes
+`smeeM.stator.zeroInductor.i0`. The model still refuses with a
+singular Jacobian on the first solve (`/tmp/m547/smee.txt`), and the
+star names in the loop are not m347's pair either. They are
+`terminalBoxM.star.pin_n.v`, `terminalBox3.star.pin_n.v` and
+`smee3.stator.zeroInductor.v0`, with `smeeM.stator.zeroInductor.v0`
+no longer in the block. So the same words now stand on a different
+structure. The composition is new and still needs its own map: the
+null vector of the printed matrix has not been taken, because the
+script m347 used (`/tmp/m347/ns.py`) no longer exists.
