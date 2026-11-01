@@ -3105,6 +3105,40 @@ fn drop_the_undetermined(
         .collect()
 }
 
+/// Whether a tie the joint weights could not read is narrowed to the
+/// candidates the constraint determines with the cone held beside it.
+/// On by default; `OXIDELICA_NO_TIE_BORDERED=1` leaves such a tie to the
+/// walk, as before, so that one binary gives both halves of a
+/// measurement.
+fn tie_bordered() -> bool {
+    std::env::var_os("OXIDELICA_NO_TIE_BORDERED").is_none()
+}
+
+/// Keep the candidates the bordered Jacobian says are determined. Any
+/// that cannot be read leaves the tie as it was, and so does a test
+/// that would leave nothing.
+fn drop_the_unbordered(
+    candidates: Vec<String>,
+    determines: impl Fn(&str) -> Option<bool>,
+) -> Vec<String> {
+    let mut verdicts = Vec::with_capacity(candidates.len());
+    for name in &candidates {
+        match determines(name) {
+            Some(v) => verdicts.push(v),
+            None => return candidates,
+        }
+    }
+    if !verdicts.iter().any(|v| *v) {
+        return candidates;
+    }
+    candidates
+        .into_iter()
+        .zip(verdicts)
+        .filter(|(_, v)| *v)
+        .map(|(name, _)| name)
+        .collect()
+}
+
 /// Which state a constraint demotes.
 ///
 /// The choice is a pivot: the constraint has to *determine* the
@@ -3458,9 +3492,35 @@ fn choose_the_victim(
         } else {
             std::borrow::Cow::Borrowed(start_env)
         };
-        drop_the_undetermined(candidates, |name| {
+        let weigh = |name: &str| {
             crate::sensitivity::weigh_jointly(residual, name, &cone, &held, at_time, programs)
-        })
+        };
+        if probing {
+            let joint: Vec<(String, Option<f64>)> =
+                candidates.iter().map(|n| (n.clone(), weigh(n))).collect();
+            eprintln!("victim-probe: reduction {reduction} joint weights: {joint:?}");
+            let bordered: Vec<(String, Option<bool>)> = candidates
+                .iter()
+                .map(|n| {
+                    let b = crate::sensitivity::bordered_determines(
+                        residual, n, &cone, &held, at_time, programs,
+                    );
+                    (n.clone(), b)
+                })
+                .collect();
+            eprintln!("victim-probe: reduction {reduction} bordered: {bordered:?}");
+        }
+        let unread = candidates.iter().any(|n| weigh(n).is_none());
+        let kept = drop_the_undetermined(candidates, weigh);
+        if unread && tie_bordered() && kept.len() > 1 {
+            drop_the_unbordered(kept, |name| {
+                crate::sensitivity::bordered_determines(
+                    residual, name, &cone, &held, at_time, programs,
+                )
+            })
+        } else {
+            kept
+        }
     } else {
         candidates
     };
@@ -3520,6 +3580,22 @@ fn choose_the_victim(
                 }
             })
     });
+    // An instrument, not a rule: `OXIDELICA_VICTIM_FORCE=8:name` takes
+    // `name` at reduction 8 when it is among the candidates, so that
+    // which victim a model needs can be asked before a rule is written.
+    let chosen = match std::env::var("OXIDELICA_VICTIM_FORCE") {
+        Ok(spec) => {
+            let forced = spec.split(',').find_map(|one| {
+                let (at, name) = one.split_once(':')?;
+                (at.trim().parse::<usize>().ok()? == reduction).then(|| name.trim().to_string())
+            });
+            match forced {
+                Some(name) if all_candidates.contains(&name) => Some(name),
+                _ => chosen,
+            }
+        }
+        Err(_) => chosen,
+    };
     if probing {
         eprintln!(
             "victim-probe: reduction {reduction} on {lhs:?} = {rhs:?}\n\
@@ -10377,7 +10453,23 @@ mod held_tests {
 
 #[cfg(test)]
 mod tie_tests {
-    use super::drop_the_undetermined;
+    use super::{drop_the_unbordered, drop_the_undetermined};
+
+    #[test]
+    fn a_bordered_tie_keeps_the_determined_and_leaves_a_blind_one_whole() {
+        let verdict = |name: &str| Some(name != "im");
+        assert_eq!(
+            drop_the_unbordered(names(&["im", "re", "ex"]), verdict),
+            names(&["re", "ex"])
+        );
+        let blind = |name: &str| if name == "re" { None } else { Some(false) };
+        assert_eq!(
+            drop_the_unbordered(names(&["im", "re"]), blind),
+            names(&["im", "re"])
+        );
+        let none = |_: &str| Some(false);
+        assert_eq!(drop_the_unbordered(names(&["im"]), none), names(&["im"]));
+    }
 
     fn names(list: &[&str]) -> Vec<String> {
         list.iter().map(|s| s.to_string()).collect()

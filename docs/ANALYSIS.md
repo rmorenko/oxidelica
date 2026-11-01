@@ -65684,3 +65684,119 @@ star is not involved (`SE` refuses with no terminal box). The road is
 the choice of victim across a rotation, which is index reduction and
 touches which states every model keeps; it is mapped, not built. `SC`
 is the small witness for whoever builds it.
+
+## m549: the victim across the air gap, chosen by a bordered Jacobian
+
+The map m548 left ends at reduction 8 of `SC` (`/tmp/m548/mini/SC.mo`,
+one `SM_ElectricalExcited` with its damper cage, fed from a terminal
+box). The three questions the order asked, answered from the traces
+`/tmp/m548/mini/SCv.txt` and `SDv.txt` and from a probe added for the
+purpose.
+
+**The candidates at reduction 8.** The constraint is the stator's
+imaginary flux balance, `EMC[1].port_n.Phi.im + EMC[2].port_p.Phi.im
+= 0`. Five states stand: `stator.EMC[2].Phi.im`, `stator.EMC[2].Phi.re`,
+`excitation.EMC.Phi.re`, `rotorCage.EMC[2].Phi.re`,
+`rotorCage.EMC[2].Phi.im`. Every one weighs 0.0 by the residual's own
+slope (the `state-select: reduction 8 weighs` line).
+
+**What made `rotorCage.EMC[2].Phi.im` win.** Nothing. With every slope
+zero, the tie goes to the joint weighing (`drop_the_undetermined`), and
+the new line `victim-probe: reduction 8 joint weights` shows all five
+`None`. `OXIDELICA_JOINT_PROBE=1` says why: the cone of 117 definitions
+will not settle, because its own Jacobian is singular. An SVD of that
+Jacobian (dumped once, then the dump taken out again) gives nullity
+two. The two row null vectors are the flux balances through the gap:
+stator stray, `Phi_ss`, `Phi_sr = Phi_rr`, rotor cage and excitation.
+The cone holds the very balance the residual states. With the joint
+weight unreadable, the tie is left whole and `max_by` takes whatever
+the walk put last. In `SC` that is `rotorCage.EMC[2].Phi.im`. In `SD`
+(no damper cage) the walk puts `excitation.EMC.Phi.re` last, and that
+choice runs. The rule did not pick that one. The cage simply was not
+there to come after it.
+
+**The spent candidate.** `inertiaRotor.phi` was demoted at reduction 4
+(on `inertiaRotor.flange_b.phi = flange.phi`). The probe's second walk
+goes through a spent state's definition. It finds `inertiaRotor.phi`
+on the road from the residual to the rotor fluxes, because the rotator
+`exp(j*p*gamma)` reads the rotor angle. Holding the spent angle and
+its flanges out of the cone (`OXIDELICA_CONE_HOLD`, a throwaway probe)
+leaves the cone exactly as singular. So the spent angle is a
+bystander: it is why the rotor side is reachable at all, not why the
+weighing is blind.
+
+**The criterion.** Asked with a forcing instrument
+(`OXIDELICA_VICTIM_FORCE=8:<name>`, kept in the tree): `SC` runs to
+0.1 s with `excitation.EMC.Phi.re` or `rotorCage.EMC[2].Phi.re`. It
+refuses with `stator.EMC[2].Phi.im` (singular Jacobian) and with
+`stator.EMC[2].Phi.re` (step-size underflow at 0.004 s). The default
+`rotorCage.EMC[2].Phi.im` refuses too. What sets the two winners apart
+is whether the constraint, held beside the cone, determines the state.
+The bordered Jacobian answers that: the cone's gaps and the residual,
+over the cone's names and the candidate, regular or not
+(`sensitivity::bordered_determines`). At reduction 8 it says `false`
+for both `.im` fluxes and `true` for the other three. So the flux
+behind the rotation (`rotorCage.Phi.im`, which reaches the stator `.im`
+balance only through `Phi_sr = Phi_ss*rotator`) is told apart from a
+flux the balance determines on its own side, with no test on any name.
+Of the three `true` candidates the walk then takes
+`rotorCage.EMC[2].Phi.re`, which is one of the two that run.
+
+**The change.** It was measured behind `OXIDELICA_TIE_BORDERED=1`, and
+is merged on by default, with `OXIDELICA_NO_TIE_BORDERED=1` for the
+old walk. Where a tie's joint weights could not all be read, the
+candidates left are narrowed to those the bordered Jacobian calls
+determined. Any candidate it cannot read, or a verdict of none, leaves
+the tie as it was.
+
+The ladder, binary `/tmp/m548/oxP`:
+
+```text
+SC  off: singular Jacobian      on: runs to 0.1 s (103 rows)
+SD  off: runs                   on: runs, CSV byte-identical
+SE  off: singular Jacobian      on: runs to 0.1 s
+W5  off: singular Jacobian      on: runs (five phases, same reduction 8)
+```
+
+`--only` from `.msl`, off/on: `SMEE_Generator_Polyphase` 0 -> 1 run.
+`SMEE_Generator`, `SMEE_LoadDump`, `SMEE_DOL` and `SMEE_Rectifier`
+are unchanged (0). The controls `SMPM_Braking`, `SMPM_Inverter`,
+`SMPM_VoltageSource`, `SMR_Inverter`, `SMPM_Inverter_Polyphase` and
+`SMR_Inverter_Polyphase` run in both halves.
+
+`SMEE_Generator` has two machines. Under the key its `smeeM`
+reduction 20 takes `rotorCage[2].Phi.re`, and the model still refuses
+with the same singular block on `smeeM.airGap.V_mss.im`. So the
+second machine's wall stands behind another one, and that is not
+mapped here. `SMEE_LoadDump` never reaches a blind tie at all: its
+reduction 14 has readable joint weights (1e18 on the rotor fluxes),
+so the key never fires there.
+
+The expected wins, from `/tmp/m548/raw.txt` (run half, rows `singular
+Jacobian` / `structurally singular` that name an air-gap or flux
+unknown, `/tmp/m549/expected.txt`): four models, `SMPM_Braking`
+(Electrical.Machines, another family, untouched), and the three SMEE.
+One of the four is won.
+
+**Five phases (order item 5).** `W5` (`/tmp/m549/W5.mo`, `SC` with
+`m=5`) refuses at the same reduction 8 with the same five candidates
+and the same verdicts, and runs under the key. The family is one from
+three phases to m.
+
+**The corpus pair.** One binary (`/tmp/m548/oxP`), the two halves run
+one after the other, `/tmp/m549/off.txt` and `/tmp/m549/on.txt`:
+
+```text
+off: 973 flatten, 820 run; time: flattening 3780s, running 4772s
+on:  973 flatten, 821 run; time: flattening 3944s, running 4828s
+```
+
+The run lists differ by one added line,
+`SMEE_Generator_Polyphase`, with no victims. The run half is 1.2%
+dearer (56 s), well inside 6%, and the one model that grew is the
+model that now runs instead of refusing early. The flatten half is
+4.3% dearer, and the key cannot reach it: the change is inside index
+reduction, which runs in the run half. So the 4.3% is drift, and it
+is noted as a question rather than hidden. All three conditions of
+26 October hold, and the change is merged. The floors are not moved;
+the runner judges.

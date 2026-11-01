@@ -305,7 +305,23 @@ pub(crate) fn weigh_jointly(
                         .collect::<Vec<f64>>(),
                 );
             }
-            let step = solve_dense(&columns, &here)?;
+            let Some(step) = solve_dense(&columns, &here) else {
+                if std::env::var_os("OXIDELICA_JOINT_PROBE").is_some() {
+                    let flat: Vec<&str> = names
+                        .iter()
+                        .zip(&columns)
+                        .filter(|(_, c)| c.iter().all(|v| *v == 0.0))
+                        .map(|(n, _)| *n)
+                        .collect();
+                    eprintln!("joint-probe:   cone Jacobian singular, null columns: {flat:?}");
+                    let rows: Vec<&str> = (0..here.len())
+                        .filter(|r| columns.iter().all(|c| c[*r] == 0.0))
+                        .map(|r| cone[r].name())
+                        .collect();
+                    eprintln!("joint-probe:   null rows: {rows:?}");
+                }
+                return None;
+            };
             for (name, delta) in names.iter().zip(&step) {
                 let v = vars[*name] - delta;
                 if !v.is_finite() {
@@ -321,12 +337,40 @@ pub(crate) fn weigh_jointly(
         }
         None
     };
+    let probe = std::env::var_os("OXIDELICA_JOINT_PROBE").is_some();
     let mut vars = env.clone();
-    let x = *vars.get(state)?;
+    let Some(&x) = vars.get(state) else {
+        if probe {
+            eprintln!("joint-probe: {state} has no start");
+        }
+        return None;
+    };
     if cone_forward() {
         forward_explicit(cone, &mut vars, |expr, vars| read(expr, vars));
     }
-    settle(&mut vars)?;
+    if probe {
+        if let Some(def) = cone.iter().find(|d| match d {
+            ConeDef::Explicit(name, expr) => {
+                !vars.contains_key(name) || read(expr, &vars).is_none()
+            }
+            ConeDef::Implicit(_, expr) => read(expr, &vars).is_none(),
+        }) {
+            eprintln!(
+                "joint-probe: {state}: cone of {} cannot be read at {}",
+                cone.len(),
+                def.name()
+            );
+        }
+    }
+    if settle(&mut vars).is_none() {
+        if probe {
+            eprintln!(
+                "joint-probe: {state}: cone of {} will not settle",
+                cone.len()
+            );
+        }
+        return None;
+    }
     let before = read(residual, &vars)?;
     let h = step_for(x);
     vars.insert(state.to_string(), x + h);
@@ -732,5 +776,95 @@ mod monitor_tests {
             &mut baseline,
             true
         ));
+    }
+}
+
+/// Whether the cone together with the residual determines `state`:
+/// the bordered Jacobian of the cone's gaps and the residual, over the
+/// cone's names and `state`, is regular at the starts. A probe for a
+/// cone that is singular alone because the residual is one of its own
+/// balances; `None` where a value cannot be read.
+pub(crate) fn bordered_determines(
+    residual: &Expr,
+    state: &str,
+    cone: &[ConeDef],
+    env: &HashMap<String, f64>,
+    time: f64,
+    programs: &HashMap<String, ClassDef>,
+) -> Option<bool> {
+    let read = |expr: &Expr, vars: &HashMap<String, f64>| -> Option<f64> {
+        eval(
+            expr,
+            &EvalCtx {
+                vars,
+                time,
+                programs: Some(programs),
+                depth: 0,
+            },
+        )
+        .ok()
+        .filter(|value| value.is_finite())
+    };
+    let gaps = |vars: &HashMap<String, f64>| -> Option<Vec<f64>> {
+        let mut out: Vec<f64> = cone
+            .iter()
+            .map(|def| match def {
+                ConeDef::Explicit(name, expr) => Some(*vars.get(name)? - read(expr, vars)?),
+                ConeDef::Implicit(_, expr) => read(expr, vars),
+            })
+            .collect::<Option<_>>()?;
+        out.push(read(residual, vars)?);
+        Some(out)
+    };
+    let mut vars = env.clone();
+    vars.get(state)?;
+    forward_explicit(cone, &mut vars, |expr, vars| read(expr, vars));
+    let mut names: Vec<&str> = cone.iter().map(ConeDef::name).collect();
+    names.push(state);
+    let here = gaps(&vars)?;
+    let mut columns = Vec::with_capacity(names.len());
+    for name in &names {
+        let v = *vars.get(*name)?;
+        let h = 1e-7 * (1.0 + v.abs());
+        vars.insert(name.to_string(), v + h);
+        let moved = gaps(&vars)?;
+        vars.insert(name.to_string(), v);
+        columns.push(
+            moved
+                .iter()
+                .zip(&here)
+                .map(|(m, g)| (m - g) / h)
+                .collect::<Vec<f64>>(),
+        );
+    }
+    Some(solve_dense(&columns, &here).is_some())
+}
+
+#[cfg(test)]
+mod bordered_tests {
+    use super::*;
+
+    /// `a = x` in the cone and the residual `a`: held beside the cone,
+    /// the residual determines `x` and has nothing to say about `y`.
+    #[test]
+    fn the_bordered_jacobian_tells_a_determined_state_from_a_stranger() {
+        let cone = vec![ConeDef::Explicit("a".into(), Expr::Ref("x".into()))];
+        let residual = Expr::Ref("a".into());
+        let env: HashMap<String, f64> = [("x", 1.0), ("y", 2.0), ("a", 1.0)]
+            .map(|(k, v)| (k.to_string(), v))
+            .into();
+        let programs = HashMap::new();
+        assert_eq!(
+            bordered_determines(&residual, "x", &cone, &env, 0.0, &programs),
+            Some(true)
+        );
+        assert_eq!(
+            bordered_determines(&residual, "y", &cone, &env, 0.0, &programs),
+            Some(false)
+        );
+        assert_eq!(
+            bordered_determines(&residual, "z", &cone, &env, 0.0, &programs),
+            None
+        );
     }
 }
