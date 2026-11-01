@@ -66345,3 +66345,58 @@ first judge as well. The ladder: `SD`, `SC`,
 version. The narrow version only keeps fewer `smooth` calls than the wide one.
 
 The centre of `WORK_JACOBIANS` is not moved.
+
+### The narrow version checked against its answers: SoftStarter dies earlier
+
+The parked patch was checked as the 2 November brief asked: `simulate` with
+the key off and on, one binary (`/tmp/m555/ox555g`, the tree plus
+`state/0008`), plus a small model for the rule and a control. Files are in
+`/tmp/m555`.
+
+The rule itself is clean. In `smooth_small.mo` the relation `w >= 0` under
+`smooth(1, if w >= 0 then w^2 else -w^2)` crosses zero at t = 0.73. Both key
+positions give z(2) = 0.553123 against the analytic
+(1.27^3 - 0.73^3)/3 = 0.553122, with event sources 1 and 0. The control
+`jump_control.mo` writes the same relation bare around a jump: it stays an
+event source at both key positions and z(2) = 1.270000 exactly. The test
+`a_kept_smooth_gives_the_answer_and_a_bare_relation_keeps_its_event` holds
+both and is red with the key set. It is parked with the patch, as
+`~/oxideflow/state/0009-smooth-eventless-narrow-with-control.patch`.
+
+The large models are another matter.
+
+- `SoftStarter` (StopTime 10). Off, a full `simulate` ends at t = 4.498 on
+  the assertion that `softStartControl.vRef` is above its max of 1. A
+  binary built from the bare tree (8ae6a46, `/tmp/m555/oxbare`) ends at the
+  same point with the same value. On, the run ends earlier, at t = 1.983,
+  with a step size underflow that re-selecting states did not cure. Up to
+  t = 1.9 the answers agree: `imc.wMechanical` 67.217694 against
+  67.217696, stator current 2e-8 of its peak, events 1674 and 1672. The
+  worst column away from events is the RMS block at 4% of its peak, near
+  the switching. So the patch makes the model die 2.5 s sooner on the full
+  horizon. The corpus check stops after ten steps, so it cannot see this,
+  and the run lists were equal line for line. By the brief this is a victim
+  and the patch is not merged. Event sources: 89 relations off, 84 on.
+- `IMC_InverterDrive`. `simulate` refuses at both key positions, because
+  the states re-selected (off at t = 0.000875, on at t = 0.000625) name
+  columns the table did not have. There is no trajectory, and the answer is
+  **not** checked. The weak witness is `library check --only`: both sides
+  reach the end, off with 594163 points, 928538 newton and 10007 Jacobians
+  in 78 s, on with 2683, 5738 and 11 in 1.3 s. That check prints no final
+  values. A `simulate --stop 0.0006`, before either side re-selects, gives
+  5 events on both sides and `inverter.vAC[1]` within 1.3e-5 of a peak of 301. The machine currents are still at 1e-19 by then, so this witness
+  says nothing about the physics.
+- `SMEE_LoadDump` (FundamentalWave), whose Jacobians grew from 72 to 126.
+  A full `simulate` fails in Newton at both key positions: off at
+  t = 0.614, on at t = 0.950. Up to 0.6 s there are 0 events on both sides
+  and the mechanical answer agrees (`wMechanical` 6e-8, `phiMechanical`
+  6e-7 of its peak). The rotor-cage loss differs by 1.4% of its peak of
+  35 W, and its derivative columns by up to 50% at t = 0.547. Event sources
+  go from 16 to 14 relations. Why the Jacobians grew is still not named.
+
+The patch stays parked. The centre of `WORK_JACOBIANS` stays at 534, as
+Roman directed on 2 November: with the patch the corpus prints 541, inside
+the band. Without it the judge reads 737, and that is the regression the
+band exists to catch. Next on this line is the step size underflow of
+`SoftStarter` at t = 1.983 on the on side: which of the 5 relations that
+are no longer event sources it stands on.
