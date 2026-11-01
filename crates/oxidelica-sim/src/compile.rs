@@ -3029,6 +3029,37 @@ fn constant_candidates() -> bool {
     std::env::var_os("OXIDELICA_NO_CONSTANT_CANDIDATES").is_none()
 }
 
+/// Whether a weight read through the definitions at a re-selection is
+/// taken for a relative change of the candidate rather than an absolute
+/// one. On by default; `OXIDELICA_NO_THROUGH_RELATIVE=1` reads the
+/// absolute slope, as before.
+///
+/// Such a weight is the residual's slope in the candidate, so its unit
+/// is the residual's over the candidate's, and two candidates of
+/// different kinds are compared in different units. `SMPM_Braking`
+/// re-selects at t = 9e-4 on `spacePhasor_s.i_[2] + lssigma...i_[2] = 0`
+/// and weighs the stator current at 1.0 per ampere against the rotor
+/// angle at 6.99 per radian, through the rotation matrix. The angle
+/// stands at 0.14 rad: for a change of either by its own size, the
+/// current moves the row seven times more than the angle does. Taken by
+/// the absolute slope the angle went, the next block lost its rotor
+/// voltage row and the run was refused as a singular Jacobian
+/// (docs/ANALYSIS.md, m552).
+fn through_weight_relative() -> bool {
+    std::env::var_os("OXIDELICA_NO_THROUGH_RELATIVE").is_none()
+}
+
+/// A slope taken for a relative change of the candidate: the slope times
+/// the candidate's own size. A size that is not known leaves the slope as
+/// it was, rather than reading as a zero that would put the candidate out
+/// of the running.
+fn relative_weight(slope: f64, value: Option<f64>) -> f64 {
+    match value {
+        Some(v) if v.is_finite() => slope * v.abs(),
+        _ => slope,
+    }
+}
+
 /// Whether a candidate the parameters fold to zero keeps its definition
 /// while it still reads an unknown nothing has valued. On by default;
 /// `OXIDELICA_NO_FOLD_KEEPS_UNKNOWNS=1` folds it to zero, as before.
@@ -3373,6 +3404,13 @@ fn choose_the_victim(
             // point: two evaluators, one question, a loop between them.
             return weigh_at_start(residual, name, &cone, start_env, at_time, programs)
                 .map(f64::abs)
+                .map(|w| {
+                    if through_weight_relative() {
+                        relative_weight(w, start_env.get(name).copied())
+                    } else {
+                        w
+                    }
+                })
                 .unwrap_or(0.0);
         }
         differentiate(
@@ -10530,9 +10568,23 @@ mod held_tests {
 #[cfg(test)]
 mod tie_tests {
     use super::{
-        drop_the_unbordered, drop_the_undetermined, prefer_the_fresh, zero_forgets_an_unknown,
+        drop_the_unbordered, drop_the_undetermined, prefer_the_fresh, relative_weight,
+        zero_forgets_an_unknown,
     };
     use std::collections::HashMap;
+
+    #[test]
+    fn a_through_weight_is_read_for_the_candidates_own_size() {
+        // SMPM_Braking at t = 9e-4: the stator current weighs 1.0 per
+        // ampere at 88.52 A, the rotor angle 6.99 per radian at 0.1413
+        // rad (the probe printed 88.52 and 0.987 read relatively).
+        let current = relative_weight(1.0, Some(-88.52));
+        let angle = relative_weight(6.986, Some(0.1413));
+        assert!(current > angle * 10.0, "{current} against {angle}");
+        // A size not known is no zero: the slope stands.
+        assert_eq!(relative_weight(6.986, None), 6.986);
+        assert_eq!(relative_weight(6.986, Some(f64::NAN)), 6.986);
+    }
 
     #[test]
     fn a_fold_to_zero_does_not_forget_an_unvalued_unknown() {

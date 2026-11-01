@@ -66036,3 +66036,94 @@ policy layer m493 left to Roman, and quenching elements cost
 `GearConstraint` (m318). So nothing was changed. Parked as a
 candidate for that decision, with SMPM_Braking now on its list of
 witnesses beside Engine1a.
+
+## m552: SMPM_Braking dies after a re-selection, not at the matching
+
+### The map of m551 read the wrong dump
+
+`OXIDELICA_NEWTON_TRAIL=1` on SMPM_Braking (`/tmp/m552/SBtrail.txt`,
+binary `/tmp/m552/ox`, tree 881c598) dumps two blocks. The first,
+12 by 12 with row 8 zero, is at t = 1e-4. Row 8 reads only two
+columns in the block, `i_sr[1]` through `-sin(gamma)*p*w` and
+`der(i_sr[2])` through `RotationMatrix[1,2] = -sin(gamma)`. Both are
+zero with the rotor at rest. The live pivot `RotationMatrix[1,1]`
+sits on `der(i_sr[1])`, and that column is not in the block. So no
+assignment inside that block avoids the zero. But that block is
+survived: the step is cut, the selection monitor asks for a
+re-selection, and the run goes on to t = 9e-4. The block that refuses
+is the second dump, 34 by 34 at t = 9e-4. Its row 25,
+`spacePhasor_r.v_[2] - L[2,·]*der(i_mr) = 0`, reads -1.1e-8 in its
+own column where it should read 1, and nothing else. The matching is
+not where the model is lost.
+
+### The re-selection weighs a current against an angle
+
+The victim probe (`/tmp/m552/SBv.txt`) shows three walks: the first
+build, a retreat at reduction 6, and the re-selection at t = 9e-4.
+At reduction 7 of the re-selection, on
+`spacePhasor_s.i_[2] + lssigma.spacePhasor_b.i_[2] = 0`, the weights
+read through the definitions are `lssigma.i_[2]` 1.0 and
+`inertiaRotor.phi` 6.99, and the angle is demoted. Those are slopes
+per ampere and per radian. `OXIDELICA_VICTIM_FORCE=7:smpm.lssigma.i_[2]`
+changes only that walk, and the model runs (`/tmp/m552/force.txt`).
+Nine other forced victims do not.
+
+The repair weighs a candidate by the relative change it causes: the
+slope through the definitions times the candidate's own size. This
+applies only at a re-selection, and only to weights read through
+definitions. At 88.5 A and 0.141 rad the current weighs 88.5 and the
+angle 0.99. An earlier attempt also scaled the direct slopes
+(`/tmp/m552/ox3`). It changed reductions 1 to 6 as well and was
+refused as structurally singular, so it was dropped. The kept form
+was measured behind a key, off by default at the time of the pair. A unit test
+holds `relative_weight`.
+
+Ladder: SMPM_Braking `--only` from `.msl`, off 0 run and on 1 run.
+There are 56 running controls (Machines, QuasiStatic, pendulums,
+gears, mixing volumes from `/tmp/m551/k_on.txt`, list
+`/tmp/m552/ctl.txt`). Run off 56 and on 57, and the lists are equal
+apart from the winner (`/tmp/m552/ctl_off.txt`, `/tmp/m552/ctl_on.txt`).
+Run half 196s against 203s.
+
+### The row "unbalanced: nothing determines", by name
+
+The thirteen models of that row in `/tmp/m551/raw.txt` (list in
+`/tmp/m552/nd.txt`) are all helpers rather than examples:
+`Utilities.DirectCapacitor` and `DirectInductor`, four AST_BatchPlant
+`ControllerUtilities` blocks and `InnerTank`, the moving coil's
+`Components.ConstantActuator`, the four RobotR3 `Utilities` (AxisType1,
+AxisType2, Controller, Motor), and StateGraph's `Utilities.valve`. Each
+one leaves its connector inputs to whoever instantiates it, and the
+compiler reports that as unbalanced. The source of
+`DirectCapacitor` shows it: two `RealInput` connectors, `iDrive` and
+`i`, are left for whoever instantiates the class (`why ... vDrive`
+answers that no such name exists - the census text truncates names,
+and it is not to be read as a variable list). This was checked from
+the source of one model only, and the other twelve are classed by
+their package names. So the row is not a compiler wall
+but the corpus counting classes that are not meant to run on their own.
+No code was written for it.
+
+### The corpus pair
+
+I took one binary (`/tmp/m552/oxr`) from `.msl` and ran the two halves
+back to back: `/tmp/m552/p_off.txt`, then `/tmp/m552/p_on.txt` with
+`OXIDELICA_THROUGH_RELATIVE=1`.
+
+- Flatten: 973 = 973, and the lists are identical.
+- Run: 823 to 825, runnable 775 to 777.
+- The two extra lines in the run list are `SMPM_Braking` and
+  `MultiBody.Examples.Rotational3DEffects.MovingActuatedDrive`.
+  The second runs under `--only` with the key both off and on, so it
+  is a swing of the weather and not something the key won.
+- No line of the off list is missing from the on list, so there are no
+  victims.
+- Run half time: 4763s off, 4815s on (+1.1%).
+- The flatten half went from 3809s to 3954s. The key is read only
+  when the compiler re-selects during a run, so that difference is
+  weather.
+- Jacobians: 10714 to 10715, the winner's own work.
+
+All three conditions of 26 October hold, so the key is on by default
+and `OXIDELICA_NO_THROUGH_RELATIVE=1` restores the old weighing. The
+floors are left for the runner to move.
