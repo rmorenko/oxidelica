@@ -65911,7 +65911,7 @@ Translational, Blocks and ModelicaTest. Machines are two of the 28:
 `SMPM_CurrentSource` and `IMC_DOL_CommonLeakage`. The row is not the
 machine family, and work on the machines is not expected to empty it.
 
-### The corpus pair
+### The corpus pair of m550
 
 One binary (`/tmp/m550/ox2`), off half then on half, from the root,
 files `/tmp/m550/p2/off.txt` and `/tmp/m550/p2/on.txt`. Off: 973
