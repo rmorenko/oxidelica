@@ -65825,7 +65825,7 @@ singular model: equation E constrains no state` goes 27 -> 28. By name
 - `SMEE_Generator` stays in its row with a different block, and the
   map above names why.
 - `Engine1a` moves from `singular Jacobian` to `structurally singular
-  ... der(piston.frame_b.R.T[3,3]) = 0 constrains no state`.
+... der(piston.frame_b.R.T[3,3]) = 0 constrains no state`.
 
 That last one belongs to someone else's family, and the key is what
 moved it: `--only` from `.msl`, one binary, refuses the old way under
