@@ -65446,3 +65446,27 @@ loop and the wording they belong with `BranchingPipes12` and
 step the pressure into the region where IF97 answers NaN is not
 shown. Their flatten and run halves cost 21 to
 105 s each.
+
+## m547: the loop rows of m546 counted again, by name
+
+**The arithmetic of m546's loop paragraph is lowered.** It said the
+loop rows hold 52 models, 37 mapped from m519 on, nine with older maps
+and five with none; 37 + 9 + 5 is 51, and the seven loop rows of the
+run half in `/tmp/m544/census.txt`, taken between the section marks,
+hold 12 + 9 + 9 + 8 + 4 + 3 + 2 = 47. Recounted in `/tmp/m544/raw.txt`
+(`/tmp/m547/loopnames.txt`), both halves of the disagreement have a
+name. The list of older maps names ten models and not nine - `MNmos`,
+`MPmos`, `NAND`, `RtlInverter`, `MeasuringTemperature`,
+`TestSuddenExpansion`, `TestTemperature1`,
+`TestMixingVolumesPressureStates`, `BranchingPipes14`,
+`BranchingPipes2` - so the chapter's own parts add to 52. And the set
+the 52 was taken over is not the seven rows: a grep for "algebraic
+loop", "Newton" or "singular Jacobian" over the run half's refusals
+finds 53, the 47 of the rows plus six whose message only mentions one
+of the words - `AmplifierWithOpAmpDetailed` (singular initialization),
+`PolyphaseRectifier` and `ThyristorBridge2mPulse_RLV` (block accepted
+on the arithmetic floor), `ThreePhaseTransformerWithRectifier` and
+`GearType1` (initialization not square) and `DynamicPipeClosingValve`
+(initialization did not converge). The rows proper are 47 models, of
+which the fifteen named above are outside the m519+ chapters and 32
+inside.
