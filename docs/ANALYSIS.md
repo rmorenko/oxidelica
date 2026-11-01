@@ -65924,3 +65924,13 @@ weather and no model is named as dearer. By `--only` over the machine
 models that run, two moved their point count: `SMEE_Generator` (468
 refused, 469 run) and `SMEE_Generator_Polyphase` (388 against 361,
 fewer, with the excitation flux now the state there as well).
+
+### The census after
+
+`/tmp/m550/census.txt` against `/tmp/m549/census.txt`, by section
+bounds. Flatten half: 47 in 27 rows, identical line for line. Run
+half: 152 in 30 rows becomes 151 in 30. The one row that moved is
+`singular Jacobian in algebraic loop [...]`, 6 to 5, and by name
+(`raw.txt`, `built` lines) the one model gone is `SMEE_Generator`.
+Nothing else moved. `SMEE_LoadDump` stays in the same row with the
+block named above.
