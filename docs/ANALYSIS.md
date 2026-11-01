@@ -65513,3 +65513,11 @@ no longer in the block. So the same words now stand on a different
 structure. The composition is new and still needs its own map: the
 null vector of the printed matrix has not been taken, because the
 script m347 used (`/tmp/m347/ns.py`) no longer exists.
+
+**The `nested deeper` rows are Item 3's seven, unchanged.** The flatten
+half of `/tmp/m544/raw.txt` holds the four FFT models (RealFFT1,
+RealFFT2, Rectifier6pulseFFT, Rectifier12pulseFFT, the sum of `Bin(Add,
+...)`), `RAM` (`Time`), `GenerateRandomNumbers` (`{localSeed, ...}`)
+and `TestWallFriction` (`pipe4.data.zeta2_at_a`). These are the seven
+names of Item 3 with nothing added and nothing gone, so the depth
+probes of m495 still stand and no new depth was turned.
