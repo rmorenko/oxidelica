@@ -65800,3 +65800,38 @@ reduction, which runs in the run half. So the 4.3% is drift, and it
 is noted as a question rather than hidden. All three conditions of
 26 October hold, and the change is merged. The floors are not moved;
 the runner judges.
+
+**What the bordered test does not settle.** `SMEE_Generator`, forced
+at `smeeM`'s reduction 20 (`OXIDELICA_VICTIM_FORCE`, `--only` from
+`.msl`): `excitation.EMC.Phi.re` runs, while
+`rotorCage.EMC[2].Phi.re` and `stator.EMC[2].Phi.re` refuse. All
+three are `true` to the bordered Jacobian. So that test is necessary
+and not sufficient: it removes the flux behind the rotation, and among
+the fluxes left the one that runs here is the excitation's. In `SC`
+both rotor-side `.re` fluxes run. The next criterion has to tell the
+excitation flux apart from the cage's within that set, and this
+measurement does not name it. It is mapped, not built.
+
+### The census after the merge, against m548
+
+`/tmp/m549/census.txt` against `/tmp/m548/census.txt`, counted by
+section bounds. Flatten half: 47 models in 27 rows, identical line for
+line. Run half: 153 in 30 rows becomes 152 in 30. The row `singular
+Jacobian in algebraic loop [...]` goes 8 -> 6, and `structurally
+singular model: equation E constrains no state` goes 27 -> 28. By name
+(`raw.txt`, `built` lines):
+
+- `SMEE_Generator_Polyphase` leaves the census. It runs, the one win.
+- `SMEE_Generator` stays in its row with a different block, and the
+  map above names why.
+- `Engine1a` moves from `singular Jacobian` to `structurally singular
+  ... der(piston.frame_b.R.T[3,3]) = 0 constrains no state`.
+
+That last one belongs to someone else's family, and the key is what
+moved it: `--only` from `.msl`, one binary, refuses the old way under
+`OXIDELICA_NO_TIE_BORDERED=1` and the new way without it. It refused
+before and refuses now, so the run lists do not see it, and it is not
+a victim by the rule of 26 October. It is a MultiBody loop that
+reaches a blind tie and now has another victim, and that is worth
+knowing before anyone works on `Engine1a`. The SMEE family did not
+leave its row whole: one of three models left it.
