@@ -1916,7 +1916,16 @@ FLATTEN_FLOOR=973
 # (/tmp/m543/preflight.txt), less the same three that swing:
 #
 #   820 - 3 = 817 = 815 + 2
-RUN_FLOOR=817
+#
+# Then 9533804, which narrows a blind tie at index reduction to the
+# states the bordered constraint determines, won
+# SMEE_Generator_Polyphase. The judge of push run 41298725243 for
+# 9533804 printed 973 / 821, runnable 855 / 773, less the same three
+# that swing (SpringWithMass, SMPM_VoltageSource of FundamentalWave,
+# TestJunctionIdeal):
+#
+#   821 - 3 = 818
+RUN_FLOOR=818
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -2456,7 +2465,10 @@ RUNNABLE_FLATTEN_FLOOR=855
 # which is why this floor moves by one where the other moves by two:
 #
 #   772 - 3 = 769 = 768 + 1
-RUNNABLE_RUN_FLOOR=769
+#
+# And SMEE_Generator_Polyphase, won by 9533804, is a runnable example:
+# the judge of 41298725243 printed 855 / 773, so 773 - 3 = 770.
+RUNNABLE_RUN_FLOOR=770
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
