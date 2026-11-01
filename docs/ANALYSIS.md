@@ -66306,3 +66306,42 @@ event sequences differ (2, 34 and 1 events), so the position cannot agree to
 round-off. The current agrees to 6.4e-6 between fold off and default, inside the
 3e-5 order. With `smooth` kept it agrees to 3.2e-5, at that order and slightly
 above it. So the fold changed the path of IMC_DOL and not its answer.
+
+### The narrow version: a pair with no victims, parked for two answers
+
+Two changes to the parked patch. First, `smooth` is kept only in a model's own
+equations (not while a function body is inlined) and only where its argument
+holds a relation. A `smooth` over a vector in a body, which is what `Surfaces`
+met, is stripped as before. Second, the proof that a coefficient is zero
+throughout (`zero_throughout_with`, compile.rs) reads through a kept `smooth`.
+Without that, the NOR gates' `cbc = smooth(1, ...)` was no longer known to be
+zero, and the transistor block divided by it. The test
+`a_zero_under_a_kept_smooth_still_quenches_the_derivative_it_scales` was red
+without the second change.
+
+The pair, one binary `/tmp/m554/ox554g`, off half first
+(`/tmp/m554/pair2_off.txt`, `/tmp/m554/pair2_on.txt`):
+
+- flatten 973 and 973, run 825 and 825. Both lists are equal line for line.
+- Run half: 4773s off, 4578s on (-4.1%). Flatten half: 3924s off, 3977s on.
+  The flatten half does more work only on `holds_relation`, and the difference
+  is inside the weather.
+- Jacobians: 10715 to 541. Points went from 24758683 to 24150735 and newton
+  from 36276109 to 35483939. IMC_DOL alone takes 35 Jacobians to 2.
+
+`TestWallFriction`, won by the wide version, is not won by the narrow one: its
+`smooth` sits in a function body. No model is lost and the run half is cheaper,
+so the three conditions of 26 October hold. It is still parked, as
+`~/oxideflow/state/0008-smooth-eventless-narrow.patch`, for a reason the lists
+cannot see: by model, `IMC_InverterDrive` goes from 10007 Jacobians to 11 and
+`SoftStarter` from 103 to 2. Both have their answer to check before the change
+may land. That check was not finished in this shift. A full `simulate` of
+`SoftStarter` with the key off already ends at t = 4.498 on the assertion
+`softStartControl.vRef` above its max of 1 (1.0000000000000007), so its
+comparison needs the ten-step window of `library check` or a fix of its own.
+The band of `IMC_InverterDrive` (10007, plus or minus 20%) would go red on the
+first judge as well. The ladder: `SD`, `SC`,
+`SE` and `W5` give the same CSV byte for byte at both key positions on the wide
+version. The narrow version only keeps fewer `smooth` calls than the wide one.
+
+The centre of `WORK_JACOBIANS` is not moved.
