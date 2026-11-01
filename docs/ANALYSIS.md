@@ -66400,3 +66400,17 @@ the band. Without it the judge reads 737, and that is the regression the
 band exists to catch. Next on this line is the step size underflow of
 `SoftStarter` at t = 1.983 on the on side: which of the 5 relations that
 are no longer event sources it stands on.
+
+Narrowing by the order of `smooth` does not save it. Under a probe key
+(binary `/tmp/m555/ox555p2`), keeping only the `smooth(0, ...)` calls (the
+thyristor's gate and control) leaves 85 relations as event sources, and
+`SoftStarter` ends on the bare tree's assertion at t = 4.498. Keeping only
+the calls of order 1 or more removes a single relation, and the run dies
+again at t = 1.983 on the step size underflow. That relation is
+`QuadraticSpeedDependentTorque`'s `smooth(1, if w >= 0 then ... else ...)`:
+the same one whose chatter at zero the patch was written to remove in
+`IMC_DOL`. The relation that buys the Jacobians in one model is the relation
+that shortens the run in the other. So the next question is not which
+`smooth` to keep. It is why the load torque's `w` near zero, with no event
+at its crossing, drives the step size of `SoftStarter` to underflow at
+t = 1.983.
