@@ -2219,7 +2219,26 @@ fn reduce_index_once(
                                 let folded =
                                     simplify(&crate::symbolic::substitute_all(expr, &wanted));
                                 if let Expr::Number(value) = folded {
-                                    if value.is_finite() {
+                                    // A zero that came from a factor the
+                                    // parameters hold at zero, multiplying an
+                                    // unknown no earlier fold has valued, is
+                                    // the same forgetting the grounding rule
+                                    // above guards against, met by a name the
+                                    // fixpoint grounded through that very
+                                    // unknown. `SMEE_LoadDump` folded its
+                                    // phases' `V_m.im = (2/pi)*N.im*i` to 0
+                                    // so, and the converter current's
+                                    // differentiated alias came out an
+                                    // identity row: a singular Jacobian at
+                                    // the first points.
+                                    let forgets = fold_keeps_unknowns()
+                                        && zero_forgets_an_unknown(
+                                            value,
+                                            &named_once[slot],
+                                            &unknown_set,
+                                            &known,
+                                        );
+                                    if value.is_finite() && !forgets {
                                         known.insert(name.clone(), value);
                                         *expr = folded;
                                         named_once[slot].clear();
@@ -3008,6 +3027,28 @@ fn dummy_once() -> bool {
 /// `OXIDELICA_NO_CONSTANT_CANDIDATES=1` reads it as written.
 fn constant_candidates() -> bool {
     std::env::var_os("OXIDELICA_NO_CONSTANT_CANDIDATES").is_none()
+}
+
+/// Whether a candidate the parameters fold to zero keeps its definition
+/// while it still reads an unknown nothing has valued. On by default;
+/// `OXIDELICA_NO_FOLD_KEEPS_UNKNOWNS=1` folds it to zero, as before.
+fn fold_keeps_unknowns() -> bool {
+    std::env::var_os("OXIDELICA_NO_FOLD_KEEPS_UNKNOWNS").is_none()
+}
+
+/// Whether folding a candidate to `value` would forget an unknown it
+/// reads: the value is zero and one of the names it reads is an unknown
+/// that no fold has given a number.
+fn zero_forgets_an_unknown(
+    value: f64,
+    reads: &[String],
+    unknowns: &std::collections::HashSet<&str>,
+    known: &HashMap<String, f64>,
+) -> bool {
+    value == 0.0
+        && reads
+            .iter()
+            .any(|r| unknowns.contains(r.as_str()) && !known.contains_key(r))
 }
 
 /// Whether a reduction refuses a definition whose divisor reads zero at
@@ -10488,7 +10529,34 @@ mod held_tests {
 
 #[cfg(test)]
 mod tie_tests {
-    use super::{drop_the_unbordered, drop_the_undetermined, prefer_the_fresh};
+    use super::{
+        drop_the_unbordered, drop_the_undetermined, prefer_the_fresh, zero_forgets_an_unknown,
+    };
+    use std::collections::HashMap;
+
+    #[test]
+    fn a_fold_to_zero_does_not_forget_an_unvalued_unknown() {
+        // `V_m.im = (2/pi)*N.im*i` with `N.im` a zero parameter: the
+        // winding current `i` is an unknown nothing has valued, so the
+        // candidate keeps its definition rather than becoming 0.
+        let unknowns: std::collections::HashSet<&str> = ["i"].into_iter().collect();
+        let reads = vec!["N.im".to_string(), "i".to_string()];
+        let mut known = HashMap::new();
+        assert!(zero_forgets_an_unknown(0.0, &reads, &unknowns, &known));
+        // A nonzero fold forgets nothing it was not already given.
+        assert!(!zero_forgets_an_unknown(2.0, &reads, &unknowns, &known));
+        // Once the current itself has been folded, the zero is honest.
+        known.insert("i".to_string(), 0.0);
+        assert!(!zero_forgets_an_unknown(0.0, &reads, &unknowns, &known));
+        // Parameters alone are no unknowns.
+        let only_params = vec!["N.im".to_string()];
+        assert!(!zero_forgets_an_unknown(
+            0.0,
+            &only_params,
+            &unknowns,
+            &HashMap::new()
+        ));
+    }
 
     #[test]
     fn an_open_tie_prefers_what_no_earlier_reduction_weighed() {

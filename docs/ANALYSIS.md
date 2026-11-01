@@ -65965,9 +65965,33 @@ in the open state, is refuted as well. What is left is an identity
 the index reduction handed in as an equation: a differentiated alias
 whose two sides have become the same unknown.
 
-Not fixed. The next probe is the reduction that differentiated
-`conv[2].i = conv[2].pin_p.i`, and why the alias was not removed
-before it was differentiated.
+### The cause, and the repair
+
+Each instrument key in the simulator was switched on in turn against
+the model (`/tmp/m551/keys.txt`). Only `OXIDELICA_NO_CONSTANT_CANDIDATES`
+let it run. That key turns off the fold that takes a candidate
+definition to its number. A probe on the fold shows what it does at
+reductions 13 and 14: each phase's `V_m.im = (2/pi)*N.im*i` folds to 0,
+because `N.im` is a parameter at zero, while the winding current `i`
+is an unknown that no fold has valued. The comment above the fold
+already says a fold may not forget the only reference a candidate
+made to a current. The grounding fixpoint grounded `V_m.im` through
+`i` itself, so that guard did not see it. With the reference gone,
+reduction 13 had a single candidate, and the alias row came out the
+identity found above.
+
+The repair: a candidate that folds to zero while it still reads an
+unknown no fold has valued keeps its definition. It is on by default,
+and `OXIDELICA_NO_FOLD_KEEPS_UNKNOWNS=1` restores the old behaviour.
+A unit test on the predicate fails without it.
+
+The corpus pair was taken with one binary (`/tmp/m551/oxk`), from
+`.msl`, the halves run one after the other: `/tmp/m551/k_off.txt` and
+`/tmp/m551/k_on.txt`. Flatten 973 = 973. Run 822 to 823, runnable 774
+to 775. The run lists differ by exactly one line, `ran` FundamentalWave
+`SMEE_LoadDump`, and the flatten lists are identical. Time of the run
+half: 4791s off, 4815s on (+0.5%). Jacobians 10642 to 10714, which is
+the winner's own work. No victims.
 
 ### SMPM_Braking is its own breed
 
