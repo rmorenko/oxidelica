@@ -1932,7 +1932,17 @@ FLATTEN_FLOOR=973
 # runnable 855 / 774, less the same three that swing:
 #
 #   822 - 3 = 819
-RUN_FLOOR=819
+#
+# Then 6f65957, which weighs a re-selection's candidates by the change
+# their own size makes, won SMPM_Braking, and MovingActuatedDrive came
+# back beside it. The judge of push run 41337538135 for c9c3306 printed
+# 973 / 825, runnable 855 / 777, the same as the desk, the run lists
+# against those of 41327110542 differing by exactly those two. That
+# judge was red on its Jacobian band, not on a count. Less the same
+# three that swing:
+#
+#   825 - 3 = 822
+RUN_FLOOR=822
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -2477,7 +2487,9 @@ RUNNABLE_FLATTEN_FLOOR=855
 # the judge of 41298725243 printed 855 / 773, so 773 - 3 = 770.
 # And SMEE_Generator of FundamentalWave, won by 9bd18d2, is one too:
 # the judge of 41315515070 printed 855 / 774, so 774 - 3 = 771.
-RUNNABLE_RUN_FLOOR=771
+# And SMPM_Braking and MovingActuatedDrive are both runnable examples:
+# the judge of 41337538135 printed 855 / 777, so 777 - 3 = 774.
+RUNNABLE_RUN_FLOOR=774
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
