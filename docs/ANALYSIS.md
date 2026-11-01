@@ -65521,3 +65521,123 @@ RealFFT2, Rectifier6pulseFFT, Rectifier12pulseFFT, the sum of `Bin(Add,
 and `TestWallFriction` (`pipe4.data.zeta2_at_a`). These are the seven
 names of Item 3 with nothing added and nothing gone, so the depth
 probes of m495 still stand and no new depth was turned.
+
+## m548: the null vector of the new SMEE block, and the census tail by name
+
+### `SMEE_Generator_Polyphase`: the star has left the null space
+
+Taken from the root `.msl` with `--only` and `OXIDELICA_NEWTON_TRAIL=1`
+on `3a92bfc` (`/tmp/m548/ox1`). The refusal line is the same as
+m547's to the character (`/tmp/m548/smee.txt` against
+`/tmp/m547/smee.txt`), so the matrix is the one m547 saw without its
+null vector. The trail with the matrix is `/tmp/m548/smee_trail.txt`;
+the null space is taken by `~/oxideflow/state/tools/ns.py`, written
+again because `/tmp/m347/ns.py` was lost. It scales rows and columns
+to unit maximum, takes an SVD, and names both the right null vectors
+(unknowns) and the left ones (rows), with the source of every row.
+Its output is `/tmp/m548/ns_smee.txt`.
+
+The block is 38 by 38, rank 36: two singular values at 6e-17 and
+2.5e-16, the next at 1.1e-6. Neither null vector touches a star name.
+
+- The left null space is rows 0 to 3, the rotated air gap of both
+  machines: `<m>.airGap.V_msr.re = V_mss.re*rotator.re - ...` and
+  `<m>.airGap.Phi_sr.re = Phi_ss.re*rotator.re - ...`, for `smeeM` and
+  `smee3`. In the block each of the four rows has one entry, on
+  `<m>.airGap.Phi_ss.re` (-3000 for the `V_msr` row, 1 for the
+  `Phi_sr` row). So per machine two rows read the same single unknown
+  and nothing else: `V_msr.re` and `Phi_sr.re` are both being solved
+  through `Phi_ss.re`, and one of them is redundant.
+- The right null vectors are the unknowns those rows leave free: for
+  `smeeM` `der(airGap.V_mss.re)` with `der(airGap.V_mss.im)` (-1,
+  -0.48) and small parts on the stator converters' `V_m`; for `smee3`
+  the same pair with `der(i)` of converters 1 and 3.
+
+The three star names in the loop (`terminalBoxM.star.pin_n.v`,
+`terminalBox3.star.pin_n.v`, `smee3.stator.zeroInductor.v0`) have
+independent columns: `terminalBox3.star.pin_n.v` and
+`smee3...zeroInductor.v0` share rows 5, 14 and 22 with equal entries
+but `v0` also stands in row 10, so the sum m347 found readable only as
+a pair is now separable. m347's null vector was
+`terminalBoxM.star.pin_n.v = -smeeM.stator.zeroInductor.v0` with the
+left null row `zeroInductor.plug_p.pin[k].i + plug_n.pin[k].i = 0`;
+none of those names is in either null vector now.
+
+Verdict: a new family, not the m347 star on a new place. The star
+degeneracy was removed by the reductions m547 recorded (27 and 30
+demote both `zeroInductor.i0`); what refuses now is a matching that
+gives the air gap's `der(V_mss)` no row, because the two rotated
+equations of each machine were matched onto the one unknown
+`Phi_ss.re`. It is a structural singularity that reached the solver,
+twice, once per machine. No code was written. The next step is the
+victim trace at the reduction that leaves `der(airGap.V_mss.re)`
+without an equation, small first: one five-phase SMEE from its
+terminal box, as `W5` was for m347.
+
+### `der(X): X is not a state`, 8 by name
+
+The eight in `/tmp/m544/raw.txt` are the two Electrical and Magnetic
+`IMC_Initialize` and the QuasiStatic one, the three Fluid models
+(`BranchingDynamicPipes`, `HeatExchangerSimulation`,
+`HeatingSystem`), and the two `IMC_withLosses`. The first six are
+m416's map, refreshed in m521; the two `IMC_withLosses` came from
+`unbalanced ... nothing determines` (m536, m537). Probed again with
+`--only` from `.msl`, `Electrical...IMC_withLosses` still refuses with
+`der(aimc.idq_sr[1])`, the initial equation on an alias of a torn
+unknown, box 2 of shift 227. Eight names, the same family, no finding.
+
+### The tail of the run half, row by row
+
+Rows of three models or fewer in `/tmp/m544/census.txt`, members from
+`/tmp/m544/raw.txt` (`/tmp/m548/tail_names.txt`), against the last
+chapter that names each:
+
+| row (models)                       | members                                                               | map                      |
+| ---------------------------------- | --------------------------------------------------------------------- | ------------------------ |
+| initialization not square (3)      | `NonCircularPipes`, `ThreePhaseTransformerWithRectifier`, `GearType1` | m416, m448, m470, m521   |
+| algebraic loop [...] (3)           | `OneTank`, `MeasuringTemperature`, `TestSuddenExpansion`              | m529, shifts 483 and 505 |
+| array reached the evaluator (2)    | `Inverse_sh_TX`, `IncompleteMedia.ReferenceMoistAir`                  | m476, shift 492          |
+| IF97 `tsat` (2)                    | `TwoPhaseWater.BaseProperties`, `ExtendedProperties`                  | m481, m482, shift 492    |
+| below its min (2)                  | `FlueGasSixComponents`, `TestAllProperties.MoistAir`                  | shift 502, m529          |
+| did not converge in N Newton (2)   | both `SMPM_CurrentSource`                                             | m513, m544               |
+| the twelve singles                 | as in the m522 table                                                  | m522 table, each by name |
+| states re-selected (1)             | `MovingActuatedDrive`                                                 | m521, m522               |
+| `FilterOrder` equation becomes (1) | `ComponentsMixingUnit.FilterOrder`                                    | m522, "Map: FilterOrder" |
+| step size underflow (1)            | `Rotational.Examples.Friction`                                        | m331, m523               |
+
+Every name of the tail has a map by name. With the eight above, the
+47 loop names of m547 and SMEE now mapped, and the big rows mapped in
+m544 to m546, the run half of m544 is mapped name by name. None of
+the tail rows waits on a word from Roman except through rows already
+parked (`cannot evaluate parameters`, item 63).
+
+### The flatten half, the same comb
+
+The 47 names of the flatten half (`/tmp/m548/flat_names.txt`) were
+taken to this file by name. 44 have a chapter. Three had none by full
+name and were probed with `--only` and `--refused` from `.msl`
+(`/tmp/m548/p4.txt`):
+
+- `PartialMediumFunctionsForRealCondensingGases` and
+  `PartialMediumFunctionsForTwoPhase`: function
+  `PartialMedium.dynamicViscosity` is partial and nothing redeclared it.
+  These are the partial bases named together with
+  `ForIncompressible` (line 22716 and the list near 25684): helpers
+  that refuse rightly, mapped as a group.
+- `CombiTable1Ds.Test25_usertab`: `getUsertab` is `mydummyfunc` in C,
+  the user-table external function, the sibling of
+  `CombiTable1Dv.Test25_usertab` and `CombiTimeTable.Test66_usertab`
+  already mapped (line 12656 names the `Test25_usertab` set).
+
+So the flatten half is also mapped by name: no new family.
+
+### The census on `3a92bfc`, against m544
+
+Taken with `REFUSALS_RAW=/tmp/m548/raw.txt ./scripts/refusals.sh .msl
+both` (`/tmp/m548/census.txt`), counted between the section marks:
+the flatten half holds 47 models in 27 rows and the run half 153 in 30
+rows, with 1020 examples, 973 flattening and 820 running. Both halves
+of the census and every refused line of the raw report, model and
+message, are identical to m544's (`/tmp/m544/census.txt`,
+`/tmp/m544/raw.txt`). The three commits since (m545 to m547) moved
+nothing, as their chapters said.
