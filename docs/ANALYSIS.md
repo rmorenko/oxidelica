@@ -65934,3 +65934,52 @@ half: 152 in 30 rows becomes 151 in 30. The one row that moved is
 (`raw.txt`, `built` lines) the one model gone is `SMEE_Generator`.
 Nothing else moved. `SMEE_LoadDump` stays in the same row with the
 block named above.
+
+## m551: the wall behind the fresh tie in SMEE_LoadDump, and SMPM_Braking beside it
+
+### SMEE_LoadDump is not a stale tie
+
+Probed with `--only` from `.msl`, binary pinned at `/tmp/m551/ox`
+(tree 3f0da0b). The trace `/tmp/m551/LDv.txt` holds 15 reductions,
+and the ties are at 7 to 12 and 14. Twenty candidates were forced one
+at a time with `OXIDELICA_VICTIM_FORCE=<r>:<name>`. None of them runs
+(`/tmp/m551/force.txt`): fourteen stop at the same singular Jacobian,
+two at `structurally singular`, one at the equations of a loop, and
+three at singular blocks named differently. Hypothesis (a), that a
+stale candidate wins one more reduction, is refuted by that list.
+
+The matrix of the block at the failing point
+(`OXIDELICA_NEWTON_TRAIL=1`, `/tmp/m551/LDtrail.txt`, t = 0, the
+fifth point) is 33 by 33 and has rank 32. Its smallest singular value
+is 1.9e-15, and the next is 2.9e-8. The null column is
+`der(smee.airGap.V_mss.im)` (0.976) together with
+`der(...singlePhaseElectroMagneticConverter[2].pin_p.i)` (0.219). The
+row that carries it is row 31,
+`der(conv[2].i) - der(conv[2].pin_p.i) = 0`: the differentiated alias
+of the converter current. In its own column it reads 1.3e-15 where it
+should read -1, so the row cancels to zero once the alias is
+substituted and determines nothing. The switch rows are healthy
+(`Goff = 1e-5` against 1, both columns present), so this is not the
+Goff breed of queue item 30. Hypothesis (b), an arc block degenerate
+in the open state, is refuted as well. What is left is an identity
+the index reduction handed in as an equation: a differentiated alias
+whose two sides have become the same unknown.
+
+Not fixed. The next probe is the reduction that differentiated
+`conv[2].i = conv[2].pin_p.i`, and why the alias was not removed
+before it was differentiated.
+
+### SMPM_Braking is its own breed
+
+Same instruments (`/tmp/m551/SBv.txt`, `/tmp/m551/SBtrail.txt`). The
+block is 12 by 12 with rank 11, smallest singular value 1.7e-18, at
+t = 9e-4. Row 8,
+`der(i_ss[1]) - (... RotationMatrix[1,1]*der(i_sr[1]) + RotationMatrix[1,2]*der(i_sr[2]) ...)`,
+is zero in every column of the block, and the null column is
+`der(smpm.airGap.i_sr[2])`. The matching gave that row to
+`der(i_sr[2])` through `RotationMatrix[1,2] = -sin(gamma)`, and that
+pivot vanishes with the rotor at angle zero, which is where a machine
+standing still starts. So this is a pivot that is right except at the
+one point the model starts from, not a stale tie. The repair belongs
+to the matching (pick a pivot that does not depend on the angle),
+not to the state choice. Parked with this map.
