@@ -66249,3 +66249,63 @@ source:
 
 Both confirm the classification: free inputs, not a wall. This is material for
 the question about the example filter.
+
+### Keeping `smooth` past flattening: a pair, three victims, parked
+
+The fix suggested above was built behind `OXIDELICA_NO_SMOOTH_EVENTLESS`.
+Flattening keeps `smooth(n, x)`, the indicator collector does not descend into
+it, and the compiler and the derivative take its value as `x`. The specification
+allows this: an expression under `smooth` is declared continuous to order `n`,
+so a tool need not raise an event where its relations turn. On IMC_DOL it gives
+552 points, 1488 newton and 2 Jacobians, against 2955, 5584 and 35. The small
+models `SD`, `SC`, `SE` and `W5` give the same CSV byte for byte with the key on
+and off. The test `a_relation_under_smooth_is_not_an_event_source` was red
+without the fix.
+
+The corpus pair, one binary `/tmp/m554/ox554b`, off half first
+(`/tmp/m554/pair_off.txt`, `/tmp/m554/pair_on.txt`):
+
+- off: flatten 973, run 825, run half 4855s, 10715 jacobians;
+- on: flatten 974, run 823, run half 4171s (-14%), 541 jacobians;
+- won: `ModelicaTest.Fluid.TestComponents.Fittings.TestWallFriction`;
+- lost: `HeatingNPN_NORGate`, `HeatingPNP_NORGate` and
+  `MultiBody.Examples.Elementary.Surfaces`.
+
+The three victims are real. Run together with `--only-from`, they refuse with
+the key on and run with it off, on the same binary. Each one runs on its own
+under `--only`, which leaves a dependence on what ran before it in the process.
+That is not explained yet. The refusals:
+
+- `Surfaces`: `result` is held element by element and was given one number:
+  `smooth(0, if length(v) >= eps then v / length(v) else v / eps)`. A `smooth`
+  over a vector inside an inlined function body reaches a path that only knew
+  scalars.
+- The two NOR gates: the derivative block of the transistor
+  (`der(T1.vbc) = ...`) is NaN at t = 0 before any Newton step. NPN.mo:79-82
+  writes `ibc`, `ibe` and the capacitances under `smooth(1, ...)`.
+
+By the rule of 26 October, victims send the change to the park. The patch is
+`~/oxideflow/state/0007-smooth-eventless.patch`. A version narrowed to scalar
+model equations, which never keeps `smooth` inside a function body, is the next
+step, and it needs its own pair.
+
+### The answer of IMC_DOL in three states
+
+`simulate` from `.msl`, each column compared over all 10002 rows, relative to
+the column's peak, with `arg_*` columns left out:
+
+| pair                           | worst column    | rotor current | angle `phi` | speed  |
+| ------------------------------ | --------------- | ------------- | ----------- | ------ |
+| fold off vs default            | 2.2e-4 (stator) | 6.4e-6        | 2.8e-8      | 2.1e-7 |
+| fold off vs default + `smooth` | 2.1e-4 (stator) | 3.2e-5        | 3.9e-7      | 6.1e-7 |
+| default vs default + `smooth`  | 2.1e-4 (stator) | 3.2e-5        | 3.7e-7      | 5.8e-7 |
+
+The worst column in every pair is a stator node voltage of the transient machine
+during start-up. The disagreement is the same size whichever two sides are
+compared, so it is the width of the solver's own path at `tolerance 1e-6`, not a
+change in the solution. The precedent of 26 October (position 2.5e-14, current
+3e-5 of the peak) came from runs whose event sequence was identical. Here the
+event sequences differ (2, 34 and 1 events), so the position cannot agree to
+round-off. The current agrees to 6.4e-6 between fold off and default, inside the
+3e-5 order. With `smooth` kept it agrees to 3.2e-5, at that order and slightly
+above it. So the fold changed the path of IMC_DOL and not its answer.
