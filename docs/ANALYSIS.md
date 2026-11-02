@@ -66832,7 +66832,10 @@ under `der` in an initial equation is handled
 (`/tmp/m558/SS.mo`, `SS2.mo`, `SS3.mo` all run). So the gap is a
 `der` of a variable that is defined through a rotation or a medium
 function, which `also` does not hold. That is one layer for all
-eight, and it is not tried here.
+eight, and it is not tried here. This repeats the map of m416, m521
+and m544 ("the initial equation on an alias of a torn unknown"). What
+is new is only the three small controls, which show that a plain
+algebraic name is not the wall.
 
 ### `unbalanced ... nothing is left for`, six models
 
@@ -66872,3 +66875,21 @@ made the off half dearer, not the on half. Until a quiet pair is
 taken, this pair cannot price the run half under 6%. The probe stays
 in the park. The win is one model, and the price would need a quiet
 pair before it can be stated.
+
+### The second link: the anchor is dropped at a recompilation
+
+In the recompiled walk, reduction 3 weighs `J1.phi` beside the two
+relative angles, and it takes `J1.phi`. At a resume the anchor closure
+handed to `reduce_index` answers no for every fixed start
+(`compile.rs:7085`, `resume.is_none() || partial_sensitivity()`). That
+is deliberate, and it was written for a pendulum that froze on a
+victim its constraint no longer determined. The old weighing,
+`OXIDELICA_PARTIAL_SENSITIVITY=1`, keeps the anchor at a resume. With
+it, `EB2`, `EB2b`, `GB2` and `GB4` all run with the present binary. So
+the Gearbox chain has two links with a key each. One is reading the
+branches at the start (`OXIDELICA_MODES_READ_BRANCHES`, parked), which
+spares the recompilation. The other is keeping the anchor at the
+recompilation, which is the old switch and is known to freeze the
+pendulum. The second is not offered as a cure. It names the layer:
+the weighing at a resume has nothing that prefers the relative pair
+over an absolute angle that has lost its anchor.
