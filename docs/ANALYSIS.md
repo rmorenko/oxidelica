@@ -66695,3 +66695,17 @@ reaching nothing. On the way, reductions 14 and 16 meet four
 Both machines therefore end on an empty reach in the magnetic port
 equations, which is a closer pair than the census rows had made them.
 No small model was written for either.
+
+The `EB2` trace holds a second walk after the first. In the second,
+reduction 3 takes `J1.phi`, the anchored angle, and not a relative
+one, so `phi_rel` and `eb.phi_rel` both stay states of one stretch.
+Reduction 6 then takes `eb.w_rel` and keeps `w_rel` and `J1.w`. The
+hidden constraint `eb.phi_rel = phi_rel` that follows is the row
+reduction 7 finds the system already holds. In the runnable `EB2b`
+there is one walk only, and its victims are the two relative quantities
+of the backlash, `eb.phi_rel` and `eb.w_rel`, beside the absolute ones.
+So the first link is a matter of which walk is kept. The first walk
+was sound at the angle level, and the second gave the anchor up for
+two relative angles. Why the second walk is started at all is the next
+question for this family. It is not a `retreat` line, since none is
+printed.
