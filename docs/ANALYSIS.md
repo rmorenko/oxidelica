@@ -66893,3 +66893,23 @@ recompilation, which is the old switch and is known to freeze the
 pendulum. The second is not offered as a cure. It names the layer:
 the weighing at a resume has nothing that prefers the relative pair
 over an absolute angle that has lost its anchor.
+
+### FullRobot walks twice too, for a different mode
+
+`RobotR3.FullRobot` holds two `reduction 1` walks and refuses on
+`axis1.gear.spring.phi_rel`, the Gearbox shape. The recompilation is
+at `t = 2.6e-14`. The mode that changes is mode 0, the path planner's
+`KinematicPTP2` `if` chain. At `t=0` it takes the `else`, branch 9 of
+9, reading `Ta2s = 0`, and at the resume it takes branch 6,
+`time < Ta2s`. `Ta2s` is defined only inside the outer
+`if sd_max_inv <= eps ... else` of the same block, through
+`Ta2 = sd_max/sdd_max` and `sd_max = 1/max(abs(aux1))`. The parked
+key reads only the chosen branches' `name = expr` equations and does
+not get through that chain, so FullRobot does not move under it
+(`/tmp/m558/ctl2.txt`). Under `OXIDELICA_PARTIAL_SENSITIVITY=1` it
+leaves the singular wall for "the initialization problem is
+singular", one storey up. `OneAxis` (unbalanced, 55 over) and
+`SpringDamperNoRelativeStates` move under none of the four
+combinations. So the family "settles the mode on an unwritten zero"
+holds at least two models, by two routes: `LossyGear`'s efficiencies
+and the path planner's switching times.
