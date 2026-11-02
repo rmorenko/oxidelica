@@ -3290,7 +3290,13 @@ WORK_JACOBIANS_PPM=100000
 # (0) fires, and so does a run that changes how often it rebuilds.
 # 10007 is the desk's print, and the judge of 586c99c (job
 # 122130937702) printed 10007 too.
-WORK_JACOBIANS_OWN="Modelica.Electrical.Machines.Examples.InductionMachines.IMC_InverterDrive 10007"
+#
+# Moved by the judge of 0fa5966 (push run 41520127889), which printed
+# 5 for this model where the desk pair (/tmp/m564) gave 11: merging
+# smooth without events stops the model throwing its Jacobian away at
+# every event, 10007 -> 5. The centre follows the runner, not the desk;
+# twenty percent around 5 still rounds to 4..6, so a refusal fires.
+WORK_JACOBIANS_OWN="Modelica.Electrical.Machines.Examples.InductionMachines.IMC_InverterDrive 5"
 WORK_JACOBIANS_OWN_PPM=200000
 # The pair is held on a line of its own and to a band of its own, an
 # order of magnitude wide in either direction rather than five percent:
