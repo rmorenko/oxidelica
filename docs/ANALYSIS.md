@@ -66928,3 +66928,21 @@ both keys (`/tmp/m558/ctl3.txt`): `LossyGearDemo2` (singular Jacobian
 on the gear quadrants), `RobotR3.Utilities.GearType1` (initialization
 not square) and `GearType2` (`bearingFriction.sa` not mentioned). None
 moved, so none of them belongs to the start-mode family.
+
+### The quiet pair
+
+The pair was taken again with nothing else running beside it, with the
+same binary and the halves one after the other: `/tmp/m558/qoff.txt`
+and `/tmp/m558/qon.txt`. The flatten lists are equal. The run lists
+differ by `ModelicaTest.Rotational.TestBearingConversion` gained and
+no model lost, 777 against 778 runnable. The `time:` lines read
+flattening 5169 s against 5425 s and running 6349 s against 6524 s.
+So running is 2.8% dearer, counted from the off half. Two off halves
+of one binary, the noisy one and the quiet one, differ by 7% in their
+run time (5942 s against 6349 s). That is wider than the difference
+the key makes, so the models that made the on half dearer cannot be
+named from this pair. The patch stays in the park
+(`m558-modes-read-branches-probe.diff`) under the rule of 26 October.
+The lists agree line for line, and the price is under 6% on one
+quiet pair, but which models carry it is not named. The question is
+Roman's.
