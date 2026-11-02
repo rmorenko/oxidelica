@@ -66549,7 +66549,7 @@ by name against `/tmp/m552/raw.txt` and each model's own file:
   and `RealSwitch`, the two Polyphase analysers, four FluxTubes
   components, `Loops.Utilities.Cylinder` and both
   `SpringDamperNoRelativeStates`.
-- 9 are examples with an annotation. Six are MultiBody: the four
+- 9 are examples with an annotation. Seven are MultiBody: the four
   `Constraints` models, `Engine1a`, `PlanarFourbar` and `FullRobot`. The
   other two are `IMC_DOL_CommonLeakage` and `SMPM_CurrentSource`. The
   `Constraints` models are already mapped above, under the joint link
@@ -66561,3 +66561,42 @@ by name against `/tmp/m552/raw.txt` and each model's own file:
 So the row counts 28 models, and at most 13 of them are examples. Work
 aimed at this row should start from the 9 annotated examples and not
 from the count.
+
+## m557: where SoftStarter's 1e-3 between the two halves lives
+
+The smooth patch with the absolute step floor and the run without it
+part by 1e-3 of a column's peak in 766 of 1185 columns of
+`SoftStarter` (`/tmp/m556/s44_offabs.csv` against `s44_onabs.csv`,
+47172 common rows to t=4.4, script `/tmp/m556/fc4.py` and `fc5.py`).
+Grouped by component, the largest relative difference is:
+
+| group      | columns | over 1e-3 | worst  | first over 1e-3 |
+| ---------- | ------- | --------- | ------ | --------------- |
+| thyristors | 84      | 8         | 1.0    | t=0.55          |
+| RMS        | 36      | 8         | 8.1e-2 | t=0.06          |
+| electrical | 970     | 29        | 4.0e-3 | t=1.547         |
+| mechanics  | 81      | 2         | 3.8e-3 | t=1.547         |
+| control    | 13      | 0         | 2.9e-6 | none            |
+
+The two "mechanics" columns over 1e-3 are pin voltages of
+`imc.strayLoad`, which the grouping put there by name; the mechanical
+states themselves stay at 3.8e-8 (`imc.wMechanical`,
+`loadInertia.w`), 1.2e-8 (`imc.phiMechanical`) and 6.4e-8
+(`quadraticLoadTorque.tau`). The control reads 2.5e-8 on
+`softStartControl.vRef` and at most 2.9e-6 on the RMS filter
+(`filter.x[1]` at t=2.004), which is fed by the current and so follows
+the switching.
+
+The switching instants are where the difference lives. Every
+thyristor fires the same number of times in both runs (430, 430, 429),
+the first fire after t=0.05 agrees to nine digits, and the largest
+shift of a fire is 4.1e-5 s (`triac[1].thyristor1`, t=2.033) and
+1.7e-4 s (`triac[2].thyristor1`, t=2.220). A Boolean column read at a
+row between two shifted fires differs by its whole peak, and that is
+the 1.0 above.
+
+So the outcome is the solenoid one: the difference is held in the
+columns of switching and of what is sampled across a switching, at a
+fire shift of at most 1.7e-4 s, while the mechanics and the reference
+agree to 1e-7. The control's filter at 2.9e-6 is the one figure above
+1e-7, and it is named here rather than rounded into the rest.
