@@ -67454,3 +67454,12 @@ makes `IMC_YDarc` run 58 times dearer under `simulate` while the check
 cannot see it, because the check never runs at 2.5. That belongs in
 the measurement of the default flip. What does the grinding below the
 wall is not mapped yet.
+
+Sampled for ten seconds a minute into a run at stop 0.01: every one of
+8373 samples is under `run_bdf`, 8357 of them in `eval_point` and 8331
+in `solve_implicit_block`, with `Code::run` the leaf. No event handling
+and no reselection to speak of (280 samples in `handle_event`). So
+below the wall the cost is BDF taking very many points at a step too
+small to move the clock, each paying the torn block's Newton solve,
+until the stall finally comes. It is the solver grinding, not a pass of
+the compiler.
