@@ -67138,3 +67138,21 @@ floor too and the count must be taken again.
 
 Not done in this shift: the corpus pair under the key, and the
 merge. The key and the patch stay in the park.
+
+### Link 3: why the joint weights are unread at the resume of `GB4`
+
+Probed with `OXIDELICA_RESUME_TIE=1 OXIDELICA_JOINT_PROBE=1` on
+`/tmp/m557/small/GB4.mo` (binary `/tmp/m559/oxE`). At reduction 6 the
+cone of each of the three candidates, `gear.w_rel`,
+`gear.elastoBacklash.w_rel` and `J1.w`, has ten definitions and
+cannot be read at `der(gear.flange_b.phi)`: the resume point carries
+the states and algebraics it settled, not the derivative names that
+earlier reductions put into the cone, so the Newton has no start for
+that name and the weight is `None`. The cone of the position level
+before it, nine definitions, is read but its Jacobian is singular with
+no null row or column, which is a different wall. So the narrow
+question has a narrow answer: the weights are not empty because of
+the tie rule but because `der(...)` names are absent from the resume
+environment. Carrying them across the rebuild, as the chain key
+carries settled values, is the next probe; it was not built in this
+shift.
