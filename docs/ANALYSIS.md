@@ -66600,3 +66600,48 @@ columns of switching and of what is sampled across a switching, at a
 fire shift of at most 1.7e-4 s, while the mechanics and the reference
 agree to 1e-7. The control's filter at 2.9e-6 is the one figure above
 1e-7, and it is named here rather than rounded into the rest.
+
+### TestMixingVolumesPressureStates: a full step into NaN, shortened
+
+On top of the m556 probes, `OXIDELICA_NAN_BACKTRACK` sent a block into
+the line search whenever the full Newton step gave a residual that is
+not a number. It fired four times (`/tmp/m557/tmv_on.txt`) and did not
+move the wall: the block that went over the edge now crawls at λ from
+7.6e-6 to 3.1e-5 with |f| stuck near 6.59e3, and ends at the same
+`algebraic loop did not converge in 50 Newton iterations`. Running cost
+357 s against 243 s, 186 Newton iterations against 168, still 8 points.
+So keeping the step out of NaN is not enough: the direction itself does
+not lead down from there, and the second wall is the direction, not the
+step length. Nothing from this probe is a candidate.
+
+### TestBearingConversion: the smallest model that refuses the same way
+
+`/tmp/m557/small/EB2.mo` is two inertias, a `LossyGear`, an
+`ElastoBacklash` and three variables copied from `Gearbox`: `phi_rel`
+and `w_rel = der(phi_rel)` with `StateSelect.prefer`, and
+`a_rel = der(w_rel)`. It is refused with the same words,
+`eb.phi_rel - phi_rel = 0 constrains no state` (raised at
+compile.rs:2932). Each of these runs: without `a_rel` (`EB3`), without
+the `prefer` (`EB2n`), with `IdealGear` (`EB2I`) or `BearingFriction`
+(`EB2b`) in place of `LossyGear`, and with a plain `Spring` in place of
+`ElastoBacklash` (`EB2s`). A lossless `lossTable` does not help, so the
+refusal is structural. The mechanism is the pair `LossyGear` with
+`ElastoBacklash` under a preferred relative state with a second
+derivative. That is exactly `Gearbox`, so `GB2.mo`, a bare `Gearbox`
+between two inertias, refuses too.
+
+`FullRobot` is not the same shape. Its gear is `GearType1`, which is
+`BearingFriction`, `SpringDamper` and `IdealGear` and has no `LossyGear`.
+`GearType1` driving a MultiBody revolute (`R1.mo`) runs, and `EB2b`
+runs too. One fix to the `Gearbox` shape is expected to move
+`TestBearingConversion` and not `FullRobot`.
+
+### The other two annotated examples of the row
+
+`IMC_DOL_CommonLeakage` is refused on
+`singlePhaseElectroMagneticConverter[5].port_p.V_m.im =
+[4].port_n.V_m.im`, and `SMPM_CurrentSource` (FundamentalWave) on
+`der(smpm.flange.phi) - der(angleSensor.flange.phi) = 0`. Both are
+refused at the same site, after 31 other members of the singular subset
+were tried. The earlier census put them in two different shapes,
+dependent row and supply once. No small model was written this shift.
