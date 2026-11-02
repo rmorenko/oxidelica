@@ -67295,3 +67295,80 @@ That makes it an argument in the `RESUME_TIE` question rather than a
 win of its own. How many corpus models carry the same unanchored ring
 was not counted in this shift. It wants the held probe over the corpus,
 about 26 minutes of the binary, and is left to the next one.
+
+## m562: the three adders under the clock-read step floor
+
+The last blind piece of step 4 was the three `Spice3` adders. Each was
+taken alone with `--only <class> --with-heavy` from one binary,
+`/tmp/m560/ox1`, under a CPU ceiling per half. The outputs are in
+`/tmp/m561/a/{twobit,root,fourbit}-{off,on}.txt`.
+
+None of the three reaches the solver. They refuse before the first
+step, so the step floor is never read in them. That is unreachable,
+not measured harmless on a long run:
+
+- `TWOBIT`, both halves: 0 points, 1 Newton, refused as an
+  underdetermined algebraic loop on `der(X2.X9.Q4.vbe)`. The `work:`
+  lines are equal byte for byte, and the time is 415.9 s off against
+  416.6 s on.
+- The root `Spice3BenchmarkFourBitBinaryAdder`, off half only: 0
+  points, 0 Newton, refused as structurally singular at
+  `X1.X2.X2.p3.v`, after 3430 s.
+- `FOURBIT`, off half only: 0 points, 0 Newton, refused as
+  structurally singular at `X2.X2.X7.p1.v`, after 2966 s under a
+  5000 s ceiling.
+
+The on halves of the root and of `FOURBIT` were not taken. The key
+changes only the solver's step test, and these models never reach the
+solver. Spending another hour of the shift to confirm that was not
+worth it. With this, step 4 of Roman's word is closed. Each of the 23
+heavy models is either measured or never reaches the solver.
+
+The October prices in `scripts/heavy_models.txt` are off by up to a
+factor of two in both directions on this tree. `TWOBIT` came in at
+0.70 of its price and `EngineV6` at 1.80. A 2x CPU ceiling taken from
+that price is a coin toss, not a margin. An earlier flat sweep missed
+`TWOBIT`'s natural refusal by 57 seconds and called the model blind.
+
+### The scheduled heavy run on 6e9ac26
+
+Run 41441109686 passed: pass a in 157.0 minutes, pass b in 118.4,
+against 139.2 and 77.8 for run 41300035706 on 9533804. The rise in
+minutes is the runner, not the tree. In pass b the `work:` line is
+equal byte for byte between the two runs, while flattening went from
+834 s to 1221 s and running from 9103 s to 13980 s. Pass a did a third
+less work: points 879724 to 586017, Newton 5723770 to 3494332,
+Jacobians 20089 to 13215. Its time still rose from 13737 s to 15047 s.
+The saving comes from the re-selection commits between the two runs
+(6f65957, 9bd18d2, 96f0432).
+
+The rule that follows: the runner's spread on the same work reaches
++54%, not the ±17% recorded before. A price of the scheduled run is
+compared by the work counters and never by its minutes.
+
+A correction to m561: the note there withdrew m560's claim that none
+of the 23 refuses on a step underflow, citing run 41300035706. That
+run stands on 9533804, and the sweep was on 6e9ac26. In the pass a
+artefact for 6e9ac26 there is no `step size underflow` line. The
+claim of m560 held for its own tree. So `IMC_YDarc`'s refusal changed
+between the two trees. What it says now is cut short in the artefact,
+so that is a line for the queue, not a conclusion. Beside it,
+`EngineV6`'s wall moved from `cylinder1.crank_a` to
+`cylinder2.crank_a`, one cylinder further on.
+
+### The ring of derivative aliases over the corpus
+
+The held key was taken over the whole corpus as a pair, one binary
+`/tmp/m561/ox13` (the tree plus the parked
+`m561-held-zero-der-probe.diff`), the halves one after the other.
+`OXIDELICA_RESUME_TIE` alone went into `/tmp/m561/tie.txt`, and with
+`OXIDELICA_HELD_ZERO_DER` beside it into `/tmp/m561/tieheld.txt`.
+
+Both halves give 973 / 825 and 855 / 777, and the run lists are equal
+line for line. The work differs by 139 points and 139 Newton steps,
+24758683 against 24758822, with Jacobians 10715 on both. The run half
+took 4551 s against 4549 s. So beyond the small models of m561, the
+held rule wins no corpus model on top of `RESUME_TIE`. It moves one
+run by 139 points, and that model is not named yet. As an argument in
+the `RESUME_TIE` question, the ring weighs `GB4` and the small models
+and nothing in the corpus lists.
