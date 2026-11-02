@@ -66536,3 +66536,28 @@ Newton step that is not kept inside the medium's domain is the second.
 Run time is 243 s against 2 points refused before, on one model. A
 candidate for the series needs the second wall mapped, not a better
 first one.
+
+### The top of the run half, read by model
+
+The top row of the run half of `/tmp/m552/census.txt` is
+`structurally singular model: ... constrains no state`, 28 models. Read
+by name against `/tmp/m552/raw.txt` and each model's own file:
+
+- 15 have no `experiment` annotation and are components, not examples.
+  They are the four `OpAmpCircuits` (`Add`, `Buffer`, `Feedback` and
+  `Gain`, each refused on a pin current of an open port), `Utilities.Nand`
+  and `RealSwitch`, the two Polyphase analysers, four FluxTubes
+  components, `Loops.Utilities.Cylinder` and both
+  `SpringDamperNoRelativeStates`.
+- 9 are examples with an annotation. Six are MultiBody: the four
+  `Constraints` models, `Engine1a`, `PlanarFourbar` and `FullRobot`. The
+  other two are `IMC_DOL_CommonLeakage` and `SMPM_CurrentSource`. The
+  `Constraints` models are already mapped above, under the joint link
+  of `RevoluteConstraint`.
+- 4 were not found under the path their name gives:
+  `ActuatorWithNoise`, `BatchPlant_StandardWater`, `TanksWithOverflow`
+  and `TestBearingConversion`.
+
+So the row counts 28 models, and at most 13 of them are examples. Work
+aimed at this row should start from the 9 annotated examples and not
+from the count.
