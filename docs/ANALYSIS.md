@@ -67521,5 +67521,28 @@ without the centre moving.
 
 What the check cannot see: `IMC_YDarc` under `simulate` at its full
 horizon of 2.5 runs 58 times dearer with the clock's floor (m563),
-because the check only runs ten steps. The own-model centre
-`WORK_JACOBIANS_OWN` is left for the judge's print, as the floors are.
+because the check only runs ten steps.
+
+The rise of 857 in names is the change's own signature: it touches the
+naming of the flattener, so that counter must move while classes,
+expansions and bodies stay put.
+
+The own-model centre `WORK_JACOBIANS_OWN` is left for the judge's
+print, as the floors are, and the next full run of the judge is
+therefore expected red on that line alone while the corpus is green.
+`IMC_InverterDrive 10007` sits in a band of 20%, and `--only` on the
+merged binary gives the model 11 jacobians (10007 with both opt-outs).
+The corpus pair does not print the own line at all, so the number the
+centre is wound to comes from the judge, in a commit of its own.
+
+The heavy models one at a time, both opt-outs against none, under a
+ceiling of six minutes of CPU each, are in `/tmp/m564/heavy.txt`. Of
+the four whose jacobians `0009` moves: `IMC_InverterDrive` 10007 to 11
+and 77s to 1.3s, `IMC_DOL` 8 to 3, `SoftStarter` 103 to 2, and
+`SMEE_LoadDump` 190 to 147. Of the heavy list, the three Spice3 adders,
+`EngineV6` and `DynamicPipeEnergyConservationCheck2` hit the ceiling on
+both sides. `DynamicPipeWithNominalLaminarFlow`, the three `MoistAir`,
+`Oscillator`, `DynamicPipesWithTraceSubstances` and `BranchingPipes12`
+give equal work counters on both sides and times within 2%. None was
+dearer. The sweep stopped at `R134a2` when the shift's time ran out,
+so the rest of the list is unmeasured.
