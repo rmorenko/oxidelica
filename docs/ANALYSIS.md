@@ -67463,3 +67463,20 @@ below the wall the cost is BDF taking very many points at a step too
 small to move the clock, each paying the torn block's Newton solve,
 until the stall finally comes. It is the solver grinding, not a pass of
 the compiler.
+
+### `der(X): X is not a state of the model`, eight, probed again
+
+Census `/tmp/m563c/census.txt` agrees with `/tmp/m552/census.txt` row
+for row: 47 over 27 rows would not flatten, 148 over 29 rows would not
+run. All eight models of this row, probed with
+`OXIDELICA_INIT_DER_PROBE=1` from the root of `.msl`, are still in the
+one layer m416 named: the variable a steady initial equation
+differentiates is solved inside an implicit block with more than one
+torn unknown. The three Machines and FundamentalWave `IMC_Initialize`
+and `IMC_withLosses` ask for an inner assignment (k = 8, 10, 14, 28,
+32, in blocks of 197 to 1582), and the three Fluid models for a torn
+medium temperature (k = 32, 109, 162). The two small models in
+`~/oxideflow/park/m563`, an alias and a rotation of a state under
+`der(y) = 0`, both run, which is why the wall needs a torn block and
+does not show in a model that small. The fix is still the whole-block
+derivative m416 described.
