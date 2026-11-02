@@ -66432,3 +66432,107 @@ on a floor that scales with `StopTime`, and that floor is arbitrary. Only
 a full `simulate` shows the difference: the corpus's ten steps never reach
 it. Whether the floor should be absolute is a question of its own, and the
 patch stays parked until that is settled.
+
+## m556: the step floor measured, the cause of LoadDump's Jacobians, and TMV one wall on
+
+The probes are in `park/m556-step-floor-jtrace-tmv-rescue-probe.diff`,
+on top of patch 0009. None of it is in the tree.
+
+### The floor SoftStarter dies on, measured
+
+Run with `OXIDELICA_HTRACE=1`, which printed every new smallest step
+and every step under a floor (`/tmp/m556/ss10.txt`, `/tmp/m556/ss6.txt`).
+Patch 0009 was on, and both runs took the same path to t = 1.983378.
+
+- `--stop 10`: smallest step 4.614e-13, under the stall floor
+  `stop * 5e-14` = 5.0e-13 of `bdf.rs` at the step-size update. The
+  stall fired there, re-selection did not help, and the run ended in
+  underflow.
+- `--stop 6`: the same smallest step, 4.614e-13, at the same instant.
+  The stall floor there is 3.0e-13, so the step passed between the two
+  floors and the run went on to the library's own assert at t = 4.498117.
+
+So the death at `--stop 10` and the life at `--stop 6` are the same
+trajectory, read against two floors. This is now a measurement, where
+shift 507 had it as an inference.
+
+### A floor that does not depend on the horizon
+
+`OXIDELICA_HMIN_ABS=6e-14` replaced both floors with absolute ones:
+3e-13 for the stall and 6e-14 for underflow, which is what `--stop 6`
+gives. The hard 1e-300 stayed.
+(`/tmp/m556/ss_*abs.txt`, `/tmp/m556/s44_*.csv`, `/tmp/m556/imc_*`):
+
+- SoftStarter, patch on, stop 10, absolute floor: it reaches the assert
+  at 4.498117. That took 186 s wall, against 183 s for patch off with
+  the old floors. Crossing the instant at 1.983 costs nothing that
+  shows.
+- SoftStarter, patch off, absolute floor: identical to patch off with
+  the old floors. The CSVs to 4.4 differ by 0 on every row. The key does
+  nothing where the step does not fall.
+- `QuasiStatic...IMC_DOL`, patch on, with and without the key: 0
+  difference on every row, and the same `library check` work (552
+  points, 2 jacobians).
+- But SoftStarter, patch on against patch off, compared to 4.4: the
+  answers part at 1e-7 of the peaks from t = 0.0068, and at 1e-3 from
+  t = 0.06. 766 of 1185 columns are past 1e-7. Shift 555's `ss_on199`
+  against `ss_off199` parts at the same two instants. So this
+  difference comes from the patch and was there before the floor. A
+  parallel thyristor model reached through different crossings does
+  not match to 1e-7, and the threshold below did not cause that.
+
+So the floor question has an answer: an absolute floor is inert where
+the step does not fall, costs nothing on SoftStarter, and lets it reach
+its assert. The patch has its own question, which is the 1e-3 drift
+from t = 0.06, and the floor does not settle it. The corpus `check`
+cannot see the floor, because its ten steps never reach it. The only
+witness is full runs, named one by one.
+
+### SMEE_LoadDump: why 72 Jacobians become 126
+
+Every Jacobian is built in `bdf.rs` when `jac` is `None` or at the
+fifth Newton iteration. The probe printed each build, each reset and
+each indicator that turned (`/tmp/m556/ld2_off.txt`,
+`/tmp/m556/ld2_on.txt`). In both halves every build is `why=none` at
+order 1, and every reset but the first comes after a handled crossing.
+Newton never failed and no build came from the fifth iteration.
+
+The crossings are one indicator,
+`abs(switch.closerWithArc[1].i) - abs(switch.closerWithArc[1].v) * Goff`.
+It is index 5 of 16 with the patch off and index 3 of 14 with it on.
+It turns 77 times off and 139 times on. Each time, before is exactly 0
+and after is ±1.654e-24 or ±8.272e-25. On an open switch with no
+current this relation is zero, and rounding noise flips its sign. Each
+flip is handled as an event, which clears the history and the matrix.
+Off, the run ends its ten steps at t = 6.87e-4. On, it reaches
+9.32e-4, and over that longer stretch it meets the same chatter more
+often.
+
+So the growth is not re-selection and not the smooth node. It is a
+relation that stands on zero, handled as a crossing on noise of 1e-24,
+over a longer stretch of the ten steps. The patch decides only how far
+the ten steps reach. This was the last open item on the patch's map.
+The chatter on a zero-standing switch relation is a finding of its own,
+and nothing was built for it.
+
+### TestMixingVolumesPressureStates one wall on
+
+`OXIDELICA_SING_REL` moved the relative singular floor of `reads_singular`
+from 1e-7 to 1e-9 and to 1e-11, and the refusal did not move. A trace
+there printed nothing, so this model's refusal never comes through that
+test. It comes through the Newton step's own `solve_linear`, whose
+rescue scales only the columns.
+
+`OXIDELICA_RESCUE_ROWS=1` added rows to that rescue. Each row and its
+residual were divided by the row's largest entry before the columns
+were. With that, the first block converged in five iterations from
+|f| = 2.2e5 to 4.9e-10. The next solves of the initial problem then
+stepped into NaN from the medium functions, and the line search crept
+at λ ≈ 1e-3 until `algebraic loop did not converge in 50 Newton
+iterations` (`/tmp/m556/tmv_nt.txt`). That is the same wall shift 506
+reached with a pivot floor taken relative to the row. Two different
+scalings arrive at one place, so the pivot is the first wall and a
+Newton step that is not kept inside the medium's domain is the second.
+Run time is 243 s against 2 points refused before, on one model. A
+candidate for the series needs the second wall mapped, not a better
+first one.
