@@ -66922,3 +66922,9 @@ same with and without `OXIDELICA_MODES_READ_BRANCHES`. The run then
 goes on to branches 7, 8 and 9 at 1, 2 and 3 s, as it should. This
 model does not refuse, because nothing in it is reduced. It is the
 test a cure for the start mode can be held to without a robot.
+
+Three more friction and gear models of the run half were put under
+both keys (`/tmp/m558/ctl3.txt`): `LossyGearDemo2` (singular Jacobian
+on the gear quadrants), `RobotR3.Utilities.GearType1` (initialization
+not square) and `GearType2` (`bearingFriction.sa` not mentioned). None
+moved, so none of them belongs to the start-mode family.
