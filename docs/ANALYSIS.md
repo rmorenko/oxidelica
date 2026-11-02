@@ -66946,3 +66946,93 @@ named from this pair. The patch stays in the park
 The lists agree line for line, and the price is under 6% on one
 quiet pair, but which models carry it is not named. The question is
 Roman's.
+
+## m559: the narrow weighing at a resume, the chain read for FullRobot, and the magnetic wall counted
+
+### Keeping the anchor at a resume freezes the pendulum
+
+The first narrow form tried keeps only the anchor closure of
+`compile.rs:7085` at a resume, under `OXIDELICA_RESUME_ANCHOR`, and
+leaves the rest of the honest weighing as it is. `EB2` and `GB4` then
+run, and `EB2b` runs byte for byte the same. But
+`a_pendulum_written_through_its_angle_does_not_freeze_at_the_turning_point`
+goes red under the key. So the anchor is the part of the old weighing
+that freezes the pendulum, not the sensitivity, and this road is
+closed. The patch is parked as `m559-resume-anchor-probe-FREEZES.diff`.
+
+### Breaking the zero tie at a resume
+
+At the resume, `EB2` reduction 3 weighs `J1.phi`, `phi_rel` and
+`eb.phi_rel` all at 0.0. The tie rule that drops a candidate the
+constraint does not determine is gated `!resuming`
+(`compile.rs:3589`), so the walk takes the last name, `J1.phi`. The
+second form, `OXIDELICA_RESUME_TIE`, opens that gate at a resume and
+changes nothing else. Measured with `/tmp/m559/oxB`:
+
+| model    | off     | on                                            |
+| -------- | ------- | --------------------------------------------- |
+| `EB2`    | refused | runs, ends `J1.phi = J2.phi = 0.5`, as `EB2i` |
+| `EB2b`   | runs    | byte for byte the same                        |
+| `GB2`    | runs    | byte for byte the same                        |
+| `GB4`    | refused | refused, same equation                        |
+| pendulum | green   | green                                         |
+
+`GB4` stays refused because at its resume the joint weights are not
+readable (`None` for all three candidates at reduction 6), and the
+tie rule leaves an unread tie as it was. Under `--only`,
+`TestBearingConversion` still refuses but one link further on, on
+`gear2_2` instead of `gear2_1.phi_rel`, the `GB4` shape. `FullRobot`,
+`LossyGearDemo1`, `2` and `3` and `OneAxis` do not move. The patch is
+`m559-resume-tie-probe.diff`. The corpus pair is below.
+
+### Reading the chain of the chosen branch
+
+The parked `OXIDELICA_MODES_READ_BRANCHES` reads the chosen branches'
+`name = expr` equations against `start_env`, the start values handed
+in, and not against the environment `settle_modes_once` has just
+settled. In `KP.mo` the outer branch reads `path.sd_max_inv` as 0
+there, where the settled value is 2. So `Ta2` came out NaN, `noWphase`
+read as true on a second pass, and the mode went to branch 5. The
+probe `OXIDELICA_MODES_READ_CHAIN` (patch
+`m559-modes-read-chain-probe.diff`, over the parked one) carries the
+settled values out of `settle_modes_once`, sweeps the chosen branches
+until nothing changes, and skips a value that is not finite.
+
+`KP.mo` then takes branch 6 at `t = 0`, and the recompilation at
+`1e-12` is gone. `x(1) = 0.18394`, which is `0.5/e` as the ramp
+`qd = t/2` gives. Under the chain key `EB2`, `EB2b`, `GB2` and `GB4`
+all run, the pendulum test is green, and under `--only`
+`TestBearingConversion` and `FullRobot` both go from 0 to 1 run.
+`FullRobot` runs with the chain key alone. It did not need the
+resume tie. The guess in the brief, that it would stop at link 2,
+was wrong: sparing the recompilation spares the resume weighing too.
+No corpus pair was run for this key, as the brief asked.
+
+### The magnetic wall is two walls
+
+`SMPM_CurrentSource` (FundamentalWave) refuses with `structurally
+singular model` on `der(smpm.flange.phi) - der(angleSensor.flange.phi)
+= 0` (`compile.rs:2933`). `IMS_Start_Polyphase`, `SMEE_DOL`,
+`SMEE_Rectifier` and `IMC_DOL_Polyphase` refuse with `underdetermined
+algebraic loop`, each loop holding `airGap.V_mss` or `Phi_ss` beside
+switch or diode `s` keys. These are different layers: one is index
+reduction running out, the other is a loop with too few equations
+after reduction. So `SMPM_CurrentSource` is not one wall with the
+four. In `/tmp/m552/raw.txt` the wall of a magnetic potential with no
+state holds five models of the run half: the four underdetermined
+machines and `IMC_DOL_CommonLeakage` (stray with `EddyCurrent`). The
+two `SMPM_CurrentSource` models are a family of their own: the
+angle-driven one here and the QuasiStatic one, which refuses on
+Newton.
+
+### The rows of item 4
+
+Every row named in the brief has a map in the m544 tail table or in
+m558: `initialization not square` (3), `algebraic loop` (3),
+`singular Jacobian` (3: `LossyGearDemo2`,
+`TestMixingVolumesPressureStates`, QuasiStatic `Rectifier`),
+`cannot evaluate parameters` (the `e_ia` series, item 63), and
+`unbalanced ... nothing determines`, whose members are mostly
+`Utilities` and `AST_BatchPlant` controller blocks. Under `--only`,
+`GearType2`, `PointGravityWithPointMasses2` and `RollingWheel` refuse
+as before, with and without the chain key. No new map was written.
