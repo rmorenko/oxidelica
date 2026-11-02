@@ -66658,3 +66658,40 @@ holds. In the runnable `EB2b` the same reduction weighs `J1.phi` with
 the two and demotes it. `OXIDELICA_NO_STATE_SELECT=1` makes `EB2` run.
 So the wall is the choice between two relative angles of one spring
 when the absolute angle is anchored, not the gear itself.
+
+The second variant has a support (`/tmp/m557/small/GB4.mo`, `Gearbox`
+with `useSupport=true` on a `Fixed`, as `gear2_2` of
+`TestBearingConversion`). It refuses with or without
+`OXIDELICA_NO_STATE_SELECT`, so the switch moves `gear2_1` and not
+the model. With the switch on, the whole model then stops at
+`gear2_2.w_rel - gear2_2.elastoBacklash.w_rel = 0`. Here reduction 3
+differentiates `gear.support.phi = gear.internalSupport.phi`, an
+equation about a fixed support, and its reach holds only the two
+relative angles, both weighing 0. Reduction 6 does the same one level
+down on `der(gear.internalSupport.phi) = 0`. Whichever relative angle
+goes, the other remains, and the hidden constraint between them is a
+dependent row. The `Gearbox` family is therefore two links. The first
+is the tie of the free variant. The second is a fixed support being
+differentiated at all.
+
+### IMC_DOL_CommonLeakage and SMPM_CurrentSource, by reduction trace
+
+`OXIDELICA_VICTIM_PROBE=1` on each through `--only`
+(`/tmp/m557/imc_cl.txt`, `/tmp/m557/smpm.txt`).
+
+`IMC_DOL_CommonLeakage` takes 15 reductions with a victim each. Three
+are the stator inertias, four are the rotor angles of `aimc0`, seven are
+rotor cage fluxes and one is the stator flux of phase 4. Reduction 16 is
+on `[5].port_p.V_m.im = [4].port_n.V_m.im`, an equation between two
+magnetic potentials. Its reach is empty, and so is the reach of the
+members tried in its place. Every member that adds a row adds one the
+system already holds. So the refusal is about a magnetic potential with
+no state behind it, a different layer from the `Gearbox` tie.
+
+`SMPM_CurrentSource` refuses at reduction 17, again with every member
+reaching nothing. On the way, reductions 14 and 16 meet four
+`supply-once` refusals, among them eq 58 for
+`[2].port_n.V_m.im` and eq 415 for `currentQuasiRMSSensor.plug_n.pin[2].i`.
+Both machines therefore end on an empty reach in the magnetic port
+equations, which is a closer pair than the census rows had made them.
+No small model was written for either.
