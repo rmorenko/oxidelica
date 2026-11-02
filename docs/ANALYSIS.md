@@ -66645,3 +66645,16 @@ runs too. One fix to the `Gearbox` shape is expected to move
 refused at the same site, after 31 other members of the singular subset
 were tried. The earlier census put them in two different shapes,
 dependent row and supply once. No small model was written this shift.
+
+The reduction trace of `EB2` (`OXIDELICA_VICTIM_PROBE=1`) names the
+step where it goes wrong. At reduction 3, on
+`g.flange_b.phi = eb.flange_a.phi`, the raw reach is `J1.phi`,
+`eb.phi_rel` and `phi_rel`, but only the two relative angles are
+weighed. `J1.phi` has a fixed start and is set aside as anchored. Both
+of the two left weigh zero and are `prefer`, so the walk takes
+`eb.phi_rel`. Both relative angles then describe one stretch, and the
+hidden constraint `eb.phi_rel = phi_rel` is a row the system already
+holds. In the runnable `EB2b` the same reduction weighs `J1.phi` with
+the two and demotes it. `OXIDELICA_NO_STATE_SELECT=1` makes `EB2` run.
+So the wall is the choice between two relative angles of one spring
+when the absolute angle is anchored, not the gear itself.
