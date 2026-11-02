@@ -66985,6 +66985,29 @@ tie rule leaves an unread tie as it was. Under `--only`,
 `LossyGearDemo1`, `2` and `3` and `OneAxis` do not move. The patch is
 `m559-resume-tie-probe.diff`. The corpus pair is below.
 
+#### The corpus pair of the tie at a resume
+
+Taken on a quiet machine with one binary, `/tmp/m559/oxE`, off half
+then on half, the heavy models left out. Files
+`/tmp/m559/p2/off.txt` and `/tmp/m559/p2/on.txt`.
+
+| half | flattening | running | points   | newton   | jacobians |
+| ---- | ---------- | ------- | -------- | -------- | --------- |
+| off  | 3895s      | 4838s   | 24758683 | 36276109 | 10715     |
+| on   | 3914s      | 4828s   | 24758683 | 36276109 | 10715     |
+
+Both halves built 973 models and ran 825 (lines `ran` in either file),
+and the lists agree line for line, so there are
+no victims and no wins: `EB2` is a small model and not a member of
+the corpus. The only line that differs is the refusal of
+`TestBearingConversion`, which moves from `gear2_1.phi_rel` to
+`gear2_2`, the `GB4` shape, as the `--only` probe said. The run half
+is 0.2% cheaper on, which is inside the drift. The earlier pair of the
+dead shift, `/tmp/m559/off.txt` and `/tmp/m559/on.txt`, did finish and
+gives the same lists, but its on half ran next to this pair's off
+half for ten minutes, so its +13% on the run half is weather and is
+not quoted as a price.
+
 ### Reading the chain of the chosen branch
 
 The parked `OXIDELICA_MODES_READ_BRANCHES` reads the chosen branches'
