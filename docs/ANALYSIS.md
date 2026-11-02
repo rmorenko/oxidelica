@@ -67287,3 +67287,11 @@ clean. No corpus pair was taken. The next step is to hold every order
 of derivative of a number at zero, then `TestBearingConversion` again,
 and only then the pair. The pair is the measurement that matters here,
 since a definition-adding change moves which states reduction keeps.
+
+The win hangs on the parked key. Measured on the same binary, `GB4`
+under `OXIDELICA_HELD_ZERO_DER` alone refuses at the same structural
+singularity as with no key at all, and so does `RESUME_TIE` alone.
+That makes it an argument in the `RESUME_TIE` question rather than a
+win of its own. How many corpus models carry the same unanchored ring
+was not counted in this shift. It wants the held probe over the corpus,
+about 26 minutes of the binary, and is left to the next one.
