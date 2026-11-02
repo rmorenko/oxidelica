@@ -67059,3 +67059,82 @@ m558: `initialization not square` (3), `algebraic loop` (3),
 `Utilities` and `AST_BatchPlant` controller blocks. Under `--only`,
 `GearType2`, `PointGravityWithPointMasses2` and `RollingWheel` refuse
 as before, with and without the chain key. No new map was written.
+
+## m560: the solver's step floor read from the clock, not the horizon
+
+The step floor of the BDF and Dopri solvers was `stop * 1e-14`, and
+the stall floor `stop * 5e-14`, so the smallest step a run would take
+was a property of the number asked for on the command line. The probe
+`OXIDELICA_STEP_FLOOR_BY_T` reads it from the clock instead:
+`t * EPSILON * 8`, with the stall floor five times that as before, and
+only while `t` still equals the start time a leg of `h_start * 1e-14`,
+where `h_start = min(Interval, stop - t0)`. That leg is exactly the old
+floor for a model whose horizon is below its `Interval`, and the new
+floor is nowhere above the old one while `stop - t0 >= 1e-12`; the
+shortest horizon in the library is 1e-11. The patch is parked as
+`m560-step-floor-by-t.diff`, with three unit tests, one of them on the
+pair `(stop, Interval)` of a `NandGate`-like horizon of 1e-7 and on
+1e-11.
+
+### The defect, shown on the tree with patch 0009
+
+On the bare tree `SoftStarter` reaches the same assertion at
+t = 4.498117 at `--stop 6` and `--stop 10`, off and on (binary
+`/tmp/m560/ox1`, logs `/tmp/m560/ss_*.log`). That is a control: it
+shows the key harms nothing there, and it cannot show the defect,
+because the bare tree has none. The defect lives on the tree with the
+parked `0009` smooth patch. One binary, `/tmp/m560/ox2`, carries both,
+logs `/tmp/m560/s9_*.log`:
+
+| smooth  | floor key | stop | outcome                         |
+| ------- | --------- | ---- | ------------------------------- |
+| opt out | off       | 10   | assertion at t = 4.498117       |
+| on      | off       | 10   | step size underflow at 1.983378 |
+| on      | off       | 6    | assertion at t = 4.498117       |
+| on      | on        | 6    | assertion at t = 4.498117       |
+| on      | on        | 10   | assertion at t = 4.498117       |
+
+So the underflow at 1.983 is the horizon and not the smooth patch, and
+under the key both horizons reach the same place. The CSV comparison
+was not made: the CLI writes the file only on success and all runs end
+on the assertion.
+
+### The heavy models
+
+All 23 of `scripts/heavy_models.txt`, one at a time under `--only
+--with-heavy`, off and on, `ulimit -t 360`, files
+`/tmp/m560/heavy/<model>.{off,on}.txt`. The 17 that finished inside
+the ceiling have `work:` lines equal byte for byte between the halves,
+and their times move by at most about 1% either way, inside the
+desk's noise. None of the 23 refuses on a step underflow, so this
+sweep shows only that the key does no harm where it is inert; it
+could not see the risk of a refusal grown dearer.
+
+Six hit the ceiling in both halves: the three `Spice3` adders,
+`EngineV6`, `DynamicPipeEnergyConservationCheck2` and
+`DynamicPipesWithTraceSubstances`. Equal times there are the ceiling,
+not a finding. What can be argued instead: the new floor is never
+above the old one, and crossing the give-up floor ends a run at once,
+so a half that hangs to the ceiling never crossed the old floor and
+both halves are identical up to the cut - unless the model is
+reselectable, where the stall floor hands the run back and it goes
+on. Probed with `OXIDELICA_VICTIM_PROBE` on a run of 1e-9:
+`DynamicPipeEnergyConservationCheck2` prints no victim line, so the
+argument covers it. `TWOBIT` prints 490 and `EngineV6` 60, so the
+adders are not the plain circuits they were expected to be, and for
+them and `EngineV6` the ceiling is genuinely blind.
+`DynamicPipesWithTraceSubstances` was not probed. Those four stay
+unmeasured under the key; that state was there before the key and is
+not made by it.
+
+### The one model on the bare tree that reaches the floor
+
+In the corpus pair `/tmp/m559/p2` the only step underflow is
+`Modelica.Mechanics.Rotational.Examples.Friction` at t = 0.006. Off
+and on it refuses at the same instant in 0.39s and 0.37s, so the key
+neither wins it nor makes its refusal dearer. That count of one holds
+for the bare tree only; with `0009` merged `SoftStarter` reaches the
+floor too and the count must be taken again.
+
+Not done in this shift: the corpus pair under the key, and the
+merge. The key and the patch stay in the park.
