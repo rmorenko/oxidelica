@@ -67415,3 +67415,42 @@ at the first instant that adds the stator current's aliases as states.
 The check spends 288s of run on it (319732 points, 2315098 newton,
 10020 jacobians) where `simulate` refuses in about five seconds, so the
 check is reaching the same wall by a dearer road.
+
+### The price of `IMC_YDarc` turns on its horizon
+
+`library check` does not run a model to its stop: `run_a_little` in
+`crates/oxidelica-cli/src/main.rs` cuts the stop to ten output steps,
+which for `IMC_YDarc` (Interval 1e-4, StopTime 2.5) is 1e-3. That
+explains the gap: `simulate` to 2.5 refuses in about 5s, and the check
+spends 288s. Timed with `simulate` from `/tmp/m560/ox1`, without the
+key unless named (files `/tmp/m563/ys*.txt`, `y03`, `y06`, `yt25`):
+
+| stop          | seconds | refusal                     |
+| ------------- | ------: | --------------------------- |
+| 2.5           |       5 | reselection at t = 5.48e-22 |
+| 0.1           |       2 | the same                    |
+| 0.06          |     267 | the same                    |
+| 0.03          |     289 | the same                    |
+| 0.01          |     291 | the same                    |
+| 0.003         |     289 | the same                    |
+| 0.001         |     292 | the same                    |
+| 0.001, key on |     289 | the same                    |
+| 2.5, key on   |     288 | the same                    |
+
+The price does not go as 1/stop. It jumps between 0.1 and 0.06 and is
+flat below that, so it is a wall and not a scale. The old stall
+threshold, `stop * 5e-14`, is 5e-15 at 0.1 and 3e-15 at 0.06, and the
+refusal stands at t = 5.48e-22 in every row. That fits a step that sits
+between those two thresholds: above it the stall comes early and is
+cheap, below it the run grinds until something other than the floor
+stops it. The key puts every horizon below the wall, 2.5 included.
+
+Two consequences. First, every price this project records, from the
+corpus halves and the heavy buckets to the per-model minutes, is the
+price of ten output steps, not of a run. The pairs still compare,
+because both halves ran the same way, but they should not be read as
+what a model costs to simulate. Second, turning the key on by default
+makes `IMC_YDarc` run 58 times dearer under `simulate` while the check
+cannot see it, because the check never runs at 2.5. That belongs in
+the measurement of the default flip. What does the grinding below the
+wall is not mapped yet.
