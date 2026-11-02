@@ -67156,3 +67156,85 @@ the tie rule but because `der(...)` names are absent from the resume
 environment. Carrying them across the rebuild, as the chain key
 carries settled values, is the next probe; it was not built in this
 shift.
+
+## m561: the corpus pair under the clock-read step floor
+
+### The corpus pair under the key
+
+One binary, `/tmp/m560/ox1` (the tree at 6e9ac26 plus the parked
+`OXIDELICA_STEP_FLOOR_BY_T` key, no `0009`; the four commits since its
+build touch only this file), the halves one after the other on a quiet
+desk, files `/tmp/m560/p1/{off,on}.txt`.
+
+- Both halves print 973 flatten / 825 run and runnable 855 / 777.
+- The `flat` and `ran` lists, 1798 lines each, are equal line for
+  line.
+- The `work:` lines are equal byte for byte: 24758683 points,
+  36276109 newton, 10715 jacobians, 1974 jacobians apart.
+- `time:` off: flattening 3925s, running 4849s; on: flattening
+  3924s, running 4822s. The run half is 0.6% cheaper, which is
+  weather.
+
+So the key costs nothing on the main pass and wins nothing there.
+Equal work counters mean more than "no harm": no reselectable model of
+the corpus leaned on the stall floor either, since a stall that moved
+would have changed the selection and with it the counters.
+
+### The class at risk, and both members measured
+
+The risk of a lower floor is a refusal that grinds longer before it
+gives up. Two models are known to reach the floor: `Friction` in the
+corpus, refusing at t = 0.006 in 0.39s off and 0.37s on (m560), and
+`IMC_YDarc` among the heavy ones. The m560 chapter said none of the 23
+heavy models refuses on an underflow, and that was a reading of
+truncated refusal lines in `/tmp/m560/heavy`. The scheduled run
+41300035706 prints the line whole, a step size underflow at t = 0 on
+`IMC_YDarc`. The m560 sweep measured it both ways all the same: equal
+`work:` lines (319732 points, 2315098 newton, 10020 jacobians) and
+user 297.99s off against 293.34s on, -1.6%.
+
+### What the scheduled job pays now
+
+The scheduled job prints no per-model prices, only a total for each
+basket. Run 41300035706 (9533804): basket a, 11 models, 139.2 minutes
+of wall clock, flattening 1555s and running 13737s; basket b, 12
+models, 77.8 minutes, flattening 834s and running 9103s. The ceiling of
+240 minutes stands on each job (`.github/workflows/ci.yml` lines 366,
+398 and 441), so basket a has about 100 minutes left. The named prices
+that exist are those beside each name in `scripts/heavy_models.txt`,
+taken 2026-10-19 on 36e3dd1 and older than the tree.
+
+### The six past the ceiling
+
+Reselectable means a non-empty `dummies` list, which only
+`OXIDELICA_DEFS_PROBE` prints; the m560 probe used
+`OXIDELICA_VICTIM_PROBE`, which prints something else, and its silence
+proved nothing. Taken again with the right key on a horizon of 1e-12,
+file `/tmp/m560/defs.txt`:
+
+- `Spice3BenchmarkFourBitBinaryAdder`: 8 dummies, and `.TWOBIT`: 50
+  dummies (taken by the reviewer). Reselectable.
+- `.FOURBIT`: 37 reductions inside 400s of CPU, up to 36 dummies, cut
+  off by the ceiling before the model was built. Reselectable.
+- `EngineV6`: 93 reductions, up to 22 dummies. Reselectable.
+- `DynamicPipeEnergyConservationCheck2` and
+  `DynamicPipesWithTraceSubstances`: no reduction at all. Not
+  reselectable, so the m560 argument covers both: their floor only
+  gives up, and a half that hangs never crossed it.
+
+That leaves four blind, and the budget allowed one honest pair.
+`EngineV6` was taken under a ceiling of 1800s of CPU per half, files
+`/tmp/m560/e6/{off,on}.txt`. Off it finished inside the ceiling: 221s
+flattening, 1255s running, refused as structurally singular with 0
+points, 0 newton and 0 jacobians. Its whole run half is spent before
+the first step, so the step floor cannot reach it by construction.
+On it is the same: 237s flattening, 1257s running, the same refusal,
+`work:` lines equal byte for byte. User 1465.73s off against 1483.30s
+on, +1.2%, which is weather. `EngineV6` leaves the blind set.
+
+Three stay blind, all of them adders: `Spice3BenchmarkFourBitBinaryAdder`
+and `.TWOBIT` and `.FOURBIT`. By the 2026-10-19 prices (run / flatten
+1796.8s / 88.2s, 558.1s / 33.3s, 1845.5s / 87.2s) an honest pair at
+twice the price per half wants about 7300s, 2400s and 7500s of CPU, some
+four and a half hours together, left to the review. Not done in this
+shift, by the order: the merge of the key and of `0009`.
