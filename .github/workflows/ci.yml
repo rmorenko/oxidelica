@@ -315,11 +315,18 @@ jobs:
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
+        # The runs are found by the print they carry rather than by
+        # being green: most pushes to main touch prose only and skip the
+        # library jobs, so the last thirty green runs once held a single
+        # print between them and the delta was never taken.
         run: |
-          for id in $(gh run list -R "$GITHUB_REPOSITORY" --branch main \
-              --workflow ci.yml --status success --limit 30 \
-              --json databaseId -q '.[].databaseId'); do
+          for id in $(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts?name=library-main&per_page=50" \
+              -q '.artifacts[] | select(.expired | not)
+                  | select(.workflow_run.head_branch == "main")
+                  | .workflow_run.id'); do
             [ "$id" = "$GITHUB_RUN_ID" ] && continue
+            [ "$(gh run view "$id" -R "$GITHUB_REPOSITORY" \
+                --json conclusion -q .conclusion)" = success ] || continue
             if gh run download "$id" -R "$GITHUB_REPOSITORY" \
                 -n library-main -D prev/ 2>/dev/null; then
               echo "previous print: run $id"
