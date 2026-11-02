@@ -67398,3 +67398,20 @@ Why no number moves: the key is opt-in, and with it absent the floor is
 the old one to the expression. The floors and centres stay where they
 are. Turning the key into the default is a separate measurement, to be
 paired with the smooth patch parked as 0009.
+
+### What `IMC_YDarc` says now
+
+Asked without the key, with `/tmp/m560/ox1`, which is the code of the
+tree: `library check --with-heavy --only` (`/tmp/m563/ydarc.txt`,
+`/tmp/m563/ydarc_ref.txt`) and `simulate` directly
+(`/tmp/m563/ydarc_direct.txt`) give the same refusal. The states
+re-selected at t = 5.48e-22 name different variables than the run so
+far: none left and twelve arrived, the derivatives of the two
+components of `aimc.airGap.i_ss`, `aimc.airGap.i_ms`,
+`aimc.airGap.spacePhasor_s.i_`, `aimc.spacePhasorS.spacePhasor.i_`,
+`aimc.lssigma.spacePhasor_a.i_` and `aimc.lssigma.spacePhasor_b.i_`.
+So the old "step size underflow at t = 0" was replaced by a reselection
+at the first instant that adds the stator current's aliases as states.
+The check spends 288s of run on it (319732 points, 2315098 newton,
+10020 jacobians) where `simulate` refuses in about five seconds, so the
+check is reaching the same wall by a dearer road.
