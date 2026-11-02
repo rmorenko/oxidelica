@@ -19,11 +19,14 @@ fn fd_step_scale() -> f64 {
 }
 
 /// Whether the smallest step is read from the clock rather than from
-/// the horizon. Off by default; `OXIDELICA_STEP_FLOOR_BY_T=1` takes it,
-/// so that one binary gives both halves of a measurement.
+/// the horizon. On by default since 2026-11-02, because the horizon's
+/// floor made `SoftStarter` reach 4.498 with a stop of 6 and die at
+/// 1.983 with a stop of 10 on the same physics.
+/// `OXIDELICA_STEP_FLOOR_BY_T=off` takes the old reading back, so that
+/// one binary gives both halves of a measurement.
 fn step_floor_by_t() -> bool {
     static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
-    *ON.get_or_init(|| std::env::var_os("OXIDELICA_STEP_FLOOR_BY_T").is_some())
+    *ON.get_or_init(|| std::env::var("OXIDELICA_STEP_FLOOR_BY_T").map_or(true, |v| v != "off"))
 }
 
 /// The step below which a run gives up, and the one below which a

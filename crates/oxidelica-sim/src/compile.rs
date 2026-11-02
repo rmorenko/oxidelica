@@ -3852,6 +3852,12 @@ fn zero_throughout_with(
         // condition is never read, so no branch is chosen on a value
         // that may move.
         Expr::If(_, then, other) if zero_if => z(then) && z(other),
+        // A `smooth` kept for the event search holds the value it wraps.
+        Expr::Call(name, args)
+            if oxidelica_parser::operator_name(name) == "smooth" && args.len() == 2 =>
+        {
+            z(&args[1])
+        }
         _ => zero_parameter(expr, params),
     }
 }
@@ -8458,6 +8464,9 @@ pub(crate) fn collect_relations(expr: &Expr, out: &mut Vec<Expr>) {
             collect_relations(a, out);
             collect_relations(b, out);
         }
+        Expr::Call(name, args)
+            if oxidelica_parser::ast::smooth_eventless()
+                && oxidelica_parser::operator_name(name) == "smooth" => {}
         Expr::Call(_, args) => args.iter().for_each(|a| collect_relations(a, out)),
         // Arrays are expanded into scalars before any of this runs.
         Expr::Index(_, _)

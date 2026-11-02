@@ -1217,6 +1217,9 @@ impl SlotTable {
                 return Ok(Code::Slot(*slot));
             }
         }
+        if operator_name(name) == "smooth" && args.len() == 2 {
+            return self.compile(&args[1]);
+        }
         if name == "der" {
             return err("der() outside a state equation is not supported".to_string());
         }

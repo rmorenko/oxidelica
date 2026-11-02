@@ -67480,3 +67480,46 @@ medium temperature (k = 32, 109, 162). The two small models in
 `der(y) = 0`, both run, which is why the wall needs a torn block and
 does not show in a model that small. The fix is still the whole-block
 derivative m416 described.
+
+### The clock's step floor by default, and `0009` merged (m564)
+
+Two changes land together, in this order. The step floor read from the
+clock is now the default, with `OXIDELICA_STEP_FLOOR_BY_T=off` taking
+the horizon's floor back. And the narrow smooth-without-events change
+(`0009`) is merged, with `OXIDELICA_NO_SMOOTH_EVENTLESS` as its
+opt-out. The order matters: with `0009` on the horizon's floor,
+`SoftStarter` dies of an underflow at 1.983 with a stop of 10, which
+was the one objection to it. On the merged tree it reaches the same
+assertion at t = 4.498117 at stops of 6 and of 10.
+
+Three corpus halves, one binary (`/tmp/m564/ox15`), one after the
+other:
+
+- (a) floor off, `0009` off, the old default: `/tmp/m564/a.txt`;
+- (b) floor on, `0009` off: `/tmp/m564/b.txt`;
+- (c) both on, the new default: `/tmp/m564/c.txt`.
+
+All three print 973 / 825 flattened and run, 855 / 777 runnable, and
+the same 1798 lines of `flat` and `ran`, equal line for line. From (a)
+to (b) every `work:` counter agrees to the digit, so the flip is inert
+on this binary as it was in m560. From (b) to (c), which is the price
+of `0009` alone: jacobians 10715 to 541, points 24758683 to 24150735,
+newton 36276109 to 35483939, jacobians apart 1974 unchanged, and the
+flattening counters equal apart from names (1670892138 to 1670892995).
+The one `step size underflow` line,
+`Modelica.Electrical.QuasiStatic.SinglePhase.Examples.Rectifier` at
+t = 0.006, is the same in (b) and (c).
+
+Time: running 4876s, 4775s and 4652s, so (c) is 2.6% cheaper than
+(b). The control (a) to (b) measured the desk's noise on identical
+work at 2.1% for the run half and 10.7% for the flattening half (4364s
+against 3942s), so the verdict stands on the lists and the counters,
+and the times are weather-sized. Jacobians at 541 against the centre
+of 534 is 1.013, inside the band. That is why the judge, red on
+`jacobians is 737 against 534` since 1 November, should turn green
+without the centre moving.
+
+What the check cannot see: `IMC_YDarc` under `simulate` at its full
+horizon of 2.5 runs 58 times dearer with the clock's floor (m563),
+because the check only runs ten steps. The own-model centre
+`WORK_JACOBIANS_OWN` is left for the judge's print, as the floors are.

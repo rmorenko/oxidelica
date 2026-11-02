@@ -1616,6 +1616,25 @@ fn a_zero_carried_by_a_variable_quenches_the_derivative_it_scales() {
 }
 
 #[test]
+fn a_zero_under_a_kept_smooth_still_quenches_the_derivative_it_scales() {
+    // The same shape with a relation under `smooth`, as the transistor's
+    // `exlin2` is once inlined. Such a `smooth` is kept past flattening
+    // so that its relation raises no event, and the proof that `cbc` is
+    // zero throughout has to read through it: the NOR gates refused
+    // with NaN at t = 0 when it did not.
+    let result = run(
+        "model ZTKept parameter Real Taur = 0; parameter Real Cjc = 0; \
+         parameter Real R = 10; Real vbc(start = 0); Real i; Real cbc; \
+         equation i = sin(time); \
+         cbc = smooth(1, Taur * (if vbc > 1 then vbc else 1) + Cjc); \
+         cbc * der(vbc) + vbc / R = i; \
+         annotation(experiment(StopTime = 1, Interval = 0.1)); end ZTKept;",
+    );
+    let vbc = last_of(&result, "vbc");
+    assert!((vbc - 10.0 * 1f64.sin()).abs() < 1e-6, "vbc = {vbc}");
+}
+
+#[test]
 fn a_zero_carried_by_a_variable_quenches_the_unknown_it_scales() {
     // `i*R = vs - vC` with `R = 0` set by an equation rather than a
     // parameter. Read with the product standing, the equation names `i`

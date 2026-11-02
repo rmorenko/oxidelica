@@ -905,7 +905,14 @@ pub(super) fn resolve(
                 // `noEvent(x)` and `smooth(n, x)` are hints about event
                 // generation and continuity; the value is the argument.
                 _ if name == "noEvent" && args.len() == 1 => args[0].clone(),
-                _ if name == "smooth" && args.len() == 2 => args[1].clone(),
+                _ if name == "smooth"
+                    && args.len() == 2
+                    && !(crate::ast::smooth_eventless()
+                        && algorithms::INLINING.with(|deep| deep.get()) == 0
+                        && holds_relation(&args[1])) =>
+                {
+                    args[1].clone()
+                }
                 // `homotopy` offers an easier problem to start from. A
                 // tool may take the real one and go straight at it,
                 // which is what this one does.
@@ -1060,4 +1067,15 @@ pub(super) fn sketch(expr: &Expr) -> String {
         Some((cut, _)) => format!("{}...", &text[..cut]),
         None => text,
     }
+}
+
+/// Whether a relation stands anywhere in an expression, which is what
+/// a kept `smooth` would hide from the event search.
+fn holds_relation(expr: &Expr) -> bool {
+    let mut found = false;
+    expr.map_children(&mut |child| {
+        found |= matches!(child, Expr::Rel(..)) || holds_relation(child);
+        child.clone()
+    });
+    found
 }

@@ -225,6 +225,20 @@ pub struct Component {
     pub element_of_an_array: bool,
 }
 
+/// Whether `smooth(n, x)` is kept through flattening, so that the
+/// relations inside it are not taken for event indicators.
+///
+/// The specification lets a tool skip the events of a relation written
+/// under `smooth`: the author has said the branches meet. Stripped, the
+/// relation `w >= 0` of `QuadraticSpeedDependentTorque` raised 34 empty
+/// events in IMC_DOL's first nanosecond, each a restart and a new
+/// Jacobian. `OXIDELICA_NO_SMOOTH_EVENTLESS` strips it as before, so
+/// that one binary gives both numbers.
+pub fn smooth_eventless() -> bool {
+    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ON.get_or_init(|| std::env::var_os("OXIDELICA_NO_SMOOTH_EVENTLESS").is_none())
+}
+
 /// The operator a call names, with the leading dot of a global
 /// reference taken off.
 ///

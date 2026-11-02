@@ -2083,3 +2083,79 @@ fn an_array_stream_leaves_an_outside_port_element_by_element() {
         stderr(&refused)
     );
 }
+
+#[test]
+fn a_relation_under_smooth_is_not_an_event_source() {
+    // `smooth(1, if w >= 0 then w^2 else -w^2)` says both branches meet,
+    // and the specification lets a tool skip the events of the relation.
+    // Taken for an indicator, it chattered at zero in IMC_DOL: 34 empty
+    // events, each a new Jacobian. The value must not change either way.
+    let model = TempFile::new(
+        "smooth_eventless.mo",
+        "model S Real w(start = -1, fixed = true); equation \
+         der(w) = 1 + 0*smooth(1, if w >= 0 then w^2 else -w^2); \
+         annotation(experiment(StopTime = 2)); end S;",
+    );
+    let on = bin().args(["simulate", model.path()]).output().unwrap();
+    assert!(on.status.success(), "{}", stderr(&on));
+    assert!(
+        stderr(&on).contains("event sources: 0 relations"),
+        "{}",
+        stderr(&on)
+    );
+    assert!(stderr(&on).contains("w = 1.000000"), "{}", stderr(&on));
+    let off = bin()
+        .args(["simulate", model.path()])
+        .env("OXIDELICA_NO_SMOOTH_EVENTLESS", "1")
+        .output()
+        .unwrap();
+    assert!(
+        stderr(&off).contains("event sources: 1 relations"),
+        "{}",
+        stderr(&off)
+    );
+}
+
+#[test]
+fn a_kept_smooth_gives_the_answer_and_a_bare_relation_keeps_its_event() {
+    // The relation crosses zero at t = 0.73. Under `smooth` it raises no
+    // event and the integral is still the analytic (1.27^3 - 0.73^3)/3.
+    // The control writes the same relation bare around a real jump: it
+    // must stay an event source, and the integral must come out at 1.27.
+    let smooth = TempFile::new(
+        "smooth_crossing.mo",
+        "model S Real w(start = -0.73, fixed = true); \
+         Real z(start = 0, fixed = true); equation der(w) = 1; \
+         der(z) = smooth(1, if w >= 0 then w^2 else -w^2); \
+         annotation(experiment(StopTime = 2)); end S;",
+    );
+    let out = bin()
+        .args(["simulate", smooth.path(), "--solver", "bdf"])
+        .output()
+        .unwrap();
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert!(
+        stderr(&out).contains("event sources: 0 relations"),
+        "{}",
+        stderr(&out)
+    );
+    assert!(stderr(&out).contains("z = 0.553123"), "{}", stderr(&out));
+    let bare = TempFile::new(
+        "bare_jump.mo",
+        "model J Real w(start = -0.73, fixed = true); \
+         Real z(start = 0, fixed = true); equation der(w) = 1; \
+         der(z) = if w >= 0 then 1 else 0; \
+         annotation(experiment(StopTime = 2)); end J;",
+    );
+    let out = bin()
+        .args(["simulate", bare.path(), "--dt", "0.1"])
+        .output()
+        .unwrap();
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert!(
+        stderr(&out).contains("event sources: 1 relations"),
+        "{}",
+        stderr(&out)
+    );
+    assert!(stderr(&out).contains("z = 1.270000"), "{}", stderr(&out));
+}

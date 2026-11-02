@@ -979,7 +979,7 @@ pub(crate) fn differentiate_at(
         // about events and nothing about the value, which is their
         // argument; the derivative is the argument's.
         Expr::Call(name, args)
-            if IN_BODY.with(|on| on.get())
+            if (IN_BODY.with(|on| on.get()) || oxidelica_parser::ast::smooth_eventless())
                 && ((operator_name(name) == "smooth" && args.len() == 2)
                     || (operator_name(name) == "noEvent" && args.len() == 1)) =>
         {
