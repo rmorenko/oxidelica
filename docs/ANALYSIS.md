@@ -66709,3 +66709,166 @@ was sound at the angle level, and the second gave the anchor up for
 two relative angles. Why the second walk is started at all is the next
 question for this family. It is not a `retreat` line, since none is
 printed.
+
+## m558: why Gearbox walks twice, the leakage wall cut small, and the loop row read
+
+### The second walk is a recompilation after a mode change
+
+The second walk in the `EB2` trace is neither a retreat nor a second
+pass of `reduce_index`. It is `compile_at` called again by the
+segment loop when a mode change stalls the run
+(`solvers/mod.rs:2728`, raised through `mode_holds` in
+`continuation.rs:377`). A temporary print there showed
+`recompile: t = 1e-3, mode_change = true` just before the second
+`reduction 1`. The patch for that print is
+`/tmp/m558/recompile_probe.patch`.
+
+The mode that changes belongs to `LossyGear`. The mode trail
+(`OXIDELICA_NEWTON_TRAIL=1`) shows mode 1, the `if` on
+`isEqual(eta_mf1, 1) and isEqual(eta_mf2, 1)`, at `t=0` taking the
+`else` while reading `g.eta_mf1 = 0, g.eta_mf2 = 0`. At `t=0.001` it
+takes branch 1 and reads them as 1. `eta_mf1` and `eta_mf2` are
+defined only inside mode 0, the `if ideal then eta_mf1 = 1` branch.
+`settle_modes` (`compile.rs:4429`) evaluates the plain equations of
+the model to a fixpoint, but not the equations of the branches it has
+just chosen. So at the start the two efficiencies hold the zero nobody
+wrote, and the gear is compiled on the lossy branch. The two walks are
+walks of two different systems, and the run keeps the second because
+it is the only one compiled for the branch that now holds. Nothing
+chooses between them.
+
+The probe `OXIDELICA_MODES_READ_BRANCHES=1` (park:
+`m558-modes-read-branches-probe.diff`, binary `/tmp/m558/ox1`)
+lets `settle_modes` read the chosen branches' definitions and settle
+again, up to four rounds. Measured on small models: `EB2` and `GB4`
+go from refused to running, and `EB2b` and `GB2` run unchanged. `EB2`
+under the key ends where `IdealGear` (`/tmp/m558/EB2i.mo`) does,
+`J1.phi = J2.phi = 0.5`, `phi_rel = 0`. Under `--only`,
+`ModelicaTest.Rotational.TestBearingConversion` goes from 0 to 1 run.
+`LossyGearDemo1`, `2` and `3` and `RobotR3.OneAxis` do not move. The
+corpus pair is below.
+
+Under the key, the right branch is walked at `t=0`, and the walk takes
+the good victims: `J2.phi`, `g.phi_a`, `eb.phi_rel`, `J2.w`, `g.w_a`
+and `eb.w_rel`. The weights are those of the first walk without the
+key, with `g.phi_a` at 0.0. So the singular walk was not a property of
+the branch. It came from the weights read at the resume point, where
+`J1.phi` and `g.phi_a` had moved to 0.001 and reduction 2 weighed the
+anchor in. The key mends `EB2` by sparing the recompilation, not by
+changing how a recompilation weighs. A model that changes mode later,
+on a branch it really entered, would meet the same walk.
+
+### IMC_DOL_CommonLeakage cut to two components
+
+The real model was cut while the refusal stayed. One machine, `aimc0`,
+on a source refuses the same way (`/tmp/m558/CL0.mo`). It refuses with
+`ratioCommonStatorLeakage` at 0 or 0.5, and with 1 it fails on
+something else. A bare winding (`W0.mo`) refuses below 1 and runs at
+one. Its parts, taken one at a time (`X*.mo`), give the smallest form:
+a `PolyphaseElectroMagneticConverter` with `useStrayPermeance=true`
+in series with an `EddyCurrent` of `G=0`. That `EddyCurrent` writes
+`V_m = 0`. The pair is refused with an empty reach on
+`mg.port_p.V_m.im = core.port_n.V_m.im` (`Xe.mo`). Without the stray
+permeance (`Xen.mo`), or without the eddy current (`Xa.mo`), it runs.
+`G=1` gives a singular Jacobian instead (`Xe1.mo`).
+
+So nothing stands behind the magnetic potential across the stray
+permeances. The leak is ideal, the flux it carries is pinned by a
+zero potential drop, and the stray permeances are what have no state.
+This wall holds one model of the census (`/tmp/m552/raw.txt`).
+`IMC_DOL_CommonLeakage` is the only example that sets the ratio below
+1, and its other two machines are untouched.
+
+### SMPM_CurrentSource: the angle closes the loop
+
+Cut to the machine, a `SignalCurrent` and `DQToThreePhase` driven by
+the rotor angle (`/tmp/m558/S2.mo`), it still refuses with the load
+gone. With the angle replaced by a constant (`S3.mo`) it runs. With a
+plain inductor in place of the machine (`T.mo`) it runs. The trace
+spends `phiMechanical` and `inertiaRotor.w` at reductions 11 and 12,
+after four reductions on `flange.phi` aliases. It then runs out at 13
+with `supply-once` on the stator ports' `V_m`. The current source
+forces the stator currents as a function of the shaft angle, so the
+fluxes the stator would integrate are given by the angle, and the
+differentiation has to reach through the magnetic ports to the
+mechanics. Not walked further.
+
+### The `X of algebraic loop` row, the six that are not Spice3
+
+All six refuse before any Newton step:
+
+- `RollingWheelSetDriving` and `RollingWheelSetPulling`: NaN in
+  `rolling1.e_long_0 = aux/sqrt(aux*aux)`, zero over zero at the
+  start.
+- `ThreeSprings`: `-inf` in `e_rel_0 = r_rel_0 / s`, where
+  `s = if length > s_small then length else s_small`. It is an unknown
+  of the same loop and is read at its zero start. `why` confirms
+  that.
+- `TestSweptVolume`: `ports[1].h_outflow` is NaN before the block.
+- `TestJunctionTraceSubstances`: a medium `solveOneNonlinearEquation`
+  whose bracket does not hold the root.
+- `PumpingSystem`: IF97 viscosity called with `d = NaN`.
+
+The first three are one layer: a guarded denominator that is an
+unknown of the loop and starts at an unwritten zero. The other three
+are three layers of the medium.
+
+### The `der(X) is not a state` row, eight models, one layer
+
+All eight start in steady state: an `initial equation` writes
+`der(x) = 0` on a variable that is not a state. These are
+`IMC_Initialize` and `IMC_withLosses` in Electrical, FundamentalWave
+and QuasiStatic, with `der(aimc.idq_sr) = zeros(2)` or
+`der(aimc.airGap.V_msr.re) = 0`, and three Fluid models under
+`Dynamics.SteadyStateInitial` with `der(medium.T)`. The refusal is
+raised in `substitute_derivatives_with` (`compile.rs:32`). It finds
+neither a state nor an entry in `also` for the name. The name was
+never a state to begin with. In `IMC_Initialize` the trace demotes
+the fluxes and the mechanical angles, not `idq_sr`. That current is
+the stator current turned into the rotor frame, so it is an algebraic
+variable of the rotation. The Fluid temperatures are likewise outputs
+of a medium whose states are `p` and `h`. A plain algebraic variable
+under `der` in an initial equation is handled
+(`/tmp/m558/SS.mo`, `SS2.mo`, `SS3.mo` all run). So the gap is a
+`der` of a variable that is defined through a rotation or a medium
+function, which `also` does not hold. That is one layer for all
+eight, and it is not tried here.
+
+### `unbalanced ... nothing is left for`, six models
+
+Four are `StateGraph.Examples.Utilities` composite steps, and their
+surplus is 2 every time, on `initStep.inPort[1].occupied = inPort.occupied`
+and `outPort.available = exitStep.outPort[1].available`. Those are
+helpers rather than examples, and their outer ports have no partner.
+The other two are `Fourbar1` (9 over) and `RobotR3.OneAxis` (55 over).
+They are mechanical aliases and a different layer.
+
+### `underdetermined algebraic loop`, read by name
+
+The census counts 9 in this row. The raw file holds eleven lines
+under these words, because two power converters are counted under the
+arithmetic floor row. Of the nine, four are Spice3 helpers
+(`MNmos`, `MPmos`, `NAND`, `ONEBIT`) and one is
+`Spice3BenchmarkRtlInverter`. The loops of all five hold only a
+derivative of a junction voltage. The other four are FundamentalWave
+machines: `IMC_DOL_Polyphase` with the switch parameters `s` of an
+ideal closer, and `IMS_Start_Polyphase`, `SMEE_DOL` and
+`SMEE_Rectifier` with the air gap's `V_mss` and `Phi_ss`. That makes
+two layers at most, and neither was probed further.
+
+### The corpus pair for the branch-reading probe
+
+The pair was run with one binary, `/tmp/m558/ox1`, as two `--list`
+passes one after the other: `/tmp/m558/off.txt`, then `/tmp/m558/on.txt`
+with `OXIDELICA_MODES_READ_BRANCHES=1`. The flatten lists are equal.
+The run lists differ by one line, `ModelicaTest.Rotational.TestBearingConversion`
+gained, with no model lost: 825 against 826 example models, and 777
+against 778 runnable. The `time:` lines read flattening 4813 s
+against 5405 s and running 5942 s against 6503 s. Running is 9.4%
+dearer and flattening 12% dearer. The key does not touch flattening,
+and yet it moved more than running did. The cause was not measured.
+The off half shared the machine with small probes, which would have
+made the off half dearer, not the on half. Until a quiet pair is
+taken, this pair cannot price the run half under 6%. The probe stays
+in the park. The win is one model, and the price would need a quiet
+pair before it can be stated.
