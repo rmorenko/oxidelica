@@ -66913,3 +66913,12 @@ singular", one storey up. `OneAxis` (unbalanced, 55 over) and
 combinations. So the family "settles the mode on an unwritten zero"
 holds at least two models, by two routes: `LossyGear`'s efficiencies
 and the path planner's switching times.
+
+The second route has a small model of its own: `/tmp/m558/KP.mo`, one
+`KinematicPTP2` from `{0, 0}` to `{1, 2}` feeding one first-order
+lag. At `t=0` mode 0 takes branch 9, the `else` meant for a finished
+path, and at `t=1e-12` it takes branch 6, `time < Ta2s`. It does the
+same with and without `OXIDELICA_MODES_READ_BRANCHES`. The run then
+goes on to branches 7, 8 and 9 at 1, 2 and 3 s, as it should. This
+model does not refuse, because nothing in it is reduced. It is the
+test a cure for the start mode can be held to without a robot.
