@@ -2,7 +2,7 @@
 
 use crate::*;
 
-use super::{reject_keeps_guess, turned, Segment, SegmentStart};
+use super::{reject_keeps_guess, step_floor, turned, Segment, SegmentStart};
 
 /// Whether a refusal only the implicit solver mends ends an `Auto` run
 /// in the explicit one, as it did before such a run was handed over.
@@ -236,6 +236,7 @@ impl CompiledModel {
         let mut interp = vec![0.0; n];
         let mut t = t0;
         let mut h = out_step.min(stop - t0).max(1e-9);
+        let h_start = h;
         let mut evals: u64 = 0;
         // Whether the step about to be taken was cut to end at a crossing
         // the longer one found inside it. A cut step that finds the
@@ -464,7 +465,7 @@ impl CompiledModel {
                         if !reject_keeps_guess() {
                             alg_guess.copy_from_slice(&footing_guess);
                         }
-                        if h < stop * 5e-14 {
+                        if h < step_floor(stop, t, t0, h_start).1 {
                             return self.stall_at_last_row(
                                 columns,
                                 rows,
@@ -878,12 +879,13 @@ impl CompiledModel {
             // On a model whose states were chosen by a pivot, a step
             // collapse is the cue to choose again - well before the
             // hard underflow that would end the run.
-            if self.reselectable && h < stop * 5e-14 {
+            let (give_up, stall) = step_floor(stop, t, t0, h_start);
+            if self.reselectable && h < stall {
                 // The snapshot comes from the last accepted point; the
                 // evaluation there succeeded when it was accepted.
                 return self.stall_at_last_row(columns, rows, SolverMethod::Dopri45, false);
             }
-            if h < stop * 1e-14 || h < 1e-300 {
+            if h < give_up || h < 1e-300 {
                 return err(format!(
                     "step size underflow at t = {t:.6}: probable singularity"
                 ));

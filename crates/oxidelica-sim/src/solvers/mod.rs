@@ -18,6 +18,58 @@ fn fd_step_scale() -> f64 {
     })
 }
 
+/// Whether the smallest step is read from the clock rather than from
+/// the horizon. Off by default; `OXIDELICA_STEP_FLOOR_BY_T=1` takes it,
+/// so that one binary gives both halves of a measurement.
+fn step_floor_by_t() -> bool {
+    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ON.get_or_init(|| std::env::var_os("OXIDELICA_STEP_FLOOR_BY_T").is_some())
+}
+
+/// The step below which a run gives up, and the one below which a
+/// chosen selection stalls to be chosen again (five times the first,
+/// the ratio the horizon's thresholds kept).
+///
+/// The old reading, `stop * 1e-14`, made the floor a property of the
+/// number asked for on the command line: `SoftStarter` with a stop of
+/// 6 reached 4.498 and with a stop of 10 died at 1.983 on the same
+/// physics. What the floor exists to catch is a step that no longer
+/// moves the clock, which is a property of `t`: `t + h` cannot be told
+/// from `t` once `h` is within a few units of the last place of `t`.
+/// Eight such units is the margin taken - small enough that a step the
+/// clock can still resolve is never refused, large enough that the
+/// step is not lost to the rounding of `t + h` itself.
+///
+/// Only while the clock still stands at the run's start, where `t` may
+/// be zero and that reading no floor at all, is the floor held up by
+/// the starting step scaled down by fourteen orders. The starting step
+/// is `min(Interval, stop - t0)`, with `Interval` 1e-3 where the model
+/// names none, so on that first instant the horizon is still seen in
+/// the floor for every model whose `stop - t0` is below its `Interval`:
+/// there it reads `stop * 1e-14`, exactly the old floor, and nowhere
+/// above it while `stop - t0` is at least 1e-12. Below that the clamp
+/// of the starting step to 1e-12 lifts it over the horizon's reading,
+/// by 1e-12 / (stop - t0); the shortest horizon in the library is
+/// 1e-11, ten times clear. Past the first accepted step it is the
+/// clock alone, whatever the horizon.
+pub(crate) fn step_floor(stop: f64, t: f64, t0: f64, h_start: f64) -> (f64, f64) {
+    step_floor_reading(step_floor_by_t(), stop, t, t0, h_start)
+}
+
+fn step_floor_reading(by_t: bool, stop: f64, t: f64, t0: f64, h_start: f64) -> (f64, f64) {
+    if !by_t {
+        return (stop * 1e-14, stop * 5e-14);
+    }
+    const ULPS: f64 = 8.0;
+    let by_clock = t.abs() * f64::EPSILON * ULPS;
+    let give_up = if t == t0 {
+        by_clock.max(h_start * 1e-14)
+    } else {
+        by_clock
+    };
+    (give_up, 5.0 * give_up)
+}
+
 /// Whether an inner assignment of a torn block that comes out not a
 /// number makes the whole point one that is not, as a residual that is
 /// not a number does. On by default; `OXIDELICA_NO_INNER_NAN_EDGE=1`
@@ -2973,5 +3025,53 @@ mod edge_handoff_tests {
         leave();
         walked.clear_for_handoff(false);
         assert!(walked.troubled());
+    }
+}
+
+#[cfg(test)]
+mod step_floor_tests {
+    use super::step_floor_reading;
+
+    // The floor is about whether `t + h` still moves the clock, so two
+    // runs of the same model asked for different horizons must give up
+    // on the same step at the same instant. Read from the horizon, a
+    // stop of 10 refused a step a stop of 6 took.
+    // The starting step is clamped by the horizon, `min(Interval, stop)`,
+    // so the pair is taken as a run takes it rather than with the
+    // starting step held still.
+    #[test]
+    fn the_floor_does_not_depend_on_the_horizon() {
+        let t = 1.983;
+        let start = |stop: f64| 1e-3f64.min(stop);
+        let six = step_floor_reading(true, 6.0, t, 0.0, start(6.0));
+        let ten = step_floor_reading(true, 10.0, t, 0.0, start(10.0));
+        assert_eq!(six, ten);
+        let h = 3e-13;
+        assert!(h > ten.1, "a step the clock resolves is not refused");
+        assert!(t + h != t);
+        let old = step_floor_reading(false, 10.0, t, 0.0, start(10.0));
+        assert!(h < old.1, "the horizon's reading stalls on it");
+    }
+
+    // `NandGate` runs to 1e-7 with no `Interval`: its starting step is
+    // the horizon itself. Past the first instant its floor must not
+    // stand above the old one, or a model that runs today is refused.
+    #[test]
+    fn a_short_horizon_gets_no_higher_floor_past_the_start() {
+        for stop in [1e-7, 1e-11] {
+            let h_start = 1e-3f64.min(stop).max(1e-12);
+            for t in [0.0, stop * 1e-5, stop * 0.01, stop * 0.5, stop] {
+                let new = step_floor_reading(true, stop, t, 0.0, h_start);
+                let old = step_floor_reading(false, stop, t, 0.0, h_start);
+                assert!(new.0 <= old.0 && new.1 <= old.1, "stop {stop}, t {t}");
+            }
+        }
+    }
+
+    #[test]
+    fn at_the_start_the_floor_stands_on_the_starting_step() {
+        let (give_up, stall) = step_floor_reading(true, 10.0, 0.0, 0.0, 1e-3);
+        assert!((give_up - 1e-17).abs() < 1e-32);
+        assert_eq!(stall, 5.0 * give_up);
     }
 }

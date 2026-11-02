@@ -67372,3 +67372,29 @@ held rule wins no corpus model on top of `RESUME_TIE`. It moves one
 run by 139 points, and that model is not named yet. As an argument in
 the `RESUME_TIE` question, the ring weighs `GB4` and the small models
 and nothing in the corpus lists.
+
+## m563: the clock-read step floor merged behind its key
+
+The patch built in m560 is now in the tree: `step_floor` in
+`crates/oxidelica-sim/src/solvers/mod.rs`, read by both `bdf.rs` and
+`dopri.rs`. Under `OXIDELICA_STEP_FLOOR_BY_T=1` the smallest step is
+eight units in the last place of `t`, held up at the first instant by
+the starting step times 1e-14, and the stall threshold stays five times
+that. Without the key the old reading, `stop * 1e-14` and
+`stop * 5e-14`, is taken whole.
+
+What it rests on, each half named by its file:
+
+- the corpus pair `/tmp/m560/p1/off.txt` and `/tmp/m560/p1/on.txt`, one
+  binary (`/tmp/m560/ox1`, built from the code now in the tree, which
+  `cargo fmt` left untouched): both halves 973 flatten / 825 run and
+  855 / 777 runnable, the run lists equal line for line, the run half
+  4849s off against 4822s on;
+- `SoftStarter` at stops of 6 and 10, both sides, four halves (m560);
+- the heavy models one at a time (m560, m561), and the three adders
+  shown unable to reach the floor at all (m562).
+
+Why no number moves: the key is opt-in, and with it absent the floor is
+the old one to the expression. The floors and centres stay where they
+are. Turning the key into the default is a separate measurement, to be
+paired with the smooth patch parked as 0009.

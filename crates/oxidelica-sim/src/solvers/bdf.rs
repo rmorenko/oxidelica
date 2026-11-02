@@ -2,7 +2,7 @@
 
 use crate::*;
 
-use super::{place_crossing, reject_keeps_guess, turned, Segment, SegmentStart};
+use super::{place_crossing, reject_keeps_guess, step_floor, turned, Segment, SegmentStart};
 
 /// Whether a block refusing while the corrector's matrix is taken ends
 /// the run, as it did before such a refusal was read as the step's.
@@ -77,6 +77,7 @@ impl CompiledModel {
         let mut order = 1usize;
         let mut t = t0;
         let mut h = out_step.min(stop - t0).max(1e-12);
+        let h_start = h;
         let mut jac: Option<Vec<Vec<f64>>> = None;
         let mut consecutive_ok = 0usize;
         let mut steps: u64 = 0;
@@ -300,7 +301,7 @@ impl CompiledModel {
                 h *= 0.25;
                 order = 1;
                 jac = None;
-                if h < stop * 1e-14 || h < 1e-300 {
+                if h < step_floor(stop, t, t0, h_start).0 || h < 1e-300 {
                     if let Some(error) = singular.take() {
                         return Err(error);
                     }
@@ -579,10 +580,11 @@ impl CompiledModel {
             h *= factor;
             // A collapsing step on a model whose states were chosen by
             // a pivot: stall and let the caller choose again.
-            if self.reselectable && h < stop * 5e-14 {
+            let (give_up, stall) = step_floor(stop, t, t0, h_start);
+            if self.reselectable && h < stall {
                 return self.stall_at_last_row(columns, rows, SolverMethod::Bdf, false);
             }
-            if h < stop * 1e-14 || h < 1e-300 {
+            if h < give_up || h < 1e-300 {
                 return err(format!(
                     "step size underflow at t = {t:.6}: probable singularity"
                 ));
