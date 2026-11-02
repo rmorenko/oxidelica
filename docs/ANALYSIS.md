@@ -67238,3 +67238,52 @@ and `.TWOBIT` and `.FOURBIT`. By the 2026-10-19 prices (run / flatten
 twice the price per half wants about 7300s, 2400s and 7500s of CPU, some
 four and a half hours together, left to the review. Not done in this
 shift, by the order: the merge of the key and of `0009`.
+
+### Link 3 probed: the cone has no anchor, not a lost carry
+
+The narrow question of m560 was whether the `der(...)` names are lost
+across the rebuild. A probe printing, at each tie, every definition
+`held_at_start` leaves unread and the names it lacks, on
+`/tmp/m557/small/GB4.mo`, answers no. Reductions 1 and 3 leave nothing
+unread; at reduction 6, on the resume, 14 definitions are unread, and
+all 14 are `der(...)` aliases that read each other in a ring:
+`der(gear.flange_b.phi)` reads `der(gear.lossyGear.flange_b.phi)`,
+which reads `der(gear.lossyGear.phi_support)`, which reads
+`der(gear.lossyGear.support.phi)`, and so back. Carrying the values of
+earlier reductions across, as a key tried first, changes nothing,
+because none of them had been held there either.
+
+The anchor the ring lacks is the support. `gear.lossyGear.support.phi`
+and `gear.support.phi` are defined by the number `0`, and nothing
+writes that their derivatives are zero. Under a second key,
+`OXIDELICA_HELD_ZERO_DER`, the derivative of every name a number
+defines is held at zero before the fixpoint. That rule says nothing
+about any one component: what does not move has a derivative of zero.
+With `OXIDELICA_RESUME_TIE` beside it, all 14 are held and `GB4` runs
+to its end at 0.5. Neither key alone does it.
+
+The joint weights still read `None` at reductions 3 and 6, so the
+model runs by another road than the weights, and that road is not
+named yet. The ladder, one binary `/tmp/m560/ox10`, both keys against
+none:
+
+- Of the 29 small models in `/tmp/m557/small`, 8 run under the keys
+  and refuse without them: `EB2`, `EB2a`, `EB2f`, `EB2t`, `GB3`,
+  `GB4`, `V`, `V0`. `EB2b`, `GB2` and 14 more give the same CSV byte
+  for byte. `A1`, `G1b`, `GB`, `R1` and `TBC_full` refuse both ways.
+- Under `--only`: `Pendulum`, `DoublePendulum`, `LossyGearDemo1`,
+  `LossyGearDemo2`, `LossyGearDemo3`, `FullRobot` and `OneAxis` give
+  equal `work:` lines both ways.
+- `TestBearingConversion` gets past its wall at `gear2_1`, 79 points
+  to 218, and refuses at the next one: a re-selection at t = 2.8e-13
+  brings in 15 second derivatives of `gear2_2`, starting with
+  `der(der(gear2_2.internalSupport.phi))`. That is the same ring one
+  derivative level up, and the zero rule reaches only the first
+  derivative of a number.
+
+The probe and both keys are parked as
+`~/oxideflow/park/m561-held-zero-der-probe.diff`, and the tree is
+clean. No corpus pair was taken. The next step is to hold every order
+of derivative of a number at zero, then `TestBearingConversion` again,
+and only then the pair. The pair is the measurement that matters here,
+since a definition-adding change moves which states reduction keeps.
