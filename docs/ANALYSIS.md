@@ -67637,3 +67637,12 @@ sign of a near-zero voltage, the same shape smaller. Not compared:
 `Translational.HeatLosses` (off half not done in 360 s CPU), both
 `SMEE_LoadDump` (neither half in 150 s CPU), `Rotational.HeatLosses`
 and `SimpleGearShift` (`simulate` refuses both halves alike).
+
+Which half of `ComparisonQuasiStatic` is right was then asked by
+running both again with `--tolerance 1e-9` (`/tmp/m561/q_off9.csv`,
+`q_on9.csv`). There `coil2.v` at t=9.857 is 0.0083444 off and 0.0083478
+on, which agree, while at the model's own tolerance it was 0.0272 off and
+0.0016 on, both far from it. So the disagreement belongs to the
+tolerance and not to the dead zone: neither half is the right answer
+at the default step, and the dead zone moves it no further from the
+reference than the old road does.
