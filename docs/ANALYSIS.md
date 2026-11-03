@@ -67904,7 +67904,22 @@ patch as v2) gives the victim back with its off work to the digit,
 and the two `LoadDump` take 18 and 7 Jacobians, but `ArcSwitch` now
 takes 29 Jacobians and 14047 points, against 32 and 11807 off and 9
 and 11333 under v1: a perturbation the v2 corpus pair has to judge. Not
-measured this shift; the corpus slot went to the guard pair below.
+measured at first; the guard pair was then stopped for it.
+
+The v2 corpus pair, one binary (`/tmp/m563/v2/ox`), halves one after
+the other with nothing beside them, `/tmp/m563/v2/off.txt` and
+`on.txt`: both 973 / 825 and 855 / 777, the lists equal line for line
+(1798 = 1798), `IMC_InverterDrive` and `ArcSwitch` both in the run
+list. Run half 4593 s to 4626 s, +0.7%. Jacobians 541 to 290, apart
+1974 to 125, points 24150735 to 24109020, Newton 35483939 to 35391842.
+All three conditions of 26 October hold. The clean change with its
+test (red with `OXIDELICA_NO_SAME_SIDE`) is in the park as
+`m563-same-side-clean.patch`. It was not merged this shift for two
+reasons. Preflight did not fit in the time left. And the judge holds
+Jacobians at 683 within 10% and apart at 1974 within 90%, so both
+would go red on the first run. The merge has to land together with
+the judge's print for those two centres, in an order the next shift
+is given.
 
 ## The row "initialization is not square", three by name (m563, item 4)
 
