@@ -67981,6 +67981,11 @@ not merged in this shift by order, so that a second movement of the
 counters does not mix into the judge's print; the merge is a series
 of its own.
 
+Merged in m570 (a9a1c63), on by default, with
+`OXIDELICA_NO_FOLD_GUARD=1` as the key that turns it off. The test is
+`G1` above, red under the key and green without it. The numbers are
+the pair's, and the run floor waits for the judge's print.
+
 The same-side rule above was stopped by a structural fact rather than
 by a missing case. A switch resting on its threshold is a sliding
 mode, and there the indicator lawfully leaves zero to the same side
