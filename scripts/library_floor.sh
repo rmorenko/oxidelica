@@ -3368,6 +3368,39 @@ WORK_JACOBIANS_OWN_PPM=200000
 WORK_JACOBIANS_APART=1974
 WORK_JACOBIANS_APART_PPM=900000
 WORK_PERCENT=5
+
+# The desk's own centres, beside the judge's and not instead of them.
+# The two machines rebuild at different steps and spend different
+# points, so one centre held by both under a band of ten or twenty
+# percent satisfies neither: on an untouched compiler the desk printed
+# jacobians 530 against the judge's 683 (x0.78) and IMC_InverterDrive
+# 11 against 5 (x2.2). Each machine is held to its own print instead,
+# under the same narrow bands. The preflight sets FLOOR_DESK=1 and gets
+# these; CI sets nothing and gets the judge's numbers above, untouched.
+#
+# Taken from the desk's prints of 2026-11-03 on the tree of the clean pair, untouched
+# compiler (/tmp/m564/pf_quick.txt, the lines `WORK: points evaluated
+# is 450379`, `newton iterations is 1102467`, `jacobians of
+# IMC_InverterDrive is 11`, `jacobians is 530`).
+#
+# This also closes the promise written at WORK_POINTS and WORK_NEWTON
+# on 2026-10-27 (m521): 1018872 and 1809736 were THE DESK'S prints,
+# waiting for the judge. The growth they carried has gone, and the desk
+# now prints 450379 and 1102467, so the desk's numbers move here. The
+# judge's two lines above are left as they stood on purpose: what the
+# judge prints for them has not been read yet, and the review sets them
+# from the judge's first print rather than from a number made up here.
+WORK_POINTS_DESK=450379
+WORK_NEWTON_DESK=1102467
+WORK_JACOBIANS_DESK=530
+WORK_JACOBIANS_OWN_DESK="Modelica.Electrical.Machines.Examples.InductionMachines.IMC_InverterDrive 11"
+if [ "${FLOOR_DESK:-}" = 1 ]; then
+  echo "centres: the desk's (FLOOR_DESK=1)"
+  WORK_POINTS="$WORK_POINTS_DESK"
+  WORK_NEWTON="$WORK_NEWTON_DESK"
+  WORK_JACOBIANS="$WORK_JACOBIANS_DESK"
+  WORK_JACOBIANS_OWN="$WORK_JACOBIANS_OWN_DESK"
+fi
 # The names looked up, held to a band of their own in parts per
 # million. Measured on 2026-09-25 over one binary of 3103c80 and `.msl`
 # under this checkout, four passes one after another:

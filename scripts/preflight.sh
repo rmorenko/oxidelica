@@ -103,6 +103,12 @@ examples_all_simulate() {
   return $status
 }
 
+# The desk's band on the ratio of the two halves, read by the library
+# step and seen red and green by time_band_judges; the arithmetic is at
+# the library step.
+DESK_RATIO_LOW=0.96
+DESK_RATIO_HIGH=1.44
+
 library_floor() {
   if [ ! -d "$library" ]; then
     return 0
@@ -179,6 +185,19 @@ library_floor() {
   # is not this band's work. The runner's band of 0.70..1.50 is not
   # touched.
   #
+  # Worked over on 2026-11-03, on Roman's word that each machine is
+  # held by its own print. The edges of 2026-10-16 had been red on every
+  # desk preflight since the compiler moved again. Eleven desk prints
+  # of the ratio, each read from its file (`run/flatten ratio is`):
+  # m543/preflight 1.231, m544/pre 1.230, m546/preflight 1.179,
+  # m547/preflight 1.182, m549/preflight 1.242, m550/pre 1.219,
+  # m551/preflight 1.248, m552/preflight 1.224, m564/pf_quick 1.164,
+  # m564/preflight 1.148, m566/preflight 1.143. The room is the same as
+  # every precedent: 1.143 / 1.189 = 0.9613, written 0.96, and
+  # 1.248 x 1.158 = 1.4452, written 1.44. The desk's centres of work
+  # come with FLOOR_DESK=1, at the centres in library_floor.sh. The
+  # runner's band and centres are not touched.
+  #
   # The two passes and the judge, one after the other, as CI runs them
   # side by side since 2026-10-13: the desk measures the same set and
   # judges the same sum, so a fault in the cut shows here first. The
@@ -188,7 +207,7 @@ library_floor() {
   ./scripts/library_floor.sh --pass main "$library" "$reports/main.txt" || return 1
   ./scripts/library_floor.sh --pass dear "$library" "$reports/dear.txt" || return 1
   echo "the two reports: $reports"
-  RATIO_LOW=0.64 RATIO_HIGH=0.91 ./scripts/library_floor.sh --judge "$library" \
+  FLOOR_DESK=1 RATIO_LOW="$DESK_RATIO_LOW" RATIO_HIGH="$DESK_RATIO_HIGH" ./scripts/library_floor.sh --judge "$library" \
     "$reports/main.txt" "$reports/dear.txt"
 }
 
@@ -229,12 +248,15 @@ time_band_judges() {
   # Outside: 0.600 under the floor, and 0.953, the quiet point of the
   # old compiler - should the ratio go back to that shape, the band has
   # to go red.
-  local desk="env RATIO_LOW=0.64 RATIO_HIGH=0.91 ./scripts/library_floor.sh --ratio-check"
-  $desk 1000 768 > /dev/null || return 1
-  $desk 1000 786 > /dev/null || return 1
-  $desk 1000 775 > /dev/null || return 1
-  $desk 1000 600 > /dev/null && return 1
-  $desk 1000 953 > /dev/null && return 1
+  # Inside since 2026-11-03: the lowest and highest desk prints the
+  # edges stand on, 1.143 and 1.248, and one between, 1.164. Outside:
+  # 0.786, the quiet point of the compiler before, and 1.500.
+  local desk="env RATIO_LOW=$DESK_RATIO_LOW RATIO_HIGH=$DESK_RATIO_HIGH ./scripts/library_floor.sh --ratio-check"
+  $desk 1000 1143 > /dev/null || return 1
+  $desk 1000 1248 > /dev/null || return 1
+  $desk 1000 1164 > /dev/null || return 1
+  $desk 1000 786 > /dev/null && return 1
+  $desk 1000 1500 > /dev/null && return 1
   return 0
 }
 
