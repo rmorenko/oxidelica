@@ -67731,3 +67731,34 @@ read from `t` (`a01ae29`, `0fa5966`), it was `stop * 1e-14`, so
 cutting `stop` moved the point where a run gives up, and every
 shortened off/on pair would have been confounded by it. That is the
 first practical return on that merge.
+
+### The row `X of algebraic loop [...]`, probed again (m567)
+
+The row has grown from 5 (m518) to 12 in `/tmp/m565/census.txt`. Five
+of the new members are Spice3 MOS circuits: `Inverter`,
+`FourInverters`, `Nand`, `InvertersApartRecord` and
+`InvertersExtendedModel`. Each refuses with a block NaN at t = 0 whose
+first fault is `der(G.v) := icGB / cc.cGB`, which divides by
+`cc.cGB` and gets zero. `PumpingSystem` is a single, an IF97 viscosity
+called below its density bracket. m535 wrote these off as "the
+quotient is the model's own at that point". That holds for the
+capacitance but not for the quotient. The gate of every one of these
+is held by a voltage source, so `der(G.v)` is the source's derivative,
+and with `cGB = 0` the gate capacitance current is simply zero. The
+compiler instead solves the capacitor equation
+`icGB = cc.cGB * (der(G.v) - der(B.v))` for `der(G.v)`, which is a
+causal choice that becomes singular exactly when the modelcard leaves
+the oxide capacitance at zero (no `TOX`).
+
+Shrunk to one transistor (`/tmp/m567/small/keep_I3.mo`): an `M_NMOS`
+with `CBD = 0, CBS = 0`, its gate on a `V_sin`, its drain through a
+resistor to a `V_constant`. It refuses the same way in under a second,
+with `der(mn.G.v)` taken from the quotient, so neither the pulse
+source nor a second transistor is part of it. Hand-written analogues
+with a zero coefficient on `der(g)` and a source-driven `g` (`C1.mo`,
+`C3.mo` in the same directory) run, so what is left in the way is in
+how the MOS block's capacitor currents are matched, not in a zero
+coefficient as such. That is the layer the next probe opens:
+which equation `der(mn.G.v)` is assigned to and why the source's own
+equation, differentiated, was not the one chosen. Five models, one
+layer, with a one-second reproduction.
