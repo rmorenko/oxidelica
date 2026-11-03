@@ -67776,3 +67776,29 @@ next shift can test this on `keep_I3.mo` in a second. The variants
 `I4.mo` (constant source) and `I5.mo` (Analog `SineVoltage`) refuse
 the same way, and the victim probe shows `mn.G.v` demoted at
 reduction 2 in all three.
+
+## m531 measured again on the tree with the chatter inside (3 November)
+
+The dead zone that was to cure the indicator chatter is parked for
+good: at 1e-21 the two Comparison solenoids keep all their turns and
+none of them is tiny, the two `SMEE_LoadDump` drop from 300 to 26 and
+173 to 23, and the friction mode change of `HeatLosses` lies below
+both. No one absolute threshold separates the families, and the
+threshold also moved later events (`ControlledSwitchWithArc` 35 to 62
+turns, `Translational.Friction` 25 to 45). The corpus Jacobian centre
+took the judge's print of 683 instead (598086d), with the two machines
+named as what holds it.
+
+So m531 (`OXIDELICA_NO_SIBLING_MEMBER_SHAPE` switches it off) was
+measured on the present tree, one binary, halves one after the other,
+`/tmp/m568/off.txt` and `/tmp/m568/on.txt`. Both print 973 flatten /
+825 run and 855 / 777; the lists of models agree line for line, no
+victims. The three `e_ia` models change wall only, from `cannot
+evaluate parameters` to the one behind it. The run half goes 4595 s to
+5441 s, +18.4%, the flattening half 3925 s to 3899 s. That is over the
+6% rule, so m531 stays parked and the question goes to Roman with
+this number. The `time:` lines count processor seconds, not wall, so an
+orphaned comparer from m555 that held a core for 32 hours (removed
+during the off half) stretched the wall clock and not these numbers.
+The off flattening half printed 3925 s, the same to the second as
+`/tmp/m560/p1/off.txt` on another day.
