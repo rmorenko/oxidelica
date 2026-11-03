@@ -67584,3 +67584,56 @@ events of `ComparisonQuasiStatic` from 3714 to 92 and of the two
 126 to 2; `Translational.Friction` goes 25 to 45 and `TestFriction` 33
 to 37. The trajectories were not compared, so the patch is parked and
 not merged.
+
+## m561: m531 on today's tree, and the dead zone's trajectories
+
+m531 (a member of a sibling declared below, measured by its class) was
+taken onto today's tree: the code applied cleanly, the test and this
+chapter by hand. The pair was made with one binary built from that
+tree, the halves one after the other, the off half under
+`OXIDELICA_NO_SIBLING_MEMBER_SHAPE`. Files: `/tmp/m561/off.txt` and
+`/tmp/m561/on.txt`, kept with the rebased patch in the m531 park.
+
+- Lists: 973 flatten and 825 run in both halves, 855 and 777 of the
+  runnable, the flat and run lists equal line for line. Victims 0.
+  Work counters equal (541 jacobians in both).
+- Time: off flattening 3972 s, running 4627 s (ratio 1.165). On
+  flattening 3844 s, running 5458 s (ratio 1.420), inside the band
+  0.70..1.67.
+- So the six `e_ia` models need not be carved out, and the word given
+  for carving them into the heavy list is left unspent. It was +27% on
+  the tree m531 was first measured on and is +18% now: 0009 ate part of
+  the price, which is what measuring before carving was for.
+- +18% is above the 6% a pair may cost without a word, so m531 is
+  parked, not merged. The census shows where it goes: the four
+  `cannot evaluate parameters [... e_ia ...]` rows (six models) empty,
+  and six `structurally singular model` rows fill. A kind moved, no
+  model won.
+
+The dead zone of m566 (`OXIDELICA_CHATTER_DEADZONE`) was compared off
+against on with `oxidelica simulate <Class> -o file.csv`, one binary,
+over the whole path and not only the end point: rows taken at the same
+time, a time written twice (an event) left out, the difference measured
+as `|off - on| / max(1, |off|, |on|)`. The largest such difference
+along the path, with the variable and its two values:
+
+| model                     | rows  | worst  | at                                       |
+| ------------------------- | ----- | ------ | ---------------------------------------- |
+| `TestFriction`            | 1101  | 4.6e-5 | `inertia.w` 1.72264 vs 1.72256           |
+| `Translational.Friction`  | 5002  | 4.6e-4 | `spring.f` -0.475207 vs -0.47567         |
+| `ControlledSwitchWithArc` | 24003 | 7.0e-4 | `inductor1.v` -3.4e-4 vs 3.6e-4          |
+| `CoupledClutches`         | 1500  | 3.2e-9 | `clutch1.w_rel`                          |
+| `PumpAndValve`            | 1995  | 6.9e-5 | `pipe.Q_flowHeatPort` 1.06752 vs 1.06744 |
+| `ComparisonPullInStroke`  | 161   | 1.1e-3 | `r_par1.v` -1.2e-3 vs -5.8e-5            |
+| `ComparisonQuasiStatic`   | 10001 | 2.6e-2 | `coil2.v` 0.0272 vs 0.0016 at t=9.857    |
+
+Five agree to the solver's tolerance. `ComparisonQuasiStatic` does not:
+a coil voltage of 0.027 against 0.0016 is a different answer, small
+only against the floor of 1 the measure puts under it, and the end
+point disagrees as well (0.0073 against -0.0057). Neither half is
+known to be the right one, and that question is now the dead zone's
+first. `ControlledSwitchWithArc` and `PullInStroke` differ in the
+sign of a near-zero voltage, the same shape smaller. Not compared:
+`Translational.HeatLosses` (off half not done in 360 s CPU), both
+`SMEE_LoadDump` (neither half in 150 s CPU), `Rotational.HeatLosses`
+and `SimpleGearShift` (`simulate` refuses both halves alike).
