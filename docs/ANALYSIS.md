@@ -68082,3 +68082,21 @@ true locally, at the stall point, which does not outlive it. The
 small model is the same: a rotating angle that grows without bound,
 sitting beside a constraint in a mode that switches after it has
 grown.
+
+The relative weight is the lever, measured with its switch on one
+binary. `OXIDELICA_NO_THROUGH_RELATIVE=1` takes the close at 0.3
+through: reduction 3 weighs the angle at 1.0 against `psi_ms[1]` at
+4.09, demotes `psi_ms[1]` as the first compile does, and the run ends
+(`/tmp/m571/star/norel.err`, `events: 1`). The same switch costs
+`SMPM_Braking`, the model the rule was written for. It refuses as a
+singular Jacobian in the loop of `smpm.airGap.i_sr[2]`
+(`/tmp/m571/norel_smpm.txt`), and the Machines model's `--only` under
+it reaches the 1 s check stop and runs (`norel_mach.txt`). So the rule
+is right for an angle of 0.14 rad and wrong for one of 178. The first
+bound tried, the size capped at one (`min(|v|, 1)`, parked as
+`m571-bounded-relative-weight.patch`), keeps `SMPM_Braking` and still
+refuses the close at 0.3. What the fluxes weigh relatively is below
+one too, so a cap on the angle alone does not reorder them. The open
+question for the series is what scale an angle has. Its size is not
+one: an angle that has turned a hundred times is no more sensitive
+than one that has turned once.
