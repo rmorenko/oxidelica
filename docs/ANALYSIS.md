@@ -68100,3 +68100,11 @@ one too, so a cap on the angle alone does not reorder them. The open
 question for the series is what scale an angle has. Its size is not
 one: an angle that has turned a hundred times is no more sensitive
 than one that has turned once.
+
+No cap on the size separates the two. With the cap at 0.01, 0.1 and
+0.3 behind a scratch switch, the close at 0.3 still refuses, and
+`SMPM_Braking` refuses as well. At 1 the close refuses and
+`SMPM_Braking` runs. Whatever the cap, the fluxes are scaled by their
+own sizes too, so bounding the scale moves every candidate rather than
+the angle alone. So the lever is the scale of an angle as a kind of
+variable, not a number applied to everyone.
