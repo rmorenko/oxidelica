@@ -67921,6 +67921,25 @@ would go red on the first run. The merge has to land together with
 the judge's print for those two centres, in an order the next shift
 is given.
 
+Not merged in m564 either, and this time for a reason of substance:
+the full preflight found a victim the corpus pair cannot see. The
+test `events::a_switch_resting_on_its_threshold_is_not_lost_for_the_rest_of_the_run`
+holds a sliding mode, `on = x > 0.5; der(x) = if on then -1 else 1`,
+which must be refused with "handled more than". With the rule it is
+not refused: the indicator turns 1, 0, 1, 0 around x = 0.5 near
+t = 0.5, each turn goes back to the side it left, the rule reads them
+as chatter, and the switch is lost for the rest of the run. `x` walks
+out towards 2 with `on` false - the very wrong number the test was
+written against. Same binary, same test: red with the rule, green
+under `OXIDELICA_NO_SAME_SIDE=1`. So a turn that returns does not by
+itself tell chatter from a sliding mode, and physically a sliding
+mode is a turn that returns. Swallowing it gives a wrong answer where
+a refusal is owed, which is worse than any count of Jacobians. The
+two commits stand in the park as `m564-same-side-merge/`. The
+question for the rule is what separates `ComparisonQuasiStatic`'s
+3714 turns from this one, for instance whether the state moves away
+from the threshold after the swallowed turn.
+
 ## The row "initialization is not square", three by name (m563, item 4)
 
 The first row of the run half of `/tmp/m565/census.txt` with no map,
