@@ -68250,25 +68250,41 @@ for a variable that declares them.
 
 Census `/tmp/m572/census.txt`.
 
-`X of algebraic loop`, 11. Probed `Spice3.Examples.Inverter`: the
-block is `der(mp.Sinternal)`, solved from `icBD / cc.cBD`, and the
-modelcard says `CBD = 0`, so `cc.cBD` is zero and the residual is 0/0
-at every start the block tries (0, 1e-6, 1e-3, 1, 1000). The MOSFET
-writes `icBD = cc.cBD * (der(B.v) - der(Dinternal))`, and the
-causalisation picked the one equation where the derivative stands
-behind a coefficient that a parameter makes zero. Five of the eleven
-are `Spice3` inverters and gates with this shape. The layer is the
-matching, which chose a division by a parameter that is zero, not the
-Newton solver.
+`X of algebraic loop`, 11, and `underdetermined algebraic loop`, 7.
+Probed `Spice3.Examples.Inverter` and `Spice3BenchmarkRtlInverter`.
+Both are the family m357 already mapped, a derivative read only
+behind a capacitance the modelcard makes zero, and nothing about it
+has moved. In `Inverter` the block `der(mp.Sinternal)` is solved from
+`icBD / cc.cBD` with `CBD = 0`, so the residual is 0/0 at every start
+the block tries (0, 1e-6, 1e-3, 1, 1000); in `RtlInverter`
+`der(Q1.vbx)` is read only by `cc.capbx * der(vbx)` with `XCJC = 1`.
+The same zero shows in a third row, `the equations of algebraic loop`,
+where `Spice3BenchmarkDifferentialPair` is refused because its block
+`der(Q2.vbx)` is not mentioned by its own equations at t = 0. Five of
+the eleven, three of the seven and one of the four are this family:
+nine models over three rows, one cause, whose cure m357 placed where
+a derivative is chosen as an unknown and which is still unbuilt. The
+machine rows of the underdetermined entry (`IMC_DOL_Polyphase`,
+`SMEE_DOL` and their neighbours) are the magnetic wall mapped in "The
+magnetic wall is two walls"; `SMEE_DOL` was re-run and still refuses
+with `airGap.V_mss.im` and `Phi_ss.re` beside the three switch keys.
 
 `unbalanced ... nothing determines`, 13. None is an example: all
 thirteen live under `Utilities`, `BaseClasses` or
 `ControllerUtilities`, components with a `RealInput` left unconnected
-(`DirectCapacitor.iDrive`, `AxisType1`, the `AST_BatchPlant` adapters).
-They are refused rightly. The row is a question about the example
-filter, which counts them, not about the compiler.
+(`DirectCapacitor.iDrive`, `AxisType1`, the `AST_BatchPlant` adapters),
+as the earlier section on this row also found. They are refused
+rightly; the row is a question about the example filter, which counts
+them, not about the compiler.
 
 `der(X) is not a state`, 8. Re-probed `IMC_Initialize` and
 `HeatingSystem` with `why`: each reads `initial equation der(X) = 0`
 for an `X` that is an algebraic variable of the run, as the earlier
 section on this row found. Nothing has moved.
+
+The eleventh witness, FundamentalWave `SMEE_LoadDump`, was run from
+the same binary with both keys off and both on. Off, it is refused at
+t = 0.9497 from |f| = 1.26e-10, as before; on, at t = 0.9466 from
+|f| = 2.36e-4, the same block a little earlier
+(`/tmp/m573/smee_off.txt`, `/tmp/m573/smee_on.txt`). The keys move
+its wall back rather than through it.
