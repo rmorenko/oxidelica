@@ -67546,3 +67546,41 @@ both sides. `DynamicPipeWithNominalLaminarFlow`, the three `MoistAir`,
 give equal work counters on both sides and times within 2%. None was
 dearer. The sweep stopped at `R134a2` when the shift's time ran out,
 so the rest of the list is unmeasured.
+
+The rest of the heavy list was measured the next shift with the same
+binary and the same ceiling, appended to `/tmp/m564/heavy.txt`.
+`IMC_YDarc` gives check prices only: off it hit the six minute ceiling
+and printed nothing, on it was refused after 329s of running with
+335270 points, 2417274 newton and 10020 jacobians, so the measurement
+cannot price that model. `DynamicPipesAndFittings`, `R134a1`, `R134a2`,
+`LineForceWithTwoMasses`, `Fourbar2`, `Engine1b`, `SeriesPipes13`,
+`DynamicPipeInitialization`, `SeriesPipes12` and `BranchingPipes18`
+give equal work counters on both sides, and times within 10%
+(`R134a2` 61s against 70s, `R134a1` 58s against 64s, the rest within
+3%). None was dearer by its counters. The list is finished.
+
+The judge of `0fa5966` (push run 41520127889) printed the own line as
+expected, `IMC_InverterDrive` 5 against 10007, and it was wound to 5
+in `f928882`. It also printed a line nobody expected: the corpus
+jacobians, own model taken out, 683 against 534, where the desk gives 530. Diffed model by model against the runner's previous print (run
+41307864985), the rise is two models: the FundamentalWave
+`SMEE_LoadDump`, which the runner before took 5 points on and now runs
+with 179 jacobians, and the Machines `SMEE_LoadDump`, 186 to 255; the
+machine models that `0009` made cheaper give back about 140 between
+them. Both `SMEE_LoadDump` are the indicator chatter of the next
+paragraph, so the line was left red and the centre unmoved.
+
+A probe behind `OXIDELICA_CHATTER` counted the turns of an indicator
+that become events, and those with both readings below 1e-18. Over
+the corpus (`/tmp/m565/chatter.txt`) 13 models have such turns, 3897
+of 7731 events: `ComparisonQuasiStatic` 3248, the Machines
+`SMEE_LoadDump` 298 of 300, the FundamentalWave one 169 of 173,
+`ComparisonPullInStroke` 52, `ControlledSwitchWithArc` 33, and the
+friction and clutch models a handful apiece. A dead zone at 1e-18
+behind a second key, one binary off and on over the 13
+(`/tmp/m565/deadzone13.txt`), keeps all 13 running and takes the
+events of `ComparisonQuasiStatic` from 3714 to 92 and of the two
+`SMEE_LoadDump` from 300 to 26 and 173 to 23, jacobians 147 to 2 and
+126 to 2; `Translational.Friction` goes 25 to 45 and `TestFriction` 33
+to 37. The trajectories were not compared, so the patch is parked and
+not merged.
