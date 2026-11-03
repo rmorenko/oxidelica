@@ -67967,3 +67967,29 @@ junction capacitance next; `RtlInverter` and `DifferentialPair` do not
 move. `keep_I3`, `I4`, `I5` move from NaN to step size underflow. This
 gives a name a definition, so it is measured by its victims in a
 corpus pair before it goes anywhere.
+
+The pair, taken in m564: one binary `/tmp/m564/ox`, the halves one
+after the other, `/tmp/m564/off.txt` and `on.txt`. Off 973 / 825 and
+855 / 777, on 973 / 826 and 855 / 778. The run lists differ by one
+line, `CascodeCircuit` added, and nothing is lost (1798 to 1799). Run
+half 4660 s to 4665 s, +0.1%; flattening 3935 s to 4054 s with the
+flattening work counters equal to the digit, so that difference is
+weather. Points 24150735 to 24150785 and Newton 35483939 to 35484051,
+the fifty points and hundred iterations being `CascodeCircuit`'s own;
+Jacobians 541 = 541. All three conditions of 26 October hold. It is
+not merged in this shift by order, so that a second movement of the
+counters does not mix into the judge's print; the merge is a series
+of its own.
+
+The same-side rule above was stopped by a structural fact rather than
+by a missing case. A switch resting on its threshold is a sliding
+mode, and there the indicator lawfully leaves zero to the same side
+again and again, which is exactly the signature of chatter. So the
+three attempts were killed by one thing: chatter and lawful behaviour
+cannot be told apart by the local history of one indicator. By size,
+the families stand six orders apart and a real event sits below both.
+By an immediate return, `Friction` loses 12 of its 25 real turns while
+the leaders keep 8 of 3714. By leaving to the same side, a sliding
+mode is swallowed. The next road is not in the indicator: whether time
+moves at all between the turns, or whether the event changes anything
+downstream.
