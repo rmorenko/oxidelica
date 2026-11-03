@@ -30,3 +30,6 @@ Sav = "Sav"
 # `abd` turns up inside short commit hashes quoted in the analysis
 # notes (`47abd7c`), which are names and not words.
 abd = "abd"
+# `nd.txt` is the name of a probe output in the analysis notes (the
+# Newton-direction row of the census), not a misspelling of `and`.
+nd = "nd"
