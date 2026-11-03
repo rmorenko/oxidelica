@@ -67646,3 +67646,88 @@ on, which agree, while at the model's own tolerance it was 0.0272 off and
 tolerance and not to the dead zone: neither half is the right answer
 at the default step, and the dead zone moves it no further from the
 reference than the old road does.
+
+## m567: the three trajectories the dead zone left uncompared
+
+The three models the last comparison could not finish were taken with
+the same measure, one binary (`/tmp/m567/oxdz`, the m566 patch on
+f713d53), the halves one after the other, 30 minutes of CPU each.
+Files are in `/tmp/m567`. The verdict: the dead zone is not merged.
+
+First, a trap in the instrument. `simulate <Class>` reads the libraries
+`library_files(None)` finds, which on this desk is the fetched
+`Modelica-master`, not `.msl`. The first pair was measured on the wrong
+library. It now runs under `OXIDELICA_LIB=$PWD/.msl`. Both
+`SMEE_LoadDump` refused the same way on either library, so no number
+below changed, but a comparison against the corpus has to say which
+library it read.
+
+- Neither `SMEE_LoadDump` gets to its load dump at t=2 in either half
+  over the full 10 s. The Machines one stops as `structurally singular`.
+  The FundamentalWave one stops on its Newton loop at t=0.9497. That
+  happens off as well as on, so the corpus's ten steps hide it.
+  Shortened to `--stop 0.5` and `0.9`, both halves finish. Off prints
+  13002 and 24330 tiny turns at 0.5 s, so the chatter is captured. On
+  at the default tolerance, the largest difference (phasor angle and
+  `der` columns left out, since an angle of a near-zero phasor flips
+  by pi and says nothing) is:
+
+| model, horizon       | worst  | at                                    |
+| -------------------- | ------ | ------------------------------------- |
+| Machines, 0.5 s      | 7.3e-2 | `smee.idq_rs[2]` 0.3737 vs 0.3011     |
+| Machines, 0.9 s      | 1.7e-1 | `smee.spacePhasorS.v[1]` -0.048/0.119 |
+| FundamentalWave, 0.5 | 2.1e-2 | rotor cage `LossPower` 31.37 vs 32.04 |
+| FundamentalWave, 0.9 | 5.3e-1 | `excitation.v` 0.983 vs 0.453         |
+
+- The tolerance probe of 518 applied at 0.5 s. With `--tolerance 1e-9`
+  the Machines pair comes to 0.29361 against 0.29166 (1.9e-3), closer
+  but above 1e-3. At 1e-6, the on half (0.3011) sits nearer that answer
+  than the off half (0.3737). The FundamentalWave off half fails at
+  1e-9 with `step size underflow at t = 0.176359`. Its on half at 1e-9
+  agrees with on at 1e-6 to 3e-4 and with off at 1e-6 only to 2.1e-2.
+  So on these two the dead zone looks like the better half, but there
+  is no reference to settle it. The pair does not converge to 1e-3, and
+  the moment that matters (the dump) is reached by neither half.
+- `Translational.HeatLosses` over its own 2 s: off 1034 s CPU and
+  1652620 events, on 561 s and 826026 events (8.7M turns, 36 of them
+  tiny). Continuous columns agree to 2.3e-3, but the friction mode of
+  `massWithStopAndFriction` does not. It is -1 off and 0 on at
+  t=1.765, so the on half leaves sticking at least 0.005 s late. At
+  `--tolerance 1e-9 --stop 1.8` (dopri45) both halves read -1 there,
+  with `a` -0.0676212 against -0.0676297 off and -0.0675219 on. So the
+  off half is right and the dead zone delayed a real mode change. At
+  `--stop 1.8` and 1e-6 the solver picked is dopri45, and there off,
+  on and on with a 1e-21 zone all agree at t=1.765. The late switch
+  belongs to the BDF road the full horizon takes.
+
+That is an honest divergence on at least one model, so the patch stays
+in the park and no question goes up from here.
+
+### The size of the zone, asked again at 1e-21
+
+The thirteen were probed again with the threshold at 1e-21
+(`/tmp/m567/dz21.txt`, `oxdz21`), a thousand times above the measured
+noise of 1.65e-24 and a thousand times below the 1e-18 taken. Both
+`SMEE_LoadDump` collapse exactly as before: 300 to 26 turns and 173 to 23. `ComparisonQuasiStatic` and `ComparisonPullInStroke` do not move at
+all at 1e-21 (3714 and 514 in both halves, 0 tiny). Their chatter
+lives between 1e-21 and 1e-18, so for them 1e-18 is what does the work
+and it is not the LoadDump noise that justifies it. `ControlledSwitchWithArc`
+grows from 35 to 62 turns at 1e-21. If the zone is ever taken, two
+numbers belong beside it: the noise it is meant to cover (1.65e-24 on
+LoadDump) and the largest chatter it was found to need (below 1e-18 on
+the FluxTubes pair). They are six orders apart. A zone sized for one
+family swallows real crossings of another, which is what
+`HeatLosses` just showed.
+
+Two things stand behind this work and are worth stating plainly. The
+dead zone is an absolute threshold on a quantity with a dimension and
+a scale, the same class of defect as the step floor's `stop * 1e-14`.
+It was allowed only because the noise was measured on the models that
+chatter, and a corpus pair was to stand guard over every other model
+losing an event. Should a model ever lose an event on such a zone,
+this is the line to come back to. And the shortened horizons above are
+legitimate today and were not two days ago. Before the step floor was
+read from `t` (`a01ae29`, `0fa5966`), it was `stop * 1e-14`, so
+cutting `stop` moved the point where a run gives up, and every
+shortened off/on pair would have been confounded by it. That is the
+first practical return on that merge.
