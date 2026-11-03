@@ -172,6 +172,12 @@ fn why(args: &[String]) -> Result<(), String> {
         if let Some(expr) = &component.start {
             println!("    start: {}", expr.describe());
         }
+        if let Some(expr) = &component.min {
+            println!("    min: {}", expr.describe());
+        }
+        if let Some(expr) = &component.max {
+            println!("    max: {}", expr.describe());
+        }
         if let Some(fixed) = component.fixed {
             println!("    fixed: {fixed}");
         }

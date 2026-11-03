@@ -2159,3 +2159,17 @@ fn a_kept_smooth_gives_the_answer_and_a_bare_relation_keeps_its_event() {
     );
     assert!(stderr(&out).contains("z = 1.270000"), "{}", stderr(&out));
 }
+
+#[test]
+fn why_shows_the_bounds_a_variable_declares() {
+    let model = TempFile::new(
+        "bounds.mo",
+        "model M Real p(min = 0, max = 10, start = 1); equation der(p) = -p; end M;",
+    );
+    let out = bin().args(["why", model.path(), "p"]).output().unwrap();
+    let text = stdout(&out);
+    // A Newton step that walks a pressure below zero is a step past a
+    // bound the model wrote, and the probe has to be able to see it.
+    assert!(text.contains("min: 0"), "{text}");
+    assert!(text.contains("max: 10"), "{text}");
+}

@@ -68200,3 +68200,75 @@ NaN, and the damped steps after that creep from 4.0e4 to 3.77e4 and
 stall. The next probe is to bound the step by the pressures' own
 `min = 0`, or to begin the step from an extrapolated guess rather
 than the last solution. Neither has been tried yet.
+
+### The Newton direction row: neither lever of m572 pays (m573)
+
+Both candidates the previous section named were built under switches
+and measured on `SeriesPipes1`, one binary each, and neither moves the
+refusal. The patch of both is parked as `/tmp/m573/keys.patch`.
+
+First a probe without code: the same model under `--dt 1e-5` and
+`--dt 1e-6`, so that each start guess is nearer the solution it
+needs. It gave no answer. At the default step the model is refused at
+t = 0.0008 in under a minute (`/tmp/m573/sp_base.txt`); at the finer
+grids the step control falls to between 1e-7 and 1e-13 well before
+the trouble, and after nine minutes of processor time each the runs
+had reached t = 1e-5 and t = 1e-6 of the 8e-4 they needed
+(`/tmp/m573/s2_1e-5.txt`, `/tmp/m573/s2_1e-6.txt`). Both were stopped
+there. The finer grid is not a cheaper question than the key.
+
+Candidate (b), `OXIDELICA_NEWTON_GUESS`: a block starts from the line
+through its last two converged solutions in time rather than from the
+last one. At t = 0.0008 it made the start worse, not better: the
+residual at the first iteration went from 4.62e4 to 6.97e4, and
+`valve.dp_turbulent` started at -30825 instead of 85107, on the wrong
+side of zero. The refusal is the same, from |f| = 5.68e4
+(`/tmp/m573/b.txt` against `/tmp/m573/g.txt`). The line of two
+points is a poor guess where the valve's flow turns over, which is
+exactly where the block is lost.
+
+Candidate (a), `OXIDELICA_NEWTON_BOUND`: the road exists. The
+declared `min` reaches the compiler only as an assertion
+(`bound_asserts` in `compile.rs`), but it can be read per algebraic
+unknown beside `algebraic_start`, in the same order, and the block
+solver indexes it by the same slot. All three unknowns the earlier
+section named carry `min: 0`. With the step shortened to nine tenths
+of the distance to the bound, the cut fires six times at t = 0.0008
+and the block no longer steps into negative pressure, but it walks
+`pipe2.mediums[1].p` towards zero on its own, 1619 Pa to 612 Pa over
+four iterations, with the residual standing at 3.77e4. The refusal is
+the same (`/tmp/m573/a.txt`). Both keys at once, the same
+(`/tmp/m573/ab.txt`). The direction does not point at a solution in
+the admissible region: a bound changes where the walk stops, not
+where it goes. With neither key paying, the controls of the m572 list
+were not run, since there is no change to guard.
+
+To see the bounds at all, `oxidelica why` now prints `min:` and `max:`
+for a variable that declares them.
+
+### Three more rows of the run half, one probe each (m573)
+
+Census `/tmp/m572/census.txt`.
+
+`X of algebraic loop`, 11. Probed `Spice3.Examples.Inverter`: the
+block is `der(mp.Sinternal)`, solved from `icBD / cc.cBD`, and the
+modelcard says `CBD = 0`, so `cc.cBD` is zero and the residual is 0/0
+at every start the block tries (0, 1e-6, 1e-3, 1, 1000). The MOSFET
+writes `icBD = cc.cBD * (der(B.v) - der(Dinternal))`, and the
+causalisation picked the one equation where the derivative stands
+behind a coefficient that a parameter makes zero. Five of the eleven
+are `Spice3` inverters and gates with this shape. The layer is the
+matching, which chose a division by a parameter that is zero, not the
+Newton solver.
+
+`unbalanced ... nothing determines`, 13. None is an example: all
+thirteen live under `Utilities`, `BaseClasses` or
+`ControllerUtilities`, components with a `RealInput` left unconnected
+(`DirectCapacitor.iDrive`, `AxisType1`, the `AST_BatchPlant` adapters).
+They are refused rightly. The row is a question about the example
+filter, which counts them, not about the compiler.
+
+`der(X) is not a state`, 8. Re-probed `IMC_Initialize` and
+`HeatingSystem` with `why`: each reads `initial equation der(X) = 0`
+for an `X` that is an algebraic variable of the run, as the earlier
+section on this row found. Nothing has moved.
