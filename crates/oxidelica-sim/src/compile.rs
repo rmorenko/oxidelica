@@ -3778,6 +3778,15 @@ fn quench_zero_if() -> bool {
     std::env::var_os("OXIDELICA_NO_ZERO_IF").is_none()
 }
 
+/// A conditional whose guard is a settled value is read by the branch
+/// it names when asked whether it is zero: `if init then -1e40 else
+/// C*(1 + v^2)` with `init = false` and `C = 0` is zero for the whole
+/// run, though one branch is not. `OXIDELICA_NO_FOLD_GUARD=1` brings
+/// back the reading that asks both branches.
+fn fold_guard_on() -> bool {
+    std::env::var_os("OXIDELICA_NO_FOLD_GUARD").is_none()
+}
+
 /// A denominator that cannot be read as a zero: anything but a
 /// parameter worth zero or a literal zero. `0/0` is not zero, it is no
 /// number at all, and the quench must not answer it with one.
@@ -3851,6 +3860,21 @@ fn zero_throughout_with(
         // Both branches zero: zero whichever branch holds. The
         // condition is never read, so no branch is chosen on a value
         // that may move.
+        // A guard the run cannot move picks its branch outright.
+        Expr::If(cond, then, other)
+            if zero_if
+                && fold_guard_on()
+                && matches!(&**cond, Expr::Ref(n) if params.contains_key(n.as_str())) =>
+        {
+            let Expr::Ref(n) = &**cond else {
+                unreachable!()
+            };
+            if params[n.as_str()] == 0.0 {
+                z(other)
+            } else {
+                z(then)
+            }
+        }
         Expr::If(_, then, other) if zero_if => z(then) && z(other),
         // A `smooth` kept for the event search holds the value it wraps.
         Expr::Call(name, args)

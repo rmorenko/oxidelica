@@ -1580,6 +1580,25 @@ fn a_zero_numerator_quenches_the_quotient_it_stands_over() {
 }
 
 #[test]
+fn a_settled_guard_picks_the_branch_a_quench_reads() {
+    // `c` is zero for the whole run: the guard is a constant false and
+    // the branch it names scales by `C = 0`. Asking both branches, the
+    // walk saw -1e40 on the other and kept `c*der(u - v)`, and the run
+    // was refused for a step underflow at t = 0. Read by its guard the
+    // term is quenched, the relation is algebraic, and `v = u/2`.
+    let result = run(
+        "model G1 constant Boolean init = false; parameter Real C = 0; \
+         Real u = sin(10*time); Real v(start = 0, fixed = true); Real c, i; \
+         equation c = if init then -1e40 else C*(1 + v^2); i = c*der(u - v); \
+         0 = (u - v)/1e3 - i - v/1e3; \
+         annotation(experiment(StopTime = 1, Interval = 0.1)); end G1;",
+    );
+    let v = last_of(&result, "v");
+    let u = last_of(&result, "u");
+    assert!((v - u / 2.0).abs() < 1e-6, "v = {v}, u = {u}");
+}
+
+#[test]
 fn a_zero_over_a_zero_is_not_quenched() {
     // The walk through a quotient stops at a denominator that is itself
     // a known zero: `0/0` is no number, and answering it with zero
