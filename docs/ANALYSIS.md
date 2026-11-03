@@ -68108,3 +68108,78 @@ No cap on the size separates the two. With the cap at 0.01, 0.1 and
 own sizes too, so bounding the scale moves every candidate rather than
 the angle alone. So the lever is the scale of an angle as a kind of
 variable, not a number applied to everyone.
+
+## The two `SMEE_LoadDump` walls, bracketed (m572)
+
+Both levers were put behind scratch switches on one binary, measured
+with `simulate` over the model's own horizon under
+`OXIDELICA_LIB=$PWD/.msl`, and parked rather than merged
+(`~/oxideflow/park/m572-reach-slack.patch`,
+`m572-rad-scale.patch`). Files are in `/tmp/m572`. The corpus check
+does not see either wall: under `library check --only` both
+`SMEE_LoadDump` already count as run, because the check stops long
+before t = 0.95. Neither lever can therefore move a floor, and a
+corpus pair for them would measure nothing on these two models.
+
+`FundamentalWave...SMEE_LoadDump`, the reach arm of
+`rows_on_floor` (`linear.rs`, `f <= C * eps * reach`). Row 7 needs
+C >= 1.34e-10 / (eps * 7.5e4) = 8.05. Measured, it agrees to the
+bracket: C = 1, 2, 4 and 8 stop at t = 0.94971 with the same message
+(`s1`..`s8/err.txt`), and C = 16 passes it. The pass buys nothing.
+At C = 16 the run stops at t = 1.2750 on the same loop with
+`|f| = 1.63e-10` (`s16/err.txt`). The chain does not end as C grows,
+and it is not monotone: C = 64 stops earlier, at t = 1.0481 with
+`|f| = 8.8e-14`, and C = 256 at t = 1.2983 with `|f| = 5.5e-12`. So
+the residuals the loop stalls on are not one row standing a few ulps
+over a floor. A loosened arm moves the stall to wherever the loop next
+stalls, from 1e-10 down to 1e-13. The reading of m571, "a residual at
+the floor measured one storey too strictly", holds for t = 0.9497 and
+not for the model. Whatever C is chosen, 16 would cover a need
+measured at 8.05 with a margin of two, and a row needing 17 ulps
+would not be covered. The next question is why this loop has no
+descent direction at residuals far below its own floor, and that
+is the Newton direction, not the stopping test.
+
+The same switch was asked of the row `the Newton direction of
+algebraic loop` of the census (`/tmp/m572/census.txt`, 9 in the row,
+10 models by name in `nd.txt`). With C = 1 and C = 16 the ten are
+refused alike, 0 of 10 run in either half (`nd1.txt`, `nd16.txt`;
+running 477 s against 466 s). The arm is not that row's wall either.
+
+`Machines...SMEE_LoadDump`, the size of a `rad` candidate in
+`relative_weight`. The unit reaches the call: `compile_at` holds the
+model, and a set of the names declared `unit = "rad"` filled before
+`reduce_index` is all the probe needed. `why` confirms
+`smee.inertiaRotor.phi` carries `rad`. With the size of a `rad`
+candidate taken as `min(|v|, S)` and every other candidate as before:
+
+| S    | Machines `SMEE_LoadDump`, 10 s                        |
+| ---- | ----------------------------------------------------- |
+| off  | structurally singular at the close, t = 2             |
+| 2 pi | the same refusal                                      |
+| 1    | passes the recompile at t = 2, then the table refuses |
+
+At S = 1 the refusal is `the states re-selected at t = 2 name
+different variables than the run so far - 0 left and 2 arrived
+(der(smee.inertiaRotor.flange_b.phi), der(smee.flange.phi))`. That
+is `append_segment` (`continuation.rs`) declining to splice two
+stretches whose columns differ. So the model gets to t = 2 in both
+halves and finishes in neither. The scale is a step of the map, not a
+cure, and the next link is the column set after a re-selection that
+keeps the angle a state.
+
+The large-angle control is `SMPM_Braking`. Its 10 s output is
+byte-for-byte the same under off, S = 1 and S = 2 pi, so the scale
+did not reorder it. Under `simulate` over 10 s it refuses in all
+three, as a singular Jacobian in the loop of `smpm.airGap.gamma`,
+while the corpus check counts it as run. So the "control" holds only
+over the corpus check's horizon. No model with a small `rad`
+candidate was found and checked, so the claim that the scale leaves
+small angles alone is untested at that end.
+
+The three sizes this compiler compares without a scale - the step
+floor once read as `stop * 1e-14`, the dead zone on an indicator,
+and now the weight `slope * |v|` - are one family. A quantity
+with a dimension is held against a bare number. Each fix so far
+measured the end where the model failed and was wrong at the other
+end. Any cure for this one is checked at both ends.
