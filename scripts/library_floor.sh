@@ -1942,7 +1942,15 @@ FLATTEN_FLOOR=973
 # three that swing:
 #
 #   825 - 3 = 822
-RUN_FLOOR=822
+#
+# The fold guard (a9a1c63) won one more. The desk printed 973 / 826
+# (/tmp/m570/preflight2.txt) and the judge of run 41692484782 on
+# 84ae176 printed `OK: 2671 files read, 973 flatten, 826 run; runnable
+# 855 flatten, 778 run`. Less the three that swing, SpringWithMass,
+# SMPM_VoltageSource of FundamentalWave and TestJunctionIdeal:
+#
+#   826 - 3 = 823
+RUN_FLOOR=823
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -2489,7 +2497,9 @@ RUNNABLE_FLATTEN_FLOOR=855
 # the judge of 41315515070 printed 855 / 774, so 774 - 3 = 771.
 # And SMPM_Braking and MovingActuatedDrive are both runnable examples:
 # the judge of 41337538135 printed 855 / 777, so 777 - 3 = 774.
-RUNNABLE_RUN_FLOOR=774
+# And the fold guard: the judge of 41692484782 printed 855 / 778, so
+# 778 - 3 = 775.
+RUNNABLE_RUN_FLOOR=775
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
@@ -3029,16 +3039,17 @@ WORK_BODIES=1330083
 # desk's preflight over the folded tree printed the rest at 1018872
 # points and 1809736 Newton steps (/tmp/m521/preflight.txt), x2.229 and
 # x2.000 of the old centres; the owner of the growth is that one model.
-# There is no way yet to count points apart from a band, so the centres
-# move to the measured numbers. These are THE DESK'S numbers and wait
-# for the judge: the first green library job after the fold is set
-# against them, and a difference is corrected by the next review.
+# Those were the desk's numbers. The desk's moved to their own set in
+# a75d0e9, and these two are now the judge's, from its own print: run
+# 41692484782 on 84ae176, 2026-11-03, the line `running 30760813
+# points, 44507575 newton` less `work apart: Dimmer_RL 29755670
+# points, 42710370 newton`:
 #
-#   points  457143 -> 1018872
-#   newton  904754 -> 1809736
-WORK_POINTS=1018872
+#   points  30760813 - 29755670 = 1005143
+#   newton  44507575 - 42710370 = 1797205
+WORK_POINTS=1005143
 WORK_POINTS_PPM=100000
-WORK_NEWTON=1809736
+WORK_NEWTON=1797205
 WORK_NEWTON_PPM=100000
 # And Dimmer_RL, whichever way it falls, centred between the desk's run
 # under the series and the machine's printed refusal:
@@ -3387,9 +3398,8 @@ WORK_PERCENT=5
 # on 2026-10-27 (m521): 1018872 and 1809736 were THE DESK'S prints,
 # waiting for the judge. The growth they carried has gone, and the desk
 # now prints 450379 and 1102467, so the desk's numbers move here. The
-# judge's two lines above are left as they stood on purpose: what the
-# judge prints for them has not been read yet, and the review sets them
-# from the judge's first print rather than from a number made up here.
+# judge's two lines above were then set from the judge's own print of
+# run 41692484782, as written there.
 WORK_POINTS_DESK=450379
 WORK_NEWTON_DESK=1102467
 WORK_JACOBIANS_DESK=530
