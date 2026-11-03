@@ -68037,3 +68037,48 @@ residual is already at the solver's floor, so this reads as a stopping
 test that asks for more than the loop can give, rather than a
 divergence. That too is a guess until it is probed, and the probe is
 the loop's residual tolerance against its scale.
+
+## The two `SMEE_LoadDump` walls probed (m571, items 1 and 2)
+
+`FundamentalWave...SMEE_LoadDump`, the floor test at t = 0.9497. The
+guess in the section above holds, and now there is a number for it.
+`OXIDELICA_NEWTON_TRAIL=1` prints the residual, the loudness and the
+reach of each row at the last `on_arithmetic_floor` question. The trail
+runs to 1.6 GB by t = 0.95, so it is read through `tail`
+(`/tmp/m571/fw.tail`). Of the sixteen rows, ten are under their own
+floor and six are over it. Each row is held to the larger of
+`4 eps * loud` and `eps * reach`. Row 7 (`|f| = 1.34e-10`, reach
+7.5e4) stands at 8.0 times that floor. The other five stand at 1.1 to
+2.6 times it. The worst one matters. Rows 5 and 6 carry reaches of
+9e5 and 2.4e6, and row 7 meets them through the Jacobian. The test
+already has a carried form for that case (`carried_rounding`) and it
+still says no. So the test is not unaware of carrying. Eight ulps of
+reach is simply more than one ulp, which is the most it allows. The
+step really does find no descent: `|f|` creeps up from 3.8501e-10 to
+3.8508e-10 over newton iterations 3 to 6. So this is a residual at the
+floor that the test measures one storey too strictly. It is not a
+divergence. No small model was written for it yet. The open question
+is what a row like row 7 is carried from: two neighbours, each 2.4e6
+loud, over one ulp each.
+
+`Machines...SMEE_LoadDump`, the recompile on closing the switch. The
+topology is not the wall. A copy of the model with `loadControl`
+starting at 0, so the switch is closed from the first compile, runs
+(`/tmp/m571/star/mc.csv`, 1002 rows). With the switch closing at
+0.05 it also runs, through a `mode_change` stall and a recompile. A
+close at 0.3, 1.0 or 2 refuses (`c0.3.out`, `vp1.err`). The two
+victim lists differ at reduction 3, printed by
+`OXIDELICA_VICTIM_PROBE`. At the 0.05 recompile it demotes
+`smee.airGap.psi_ms[1]`, as the first compile does. At 0.3 it demotes
+`smee.inertiaRotor.phi`, and from then on the list drifts until the
+three load currents are taken one by one. The cause is in the weights.
+The rotor angle grows with time: `smee.inertiaRotor.phi` weighs 0.17
+at 0.05, 6.9 at 0.3, 63 at 1.0 and 178 at the model's own close at 2
+(`smee.phiMechanical`, `/tmp/m571/star/vp2.err`). The other
+candidates are fluxes of order one. So the pivot made at the stall
+reads an angle's size as its sensitivity, and the further the rotor
+has turned, the surer it is that the angle should go. That is a rule
+true locally, at the stall point, which does not outlive it. The
+small model is the same: a rotating angle that grows without bound,
+sitting beside a constraint in a mode that switches after it has
+grown.
