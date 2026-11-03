@@ -67998,3 +67998,42 @@ the leaders keep 8 of 3714. By leaving to the same side, a sliding
 mode is swallowed. The next road is not in the indicator: whether time
 moves at all between the turns, or whether the event changes anything
 downstream.
+
+## Where the two `SMEE_LoadDump` stop over the whole run (m570, item 3)
+
+A probe, no code changed. One binary from 84ae176 (`/tmp/m570/ox2`),
+`simulate` under `OXIDELICA_LIB=$PWD/.msl` and `OXIDELICA_WHERE=1`,
+files in `/tmp/m570`. The ten steps of `library check --only` run both
+models, so neither wall is visible to the corpus.
+
+The two walls are two layers, not one family.
+
+`Machines.Examples.SynchronousMachines.SMEE_LoadDump` stops as
+"structurally singular ... constrains no state, so index reduction
+cannot help, nor did the 31 other equations of its singular subset",
+raised at `compile.rs:2933`. The compilation that raises it is not the
+first one. It is the one the run asks for at a stall
+(`solvers/mod.rs:2783`, `compile_at` at the point reached). Bracketed
+with `--stop`: 0.95, 1.05, 1.5 and 1.99 all finish (`mach_1.99.log`,
+19901 BDF steps in 395 s, `events: 0`), and 2.2 and 3 refuse
+(`mach_2.2.log`, `mach_3.log`). The model's `loadControl` is a
+`BooleanPulse(period = 4, startTime = 2)`, so the wall is the load
+being switched IN at t = 2, by `CloserWithArc`, and not the dump at
+t = 4. The earlier reading "falls before the dump at t = 2" had the
+time right and the event wrong. The refused equation is the sum over
+the star of `loadInductor.inductor[k].v / L` through `spacePhasorS`.
+That is the three load inductors in a star with no neutral: their
+currents sum to zero, which ties three inductor states together, and
+the recompiled system at the new mode does not find a state to demote.
+This is the next probe: why the same constraint is solved under the
+open switch and not under the closed one. Start with the arc's branch
+equations with `why`.
+
+`FundamentalWave...SMEE_LoadDump` stops earlier, at t = 0.9497, inside
+the speed ramp (`speedRamp` duration 1). It stops in the solver, not
+in the compiler: the Newton direction of a sixteen-unknown loop
+(`solvers/mod.rs:2663`) does not reduce a residual of 1.26e-10. That
+residual is already at the solver's floor, so this reads as a stopping
+test that asks for more than the loop can give, rather than a
+divergence. That too is a guess until it is probed, and the probe is
+the loop's residual tolerance against its scale.
