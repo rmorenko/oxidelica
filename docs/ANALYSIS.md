@@ -67762,3 +67762,17 @@ coefficient as such. That is the layer the next probe opens:
 which equation `der(mn.G.v)` is assigned to and why the source's own
 equation, differentiated, was not the one chosen. Five models, one
 layer, with a one-second reproduction.
+
+One further reading, a lead and not yet a fix. With `TOX` unset the
+oxide capacitance `mn.c2.m_capOx` is a parameter worth zero, and every
+non-init branch of `cc.cGB`, `cc.cGS` and `cc.cGD` is a product with
+it. The quench that keeps `0 * der(x)` from being solved for
+(`quench_zero_variables`, `quench_zero_if` in `compile.rs`) needs both
+branches of a conditional to be zero. Here the other branch is
+`if mn.m_bInit then -1e40`, where `m_bInit` is a constant `false`.
+Constant-folding that guard before the quench reads the capacitance
+should make `icGB` zero and leave `der(mn.G.v)` to the source. The
+next shift can test this on `keep_I3.mo` in a second. The variants
+`I4.mo` (constant source) and `I5.mo` (Analog `SineVoltage`) refuse
+the same way, and the victim probe shows `mn.G.v` demoted at
+reduction 2 in all three.
