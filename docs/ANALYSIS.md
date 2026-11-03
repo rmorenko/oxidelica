@@ -67802,3 +67802,134 @@ orphaned comparer from m555 that held a core for 32 hours (removed
 during the off half) stretched the wall clock and not these numbers.
 The off flattening half printed 3925 s, the same to the second as
 `/tmp/m560/p1/off.txt` on another day.
+
+## The chatter is a repeat, not a return (m563, 3 November)
+
+No model got worse. Under the rule below, every model the dead zone
+perturbed or should have left alone is equal to the point in turns and
+in points: `CoupledClutches` 14, `Friction` 25, both `HeatLosses`,
+`PumpAndValve` 19, `SimpleGearShift` 4, `TestFriction` 33,
+`PathPlanning6` 0. The dead zone at 1e-21 took `ArcSwitch` 35 to 62
+and `Friction` 25 to 45. The rule is right by kind, not by a lucky
+setting: it touches only the repeats.
+
+The order asked whether "the sign came straight back" separates the
+chatter from real events where magnitude did not. It does not. A probe
+under `OXIDELICA_CHATTER` counted, for every turn, how many indicator
+evaluations had passed since the same indicator last turned
+(`/tmp/m563/b.*.txt`, the 13 models of `/tmp/m565/deadzone13.txt`,
+`library check --only` from `.msl`):
+
+| model                         | turns | back next | same side | same side from 0 |
+| ----------------------------- | ----: | --------: | --------: | ---------------: |
+| ComparisonQuasiStatic         |  3714 |         8 |      3674 |             3656 |
+| ComparisonPullInStroke        |   514 |         0 |       168 |               35 |
+| SMEE_LoadDump (Machines)      |   300 |        55 |       134 |              128 |
+| SMEE_LoadDump (FundamentalW.) |   173 |        28 |        68 |               65 |
+| ControlledSwitchWithArc       |    35 |         3 |        16 |               16 |
+| Translational.Friction        |    25 |        12 |         0 |                0 |
+| Translational.HeatLosses      |    39 |        18 |        14 |                0 |
+
+An immediate return hits 8 of the leader's 3714 turns and 12 of the
+25 of `Friction`, whose turns the dead zone already showed to be real:
+it strikes the wrong family. What the chatter is, read turn by turn
+(`OXIDELICA_CHATTER_EACH`), is an indicator that an event handler has
+left at exactly zero and that then leaves zero to the side its previous
+turn already went to: a relation touching its threshold and being
+announced as a crossing again and again, without ever crossing back.
+
+The real stick exit of `HeatLosses` (simulate, whole horizon, window
+1.70 to 1.80, `/tmp/m563/hl-67.txt`) is the other shape: indicator 67
+leaves zero to `-4.3e-8` at t = 1.764073 after thirty thousand quiet
+evaluations, and its previous turns all went to `+`. The opposite side.
+The same indicator, before the exit, crept `0 -> +3.1e-6` every four
+evaluations around t = 1.528: the chatter shape, on the same indicator
+as the real event, separated by direction and not by size.
+
+So the rule taken under `OXIDELICA_SAME_SIDE` (patch in the park,
+`m563-same-side.patch`): a turn leaving exactly zero to the side the
+same indicator's last turn left to is no event. The 13, off against on,
+one binary (`/tmp/m563/pair13.txt`): QuasiStatic 3714 to 18 turns and
+34568 to 1992 points; the LoadDump pair 300 to 36 and 173 to 30, their
+Jacobians 147 to 23 and 126 to 14; ArcSwitch 35 to 5, Jacobians 32 to
+9; PullInStroke 514 to 482. `Friction`, `TestFriction`, both
+`HeatLosses`, `CoupledClutches`, `PumpAndValve`, `SimpleGearShift`
+equal to the point - nothing perturbed, unlike the dead zone.
+
+Trajectories, simulate off against on with `OXIDELICA_LIB` on `.msl`,
+at the rows whose times agree: `HeatLosses` on keeps the stick exit,
+`massWithStopAndFriction.mode` 0 to -1 at t = 1.764075 (the reference
+read -1 at 1.765); QuasiStatic `armature.s` differs by 1e-14 and the
+fluxes by 4e-8 on a scale of 0.07, both halves inside 2e-8 of a 1e-10
+reference; ArcSwitch inductor currents by 5e-9 on 48; the LoadDump
+pair over the ten steps `library check` takes: Machines no column
+apart by 1e-3, FundamentalWave 37 of 1177, which are `arg_V_m` flipping
+between plus and minus pi (an angle of a zero vector, the chatter
+itself) and current derivatives near 1e-6.
+
+`Translational.HeatLosses` turned out not to be a mixed case but a
+clean control. The rule leaves its 39 turns at 39, so its 16 tiny
+turns are not repeats: they are real small transitions, which the dead
+zone killed and thereby broke the model, and which this rule rightly
+leaves alone. The off half of its whole-horizon run was stopped
+unfinished, because it ran beside the off half of the corpus pair
+below and the halves must have equal company. The stick exit is judged
+against the reference instead.
+
+The lowering of the corpus Jacobian centre is now arithmetic over two
+names, as the comment on 683 promised. On the desk the two `LoadDump`
+models go 147 + 126 = 273 to 23 + 14 = 37. On the runner they held
+255 + 179 = 434 of 683, so after a merge the judge's print should land
+near 683 - 434 + 59, about 308. That is an estimate for this chapter
+only; the guard takes the judge's print and nothing else.
+
+The corpus pair, one binary (`/tmp/m563/pair/ox`), halves one after
+the other, `/tmp/m563/pair/off.txt` and `on.txt`. Off prints 973 / 825
+and 855 / 777, on 973 / 824 and 855 / 776. One victim:
+`IMC_InverterDrive`, which on refuses with step size underflow at t =
+0.000125. Jacobians 541 to 251, apart 1974 to 136, points 24150735 to
+24434527, Newton 35483939 to 35888470. Run half 5243 s to 4602 s, but
+the off half had company (the whole-horizon `HeatLosses` run and a few
+`--only` probes until 13:15, its flattening half 5474 s against 3925 s
+in `/tmp/m568`), so the time is not a clean comparison; on alone sits
+at 4602 s against 4595 s for the m568 off half.
+
+The victim, read turn by turn: indicators 0, 1, 2, 5 and 25 leave zero
+upward at t = 0, the explicit solver hands over to BDF, and the BDF
+run leaves zero upward again at t = 0. The side remembered from the
+abandoned attempt ate the real start. Forgetting the sides at the
+handoff (`forget_sides()` beside `clear_for_handoff`, in the parked
+patch as v2) gives the victim back with its off work to the digit,
+2683 points and 11 Jacobians. On the 13 with v2 the controls stay equal
+and the two `LoadDump` take 18 and 7 Jacobians, but `ArcSwitch` now
+takes 29 Jacobians and 14047 points, against 32 and 11807 off and 9
+and 11333 under v1: a perturbation the v2 corpus pair has to judge. Not
+measured this shift; the corpus slot went to the guard pair below.
+
+## The row "initialization is not square", three by name (m563, item 4)
+
+The first row of the run half of `/tmp/m565/census.txt` with no map,
+three models, `/tmp/m565/raw.txt`. `RobotR3.Utilities.GearType1` is a
+part, not an example: both flanges are open, there is no inertia in
+it, and `bearingFriction.sa` is mentioned by nothing at t = 0 with any
+one condition left out. Its refusal is about the part being run alone
+and is honest. `NonCircularPipes` writes 8 initial equations for 6
+states and `ThreePhaseTransformerWithRectifier` 21 with 4 fixed starts
+for 23; both are surplus counts that need a probe of their own. Not
+taken further this shift.
+
+## A constant guard folded before the quench (m563, item 3)
+
+Under `OXIDELICA_FOLD_GUARD`, `zero_throughout` takes the branch a
+settled guard names instead of asking both branches to be zero. Small
+model `/tmp/m563/g/G1.mo`, `c = if init then -1e40 else C*(1+v^2)`
+with `constant init = false`, `C = 0`, `i = c*der(u - v)`: off refuses
+with step size underflow at t = 0, on runs and gives `v = u/2` to the
+printed digit. On the Spice3 examples, `--only` one by one:
+`CascodeCircuit` runs; `Inverter`, `FourInverters`,
+`InvertersApartRecord`, `InvertersExtendedModel` and `Nand` move wall
+from `icBS = cBS*(...)` to `der(Dinternal) = -(icBD/cBD)`, the drain
+junction capacitance next; `RtlInverter` and `DifferentialPair` do not
+move. `keep_I3`, `I4`, `I5` move from NaN to step size underflow. This
+gives a name a definition, so it is measured by its victims in a
+corpus pair before it goes anywhere.
