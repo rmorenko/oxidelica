@@ -68183,3 +68183,20 @@ and now the weight `slope * |v|` - are one family. A quantity
 with a dimension is held against a bare number. Each fix so far
 measured the end where the model failed and was wrong at the other
 end. Any cure for this one is checked at both ends.
+
+### The `Newton direction` row of the m572 census, probed
+
+By name the row holds ten models (`/tmp/m572/nd.txt`). One of them is
+`ThreeSprings`, which is mapped above. The other nine are
+`ModelicaTest.Fluid` pipes. They stop between t = 2e-4 and 8e-4, at
+residuals from 1.8e-1 to 5.5e11, so this is not the arithmetic floor.
+`SeriesPipes1` under `OXIDELICA_NEWTON_TRAIL=1`
+(`/tmp/m572/sp/trail.txt`) shows the mechanism. The six-unknown loop
+converges at t = 3e-4 to 1e-8. At t = 8e-4 it starts from that
+solution, and row 2 (`valve.dp_turbulent`, 85107) is off by 4.6e4.
+The first full Newton step then sends `pipe2.mediums[2].p` to
+-2.2e6 Pa and `pipe3.mediums[1].p` to -1.3e6 Pa. Those rows read
+NaN, and the damped steps after that creep from 4.0e4 to 3.77e4 and
+stall. The next probe is to bound the step by the pressures' own
+`min = 0`, or to begin the step from an extrapolated guess rather
+than the last solution. Neither has been tried yet.
