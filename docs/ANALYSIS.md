@@ -68671,7 +68671,18 @@ and the next solve, from |f| = 1.4e-2, steps the same column to -2.6e7
 and `orifice1.state_a.h` to 3.5e9: the step is a thousand times larger
 than the residual it answers. The NaN is born in the residual at the
 point of a full step, not in the start and not in the Jacobian's own
-evaluation. Why the step is so long in those two columns is not
-yet measured: a near-singular column of the orifice's state at small
-flow is the suspicion, in line with Fable's reading, and the next probe
-is the Jacobian's columns 2 and 8 printed at that point. Not treated.
+evaluation. The Jacobian printed at that point (key
+`OXIDELICA_JAC_PRINT`, not kept, `/tmp/m576/tt1j.txt`) answers why the
+step is so long. It is lower triangular: every row but the first is
+`1` on its own unknown and a slope on `volume1.medium.p`, so the whole
+step is decided by row 0. That row's slope on the pressure is -4.5e-7
+against a residual of 5.9e-7, which gives a pressure step of 1.3 Pa,
+small in itself. Row 8 then carries it to `orifice1.state_a.h` with a
+slope of -7.9e6 J/kg per Pa (and row 2 to `volume1.ports_H_flow[2]`
+with 5.9e4), so 1.3 Pa becomes 1.03e7 J/kg of enthalpy, past IF97's
+domain. The reading, not yet checked against the flow's value, is
+that a slope of that size is the enthalpy chosen by the direction of
+a flow near zero, smoothed over a fraction of a pascal: the
+flow-reversal regularization seen through a full Newton step, where
+the linear extrapolation of a near-step leaves the domain. The next
+probe is `why` on `orifice1.V_flow` at t = 2e-4. Not treated.
