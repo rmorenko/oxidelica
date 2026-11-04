@@ -68478,3 +68478,14 @@ dependent row (`volume.m` not pinned down). The sibling
 `SimpleNaturalGasFixedComposition` has `nXi = 0` and runs. This is a
 consistent-initialization question about a medium whose fractions are
 not reduced, not a shape question, and it was not taken further.
+
+`TestTemperature1`, the one model of the row where the Cauchy probe
+read a cosine near one, under `OXIDELICA_NEWTON_TRAIL=1`
+(`/tmp/m574/tt1.txt`): the block of `volume1.medium.p` converges at
+t = 0 to 1.9e-12, and at t = 2e-4 it starts from |f| = 0.28. The first
+full Newton step sends `volume1.medium.p` to -3.45e5 Pa and another
+unknown to -3.5e12, the residual reads NaN, and the halvings back walk
+the pressure to 794 Pa while |f| stands at 5.5e11. So a residual of
+0.28 became one of 5.5e11 in one step. That fits the answer's reading
+of a Jacobian that is not the slope there, rather than a ray at a bad
+angle, and it is a different wall from the eight pipes.
