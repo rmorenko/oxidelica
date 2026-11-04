@@ -69147,3 +69147,21 @@ largest residual is row 43, -1.17e-6 against an unknown of 2.8e-6,
 with two more rows near 1e-6, so the rows that will not close are
 unknowns of order a micro-unit held to the absolute half of
 `1e-10 * (1 + |v|)` - which names the tolerance as the likelier half.
+
+### `OXIDELICA_MODES_READ_BRANCHES`, priced on a quiet machine (m576)
+
+The parked probe of m558 was priced again, because its first pair
+shared the desk and could not be read under six percent. One binary
+(`/tmp/m576/oxm`, built from 6280c26 with the parked diff applied),
+the halves one after the other, the heavy set left out, nothing else on
+the machine (`/tmp/m576/m_off.txt`, `/tmp/m576/m_on.txt`).
+
+The run lists differ in one line: `TestBearingConversion` runs, nothing
+is lost (826 to 827). The flatten lists are equal, 975 both. The run
+half went from 4357 s to 4330 s, 0.6% cheaper, which is inside the
+drift of about two percent; the flattening half, with byte-equal work,
+went 3834 s to 3847 s. The work moved by 87 points, 22 fewer Newton
+steps and 361 fewer damped trials. So the three conditions of 26
+October hold: lists agree but for the win, the run half is not dearer,
+and nothing made it so. The decision is the review's; the key stays
+off.
