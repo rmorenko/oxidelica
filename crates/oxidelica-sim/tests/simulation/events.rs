@@ -1652,3 +1652,21 @@ fn a_print_under_when_initial_does_not_stop_the_model() {
     let last = result.rows.last().unwrap()[y];
     assert!((last - (-1.0f64).exp()).abs() < 1e-4, "y(1) = {last}");
 }
+
+#[test]
+fn a_mode_is_settled_on_what_the_chosen_branches_define() {
+    // `m` is defined only inside the branches of the first `if`, so
+    // the second `if` can be asked about it only once the first one's
+    // chosen branch has been read. Without that the start is taken on
+    // the wrong branch, `y = 2 * x`, and corrected by an event at t = 0.
+    let result = run("model M Real x(start = 1, fixed = true); Real m; Real y; \
+         equation der(x) = -y; \
+         if x > 0 then m = 1; else m = -1; end if; \
+         if m > 0 then y = x; else y = 2 * x; end if; \
+         annotation(experiment(StopTime = 1, Interval = 0.5)); end M;");
+    let y = result.columns.iter().position(|c| c == "y").unwrap();
+    let first = &result.rows[0];
+    assert_eq!(first[y], 1.0, "start taken on the wrong branch: {first:?}");
+    let at_zero = result.rows.iter().filter(|row| row[0] == 0.0).count();
+    assert_eq!(at_zero, 1, "an event at t = 0 corrected the start");
+}

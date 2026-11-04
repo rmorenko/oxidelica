@@ -4456,7 +4456,56 @@ fn check_references(
 /// about those, so plain `name = expr` definitions are followed to a
 /// fixpoint first. Then the conditions can be asked, before anything
 /// has been matched or solved.
+///
+/// A name the chosen branches themselves define is then read from
+/// them and the conditions asked again, up to four rounds, so that a
+/// condition on such a name is not answered from its start value.
+/// `OXIDELICA_NO_MODES_READ_BRANCHES` keeps the single pass, so that
+/// the rule can still be priced against its absence.
 fn settle_modes(
+    model: &Model,
+    start_env: &HashMap<String, f64>,
+    mode_time: f64,
+    resuming: bool,
+) -> Result<Vec<usize>, SimError> {
+    let mut modes = settle_modes_once(model, start_env, mode_time, resuming)?;
+    if std::env::var_os("OXIDELICA_NO_MODES_READ_BRANCHES").is_some() {
+        return Ok(modes);
+    }
+    let mut env = start_env.clone();
+    for _ in 0..4 {
+        let mut changed = false;
+        for (conditional, &taken) in model.conditional.iter().zip(&modes) {
+            for equation in &conditional.branches[taken] {
+                let Expr::Ref(name) = &equation.lhs else {
+                    continue;
+                };
+                let ctx = EvalCtx {
+                    vars: &env,
+                    time: mode_time,
+                    programs: None,
+                    depth: 0,
+                };
+                if let Ok(value) = eval(&equation.rhs, &ctx) {
+                    if env.insert(name.clone(), value) != Some(value) {
+                        changed = true;
+                    }
+                }
+            }
+        }
+        if !changed {
+            break;
+        }
+        let next = settle_modes_once(model, &env, mode_time, resuming)?;
+        if next == modes {
+            break;
+        }
+        modes = next;
+    }
+    Ok(modes)
+}
+
+fn settle_modes_once(
     model: &Model,
     start_env: &HashMap<String, f64>,
     mode_time: f64,
