@@ -68452,3 +68452,9 @@ with `OXIDELICA_SHAPES_DECLARED=1` keeping the old one, and the test
 `a_size_is_measured_against_the_redeclared_package` is red under that
 key and green without it. The floors are not moved here: the runner
 has not yet printed.
+
+`SimpleNaturalGas` after the change stops at initialization: `the
+Newton step does not solve, because its equations do not pin down
+[volume.m]`. Its sibling `SimpleNaturalGasFixedComposition` runs, so
+the next wall is what the five independent mass fractions add to the
+initial system; it was not probed further this shift.
