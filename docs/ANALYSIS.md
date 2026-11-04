@@ -68468,3 +68468,13 @@ in the run half at `underdetermined algebraic loop
 So the model moves one row and no further, and the key is parked
 rather than merged: a print dropped is an effect lost, and the run
 count would not move.
+
+The wall behind it, probed with `why`: the medium declares
+`reducedX = false`, so `nXi = nX = 6` and the volume carries seven mass
+states, `m` and `mXi[1..6]`, while `sum(Xi) = 1` makes `m` the sum of
+the six. The initial equations fix `p`, `T` and all six `Xi`, so `m`
+is determined twice over and the Newton step at initialization has a
+dependent row (`volume.m` not pinned down). The sibling
+`SimpleNaturalGasFixedComposition` has `nXi = 0` and runs. This is a
+consistent-initialization question about a medium whose fractions are
+not reduced, not a shape question, and it was not taken further.
