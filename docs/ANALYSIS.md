@@ -68489,3 +68489,9 @@ the pressure to 794 Pa while |f| stands at 5.5e11. So a residual of
 0.28 became one of 5.5e11 in one step. That fits the answer's reading
 of a Jacobian that is not the slope there, rather than a ray at a bad
 angle, and it is a different wall from the eight pipes.
+
+Prediction 6 of the answer, also checked: with each row of the damped
+step's norm divided by its own reach (`|f_i| - floor_i` over
+`floor_i / eps`, key `OXIDELICA_REACH_MEASURE`, not kept),
+`SeriesPipes1` and `BranchingPipes3` are refused in the same row as
+before. The measure does not move the wall, as the answer said.
