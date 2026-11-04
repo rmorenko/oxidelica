@@ -934,7 +934,18 @@ fn flatten_when_clauses(
                                 || !branch.loops.is_empty()
                                 || !branch.asserts.is_empty()
                                 || !branch.whens.is_empty()
-                                || !branch.calls.is_empty()
+                                // A branch whose only calls are
+                                // `Streams.print` gives values to
+                                // nothing: the QuasiStatic machines warn
+                                // that way under `when initial()`.
+                                // OXIDELICA_NO_WHEN_PRINT refuses it again.
+                                || (!branch.calls.is_empty()
+                                    && !(std::env::var_os("OXIDELICA_NO_WHEN_PRINT").is_none()
+                                        && branch.calls.iter().all(|call| {
+                                            matches!(call, Expr::Call(name, _)
+                                                if lookup(registry, name, scope, imports)
+                                                    .is_some_and(|c| c.name == "Modelica.Utilities.Streams.print"))
+                                        })))
                                 || !branch.graph.is_empty()
                             {
                                 return Err(

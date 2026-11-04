@@ -68519,3 +68519,67 @@ own blocks, and `ThreeSprings` at its known initialization equation.
 So with the two keys the row empties and one model of ten runs. The
 rest move one wall on, mostly to the water's edge, which is the
 homotopy rung of the answer rather than a better step.
+
+## The damped step past the gate, paired; and the wall of `SimpleNaturalGas` (m575)
+
+The wall of `SimpleNaturalGas`, probed with `why` on the corpus root.
+`volume.m` is pinned by nothing at initialization. The volume writes
+`der(medium.Xi) = zeros(Medium.nXi)` as its steady initial equation
+(`Fluid/Interfaces.mo:664`), and with `reducedX = false` that is six
+rows over six fractions bound by `sum(X) = 1`: one of them is the sum
+of the other five, so the initial system is short of one independent
+row and the one it is short of is the row that fixes the mass. The
+sibling with `nXi = 0` writes none of these rows and runs. So the layer
+is consistent initialization with a redundant set of initial equations
+(a dependent but consistent row that a tool is expected to drop), not
+the choice of states of the volume (queue item 21, `U,m` against `p,T`):
+here the states are what the model writes, and the fault is the count
+of independent initial rows. A separate layer from item 21. Not treated.
+
+No small witness for the damped step could be written: eight two-
+unknown systems were tried (`/tmp/m575/t.mo` and variants), and each
+either converged under plain Newton or refused the same way with the
+keys on. The witness is the corpus, as for other paths that only open
+at complexity.
+
+The corpus pair of the damped least-squares step past the gate, one
+binary (`/tmp/m575/ox1`, the parked `m574-cauchy-lm.patch` on 31eaa28),
+off and then on with `OXIDELICA_CAUCHY_STEP=1 OXIDELICA_LM_STEP=1`
+(`/tmp/m575/l_off.txt`, `/tmp/m575/l_on.txt`):
+
+```text
+off  974 flatten / 826 run   time: running 4457s   points 24150810 newton 35484094 jacobians 541
+on   974 flatten / 825 run   time: running 4919s   points 24151181 newton 35486373 jacobians 547
+```
+
+The flat lists are equal. The run lists differ by three: `BranchingPipes3`
+is won, and `TestWaterPumpPowerCharacteristic` and `TestWaterPumpStorage`
+are lost. Under the keys both pumps stop at `algebraic loop
+["pump.medium.p", "pump.V_flow_single", ...] stepped outside the domain`:
+the damped step, taken where the gate would have refused a block that
+the solver otherwise recovered from further out, walks the pump's
+pressure over the water's edge. The gate is therefore not a refusal by
+construction: a model that passes through it and recovers is a model
+it can cost. The run half is 10.4% dearer, over the 6% bound. Both
+victims and price fail the rule of 26 October, so the patch stays in
+the park and the question goes to Roman.
+
+The print under `when initial()` (queue: m574 park
+`m574-when-print.patch`), paired with one binary (`/tmp/m575/ox2`), off
+and then on with the key (`/tmp/m575/w_off.txt`, `w_on.txt`):
+
+```text
+off  974 flatten / 826 run   time: running 4435s   names 1686740341
+on   975 flatten / 826 run   time: running 4453s   names 1687057628
+```
+
+The one new flat line is QuasiStatic `IMC_withLosses`, the run lists are
+equal line for line, and the run half is 0.4% dearer. That holds the
+rule of 26 October, so the reading is the default: a branch of an `if`
+under `when` whose only calls resolve to `Modelica.Utilities.Streams.print`
+is let past the guard, with `OXIDELICA_NO_WHEN_PRINT=1` refusing it
+again. The test `a_print_under_when_initial_does_not_stop_the_model` is
+green and red under that key. The names count moves 188 per million,
+inside its band of 2000, so its centre stays. The model stops in the
+run half at the magnetic wall of the machine rows, as m574 found. The
+floors are not moved here: the runner has not printed.

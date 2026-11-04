@@ -1631,3 +1631,24 @@ fn a_token_entering_a_step_starts_its_timer() {
     assert_eq!(last[index("ts1")], 2.0, "and came back at t = 2");
     assert_eq!(last[index("active1")], 1.0);
 }
+
+#[test]
+fn a_print_under_when_initial_does_not_stop_the_model() {
+    // `if k < 1 then print(...); end if;` under `when initial()` is how
+    // the QuasiStatic machines warn about a parameter replaced; the
+    // branch gives a value to nothing, and the guard that refuses an
+    // `if` under `when` assigning variables took the call for one.
+    // Refused, `IMC_withLosses` never flattened. The value of `y` is
+    // what is checked: the model runs and decays as it should.
+    let result = run("package Modelica package Utilities package Streams \
+           function print input String s; external \"C\" ModelicaStreams_print(s); end print; \
+         end Streams; end Utilities; end Modelica; \
+         model W import Modelica.Utilities.Streams.print; \
+           parameter Integer k = 0; Real y(start = 1, fixed = true); \
+         equation der(y) = -y; \
+           when initial() then if k < 1 then print(\"k replaced\"); end if; end when; \
+           annotation(experiment(StopTime = 1, Interval = 0.5)); end W;");
+    let y = result.columns.iter().position(|c| c == "y").unwrap();
+    let last = result.rows.last().unwrap()[y];
+    assert!((last - (-1.0f64).exp()).abs() < 1e-4, "y(1) = {last}");
+}
