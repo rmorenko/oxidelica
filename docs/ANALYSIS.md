@@ -68920,3 +68920,39 @@ jacobians, 548 against 541. Read from the files, they do not:
 `s_off.txt` prints 541, as does `/tmp/m578/l_off.txt`; 548 is the on
 half of each pair. The binaries agree with the keys off, as the keys
 require.
+
+### The minimal key set, and the clean pair of the stack
+
+Which keys `BranchingPipes3` needs was asked by dropping one at a time
+from the four, each a single `--only` run of `/tmp/m578/oxs1` from the
+root `.msl` (files in `/tmp/m579/`): all four, it runs (`all.txt`);
+without `OXIDELICA_CAUCHY_STEP`, refused (`no_cauchy.txt`); without
+`OXIDELICA_LM_STEP`, refused (`no_lmstep.txt`); without
+`OXIDELICA_LM_STICKY`, refused (`no_sticky.txt`); without
+`OXIDELICA_LM_REIN`, it runs (`no_rein.txt`). Four runs, one per key.
+The last does not make three keys a smaller stack. Without the rein
+there is no ceiling at all, so the mark is never set and is inert, and
+what runs there is the damped step with no bound - another mechanism,
+not a cheaper form of this one. The candidate is the four keys
+together, and the sticky mark alone is not a form that exists: without
+the rein it has no ceiling to remember, and without the Cauchy and
+damped steps nothing to ration.
+
+The canonical pair: one binary, `/tmp/m578/oxs1`, off then on one
+after the other on a quiet desk, the on half with all four keys
+(`/tmp/m579/pair3.sh`, files `/tmp/m579/p3_off.txt` and
+`/tmp/m579/p3_on.txt`). The flattened lists are equal, 975 each, with
+the flattening work equal to the digit. The run lists differ by
+exactly `+ ModelicaTest.Fluid.TestPipesAndValves.BranchingPipes3`,
+victims 0, 826 to 827, runnable 778 to 779. Run work, points
+24150832 to 24151358, newton 35484134 to 35486699, jacobians 541 to
+548, apart 1974 both: the same delta as the first pair, the new
+model's own. Time: run 4639 s to 5396 s, +16.3% from the off half;
+flattening 3978 s to 4140 s, +4.1%, with equal work.
+
+So the second pair repeats the first, +15.7% then +16.3%, and the
+rule of 26 October is not met by the minutes. The counters say the
+cost is the new model's own, and the flattening half says part of the
+minutes is the desk, but even with the flattening drift taken off, the
+run half stays near +12%, twice the bound. By that rule the stack goes
+to the park and the question to Roman.
