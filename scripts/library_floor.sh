@@ -571,7 +571,14 @@ FILES_FLOOR=2671
 # (/tmp/m503/on.txt) printed 973 / 809 and 855 / 763.
 #
 #   972 + 1 = 973
-FLATTEN_FLOOR=973
+#
+# And 974 = 973 + `SimpleNaturalGas`, flattened by measuring a size
+# against the redeclared package: printed by the judge of ad240e6
+# (job 126381832108 of push run 41759587581), 974 / 826 and runnable
+# 856 / 778. The run floors stay: 826 - 3 swings = 823 and
+# 778 - 3 = 775 (SpringWithMass, SMPM_VoltageSource FW,
+# TestJunctionIdeal), as they stood.
+FLATTEN_FLOOR=974
 # The two run floors came down by one, and the one is named: giving a
 # record constructor called with no arguments the values its `extends`
 # stated took `Modelica.Thermal.FluidHeatFlow.Examples.WaterPump` out
@@ -2214,7 +2221,9 @@ RUN_FLOOR=823
 # And runnable flatten 855 = 854 + 1: printed by the judge of 6d683d8
 # (job 120922213566 of push run 40102876975) and the desk pair of m503
 # (/tmp/m503/on.txt).
-RUNNABLE_FLATTEN_FLOOR=855
+# And 856 = 855 + `SimpleNaturalGas`, by the same judge of ad240e6
+# (job 126381832108).
+RUNNABLE_FLATTEN_FLOOR=856
 # And runnable run 674 = 671 + the three batteries, all runnable
 # examples, by the same runner job as `RUN_FLOOR` (d58700e, job
 # 112530851204).
