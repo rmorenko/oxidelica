@@ -68716,3 +68716,14 @@ the one equation of the block on `volume1.medium.p`, whose slope on
 its own unknown is seven orders below the slopes the pressure drives
 elsewhere. Which equation row 0 is, and why it barely sees the
 pressure, is the next probe. Not treated.
+
+Row 0 named (the same print with each row's source, added to
+`m576-tt1-probes.patch`): it is `volume1.medium.d =
+waterBaseProp_ph(volume1.medium.p, volume1.medium.h, ...)[9]`. The block
+recovers the volume's pressure from its density, and liquid water's
+density moves 4.5e-7 kg/m3 per pascal: a residual of 2e-4 in density
+is 440 Pa of pressure, and the pressure then drives every mixed
+enthalpy downstream. So the wall is the choice of states of the volume
+(the density and the enthalpy held, the pressure solved from a nearly
+incompressible equation of state), the family of queue item 21, and
+not the Newton solver nor the mix. Not treated.
