@@ -1297,7 +1297,9 @@ fn undifferentiable_kind(expr: &Expr) -> &'static str {
 /// and the walk refuses. The honest answer is the theorem on the
 /// system: with residuals `g1(t, x1, x2)` and `g2(t, x1, x2)`,
 ///
-///     A * dx/dt = -b,  A[i][j] = dgi/dxj,  b[i] = dgi/dt at x fixed,
+/// ```text
+/// A * dx/dt = -b,  A[i][j] = dgi/dxj,  b[i] = dgi/dt at x fixed,
+/// ```
 ///
 /// and for two unknowns Cramer's rule writes the answer out
 /// symbolically. A determinant that folds to zero is a singular block
