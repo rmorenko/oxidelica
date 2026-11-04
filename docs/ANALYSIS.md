@@ -68495,3 +68495,17 @@ step's norm divided by its own reach (`|f_i| - floor_i` over
 `floor_i / eps`, key `OXIDELICA_REACH_MEASURE`, not kept),
 `SeriesPipes1` and `BranchingPipes3` are refused in the same row as
 before. The measure does not move the wall, as the answer said.
+
+And one step past the Cauchy point, under `OXIDELICA_LM_STEP` on top
+of the Cauchy key (parked as `~/oxideflow/park/m574-cauchy-lm.patch`):
+at the same gate, a Levenberg-Marquardt step on `J^T J` scaled by its
+own diagonal, the damping raised tenfold from 1e-6 until the step
+descends, and the Cauchy point only if none does. Of the three pipes
+measured, `BranchingPipes3` runs (`--only --list`, flat and ran, about
+five minutes), while `SeriesPipes1` and `SeriesPipes2` go on to `stepped
+outside the domain` as under the Cauchy key alone. That is the first
+model of the row the gate has let through. No corpus pair was taken
+this shift, so whether anything that runs today moves is unmeasured.
+The gate is a refusal, so by construction it should not, but that is
+a claim for the pair, and the five judges of the sliver comment and
+`BranchingPipes1`/`2` go with it.
