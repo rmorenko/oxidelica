@@ -69165,3 +69165,46 @@ steps and 361 fewer damped trials. So the three conditions of 26
 October hold: lists agree but for the win, the run half is not dearer,
 and nothing made it so. The decision is the review's; the key stays
 off.
+
+### `OXIDELICA_MODES_READ_BRANCHES` merged as the default (m577)
+
+The key is the default now, and `OXIDELICA_NO_MODES_READ_BRANCHES`
+keeps the single pass so a later pair can still be taken. The price is
+the m576 pair above. The test is a model with two `if`s, the second
+asking about a name only the first one's branches define: without the
+rule the start is taken on `y = 2 * x` and an event at t = 0 corrects
+it. Seen red under the opt-out. The floors were left for the judge's
+print.
+
+The model won reaches its own horizon:
+`ModelicaTest.Rotational.TestBearingConversion` simulated whole runs
+to `StopTime = 0.5` in 1.1 s, 502 rows, 2 events (`/tmp/m577x/tbc.csv`).
+
+### HeatExchangerSimulation under `OXIDELICA_INIT_BLOCK_SYS`: the start, not the tolerance (m577)
+
+A probe binary from a worktree (`/tmp/m577x/oxp2`, not pushed) scaled
+both halves of the convergence test in `solve_implicit_block` by a
+factor and printed the worst row of the 162-unknown start block on
+each iteration (`/tmp/m577x/hex_k*.txt`, `hex_n5.txt`, 120 s each).
+
+Row 43 is `HEX.pipe_1.heatTransfer.Nus_2[2]`. It stalls at f = -1.17e-6
+with lhs = 2.82e-6 and rhs = 3.99e-6, identical for three iterations
+running. The second half of the test asks for 1e-12 times 6.8e-6, so it
+is blind at this scale, as the review guessed. But closing the row takes
+a factor of 1e5 (its ratio to the test is 1.167e4), and under 1e2 and
+1e4 nothing changes.
+
+Under 1e5 row 43 passes, and the block is still never accepted
+(`conv=true` never printed for the whole block). The worst row moves to
+`HEX.pipe_2.heatTransfer.Q_flows[k]` for k = 20 down to 1, one per
+iteration, each with the unknown at about 6.5e-10 against a right-hand
+side of 4.5e-3. After the twentieth the iteration leaves: the worst rows
+are `pipe_1.heatTransfer.Q_flows[3]` at f = 6e4 and `Nus_turb[1]` at
+f = -30. So the tolerance is not what holds the giant. The block, as the
+steady start writes it, does not converge to a point where the
+`pipe_2` heat flows are anything but zero, and loosening the test only
+uncovers that. The one-row-per-iteration pattern on the `pipe_2` flows
+is worth the next probe: it looks like a Jacobian that sees one of
+those columns at a time. No fix was written, and the key stays off.
+The price of the key and the price of any tolerance change are two
+numbers and need two pairs.
