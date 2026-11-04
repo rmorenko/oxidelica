@@ -68753,7 +68753,7 @@ not the Newton solver nor the mix. Not treated.
   flattens and runs, in 27s, 17s and 283s. `BranchingPipes3` costs about
   283s run against the 61s it took to be refused (m576 table).
 
-### The pair
+### The pair of the reined step
 
 One binary (`/tmp/m577/ox1`), the halves one after the other on a quiet
 machine, off with no keys and on with `OXIDELICA_CAUCHY_STEP=1
