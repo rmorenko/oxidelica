@@ -68702,3 +68702,17 @@ So the mix names where the slope is born, and widening the mix by
 six orders does not let the block step past it. The next probe is the
 same Jacobian print under the wider floor, to see whether row 8 shrank
 and another row took its place.
+
+That probe, taken (`/tmp/m576/tt1e.txt`, Jacobian print with the floor
+at 1e-4, both keys parked as `m576-tt1-probes.patch`), corrects the
+reading above. Under the wider floor row 8's slope on the pressure is
+5.6e6 against 7.9e6, so it is not the floor of the mix that makes it;
+the mix only carries a slope that is there anyway. And the solve that
+fails is the second, from |f| = 1.4e-2, where row 0 answers a residual
+of 2.0e-4 with the same slope of -4.5e-7: a pressure step of 440 Pa
+(101325 to 101768 in the trail), and 440 Pa through 5.6e6 is the
+2.5e9 J/kg the enthalpy is sent to. So the long step is born in row 0,
+the one equation of the block on `volume1.medium.p`, whose slope on
+its own unknown is seven orders below the slopes the pressure drives
+elsewhere. Which equation row 0 is, and why it barely sees the
+pressure, is the next probe. Not treated.
