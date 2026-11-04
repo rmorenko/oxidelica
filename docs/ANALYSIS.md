@@ -68727,3 +68727,84 @@ enthalpy downstream. So the wall is the choice of states of the volume
 (the density and the enthalpy held, the pressure solved from a nearly
 incompressible equation of state), the family of queue item 21, and
 not the Newton solver nor the mix. Not treated.
+
+## The damped step's line, mapped; the reined step paired (m577)
+
+### The line so far, each number beside the file that printed it
+
+- The row `Newton direction`: ten models of `nd.txt`, nine of them Fluid
+  pipes, where the Cauchy probe read the cosine between the Newton step
+  and the steepest descent at 1e-7 to 6.5e-3 (`/tmp/m574/cauchy.txt`).
+  The Newton step there is not a descent direction for the residual.
+- m574: a Levenberg-Marquardt step at the gate (`OXIDELICA_CAUCHY_STEP`,
+  `OXIDELICA_LM_STEP`) empties the row and runs one of its ten,
+  `BranchingPipes3` (`/tmp/m574/lm_rest.txt` for the other seven).
+- m575: the pair of that step with one binary, off 974 flatten / 826 run
+  in 4457s of running, on 974 / 825 in 4919s (`/tmp/m575/l_off.txt`,
+  `l_on.txt`): `BranchingPipes3` won, `TestWaterPumpPowerCharacteristic`
+  and `TestWaterPumpStorage` lost, the run half 10.4% dearer.
+- m576: the rein (the edge answered by the gate's refusal once a damped
+  step was taken, at most `LM_CAP` damped steps per solve) holds all
+  three at a cap of 32 and loses `BranchingPipes3` at 8
+  (`/tmp/m576/bp3_c32.txt`, `bp3_cap.txt`).
+- m577: the cap set to 32 in the source (parked as
+  `/tmp/m577/lm-rein32.patch`, binary `/tmp/m577/ox1`), the three under
+  all three keys with `--only` (`/tmp/m577/small_court.txt`): each
+  flattens and runs, in 27s, 17s and 283s. `BranchingPipes3` costs about
+  283s run against the 61s it took to be refused (m576 table).
+
+### The pair
+
+One binary (`/tmp/m577/ox1`), the halves one after the other on a quiet
+machine, off with no keys and on with `OXIDELICA_CAUCHY_STEP=1
+OXIDELICA_LM_STEP=1 OXIDELICA_LM_REIN=1` (`/tmp/m577/l_off.txt`,
+`/tmp/m577/l_on.txt`):
+
+```text
+off  975 flatten / 826 run   time: flattening 3828s, running 4415s   newton 35484134 jacobians 541
+on   975 flatten / 827 run   time: flattening 3871s, running 4863s   newton 35486606 jacobians 548
+```
+
+The flat lists are equal line for line. The run lists differ by one
+line, `BranchingPipes3` won, and nothing lost: the two pumps m575 lost
+run under the rein. So the rein takes the victims to zero. The price
+does not follow: the run half is 448s dearer, 10.1% of the off half,
+over the 6% of the rule of 26 October. Of those 448s about 222s are
+`BranchingPipes3` itself (283s run, `/tmp/m577/small_court.txt`,
+against 61s refused in m576). The other 226s are not named by this
+pair: `--list` prints no time per model, so naming them needs a
+`--slow` pair of its own. In the census two rows move without moving a
+count: `BranchingPipes1` goes from the `Newton direction` row to
+`tsat called with too low pressure` (as m574 found), and QuasiStatic
+`IMC_withLosses` goes from `underdetermined algebraic loop` to `step
+size underflow at t = 0`, refused in both halves. That second move is
+a mode of failure the damped step changed in a model it does not win,
+and is worth one `--only` before any merge.
+
+Judged by the rule: lists agree but for the won model, price 10.1%, the
+dearer part named only for half. The patch is not merged, it stays as
+`/tmp/m577/lm-rein32.patch`, and the question goes to Roman: one model
+for about seven and a half minutes of every run half.
+
+### A small red model for queue item 21
+
+`/tmp/m577/small/V1.mo`: one `ClosedVolume` of IF97 water (V = 1e-3,
+`FixedInitial` mass and energy), fed by a `MassFlowSource_h` on a ramp
+and drained through a `SimpleGenericOrifice` to a `Boundary_ph`: the
+first branch of `TestTemperature1` without its sensor. It refuses as
+the original does, the `Newton direction` of the block
+`["volume1.medium.p", "source1.medium.sat.Tsat", "orifice1.V_flow"]`
+at t = 0.0002. With the sensor (`V2.mo`) the block grows to the ten
+unknowns of the original, and the refusal is the same.
+
+The Jacobian at the long step (`OXIDELICA_JAC_STEP_PRINT`, parked as
+`/tmp/m577/tt1-probes.patch`, binary `/tmp/m577/ox2`, print in
+`/tmp/m577/small/v1jac.txt`): row 0 is `volume1.medium.d =
+waterBaseProp_ph(volume1.medium.p, volume1.medium.h, ...)[9]`, its only
+entry is -4.48e-7 on the pressure, its residual is 0.2, and the step
+on the pressure comes out at 4.46e5 Pa. The pressure is sent from
+101325 to -3.45e5 and the water answers NaN (`v1trail.txt`). The
+same row and the same slope as in `TestTemperature1`, now in a model
+of three unknowns that reads in a second. So the wall is the volume
+recovering its pressure from a density held as a state, and this model
+is the instrument for item 21. No compiler code was changed.
