@@ -68680,9 +68680,16 @@ against a residual of 5.9e-7, which gives a pressure step of 1.3 Pa,
 small in itself. Row 8 then carries it to `orifice1.state_a.h` with a
 slope of -7.9e6 J/kg per Pa (and row 2 to `volume1.ports_H_flow[2]`
 with 5.9e4), so 1.3 Pa becomes 1.03e7 J/kg of enthalpy, past IF97's
-domain. The reading, not yet checked against the flow's value, is
-that a slope of that size is the enthalpy chosen by the direction of
-a flow near zero, smoothed over a fraction of a pascal: the
-flow-reversal regularization seen through a full Newton step, where
-the linear extrapolation of a near-step leaves the domain. The next
-probe is `why` on `orifice1.V_flow` at t = 2e-4. Not treated.
+domain. `why` on `orifice1.state_a.h` names the slope's source: the
+compiler's mixing of the stream at a three-way connection,
+`(max(-Tmix1.port.m_flow, 1e-10) * Tmix1.port.h_outflow +
+max(-volume1.ports[2].m_flow, 1e-10) * volume1.ports[2].h_outflow) /
+(max(-Tmix1.port.m_flow, 1e-10) + max(-volume1.ports[2].m_flow, 1e-10))`.
+With both flows near zero the denominator is 2e-10, and the slope of
+the mixed enthalpy on a flow is the difference of the two enthalpies
+over that: the 7.9e6 per pascal of row 8. So the layer is the epsilon
+of the `inStream` mixing of the connection (specification 15.2 asks
+for a regularization there, and the one written is the bare `max`),
+seen through a full Newton step. The Jacobian is the true slope, and
+the fault is that it is true over a millionth of a pascal only. Not
+treated.
