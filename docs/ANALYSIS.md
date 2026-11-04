@@ -68808,3 +68808,115 @@ same row and the same slope as in `TestTemperature1`, now in a model
 of three unknowns that reads in a second. So the wall is the volume
 recovering its pressure from a density held as a state, and this model
 is the instrument for item 21. No compiler code was changed.
+
+## The rein's ceiling as a second attempt and as a sticky mark (m578)
+
+Roman's word on the reined damped step of m577 was to keep the ceiling
+of damped least-squares steps at eight and give thirty-two only where
+eight failed. Two forms of that were built and measured, both behind
+keys and neither merged. The planned scouting of the `der(X)` row was
+moved to the next shift by the same answer.
+
+### The second attempt, and whose words it hands on
+
+`solve_implicit_block_tried` already asks a block twice (the retry of
+zero starts), so a second asking was the natural place:
+`OXIDELICA_LM_SECOND` asks a block again with a ceiling of thirty-two
+when the first asking was refused after using up its eight. Parked as
+`/tmp/m578/lm-second.patch`, binary `/tmp/m577/ox10`.
+
+Its first version did not take `BranchingPipes3` (141 s refused at
+eight, 245 s refused with the second attempt, `bp3_8.txt` and
+`bp3_2nd.txt`), and restoring the start before the second asking did
+not change that. The control on the same binary, thirty-two from the
+start (`bp3_32.txt`), did run it. The trace showed why, and it was not
+numerical: at t = 0.0008 thirty-two from the start is refused too,
+but as `algebraic loop did not converge in 50 Newton iterations`,
+which the outer solver answers with a shorter step. The second
+attempt reached the same refusal and then handed on the words of the
+first attempt, `the Newton direction ... does not reduce the
+residual`, which stops the run. Handing on the second attempt's words
+made `BranchingPipes3` run (385 s, `bp3_v9.txt`). A refusal from an
+inner retry that is overwritten by the outer one is a defect of its
+own kind, and worth remembering apart from the rein.
+
+The other seven pipes of the row (`/tmp/m574/lm_rest.txt`) under the
+second attempt: none of the seven runs (`/tmp/m578/rest_second.txt`).
+The row is closed on this road.
+
+The corpus pair, one binary, off then on:
+`/tmp/m578/l_off.txt` and `/tmp/m578/l_on.txt`. The flattened lists
+are equal, the run lists differ by exactly one line, `+ BranchingPipes3`,
+victims 0 (826 to 827). The `time:` lines were 4656 s and 5648 s for
+the run half. That price is not usable: the flattening half moved from
+4151 s to 4572 s in the same pair, which no change to a Newton solver
+can do. The on half shared the desk with probes of this shift (four
+single-model runs), so the pair proves the lists and not the price.
+
+### The sticky mark
+
+`OXIDELICA_LM_STICKY` (parked as `/tmp/m578/lm-sticky.patch`, binary
+`/tmp/m578/oxs1`): a block that once uses up its eight is marked by
+the address of its stage and is asked with thirty-two from the first
+attempt for the rest of the run. Counted directly
+(`/tmp/m578/tol/sticky.log`), the mark is set once in a run of
+`BranchingPipes3`, at t = 0.0008, so the eight is burned at one point
+and not at every step. Its Newton count is 551 against 515 for
+thirty-two from the start: the 36 are the one failed asking.
+
+What the mark changes in the answer was checked against thirty-two from
+the start on the horizon the library check uses (ten steps, to
+t = 0.1): the two result files `st_d.csv` and `g_d.csv` are equal line
+for line, 102 rows. The run at 1e-9 was stopped unfinished after 13
+minutes. Run to its own stop time of 5 s, `BranchingPipes3` under the
+sticky mark is refused at t = 0.2709, `tsat` called with a pressure of
+-6036 Pa. So what the library counts as a run is ten steps of a model
+that does not reach its end on this road. That is true of whichever
+form wins it, and should go beside the price to Roman.
+
+No small model was found that the ceiling of eight refuses: a cubic
+and eleven scalar and two-unknown loops take at most four damped
+steps (`/tmp/m578/small/`). So the only witness of either form is the
+corpus, as with the other paths that switch on only at complexity.
+
+Three facts belong side by side here, or the win reads as more than it
+is. By the measure of the project, ten steps of the experiment, the
+win is real and `BranchingPipes3` is held to the same measure as the
+other 826. It has no full run: to its stop time it is refused at
+t = 0.2709 with a pressure of -6036 Pa. And that is the wall named for
+the whole row of nine pipes, a full step sending the pressure below
+zero and the medium answering NaN, which the rein does not touch. So
+the row of the `Newton direction` is not closed by the rein, and
+trying the other pipes of `/tmp/m574/lm_rest.txt` on this road is
+worth doing only if a win of the same kind, through the gate of ten
+steps and not to the end, is wanted. That is for Roman to decide.
+
+### The stack pair, as it finished
+
+The pair of `/tmp/m578/pair2.sh` finished after the shift that started
+it had ended, on a quiet desk. Both halves are one binary,
+`/tmp/m578/oxs1`; the on half switches four keys together
+(`OXIDELICA_CAUCHY_STEP`, `OXIDELICA_LM_STEP`, `OXIDELICA_LM_REIN`,
+`OXIDELICA_LM_STICKY`), so it prices the stack and not the mark alone.
+Numbers from lines 116 to 120 of `/tmp/m578/s_off.txt` and
+`/tmp/m578/s_on.txt`:
+
+- flattened lists equal line for line, 975 each, and the flattening
+  work counters equal to the digit;
+- run 826 to 827, the diff of the run lists exactly
+  `+ ModelicaTest.Fluid.TestPipesAndValves.BranchingPipes3`, victims
+  0; runnable 778 to 779;
+- run work: points 24150832 to 24151358 (+526), newton 35484134 to
+  35486699 (+2565), jacobians 541 to 548 (+7), apart 1974 = 1974. The
+  whole delta is the new model's own, and no other model pays.
+- time: run 4618 s to 5344 s (+15.7%), but flattening 3941 s to
+  4121 s (+4.6%) with identical flattening work, and the built part of
+  the run 3879 s to 4063 s (+4.7%). The keys touch neither flattening
+  nor building, so the minutes carry the drift of the desk and cannot
+  serve as the price. A clean pair is the next measurement.
+
+A question was raised that the off halves of two binaries disagree on
+jacobians, 548 against 541. Read from the files, they do not:
+`s_off.txt` prints 541, as does `/tmp/m578/l_off.txt`; 548 is the on
+half of each pair. The binaries agree with the keys off, as the keys
+require.
