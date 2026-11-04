@@ -578,7 +578,13 @@ FILES_FLOOR=2671
 # 856 / 778. The run floors stay: 826 - 3 swings = 823 and
 # 778 - 3 = 775 (SpringWithMass, SMPM_VoltageSource FW,
 # TestJunctionIdeal), as they stood.
-FLATTEN_FLOOR=974
+#
+# And 975 = 974 + QuasiStatic `IMC_withLosses`, its print under
+# `when initial()` let past the guard on values: printed by the judge
+# of 6a8f9e5 (job 126437647954 of push run 41780306883), 975 / 826 and
+# runnable 857 / 778. The run floors stay: 826 - 3 = 823 and
+# 778 - 3 = 775, the same three swings.
+FLATTEN_FLOOR=975
 # The two run floors came down by one, and the one is named: giving a
 # record constructor called with no arguments the values its `extends`
 # stated took `Modelica.Thermal.FluidHeatFlow.Examples.WaterPump` out
@@ -2223,7 +2229,10 @@ RUN_FLOOR=823
 # (/tmp/m503/on.txt).
 # And 856 = 855 + `SimpleNaturalGas`, by the same judge of ad240e6
 # (job 126381832108).
-RUNNABLE_FLATTEN_FLOOR=856
+# And 857 = 856 + QuasiStatic `IMC_withLosses`, a runnable example let
+# past the guard on values by its print under `when initial()`: printed
+# by the judge of 6a8f9e5 (job 126437647954 of push run 41780306883).
+RUNNABLE_FLATTEN_FLOOR=857
 # And runnable run 674 = 671 + the three batteries, all runnable
 # examples, by the same runner job as `RUN_FLOOR` (d58700e, job
 # 112530851204).
