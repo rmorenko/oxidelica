@@ -68288,3 +68288,167 @@ t = 0.9497 from |f| = 1.26e-10, as before; on, at t = 0.9466 from
 |f| = 2.36e-4, the same block a little earlier
 (`/tmp/m573/smee_off.txt`, `/tmp/m573/smee_on.txt`). The keys move
 its wall back rather than through it.
+
+## The column splice, the Cauchy probe, and a size read off the wrong medium (m574)
+
+Files are in `/tmp/m574`, patches parked as
+`~/oxideflow/park/m574-*.patch`. Nothing here changes the default.
+
+### What `append_segment` asks of a continuation
+
+`append_segment` (`continuation.rs`) maps every column of the run so
+far to the column of the same name in the new stretch. Order is free
+(the test `a_continuation_is_reordered_into_the_first_stretch_by_name`)
+but the set is not: any name that left or arrived is refused. It has
+two callers, both in `simulate` (`solvers/mod.rs`): the splice of a
+stalled stretch before `compile_at` rebuilds, and the splice of the
+finishing stretch. The default can reach it with a changed set: the
+refusal was written (00cd949) because `TransformerTestbench` under a
+changed weight went from 801 columns to 799. On today's tree with no
+key nobody reaches it: `states re-selected` occurs 0 times in
+`/tmp/m572/raw.txt`. So a tolerant splice is a change of the default
+in code, but one no corpus model on main exercises.
+
+Probe `OXIDELICA_SPLICE_NAN=1`: the merged table takes the union of
+the columns, a column absent from a stretch reading NaN there, never
+zero. Machines `SMEE_LoadDump` under `simulate` with
+`OXIDELICA_RAD_SCALE=1`, one binary:
+
+| splice | result                                                              |
+| ------ | ------------------------------------------------------------------- |
+| off    | t = 2: the states re-selected name different variables, 390 s       |
+| NaN    | passes t = 2; structurally singular at reduction 18, order 4 of 3   |
+
+(`s_off/err.txt`, `s_on/err.txt`.) The splice is not the last wall. The
+next is index reduction of the rebuilt model, which asks a
+fourth derivative of `smee.lssigma.v_[2]` and the stator currents
+where three are allowed. The rad scale and the splice are therefore
+two links of a chain that has at least a third, and neither is worth
+merging alone.
+
+### The Newton direction row: Fable's Cauchy probe (m574)
+
+The question went to the consulting model
+(`QUESTION_FOR_FABLE.md`, section m574). Its answer: the exact Newton
+ray always descends for small enough lambda, so the refusal means
+either a ray almost orthogonal to the gradient (a proportion problem
+lambda cannot fix), or a stationary point of the measure with f != 0
+(a fold). It proposed a probe at the refusal, costing two residuals:
+the cosine between the ray and `-J^T f`, and the residual at the
+Cauchy point against a Newton step of equal length.
+
+Built under `OXIDELICA_CAUCHY_PROBE` and run on the ten models of
+`nd.txt` (`/tmp/m574/cauchy.txt`):
+
+| model             | |f| at refusal | cos     | Cauchy point | Newton, same length |
+| ----------------- | -------------- | ------- | ------------ | ------------------- |
+| ThreeSprings      | 4.46e-1        | 9.2e-4  | 1.14e-1      | 4.62e-1             |
+| TestTemperature1  | 5.51e11        | 0.98    | NaN          | NaN                 |
+| BranchingPipes1   | 2.90e5         | 1.3e-7  | 2.52e5       | 2.90e5              |
+| BranchingPipes13  | 1.15e3         | 4.4e-5  | 1.18e1       | 1.15e3              |
+| BranchingPipes14  | 1.80e-1        | 2.2e-4  | 1.80e-1      | 1.80e-1             |
+| BranchingPipes2   | 3.06e6         | 5.4e-4  | 9.43e5       | NaN                 |
+| BranchingPipes3   | 1.58e3         | 2.4e-4  | 2.95e0       | 8.72e4              |
+| BranchingPipes4   | 2.32e2         | 1.8e-4  | 2.32e2       | 2.32e2              |
+| SeriesPipes1      | 3.77e4         | 6.5e-3  | 2.62e0       | NaN                 |
+| SeriesPipes2      | 3.14e3         | 1.5e-4  | 9.31e0       | NaN                 |
+
+Prediction 1 of the answer holds for nine of ten: the cosine is 1e-7
+to 6.5e-3. The Cauchy point cuts the residual by two to four orders
+on six (SeriesPipes1 3.77e4 to 2.6). `BranchingPipes4` and `14` are
+folds: `|J^T f|` is small (0.56, 3.7e-4) and neither step buys
+anything. `TestTemperature1` is the answer's own exception, a cosine
+near one at 5.5e11 with both steps NaN, which the answer says points
+at the finite-difference Jacobian rather than at globalisation.
+
+Then the cheapest step the probe licenses: under
+`OXIDELICA_CAUCHY_STEP`, past the gate of `stuck >= 3` and off the
+arithmetic floor, take the Cauchy point when it descends and go on.
+None of the ten runs (`/tmp/m574/cstep.txt`). Nine of the ten now
+leave the row: the pipes are refused at the same instant as
+`stepped outside the domain of its own equations` (SeriesPipes1 at
+t = 0.0008, Newton iteration 13, `pipe2.mediums[1].d` NaN), and
+`ThreeSprings` meets its known initialization wall. The Cauchy point
+is a good first step and a bad walk: a few iterations later the
+Newton steps it hands back to go over the water's edge again. So a
+single Cauchy step is a link, not a cure. The answer's full dogleg
+(the step chosen inside a trust region, with the radius in column
+units) and its homotopy are the next probes. Both are larger than one
+shift, and both live behind the same gate. Neither touches a model
+that runs today, because the gate is a refusal.
+
+### `SimpleNaturalGas`: a length measured against the declared medium
+
+The refusal half's row `a scalar product needs equal lengths, got 2
+and 6` is one model, `ModelicaTest...IdealGases.SimpleNaturalGas`. It
+shrinks to twelve lines (`/tmp/m574/sng/Q.mo`):
+
+```modelica
+model Q
+  package A constant Integer n = 2; end A;
+  package B extends A(n = 6); end B;
+  model P
+    replaceable package Medium = A;
+    parameter Real k = Medium.n;
+    parameter Real x[Medium.n] = fill(1, Medium.n);
+    parameter Real s = size(x, 1);
+  end P;
+  P p(redeclare package Medium = B);
+  Real y(start=1); equation der(y) = -y;
+end Q;
+```
+
+`why` answers `p.k = 6`, the array is built with six elements, and
+`p.s = 2`. That is a wrong number given without a word, not a
+refusal. The shapes a class's parameters settle against
+(`settle_parameters` and `measure_shapes` in `instantiate.rs`) are
+measured from the class with its own declared imports, so `Medium.n`
+reads `A`, while the elements are built with the imports the
+redeclaration made (`effective_imports`), which read `B`. In the
+library the same thing gives `X_start` length 2 (the `PartialMedium`
+default `reference_X = fill(1/nX, nX)` with `nX` of the base) against
+the six-gas data of the medium the model chose.
+
+Under `OXIDELICA_SHAPES_REDECLARED=1` both sites measure with the
+effective imports: `Q` gives `p.s = 6`, and `SimpleNaturalGas`
+flattens and stops in the run half at `the initialization problem is
+singular`. The corpus pair from one binary (`/tmp/m574/ox8`) is
+`/tmp/m574/shape_off.txt` and `shape_on.txt`; its numbers are below.
+
+### The refusal half, row by row (m574)
+
+Census `/tmp/m572/census.txt`, 47 models in 27 rows between the first
+two section marks. Rows already on a chapter are one line each, by the
+name the earlier chapter used: C and FORTRAN externals; partial
+functions and classes; `MAX_DEPTH` nesting; the flexible size; the
+thyristor branches (Roman's item 52); the Clock without an interval;
+the three unit mismatches; `AbsoluteClocks` (`superSample` factor);
+`ImplicitEuler` in a clocked partition; `readRealParameterModel`
+(`scanDelimiter`); `SimpleAir` (`cannot add`); `TestFiles` and
+`TestStreams` (strings and files); `min` of an empty array
+(`TestBooleanFunctions`, asked on purpose); `TestMatrices3`
+(`dgesvd` of size 0); `SMPM_ResistiveBraking` (6 against 18);
+`EquilibriumDrumBoiler` (`dewEnthalpy(sat)`).
+
+Two rows were probed afresh. `a scalar product needs equal lengths`
+is `SimpleNaturalGas`, mapped above as a wrong length rather than a
+refusal. `an if inside when gives values to variables` is the
+QuasiStatic `IMC_withLosses`, and its cause is not the machine: it is
+`MultiDelta` (`Electrical/QuasiStatic/Polyphase/Basic/MultiDelta.mo:21`),
+which writes `when initial() then if ... then print(...); end if;
+end when;`. Ten lines reproduce it (`/tmp/m574/wi/W.mo`). The guard in
+`flatten/equations.rs` (around line 937) refuses any branch of an `if`
+under `when` that holds a call, and a `print` gives no value to
+anything. Letting such a call through, or dropping `print` there, is a
+change of the default that would let one model past this wall; it was
+not built in this shift.
+
+The pair, one binary (`/tmp/m574/ox8`), halves one after the other:
+off 973 flatten / 826 run, runnable 855 / 778; on 974 / 826, runnable
+856 / 778. The diff of the lists (`l_off.txt`, `l_on.txt`) is one line,
+`SimpleNaturalGas` flattening; the run lists are equal line for line.
+Run half 4451 s off against 4433 s on. The reading is now the default,
+with `OXIDELICA_SHAPES_DECLARED=1` keeping the old one, and the test
+`a_size_is_measured_against_the_redeclared_package` is red under that
+key and green without it. The floors are not moved here: the runner
+has not yet printed.

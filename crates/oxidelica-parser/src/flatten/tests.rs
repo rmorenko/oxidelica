@@ -1311,3 +1311,29 @@ fn a_parameter_of_the_top_does_not_answer_for_a_namesake_below() {
         .count();
     assert_eq!(elements, 3, "the port is as wide as `A` says");
 }
+
+#[test]
+fn a_size_is_measured_against_the_redeclared_package() {
+    // `x[Medium.n]` is built with the six elements of the medium the
+    // model chose, and `size(x, 1)` has to say six too: read against
+    // the declared default it said two, a wrong number without a word.
+    let classes = crate::parser::parse_file(
+        "package L \
+           package A constant Integer n = 2; end A; \
+           package B extends A(n = 6); end B; \
+           model P replaceable package Medium = A; \
+             parameter Real x[Medium.n] = fill(1, Medium.n); \
+             parameter Real s = size(x, 1); end P; \
+           model M P p(redeclare package Medium = B); end M; \
+         end L;",
+    )
+    .unwrap();
+    let model = super::flatten(&classes, "L.M").unwrap();
+    let s = model
+        .components
+        .iter()
+        .find(|c| c.name == "p.s")
+        .and_then(|c| c.binding.clone())
+        .and_then(|b| super::const_eval(&b, &std::collections::HashMap::new()));
+    assert_eq!(s, Some(6.0));
+}

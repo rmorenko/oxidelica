@@ -129,7 +129,17 @@ pub(super) fn instantiate(
         &redeclares,
     );
 
-    let (sizes, sizes_here) = measure_shapes(registry, class, prefix, env, acc, &local_consts);
+    let (sizes, sizes_here) = {
+        let seen = as_redeclared(class, &imports);
+        measure_shapes(
+            registry,
+            seen.as_ref().unwrap_or(class),
+            prefix,
+            env,
+            acc,
+            &local_consts,
+        )
+    };
 
     // How much of the growing list of measured arrays has been taken
     // into the table above. Each declaration brings its own, and the
@@ -1106,12 +1116,14 @@ fn settle_parameters(
     // the same build. It is kept because the work it removes is work
     // that cannot be needed, not because the clock showed it.
     let mut shapes_here: HashMap<String, Vec<i64>> = HashMap::new();
+    let seen_class = as_redeclared(class, imports);
+    let measured_class = seen_class.as_ref().unwrap_or(class);
     let gather = |shapes_here: &mut HashMap<String, Vec<i64>>,
                   local_consts: &HashMap<String, f64>| {
         shapes_here.clear();
         collect_shapes_given(
             registry,
-            class,
+            measured_class,
             local_consts,
             &HashMap::new(),
             env_overrides,
@@ -1314,12 +1326,39 @@ fn settle_parameters(
     local_consts
 }
 
+/// The class as its arrays are to be measured: with the names its
+/// redeclarations made rather than the ones it declared.
+///
+/// A length written `x[Medium.nX]` is read against `Medium`, and which
+/// package that is was decided by whoever redeclared it. The elements
+/// were always built with the redeclared one; the shapes the parameters
+/// settle against were measured with the class's own imports, so
+/// `Medium` there was the declared default. `SimpleNaturalGas` built a
+/// six-element `X_start` and measured it as two long, and `size(x, 1)`
+/// answered two - a wrong number, given without a word. Where the
+/// redeclarations changed nothing the class itself is used, so the
+/// common case clones nothing. `OXIDELICA_SHAPES_DECLARED=1` keeps the
+/// old reading, so that one binary gives both halves of a measurement.
+fn as_redeclared(class: &ClassDef, imports: &[(String, String)]) -> Option<ClassDef> {
+    if class.imports.as_slice() == imports
+        || std::env::var_os("OXIDELICA_SHAPES_DECLARED").is_some()
+    {
+        return None;
+    }
+    let mut seen = class.clone();
+    seen.imports = imports.to_vec();
+    Some(seen)
+}
+
 /// What every array of this class is shaped like, as far as the
 /// settled numbers can say - by the class's own names and by the
 /// instance path - with this class's constant arrays offered to the
 /// model for its components to read.
 ///
 /// Moved out of `instantiate` unchanged.
+///
+/// The class is the one seen through its redeclarations: see
+/// [`as_redeclared`].
 fn measure_shapes(
     registry: &HashMap<&str, &ClassDef>,
     class: &ClassDef,
