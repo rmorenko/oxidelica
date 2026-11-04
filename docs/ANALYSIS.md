@@ -69023,3 +69023,94 @@ state coefficients run (`/tmp/m579/co.mo`, `blk.mo`). That the
 answer depends on a start value through the tearing is a finding of
 its own. The next step is the block-wide derivative, with
 `rotimp.mo` as its test.
+
+### The pair rule: the theorem on two torn unknowns (m575)
+
+The refusal for a held name met again now names the whole cycle,
+from where it was first held to where it came back
+(`symbolic.rs`, "a cycle of N: a -> b -> a"), and under
+`OXIDELICA_INIT_DER_PROBE=1` the initial-derivative layer prints why
+each torn name was left unanswered. Mapped with that on the three
+representatives (`/tmp/m575/pA.txt`, `pB.txt`, `pC.txt`):
+
+- A, Machines `IMC_Initialize`: of the 8 torn, every one is in a
+  cycle of exactly 2 - `airGap.i_sr[1..2]`, `spacePhasorS.i[2..3]`,
+  `lssigma.v_[2]` with `airGap.spacePhasor_s.v_[2]`.
+- B, FundamentalWave `IMC_Initialize`: one cycle of 2,
+  `airGap.V_mss.re` with `.im`, and every other unanswered name of the
+  block is refused on that same pair.
+- C, Fluid `HeatingSystem`: no cycle at all. Its torn names are
+  refused for a subscript that survived flattening
+  (`waterBaseProp_ph(...)[9]`, a `dgesv(...)[2]`) and for a call of
+  several arguments (`massFlowRate_dp_staticHead`). C is a different
+  wall and was wrongly put in this layer by the last chapter.
+
+So `n = 2` pays on the real row, and nothing seen needs more.
+Behind `OXIDELICA_INIT_BLOCK_SYS=1`, a torn name whose residual
+reaches exactly one other torn name, whose own residual reaches back,
+gets its rate from the pair as a system, by Cramer's rule written out
+symbolically. A determinant that folds to zero is refused, never
+divided by. The slopes hold every other name still, so an inner
+assignment of the block that reads the pair would be a path left out:
+those definitions are written into the two residuals first, under a
+ceiling of 20000 nodes, and a definition reaching itself refuses
+rather than guessing. That was what kept B out at first - the pair
+rule declined on B until the inner paths were written in.
+
+Small first: `/tmp/m579/rotimp.mo` runs under the key with
+`r1 = cos(1)`, `r2 = -sin(1)` at `t = 1`, which is the exact answer.
+`co.mo` and `blk.mo` give byte-equal results off and on, and `z5.mo`
+refuses identically in both. The unit test
+`two_torn_unknowns_take_their_rates_from_the_pair` is a 2x2 with known
+rates 5/7 and 1/7, and was seen red with the rule taken out, on the
+new words of the refusal.
+
+The row of eight under the key, one at a time
+(`/tmp/m575/eight_on.txt`):
+
+- taken: Machines, FundamentalWave and QuasiStatic FundamentalWave
+  `IMC_Initialize`;
+- next wall: Machines `IMC_withLosses` ("the Newton direction of
+  algebraic loop [aimc.airGap.i_sr[2], ...]") and FundamentalWave
+  `IMC_withLosses` ("algebraic loop [aimc.airGap.V_mss.im, ...]");
+- refused as before: `BranchingDynamicPipes`, `HeatingSystem` - the
+  subscript and several-argument wall of C;
+- a giant: `HeatExchanger.HeatExchangerSimulation`, 20 s off and more
+  than 24 CPU minutes under the key before it was killed. Sampled, the
+  time is in the run (`walk::to_scalar`, `code::eval`), not in the
+  differentiation, so the key carries it past the `der(X)` wall into
+  a run that crawls.
+
+The corpus pair, one binary built from the clean tree at `213ec1f`
+(`/tmp/m575/oxP`), off and then on, with the heavy set and
+`HeatExchangerSimulation` left out of both halves (`/tmp/m575/l_off.txt`,
+`l_on.txt`): 974 / 826 off, 974 / 829 on. The run list gains exactly
+the three `IMC_Initialize` and loses nothing. The flatten lists are
+equal, and the victims of index reduction, printed under
+`OXIDELICA_VICTIM_PROBE`, are equal line for line over 4405 lines, as
+are the retreats. The run half went from 4567 s to 4661 s, +2.1%,
+while flattening, with byte-equal work, drifted 3979 s to 4050 s,
++1.8%. The added work is 578 points and 1388 Newton iterations, and
+the jacobians are unchanged.
+
+What this pair does not cover is the giant. `HeatExchangerSimulation`
+was taken out because one model holding a pass for an unknown time is
+a measurement of nothing. Turning the key on by default would bring it
+in, so the merge waits for a decision on it: a ceiling on that run, or
+a reason it crawls. The key stays off.
+
+On item 77 of the queue, whether an inner retry's verdict is overwritten
+by an outer one in the zero-start retry without keys: read from the
+code, the strong form cannot happen there. The retry
+(`solve_implicit_block_tried`, `solvers/mod.rs:1126`) runs only behind
+"before any Newton step", so a first attempt that stopped on "Newton
+direction" is returned as it is and is never retried. The weak form is
+alive, though. When the retries also fail, the head of the refusal,
+which is what the census row counts, is the first attempt's words, and
+what the retries met is only appended. In `/tmp/m572/raw.txt` three
+models carry it: `ThreeSprings` and both `RollingWheelSet`. Their row
+is the division of the first attempt, while the wall that actually
+stopped them is "Newton direction" or a singular Jacobian from the
+moved starts. That was deliberate (the comment at `:1159`), and it
+makes the census name the first wall rather than the last. It is not
+treated here.
