@@ -68458,3 +68458,13 @@ Newton step does not solve, because its equations do not pin down
 [volume.m]`. Its sibling `SimpleNaturalGasFixedComposition` runs, so
 the next wall is what the five independent mass fractions add to the
 initial system; it was not probed further this shift.
+
+Probed under a key in a scratch tree (`OXIDELICA_WHEN_PRINT`, parked as
+`~/oxideflow/park/m574-when-print.patch`): a branch whose only calls
+resolve to `Modelica.Utilities.Streams.print` is let past the guard.
+`W2.mo` then runs, and QuasiStatic `IMC_withLosses` flattens and stops
+in the run half at `underdetermined algebraic loop
+["imcQS.airGap.V_ms.re", ...]`, the magnetic wall of the machine rows.
+So the model moves one row and no further, and the key is parked
+rather than merged: a print dropped is an effect lost, and the run
+count would not move.
