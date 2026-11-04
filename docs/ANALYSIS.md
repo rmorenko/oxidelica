@@ -68509,3 +68509,13 @@ this shift, so whether anything that runs today moves is unmeasured.
 The gate is a refusal, so by construction it should not, but that is
 a claim for the pair, and the five judges of the sliver comment and
 `BranchingPipes1`/`2` go with it.
+
+The other seven of `nd.txt` under the same two keys, one pass of
+`--only-from` (`/tmp/m574/lm_rest.txt`): 7 flatten and 0 run. None is
+left in the `Newton direction` row. `BranchingPipes1` now stops at
+t = 0.00025 on `tsat called with too low pressure`. `BranchingPipes2`,
+`4`, `13` and `14` and `TestTemperature1` stop in loop rows of their
+own blocks, and `ThreeSprings` at its known initialization equation.
+So with the two keys the row empties and one model of ten runs. The
+rest move one wall on, mostly to the water's edge, which is the
+homotopy rung of the answer rather than a better step.
