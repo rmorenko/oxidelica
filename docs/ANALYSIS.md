@@ -68693,3 +68693,12 @@ for a regularization there, and the one written is the bare `max`),
 seen through a full Newton step. The Jacobian is the true slope, and
 the fault is that it is true over a millionth of a pascal only. Not
 treated.
+
+The epsilon is not the lever on its own, though. With the floor of the
+mix read from a key (`OXIDELICA_STREAM_EPS`, parked as
+`m576-stream-eps-probe.patch`, `/tmp/m576/ox7`), `TestTemperature1`
+refuses with the same Newton direction refusal at 1e-10, 1e-6 and 1e-4.
+So the mix names where the slope is born, and widening the mix by
+six orders does not let the block step past it. The next probe is the
+same Jacobian print under the wider floor, to see whether row 8 shrank
+and another row took its place.
