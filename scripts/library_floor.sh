@@ -3562,7 +3562,18 @@ fi
 # model won. The old centre had already been drifting up to it: the
 # judge of 8a8a152 printed 1671049009, 2365 - 714 = 1651 per million
 # above it and still inside.
-WORK_NAMES=1672242797
+#
+# Moved to 1686740341 from /tmp/m574/shape_on.txt, by measuring a
+# class's arrays with the packages its redeclarations chose. One binary
+# (/tmp/m574/ox8) printed 1670892995 with the old reading and 1686740341
+# with the new (shape_off.txt, shape_on.txt), 9484 per million up, with
+# SimpleNaturalGas the only new line in either list: that model alone
+# looks up 17664158 names flattened against 2157168 refused (`--only`,
+# both ways), 15506990 of the 15847346 added. The run lists are equal
+# line for line, and 1974 jacobians apart both ways. The preflight on
+# the final tree printed 1686740341 to the digit. Without the move this
+# line would turn red for a model won.
+WORK_NAMES=1686740341
 WORK_NAMES_PPM=2000
 
 # The band, as a function, so that it can be seen red without a library
