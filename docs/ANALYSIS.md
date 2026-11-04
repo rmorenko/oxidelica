@@ -68583,3 +68583,95 @@ green and red under that key. The names count moves 188 per million,
 inside its band of 2000, so its centre stays. The model stops in the
 run half at the magnetic wall of the machine rows, as m574 found. The
 floors are not moved here: the runner has not printed.
+
+## The splice chain of `SMEE_LoadDump` walked; the damped step reined (m576)
+
+### The chain of Machines `SMEE_LoadDump`, link by link
+
+One binary per question (`/tmp/m576/ox1c` with the parked
+`m574-rad-scale-splice.patch` on 6a8f9e5, and `ox5` with the probe
+keys of this chapter, parked as `m576-smee-chain-probes.patch`), all
+under `simulate` with `OXIDELICA_RAD_SCALE=1 OXIDELICA_SPLICE_NAN=1`
+and a print of each stall (`OXIDELICA_STALL_TRAIL`):
+
+| link | where                                    | what stops the run                                  |
+| ---- | ---------------------------------------- | --------------------------------------------------- |
+| 1    | rebuild at t = 2, scale of the angle     | taken by the rad scale                              |
+| 2    | `append_segment`, columns differ         | taken by the NaN splice                             |
+| 3    | second re-selection, stall at t = 2.0078 | structurally singular at reduction 18, order 4 of 3 |
+
+The trail (`/tmp/m576/s_tr0.err`): the switch closes at t = 2 and the
+mode change rebuilds cleanly; a stall at 2.0028 re-selects and the run
+goes on; the stall at 2.0078 re-selects again, and that rebuild asks a
+fourth derivative of `smee.lssigma.v_[2]` and of the stator currents
+(`compile.rs:2546`). With the switch closed from t = 0
+(`loadControl(startTime = 0)`, `/tmp/m576/small/Closed.mo`) the first
+build of the same circuit runs, so the circuit is not singular. The
+wall belongs to a rebuild at a resume point, not to the model.
+
+Three probes on link 3, none of which opens it:
+
+- the order ceiling off (`OXIDELICA_IMPLIED_ROW=0`, `s_ir.err`): the
+  same reduction climbs to a sixth derivative of the stator current and
+  is refused as structurally singular all the same. The ceiling of
+  three is honest here, it names the wall early.
+- the rebuild choosing as the first build does (`resuming = false`
+  under `OXIDELICA_RESUME_AS_FIRST`, `s_tr.err`): worse, the stall at
+  t = 2 is not passed at all, step size underflow on the second stall
+  of the same instant.
+- the fixed anchors kept at the rebuild (`OXIDELICA_PARTIAL_SENSITIVITY`,
+  `s_trps.err`): another refusal, `compile.rs:2933`, an equation of the
+  voltage sensor's pins "constrains no state", 31 tried in its place.
+
+So link 3 is the choice of states at a re-selection after a mode
+change: the dummy derivatives the second rebuild keeps leave the
+singular subset of the stator and the load inductor without a state it
+can be differentiated onto. That is the same family as queue item 21
+(states chosen at the rebuild), not a splice question. The chain is
+three links deep and its third link is not local: nothing is merged.
+
+### The damped step reined: three models held, the pair not taken
+
+`m574-cauchy-lm.patch` with a rein (`OXIDELICA_LM_REIN`): once a damped
+least-squares step has been taken in a solve, a later walk over the
+domain's edge answers with the gate's own refusal instead of the
+exhausted-retreat error, and at most `OXIDELICA_LM_CAP` damped steps are
+taken per solve (default 8). One binary, `/tmp/m576/ox3`, `--only` from
+the root `.msl`:
+
+| model                              | off          | LM         | rein, 8       | rein, 32   |
+| ---------------------------------- | ------------ | ---------- | ------------- | ---------- |
+| `TestWaterPumpPowerCharacteristic` | runs         | refused    | runs          | runs, 21s  |
+| `TestWaterPumpStorage`             | runs         | refused    | runs          | runs, 10s  |
+| `BranchingPipes3`                  | 61s, refused | runs, 269s | refused, 100s | runs, 293s |
+
+With the rein but without its edge rule `BranchingPipes3` is still lost
+at 8, and with no cap it runs (276s), so it is the cap that cost it at
+8: it needs more than eight damped steps in one solve. At 32 all three
+hold. What the cap cannot buy back is the price of the won model: 61s
+refused becomes 293s run, 232 seconds of the 462 by which m575's on
+half was dearer; the rest is not yet named. The
+corpus pair (one binary, off then on) was started and taken down: the
+off half had read 114 lines in 21 minutes on a loaded machine, where
+m575's halves took 4457s and 4919s of running each, so a pair is about
+two and a half hours and does not fit the rest of a shift. The patch
+is parked as `m576-lm-rein.patch` with the cap at 8 in the source and
+32 measured; the pair is the next step, and the names of m575's nine
+must come with it.
+
+### `TestTemperature1`: where the NaN is born
+
+`OXIDELICA_NEWTON_TRAIL=1 --only` (`/tmp/m576/tt1.txt`): initialization
+converges (|f| = 1.9e-12 in two steps). The first block solve after it
+starts at |f| = 7.1e-3 and the full Newton step sends `orifice1.V_flow`'s
+neighbours far out: `volume1.ports_H_flow[2]` (third unknown) to
+-7.6e4 and `orifice1.state_a.h` to 1.04e7, where the water properties
+answer NaN in every row. The halvings recover once (|f| down to 1e-6),
+and the next solve, from |f| = 1.4e-2, steps the same column to -2.6e7
+and `orifice1.state_a.h` to 3.5e9: the step is a thousand times larger
+than the residual it answers. The NaN is born in the residual at the
+point of a full step, not in the start and not in the Jacobian's own
+evaluation. Why the step is so long in those two columns is not
+yet measured: a near-singular column of the orifice's state at small
+flow is the suspicion, in line with Fable's reading, and the next probe
+is the Jacobian's columns 2 and 8 printed at that point. Not treated.
