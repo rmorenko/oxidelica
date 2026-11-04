@@ -68956,3 +68956,44 @@ cost is the new model's own, and the flattening half says part of the
 minutes is the desk, but even with the flattening drift taken off, the
 run half stays near +12%, twice the bound. By that rule the stack goes
 to the park and the question to Roman.
+
+### Probes after the pair: the quasi-static machine and three `der(X)`
+
+`Modelica.Magnetic.QuasiStatic.FundamentalWave.Examples.BasicMachines.InductionMachines.IMC_withLosses`
+under the rein's keys (`/tmp/m577/ox1`, `OXIDELICA_CAUCHY_STEP`,
+`OXIDELICA_LM_STEP`, `OXIDELICA_LM_REIN`) flattens and is refused with
+`step size underflow at t = 0.000000: probable singularity`
+(`/tmp/m579/imcq.txt`). The rein does not reach it. No run and no
+number.
+
+The row of `der(X)` refusals, one representative from each subfamily,
+each refused at `crates/oxidelica-sim/src/compile.rs:31` and read
+with `oxidelica why` (`/tmp/m579/whyA.txt`, `whyB.txt`, `whyC.txt`).
+All three come from an initial equation `der(X) = 0` where X is not a
+state but an algebraic name that equations tie to states:
+
+- A, `Machines` `IMC_Initialize`: `aimc.idq_sr[1] = aimc.airGap.i_sr[1]`,
+  an alias of a rotated current. To answer, differentiate the alias
+  chain down to the airgap's currents, which pass through the rotation
+  by the rotor angle, so the derivative carries `der(phi)` and the
+  derivatives of the stator currents.
+- B, `FundamentalWave` `IMC_Initialize`: `aimc.airGap.V_msr.re` is
+  defined by a product of `V_mss` and the rotator, the same rotation in
+  complex form. Differentiate the product rule through `rotator.re`
+  and `rotator.im`, which are trigonometric functions of the angle.
+- C, `Fluid` `HeatingSystem`: `tank.medium.T = tank.medium.state.T`,
+  with the states of the volume being `p` and `h` (or `m` and `U`), so
+  `T` is reached only by inverting the medium's `h(p, T)`. The
+  derivative is that of an implicit function, `der(h)` over `dh/dT`
+  with a term in `der(p)`, through a medium function the compiler
+  must differentiate.
+
+Where each would stand once answered: the substitution today takes
+only states and the names in `also`, the derivatives the plan has
+worked out. A and B need the derivative of an explicit algebraic
+definition carried into the initial system, the same machinery as
+index reduction, applied to the initial equation and not the
+continuous system. C needs it through an implicit medium relation,
+which is the harder half. The narrowest first step is A: a pure alias
+chain ending in states and an angle. Shrinking from A to a small model
+is the next measurement.
