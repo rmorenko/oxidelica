@@ -201,6 +201,23 @@ than 6% goes to him whatever it wins. The rule is about the run half.
 A flattening half that moves visibly is a finding of its own, carried
 as a question rather than hidden under the six percent.
 
+The six percent is counted in minutes of the run half, not in the
+counters of work. The counters are the better instrument for lists and
+for victims, where they are exact and the two halves of a pair agree on
+them byte for byte. They are not the instrument for price, because work
+a change adds is not always work the counters count: the damped trials
+of a Levenberg-Marquardt step are not Newton iterations, so a stack of
+four keys that won `BranchingPipes3` showed `work:` moved by nothing
+but that model's own - 526 points, 2565 Newton steps, 7 Jacobians -
+while the clock showed sixteen percent, twelve of it after the
+flattening drift was taken out (/tmp/m579/p3_off.txt and p3_on.txt,
+4 November). Measuring with an instrument that does not register the
+quantity is not a second opinion; it is no measurement. And minutes are
+what is spent: the heavy job's ceiling of 240 and the library job's of
+180 are both in minutes. The drift of the run half between halves of
+equal work is about two percent, measured, so a figure above that is
+the change and not the desk.
+
 Reproduce small before measuring large. Three shifts went on the
 corpus at five minutes a run, reasoning about shapes from the outside,
 for a fault that a twelve-line model showed in one second - and the
