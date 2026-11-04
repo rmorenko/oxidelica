@@ -9171,12 +9171,24 @@ impl CompiledModel {
                 Some(definition) => definition.clone(),
                 None => Expr::Ref(name.clone()),
             };
-            if let Ok(derivative) = differentiate(&asked, &target) {
-                if take_needed_derivatives().is_empty() {
-                    worked_out
-                        .entry(name.clone())
-                        .or_insert_with(|| simplify(&derivative));
+            match differentiate(&asked, &target) {
+                Ok(derivative) => {
+                    if take_needed_derivatives().is_empty() {
+                        worked_out
+                            .entry(name.clone())
+                            .or_insert_with(|| simplify(&derivative));
+                    }
                 }
+                // Under the probe a torn name left unanswered says
+                // why, which is what tells a cycle of two from a block
+                // of thirty.
+                Err(why)
+                    if definition.is_none()
+                        && std::env::var_os("OXIDELICA_INIT_DER_PROBE").is_some() =>
+                {
+                    eprintln!("init-der-probe: {name}: unanswered: {why}");
+                }
+                Err(_) => {}
             }
             let _ = take_needed_derivatives();
             let _ = take_minted_derivatives();

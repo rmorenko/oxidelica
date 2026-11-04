@@ -1077,3 +1077,50 @@ fn the_silent_chain_reads_a_state_through_silent_names_when_asked() {
     assert!((state("m") - 3000.0).abs() < 1e-9, "m = {}", state("m"));
     assert!((state("U") - 12000.0).abs() < 1e-9, "U = {}", state("U"));
 }
+
+/// Two torn unknowns that determine each other get their rates from
+/// the theorem on the pair, by Cramer's rule, and the numbers are the
+/// ones worked by hand: `a + 2b = t` and `3a - b = 2t` give
+/// `a = 5t/7` and `b = t/7`, so `da/dt = 5/7` and `db/dt = 1/7`.
+/// Without the rule the chain of held names meets itself and the
+/// walk refuses, which is what this test sees with the rule taken out.
+#[test]
+fn two_torn_unknowns_take_their_rates_from_the_pair() {
+    crate::symbolic::block_rates_here();
+    let state_rhs = HashMap::new();
+    let params = HashMap::new();
+    let dummies = HashMap::new();
+    let alg_defs = HashMap::new();
+    let implicit_defs: HashMap<String, (Expr, Expr)> = HashMap::from([
+        ("a".to_string(), (expr_of("a + 2 * b"), Expr::Time)),
+        (
+            "b".to_string(),
+            (
+                expr_of("3 * a - b"),
+                Expr::Bin(
+                    oxidelica_parser::BinOp::Mul,
+                    Box::new(Expr::Number(2.0)),
+                    Box::new(Expr::Time),
+                ),
+            ),
+        ),
+    ]);
+    let target = DiffTarget::Time {
+        state_rhs: &state_rhs,
+        params: &params,
+        dummies: &dummies,
+        alg_defs: &alg_defs,
+        implicit_defs: &implicit_defs,
+        holding: &[],
+    };
+    for (name, expected) in [("a", 5.0 / 7.0), ("b", 1.0 / 7.0)] {
+        let rate = differentiate(&Expr::Ref(name.to_string()), &target)
+            .unwrap_or_else(|e| panic!("rate of {name}: {e}"));
+        let value = crate::eval_at_starts(&rate, &HashMap::new())
+            .unwrap_or_else(|| panic!("rate of {name} has no value: {rate:?}"));
+        assert!(
+            (value - expected).abs() < 1e-12,
+            "rate of {name}: {value} against {expected}"
+        );
+    }
+}

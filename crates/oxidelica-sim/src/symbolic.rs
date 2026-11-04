@@ -569,6 +569,9 @@ thread_local! {
     /// environment variable in a test binary is shared by every thread
     /// in it.
     static SHARE_HERE: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    /// The pair rule of `pair_block_rate` turned on for this thread
+    /// alone, for the same reason.
+    static BLOCK_HERE: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
     /// Whether what is being differentiated is a statement of a walked
     /// body, written out as that body's derivative (`derived.rs`). The
     /// rules that hold only there - a body's `abs` and `smooth` - are
@@ -746,8 +749,23 @@ pub(crate) fn differentiate_at(
                     // and not a quotient. Refused rather than held
                     // still, which would be a wrong number where the
                     // honest answer is that this is not implemented.
+                    //
+                    // The refusal names the whole cycle, from where the
+                    // name was first held to where it came back: a
+                    // block of thirty torn unknowns is a different
+                    // problem from a pair, and naming one of the two
+                    // hid which it was.
+                    let from = holding.iter().position(|h| *h == name.as_str());
+                    let cycle: Vec<&str> = holding[from.unwrap_or(0)..]
+                        .iter()
+                        .copied()
+                        .chain(std::iter::once(name.as_str()))
+                        .collect();
                     return Err(format!(
-                        "`{name}` and the unknown determining it depend on each other"
+                        "`{name}` and the unknown determining it depend on each other \
+                         (a cycle of {}: {})",
+                        cycle.len() - 1,
+                        cycle.join(" -> ")
                     ));
                 } else if let Some(rhs) = state_rhs.get(name) {
                     rhs.clone()
@@ -806,6 +824,9 @@ pub(crate) fn differentiate_at(
                     // is a genuine singularity and is refused rather
                     // than divided by, since a wrong number is worse
                     // than a refusal.
+                    if let Some(answer) = pair_block_rate(name, target, depth)? {
+                        return Ok(answer);
+                    }
                     let residual = Expr::Bin(Sub, Box::new(l.clone()), Box::new(r.clone()));
                     let slope = simplify(&differentiate_at(
                         &residual,
@@ -1268,6 +1289,223 @@ fn undifferentiable_kind(expr: &Expr) -> &'static str {
     }
 }
 
+/// The rate of one of two torn unknowns that determine each other.
+///
+/// The scalar theorem holds the name still and differentiates its own
+/// residual, and where that residual reaches the other torn unknown,
+/// whose residual reaches back, the chain of held names meets itself
+/// and the walk refuses. The honest answer is the theorem on the
+/// system: with residuals `g1(t, x1, x2)` and `g2(t, x1, x2)`,
+///
+///     A * dx/dt = -b,  A[i][j] = dgi/dxj,  b[i] = dgi/dt at x fixed,
+///
+/// and for two unknowns Cramer's rule writes the answer out
+/// symbolically. A determinant that folds to zero is a singular block
+/// and refused, never divided by.
+///
+/// Taken only where the pair is the whole of it: the walk is at the
+/// top (nothing held), each residual names exactly the two torn
+/// unknowns among the torn ones, and no definition either residual
+/// reads mentions them - since the slopes are taken by a target that
+/// holds every other name still, a path from `x` through an inner
+/// assignment would be a slope left out. Anything else answers
+/// `None`, and the scalar path refuses as it did.
+///
+/// Opt-in behind `OXIDELICA_INIT_BLOCK_SYS=1` until it has been
+/// measured.
+fn pair_block_rate(name: &str, target: &DiffTarget, depth: usize) -> Result<Option<Expr>, String> {
+    use oxidelica_parser::BinOp::*;
+    let DiffTarget::Time {
+        state_rhs,
+        params,
+        dummies,
+        alg_defs,
+        implicit_defs,
+        holding,
+    } = target
+    else {
+        return Ok(None);
+    };
+    if !holding.is_empty()
+        || !(BLOCK_HERE.with(|forced| forced.get())
+            || crate::walk::switch_set("OXIDELICA_INIT_BLOCK_SYS"))
+    {
+        return Ok(None);
+    }
+    let residual_of = |n: &str| {
+        implicit_defs
+            .get(n)
+            .map(|(l, r)| Expr::Bin(Sub, Box::new(l.clone()), Box::new(r.clone())))
+    };
+    let torn_named = |e: &Expr| -> Vec<String> {
+        let mut refs = Vec::new();
+        e.collect_refs(&mut refs);
+        let mut torn: Vec<String> = refs
+            .into_iter()
+            .filter(|r| implicit_defs.contains_key(*r))
+            .map(str::to_string)
+            .collect();
+        torn.sort();
+        torn.dedup();
+        torn
+    };
+    let Some(g1) = residual_of(name) else {
+        return Ok(None);
+    };
+    let first = torn_named(&g1);
+    let [a, b] = first.as_slice() else {
+        return Ok(None);
+    };
+    let other = if a == name { b } else { a };
+    if !first.iter().any(|t| t == name) {
+        return Ok(None);
+    }
+    let Some(g2) = residual_of(other) else {
+        return Ok(None);
+    };
+    if torn_named(&g2) != first {
+        return Ok(None);
+    }
+    let pair = [name, other.as_str()];
+    // An inner assignment of the block that reads the pair is a path
+    // from `x` to the residual the slopes below would miss, since they
+    // hold every other name still. So each such definition is written
+    // into the residuals, followed to the end, and the slopes are
+    // total. Bounded: a residual that grows past the ceiling is left
+    // to the scalar path, which refuses as it did.
+    let mut reaches: HashMap<String, Option<bool>> = HashMap::new();
+    let Some(g1) = inline_reaching(&g1, alg_defs, &pair, &mut reaches, 0) else {
+        return Ok(None);
+    };
+    let Some(g2) = inline_reaching(&g2, alg_defs, &pair, &mut reaches, 0) else {
+        return Ok(None);
+    };
+    if torn_named(&g1) != first || torn_named(&g2) != first {
+        return Ok(None);
+    }
+    let slope = |g: &Expr, x: &str| -> Result<Expr, String> {
+        Ok(simplify(&differentiate_at(
+            g,
+            &DiffTarget::Variable { name: x, params },
+            depth + 1,
+        )?))
+    };
+    let (a11, a12) = (slope(&g1, name)?, slope(&g1, other)?);
+    let (a21, a22) = (slope(&g2, name)?, slope(&g2, other)?);
+    // Both held still: entered among the parameters, which is what the
+    // walk reads as a name that does not move. The value is no number
+    // anybody may read, and `NaN` makes sure no proof leans on it.
+    let mut still = (*params).clone();
+    for x in pair {
+        still.insert(x.to_string(), f64::NAN);
+    }
+    let held = DiffTarget::Time {
+        state_rhs,
+        params: &still,
+        dummies,
+        alg_defs,
+        implicit_defs,
+        holding: &[],
+    };
+    let b1 = simplify(&differentiate_at(&g1, &held, depth + 1)?);
+    let b2 = simplify(&differentiate_at(&g2, &held, depth + 1)?);
+    let det = simplify(&cramer_bin(
+        Sub,
+        cramer_bin(Mul, a11, a22.clone()),
+        cramer_bin(Mul, a12.clone(), a21),
+    ));
+    if matches!(det, Expr::Number(d) if d == 0.0) {
+        return Err(format!(
+            "`{name}` and `{other}` determine each other through a singular pair of equations"
+        ));
+    }
+    let numerator = cramer_bin(Sub, cramer_bin(Mul, b1, a22), cramer_bin(Mul, b2, a12));
+    Ok(Some(cramer_bin(Div, Expr::Neg(Box::new(numerator)), det)))
+}
+
+fn cramer_bin(op: oxidelica_parser::BinOp, a: Expr, b: Expr) -> Expr {
+    Expr::Bin(op, Box::new(a), Box::new(b))
+}
+
+/// The ceiling on a residual with the block's inner assignments
+/// written into it, in nodes. Past it the pair is left to the scalar
+/// path, which refuses: a symbolic Cramer over a residual that size is
+/// the expression growth this module has been killed for before.
+const PAIR_INLINE_NODES: usize = 20_000;
+
+/// An expression with every definition that reaches the pair written
+/// in, followed through definitions to the end. `None` where the
+/// result passes the ceiling or a definition reaches itself.
+fn inline_reaching(
+    expr: &Expr,
+    alg_defs: &HashMap<String, Expr>,
+    pair: &[&str],
+    reaches: &mut HashMap<String, Option<bool>>,
+    depth: usize,
+) -> Option<Expr> {
+    /// `None` where the definitions reach themselves: no answer is
+    /// given for a cycle, since a guess there is a slope left out.
+    fn reaches_pair(
+        name: &str,
+        alg_defs: &HashMap<String, Expr>,
+        pair: &[&str],
+        reaches: &mut HashMap<String, Option<bool>>,
+    ) -> Option<bool> {
+        if let Some(known) = reaches.get(name) {
+            return *known;
+        }
+        let Some(definition) = alg_defs.get(name) else {
+            return Some(false);
+        };
+        // Claimed as unanswerable before the work, so a definition
+        // reaching itself is refused rather than recurring for ever.
+        reaches.insert(name.to_string(), None);
+        let mut refs = Vec::new();
+        definition.collect_refs(&mut refs);
+        let mut answer = false;
+        for r in refs {
+            answer |= pair.contains(&r) || reaches_pair(r, alg_defs, pair, reaches)?;
+        }
+        reaches.insert(name.to_string(), Some(answer));
+        Some(answer)
+    }
+    if depth > MAX_DIFF_DEPTH {
+        return None;
+    }
+    let out = match expr {
+        Expr::Ref(name) if !pair.contains(&name.as_str()) => {
+            if reaches_pair(name, alg_defs, pair, reaches)? {
+                let definition = alg_defs.get(name)?;
+                inline_reaching(definition, alg_defs, pair, reaches, depth + 1)?
+            } else {
+                expr.clone()
+            }
+        }
+        _ => {
+            let mut failed = false;
+            let mapped = expr.map_children(&mut |child| {
+                if failed {
+                    return child.clone();
+                }
+                match inline_reaching(child, alg_defs, pair, reaches, depth + 1) {
+                    Some(done) => done,
+                    None => {
+                        failed = true;
+                        child.clone()
+                    }
+                }
+            });
+            if failed {
+                return None;
+            }
+            mapped
+        }
+    };
+    let mut nodes = 0usize;
+    out.for_each(&mut |_| nodes += 1);
+    (nodes <= PAIR_INLINE_NODES).then_some(out)
+}
+
 /// The value of an expression, if the structure already holds one:
 /// a literal, a parameter the differentiator was given a number for,
 /// or arithmetic over those. Nothing else - a state has no value here
@@ -1450,6 +1688,12 @@ fn does_not_move(expr: &Expr, target: &DiffTarget) -> bool {
         }
         _ => false,
     }
+}
+
+/// Turn the pair rule for two torn unknowns on for this thread.
+#[cfg(test)]
+pub(crate) fn block_rates_here() {
+    BLOCK_HERE.with(|forced| forced.set(true));
 }
 
 /// Turn the shared-derivative rule on for this thread, for a test that
