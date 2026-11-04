@@ -68997,3 +68997,29 @@ continuous system. C needs it through an implicit medium relation,
 which is the harder half. The narrowest first step is A: a pure alias
 chain ending in states and an angle. Shrinking from A to a small model
 is the next measurement.
+
+### The three `der(X)` are one layer: a block with more than one torn unknown
+
+`OXIDELICA_INIT_DER_PROBE=1` on the three representatives puts each X
+in a block of several torn unknowns: A, `aimc.idq_sr[1]`, inner of a
+block of 197 with 8 torn; B, `aimc.airGap.V_msr.re`, inner of a block
+of 466 with 14 torn; C, `tank.medium.T`, torn itself in a block of 328
+with 32 torn (`/tmp/m579/probeC.txt`). The refusal is the one that
+`algebraic_definition_derivatives` (`compile.rs:9114`) chooses to
+make: where two torn unknowns determine each other, the chain meets
+itself and the differentiation refuses rather than divide by a slope
+that means nothing. So the three subfamilies are one layer and not
+three. What they need is the implicit function theorem taken for the
+whole block, a linear solve of `dg/dx * dx/dt = -dg/dt` over the torn
+unknowns, in place of one residual per unknown.
+
+A small model shows it in sixteen lines (`/tmp/m579/rotimp.mo`): two
+states `s1, s2`, an angle `g`, and `s = R(g)*r` solved for `r`, with
+`der(r1) = 0` as an initial equation. It is refused with the same
+words. The tearing decides it, not the shape: the same two equations
+with `g(start = 0.5)` are torn differently and the model runs past the
+refusal (`/tmp/m579/z5.mo`), and blocks of two with constant or
+state coefficients run (`/tmp/m579/co.mo`, `blk.mo`). That the
+answer depends on a start value through the tearing is a finding of
+its own. The next step is the block-wide derivative, with
+`rotimp.mo` as its test.
