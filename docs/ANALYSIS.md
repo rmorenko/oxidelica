@@ -68314,10 +68314,10 @@ the columns, a column absent from a stretch reading NaN there, never
 zero. Machines `SMEE_LoadDump` under `simulate` with
 `OXIDELICA_RAD_SCALE=1`, one binary:
 
-| splice | result                                                              |
-| ------ | ------------------------------------------------------------------- |
-| off    | t = 2: the states re-selected name different variables, 390 s       |
-| NaN    | passes t = 2; structurally singular at reduction 18, order 4 of 3   |
+| splice | result                                                            |
+| ------ | ----------------------------------------------------------------- |
+| off    | t = 2: the states re-selected name different variables, 390 s     |
+| NaN    | passes t = 2; structurally singular at reduction 18, order 4 of 3 |
 
 (`s_off/err.txt`, `s_on/err.txt`.) The splice is not the last wall. The
 next is index reduction of the rebuilt model, which asks a
@@ -68340,18 +68340,18 @@ Cauchy point against a Newton step of equal length.
 Built under `OXIDELICA_CAUCHY_PROBE` and run on the ten models of
 `nd.txt` (`/tmp/m574/cauchy.txt`):
 
-| model             | |f| at refusal | cos     | Cauchy point | Newton, same length |
+| model | |f| at refusal | cos | Cauchy point | Newton, same length |
 | ----------------- | -------------- | ------- | ------------ | ------------------- |
-| ThreeSprings      | 4.46e-1        | 9.2e-4  | 1.14e-1      | 4.62e-1             |
-| TestTemperature1  | 5.51e11        | 0.98    | NaN          | NaN                 |
-| BranchingPipes1   | 2.90e5         | 1.3e-7  | 2.52e5       | 2.90e5              |
-| BranchingPipes13  | 1.15e3         | 4.4e-5  | 1.18e1       | 1.15e3              |
-| BranchingPipes14  | 1.80e-1        | 2.2e-4  | 1.80e-1      | 1.80e-1             |
-| BranchingPipes2   | 3.06e6         | 5.4e-4  | 9.43e5       | NaN                 |
-| BranchingPipes3   | 1.58e3         | 2.4e-4  | 2.95e0       | 8.72e4              |
-| BranchingPipes4   | 2.32e2         | 1.8e-4  | 2.32e2       | 2.32e2              |
-| SeriesPipes1      | 3.77e4         | 6.5e-3  | 2.62e0       | NaN                 |
-| SeriesPipes2      | 3.14e3         | 1.5e-4  | 9.31e0       | NaN                 |
+| ThreeSprings | 4.46e-1 | 9.2e-4 | 1.14e-1 | 4.62e-1 |
+| TestTemperature1 | 5.51e11 | 0.98 | NaN | NaN |
+| BranchingPipes1 | 2.90e5 | 1.3e-7 | 2.52e5 | 2.90e5 |
+| BranchingPipes13 | 1.15e3 | 4.4e-5 | 1.18e1 | 1.15e3 |
+| BranchingPipes14 | 1.80e-1 | 2.2e-4 | 1.80e-1 | 1.80e-1 |
+| BranchingPipes2 | 3.06e6 | 5.4e-4 | 9.43e5 | NaN |
+| BranchingPipes3 | 1.58e3 | 2.4e-4 | 2.95e0 | 8.72e4 |
+| BranchingPipes4 | 2.32e2 | 1.8e-4 | 2.32e2 | 2.32e2 |
+| SeriesPipes1 | 3.77e4 | 6.5e-3 | 2.62e0 | NaN |
+| SeriesPipes2 | 3.14e3 | 1.5e-4 | 9.31e0 | NaN |
 
 Prediction 1 of the answer holds for nine of ten: the cosine is 1e-7
 to 6.5e-3. The Cauchy point cuts the residual by two to four orders
