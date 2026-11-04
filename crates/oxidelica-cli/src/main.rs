@@ -1181,7 +1181,7 @@ fn library_check(args: &[String]) -> Result<(), String> {
     // a few percent wide.
     println!(
         "work: flattening {} classes, {} expansions, {} bodies, {} names; \
-         running {} points, {} newton, {} jacobians, {} jacobians apart",
+         running {} points, {} newton, {} jacobians, {} jacobians apart, {} damped",
         flattening_work.instantiated,
         flattening_work.expanded,
         flattening_work.inlined,
@@ -1189,7 +1189,8 @@ fn library_check(args: &[String]) -> Result<(), String> {
         running_work.points,
         running_work.newton,
         running_work.jacobians,
-        loose_jacobians
+        loose_jacobians,
+        running_work.damped
     );
     if list {
         let mut named: Vec<&&String> = flat.iter().collect();

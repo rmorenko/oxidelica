@@ -31,9 +31,14 @@ pub enum Step {
     Newton,
     /// A Jacobian of the states built by differences.
     Jacobian,
+    /// A damped trial: the residual evaluated again on a step cut
+    /// short, whether by a retreat from an edge or by a line search.
+    /// Not a Newton iteration, which is why it is counted apart: a
+    /// change whose cost is spent here moves no other count.
+    Damped,
 }
 
-const KINDS: usize = 6;
+const KINDS: usize = 7;
 
 impl Step {
     fn at(self) -> usize {
@@ -44,6 +49,7 @@ impl Step {
             Step::Point => 3,
             Step::Newton => 4,
             Step::Jacobian => 5,
+            Step::Damped => 6,
         }
     }
 }
@@ -51,6 +57,7 @@ impl Step {
 thread_local! {
     static COUNTED: [Cell<u64>; KINDS] = const {
         [
+            Cell::new(0),
             Cell::new(0),
             Cell::new(0),
             Cell::new(0),
@@ -87,6 +94,8 @@ pub struct Work {
     pub newton: u64,
     /// Jacobians built.
     pub jacobians: u64,
+    /// Damped trials of a step cut short.
+    pub damped: u64,
 }
 
 impl Work {
@@ -101,6 +110,7 @@ impl Work {
             points: get(Step::Point),
             newton: get(Step::Newton),
             jacobians: get(Step::Jacobian),
+            damped: get(Step::Damped),
         }
     }
 
@@ -114,6 +124,7 @@ impl Work {
             points: self.points - earlier.points,
             newton: self.newton - earlier.newton,
             jacobians: self.jacobians - earlier.jacobians,
+            damped: self.damped - earlier.damped,
         }
     }
 
@@ -127,6 +138,7 @@ impl Work {
             points: self.points + other.points,
             newton: self.newton + other.newton,
             jacobians: self.jacobians + other.jacobians,
+            damped: self.damped + other.damped,
         }
     }
 }
@@ -145,6 +157,7 @@ mod tests {
         tick(Step::Point);
         tick(Step::Newton);
         tick(Step::Jacobian);
+        tick(Step::Damped);
         let done = Work::here().since(before);
         assert_eq!(
             done,
@@ -156,6 +169,7 @@ mod tests {
                 points: 1,
                 newton: 1,
                 jacobians: 1,
+                damped: 1,
             }
         );
         assert_eq!(done.plus(done).expanded, 4);

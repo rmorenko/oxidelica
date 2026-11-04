@@ -679,6 +679,47 @@ fn a_check_that_cannot_see_the_carved_out_set_says_so() {
 }
 
 #[test]
+fn a_damped_trial_is_counted_where_newton_cuts_its_step_and_nowhere_else() {
+    // Newton on `atan(y) = 0.5` from `y = 10` overshoots into a place
+    // where the residual is larger, and the line search cuts the step
+    // back: each cut is a residual evaluated again and no Newton
+    // iteration. A loop that never cuts counts none.
+    let library = TempDir::new("damped trials");
+    std::fs::write(
+        library.0.join("Lib.mo"),
+        "package Lib package Examples \
+         model Damp Real x(start = 0, fixed = true); Real y(start = 10); \
+         equation der(x) = y; atan(y) = 0.5 + 0*x; end Damp; \
+         model Plain Real x(start = 2, fixed = true); \
+         equation der(x) = -(x - 1); end Plain; \
+         end Examples; end Lib;",
+    )
+    .unwrap();
+    let damped = |model: &str| -> u64 {
+        let out = bin()
+            .args([
+                "library",
+                "check",
+                library.0.to_str().unwrap(),
+                "--only",
+                model,
+            ])
+            .output()
+            .unwrap();
+        assert!(out.status.success(), "{}", stderr(&out));
+        let text = stdout(&out);
+        assert!(text.contains("of which 1 flatten and 1 run"), "{text}");
+        let line = text.lines().find(|l| l.starts_with("work:")).unwrap();
+        line.strip_suffix(" damped")
+            .and_then(|l| l.rsplit(' ').next())
+            .and_then(|n| n.parse().ok())
+            .unwrap_or_else(|| panic!("no damped count on: {line}"))
+    };
+    assert!(damped("Lib.Examples.Damp") > 0);
+    assert_eq!(damped("Lib.Examples.Plain"), 0);
+}
+
+#[test]
 fn the_jacobians_of_a_named_set_are_counted_on_a_line_of_their_own() {
     // Two solenoids build 0, 124 or 2812 Jacobians depending on the
     // difference step the run happened to take, and summed with every

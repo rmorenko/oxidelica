@@ -69114,3 +69114,36 @@ stopped them is "Newton direction" or a singular Jacobian from the
 moved starts. That was deliberate (the comment at `:1159`), and it
 makes the census name the first wall rather than the last. It is not
 treated here.
+
+### The giant under the pair rule, probed (m576)
+
+The premise of the question was wrong in one half. Without the key,
+`HeatExchangerSimulation` does not run in twenty seconds: it is refused
+in one, at `der(HEX.pipe_1.mediums[1].T)`, and the twenty seconds are
+its flattening (`/tmp/m575/hex_off.txt`: flattening 18810 ms, running
+1090 ms, 0 run). So the key does not slow a model that ran; it lets a
+refused one into an initialisation that does not finish.
+
+The size of the Cramer results is not the cause. Under
+`OXIDELICA_INIT_DER_PROBE` the rule now prints the node count of each
+rate it builds: 80 distinct pairs, every one a medium's `p` with its
+`T`, at 439 or 449 nodes (`/tmp/m576/hexp.txt`). A ceiling on the
+result would not fire.
+
+Where the time goes is the initialisation's torn block. Under
+`OXIDELICA_NEWTON_TRAIL` (`/tmp/m576/hext.txt`) the block has 162
+unknowns, falls from |f| = 9.8e3 to 4.05e-6 in three iterations and
+then stands there, the residual creeping up in the eighth digit, and is
+entered again from the next point with the same floor. Each entry walks
+the IF97 bodies, which is the `walk::to_scalar` / `code::eval` of the
+old sample (`/tmp/m575/hex.sample`: 2228 of 2243 samples under
+`solve_initialization` -> `solve_implicit_block`). The probe was
+stopped at six CPU minutes with no verdict printed. Either the steady
+start the pair rule writes for `der(T) = 0` is not one the block can
+meet closer than 4e-6, or the tolerance asks for more than the medium's
+arithmetic gives. Which of the two is the next probe; no fix was
+written, and the key stays off. One reading taken: at the floor the
+largest residual is row 43, -1.17e-6 against an unknown of 2.8e-6,
+with two more rows near 1e-6, so the rows that will not close are
+unknowns of order a micro-unit held to the absolute half of
+`1e-10 * (1 + |v|)` - which names the tolerance as the likelier half.

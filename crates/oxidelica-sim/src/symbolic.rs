@@ -1422,7 +1422,13 @@ fn pair_block_rate(name: &str, target: &DiffTarget, depth: usize) -> Result<Opti
         ));
     }
     let numerator = cramer_bin(Sub, cramer_bin(Mul, b1, a22), cramer_bin(Mul, b2, a12));
-    Ok(Some(cramer_bin(Div, Expr::Neg(Box::new(numerator)), det)))
+    let rate = cramer_bin(Div, Expr::Neg(Box::new(numerator)), det);
+    let mut nodes = 0usize;
+    rate.for_each(&mut |_| nodes += 1);
+    if std::env::var_os("OXIDELICA_INIT_DER_PROBE").is_some() {
+        eprintln!("pair-rate: {name} with {other}: {nodes} nodes");
+    }
+    Ok(Some(rate))
 }
 
 fn cramer_bin(op: oxidelica_parser::BinOp, a: Expr, b: Expr) -> Expr {

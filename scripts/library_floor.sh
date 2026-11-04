@@ -3757,14 +3757,14 @@ combined_report() {
           print "JUDGE: report " g " does not have one line of each count; it is not a pass report" > "/dev/stderr"
           exit 1
         }
-      if (f != 2 || wk != 8) { print "JUDGE: two reports with eight counts of work were wanted" > "/dev/stderr"; exit 1 }
+      if (f != 2 || wk != 9) { print "JUDGE: two reports with nine counts of work were wanted" > "/dev/stderr"; exit 1 }
       print files
       printf "classes: %d; example models: %d, of which %d flatten and %d run\n", C, M, F, R
       printf "runnable examples (experiment or Example icon): %d, of which %d flatten and %d run\n", rb_n, rb_f, rb_r
       printf "time: flattening %.0fs over %d models (%.0fms each); running %.0fs over %d (%.0fms each)\n", \
         fl_s, fl_n, (fl_n > 0 ? fl_s * 1000 / fl_n : 0), ru_s, ru_n, (ru_n > 0 ? ru_s * 1000 / ru_n : 0)
-      printf "work: flattening %.0f classes, %.0f expansions, %.0f bodies, %.0f names; running %.0f points, %.0f newton, %.0f jacobians, %.0f jacobians apart\n", \
-        W[1], W[2], W[3], W[4], W[5], W[6], W[7], W[8]
+      printf "work: flattening %.0f classes, %.0f expansions, %.0f bodies, %.0f names; running %.0f points, %.0f newton, %.0f jacobians, %.0f jacobians apart, %.0f damped\n", \
+        W[1], W[2], W[3], W[4], W[5], W[6], W[7], W[8], W[9]
       printf "%s", rest
     }' "$1" "$2"
 }

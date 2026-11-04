@@ -1674,6 +1674,7 @@ impl CompiledModel {
                 if let Some((from, dv, lambda)) = footing.take() {
                     let lambda = lambda / 2.0;
                     if lambda > 1e-6 {
+                        oxidelica_parser::work::tick(oxidelica_parser::work::Step::Damped);
                         v = (0..n).map(|j| from[j] - lambda * dv[j]).collect();
                         footing = Some((from, dv, lambda));
                         over_edge = true;
@@ -2213,6 +2214,7 @@ impl CompiledModel {
                     if let Some((from, dv, lambda)) = footing.take() {
                         let lambda = lambda / 2.0;
                         if lambda > 1e-6 {
+                            oxidelica_parser::work::tick(oxidelica_parser::work::Step::Damped);
                             v = (0..n).map(|j| from[j] - lambda * dv[j]).collect();
                             footing = Some((from, dv, lambda));
                             damped = true;
@@ -2575,6 +2577,7 @@ impl CompiledModel {
                         break;
                     }
                     lambda /= 2.0;
+                    oxidelica_parser::work::tick(oxidelica_parser::work::Step::Damped);
                     next = (0..n).map(|j| v[j] - lambda * dv[j]).collect();
                 }
                 // Twenty halvings that never brought the residual down
