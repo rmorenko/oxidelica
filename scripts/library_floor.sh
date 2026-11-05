@@ -1987,7 +1987,16 @@ FLATTEN_FLOOR=974
 # flatten, 782 run`. Less the same three that swing:
 #
 #   830 - 3 = 827
-RUN_FLOOR=827
+#
+# Then the fold of a guard written over parameters alone (c0a559b)
+# won three Spice3 inverters. The desk printed 974 / 833
+# (/tmp/m585/on.txt) and the judge of push run 42116543027 on e847455
+# printed `OK: 2671 files read, 974 flatten, 833 run; runnable 856
+# flatten, 785 run`. Less the same three that swing (SpringWithMass,
+# SMPM_VoltageSource FW, TestJunctionIdeal):
+#
+#   833 - 3 = 830
+RUN_FLOOR=830
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -2548,7 +2557,10 @@ RUNNABLE_FLATTEN_FLOOR=856
 # And the three IMC_Initialize, won by the start-block default, are
 # all runnable examples: the judge of 42027424096 printed 856 / 782,
 # so 782 - 3 = 779.
-RUNNABLE_RUN_FLOOR=779
+# And the three Spice3 inverters won by the guard fold are runnable
+# examples: the judge of 42116543027 printed 856 / 785, so
+# 785 - 3 = 782.
+RUNNABLE_RUN_FLOOR=782
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
