@@ -69384,3 +69384,36 @@ below hex's 32. Hex then refuses after about 25 entries of 16 s, or
 roughly seven minutes, instead of without end. The ceiling can be
 read from `OXIDELICA_START_STALL_ENTRIES`, so the next pair can move
 it without a rebuild. A pair at 24 follows.
+
+#### The pair at K = 24
+
+The binary is `/tmp/m579x/ox6`, built from the tree of eeadcd8, run
+the same way as above. The off half is `/tmp/m579x/off24.txt` and the
+on half is `/tmp/m579x/on24.txt`. The ran lists are 821 off and 824 on.
+The difference is exactly the three `IMC_Initialize` models, and there
+are no victims. `Rectifier`, `CCCV_Stack` and `SMR_CurrentSource` run
+with peaks of 17, 18 and 19. Runnable examples are 774 off and 777 on.
+Hex is refused with "re-entered 25 times at t = 0, stalled at |f| =
+4.0538903774771e-6 for the last 24 entries", and it is the only start
+block that reaches the ceiling.
+
+The price is outside the standing rule. The run half took 3907 s off
+and 4537 s on, which is 16.1% dearer, against 9.0% at K = 12
+(3935 s / 4289 s). The off halves of the two pairs agree to within
+0.7%, so this is the change and not the desk. The counters moved by
+only 604 points and 1508 Newton steps, which is the blind spot the
+notes already name. Most of the 630 s is hex. Its 25 entries at about
+16 s each come to roughly 400 s. Before this rule, hex was refused
+early in the off half, in its index reduction ("`HEX.pipe_1.mediums[1].T`
+is not a state"). The rest is the three restored victims and the
+`IMC_Initialize` winners. That is an estimate from the per-entry cost,
+not a per-model timing.
+
+The key is not made the default. Three models for 16% goes to Roman.
+The ceiling that would make it cheap is on hex's side, not on K's,
+because a hex refused in minutes still costs minutes. Two questions
+are carried forward. Can a stall be detected in fewer entries than 24
+without catching legitimate runs of 19? A ceiling scaled to the block
+size might do it: hex has 162 unknowns, while the victims have 7, 8
+and the SMR block. Or should hex be carved out of the main pass as a
+solver giant?
