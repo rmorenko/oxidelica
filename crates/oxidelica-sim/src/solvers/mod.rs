@@ -3161,8 +3161,8 @@ impl StartStall {
     pub(crate) fn floor_entry(&mut self, norm: f64, most: usize) -> bool {
         self.entries += 1;
         match self.best {
-            Some(best) if !(norm < best) => self.since += 1,
             _ if norm.is_nan() => self.since += 1,
+            Some(best) if norm >= best => self.since += 1,
             _ => {
                 self.best = Some(norm);
                 self.since = 0;
@@ -3188,7 +3188,7 @@ mod start_stall_tests {
             let norm = if k % 4 == 0 {
                 4.52e-3
             } else {
-                4.0538903774583206e-6 + k as f64 * 1e-17
+                4.053_890_377_458_32e-6 + k as f64 * 1e-17
             };
             if s.floor_entry(norm, 12) {
                 fired = Some(k);
