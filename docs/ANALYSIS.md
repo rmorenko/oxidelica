@@ -69838,3 +69838,88 @@ sweptVolume.m". The initial equation on the temperature was paired
 with the mass, which is how the start block came to be solved on
 `medium.T`. The refusal is the same with `OXIDELICA_NO_INIT_BLOCK_SYS=1`,
 so it is not the start-block key's doing.
+
+## The guard fold taken out of the park, its price paid (m585)
+
+The parked patch (m584-fold-guard-whole) reads a guard written over
+parameters alone, such as `not (capIsGiven > 0.5)`, and picks its
+branch, so the dead branch's `0/0` no longer keeps a junction
+capacitance out of the zeros. Its price was named in 2918100: every
+leaf of the guard rebuilt a table of every parameter of the model, and
+the walk asked the guard twice per `If`. Both are gone now. The table
+is built once per guard from the guard's own names, already collected
+and checked against the parameters, and the `If` arm asks once and
+falls back to both branches when the guard does not fold. The unit
+test, including the guard on `v` that must not fold, was seen red
+under `OXIDELICA_NO_FOLD_GUARD_WHOLE=1` and green without it on the
+final tree.
+
+### The small judge
+
+On the 205-model set of m584 (/tmp/m584/small.lst), one binary
+(/tmp/m585/ox13), /tmp/m585/s_off.txt and s_on.txt:
+
+```text
+off   flattening 327s   running 384s
+on    flattening 328s   running 381s
+```
+
+The run lists differ by exactly three lines, all won: `FourInverters`,
+`InvertersApartRecord`, `InvertersExtendedModel`. No victims.
+`Inverter` stands at "has a solution on either side of
+mp.Sinternal", `Nand` at "did not converge in 50 Newton iterations",
+the walls of m584 and not the old NaN.
+
+### BranchingPipes do not carry the m579x remainder
+
+The 189 s left over in the m579x pair (start-block key) was looked for
+in the seven `BranchingPipes` of the main pass, with the pair's own
+binary /tmp/m579x/ox6, off, on with `OXIDELICA_INIT_BLOCK_SYS=1
+OXIDELICA_START_STALL_PEAK=1`, and off again, one model at a time
+(/tmp/m585/bp_*.txt). Running seconds, off / on / off:
+
+```text
+BranchingPipes2    72 / 71 / 72
+BranchingPipes3    67 / 67 / 66
+BranchingPipes4    21 / 21 / 21
+BranchingPipes13   45 / 45 / 45
+BranchingPipes14   22 / 22 / 23
+BranchingPipes15   13 / 12 / 13
+BranchingPipes16   13 / 13 / 13
+```
+
+Every difference is inside the 0 to 1 s the two off halves differ by,
+so the family is excluded by a firm zero, not by a lack of
+resolution. `BranchingPipes4` costs 21 s to run: the 2443 s beside it
+in solvers/mod.rs belongs to a different experiment (m410), and the
+model is not to be feared.
+
+The hunt itself was avoidable. The m579x pair ran without `--slow`,
+so no per-model times were on disk and the remainder could not be
+assigned for free. Every corpus pair should carry `--slow 60` on
+both halves: the times are gathered anyway, and the print names the
+carriers of any remainder from the same run.
+
+### The corpus pair
+
+One binary (/tmp/m585/ox13, built from the final tree), the off half
+under `OXIDELICA_NO_FOLD_GUARD_WHOLE=1`, then the on half, both with
+`--list --slow 60`, /tmp/m585/off.txt and on.txt:
+
+```text
+off   974 flatten, 830 run, 782 runnable   flattening 3942s   running 4599s
+on    974 flatten, 833 run, 785 runnable   flattening 3876s   running 4595s
+```
+
+The run lists differ by the same three inverters and nothing else, so
+the victims are none. The run half is 4 s cheaper, inside the 18 s
+floor of the A/A pair, and the flattening half 66 s cheaper, against
+the 88 s it cost before the fix. The carrier named in 2918100 was the
+whole of the price. By the rule of 26 October (lists equal but for the
+wins, run half not dearer, carrier named) the fold goes in. The floors
+are left for the judge's print.
+
+`PumpingSystem`, asked with `why` about `reservoir.portsData_height`,
+now refuses earlier than the m584 probe saw: the IF97 viscosity is
+called with a NaN density inside the reservoir's loop at t = 0. The
+zero nobody wrote is still the first suspect; not followed further.

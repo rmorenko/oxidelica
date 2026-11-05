@@ -3787,6 +3787,56 @@ fn fold_guard_on() -> bool {
     std::env::var_os("OXIDELICA_NO_FOLD_GUARD").is_none()
 }
 
+/// Whether a guard written over parameters alone, not only a bare
+/// parameter, picks its branch. `OXIDELICA_NO_FOLD_GUARD_WHOLE=1`
+/// keeps the bare reading, for the other half of a pair.
+fn fold_guard_whole_on() -> bool {
+    std::env::var_os("OXIDELICA_NO_FOLD_GUARD_WHOLE").is_none()
+}
+
+/// The value of a guard every name of which is a parameter, or `None`
+/// where it names anything that can move or does not fold.
+fn guard_of_parameters(cond: &Expr, params: &HashMap<String, f64>) -> Option<bool> {
+    use oxidelica_parser::RelOp;
+    let mut refs = Vec::new();
+    cond.collect_refs(&mut refs);
+    if refs.iter().any(|r| !params.contains_key(*r)) {
+        return None;
+    }
+    // The table is built once per guard from the guard's own names,
+    // not once per leaf from every parameter of the model: a model
+    // carries thousands of parameters and a guard names two.
+    let table: HashMap<&str, f64> = refs.iter().map(|r| (*r, params[*r])).collect();
+    fn number(e: &Expr, table: &HashMap<&str, f64>) -> Option<f64> {
+        match crate::symbolic::simplify(&crate::symbolic::substitute_all(e, table)) {
+            Expr::Number(n) if n.is_finite() => Some(n),
+            _ => None,
+        }
+    }
+    fn truth(c: &Expr, table: &HashMap<&str, f64>) -> Option<bool> {
+        match c {
+            Expr::Bool(b) => Some(*b),
+            Expr::Ref(_) | Expr::Number(_) => number(c, table).map(|n| n != 0.0),
+            Expr::Not(inner) => truth(inner, table).map(|b| !b),
+            Expr::And(l, r) => Some(truth(l, table)? && truth(r, table)?),
+            Expr::Or(l, r) => Some(truth(l, table)? || truth(r, table)?),
+            Expr::Rel(op, l, r) => {
+                let (a, b) = (number(l, table)?, number(r, table)?);
+                Some(match op {
+                    RelOp::Lt => a < b,
+                    RelOp::Le => a <= b,
+                    RelOp::Gt => a > b,
+                    RelOp::Ge => a >= b,
+                    RelOp::Eq => a == b,
+                    RelOp::Ne => a != b,
+                })
+            }
+            _ => None,
+        }
+    }
+    truth(cond, &table)
+}
+
 /// A denominator that cannot be read as a zero: anything but a
 /// parameter worth zero or a literal zero. `0/0` is not zero, it is no
 /// number at all, and the quench must not answer it with one.
@@ -3875,7 +3925,22 @@ fn zero_throughout_with(
                 z(then)
             }
         }
-        Expr::If(_, then, other) if zero_if => z(then) && z(other),
+        // And a guard written over parameters alone - `not (capIsGiven
+        // > 0.5)` - is as unmovable as one that names a parameter bare.
+        // Asked once: a guard that does not fold falls back to both
+        // branches below rather than being judged twice.
+        Expr::If(cond, then, other) if zero_if => {
+            let picked = if fold_guard_on() && fold_guard_whole_on() {
+                guard_of_parameters(cond, params)
+            } else {
+                None
+            };
+            match picked {
+                Some(true) => z(then),
+                Some(false) => z(other),
+                None => z(then) && z(other),
+            }
+        }
         // A `smooth` kept for the event search holds the value it wraps.
         Expr::Call(name, args)
             if oxidelica_parser::operator_name(name) == "smooth" && args.len() == 2 =>
@@ -11093,5 +11158,40 @@ mod zero_if_tests {
         assert!(!zero_throughout_with(&by_if, &params, &zeros, true));
         assert!(!zero_throughout_with(&by_product, &params, &zeros, true));
         assert!(zero_throughout_with(&live, &params, &zeros, true));
+    }
+
+    /// A guard written over parameters alone picks its branch, so the
+    /// dead branch's `0/0` does not keep a junction capacitance from
+    /// being zero (the Spice3 inverters' `cBD`). A guard that names
+    /// anything that moves - here `v`, zero at the start - picks
+    /// nothing, and the live branch keeps the name out of the zeros.
+    #[test]
+    fn a_guard_of_parameters_alone_picks_its_branch() {
+        use oxidelica_parser::RelOp;
+        let params: HashMap<String, f64> = [("given".to_string(), 1.0), ("f".to_string(), 0.0)]
+            .into_iter()
+            .collect();
+        let zeros = HashSet::new();
+        let dead = div(r("f"), r("f"));
+        let by_params = Expr::If(
+            Box::new(Expr::Not(Box::new(Expr::Rel(
+                RelOp::Gt,
+                Box::new(r("given")),
+                Box::new(Expr::Number(0.5)),
+            )))),
+            Box::new(dead.clone()),
+            Box::new(Expr::Number(0.0)),
+        );
+        assert!(zero_throughout_with(&by_params, &params, &zeros, true));
+        let by_state = Expr::If(
+            Box::new(Expr::Rel(
+                RelOp::Gt,
+                Box::new(r("v")),
+                Box::new(Expr::Number(0.5)),
+            )),
+            Box::new(r("v")),
+            Box::new(Expr::Number(0.0)),
+        );
+        assert!(!zero_throughout_with(&by_state, &params, &zeros, true));
     }
 }
