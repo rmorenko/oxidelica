@@ -69337,6 +69337,12 @@ minutes of CPU without a verdict (`/tmp/m578x/hex_free.txt`). The
 refusal reads: "start block of 162 unknowns [...] re-entered 13 times
 at t = 0, stalled at |f| = 4.0538903774771e-6 for the last 12 entries
 on the arithmetic floor, not accepted". The peak memory was 0.5 GB.
+Thirteen entries and a ceiling of twelve agree: the best is set on the
+first entry, the next twelve do not improve on it, and the refusal
+comes at the thirteenth. An earlier run with the same rule but without
+`--refused` (`/tmp/m579x/hex_on.txt`, binary `/tmp/m579x/ox1`) took
+219 s for the run half. The 224 s above is from the second run, and the
+two numbers come from different runs.
 
 The unit tests (`start_stall_tests`) cover only the counter: a floor
 that creeps, with outliers, which fires on the thirteenth entry, and a
