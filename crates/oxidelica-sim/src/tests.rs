@@ -1087,6 +1087,18 @@ fn the_silent_chain_reads_a_state_through_silent_names_when_asked() {
 #[test]
 fn two_torn_unknowns_take_their_rates_from_the_pair() {
     crate::symbolic::block_rates_here();
+    rates_of_the_worked_pair();
+}
+
+/// The pair rule is the default since m580: the same worked pair, on a
+/// thread that never forced it, still gets its rates. Red while the
+/// rule waited for `OXIDELICA_INIT_BLOCK_SYS`.
+#[test]
+fn the_pair_rule_is_on_without_being_asked() {
+    rates_of_the_worked_pair();
+}
+
+fn rates_of_the_worked_pair() {
     let state_rhs = HashMap::new();
     let params = HashMap::new();
     let dummies = HashMap::new();

@@ -1426,11 +1426,11 @@ impl CompiledModel {
         // the arithmetic floor is counted against the start's running
         // best, and a start that has stood that long without bettering
         // it is refused by name rather than asked again for as long as
-        // the outer iteration has budget. Only under
-        // `OXIDELICA_INIT_BLOCK_SYS`, and only while the initialization
-        // is the one asking. See `StartStall`.
+        // the outer iteration has budget. Not under
+        // `OXIDELICA_NO_INIT_BLOCK_SYS`, and only while the
+        // initialization is the one asking. See `StartStall`.
         let start_stalled = |values: &mut [f64], v: &[f64]| -> Result<(), SimError> {
-            if !crate::walk::switch_set("OXIDELICA_INIT_BLOCK_SYS") {
+            if !crate::walk::init_block_sys() {
                 return Ok(());
             }
             let mut held = self.start_stall.borrow_mut();
@@ -3127,8 +3127,8 @@ mod step_floor_tests {
 
 /// How many entries into the start block in a row may end on the
 /// arithmetic floor without improving on the best residual the start
-/// has seen, before the start is refused as stalled. Only read under
-/// `OXIDELICA_INIT_BLOCK_SYS`; see [`StartStall`].
+/// has seen, before the start is refused as stalled. Not read under
+/// `OXIDELICA_NO_INIT_BLOCK_SYS`; see [`StartStall`].
 pub(crate) const START_STALL_ENTRIES: usize = 24;
 
 /// The start's memory of how its implicit block has fared across the

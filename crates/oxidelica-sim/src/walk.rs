@@ -37,6 +37,15 @@ const UNASSIGNED: u64 = 0x7ff8_dead_0000_0001;
 /// Whether a switch is set in the environment, read once per process.
 ///
 /// The walk asks its switches inside its innermost loop, and on macOS
+/// Whether the start's implicit blocks are taken as systems: the pair
+/// rule for two torn unknowns and the start-stall ceiling. On by default
+/// since m580 (the pair at a ceiling of 24 won three `IMC_Initialize`
+/// and lost nothing); `OXIDELICA_NO_INIT_BLOCK_SYS` turns it off, which
+/// is what the next pair measuring it is taken with.
+pub(crate) fn init_block_sys() -> bool {
+    !switch_set("OXIDELICA_NO_INIT_BLOCK_SYS")
+}
+
 /// `getenv` takes a lock the whole process shares. Sampled while a
 /// water model walked IF97 on one thread of a corpus check, fifteen
 /// percent of its busy time was `__findenv_locked` under

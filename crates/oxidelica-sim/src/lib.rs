@@ -558,8 +558,8 @@ pub struct CompiledModel {
     newton_peak: std::cell::Cell<(usize, f64)>,
     /// Whether the initialization is the one asking, and how each of
     /// its implicit blocks has fared across the entries it made, keyed
-    /// by the block's first unknown. Read only under
-    /// `OXIDELICA_INIT_BLOCK_SYS`; see `solvers::StartStall`.
+    /// by the block's first unknown. Not read under
+    /// `OXIDELICA_NO_INIT_BLOCK_SYS`; see `solvers::StartStall`.
     pub(crate) start_stall:
         std::cell::RefCell<Option<std::collections::HashMap<usize, solvers::StartStall>>>,
     /// How many events of this segment changed something - a discrete

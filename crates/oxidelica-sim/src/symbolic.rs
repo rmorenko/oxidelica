@@ -1313,8 +1313,8 @@ fn undifferentiable_kind(expr: &Expr) -> &'static str {
 /// assignment would be a slope left out. Anything else answers
 /// `None`, and the scalar path refuses as it did.
 ///
-/// Opt-in behind `OXIDELICA_INIT_BLOCK_SYS=1` until it has been
-/// measured.
+/// On by default since m580; `OXIDELICA_NO_INIT_BLOCK_SYS` turns it
+/// off for the pair that measures it.
 fn pair_block_rate(name: &str, target: &DiffTarget, depth: usize) -> Result<Option<Expr>, String> {
     use oxidelica_parser::BinOp::*;
     let DiffTarget::Time {
@@ -1329,8 +1329,7 @@ fn pair_block_rate(name: &str, target: &DiffTarget, depth: usize) -> Result<Opti
         return Ok(None);
     };
     if !holding.is_empty()
-        || !(BLOCK_HERE.with(|forced| forced.get())
-            || crate::walk::switch_set("OXIDELICA_INIT_BLOCK_SYS"))
+        || !(BLOCK_HERE.with(|forced| forced.get()) || crate::walk::init_block_sys())
     {
         return Ok(None);
     }
