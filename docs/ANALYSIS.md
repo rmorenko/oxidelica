@@ -69654,3 +69654,78 @@ Two singles of the same row, by `--only` and `why`:
   `OXIDELICA_NEWTON_TRAIL` on the start block.
 - `PumpingSystem`: `visc_dTp` is called with `d = NaN` inside the
   reservoir loop of fifteen unknowns; not probed further this shift.
+
+## The inverters' zero is divided in the reduction, not the block (m583)
+
+The block-divisor test was to learn `cc.cBD`, the parameter-valued
+zero the five Spice3 inverters divide by (m582). Probed on the tree
+of a78101c with `--only` on `Inverter`, a temporary print and no code
+kept.
+
+The table of settled names could not carry `cc.cBD` for two reasons,
+both mended in the parked patch `m583-settled-if.patch`. Its body
+reads live voltages, so the fixpoint, which folds only bodies whose
+every name is a number, never tried it; and `simplify` leaves every
+`if` standing, while the substituted `m_bInit` arrives as the number
+`0` rather than `false`. With a second pass over conditional bodies
+that decides a condition once it is a number comparison or a 0/1,
+the print showed `mn.cc.cBD = 0`, `mp.cc.cBD = 0` and `mp.icBD = 0`.
+
+And all five refused exactly as before, the same line each. The
+division is not made where the block is planned: the residual
+`der(mp.Sinternal) - (-(mn.icBD / mn.cc.cBD))` is the equation index
+reduction solved for the derivative, and it reaches the block whole
+as a torn residual of one unknown. The guard in the block reads inner
+assignments, and a residual is no inner assignment, so no table it
+is given can refuse it. The cure lives in the reduction's matching:
+`solve_shape` must call this pairing `ZeroSlope`, and it reads
+`params`, which do not hold `cc.cBD` because `cc.cBD` is an unknown
+there. That is a change to which equation defines a derivative, so by
+these notes it moves states and is measured by its victims. Not built:
+the patch is parked, and the question goes to the review.
+
+Two singles of the same row, by `OXIDELICA_NEWTON_TRAIL` (files
+/tmp/m583/tsv.txt and /tmp/m583/ps.txt):
+
+- `TestSweptVolume`: the first block is the start block on
+  `sweptVolume.medium.T` alone, row `medium.d = p/(R_s*T)`. Newton
+  doubles T each step, 293.15 to 2.4e6 in thirteen steps, with the
+  residual halving: the residual falls like 1/T and has no root there,
+  so the start block is solved for the wrong name. The NaN at the
+  two-unknown block that follows is downstream of a T near -4.6e12.
+- `PumpingSystem`: in the loop of fifteen unknowns, the NaN rows at
+  every retry start are 4, 7, 8, 13 and 14; rows 4, 13 and 14 read
+  `waterBaseProp_pT(reservoir.medium.p, reservoir.medium.T, 0)`, rows
+  7 and 8 a density of a port. Not followed further: which input of
+  `waterBaseProp_pT` is out of range is the next probe.
+
+### The A/A pair: the floor of noise under the run half
+
+Roman's word of 5 November chose an A/A pair: one half run twice,
+`OXIDELICA_NO_INIT_BLOCK_SYS=1` both times, the binary `/tmp/m581/ox7`
+and the command of `/tmp/m581/pair.sh` (`library check --list .msl`,
+the main pass, the same set as m581), one after the other on a quiet
+desk. Files /tmp/m583/a1.txt and /tmp/m583/a2.txt.
+
+```text
+a1  time: flattening 3924s over 1019 models (3851ms each); running 4429s over 974 (4547ms each)
+a2  time: flattening 3925s over 1019 models (3852ms each); running 4447s over 974 (4566ms each)
+```
+
+The work agreed byte for byte in both halves, the run half included:
+283617 classes, 90416310 expansions, 1273467 bodies, 1670378977
+names; 24150919 points, 35484112 Newton, 541 Jacobians, 1974 apart,
+2120232 damped. So the run is deterministic and the time is all there
+is to compare. The lists of models built, ran and refused agree line
+for line, 827 run in each; the only other difference is one note
+printed in another order.
+
+The flattening half moved by 1 second, not by the 30 to 184 of the
+earlier pairs, so the head start of the page cache did not show here:
+both halves found the files cached, since nothing else had run between
+them and the first half itself followed probes over the same tree. The
+run half moved by 18 seconds of 4429, 0.4%, the second half the
+dearer. That is the measured noise of the run half on a quiet desk,
+one sample of it, and it is well under the 2% the notes assumed: the
+6% rule stands with room, and a run difference above about 36 s (two
+such noises) on a quiet pair is worth naming model by model.
