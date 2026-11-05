@@ -1963,7 +1963,16 @@ FLATTEN_FLOOR=975
 # SMPM_VoltageSource of FundamentalWave and TestJunctionIdeal:
 #
 #   826 - 3 = 823
-RUN_FLOOR=823
+#
+# Then the modes rule (2aa8a6f), which reads the chosen branches'
+# definitions before settling a mode, won TestBearingConversion. The
+# desk printed 975 / 827 (/tmp/m577x/preflight.txt) and the judge of
+# run 41928064535 on fb1ccec printed `OK: 2671 files read, 975 flatten,
+# 827 run; runnable 857 flatten, 779 run`. Less the same three that
+# swing:
+#
+#   827 - 3 = 824
+RUN_FLOOR=824
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -2517,7 +2526,9 @@ RUNNABLE_FLATTEN_FLOOR=857
 # the judge of 41337538135 printed 855 / 777, so 777 - 3 = 774.
 # And the fold guard: the judge of 41692484782 printed 855 / 778, so
 # 778 - 3 = 775.
-RUNNABLE_RUN_FLOOR=775
+# And TestBearingConversion, won by the modes rule, is a runnable
+# example: the judge of 41928064535 printed 857 / 779, so 779 - 3 = 776.
+RUNNABLE_RUN_FLOOR=776
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
