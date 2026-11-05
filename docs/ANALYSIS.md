@@ -69239,3 +69239,51 @@ Each win reaches its own horizon, simulated whole under the key:
 Electrical `IMC_Initialize` to t = 1.5 in 12 s, FundamentalWave to
 t = 1.5 in 6 s, QuasiStatic to t = 1.5 in 285 s (150003 rows)
 (`/tmp/m577x/imc_{e,f,q}.txt`).
+
+## What a refusal of HeatExchangerSimulation costs under `OXIDELICA_INIT_BLOCK_SYS` (m578)
+
+The question was whether the giant refuses on its own if the key became
+the default, and how long it takes. It does not. With the key on, the
+binary of the pair (`/tmp/m577x/oxb`, built from 2aa8a6f) and a
+24 GB cap, `library check --only` ran 20 CPU minutes with resident
+memory flat at 820 MB and printed no verdict. It was stopped there
+(`/tmp/m578x/hex_free.txt`). A sample taken at ten minutes put
+7419 of 7419 samples under `solve_initialization` ->
+`solve_implicit_block` (`/tmp/m578x/hex.sample`). So the start has no
+ceiling of its own that this model reaches.
+
+What bounds it on paper is a product of three loops. The start's own
+Newton takes 50 iterations (`compile.rs:9781`). Each one builds a
+difference Jacobian over its `n` unknowns, and each column solves the
+torn block of 162 again. That block has its own budget of 60
+(`solvers/mod.rs:1652`), but it does not spend it. Under
+`OXIDELICA_NEWTON_TRAIL` (`/tmp/m578x/hex_trail.txt`, 150 s) every entry
+stops after four iterations. The first entry goes from |f| = 9.8e3 to
+4.05e-6, and every later one starts near 4.5e-3 and stands at 4.05e-6.
+That is the three-steps-without-descent exit taken as the arithmetic
+floor (`solvers/mod.rs:2639`). The entries take about four seconds an
+iteration, and all 36 were at t = 0. Each walk is finite, but there are
+so many that the product is hours. The run never leaves the start, so
+the question of m577's item 4 has an answer: the block is not entered
+again on each step of the run, because no step of the run is reached.
+
+The ceiling that would catch this already exists and is switched off.
+`count_newton` (`solvers/mod.rs:2833`) refuses a run that spends more
+than `max_newton_one_interval` Newton iterations in one output interval,
+and the default is `usize::MAX` (`lib.rs:764`). Set through
+`OXIDELICA_MAX_NEWTON_ONE_INTERVAL`, it refuses hex by name:
+"spent more than 10 Newton iterations between t = 0 and t = 0, one
+output interval". With 10 that takes 37 s of run (12 Newton, 120 damped
+trials, `/tmp/m578x/hex_ref10.txt`). With 100 it takes 374 s (102
+Newton, 1380 damped, `/tmp/m578x/hex_cap100.txt`). With 2000 it had not
+fired at ten minutes. These refusals name the model and the instant,
+but not the block. They do not say that the start never closed.
+
+No fix was written. A finite default for this ceiling is a ceiling for
+every model in the corpus, and its number has to come from the peak
+that the runnable models reach (`newton_peak` already records it). That
+needs a corpus pass to find the number and a pair to price it, which
+would not fit beside a full preflight in this shift. Until then, making
+the key the default would put a start without a ceiling into the
+judge's run. That makes this ceiling, or a narrower one on the start's
+outer loop, a precondition for merging the key, not a follow-up.
