@@ -69923,3 +69923,12 @@ are left for the judge's print.
 now refuses earlier than the m584 probe saw: the IF97 viscosity is
 called with a NaN density inside the reservoir's loop at t = 0. The
 zero nobody wrote is still the first suspect; not followed further.
+
+`TestSweptVolume` (`OXIDELICA_INIT_PROBE`, ox13): the initial equation
+`sweptVolume.medium.T = sweptVolume.T_start` reaches nothing and is
+paired with `sweptVolume.m`, so the temperature is left to the block.
+What the block then reads as NaN is `sweptVolume.ports[1].h_outflow`,
+which `why` shows has one writer, `= sweptVolume.medium.h`: the
+enthalpy is settled before the block from a temperature the block has
+not yet solved. Which candidate form on `medium.T` the matching
+rejected, and at what cost, is the next probe.
