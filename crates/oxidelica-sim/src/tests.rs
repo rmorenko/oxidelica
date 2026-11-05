@@ -699,8 +699,11 @@ fn two_implicit_unknowns_determining_each_other_are_refused() {
     let params: HashMap<String, f64> = HashMap::from([("k".to_string(), 0.3)]);
     let dummies = HashMap::new();
     let alg_defs = HashMap::new();
-    // g1: Psi1 = 0.1*a + k*a*a*b, determining `a` and naming `b`.
-    // g2: Psi2 = 0.1*b + k*b*b*a, determining `b` and naming `a`.
+    // A cycle of three, `a` naming `b`, `b` naming `c`, `c` naming
+    // `a`. A cycle of two is answered by the pair rule since it became
+    // the default (`two_torn_unknowns_take_their_rates_from_the_pair`),
+    // and that rule declines a third name, so the guard on the scalar
+    // path is what still has to answer here.
     let implicit_defs: HashMap<String, (Expr, Expr)> = HashMap::from([
         (
             "a".to_string(),
@@ -708,7 +711,11 @@ fn two_implicit_unknowns_determining_each_other_are_refused() {
         ),
         (
             "b".to_string(),
-            (expr_of("0.1 * b + k * b * b * a"), Expr::Time),
+            (expr_of("0.1 * b + k * b * b * c"), Expr::Time),
+        ),
+        (
+            "c".to_string(),
+            (expr_of("0.1 * c + k * c * c * a"), Expr::Time),
         ),
     ]);
     let target = DiffTarget::Time {
