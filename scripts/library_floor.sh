@@ -584,7 +584,13 @@ FILES_FLOOR=2671
 # of 6a8f9e5 (job 126437647954 of push run 41780306883), 975 / 826 and
 # runnable 857 / 778. The run floors stay: 826 - 3 = 823 and
 # 778 - 3 = 775, the same three swings.
-FLATTEN_FLOOR=975
+#
+# And 974 = 975 - HeatExchangerSimulation, carried into the heavy set
+# on 2026-11-05 (1e2c9f2): it flattened and did not run, so it leaves
+# this floor and the runnable one, 857 - 1 = 856, and no run floor. The
+# quick preflight on 51b334d printed 974 / 830 and runnable 856 / 782
+# (/tmp/m580/pf_quick.txt). The run floors wait for the judge.
+FLATTEN_FLOOR=974
 # The two run floors came down by one, and the one is named: giving a
 # record constructor called with no arguments the values its `extends`
 # stated took `Modelica.Thermal.FluidHeatFlow.Examples.WaterPump` out
@@ -2241,7 +2247,9 @@ RUN_FLOOR=824
 # And 857 = 856 + QuasiStatic `IMC_withLosses`, a runnable example let
 # past the guard on values by its print under `when initial()`: printed
 # by the judge of 6a8f9e5 (job 126437647954 of push run 41780306883).
-RUNNABLE_FLATTEN_FLOOR=857
+# And 856 = 857 - HeatExchangerSimulation, carried into the heavy set;
+# see `FLATTEN_FLOOR`.
+RUNNABLE_FLATTEN_FLOOR=856
 # And runnable run 674 = 671 + the three batteries, all runnable
 # examples, by the same runner job as `RUN_FLOOR` (d58700e, job
 # 112530851204).
@@ -3602,7 +3610,15 @@ fi
 # line for line, and 1974 jacobians apart both ways. The preflight on
 # the final tree printed 1686740341 to the digit. Without the move this
 # line would turn red for a model won.
-WORK_NAMES=1686740341
+#
+# Moved to 1670061690 = 1686740341 - 16678651 when
+# HeatExchangerSimulation was carried into the heavy set: that is its
+# own count, `--only --with-heavy` with OXIDELICA_WORK_EACH=1 on the
+# binary of 51b334d (/tmp/m580/hex_only.txt). The quick preflight on
+# that tree printed 1670378977 (/tmp/m580/pf_quick.txt), 190 per
+# million above the new centre, where against the old one it stood
+# 9700 per million below and turned red for a model that moved.
+WORK_NAMES=1670061690
 WORK_NAMES_PPM=2000
 
 # The band, as a function, so that it can be seen red without a library
