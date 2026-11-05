@@ -69208,3 +69208,34 @@ is worth the next probe: it looks like a Jacobian that sees one of
 those columns at a time. No fix was written, and the key stays off.
 The price of the key and the price of any tolerance change are two
 numbers and need two pairs.
+
+## `OXIDELICA_INIT_BLOCK_SYS` priced without the giant (m577)
+
+One binary (`/tmp/m577x/oxb`, built from 2aa8a6f, the modes rule merged),
+the halves one after the other on a quiet machine, under a 24 GB cap,
+with `--without scripts/heavy_models.txt --without scripts/dear_models.txt
+--without /tmp/m577x/nohex.txt` in both halves, the last holding
+`HeatExchangerSimulation` alone (`/tmp/m577x/c_off.txt`, `c_on.txt`).
+The set was 1006 models: the preflight's main pass printed 1007 with the
+same two cut-outs (`/tmp/m577x/preflight.txt`), less hex. The count of a
+set is taken from the instrument's own print, before the pair is waited
+for. A first attempt passed `--without nohex.txt` alone. A `--without`
+given on the command line replaces the default cut-outs rather than
+adding to them, so that pass read 1042 models and was stopped.
+
+The run lists differ in three lines, all wins, no victims: the three
+`IMC_Initialize` (Electrical, FundamentalWave, QuasiStatic FundamentalWave),
+821 to 824 (runnable 774 to 777). The flatten lists are equal, 961 both,
+with equal flattening work. The run half went from 3869 s to 3918 s,
++1.3%, inside the drift of about two percent. The flattening half drifted
+3336 s to 3366 s. The work: points 448515 to 449093, Newton 1092874 to
+1094262, damped 2078410 to 2078704, Jacobians equal. The three wins
+alone make the growth. So the key passes the three conditions of
+26 October on this set. Its merging is still blocked by hex, which it
+lets into a start that does not end. The price of the key and the price
+of any tolerance change for hex are two numbers and need two pairs.
+
+Each win reaches its own horizon, simulated whole under the key:
+Electrical `IMC_Initialize` to t = 1.5 in 12 s, FundamentalWave to
+t = 1.5 in 6 s, QuasiStatic to t = 1.5 in 285 s (150003 rows)
+(`/tmp/m577x/imc_{e,f,q}.txt`).
