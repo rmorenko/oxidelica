@@ -69287,3 +69287,21 @@ would not fit beside a full preflight in this shift. Until then, making
 the key the default would put a start without a ceiling into the
 judge's run. That makes this ceiling, or a narrower one on the start's
 outer loop, a precondition for merging the key, not a follow-up.
+
+The interval ceiling is no instrument for hex at any value, and the
+arithmetic says so without another run. The trail gives 36 iterations in
+150 s, or 0.24 a second. A ceiling of 2000 fires after 139 minutes, 288
+after 20 and 100 after 7. Bounding hex to minutes needs a ceiling in the
+low hundreds or tens, and a hard model in a hard interval spends hundreds
+of iterations legitimately. The count of iterations does not separate
+the two families. What the cost follows is the count of entries into
+the start block, one per column of the outer difference Jacobian. So the
+ceiling to build counts entries of one start block that end on the floor
+and not converged, scaled to the block's size, and refuses with the
+block's name and the count. It is written under the key only, so no
+model moves without it. It was not built in m578. The entries cost about
+sixteen seconds each, so any size-scaled count refuses hex in tens of
+minutes, not seconds. A refusal in seconds needs a stall test across
+entries (the floor at 4.05e-6, equal entry to entry), and that is a
+different rule that has to be paired. The shift had no room for a pair
+after a full preflight.
