@@ -69782,15 +69782,18 @@ no victims. Flattening work equal in all four counters.
 The price is not cleared. The run half moved +67 s, 3.7 floors of the
 A/A noise (threshold 36 s), and the flattening half +88 s against a
 floor of 1 s. The three winners cost 0.2 to 0.25 s each to run, so
-the carriers are unnamed. A guess worth checking first: the parked
-patch's first version substituted the model's whole parameter table
-for each guard it read; a second version (`/tmp/m584/ox12`, the
-guard's own names only) timed 325 s flattening and 394 s running on
-the 205-model small set against 329 s and 395 s for ox11 - inside the
-noise of that set, so it neither convicts nor clears the first
-version. By the 6% rule (1.4% here) the change would pass, but the
-rule asks that the dearer models be named, and they are not; so it
-goes to the park and the question to the review.
+the cost is not in the winners. Its place is the guard fold itself:
+the parked patch's `number` builds a table of every parameter of the
+model for each leaf of each guard, twice per relation, in both
+compilations of each model - a structural cost spread over the
+corpus, which the flattening counters do not count. The added run
+work (+4775 points, +821 Newton) is worth about 1 s at this half's
+0.196 ms a point. A version substituting each leaf's own names
+(`/tmp/m584/ox12`) timed 325 s and 394 s on the 205-model small set
+against 329 s and 395 s for ox11, inside that set's noise. The fix, a
+table built once per guard from its own names, is written beside the
+patch in the park, and the pair is to be taken again after it: above
+the 36 s threshold the change is not merged.
 
 `Inverter` and `Nand` reach the next wall: "has a solution on either
 side of mp.Sinternal at t = 1e-12" and "did not converge in 50 Newton
