@@ -69932,3 +69932,106 @@ which `why` shows has one writer, `= sweptVolume.medium.h`: the
 enthalpy is settled before the block from a temperature the block has
 not yet solved. Which candidate form on `medium.T` the matching
 rejected, and at what cost, is the next probe.
+
+## The m579x remainder, taken apart with full tables (m586)
+
+The start-block pair of m579x left 189 s of its run half with no name:
+630 s between the halves, of which the hex model, timed alone, owned
+441 s. That pair was run without `--slow`, so nothing on disk could
+say where the rest went. It was taken again on the same carrying binary
+(/tmp/m579x/ox6, 6340896 bytes, 5 November 11:34), the same script
+(/tmp/m579x/pair24.sh) with `--slow 1100` on both halves, off without
+keys and on with `OXIDELICA_INIT_BLOCK_SYS=1 OXIDELICA_START_STALL_PEAK=1`,
+the halves one after the other on a quiet desk, /tmp/m586/off24s.txt
+and on24s.txt:
+
+```text
+          models  flatten  run   flattening  running
+m579x off  1007    962     821    3296s      3907s
+m586  off  1006    961     821    3307s      3905s
+m579x on   1007    962     824    3177s      4537s
+m586  on   1006    961     824    3423s      3953s
+```
+
+The set is one model smaller because hex was carved into
+`scripts/heavy_models.txt` after the first pair (1e2c9f2). The off
+half reproduces to the model and to 2 s of running time, so the pair
+is the same measurement less hex. The run lists differ by the three
+`IMC_Initialize` and nothing else.
+
+The run half now differs by 48 s, not 189. With every model in both
+tables (961 run rows, 1006 flatten rows) the subtraction is exact, and
+it sums to 49 s, of which two models carry 43:
+
+```text
+BranchingDynamicPipes          run  4.0 -> 36.2 s   +32.2
+RoomCO2WithControls            run 135.6 -> 146.9 s +11.3
+```
+
+Both were confirmed alone, off / on / off with `--only` on ox6 and the
+same keys (/tmp/m586/c_times.txt): `BranchingDynamicPipes` runs 2.9 /
+23.1 / 2.8 s, `RoomCO2WithControls` 108.9 / 116.0 / 108.8 s. The
+remainder of the first pair was therefore 48 s of real price on two
+named models and about 141 s that exists only while hex is in the set:
+hex ground through its block near the memory ceiling (cap.sh printed a
+peak of 15 GB of 24 on the off half), and its neighbours paid for the
+pressure. With hex gone they stop paying. Hex's whole cost to that pair
+was some 582 s, its own 441 and the shadow it cast, which agrees with
+the 581 of 630 estimated from two pairs before it was carved out.
+
+The flattening halves moved 3307 to 3423 s here with the four
+flattening counters equal to the digit, where the first pair, same
+binary, same keys, moved 3296 to 3177 s. A swing of 235 s between two
+pairs with opposite signs on identical work means the flattening
+difference does not reproduce under cap.sh, and nothing is concluded
+from it. The A/A floor of 1 s was taken without the ceiling and does
+not carry over.
+
+## The MultiBody price of the guard fold is scatter (m586)
+
+The `--slow` print of the m585 pair showed seven MultiBody models
+dearer by up to 6.3 s with the fold, against ten Fluid models cheaper.
+Timed alone on /tmp/m585/ox13, off / on / off with
+`OXIDELICA_NO_FOLD_GUARD_WHOLE=1` on the off runs (/tmp/m586/p2_times.txt,
+wall seconds):
+
+```text
+PlanarFourbar        118.3  118.8  119.0
+RevoluteConstraint    44.3   44.1   44.2
+Cylinder              85.4   85.1   85.4
+```
+
+The on run sits between or beside its two off runs every time. The
+pair's print exaggerated: a model's time inside a corpus pass moves by
+seconds, and a family run back to back moves together. Closed as
+scatter.
+
+## Two inverters and a pump, probed (m586)
+
+`Spice3.Examples.Inverter` (ox13) refuses because the loop of
+`mp.Sinternal` and the four junction capacitances has a root on either
+side of `mp.Sinternal` at t = 1e-12; the equations give no reason to
+prefer either.
+
+`Spice3.Examples.Nand` (`OXIDELICA_NEWTON_TRAIL`, /tmp/m586/nand_trail.txt)
+fails at t = 37.5 ns. Two unknowns move, `mp2.Sinternal` and
+`mn2.Dinternal`: Newton walks the first down by about 0.026 V an
+iteration with the residual shrinking steadily, the walk of an
+exponential diode current with no limit on the step, and on the 51st
+step the second unknown crosses zero and the iteration is thrown to
+1e7. Fifty iterations are not enough for the slow walk, and the jump
+at its end is a junction voltage leaving the region where the
+exponential is tame. A junction voltage limit of the SPICE kind is the
+named candidate; not tried.
+
+`Fluid.Examples.PumpingSystem`: the suspect of the last two shifts is
+cleared. `reservoir.portsData_height[i]` has a writer, a connection
+through `portsData_height_internal[i] = portsData[i].height`, and the
+parameter is bound to 0, so the zero the mode trail calls "nobody
+wrote" is the right value reached by a road the trail's reader does
+not follow. The trail's wording is the defect there, not the model.
+The NaN the block reads is still unnamed: the loop rows on
+`reservoir.medium.h` and the port velocities are NaN for every guess,
+and `why` finds a writer for `medium.p`, `medium.T`, `level`, both
+`h_outflow` and `p_ambient`. The next probe is the value of each
+outside read of the block at t = 0, not another `why`.
