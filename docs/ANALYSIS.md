@@ -69900,7 +69900,7 @@ assigned for free. Every corpus pair should carry `--slow 60` on
 both halves: the times are gathered anyway, and the print names the
 carriers of any remainder from the same run.
 
-### The corpus pair
+### The corpus pair of the fold
 
 One binary (/tmp/m585/ox13, built from the final tree), the off half
 under `OXIDELICA_NO_FOLD_GUARD_WHOLE=1`, then the on half, both with
