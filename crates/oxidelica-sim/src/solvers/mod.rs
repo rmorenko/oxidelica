@@ -1443,6 +1443,7 @@ impl CompiledModel {
                 .sum::<f64>()
                 .sqrt();
             let entry = table.entry(block[0]).or_default();
+            entry.size = block.len();
             let most = std::env::var("OXIDELICA_START_STALL_ENTRIES")
                 .ok()
                 .and_then(|k| k.parse().ok())
@@ -3156,9 +3157,21 @@ pub(crate) struct StartStall {
     /// The longest run of `since` this start reached, for the
     /// instrument that measures the ceiling against the corpus.
     pub peak: usize,
+    /// How many unknowns the block solves for, printed beside the
+    /// peak so that a start's stall can be read against its size.
+    pub size: usize,
 }
 
 impl StartStall {
+    /// The line `OXIDELICA_START_STALL_PEAK` prints for one block of
+    /// `model`, named by its first unknown.
+    pub(crate) fn peak_line(&self, model: &str, first: &str) -> String {
+        format!(
+            "start-stall-peak {} in {model} at {first} of {} unknowns after {} entries",
+            self.peak, self.size, self.entries
+        )
+    }
+
     /// Record one entry that ended on the arithmetic floor at a
     /// residual of `norm`, and say whether the start has now stalled.
     /// A residual that is not a number neither improves nor resets.
@@ -3215,5 +3228,20 @@ mod start_stall_tests {
             assert!(!s.floor_entry(0.7, 12));
         }
         assert!(s.floor_entry(f64::NAN, 12));
+    }
+
+    #[test]
+    fn the_peak_line_carries_the_block_size() {
+        let mut s = StartStall {
+            size: 7,
+            ..Default::default()
+        };
+        for _ in 0..3 {
+            s.floor_entry(1.0, 12);
+        }
+        assert_eq!(
+            s.peak_line("Rectifier", "a.v"),
+            "start-stall-peak 2 in Rectifier at a.v of 7 unknowns after 3 entries"
+        );
     }
 }

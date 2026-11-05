@@ -8416,8 +8416,8 @@ pub(crate) fn compile_at(
             if std::env::var_os("OXIDELICA_START_STALL_PEAK").is_some() {
                 for (first, stall) in &table {
                     eprintln!(
-                        "start-stall-peak {} in {} at {} after {} entries",
-                        stall.peak, compiled.name, compiled.algebraics[*first], stall.entries
+                        "{}",
+                        stall.peak_line(&compiled.name, &compiled.algebraics[*first])
                     );
                 }
             }
