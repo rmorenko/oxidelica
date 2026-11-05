@@ -69482,3 +69482,20 @@ converge in 50 Newton iterations"). Whether that loop is the start
 block is not shown by this probe, so the size of SMR's start block
 stays unmeasured. The other sizes are hex 162, `Rectifier` 7 and
 `CCCV_Stack` 8.
+
+### The census under the default (m580)
+
+`/tmp/m580/census.txt` was taken on e332db2, the key default and hex in
+the heavy set, and counted by the section bounds. 45 models in 25 rows
+would not flatten, and 144 in 29 rows flattened and would not run.
+Against `/tmp/m572/census.txt`, the run half moved where the key
+predicted. `der(X): X is not a state` went from 8 to 2. Three of the
+six that left are the `IMC_Initialize` won, and one is hex, carried
+out. Machines and FundamentalWave `IMC_withLosses` went one storey up,
+to the rows `the Newton direction of algebraic loop` (9 to 10) and
+`algebraic loop [...]` (3 to 4), the next walls the chapter of m575
+already named. The two left in the row are not these six (by name,
+`/tmp/m580/ns572` against `ns580`). The top row, `structurally
+singular ... constrains no state`, is 29, and its map by model stands
+in "The top of the run half, read by model" (m552). The one model that
+left it is not traced here.
