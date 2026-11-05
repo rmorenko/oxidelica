@@ -69351,3 +69351,36 @@ start block was found, so `hex --only` is the integration check.
 `OXIDELICA_START_STALL_PEAK` prints each start block's longest run
 without improvement. The corpus pair is what measures the legitimate
 maximum that 12 has to sit above.
+
+#### The pair at K = 12, and why K is now 24
+
+One binary (`/tmp/m579x/ox4`, built from 328d547), run as
+`library check --list --refused` with `scripts/heavy_models.txt` and
+`scripts/dear_models.txt` left out, so hex is included. The off half is
+`/tmp/m579x/off.txt` and the on half, under the key with
+`OXIDELICA_START_STALL_PEAK=1`, is `/tmp/m579x/on.txt`. Both halves
+read 880 runnable examples, of which 846 flatten and 774 run. Of the
+`ran` lines, 821 run in both halves. Counted that way, the lists are
+not equal. The on half wins the three `IMC_Initialize` models, the same
+three the m577x pair won. It loses three models, all to the new
+refusal: `Analog.Examples.Rectifier` (a block of 7), `CCCV_Stack` (a
+block of 8) and `QuasiStatic...SMR_CurrentSource`. The last one is
+refused through its 50-iteration message after the stall counter had
+reached 12 over 30 entries. The run half took 3935 s off and 4289 s on,
+which is 9.0% dearer. The flattening half drifted the other way, from
+3341 s to 3198 s. Work for the run half: 448515 against 444638 points,
+1092874 against 1080631 Newton steps.
+
+`START_STALL_PEAK` shows that the three victims stall legitimately for
+longer than hex's sample suggested any model would. With the ceiling
+lifted (`OXIDELICA_START_STALL_ENTRIES=100000`, `/tmp/m579x/ox5`,
+`--only`), all three run, and their longest runs without improvement
+are 17 (`Rectifier`, 18 entries), 18 (`CCCV_Stack`, 19) and 19
+(`SMR_CurrentSource`, 55). No other start block in the on half went
+above 7. So the three numbers are: hex 32 or more (from the sample),
+a legitimate maximum of 19, and K = 12, which was below the
+legitimate maximum. K is now 24. That is above 19 by five and
+below hex's 32. Hex then refuses after about 25 entries of 16 s, or
+roughly seven minutes, instead of without end. The ceiling can be
+read from `OXIDELICA_START_STALL_ENTRIES`, so the next pair can move
+it without a rebuild. A pair at 24 follows.

@@ -1443,13 +1443,17 @@ impl CompiledModel {
                 .sum::<f64>()
                 .sqrt();
             let entry = table.entry(block[0]).or_default();
-            if entry.floor_entry(norm, START_STALL_ENTRIES) {
+            let most = std::env::var("OXIDELICA_START_STALL_ENTRIES")
+                .ok()
+                .and_then(|k| k.parse().ok())
+                .unwrap_or(START_STALL_ENTRIES);
+            if entry.floor_entry(norm, most) {
                 let (best, entries) = (entry.best.unwrap_or(f64::NAN), entry.entries);
                 return err_of(
                     Refusal::Unconverged,
                     format!(
                         "start block of {} unknowns {:?} re-entered {entries} times at t = {t}, \
-                         stalled at |f| = {best:e} for the last {START_STALL_ENTRIES} entries \
+                         stalled at |f| = {best:e} for the last {most} entries \
                          on the arithmetic floor, not accepted",
                         block.len(),
                         block_names()
@@ -3125,7 +3129,7 @@ mod step_floor_tests {
 /// arithmetic floor without improving on the best residual the start
 /// has seen, before the start is refused as stalled. Only read under
 /// `OXIDELICA_INIT_BLOCK_SYS`; see [`StartStall`].
-pub(crate) const START_STALL_ENTRIES: usize = 12;
+pub(crate) const START_STALL_ENTRIES: usize = 24;
 
 /// The start's memory of how its implicit block has fared across the
 /// entries the initialization's own Newton makes into it.
