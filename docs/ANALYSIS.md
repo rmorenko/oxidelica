@@ -69729,3 +69729,69 @@ dearer. That is the measured noise of the run half on a quiet desk,
 one sample of it, and it is well under the 2% the notes assumed: the
 6% rule stands with room, and a run difference above about 36 s (two
 such noises) on a quiet pair is worth naming model by model.
+
+## The inverters' zero was never found: a guard of parameters (m584)
+
+Where the division by `cc.cBD` is born was asked of the probe first,
+and it is a stage earlier than the last map put it. A print in
+`solve_shape` on `--only Inverter` showed the rank of `der(mp.Sinternal)`
+taking a slope of `mp.cc.cBS`, not in the parameter table, so cost 1.
+But a print of what enters `reduce_index_once` showed the division
+already in the state table, `der(mn.Dinternal) = 0 - mn.icBD /
+mn.cc.cBD`: `split_equations` isolates the derivative out of `icBD =
+cBD * der(...)` before index reduction runs (`isolate_der`, guarded by
+`divides_by_zero`, which reads only the names `zero_variables` found).
+A table of zero definitions handed to the rank and to
+`reduction_solve` was built, moved none of the five, and was taken
+back.
+
+`zero_variables` misses `cBD` for one reason. Its definition is `if
+m_bInit then 1e-15 else (... m_tCBDb * ... + (if not (m_capBDIsGiven >
+0.5) then (if ... then 0 else m_tCBDs / m_f2s * ...) else 0))`. The
+bare guard `m_bInit` already folds. The inner guard is a relation over
+parameters, which the walk cannot fold, so it reads both branches, and
+the dead one carries `m_tCBDs / m_f2s`, both zero on this card: a 0/0
+the walk rightly refuses to call zero. No state or time is involved,
+so the transitive notion of the consultant's note was not needed: the
+walk already follows zeros through definitions for the whole run, and
+the gap is the guard.
+
+The change, parked as `~/oxideflow/park/m584-fold-guard-whole.patch`:
+a guard every name of which is a parameter picks its branch, as a bare
+one already did; a guard naming anything that moves picks nothing.
+`OXIDELICA_NO_FOLD_GUARD_WHOLE=1` gives the old reading. Its test,
+`a_guard_of_parameters_alone_picks_its_branch`, holds the negative
+half - a guard on `v`, zero at the start, must not fold - and was seen
+red under the switch.
+
+Corpus pair, one binary `/tmp/m584/ox11`, main pass `library check
+--list .msl` over 1019 models, off then on (/tmp/m584/off.txt and
+on.txt):
+
+```text
+off time: flattening 4116s over 1019 models (4040ms each); running 4724s over 974 (4850ms each)
+on  time: flattening 4204s over 1019 models (4125ms each); running 4791s over 974 (4919ms each)
+off work: ... running 24151497 points, 35485500 newton, 541 jacobians, 1974 apart, 2120526 damped
+on  work: ... running 24156272 points, 35486321 newton, 541 jacobians, 1974 apart, 2120526 damped
+```
+
+Run 830 to 833, runnable 782 to 785. The run lists differ by exactly
+`FourInverters`, `InvertersApartRecord` and `InvertersExtendedModel`;
+no victims. Flattening work equal in all four counters.
+
+The price is not cleared. The run half moved +67 s, 3.7 floors of the
+A/A noise (threshold 36 s), and the flattening half +88 s against a
+floor of 1 s. The three winners cost 0.2 to 0.25 s each to run, so
+the carriers are unnamed. A guess worth checking first: the parked
+patch's first version substituted the model's whole parameter table
+for each guard it read; a second version (`/tmp/m584/ox12`, the
+guard's own names only) timed 325 s flattening and 394 s running on
+the 205-model small set against 329 s and 395 s for ox11 - inside the
+noise of that set, so it neither convicts nor clears the first
+version. By the 6% rule (1.4% here) the change would pass, but the
+rule asks that the dearer models be named, and they are not; so it
+goes to the park and the question to the review.
+
+`Inverter` and `Nand` reach the next wall: "has a solution on either
+side of mp.Sinternal at t = 1e-12" and "did not converge in 50 Newton
+iterations", both over loops still listing the `cBS`/`cBD` names.
