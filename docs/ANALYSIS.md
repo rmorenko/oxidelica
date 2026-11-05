@@ -69594,3 +69594,63 @@ correctly. Only three are models: `Engine1b_analytic`,
 bodies 10 (C 7, FORTRAN 3) and partial 8. Together they are 18 of 45
 and come from what the library supplies without a Modelica body, not
 from a defect here.
+
+## The Spice3 inverters' NaN before the first Newton step, mapped (m582)
+
+The row "`X` of algebraic loop [...] is NaN at t = 0, before any Newton
+step" holds five Spice3 inverters on one fraction, `icBD / cc.cBD`:
+`FourInverters`, `Inverter`, `InvertersApartRecord`,
+`InvertersExtendedModel` and `Nand` (/tmp/m580/raw.txt lines 108, 109,
+110, 111 and 114; lines 112 and 113 are another row). Probed with
+`--only` and `why` on the tree of d1186f6, no code changed.
+
+The divisor is zero by construction, not by a start. The examples'
+modelcards write `CBD=0` (`Spice3.mo` lines 279, 285, 347, 349, 452,
+460, 553, 555), so `m_capBDIsGiven = 1` (`CBD > -1e40`), the side term
+of `cc.cBD` is the constant 0, and the bottom term is `m_tCBDb`, which
+is `m_capBD = modelcard.CBD = 0` times a factor. With `m_bInit` the
+constant `false`, `cc.cBD` is 0 at every point of the run. The model
+writes `icBD = cc.cBD * (der(B.v) - der(Dinternal))`; the compiler
+matched that equation to the derivative and solved it by dividing, so
+the residual is `der(mp.Sinternal) + icBD / cc.cBD`, which is 0/0 at
+any value of the block. The model is well posed: `icBD` is simply 0,
+and the derivative has to come from another equation.
+
+The retry did run, and was silent by design. `OXIDELICA_NEWTON_TRAIL=1`
+on `Inverter` prints five first evaluations, from 0 and from the four
+retry starts 1e-6, 1e-3, 1 and 1e3, every one `f=[NaN]`. So neither of
+the two gates in `solve_implicit_block_tried` stopped it: the stage is
+`Implicit { torn }` and the start is 0. A retry refused with "before
+any Newton step" again is dropped from the message on purpose (the arm
+`Err(error) if error.0.contains("before any Newton step") => {}`), and
+that is why no "started again" tail stands on these five while
+`ThreeSprings` and the wheel sets, whose retries met another wall, carry
+one. No word was lost, and the retry is not at fault: no start can
+evaluate a quotient whose divisor is a constant zero.
+
+It is not the dead column of the comment above the gates either. The
+fault is in the solved form, a division by a parameter-valued zero
+chosen at matching, not in a Jacobian at a point. `Nand` differs in
+shape and not in cause: its loop holds `mn1.icBD` and `mn2.icBD` among
+its five unknowns, and its retry starts give `inf` instead of NaN
+(`f=[..., inf, inf, inf, -inf]`), a nonzero numerator over the same
+zero. One mechanism on all five.
+
+Where the cure lives, then, is the matching: an equation whose
+coefficient of the unknown is a parameter that evaluates to zero must
+not be solved for that unknown. The block-divisor test in `compile.rs`
+(around line 582) refuses divisions whose divisor is certainly zero at
+the starts, but it reads the block's own names, and `cc.cBD` is an
+explicit assignment of parameters that the table of starts may not
+carry. Not changed this shift: it is a matching change, which moves
+states, and by the notes it is measured by its victims, not by a model.
+
+Two singles of the same row, by `--only` and `why`:
+
+- `TestSweptVolume`: `sweptVolume.ports[1].h_outflow = medium.h`, and
+  the init probe shows `medium.T = T_start` taken with `sweptVolume.m`
+  as its state, with 72 damped trials and 7 points before the refusal.
+  Where `medium.h` turns NaN was not reached; the next instrument is
+  `OXIDELICA_NEWTON_TRAIL` on the start block.
+- `PumpingSystem`: `visc_dTp` is called with `d = NaN` inside the
+  reservoir loop of fifteen unknowns; not probed further this shift.
