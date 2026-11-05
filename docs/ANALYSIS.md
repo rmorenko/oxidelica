@@ -69537,9 +69537,13 @@ counters agree to the digit (283617 / 90416310 / 1273467 /
 1670378977), so the 184 s the flattening half drifted is this pair's
 noise. That puts the threshold at 368 s. The run half came out 16 s
 cheaper with the default on, inside the noise. The work counters
-moved by 578 points and 1388 Newton steps. The earlier pair's +49 s
-(+1.27%) is not contradicted: both are well under 6% and under the
-noise.
+moved by 578 points and 1388 Newton steps. The set is all 1019 models, the
+main pass and the dear models together. The expected +49 s was taken
+on the main pass alone (off 3869 s, `/tmp/m577x/c_off.txt`), so only
+absolute seconds compare. Against it this pair gives -16 s, -0.35% of
+this off half over 1019 models. The 65 s between the two figures is
+well inside this pair's 368 s threshold. The two percentages are taken
+on different bases and are not compared here.
 
 Sizes, from `--only` with the new line (`/tmp/m581/sizes.txt`,
 `smr.txt`). `Rectifier` prints 7 unknowns at `IdealDiode1.s` (peak
