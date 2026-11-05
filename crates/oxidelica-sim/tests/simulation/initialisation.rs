@@ -218,12 +218,23 @@ fn initialization_reports_what_it_cannot_solve() {
     // which is a true reading of it, its written form is never
     // substituted, and the start at `a = 0` is refused for a reason
     // of its own: the block's Jacobian there is singular.
-    assert!(error(
-        "model M Real a(start = 1); Real b; Real c; equation der(a) = -a; \
-         b + sin(c) = a + time; c + sin(b) = a; \
-         initial equation der(b) = 0; end M;"
-    )
-    .contains("is not a state"));
+    //
+    // Since the pair rule became the default (m580) the refusal is no
+    // longer owed: the pair answers `der(b)`, and the start has to
+    // satisfy what differentiating both rows with `der(b) = 0` leaves,
+    // `der(c) = der(a) = -a` and so `a * (1 - cos(c)) = 1`. That is
+    // checked as a number. Under `OXIDELICA_NO_INIT_BLOCK_SYS` this was
+    // the refusal "is not a state".
+    let result = run(
+        "model M Real a(start = 1); Real b(start = 0.5); Real c(start = 0.2); \
+         equation der(a) = -a; b + sin(c) = a + time; c + sin(b) = a; \
+         initial equation der(b) = 0; \
+         annotation(experiment(StopTime = 0.1, Interval = 0.05)); end M;",
+    );
+    let index = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+    let first = &result.rows[0];
+    let (a, c) = (first[index("a")], first[index("c")]);
+    assert!((a * (1.0 - c.cos()) - 1.0).abs() < 1e-6, "a = {a}, c = {c}");
     assert!(error(
         "model M Real a(start = 1); Real b; Real c; equation der(a) = -a; \
          b + sin(c) = a; c + sin(b) = a; \
