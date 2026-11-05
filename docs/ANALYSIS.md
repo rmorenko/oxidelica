@@ -69468,6 +69468,18 @@ separate those two. That is the finding: the remainder is not
 attributed, and its carriers are for a `--slow` pair to name. No guess
 at a fix is made here.
 
+Correction (m581): the 189 s is not a finding, and the `--slow` hunt
+for its carriers is withdrawn. A remainder is a finding only above
+twice the pair's own noise, and the noise is free in the same print:
+the four counters of the flattening half agreed to the digit (264034
+classes, 63412599 expansions, 947358 bodies, 1124359642 names), so
+the work was provably the same and the 119 s its time moved by (3296 s
+off, 3177 s on, `/tmp/m579x/off24.txt` and `on24.txt`) is the
+machine's drift on this run. The threshold is 238 s, and 189 s is
+below it. The bar of 150 s stood in the order for m580, at 3.8% of a
+3900 s half, under the 3.6% of drift the flattening half proved: a
+mistake of the order, not of the measurement.
+
 The road to 6% does not need hex any more. With hex carried out, the
 second pair put the price at +49 s (+1.27%), and the winners' own 0.35 s
 are inside it. The 6% budget of 234 s is met without making hex
@@ -69499,3 +69511,82 @@ already named. The two left in the row are not these six (by name,
 singular ... constrains no state`, is 29, and its map by model stands
 in "The top of the run half, read by model" (m552). The one model that
 left it is not traced here.
+
+## The default confirmed on the final tree, and the start block's size (m581)
+
+The peak instrument, `OXIDELICA_START_STALL_PEAK`, now prints the
+block's size beside its peak:
+`start-stall-peak P in MODEL at FIRST of N unknowns after E entries`.
+The refusal already carried the size. The peak line did not, so an
+accepted start could not be read against its block.
+
+The pair was taken with one binary built from that tree
+(`/tmp/m581/ox7`), the halves run one after the other from `.msl`.
+Off is `OXIDELICA_NO_INIT_BLOCK_SYS=1`, on is the default
+(`/tmp/m581/off.txt`, `/tmp/m581/on.txt`):
+
+| half | flatten | run | time: flattening | time: running |
+| ---- | ------: | --: | ---------------: | ------------: |
+| off  |     974 | 827 |           4134 s |        4587 s |
+| on   |     974 | 830 |           3950 s |        4571 s |
+
+The flattened lists are equal line for line. The run lists differ by
+exactly the three `IMC_Initialize`, Electrical, Magnetic and
+QuasiStatic, all won by on. There are no victims. The four flattening
+counters agree to the digit (283617 / 90416310 / 1273467 /
+1670378977), so the 184 s the flattening half drifted is this pair's
+noise. That puts the threshold at 368 s. The run half came out 16 s
+cheaper with the default on, inside the noise. The work counters
+moved by 578 points and 1388 Newton steps. The earlier pair's +49 s
+(+1.27%) is not contradicted: both are well under 6% and under the
+noise.
+
+Sizes, from `--only` with the new line (`/tmp/m581/sizes.txt`,
+`smr.txt`). `Rectifier` prints 7 unknowns at `IdealDiode1.s` (peak
+17, 18 entries), and `CCCV_Stack` prints 8 at `stack.cell[2,1].n.v`
+(peak 18, 19 entries). Both are the sizes and first names the
+refusals printed in m579, so the line reads the same block.
+`SMR_CurrentSource` is new: 17 unknowns at
+`smr.stator.electroMagneticConverter.singlePhaseElectroMagneticConverter[1].i`,
+peak 19 after 55 entries. It is the same 17 that m580 saw refused as
+an algebraic loop at a ceiling of 5. No threshold is built on size.
+
+### The three IMC_withLosses (m581)
+
+One machine written by three libraries left the row `der(X): X is not
+a state` (8 to 2, with the three `IMC_Initialize` winning) and went
+into three different loop rows (`/tmp/m581/imc_wl.txt`,
+`fw_wl.txt`). The `der` refusal was hiding a loop problem, and that
+problem shows up differently depending on how each library writes
+the physics. This gives three probes of the same place for free.
+
+- Electrical.Machines: `the Newton direction of algebraic loop`
+  starting at `aimc.airGap.i_sr[2]`, at t = 0, from |f| = 156, has no
+  descent step (solvers/mod.rs:2709). This is the row of the nine
+  Fluid pipes (m574), and so far the wall has no descent here either.
+- Magnetic.FundamentalWave: a loop of 28 unknowns, starting with
+  `aimc.airGap.V_mss`, `stepped outside the domain of its own
+equations` at t = 0 on Newton iteration 3 (mod.rs:1783), with 28
+  residuals NaN. Among them is the air-gap rotation
+  `V_msr = V_mss * rotator`, and a `der(...Phi.re)` is among the
+  unknowns. This is a domain exit, not a missing descent, so m574's
+  conclusion does not carry over to it.
+- Magnetic.QuasiStatic.FundamentalWave: `underdetermined algebraic
+loop` of 21 unknowns, starting with `imcQS.airGap.V_ms.re`
+  (mod.rs:1610). The equations do not fix a unique solution. This is
+  structural, not numerical.
+
+None of the three was mapped further this shift, and no code changed
+for them.
+
+### The census read by family (m581, the consultant's reading of `/tmp/m580/census.txt`)
+
+Rows are not families. Run half: algebraic loop 42 over seven rows,
+structurally singular 31 (29 + 1 + 1), unbalanced 19, initialization 6. The 24 `parameter has no value` plus the 6 `cannot evaluate
+parameters` look like a second large group of 30. The census's own
+third section shows that 27 of them are helper classes refusing
+correctly. Only three are models: `Engine1b_analytic`,
+`EngineV6_analytic`, `PlanarLoops_analytic`. Flatten half: external
+bodies 10 (C 7, FORTRAN 3) and partial 8. Together they are 18 of 45
+and come from what the library supplies without a Modelica body, not
+from a defect here.
