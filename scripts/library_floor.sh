@@ -1978,7 +1978,16 @@ FLATTEN_FLOOR=974
 # swing:
 #
 #   827 - 3 = 824
-RUN_FLOOR=824
+#
+# Then the start-block default (4c22325), which takes the start's
+# implicit blocks as systems, won the three IMC_Initialize of Machines,
+# FundamentalWave and QuasiStatic. The desk printed 974 / 830
+# (/tmp/m581/on.txt) and the judge of push run 42027424096 on bd735a5
+# printed `OK: 2671 files read, 974 flatten, 830 run; runnable 856
+# flatten, 782 run`. Less the same three that swing:
+#
+#   830 - 3 = 827
+RUN_FLOOR=827
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -2536,7 +2545,10 @@ RUNNABLE_FLATTEN_FLOOR=856
 # 778 - 3 = 775.
 # And TestBearingConversion, won by the modes rule, is a runnable
 # example: the judge of 41928064535 printed 857 / 779, so 779 - 3 = 776.
-RUNNABLE_RUN_FLOOR=776
+# And the three IMC_Initialize, won by the start-block default, are
+# all runnable examples: the judge of 42027424096 printed 856 / 782,
+# so 782 - 3 = 779.
+RUNNABLE_RUN_FLOOR=779
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
