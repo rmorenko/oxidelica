@@ -69795,3 +69795,43 @@ goes to the park and the question to the review.
 `Inverter` and `Nand` reach the next wall: "has a solution on either
 side of mp.Sinternal at t = 1e-12" and "did not converge in 50 Newton
 iterations", both over loops still listing the `cBS`/`cBD` names.
+
+### Is the m579x remainder a spread price? A sample says no
+
+The 189 s of the m579x pair's run half that no named model carried was
+read by the review as a price spread thin over the corpus, about 0.19 s
+a model. That reading has a cheap test: thirty models that ran in both
+halves of that pair, `BranchingPipes` left out, every twenty-seventh of
+the common list (/tmp/m584/sample.lst), run off, on and off again with
+the same binary `/tmp/m578/oxs1` and the same four keys as
+/tmp/m579/pair3.sh (/tmp/m584/s5_off.txt, s5_on.txt, s5_off2.txt).
+
+```text
+off   running 31s over 30 (1042ms each)   11777 newton
+on    running 31s over 30 (1032ms each)   11779 newton
+off2  running 32s over 30 (1071ms each)   11777 newton
+```
+
+A spread price of 0.19 s a model would put the on half about 5.7 s
+above the off halves. It came out 0.3 s and 1.1 s below them, with the
+two off halves 0.9 s apart. The sample does not pay, so the remainder
+is not spread thinly across ordinary models: it has carriers, and
+looking for them is legitimate. Not this shift.
+
+### Two probes for the queue
+
+`PumpingSystem` (`OXIDELICA_NEWTON_TRAIL`, /tmp/m584/pump.txt): the
+block of fifteen has rows 5, 8, 9, 14 and 15 at NaN at step 0 for
+every guess tried, from 0 to 1000 in every unknown, while the rest
+move with the guess. So the NaN comes from what the block reads, not
+from its unknowns. The same run prints `reservoir.regularFlow[i]` and
+`inFlow[i]` read "from reservoir.portsData_height[i] at a zero nobody
+wrote and no definition reached", which is the first suspect for the
+input.
+
+`TestSweptVolume` (`OXIDELICA_INIT_PROBE`): "written
+sweptVolume.medium.T = sweptVolume.T_start reaches [], took
+sweptVolume.m". The initial equation on the temperature was paired
+with the mass, which is how the start block came to be solved on
+`medium.T`. The refusal is the same with `OXIDELICA_NO_INIT_BLOCK_SYS=1`,
+so it is not the start-block key's doing.
