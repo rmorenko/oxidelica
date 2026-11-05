@@ -69417,3 +69417,68 @@ without catching legitimate runs of 19? A ceiling scaled to the block
 size might do it: hex has 162 unknowns, while the victims have 7, 8
 and the SMR block. Or should hex be carved out of the main pass as a
 solver giant?
+
+## The key made the default, and its price by name (m580)
+
+On Roman's word (variant (g)) the start's implicit blocks are taken as
+systems by default since 4c22325, with the ceiling of 24 and
+`OXIDELICA_NO_INIT_BLOCK_SYS` to switch it off, and
+`HeatExchangerSimulation` is carried into the heavy set (1e2c9f2). The
+main corpus is 1006 models, not 1007, so a desk pass prints one model
+fewer flattened: the model moved, nothing was lost. The quick
+preflight on 51b334d printed 974 / 830 and runnable 856 / 782
+(`/tmp/m580/pf_quick.txt`). The flatten floors came down by one each
+and the centre of names looked up by hex's own 16678651
+(`/tmp/m580/hex_only.txt`), in ad77385. The run floors wait for the
+judge.
+
+Two tests asked for refusals the pair rule now answers. The mutual
+guard is tested on a cycle of three, which the pair rule declines. The
+initialisation test now checks the solved start as a number,
+`a * (1 - cos(c)) = 1`. Both changes are in the tree since bd735a5.
+The second test was red from 4c22325 to ad77385, because a first
+failure in the quick preflight hid it.
+
+The price by name, one model at a time under `--only` from `.msl`,
+with the binary of the pair (`/tmp/m579x/ox6`), off and on, in
+milliseconds of the run half (`/tmp/m580/<name>_{off,on}.txt`, summed
+in `/tmp/m580/prices.txt`):
+
+| model                                   |  off |     on |  share |
+| --------------------------------------- | ---: | -----: | -----: |
+| `HeatExchangerSimulation`               | 1037 | 441932 | 440895 |
+| QuasiStatic FundamentalWave `IMC_Init.` | 1756 |   1989 |    233 |
+| FundamentalWave `IMC_Initialize`        |  228 |    306 |     78 |
+| Machines `IMC_Initialize`               |   68 |    103 |     35 |
+| `SMR_CurrentSource`                     | 4212 |   4242 |     30 |
+| Analog `Rectifier`                      |   88 |     90 |      2 |
+| `CCCV_Stack`                            |  761 |    757 |     -4 |
+| seven together                          |      |        | 441269 |
+
+The three winners cost 0.35 s together to run off and on. "Run" here
+is the corpus measure: each of them runs to its experiment's stop
+time, but its trajectory has not been checked against a reference.
+The seven account for 441 s of the pair's 630 s. That leaves 189 s,
+above the 150 s that would mark the price as diffuse. Hex alone costs
+441 s under `--only`, where the two pairs put its share at 581 s
+(the consultant's correction of the 400 s estimate). So part of the
+remainder is likely hex costing more in the crowded corpus than alone,
+and part is spread over the other ~955 starts. The instrument cannot
+separate those two. That is the finding: the remainder is not
+attributed, and its carriers are for a `--slow` pair to name. No guess
+at a fix is made here.
+
+The road to 6% does not need hex any more. With hex carried out, the
+second pair put the price at +49 s (+1.27%), and the winners' own 0.35 s
+are inside it. The 6% budget of 234 s is met without making hex
+cheaper.
+
+Probe of `SMR_CurrentSource` at a ceiling of 5
+(`/tmp/m580/smr_k5.txt`): it is not refused for a stall, so the
+refusal did not print its start block as hoped. The start peak is 10
+after 21 entries, below 5 consecutive entries on the floor, and the
+model is refused later on an algebraic loop of 17 unknowns ("did not
+converge in 50 Newton iterations"). Whether that loop is the start
+block is not shown by this probe, so the size of SMR's start block
+stays unmeasured. The other sizes are hex 162, `Rectifier` 7 and
+`CCCV_Stack` 8.
