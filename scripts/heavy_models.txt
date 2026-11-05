@@ -169,3 +169,16 @@ ModelicaTest.Fluid.TestPipesAndValves.SeriesPipes12
 # 131.3s / 50.9s, 2026-10-12, refused
 # 112.1s / 48.4s, 2026-10-19, run / flatten, 36e3dd1, pass b
 ModelicaTest.Fluid.TestPipesAndValves.BranchingPipes18
+
+# Carved out on 2026-11-05 on Roman's word (variant (g) of m579), in
+# the commit after the start's implicit blocks became the default.
+# Not dear by nature: under that default its start block of 162
+# unknowns is re-entered 25 times at t = 0 and refused by name as
+# stalled, and the main check has no use for paying that refusal.
+# Two pairs price it: 3907s -> 4537s with it (/tmp/m579x/off24.txt,
+# on24.txt) against 3869s -> 3918s without it (/tmp/m577x/c_*), so
+# about 581s of the 630s the default costs is this one refusal. It
+# flattened and did not run, so it leaves the flatten floor and not
+# the run floor. If its start is ever mended it comes back.
+# ~581s / -, 2026-11-05, run / flatten, by difference of two pairs
+Modelica.Fluid.Examples.HeatExchanger.HeatExchangerSimulation
