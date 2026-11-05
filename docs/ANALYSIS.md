@@ -70035,3 +70035,22 @@ The NaN the block reads is still unnamed: the loop rows on
 and `why` finds a writer for `medium.p`, `medium.T`, `level`, both
 `h_outflow` and `p_ambient`. The next probe is the value of each
 outside read of the block at t = 0, not another `why`.
+
+The first value is now named. A temporary print of what the refusal
+had assembled before the walk's complaint replaced it (/tmp/m586/ox14,
+not committed) shows the block on `reservoir.medium.h` reading
+`reservoir.medium.u = NaN`, which came from
+`reservoir.medium.u := (-reservoir.U) / (-reservoir.m)` with
+`reservoir.m` at zero. `OXIDELICA_INIT_PROBE` says why: the written
+start `reservoir.level = reservoir.level_start_eps` reaches nothing and
+took `reservoir.m`, and `reservoir.medium.T = reservoir.T_start` took
+`reservoir.U`. The mass is left to a block that runs after the internal
+energy is divided by it, and the IF97 viscosity downstream is only the
+place the NaN was noticed. The refusal printed the walk's complaint and
+dropped the division that came first; a refusal that named both would
+have saved two shifts.
+
+`TestSweptVolume` looks like the same family from the start probe
+(`sweptVolume.medium.T = sweptVolume.T_start` took `sweptVolume.m`) but
+is not the same fault: the same print says every value its residual
+reads is finite, so the NaN there is made inside the block.
