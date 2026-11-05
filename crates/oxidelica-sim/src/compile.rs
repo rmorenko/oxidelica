@@ -8371,6 +8371,7 @@ pub(crate) fn compile_at(
         ),
         newton_window: std::cell::Cell::new((f64::NAN, 0)),
         newton_peak: std::cell::Cell::new((0, f64::NAN)),
+        start_stall: std::cell::RefCell::new(None),
         events_changed: std::cell::Cell::new(0),
     };
     // States the model pins down itself: `fixed = true` says the start
@@ -8396,7 +8397,8 @@ pub(crate) fn compile_at(
             .iter()
             .filter_map(|name| table.known(name).map(|slot| (name.clone(), slot)))
             .collect();
-        compiled.solve_initialization(
+        *compiled.start_stall.borrow_mut() = Some(Default::default());
+        let initialized = compiled.solve_initialization(
             &initial_equations,
             &fixed_states,
             &derivatives,
@@ -8406,7 +8408,21 @@ pub(crate) fn compile_at(
                 stages: &stages,
                 dummies: &dummies,
             },
-        )?;
+        );
+        // `OXIDELICA_START_STALL_PEAK` prints the longest run without
+        // improvement each start block reached, so that the ceiling is
+        // set above what the corpus does legitimately.
+        if let Some(table) = compiled.start_stall.borrow_mut().take() {
+            if std::env::var_os("OXIDELICA_START_STALL_PEAK").is_some() {
+                for (first, stall) in &table {
+                    eprintln!(
+                        "start-stall-peak {} in {} at {} after {} entries",
+                        stall.peak, compiled.name, compiled.algebraics[*first], stall.entries
+                    );
+                }
+            }
+        }
+        initialized?;
         compiled.check_block_regularity()?;
     }
     Ok(compiled)

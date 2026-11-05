@@ -69305,3 +69305,43 @@ minutes, not seconds. A refusal in seconds needs a stall test across
 entries (the floor at 4.05e-6, equal entry to entry), and that is a
 different rule that has to be paired. The shift had no room for a pair
 after a full preflight.
+
+### A stall of the start block, under the key (m579)
+
+The start of `HeatExchangerSimulation` under `OXIDELICA_INIT_BLOCK_SYS`
+re-enters its implicit block of 162 unknowns once per column of the
+outer difference Jacobian, and every entry ends on the arithmetic floor
+without being accepted. Two rules that compare an entry with the one
+before it fail on this model by construction, and the trail
+(`/tmp/m578x/hex_trail.txt`, 36 entries printed to 17 figures) shows
+why. The floor creeps in the twelfth figure, from 4.0538903774583206e-6
+to 4.05389037746771e-6, so no two entries agree to the bit. Every fourth
+entry the outer Jacobian lifts the residual to about 4.5e-3, so no run of
+non-improving neighbours is longer than three.
+
+The rule built instead keeps the best residual the start has seen for
+each block, keyed by the block's first unknown. It counts the entries
+that end on the floor without improving on that best, and only a real
+improvement resets the count. On the sample the best is reached on the
+fourth entry and is never improved again: 32 of the 36 entries leave it
+standing, at any threshold from 0 to 1e-3. The ceiling is
+`START_STALL_ENTRIES = 12`, which is less than half of the 32. It runs
+only under the key and only while `solve_initialization` is asking: the
+table exists between the two lines around that call and is `None`
+everywhere else. Without the key no model changes.
+
+Measured with `--only` from the root `.msl`, using the binary
+`/tmp/m579x/ox2` under a 24 GB cap (`/tmp/m579x/hex_on2.txt`), hex is
+now refused after 224 s of the run half, where before it had run 20
+minutes of CPU without a verdict (`/tmp/m578x/hex_free.txt`). The
+refusal reads: "start block of 162 unknowns [...] re-entered 13 times
+at t = 0, stalled at |f| = 4.0538903774771e-6 for the last 12 entries
+on the arithmetic floor, not accepted". The peak memory was 0.5 GB.
+
+The unit tests (`start_stall_tests`) cover only the counter: a floor
+that creeps, with outliers, which fires on the thirteenth entry, and a
+real improvement that resets the count. No small model with a stalled
+start block was found, so `hex --only` is the integration check.
+`OXIDELICA_START_STALL_PEAK` prints each start block's longest run
+without improvement. The corpus pair is what measures the legitimate
+maximum that 12 has to sit above.

@@ -1422,6 +1422,43 @@ impl CompiledModel {
         let block_names =
             || -> Vec<&str> { block.iter().map(|&i| self.algebraics[i].as_str()).collect() };
 
+        // An entry the initialization made into this block that ends on
+        // the arithmetic floor is counted against the start's running
+        // best, and a start that has stood that long without bettering
+        // it is refused by name rather than asked again for as long as
+        // the outer iteration has budget. Only under
+        // `OXIDELICA_INIT_BLOCK_SYS`, and only while the initialization
+        // is the one asking. See `StartStall`.
+        let start_stalled = |values: &mut [f64], v: &[f64]| -> Result<(), SimError> {
+            if !crate::walk::switch_set("OXIDELICA_INIT_BLOCK_SYS") {
+                return Ok(());
+            }
+            let mut held = self.start_stall.borrow_mut();
+            let Some(table) = held.as_mut() else {
+                return Ok(());
+            };
+            let norm = residual(values, v)
+                .iter()
+                .map(|x| x * x)
+                .sum::<f64>()
+                .sqrt();
+            let entry = table.entry(block[0]).or_default();
+            if entry.floor_entry(norm, START_STALL_ENTRIES) {
+                let (best, entries) = (entry.best.unwrap_or(f64::NAN), entry.entries);
+                return err_of(
+                    Refusal::Unconverged,
+                    format!(
+                        "start block of {} unknowns {:?} re-entered {entries} times at t = {t}, \
+                         stalled at |f| = {best:e} for the last {START_STALL_ENTRIES} entries \
+                         on the arithmetic floor, not accepted",
+                        block.len(),
+                        block_names()
+                    ),
+                );
+            }
+            Ok(())
+        };
+
         // A block accepted at a validated solve still has to be
         // *determined*: a singular Jacobian means the loop admits a
         // whole family of solutions, and the one we landed on is an
@@ -2638,6 +2675,7 @@ impl CompiledModel {
                     // anywhere - `BranchingPipes2` has twelve.
                     if stuck >= 3 {
                         if on_arithmetic_floor(values, &v, Some(&jac)) {
+                            start_stalled(values, &v)?;
                             for (j, &index) in block.iter().enumerate() {
                                 alg_guess[index] = v[j];
                             }
@@ -2693,6 +2731,7 @@ impl CompiledModel {
             }
         }
         if on_arithmetic_floor(values, &v, last_jac.as_deref()) {
+            start_stalled(values, &v)?;
             for (j, &index) in block.iter().enumerate() {
                 alg_guess[index] = v[j];
             }
@@ -3079,5 +3118,98 @@ mod step_floor_tests {
         let (give_up, stall) = step_floor_reading(true, 10.0, 0.0, 0.0, 1e-3);
         assert!((give_up - 1e-17).abs() < 1e-32);
         assert_eq!(stall, 5.0 * give_up);
+    }
+}
+
+/// How many entries into the start block in a row may end on the
+/// arithmetic floor without improving on the best residual the start
+/// has seen, before the start is refused as stalled. Only read under
+/// `OXIDELICA_INIT_BLOCK_SYS`; see [`StartStall`].
+pub(crate) const START_STALL_ENTRIES: usize = 12;
+
+/// The start's memory of how its implicit block has fared across the
+/// entries the initialization's own Newton makes into it.
+///
+/// The criterion is a running minimum and not a comparison of
+/// neighbours, and both of the obvious neighbourly rules were measured
+/// against the heat exchanger and fail by construction
+/// (/tmp/m578x/hex_trail.txt): the floor it stands on creeps in the
+/// twelfth figure, 4.0538903774583206e-6 then 4.05389037746771e-6, so
+/// no two entries agree to the bit; and the outer finite-difference
+/// Jacobian lifts every fourth entry to 4.5e-3, so no run of
+/// non-improving neighbours is longer than three. The best residual,
+/// on the other hand, is reached on the fourth entry and never bettered
+/// again: thirty-two of thirty-six entries leave it standing, the same
+/// at any threshold from zero to 1e-3.
+#[derive(Debug, Clone, Copy, Default)]
+pub(crate) struct StartStall {
+    /// The smallest residual any entry has ended on.
+    pub best: Option<f64>,
+    /// Entries in a row that ended on the floor without bettering it.
+    pub since: usize,
+    /// Every entry counted so far.
+    pub entries: usize,
+    /// The longest run of `since` this start reached, for the
+    /// instrument that measures the ceiling against the corpus.
+    pub peak: usize,
+}
+
+impl StartStall {
+    /// Record one entry that ended on the arithmetic floor at a
+    /// residual of `norm`, and say whether the start has now stalled.
+    /// A residual that is not a number neither improves nor resets.
+    pub(crate) fn floor_entry(&mut self, norm: f64, most: usize) -> bool {
+        self.entries += 1;
+        match self.best {
+            Some(best) if !(norm < best) => self.since += 1,
+            _ if norm.is_nan() => self.since += 1,
+            _ => {
+                self.best = Some(norm);
+                self.since = 0;
+            }
+        }
+        self.peak = self.peak.max(self.since);
+        self.since >= most
+    }
+}
+
+#[cfg(test)]
+mod start_stall_tests {
+    use super::StartStall;
+
+    // The shape of the heat exchanger's start: a floor that creeps
+    // upwards in the last figures, a Jacobian column every fourth
+    // entry lifting the residual, and the best never bettered.
+    #[test]
+    fn a_creeping_floor_with_outliers_stalls() {
+        let mut s = StartStall::default();
+        let mut fired = None;
+        for k in 0..40 {
+            let norm = if k % 4 == 0 {
+                4.52e-3
+            } else {
+                4.0538903774583206e-6 + k as f64 * 1e-17
+            };
+            if s.floor_entry(norm, 12) {
+                fired = Some(k);
+                break;
+            }
+        }
+        // Best reached at entry 1; twelve more without bettering it.
+        assert_eq!(fired, Some(13));
+    }
+
+    #[test]
+    fn a_real_improvement_resets_the_count() {
+        let mut s = StartStall::default();
+        for _ in 0..11 {
+            assert!(!s.floor_entry(1.0, 12));
+        }
+        assert!(!s.floor_entry(0.5, 12));
+        assert_eq!(s.since, 0);
+        for _ in 0..11 {
+            assert!(!s.floor_entry(0.7, 12));
+        }
+        assert!(s.floor_entry(f64::NAN, 12));
     }
 }
