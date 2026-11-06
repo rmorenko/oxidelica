@@ -70088,7 +70088,7 @@ series.
 `Inverter` refuses on a different wall than the one named last
 shift: the start does reach the block, `mp.Sinternal` starts at 0, and
 Newton goes there from every start tried - ±0.1, 2.5, 4.9
-(`/tmp/m587/I*.log`). From ±0.1 |f| falls by four each step, which
+(`/tmp/m587/inv_*.log`). From ±0.1 |f| falls by four each step, which
 is the mark of a double root. On it the column is flat, the two
 secants disagree, and the block is refused as "a solution on either
 side" at t = 1e-12. This is neither "the start does not reach the
@@ -70123,3 +70123,15 @@ The same step limit does not reach `Inverter`: at 0.1, 0.5 and 1.0 it
 refuses with the same either-side sentence in under a second
 (`/tmp/m587/d.out`), which fits a double root that no step size moves.
 `Nand` at 1.0 also ran out the 600 s ceiling.
+
+The rerun with the four starts in their own files sharpens this. The
+block does converge, several steps running up to t = 4.0e-12, and
+each time it lands on the kink: `mp.Sinternal` = 6.9e-8 on the 26th
+iteration with |f| = 2.4e-17 (`/tmp/m587/inv_p01.log`). The refusal
+comes on the next step, which starts from that converged point with
+|f| = 2.5e-4 and a column that is flat at the kink. So the wall is a
+step that starts on the switch of the drain-source sign, not the
+first solve. With the secant test switched off
+(`OXIDELICA_NO_SECANT_COLUMN=1`) the same point is refused as a
+column the block does not mention, which is the same flat column
+under its older name.
