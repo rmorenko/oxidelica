@@ -71557,3 +71557,17 @@ again. Nothing is built. The switch was weighed with a corpus pair and
 a named price, and turning it back on is Roman's word to give, not
 this shift's. `TestSweptVolume` goes beside `OneTank` in the list of
 what the chain would win.
+
+The census of this shift (`/tmp/m597/census.txt`, raw in
+`/tmp/m597/raw.txt`) prints 974 flatten / 835 run and runnable 856 /
+786. Counted between the section marks, that is 45 refusals to
+flatten in 25 rows and 139 refusals to run in 28 rows. By the raw
+text, the family of a mass read as zero has one model that names it
+outright, `PumpingSystem` ("divides by `-reservoir.m`, which is
+zero"). `TestSweptVolume` is a second, but its refusal names the
+NaN downstream rather than the mass. Over the five free-initial
+models of the library (`/tmp/m597/fi_off.txt`, `fi_on.txt`, one
+binary), the silent chain moves `OneTank` alone. That is the one
+model m529 named, and the run half is 503 s against 487 s. So the
+chain would win two models, `OneTank` and `TestSweptVolume`, and both
+are already on the list of the decision of 27 October.
