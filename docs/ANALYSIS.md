@@ -70118,3 +70118,8 @@ walk's complaint now carries what the block found first, and
 zero" after the IF97 viscosity. Refusal texts have moved, so censuses
 taken before and after it cannot be compared row for row. The floors
 do not move.
+
+The same step limit does not reach `Inverter`: at 0.1, 0.5 and 1.0 it
+refuses with the same either-side sentence in under a second
+(`/tmp/m587/d.out`), which fits a double root that no step size moves.
+`Nand` at 1.0 also ran out the 600 s ceiling.
