@@ -1988,3 +1988,43 @@ fn what_only_a_when_assigns_is_still_under_differentiation() {
         error.0
     );
 }
+
+/// A walk's reason does not replace what the block found first.
+///
+/// `PumpingSystem` refused on the IF97 viscosity's complaint about a
+/// density of `NaN`, and the division that made the `NaN` - the
+/// internal energy over an empty reservoir's zero mass - had been
+/// assembled one line earlier and was thrown away. Two shifts went on
+/// finding it again. Here `u` is `U/m` with `m` at zero and the walked
+/// guard is what notices; the refusal names both.
+#[test]
+fn a_walk_complaint_keeps_the_fault_the_block_found_first() {
+    let refused = compile(
+        &parse_model(
+            "model Q \
+               function guard \
+                 input Real u; output Real y; \
+                 protected Real a; \
+                 algorithm \
+                   assert(u > 1.0, \"guard: u must exceed one\"); \
+                   a := u; \
+                   while a < 10.0 loop a := a + 1.0; end while; \
+                   y := u * u - 4.0; \
+               end guard; \
+               Real U(start = 0, fixed = true); Real m(start = 0, fixed = true); \
+               Real u; Real x; \
+             equation der(U) = 0; der(m) = 1; U = m * u; \
+               guard(x + u) + x + 3.0 = 0; \
+             annotation(experiment(StopTime = 1, Interval = 0.5)); end Q;",
+        )
+        .unwrap(),
+    )
+    .expect_err("the block reads a NaN from the division by the zero mass")
+    .to_string();
+    assert!(refused.contains("could not be walked"), "{refused}");
+    assert!(refused.contains("divides by"), "{refused}");
+    assert!(
+        refused.contains("`m`") || refused.contains("m`, which is zero"),
+        "{refused}"
+    );
+}

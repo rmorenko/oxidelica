@@ -1931,14 +1931,31 @@ impl CompiledModel {
                     // refusal is written, or it is dropped when the
                     // block returns and the reader is sent to the
                     // solver for a fault in a function body.
+                    // What the block itself found is kept beside the
+                    // walk's reason rather than replaced by it: the
+                    // walk names where the NaN was noticed, and the
+                    // block's own values may name where it was made.
+                    // PumpingSystem printed only the IF97 viscosity
+                    // while `u := U/m` with `m` at zero, assembled one
+                    // line earlier, was the cause - two shifts went on
+                    // finding again what had already been found.
                     if let Some(why) = self.walked.complaint() {
                         let kind = why.1;
+                        // The all-finite sentence names nothing, and
+                        // beside a walk's reason it would only say that
+                        // the fault is the walk's - which the reason
+                        // already says.
+                        let entered = if entered.starts_with("; and every value") {
+                            String::new()
+                        } else {
+                            entered
+                        };
                         return err_of(
                             kind,
                             format!(
                                 "{which} of algebraic loop {:?} is {bad} at t = {t}, \
                              before any Newton step, because a function it calls \
-                             could not be walked: {why}",
+                             could not be walked: {why}{entered}",
                                 block_names()
                             ),
                         );
@@ -2743,14 +2760,14 @@ impl CompiledModel {
             if validate && floor_checked {
                 determined(values, &v)?;
             } else if floor_doors_closed() {
-                unvalidated_door(values, &v, "after 50 iterations")?;
+                unvalidated_door(values, &v, &format!("after {budget} iterations"))?;
             }
             return Ok(());
         }
         err_of(
             Refusal::Unconverged,
             format!(
-                "algebraic loop did not converge in 50 Newton iterations: {:?}",
+                "algebraic loop did not converge in {budget} Newton iterations: {:?}",
                 block_names()
             ),
         )
