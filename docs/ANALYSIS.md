@@ -71626,3 +71626,87 @@ was written (`/tmp/m597/dpn_on.txt`). Leaving calls out of the chain
 does not keep the pipe away from its dear initial residual. The park
 note says so, and the patch is not a candidate for merging in this
 form.
+
+## Shift 598: where the two singular start blocks lie, and the pipe's one block
+
+### The mixing volumes: the density row is the dead one
+
+`TestMixingVolumesPressureStates` refuses with a singular Jacobian on a
+start block of 24 unknowns. The Jacobian printed at Newton 0
+(`/tmp/m597/tmv2.txt`) was taken apart by singular values. The block is
+structurally full (a matching of all 24 exists), and numerically of rank
+23: the smallest singular value is 4e-17 against 1e-5 for the next. The
+left null vector is row 4 alone,
+`mixingVolume2.medium.d = waterBaseProp_ph(p, h, phase, 0)[9]`, and the
+right one is `der(mixingVolume1.medium.p)`. Row 4 holds one nonzero, in
+the column of `mixingVolume2.medium.p`, at -4.5e-7, which is
+d(density)/dp of liquid water. So the start block has spent the density
+equation on the pressure, through the compressibility of water, while
+`medium.d` itself is settled elsewhere. `why` names four equations for
+`mixingVolume2.medium.d`: `u = h - p/d`, `d = state.d`, the IF97 call
+above, and `m = fluidVolume * d`. The hypothesis of the chapter before
+holds: the density is pinned twice, once by the medium and once by the
+mass, and the start matching gives the IF97 row the pressure. This is a
+member of the family where the initial matching spends an equation on
+the wrong unknown (m371 to m474). Recorded, not treated.
+
+### The pump's third wall: the column of `s` at the knee
+
+`PumpingSystem` under `OXIDELICA_SILENT_CHAIN=1` (`/tmp/m598/ox1`,
+`/tmp/m598/ps.txt`) refuses with a singular Jacobian on a start block of
+15 unknowns. No column and no row is zero. The null direction is
+`pumps.s` (weight 1.0, `V_flow_single` 0.001), and the column of `s`
+holds one nonzero, -1e-3, in
+`V_flow_single = if s > 0 then s*unitMassFlowRate/rho else 0`. At the
+start `s = 0` and `V_flow_single = 0`, so the head equation reads its
+`if s > 0` on the false side and does not depend on `s`. The block has
+two unknowns, `s` and `V_flow_single`, tied by one equation, with the
+head characteristic not seeing either. The singularity is the knee
+itself, not a zero derivative of the characteristic.
+
+The two victims of m575 are not the same loop. On HEAD both
+`TestWaterPumpPowerCharacteristic` and `TestWaterPumpStorage` run
+(`/tmp/m598/pc.txt`, `st.txt`, 273 and 213 Newton lines), and none of
+their blocks names `pump.s` or `pump.V_flow_single`. The family "pump
+loop" is so far one model, `PumpingSystem`.
+
+### The pipe under the chain: one block of 43, stalled
+
+`DynamicPipeWithNominalLaminarFlow` with `/tmp/m597/oxa` under
+`NEWTON_TRAIL` (`/tmp/m598/dpn_trail.txt`, stopped by hand after 7.5
+minutes of CPU) spends its time in one start block of 43 unknowns at
+t = 0, not in many small ones. 126 Newton episodes were printed. The
+first 121 settle at once, at |f| of 1e-7 or below. From the 122nd on,
+each episode starts at a residual half the last one (2430, 1215, 607,
+303, 151), runs 15 to 16 damped steps at lambda near 1e-4 with
+`stuck` climbing, and several land on NaN. At about two seconds an
+iteration this is what the 23 minutes were. For item 85 of the queue
+this is a second reading beside hex at 162: one start block of 43.
+Candidate for a question, not filed: whether the silent chain should be
+taken only for start blocks below a size, now that two dear models are
+each a single large block.
+
+### The small rows of the run half
+
+From `/tmp/m597/raw.txt`. The six `cannot evaluate parameters` are all
+`e_ia` (`Engine1b_analytic`, `EngineV6_analytic`,
+`PlanarLoops_analytic`, `CylinderBase`, `Cylinder_analytic_CAD`,
+`Utilities.EngineV6_analytic`), so there are no three others. The five
+`do not mention it` are none of them the zero-mass family:
+`Spice3BenchmarkDifferentialPair`, `RevoluteConstraint`,
+`RollingWheel`, `PlanarFourbar` and `GearType2`. The two `tsat too low
+pressure` are `TwoPhaseWater.BaseProperties` and `ExtendedProperties`,
+which are not examples: their sibling `TestTwoPhaseStates` runs. The two
+`below min` are `FlueGasSixComponents` and `MoistAir`, where
+`dddX = density_derX(state)` is declared `Medium.Density`, whose `min`
+is 0, and a derivative of density by a mass fraction is negative. The
+library's declaration is what is wrong there.
+
+### A tool finding
+
+`library check --help` does not print the usage. The CLI has no case
+for `--help` or `-h`, so the flag falls through to an ordinary check of
+the whole library. One such run was left on the desk this shift and
+cost two hours of CPU and 15 GB before it was killed. The fix is one
+line, matching `--help` and `-h` to the usage text that is already
+there.
