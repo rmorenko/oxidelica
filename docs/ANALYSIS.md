@@ -71182,3 +71182,26 @@ judge for 78d5b50 printed green. The 530 is the desk's own centre
 says the desk centre is stale, not that this tree regressed. The
 review should decide whether the centre is wound. Everything else
 passed, including coverage.
+
+### Two tanks, one overflow pipe, and the branch taken at the start
+
+`TanksWithOverflow` is refused as structurally singular on
+`lowerTank.ports[2].m_flow = 0`. The mode trail
+(`OXIDELICA_NEWTON_TRAIL`) shows why. The structure is built from the
+branch each run-time `if` takes at the start. Both ends of the
+overflow pipe stand above their liquid (level 2, ports at 6 and 5),
+and the open tank's port `if` (`Fluid/Vessels.mo`, lines 349 to 383)
+takes its `else` at both ends, `ports[i].m_flow = 0`. That gives two
+equations for the one flow the pipe carries
+(`overflow.port_a.m_flow + overflow.port_b.m_flow = 0`), so the
+matching is singular. The upper end first reads `inFlow[3] = 1` and
+then settles on `else`. The specification writes such an `if` as one
+residual per position, whose incidence is the union of its branches. In
+the union, the first position of each port holds `p` as well as
+`m_flow`, and the system is regular. A small `if` of this shape
+(`/tmp/m595/L/P/V1.mo`) runs, because one tank cannot block the same
+flow twice. `BatchPlant_StandardWater` is refused on
+`B5.InnerTankSide[1].port.m_flow = 0`, the same words, and is a
+candidate for the same cause that was not probed (a pass takes three
+minutes). Map only: building the structure from the union of branches
+is an architectural change.
