@@ -71500,3 +71500,17 @@ temperature solved from an equation that has no finite root at the
 start, not a zero mass. Which equation the one-unknown block holds is
 the next step, and the pair with `HeatingSystem` is not one family as
 far as this probe shows.
+
+A correction to the paragraph above, made in the same shift. With the
+block's names printed (a probe never committed,
+`/tmp/m597/sv2.txt`), the one-unknown block is `medium.T` solved from
+`medium.d = medium.p / (R_s * medium.T)`. Its residual at 293.15 K is
+-1.188, which is exactly `0 - p/(R_s T)`: the density it is handed is
+zero. The density comes from `m = fluidVolume * d`, and `m` is a state
+under `DynamicFreeInitial` with no start and no binding, so it starts
+at zero. The temperature at infinity follows from that zero mass. So
+the origin is a zero mass after all, the same as `HeatingSystem`'s
+`tank.m = 0`, and the sentence above saying otherwise is withdrawn.
+Both are free-initial masses read as zero, and that pair is one family
+by this probe: a state that nothing starts, standing in for the value
+its equation of state would give. Map only, nothing built.
