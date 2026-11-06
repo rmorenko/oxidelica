@@ -70832,3 +70832,20 @@ goes to Roman through the review. Merged first, it would only pay for
 the next wall. The analytic loop joints are that wall and want their
 own series. The flattening halves (4018 s against 3701 s) are not read,
 for the reason given above.
+
+The wall behind the six, read against its neighbours. `Engine1a` and
+`Utilities.Cylinder`, which never met the `e_ia` wall, are refused the
+same way in both halves of the pair: `der(piston.frame_b.R.T[3,3]) = 0`
+and a `crank1.body` orientation row each "constrain no state", with
+31 other members of the singular subset tried. That 31 is
+`MAX_SINGULAR_ATTEMPTS = 32` in `compile.rs`, a ceiling whose comment
+records `PlanarFourbar` finding its member at the seventy-ninth try of
+555 and grinding for minutes and gigabytes. Every one of these models
+is a planar loop, which the library itself names as having cut forces
+that cannot be computed uniquely. So the six do not have a wall of
+their own. They join the planar-loop family that `Engine1a` and
+`Cylinder` already stand in, and the search's ceiling is where that
+family stops. The minutes they spend before refusing are that search.
+Raising the ceiling is not a road, since its comment gives the price.
+Map only, read with no probe: the next step is to shrink one planar loop
+and ask which member of the subset would have been the right one.
