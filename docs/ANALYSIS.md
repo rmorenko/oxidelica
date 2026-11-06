@@ -71239,3 +71239,14 @@ expression (`D2`, and `D3` with `reference_T` named by its package)
 run, so what in the tank makes the still-standing rule miss this
 subscript is still open. The next probe is to print `does_not_move` on
 that node inside `H3`. Map only.
+
+The cause was found later in the shift. In `H3` the derivative is asked
+as a slope (`DiffTarget::Variable`) inside the torn block, and the
+"does not mention the name, so the slope is 0" rule (symbolic.rs:720)
+stood on calls only, not on an element of a call. Extended to
+`Index`, `H3` runs (off refused, on runs, one binary `/tmp/m595/ox5`
+under `OXIDELICA_NO_STILL_SLOPE_ELEMENT`). `HeatingSystem` gets past
+the wall and stops at the next one, `tank.medium.u = NaN` before its
+block, with the run half going from 1 s to 132 s
+(`/tmp/m595/hs_on.txt`). So there is no win, and the patch is parked
+as mechanism only: `~/oxideflow/park/m595-still-slope-element.*`.
