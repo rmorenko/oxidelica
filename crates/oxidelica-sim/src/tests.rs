@@ -1085,6 +1085,24 @@ fn the_silent_chain_reads_a_state_through_silent_names_when_asked() {
     assert!((state("U") - 12000.0).abs() < 1e-9, "U = {}", state("U"));
 }
 
+/// Without the switch the chain still reads through plain arithmetic:
+/// a swept volume's mass waits on `fV`, `V` and the flange's `x`, none
+/// of them a call, and the mass begins at `fV * d` rather than at zero.
+#[test]
+fn the_arithmetic_chain_reads_a_mass_without_being_asked() {
+    let model = parse_model(
+        "model M parameter Real A = 2; parameter Real d = 1000; \
+         Real s(start = 1.5); Real x; Real V; Real fV; Real m; \
+         equation x = s - 0.5; V = A * x; fV = V; m = fV * d; \
+         der(m) = 0; end M;",
+    )
+    .unwrap();
+    let compiled = compile(&model).unwrap();
+    let index = compiled.states.iter().position(|had| had == "m").unwrap();
+    let m = compiled.initial[index];
+    assert!((m - 2000.0).abs() < 1e-9, "m = {m}");
+}
+
 /// Two torn unknowns that determine each other get their rates from
 /// the theorem on the pair, by Cramer's rule, and the numbers are the
 /// ones worked by hand: `a + 2b = t` and `3a - b = 2t` give

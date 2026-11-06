@@ -7570,7 +7570,20 @@ pub(crate) fn compile_at(
             // `OXIDELICA_SILENT_CHAIN` asks for it: the reach it buys
             // also lets pipes into an initial residual that costs
             // minutes and is refused all the same.
-            if crate::silent_chain_enabled() {
+            //
+            // A narrower reach is on by default: the same chain, but
+            // only through equations of plain arithmetic, with no call
+            // in them. A swept volume's mass waits on `fluidVolume`,
+            // `V`, the flange's position and the mass's own `s` - four
+            // links of sums and products, none of which asks a medium
+            // anything - and without them the mass began at zero and
+            // the gas's temperature was walked to infinity from
+            // `d = p / (R_s T)` (`TestSweptVolume`, docs/ANALYSIS.md,
+            // shift 597). A link through a call is where the pipes'
+            // dear residual came from, so it stays behind the switch.
+            // `OXIDELICA_NO_ARITHMETIC_CHAIN=1` keeps the old reach.
+            let whole_chain = crate::silent_chain_enabled();
+            if whole_chain || crate::arithmetic_chain_enabled() {
                 let silent: std::collections::HashSet<&str> = model
                     .components
                     .iter()
@@ -7594,6 +7607,9 @@ pub(crate) fn compile_at(
                         lhs.collect_refs(&mut named);
                         rhs.collect_refs(&mut named);
                         if !named.iter().any(|name| frontier.contains(name)) {
+                            continue;
+                        }
+                        if !whole_chain && (calls_anything(lhs) || calls_anything(rhs)) {
                             continue;
                         }
                         for name in named.iter().copied() {
@@ -11247,4 +11263,16 @@ mod attempt_order_tests {
         assert_eq!(order[0], 0, "the equation stumbled on stays first");
         assert_eq!(order[1], answer);
     }
+}
+
+/// Whether an expression calls a function anywhere inside it, which is
+/// what the arithmetic chain of silent starts declines to read through.
+fn calls_anything(expr: &Expr) -> bool {
+    let mut found = false;
+    expr.for_each(&mut |node| {
+        if matches!(node, Expr::Call(..)) {
+            found = true;
+        }
+    });
+    found
 }

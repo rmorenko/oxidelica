@@ -44,6 +44,12 @@ pub(crate) fn silent_chain_enabled() -> bool {
     std::env::var_os("OXIDELICA_SILENT_CHAIN").is_some()
 }
 
+/// The silent chain through plain arithmetic only, on by default;
+/// `OXIDELICA_NO_ARITHMETIC_CHAIN` keeps the reach of one equation.
+pub(crate) fn arithmetic_chain_enabled() -> bool {
+    std::env::var_os("OXIDELICA_NO_ARITHMETIC_CHAIN").is_none()
+}
+
 pub use compile::{
     compile, lower_the_ceiling_here, refuse_when_still_here, CeilingGuard, WhenStillGuard,
 };

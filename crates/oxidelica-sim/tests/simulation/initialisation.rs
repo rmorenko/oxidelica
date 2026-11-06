@@ -2278,9 +2278,12 @@ fn a_silent_state_is_not_read_through_a_chain_by_default() {
             .unwrap_or_else(|| panic!("{name} among {:?}", compiled.states));
         compiled.initial[index]
     };
+    // Shift 597: the chain through plain arithmetic is now read by
+    // default (these three links are sums and products), so the mass
+    // begins at 3000; a link through a call still needs the switch.
     assert!(
-        (state("m") - 3000.0).abs() > 1.0,
-        "the chain was read without the switch: m = {}",
+        (state("m") - 3000.0).abs() < 1e-9,
+        "the arithmetic chain was not read: m = {}",
         state("m")
     );
 }

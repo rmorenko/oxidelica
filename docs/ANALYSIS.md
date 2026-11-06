@@ -71710,3 +71710,31 @@ the whole library. One such run was left on the desk this shift and
 cost two hours of CPU and 15 GB before it was killed. The fix is one
 line, matching `--help` and `-h` to the usage text that is already
 there.
+
+### The arithmetic chain, priced on the corpus and merged
+
+On Roman's word of 22:55 the parked `m597-arithmetic-chain` went
+through a corpus pair. One binary built from this tree
+(`/tmp/m598/ox5`), the halves one after the other, set 1019, a 24 GB
+ceiling and `--slow 60` on both: off under
+`OXIDELICA_NO_ARITHMETIC_CHAIN=1` (`/tmp/m598/off.txt`), on by default
+(`/tmp/m598/on.txt`).
+
+- Run 835 to 837 and runnable 786 to 788. The run lists differ by
+  exactly two added lines, `AST_BatchPlant.Test.OneTank` and
+  `TestSweptVolume`, and there are no victims.
+- The flattening work is equal in all four counters. The flattening
+  time moved from 3858 s to 3920 s, which is named and not read, as
+  the rule for the flattening half asks.
+- The run half went from 4486 s to 4101 s, 385 s cheaper. The `--slow`
+  lists name the carrier: `MeasuringTemperature`, 436.9 s to 23.7 s.
+  It refuses in both halves, but now quickly. `PumpingSystem` costs
+  18.1 s to 29.5 s, the price the small court already named. The rest
+  of the movement is within the per-model noise of a corpus pass.
+
+All three of the standing conditions of 26 October hold, so the change
+goes in. The floors stay where they are until the judge prints this
+tree. One edge stays open and is named for the review: the price over
+the heavy set was never measured. Only one pipe was, and it grew from
+89 s to more than 23 minutes. The cron's two passes had 94 and 106
+minutes to spare under their 240.
