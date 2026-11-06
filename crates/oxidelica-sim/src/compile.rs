@@ -1220,25 +1220,54 @@ fn repeat_member_enabled() -> bool {
 /// them: the one the matching stumbled on, then the equations holding
 /// the unknowns its failed search walked through - together they are
 /// the subset with more equations than unknowns.
-fn attempt_order(failed: usize, visited: &[bool], matched_eq: &[Option<usize>]) -> Vec<usize> {
+///
+/// The members that are a bare alias `a = b` go after the rest. In the
+/// planar loops every member tried in vain before the one taken was
+/// such an alias, and the one taken never was: `Utilities.Cylinder`
+/// took its member at the 21st, 45th, 59th, 68th and 65th try, which
+/// was the 2nd, 3rd, 9th, 10th and 11th among the members that are not
+/// aliases (/tmp/m593/t_Utilities.Cylinder.txt). An alias names two
+/// unknowns and no state, and its derivative is one more alias, so it
+/// cannot be what pins the state the subset is over by; behind the
+/// ceiling the aliases crowded the answer out.
+fn attempt_order(
+    failed: usize,
+    visited: &[bool],
+    matched_eq: &[Option<usize>],
+    is_alias: impl Fn(usize) -> bool,
+) -> Vec<usize> {
     let mut order = vec![failed];
     if !singular_set_enabled() {
         return order;
     }
+    let mut members: Vec<usize> = Vec::new();
     for (var, seen) in visited.iter().enumerate() {
-        if order.len() >= MAX_SINGULAR_ATTEMPTS {
-            break;
-        }
         if !seen {
             continue;
         }
         if let Some(eq) = matched_eq[var] {
-            if !order.contains(&eq) {
-                order.push(eq);
+            if eq != failed && !members.contains(&eq) {
+                members.push(eq);
             }
         }
     }
+    if aliases_last_enabled() {
+        let (rest, aliases): (Vec<usize>, Vec<usize>) =
+            members.into_iter().partition(|&e| !is_alias(e));
+        members = rest;
+        members.extend(aliases);
+    }
+    order.extend(members);
+    order.truncate(MAX_SINGULAR_ATTEMPTS);
     order
+}
+
+/// Whether the bare aliases of a singular subset are tried after its
+/// other members. Behind a switch so that one binary can produce both
+/// numbers. On by default; `OXIDELICA_NO_ALIASES_LAST=1` keeps the
+/// order of the indices.
+fn aliases_last_enabled() -> bool {
+    std::env::var_os("OXIDELICA_NO_ALIASES_LAST").is_none()
 }
 
 /// What ranking an equation for one of its names depends on, with the
@@ -1992,7 +2021,9 @@ fn reduce_index_once(
         // orientation, `world.frame_b.R.T[3,2] = rod3.frame_a.R.T[3,2]`,
         // stops the matching and pins nothing, while the equation that
         // reaches the joint's angle stands in the same subset.
-        let mut order = attempt_order(failed_eq, &visited, &matched_eq);
+        let mut order = attempt_order(failed_eq, &visited, &matched_eq, |e| {
+            matches!(&algebraic_eqs[e], (Expr::Ref(_), Expr::Ref(_)))
+        });
         // An equation the matching stumbles on twice running is one
         // whose first differentiation did not reach what kept it from
         // being matched, and differentiating it again demotes another
@@ -11193,5 +11224,27 @@ mod zero_if_tests {
             Box::new(Expr::Number(0.0)),
         );
         assert!(!zero_throughout_with(&by_state, &params, &zeros, true));
+    }
+}
+
+#[cfg(test)]
+mod attempt_order_tests {
+    use super::{attempt_order, MAX_SINGULAR_ATTEMPTS};
+
+    /// Forty aliases walked before the one member that is not an alias:
+    /// in the order of the indices it falls past the ceiling and is
+    /// never tried, which is how the planar loops were refused with the
+    /// answer in their own subset. Tried after the rest, the aliases
+    /// leave it the second place.
+    #[test]
+    fn an_alias_does_not_crowd_the_answer_past_the_ceiling() {
+        let n = 42;
+        let visited = vec![true; n];
+        let matched_eq: Vec<Option<usize>> = (0..n).map(Some).collect();
+        let answer = n - 1;
+        let order = attempt_order(0, &visited, &matched_eq, |e| e != answer);
+        assert_eq!(order.len(), MAX_SINGULAR_ATTEMPTS);
+        assert_eq!(order[0], 0, "the equation stumbled on stays first");
+        assert_eq!(order[1], answer);
     }
 }

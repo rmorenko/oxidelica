@@ -70951,3 +70951,20 @@ under `CAP_GB=24`, with `--slow 60` on both halves. The files are
 flatten / 834 run, runnable 856 / 786, and a run half of 4643 s. The
 patch with its note is parked as `park/m593-aliases-last` until the
 pair is judged.
+
+The pair is judged by the rule of 26 October. The run lists are equal
+line for line (1808 = 1808), so there are no victims and no wins. The
+counts hold at 974 / 834 and runnable 856 / 786. The run half went from
+4643 s to 4642 s, which is inside the 18 s floor. The flattening half
+went from 3994 s to 3973 s. That difference is named here, and no
+conclusion is drawn from it. In `--slow 60`, `RevoluteConstraint` was
+50.8 s and is now 102.8 s, and `UniversalConstraint` was 69.0 s and is
+now 78.0 s. Both are constraint loops that now reach an algebraic loop
+past the search instead of being refused early. `PlanarFourbar` went
+from 133.9 s to 92.7 s. Those are candidates, not confirmed prices.
+All three conditions hold, so the change goes in on by default, with
+the switch kept. The pair stands in for the library step of preflight.
+It was taken with `/tmp/m593/ox2`, built from the final code, and only
+the unit test and formatting were added after it. The files are
+`/tmp/m593/off.txt` and `on.txt`. The floors do not move, since no
+count moved.
