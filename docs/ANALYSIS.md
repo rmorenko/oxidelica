@@ -71029,3 +71029,98 @@ A twelve-line model of that shape (`/tmp/m594/s/Gas.mo`, `v` only in
 the condition of `p`, `v = der(s)` beside it) runs, so the small form
 does not reproduce the pairing, and what makes the matching pick the
 pressure equation in `Cylinder` is still open.
+
+## The rows of two in the run half, and the cylinder's matching (m595)
+
+Binary `/tmp/m595/ox1` from HEAD 2d572f5, every model by
+`library check .msl --only`, census rows from `/tmp/m590/on3.txt`.
+
+The rows of two, one by one:
+
+- `SMPM_CurrentSource` (Machines), 60 Newton iterations. The trail
+  (`/tmp/m595/smpm_trail.txt`) jumps between two points every step,
+  `|f|` 180 to 550, and never descends. `OXIDELICA_VICTIM_PROBE`
+  shows reduction 15, on the current balance of the star of the
+  voltage sensor, demoting `smpm.phiMechanical`, which the model fixes.
+  The three phase currents of `dqToThreePhase(phi)` sum to zero by
+  trigonometry, yet the sum structurally holds `phi`, so the angle
+  goes into the loop. The FundamentalWave twin dies on a singular
+  Jacobian and the QuasiStatic one on 60 iterations. No cheap change.
+- `FlueGasSixComponents` and `TestAllProperties.MoistAir`: `dddX[1]`
+  below its min of 0. `Medium.Density dddX = density_derX(state)`: a
+  derivative of density by mass fraction is negative here by physics,
+  and the library's own `min = 0` on `Density` is what refuses.
+  `Essotherm650` is the same breed: `Pr` = 1.95e7 against the
+  `PrandtlNumber` max of 1e5 (`Media/package.mo:6656`). Whether a
+  min/max attribute on an output of a property function stops a run
+  is a policy question for Roman, not a fix.
+- `TwoPhaseWater.BaseProperties` and `ExtendedProperties`, and
+  `OpAmpCircuits.Add`/`Buffer`, `DirectCapacitor`/`DirectInductor`,
+  carry no `experiment`: a medium with `p = 0` and nothing bound,
+  four-pin circuits with no ground, an FMU wrapper whose `y1 =
+der(y)` has no partner. They belong to the example filter, queue
+  item 66, and were passed.
+- `Inverse_sh_TX` and `IncompleteMedia.ReferenceMoistAir`, "an array
+  reached the evaluator": both stand on `final Complex[2] t =
+{Complex(...), Complex(...)}` in the ice Gibbs function, walked
+  through `ice09BaseProp_pT`. Small models in `/tmp/m595/L/P`: an
+  inlined body with such a local (`C2`) is refused with "an array of 2
+  written out", because `t[1].re` puts `.re` on the literal as a slice
+  (`{0.5.re, 0.25.re}`), and a walked one (`C9`) gives the corpus
+  refusal exactly. The inlined half is mended by filing the local as a
+  record and binding `t[k].field` (patch parked, see below). The walked
+  half is a chain: `records_as_arrays` (carried.rs) lays a `Complex[2]`
+  out as `Real[2]` of its fields and loses the array axis, and the walk
+  has no record operators at all, a scalar `Complex` with `*` and `log`
+  in a walked body (`C10`) is refused "unknown variable `t`". Map only.
+- `AmplifierWithOpAmpDetailed`: seven states, five initial equations
+  plus `resistor2.i = 0`, and `opAmp.v_in` (`i_c3 = Cin*der(v_in)`) is
+  pinned by nothing. A start-filling policy, not a fix.
+
+The cylinder's matching (item 2). A probe printing every assignment at
+the end of the matching (`PROBE_MATCH`, on the stashed ceiling probe,
+not committed; `/tmp/m595/cylm.txt`, `cylm2.txt`) shows the matching
+is lawful for what it was given. `gasForce.v_rel` has three equations:
+`v_rel = der(s_rel)`, `v_rel = cylinder.v` and the pressure law.
+`der(gasForce.s_rel)` is held only by `v_rel = der(s_rel)` and by the
+differentiated force balance (`eq2955`, which `cylinder.a` takes),
+`cylinder.v` takes `v_rel = cylinder.v`, and `der(s_rel)` takes
+`v_rel = der(s_rel)` as its own. So `v_rel` is left the pressure law.
+No equation ties `der(s_rel)` to `der(cylinder.s)`: the reduction
+differentiated the force balance but not the position chain `s_rel =
+flange_b.s - flange_a.s`, `flange_b.s = cylinder.axis.s`. The fault is
+upstream of the matching, in which members index reduction
+differentiates. The small `Gas.mo` runs because its `s` is a state
+with nothing to reduce.
+
+Units (item 3): `TestSweptVolume` - reduction 3 demotes `sweptVolume.U`
+and `medium.h` stands unsettled before the block, NaN from the first
+evaluation. `TestJunctionTraceSubstances` - `solveOneNonlinearEquation`
+gets an interval that does not bracket the root (T from h).
+`PumpingSystem` - IF97 viscosity at too low a density at the start.
+`ThreeSprings` - `e_rel_0 = r_rel_0 / s` is -inf before any step;
+springs 2 and 3 have no start on `r_rel_0` where spring 1 has one.
+`TestSuddenExpansion` - two roots of the quadratic law at `m_flow = 0`,
+a test of right and wrong use, refused honestly. `OneTank` - the flow
+steps into NaN on the first Newton step. `ControlledMixingUnit` - the
+clocked inverse model through `InverseBlockConstraints` is read as two
+`when` assignments of `u1` and none of `y2`. `GearType1` has no
+`experiment`. `ThreePhaseTransformerWithRectifier` - initialization 21
+for 23, core 3's `Hstat`/`MagRel` unpinned.
+
+One win built and parked, `~/oxideflow/park/m595-zero-delay.patch`
+with its note. Section 3.7.4 allows `delay(expr, 0)`, which is `expr`,
+and the unclocked `Digital.Examples.Utilities.RS` defaults its
+`delayTime` to 0. Small court with one pair of binaries (`ox1` against
+`ox4`), `--only` over 52 neighbours that touch delays
+(`/tmp/m595/nb_ox1.txt`, `nb_ox4.txt`): 49 to 50 run, the only
+changed line is `RS` 0 to 1, no victims. `RS` is in the measured set
+with no experiment, so run +1 and runnable +0 are expected. The test
+`a_delay_of_nought_reads_the_expression_now` is red under
+`OXIDELICA_NO_ZERO_DELAY` and green without. Price unmeasured, by rule.
+
+Second park, mechanism only:
+`~/oxideflow/park/m595-local-record-arrays.patch`. Small `C1`, `C2`,
+`C4`, `C6`, `C8` run under it (`y = 0.5*(time+1) + 1` read by `why`),
+and nothing in the measured set moves, since the two corpus models walk
+their body.
