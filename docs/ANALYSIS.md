@@ -70135,3 +70135,104 @@ first solve. With the secant test switched off
 (`OXIDELICA_NO_SECANT_COLUMN=1`) the same point is refused as a
 column the block does not mention, which is the same flat column
 under its older name.
+
+## A census of the tree after 8e38708, the zero-mass start family and a small kink (m588)
+
+The census of today's tree (`/tmp/m588/census.txt`, raw in
+`/tmp/m588/raw.txt`) counts 974 flattened and 833 run, with 45
+models in 25 rows that would not flatten and 141 in 29 rows that
+flattened and would not run, both counted between the section
+markers. The last census before it, `/tmp/m580/census.txt`, counted
+45 in 25 rows and 144 in 29 rows. The three models that left the run
+half are `FourInverters`, `InvertersApartRecord` and
+`InvertersExtendedModel`, the ones m584 won. No other model left or
+arrived. Two models moved row because their refusal text changed, not
+because the models changed. `Inverter` went from "`der(mp.Sinternal)
+...` of algebraic loop ... is NaN" to "a solution on either side of
+`mp.Sinternal`". `Nand` went from the same NaN row to "did not
+converge in 60 Newton iterations", which now prints the real budget.
+So the NaN row fell from 11 to 6, either-side rose from 4 to 5, and
+the unconverged row rose from 2 to 3. The two totals match the model
+lists one for one, so the census is a clean baseline for the tree.
+
+The zero-mass start family is smaller than its row. Of the six
+models left in the "`X` of algebraic loop is NaN at start" row, only
+`PumpingSystem` prints a divisor of zero:
+`reservoir.medium.u := (-reservoir.U) / (-reservoir.m)` divides by
+`-reservoir.m`. Across the whole raw report the phrase "divides by"
+appears exactly once. `TestSweptVolume` names a value settled before
+the block, `sweptVolume.ports[1].h_outflow = NaN`, and no divisor.
+The m586/m587 probe showed the mass and the energy paired at zero
+behind it, so it is the same breed by probe but not by its own text.
+The other four have no first fault in the text. `TestJunctionTraceSubstances`
+lists 29 NaN flows. Both `RollingWheelSet` models and `ThreeSprings`
+print the retries' verdicts at the end. So the question of how the
+start is chosen currently costs two models by evidence, `PumpingSystem`
+and `TestSweptVolume`, and not eleven.
+
+The small model for the either-side refusal is
+`/tmp/m588/small/Kj.mo`: `dp = if m > 0 then m^3 else -m^3;
+dp = 2.5e-4;` with `m(start = 0)`. It refuses in one second with the
+same sentence as `Inverter`. The monotone `dp = m^3` (`Kk.mo`) runs
+from the same start. Changing only the right-hand side gives three
+different situations that the refusal does not separate:
+
+```text
+Kj  dp =  2.5e-4  two roots, +-0.063     either side
+Kl  dp = -2.5e-4  no real root at all    either side   (same words)
+Km  dp =  0       one double root at 0   underdetermined
+```
+
+So the sentence "answered both ways" is false for `Kl`, which has no
+answer either way. A second finding came from `dp = 0.5*m*m; dp = c`
+with `m(start = 0)`. With c from 1e-9 to 0.5 the block runs and
+returns `+sqrt(2c)` without saying anything. With c of 0.6 and above
+it is refused as either-side. A start of `-1e-3` returns `-sqrt(2c)`.
+The newton trail for c = 0.5 shows why: the forward difference grows
+its step upward (`solvers/mod.rs`, the ladder near line 2040), finds a
+nonzero slope on the `+h` side, and the first step goes to `+9e7`. In
+the small band the direction of the finite difference picks the
+branch, and the model does not. This is a quiet choice and not a
+refusal. It is recorded here, not mended.
+
+The ceiling, by reading. The refusal is decided at `solvers/mod.rs`
+around line 2461, from the two secants of `secant_slopes` (line 418)
+a whole unit up and down: either-side means both moved and they
+disagree by more than a quarter. The numbers needed to tell the
+three cases apart are already collected: the residual `f` at the
+point and the two secant columns. For one unknown,
+`f + s_up * d = 0` has a root on the upper side only if
+`-f / s_up > 0`, and the same holds for the lower side with
+`-f / s_down < 0`. With both sides, there are two distinct points
+(a real fork, `Kj`). With neither, there is no root (`Kl`). A double
+root shows as `f` near zero with both secants pointing at the same
+point, which is the `Km` case that already goes to underdetermined.
+So the cases are distinguishable from numbers already in hand, and
+the code does not compute it: it only asks whether the secants agree.
+For a block of several unknowns the same test is per column and
+needs the other columns held, which is a choice and not a reading.
+`Inverter` stands on a converged point on the kink (`|f|` 2.4e-17),
+and the next step asks for `|f|` 2.5e-4 from there, which is the `Kj`
+or `Kl` shape depending on the sign. Which one it is can be read from
+`/tmp/m587/inv_p01.log` with this test before any series is planned.
+No code was changed.
+
+The top row of the run half, "equation E constrains no state" (29
+models, the same 29 names as m580), splits into four groups by its
+E. Sixteen are pins left open in utility classes: `X.i = 0` or
+`flange_b.tau = 0` or `f = 0`, in `OpAmpCircuits` (4), Analog and
+Polyphase `Utilities` (4), Spice3 `MNmos`/`MPmos` (2), FluxTubes
+components (4, one of them a sum of two currents) and the two
+`SpringDamperNoRelativeStates`. Two are Fluid ports with
+`m_flow = 0` (`BatchPlant_StandardWater`, `TanksWithOverflow`).
+Eight are MultiBody loop orientations: the four `Constraints`
+examples, `Engine1a`, `PlanarFourbar`, `Loops.Utilities.Cylinder`
+on `der(R.T)` and `RobotR3.FullRobot` on a relative angle. Of
+those, `Engine1a` and `PlanarFourbar` are named in queue item 56 and
+`Cylinder` sits beside its analytic group, so item 56 covers at least
+three of the eight, and the four `Constraints` are probably the same
+wall without having been probed. The remaining three are singles:
+`ActuatorWithNoise`, `IMC_DOL_CommonLeakage` and `SMPM_CurrentSource`
+(a sensor speed equation). Eleven of the 29 tried all 31 equations of
+their subset, which is the cap, so their subset was larger than what
+was tried.
