@@ -71157,3 +71157,28 @@ with `c` held by another equation. `RollingWheel`,
 `TestMixingVolumesPressureStates` and the QuasiStatic `Rectifier`
 stop on blocks that do not mention, or do not move, a member. No
 cheap change was found in any of them.
+
+What the friction event does, measured on `F1` with a probe printing
+the clutch's values and `pre` values each round (not committed). At
+the event, `w_rel` = 6.8e-9. In rounds 1 and 2, `pre(mode) = -1`,
+`mode` turns 0 and `locked` stays 0, so the point is solved with the
+sliding torque (`tau = -80`, `sa = +1600`). In round 3 `pre(mode) = 0`
+(Stuck), but `locked` is still the 0 read in round 2, so the point is
+again solved unlocked: `tau = +80` by the `{-1,-1}` table signs,
+`sa = -1600 < -tau0_max`, and `startBackward` goes to 1. That holds
+`locked` at 0. It repeats until the step collapses. The locked branch
+(`a_relfric = 0`, `tau = sa`, which gives `sa = 0` here, consistent
+with `locked = 1`) is never tried. `locked` and `sa` form a mixed loop
+with two consistent answers, and the event iteration reaches the
+unlocked one by the order of its rounds. This is a mixed-system
+question, not a cheap change.
+
+`scripts/preflight.sh` on this tree (docs only since 2d572f5) was
+red on one line of the library step, `WORK: jacobians is 586 against
+530 written here (1.105660x)` (`/tmp/m595/pre.txt`). The runner's
+judge for 78d5b50 printed green. The 530 is the desk's own centre
+(`WORK_JACOBIANS_DESK`, `scripts/library_floor.sh`), taken on
+2026-11-03, and 20 commits have touched `crates/` since. So the line
+says the desk centre is stale, not that this tree regressed. The
+review should decide whether the centre is wound. Everything else
+passed, including coverage.
