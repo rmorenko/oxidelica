@@ -70976,3 +70976,56 @@ dies on a singular Jacobian in an algebraic loop through `bearing.phi`
 and `b1.phi`. So for `Engine1a` the alias rule is not enough. Its next
 wall is the order among the members that are not aliases, and after
 that a loop. Map only.
+
+### 6 November: heavy floors, the price of the alias order, two planar maps
+
+The scheduled heavy run has been red since 1e2c9f2 named
+`HeatExchangerSimulation` in `scripts/heavy_models.txt` without moving
+the floors of `scripts/heavy_floor.sh`. The exchanger alone with
+`--with-heavy` (`/tmp/m594/hex.txt`, binary built from fcb63b0)
+flattens and refuses at its start block of 162 unknowns, 1 / 0 and
+runnable 1 / 0 in 463 seconds, so the floors went to 24 / 2 and
+runnable 22 / 2 on top of the last green scheduled judge
+(42022420115: 23 / 3 and runnable 21 / 3, two baskets added).
+
+The three candidates of the m593 pair's `--slow`, each run alone with
+`/tmp/m593/ox2`, off / on / off through `OXIDELICA_NO_ALIASES_LAST=1`
+(`/tmp/m594/p2_*.txt`), run half in seconds:
+
+```text
+RevoluteConstraint   37.3 / 84.6 / 37.3   +47   confirmed
+UniversalConstraint  49.4 / 56.0 / 49.2   +6.7  confirmed
+PlanarFourbar        95.7 / 65.6 / 95.0   -30   confirmed, cheaper
+```
+
+All three refuse in both halves. The alias order moves their wall:
+from a structurally singular subset to an algebraic loop for
+`RevoluteConstraint` and `PlanarFourbar`, and to a singular Jacobian
+for `UniversalConstraint`. The price is the work of reaching the next
+wall, about 24 seconds net over the three, and nothing is won yet.
+
+`Engine1a` at reduction 99 (`/tmp/m593/t2_Engine1a.txt`) takes its
+member at the 328th try. That member is the velocity equation
+`piston.v_0[1] = cylinder.frame_a.R.T[1,1]*cylinder.e[1]*cylinder.v`.
+Of the 327 tried before it, by a rough split on the text, 201 are
+force or torque balances, 25 hold a `der(...)`, 20 are accelerations
+(`a_0`, `z_a`) and 82 are none of these: the world's fixed frame,
+gravity `g_0`, positions through `frameTranslation` and the rotation
+matrices `R_rel.T` of the revolutes. So no one cheap second sign takes
+the winner forward. Putting forces last would remove two thirds of the
+misses and still leave it about 80th, past the ceiling of 32. Map
+only, no change built.
+
+`Utilities.Cylinder`, past the ceiling (`/tmp/m594/cyl.txt`, probe
+ceiling 600, `OXIDELICA_NEWTON_TRAIL=1`), dies at t = 0 in a block of
+one unknown, `gasForce.v_rel`, with |f| = 1.6e12, and the Newton step
+buys nothing. In `GasForce2` the unknown `v_rel` appears in the
+pressure equation only inside the condition `if v_rel < 0`, so the
+residual is piecewise constant in it. The matching paired `v_rel` with
+an equation that cannot solve for it. The wall is the incidence of a
+name that lives only in a condition, not a parameter and not the
+start. `v_rel = der(s_rel)` is the equation that should define it.
+A twelve-line model of that shape (`/tmp/m594/s/Gas.mo`, `v` only in
+the condition of `p`, `v = der(s)` beside it) runs, so the small form
+does not reproduce the pairing, and what makes the matching pick the
+pressure equation in `Cylinder` is still open.
