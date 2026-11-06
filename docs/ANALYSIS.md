@@ -71205,3 +71205,37 @@ flow twice. `BatchPlant_StandardWater` is refused on
 candidate for the same cause that was not probed (a pass takes three
 minutes). Map only: building the structure from the union of branches
 is an architectural change.
+
+Checked by hand on the flat equations. With both ports in `else`, the
+six unknowns of the pipe and its two ports (`m_a`, `m_b`, `p_a`,
+`p_b`, `s_up`, `s_low`) have three equations over the two flows and
+three over the four others, so the mode is singular in itself and not
+by a fault of the matching. With the union of the branches, the first
+position of each port holds `{p, m_flow}` and the second holds
+`{s, p, m_flow}`. A matching exists: `s` from position 2, `p` from
+position 1, `m_a` from the pipe's law and `m_b` from the pipe's sum.
+The trail's note that `regularFlow[2]` was read "from
+`portsData_height[2]` at a zero nobody wrote" is a side issue. The
+height (6) reaches the port through the conditional connector
+`portsData_height_internal`, two aliases from the parameter, and the
+mode environment does not follow them. Here it changes nothing: the
+second pass decides by `s[2] = m_flow = 0`, which gives `inFlow = 0`.
+
+### A steady start of a tank in `LinearWater_pT_Ambient`
+
+`HeatingSystem` is refused with "`der(tank.medium.T)`: not a state".
+A small model, `/tmp/m595/L/P/H3.mo` (an `OpenTank`, a mass flow
+source, `system.energyDynamics = SteadyStateInitial`, the example's
+medium `LinearWater_pT_Ambient`), fails the same way in 25 seconds. With
+`ConstantPropertyLiquidWater` instead (`H1`) it runs. Index reduction
+keeps `U` and `m`, so `der(medium.T) = 0` (`Fluid/Interfaces.mo`,
+line 647) has to come from the definition of `medium.h`.
+`OXIDELICA_INIT_DER_PROBE` shows the differentiator refusing that
+definition with "a subscript that survived flattening" on
+`waterBaseProp_ph(101325, waterBaseProp_pT(101325, 298.15, 0)[5], 0,
+0)[7]`, which holds only numbers, so its derivative is 0 by
+`does_not_move` (symbolic.rs:673). Two small models with the same
+expression (`D2`, and `D3` with `reference_T` named by its package)
+run, so what in the tank makes the still-standing rule miss this
+subscript is still open. The next probe is to print `does_not_move` on
+that node inside `H3`. Map only.
