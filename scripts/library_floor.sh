@@ -1996,7 +1996,9 @@ FLATTEN_FLOOR=974
 # SMPM_VoltageSource FW, TestJunctionIdeal):
 #
 #   833 - 3 = 830
-RUN_FLOOR=830
+# The split secant's one side won Inverter: the judge of 42163083623
+# printed 834 run, so 834 - 3 = 831.
+RUN_FLOOR=831
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -2560,7 +2562,9 @@ RUNNABLE_FLATTEN_FLOOR=856
 # And the three Spice3 inverters won by the guard fold are runnable
 # examples: the judge of 42116543027 printed 856 / 785, so
 # 785 - 3 = 782.
-RUNNABLE_RUN_FLOOR=782
+# Inverter is a runnable example: the judge of 42163083623 printed
+# 856 / 786, so 786 - 3 = 783.
+RUNNABLE_RUN_FLOOR=783
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
