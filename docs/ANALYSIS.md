@@ -70261,3 +70261,19 @@ with secants 3.05 up and -10.9 down: a root on each side, so that one
 is a real fork, a flow whose sign the block does not settle. Of the
 two either-side models, one is one-sided (`Inverter`) and one is a true
 fork.
+
+Further down the run half, the "unbalanced model" rows (13 and 6 in
+the census) were read by name from the raw report. Seventeen of the
+nineteen are `Utilities` or `BaseClasses` classes with no experiment,
+which are refused rightly. Two are examples: `Loops.Fourbar1` (1999
+equations for 1990 unknowns, queue item 56, unchanged) and
+`RobotR3.OneAxis`, with 531 equations for 476 unknowns, 55 too many.
+The 64 equations its refusal names as left over are all connection
+equalities of angles, such as
+`axis.initializeFlange.flange.phi = axis.accSensor.flange.phi`.
+`InitializeFlange` connects four `Set_*` subcomponents to one flange,
+three of them conditional on `use_phi_start` and its two siblings, and
+each writes `flange.tau = 0`. The angle equalities that are left over
+point at the connection set of that flange. That is a reading, not a
+probe; OneAxis is the next model to take with `why` on the flange's
+connection set.
