@@ -71559,8 +71559,8 @@ this shift's. `TestSweptVolume` goes beside `OneTank` in the list of
 what the chain would win.
 
 The census of this shift (`/tmp/m597/census.txt`, raw in
-`/tmp/m597/raw.txt`) prints 974 flatten / 835 run and runnable 856 /
-786. Counted between the section marks, that is 45 refusals to
+`/tmp/m597/raw.txt`) prints 974 flatten / 835 run and runnable
+856 / 786. Counted between the section marks, that is 45 refusals to
 flatten in 25 rows and 139 refusals to run in 28 rows. By the raw
 text, the family of a mass read as zero has one model that names it
 outright, `PumpingSystem` ("divides by `-reservoir.m`, which is
