@@ -70968,3 +70968,11 @@ It was taken with `/tmp/m593/ox2`, built from the final code, and only
 the unit test and formatting were added after it. The files are
 `/tmp/m593/off.txt` and `on.txt`. The floors do not move, since no
 count moved.
+
+`Engine1a` under the new order, probed with the ceiling raised to 600
+(`/tmp/m593/t2_Engine1a.txt`), takes members at 14 of 304 and 52 of 307. At reduction 99 it needs the 328th of 600, with 327 empty reaches
+ahead of it, which is far past any ceiling worth paying. Past that, it
+dies on a singular Jacobian in an algebraic loop through `bearing.phi`
+and `b1.phi`. So for `Engine1a` the alias rule is not enough. Its next
+wall is the order among the members that are not aliases, and after
+that a loop. Map only.
