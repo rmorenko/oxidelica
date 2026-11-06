@@ -71124,3 +71124,36 @@ Second park, mechanism only:
 `C4`, `C6`, `C8` run under it (`y = 0.5*(time+1) + 1` read by `why`),
 and nothing in the measured set moves, since the two corpus models walk
 their body.
+
+### Further singles, and a small model for the friction wall
+
+`Rotational.Examples.Friction` has stood at its wall since m331, which
+was mapped on the corpus model alone. It now has a small model,
+`/tmp/m595/L/P/F1.mo`: two inertias at 100 and 90 rad/s joined by a
+`Clutch` with `f_normalized = 1`. It fails the same way in a second
+(underflow at t = 0.005). `OXIDELICA_EVENT_TRAIL` shows the event at
+`w_rel = 0` (t = 0.00595) going round with `mode = 0`, `locked = 0`
+and `startBackward = 1`: the clutch never locks. `F2`, with the
+spring and the third inertia, fails at 0.006 like the corpus model.
+
+The RobotR3 gear is one family across four rows. `OneAxis` stops after
+13 reductions on `bearingFriction.w - Jmotor.w = 0`, and `FullRobot`
+stops on `axis1.gear.spring.phi_rel`. `GearType1` and `GearType2`
+(no `experiment`) stop on `bearingFriction.sa`. `LossyGearDemo2`
+gives a singular Jacobian over `gear.sa` and `bearingFriction.sa`.
+`ActuatorWithNoise` stops on the star of `voltageQuasiRMSSensor`,
+which is the same sensor that demotes `phiMechanical` in
+`SMPM_CurrentSource`.
+
+`ThreeSprings`: the block starts `length` at 0, so `s` is clamped to
+`s_small = 1e-10` and `e_rel_0 = r_rel_0 / s` is ±inf, while
+`r_rel_0` already holds 0.35 to 0.58. With the zeros moved to 1e-6
+the residual is 4e5 (`OXIDELICA_NEWTON_TRAIL`). It needs a start for
+the length read from the geometry.
+
+`FilterOrder` (no `experiment`) has `der(mixingUnit.c) = 0 + wa13`
+with `c` held by another equation. `RollingWheel`,
+`PointGravityWithPointMasses2`, `TestTemperature1`,
+`TestMixingVolumesPressureStates` and the QuasiStatic `Rectifier`
+stop on blocks that do not mention, or do not move, a member. No
+cheap change was found in any of them.
