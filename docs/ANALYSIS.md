@@ -70277,3 +70277,156 @@ each writes `flange.tau = 0`. The angle equalities that are left over
 point at the connection set of that flange. That is a reading, not a
 probe; OneAxis is the next model to take with `why` on the flange's
 connection set.
+
+## Either-side split by where the step lands, and the expandable bus of OneAxis (m589)
+
+The either-side refusal now tells three cases apart, using numbers the
+solver already has. Each of the two secants of a flat column gives a
+Newton step. A step from the upper secant counts as a root only if it
+moves the unknown up, and the same holds downward. If both steps land
+on their own side the block is a fork, and the refusal and its text
+stay as they were. If exactly one does, the solution near here is that
+one, and the step is taken. If neither does, there is no root on
+either side, and the refusal now says so instead of claiming two. It
+keeps the kind `EitherSide`, so a shorter step is still tried. The
+test is behind `OXIDELICA_NO_ROOT_SIDE`. It looks only at a single
+split column. If the split covers several columns the old refusal
+stands, because a pair of sides per column is a choice among four,
+and the step of one column does not show the others.
+
+The small models are in the tests
+(`two_secants_that_disagree_are_a_fork_only_where_both_reach_a_root`).
+`Kj` is still refused as a fork. `Kl` gets the new text, and was red
+without the change. The one-sided `Ko`, with
+`dp = if m > 0 then m^3 else 3*m^3`, runs to `m = 0.062996`, which is
+the cube root of 2.5e-4, checked to 1e-8. In the library, `--only` on
+`Spice3.Examples.Inverter` now runs (13 points, 62 Newton steps), and
+`TestSuddenExpansion` is still refused as a fork, as it must be.
+
+The corpus pair used one binary, `/tmp/m589/ox1`, with the off half
+run first under `OXIDELICA_NO_ROOT_SIDE=1` and `--slow 60` on both
+halves (`/tmp/m589/off.txt`, `on.txt`). Off gave 974 flattened, 833
+run, runnable 856 / 785. On gave 974 / 834, runnable 856 / 786. The
+run lists differ by one line, `Spice3.Examples.Inverter` added, with no
+model lost. The run half took 4543 s off and 4478 s on, 65 s less, so
+there is no price. The run work counters differ by 8 points and 56
+Newton steps, which is the inverter's own run. In the `--slow 60`
+lists no model moved by more than 9 s, and the two that moved
+(`MeasuringTemperature` -8.8 s, `TestWaterPumpDCMotorHeatTransfer`
+-6.1 s) got cheaper, which is inside the per-model noise of a corpus
+run. The flattening half went from 3990 s to 3854 s with identical
+flattening counters. That difference is noted here, and no conclusion
+is drawn from it. The change meets all three conditions of 26 October.
+The floors are not moved: this is a desk print, and they follow the
+judge.
+
+### OneAxis: the extra equations come from the compiler
+
+The probe disproved last shift's reading. The extra equations do not
+come from `InitializeFlange`. That flange next to an inertia and an
+`AccSensor` runs (`/tmp/m589/IF.mo`, `IF2.mo`). So does `AxisType1` on
+its own with its bus fed directly, and also through a `ControlBus`
+(`AX2`, `AX3`). So does `PathPlanning1` on its own (`PP`). The refusal
+appears only when `pathPlanning.controlBus` is connected to the outer
+`controlBus` as a whole: `PP2` gives 242 equations for 183 unknowns.
+
+Here is the mechanism, cut down to 23 lines (`/tmp/m589/EB2.mo`). An
+expandable `Outer` holds a declared expandable `Inner`, which declares
+`a` and `b`. Inside `Src`, only `bus.i1.a` is connected, and `Src.bus`
+is connected to the top-level `bus`. The model is refused with 7
+equations for 6 unknowns, `nothing is left for src.bus.i1.b =
+bus.i1.b`. `why` shows three equations for one value: `src.bus.i1.b =
+0`, `bus.i1.b = 0` and the equality between them. The member that is
+declared but never connected is treated as a connector left alone on
+both buses and set to zero on each. The bus-sides pass then joins the
+two nested buses and adds the equality as well. Without nesting (`EB`,
+one level) the same member gets one zero on each side and no equality,
+and the model runs. With `OXIDELICA_NO_BUS_SIDES` the count balances
+and the same three equations are refused as structurally singular, so
+the pass that joins nested buses is the second writer and not the
+cause. The zero on each side is the first writer.
+
+In `OneAxis` it is the same: `controlBus.axisControlBus2.motorAngle =
+0` stands next to `pathPlanning.controlBus.axisControlBus2.motorAngle
+= controlBus.axisControlBus2.motorAngle`. Axes 2 to 6 of a `ControlBus`
+that drives only axis 1 make up the 55 extra equations. The angle
+equalities the refusal lists are only where matching ran out, and they
+are not the fault. `FullRobot` connects all six axes, so its buses are
+not like this (`why` on `controlBus.axisControlBus1.motorAngle` shows
+one equation). It is refused elsewhere, on
+`axis1.gear.spring.phi_rel`.
+
+So the compiler creates the extra equations, not the model. The fix
+belongs to the connection sets: a declared member that no connection
+reaches, joined only bus to bus, is one set of its members, not one
+set of one per bus. No fix was built this shift, as the order
+required. `EB2` is the test to start from.
+
+### Item 3: the underdetermined row and the Constraints
+
+The census row "underdetermined algebraic loop" in
+`/tmp/m588/census.txt` counts 8 models. A grep of `/tmp/m588/raw.txt`
+for the phrase finds 10 lines. The other two are the "arithmetic
+floor" refusals (`PolyphaseRectifier`, `ThyristorBridge2mPulse_RLV`),
+which use the phrase further along in their text and are counted in
+their own rows. Each of the ten was run one at a time on this shift's
+binary, and each gave the same refusal as in the census. Of the 8,
+three are Spice3 (`NAND`, `ONEBIT`,
+`RtlInverter`). In each, the block is a single derivative, `der(Q1.vbx)`,
+reached only through `icapbx = cc.capbx * der(vbx)`. `cc.capbx` is the
+output of `bjtNoBypassCode`, so the column is dead when the bx
+capacitance comes out zero. The model card shows why it is zero.
+`RtlInverter` gives `Q11` a `CJC` of 2 pF and leaves `XCJC` at its
+default of 1.0 (Spice3.mo:5040), which puts the whole base-collector
+capacitance on the internal base and none on `bx`. So `capbx` is zero
+for any value of `vbx`. The product then carries `der(vbx)` with a
+coefficient that is always zero, and the block has nothing to solve
+it from. A derivative of an algebraic name that no equation needs is
+not an unknown of the block. That is the question for this family: why
+`der(vbx)` is in the block at all rather than following from
+`vbx = B.v - Cinternal`. This is a reading of the source plus `why`,
+and no value was printed at the refusal. A twelve-line model with
+`i = c*der(x)`, `c = 0` as a parameter or as a variable, and `x`
+algebraic in a state (`/tmp/m589/ZC.mo`, `ZC2.mo`) runs. So the
+coefficient being zero is not enough. In Spice3 the current `icapbx`
+flows back into the node balance that fixes `vbx`, which closes a loop
+the small model does not have. The next small model needs that loop.
+
+Five are FundamentalWave or QuasiStatic machines. In
+`IMC_DOL_Polyphase` the block holds the `s` of every ideal closing
+switch, both machines' air-gap phasors, and the star points'
+potentials (`terminalBoxM.star.pin_n.v`). The switches start open,
+and an open switch is a conductance `Goff` of 1e-5, so the star
+potential behind them is fixed only through that conductance. A reading
+not yet probed: the block may be underdetermined only on the scale of
+`Goff` against the machines' inductances, which is the same order of
+equilibration question the comment at solvers/mod.rs:1570-1578 already
+answered once for six machines.
+
+The four `Constraints` and `FullRobot` share the text "structurally
+singular", but not the mechanism. The Constraints refuse on
+`der(...R.T[i,j]) = 0`, which is orientation algebra of the
+overconstrained connection graph and the same kind as queue item 56.
+`FullRobot` refuses on a gear spring's `phi_rel`, which is plain
+rotational. It does not belong in item 56 on this evidence.
+
+### Row 29 by name
+
+The row "structurally singular ... constrains no state" holds 29 lines
+in `/tmp/m588/raw.txt`, counted with `grep -c`. It splits by the
+equation it names. Seventeen name a single connector's flow set to
+zero (`n2.i = 0`, `G.i = 0`, `port.m_flow = 0`, and so on). These are
+the four OpAmp circuits, six Spice3 and Digital utilities, the
+three-phase hysteresis transformer, two Magnetic actuators, the two
+Fluid tanks, and `SpringDamperNoRelativeStates` twice. One,
+`Transformer1PhaseWithHysteresis`, names a sum of two flows. Seven name
+a derivative of an orientation matrix `R.T` (the four Constraints,
+`Engine1a`, `PlanarFourbar`, `Cylinder`). Four stand alone.
+`ActuatorWithNoise` names a connection sum through a polyphase voltage
+sensor inside a quasi-RMS sensor, and `why` shows both of its equations
+as plain flow sums, so a flow nobody writes is the likely fault, which
+is a reading and not a probe. `SMPM_CurrentSource` names
+`der(smpm.flange.phi) = der(angleSensor.flange.phi)`, a differentiated
+angle equality. `FullRobot` is covered above. `IMC_DOL_CommonLeakage`
+names a magnetic potential of the fifth converter. None of the four was
+shrunk further this shift.
