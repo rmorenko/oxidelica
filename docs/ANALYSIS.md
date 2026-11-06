@@ -70054,3 +70054,67 @@ have saved two shifts.
 (`sweptVolume.medium.T = sweptVolume.T_start` took `sweptVolume.m`) but
 is not the same fault: the same print says every value its residual
 reads is finite, so the NaN there is made inside the block.
+
+## The Newton ceiling, two inverters and the start pair's ranks (m587)
+
+The ceiling is not the wall. The unconverged-loop refusal said fifty
+iterations while the budget at `solvers/mod.rs:1694` has been sixty,
+and that sentence is what made `Nand` look as if it ran out at the
+51st. Now it prints the budget. With the budget made a temporary knob
+(`/tmp/m587/ox15`), `Nand` at 150 and 300 iterations does not converge
+either. At t = 3.75e-8 the trail (`/tmp/m587/nand.b150.txt`) goes
+round a cycle of 25 iterations: it descends to |f| = 2.3e-4 on the
+51st, jumps to 2.6e7 on the 52nd and comes down the same staircase
+again (76th 2.3e-4, 77th 2.5e7). More iterations go round the cycle
+again and do not reach the root. At 150 the step is then cut and the
+model refuses later, on a Newton direction that does not descend.
+
+None of the seven models that print the unconverged refusal in
+`/tmp/m580/raw.txt` comes alive at 150 (`/tmp/m587/c.out`). Both
+`SMPM_CurrentSource` swing at |f| ~ 3e3 with no descent, so they are
+swingers and not candidates. The two `RollingWheelSet` models and
+`ThreeSprings` refuse differently on today's tree. `DynamicPipeClosingValve`
+hits the initialisation's own ceiling, which is a different one. So
+the ceiling fork (g) is closed and no pair was run.
+
+A rough step limit (`/tmp/m587/ox18p`, each unknown's Newton step
+clamped, not committed) does get `Nand` past the old wall. At 0.5 the
+run reaches t = 9e-8 in forty seconds (`/tmp/m587/nand_cap_trail.txt`),
+but the step shrinks near t = 5.15e-8 and the model does not finish
+inside a 600 s ceiling, at either 0.1 or 0.5. So a SPICE-style limit is
+a way through, and an expensive one. A candidate belongs to its own
+series.
+
+`Inverter` refuses on a different wall than the one named last
+shift: the start does reach the block, `mp.Sinternal` starts at 0, and
+Newton goes there from every start tried - ±0.1, 2.5, 4.9
+(`/tmp/m587/I*.log`). From ±0.1 |f| falls by four each step, which
+is the mark of a double root. On it the column is flat, the two
+secants disagree, and the block is refused as "a solution on either
+side" at t = 1e-12. This is neither "the start does not reach the
+block" nor "Newton goes to the wrong root". It is a root at the
+drain-source kink, where `Vds = 0` is the root and the model's sign
+switch sits, so the next question is what the either-side refusal
+should do when both sides are the same root.
+
+The start pair's ranks, printed by a temporary probe in
+`order_by_solve_cost` (`/tmp/m587/sv_cost.txt`, `ps_cost.txt`), show
+that solve_cost is not where either model is lost. In
+`TestSweptVolume`, `sweptVolume.medium.T` loses nowhere on cost: in
+`h = poly(T)` it costs 1 against `h` at 0, and in the NaN row (the
+mass over volume balance) all eight unknowns cost 2, so the order of
+arrival chooses and the rank does not. `medium.R_s` is an unknown
+with an equation `= 287.05`, not a parameter, which puts it into
+every slope as a live name. In `PumpingSystem`, `reservoir.level`
+ties at 0 with `fluidLevel`, costs 1 in `V = crossArea*level` and 2
+in the static pressures. The item is answered and parked: the wall in
+both is the matching's tie-break and the start that leaves `m` at
+zero, not the rank.
+
+The refusal that swallowed its culprit is mended (8e38708). A
+walk's complaint now carries what the block found first, and
+`PumpingSystem` reads "first fault: ... `reservoir.medium.u :=
+(-reservoir.U) / (-reservoir.m)` divides by `-reservoir.m`, which is
+zero" after the IF97 viscosity. Refusal texts have moved, so censuses
+taken before and after it cannot be compared row for row. The floors
+do not move.
