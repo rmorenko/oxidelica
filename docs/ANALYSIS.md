@@ -70868,3 +70868,14 @@ fold that decides whether `N.im` is a known zero. In the library,
 `N.im` reads `orientation[1]` of the converter, which is itself bound
 from the machine above. The next probe is `oxidelica why` on that
 chain, to find which link the fold cannot see through. Map only.
+
+`oxidelica why` on the chain names the link: `orientation[1]` of the
+stator converter is bound to `((1 - 1)*2*pi)/smee.stator.m`, which is
+zero for every value of `m`. But it is a quotient by a parameter, and
+a fold that reads the expression without the number of `m` keeps it.
+`N.im` then reads `sin` of it and stays a name. In `AG3` the
+orientation was a literal array. A shrink with `orientation[k] =
+(k - 1)*2*pi/m` and `m` a parameter is the next model to try. A fold
+of `0 * x / y` to zero, with `y` known non-zero or not, is a rule that
+is right everywhere but at `y = 0`, and that is the question to carry
+before building anything.
