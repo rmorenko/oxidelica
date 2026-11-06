@@ -2467,6 +2467,67 @@ impl CompiledModel {
                         })
                         .map(|j| block_names()[j])
                         .collect();
+                    // Two secants that disagree are not yet two
+                    // solutions. Each says where the root would be if
+                    // the block were the straight line it measured, and
+                    // a line drawn from the upper side is only an
+                    // answer if the step it gives also lands on the
+                    // upper side. Where both land on their own side the
+                    // fork is real (`|m|^3 = c` from zero) and refused
+                    // as before; where exactly one does, the solution
+                    // near here is that one, and it is taken - choosing
+                    // the only answer is not a guess, choosing between
+                    // two would be; where neither does, there is no
+                    // solution on either side, and saying "either side"
+                    // there was a refusal naming the wrong fact.
+                    // `OXIDELICA_NO_ROOT_SIDE` keeps the old reading.
+                    let sides = (split.len() == 1
+                        && std::env::var_os("OXIDELICA_NO_ROOT_SIDE").is_none())
+                    .then(|| {
+                        let j = (0..n).find(|&j| block_names()[j] == split[0])?;
+                        let mut patched = jac.clone();
+                        for k in (0..n).filter(|&k| k != j) {
+                            if jac.iter().all(|row| row[k] == 0.0) {
+                                let col = secant_column(&v, k, &f, &mut |w| residual(values, w))?;
+                                for (i, row) in patched.iter_mut().enumerate() {
+                                    row[k] = col[i];
+                                }
+                            }
+                        }
+                        let (up, down) = secant_slopes(&v, j, &f, &mut |w| residual(values, w));
+                        let land = |col: Option<Vec<f64>>, sign: f64| {
+                            let col = col?;
+                            let mut m = patched.clone();
+                            for (i, row) in m.iter_mut().enumerate() {
+                                row[j] = col[i];
+                            }
+                            let dv = solve_linear(&mut m, &f)?;
+                            (dv.iter().all(|x| x.is_finite()) && -dv[j] * sign > 0.0).then_some(dv)
+                        };
+                        Some((land(up, 1.0), land(down, -1.0)))
+                    })
+                    .flatten();
+                    match sides {
+                        Some((Some(dv), None)) | Some((None, Some(dv))) => {
+                            let full: Vec<f64> = (0..n).map(|j| v[j] - dv[j]).collect();
+                            v = full;
+                            continue;
+                        }
+                        Some((None, None)) => {
+                            // Same kind as the fork, so a shorter step
+                            // is still tried: only the words change.
+                            return err_of(
+                                Refusal::EitherSide,
+                                format!(
+                                    "algebraic loop {:?} has no solution on either side of \
+                                     {split:?} at t = {t}: the step each secant gives lands \
+                                     on the other side, so neither direction reaches a root",
+                                    block_names()
+                                ),
+                            );
+                        }
+                        _ => {}
+                    }
                     if !split.is_empty() {
                         return err_of(
                             Refusal::EitherSide,

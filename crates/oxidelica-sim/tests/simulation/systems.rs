@@ -811,6 +811,46 @@ fn a_column_flat_at_the_point_is_not_a_column_the_equations_lack_nor_an_answer()
 }
 
 #[test]
+fn two_secants_that_disagree_are_a_fork_only_where_both_reach_a_root() {
+    // A kink at the start splits the secant in two, and the three
+    // blocks below all arrive at the same point with the same two
+    // disagreeing slopes. What tells them apart is where the step each
+    // slope gives lands. Where both land on their own side, the block
+    // is a fork and stays refused.
+    assert_eq!(
+        refused(
+            "model Kj Real m(start = 0); Real dp; \
+             equation dp = if m > 0 then m^3 else -m^3; dp = 2.5e-4; \
+             annotation(experiment(StopTime = 0.1, Interval = 0.1)); end Kj;"
+        ),
+        "algebraic loop [\"m\"] has a solution on either side of [\"m\"] at t = 0: \
+         the equations are answered both ways and do not say which was meant"
+    );
+    // The same kink asked for a value it never reaches has no root at
+    // all, and calling that "a solution on either side" named the wrong
+    // fact.
+    assert_eq!(
+        refused(
+            "model Kl Real m(start = 0); Real dp; \
+             equation dp = if m > 0 then m^3 else -m^3; dp = -2.5e-4; \
+             annotation(experiment(StopTime = 0.1, Interval = 0.1)); end Kl;"
+        ),
+        "algebraic loop [\"m\"] has no solution on either side of [\"m\"] at t = 0: \
+         the step each secant gives lands on the other side, so neither direction \
+         reaches a root"
+    );
+    // Monotone, with different slopes either way: the only root is
+    // above, the step from below lands above too, and the one answer is
+    // taken. Checked on the number: `m^3 = 2.5e-4`.
+    let result = run("model Ko Real m(start = 0); Real dp; \
+         equation dp = if m > 0 then m^3 else 3*m^3; dp = 2.5e-4; \
+         annotation(experiment(StopTime = 0.1, Interval = 0.1)); end Ko;");
+    let at = result.columns.iter().position(|c| c == "m").unwrap();
+    let m = result.rows.last().unwrap()[at];
+    assert!((m - 2.5e-4f64.cbrt()).abs() < 1e-8, "m = {m}");
+}
+
+#[test]
 fn a_block_does_not_divide_by_a_state_that_starts_at_zero() {
     // `u*sin(a) = x - 1` solved explicitly for `u` divides by
     // `sin(a)`, and `a` starts at zero: the assignment runs before
