@@ -70564,3 +70564,14 @@ from spring3 to spring2 (`TS6.mo`) both leave the refusal in place. The
 next probe is which residual of the loop is NaN at the start. A NaN
 from finite inputs points at a division in the torn residual (`r_rel_0
 / s` with `s` torn out), and that is a reading, not yet a probe.
+
+`OXIDELICA_NEWTON_TRAIL=1` on `TS3.mo` answers which residual is NaN.
+All 31 torn values start at 0.0, so the spring length `s` is torn with
+a start of zero, and `r_rel_0 / s` gives `inf` and `NaN` in the
+residuals before the first step. The equation `s = max(length,
+s_small)` that rules out a zero is in the loop but not used as the
+tear. Moving the zero starts does not help: 1e-6 and 0.001 still sit
+below `s_small` on every spring at once, and the Jacobian there is
+singular. So the mechanism is the start of a torn spring length, and
+the place to look is how the tear picks `s` over the equation that
+bounds it. This is the probe's finding. No fix was built.
