@@ -70892,3 +70892,62 @@ the air gap's null direction is kept because a recorded decision keeps
 it, which makes it a ceiling and not an oversight. A fix would have to
 ground `i` some other way before the fold may happen. That is a series
 of its own and goes to the review, not to a shift.
+
+## The planar wall: which member of the singular subset is the right one (m593)
+
+The comment on `MAX_SINGULAR_ATTEMPTS` says `PlanarFourbar` found its
+member at the seventy-ninth try. The order says otherwise, and so does
+the claim that the model runs: it does not. In the m592 pair it stands
+only as `flat`. Its 118 s are spent before a refusal, the same one
+`Utilities.Cylinder` meets. Probed with `OXIDELICA_VICTIM_PROBE=1`
+(`/tmp/m593/p_PlanarFourbar.txt`), reduction 62 takes member 10 of 32,
+and reduction 71 then refuses with "nor did the 31 other equations".
+So the numbers in the comment are stale, and `PlanarFourbar` is a
+model this search fails on, not a model it succeeds on.
+
+A probe that was not committed (the ceiling read from the environment,
+each attempt printed) ran both models with a ceiling of 600, one model
+at a time under `CAP_GB=24`
+(`/tmp/m593/t_Utilities.Cylinder.txt`, `t_PlanarFourbar.txt`).
+`Utilities.Cylinder` then gets through index reduction. It takes
+members at tries 21, 45, 59, 68 and 65, all of them `R.T` or `r_0`
+equations of `crank1`. Every try that came before a winner was a bare
+alias `a = b`. Among the members that are not aliases, the winners
+ranked 2nd, 3rd, 9th, 10th and 11th. Past index reduction the model
+dies in Newton at t = 0 on `gasForce.v_rel` (|f| = 1.2e12), which is a
+wall of its own. `PlanarFourbar` at 600 refuses as before. At reduction
+71 all 600 members answer "empty reach", so for this model the ceiling
+was never the obstacle.
+
+So the right member is cheap to recognise: it is not an alias. An alias
+names no state, and its derivative is one more alias. The change
+`OXIDELICA_NO_ALIASES_LAST` (the switch keeps the old order) tries the
+aliases after the other members and leaves the ceiling at 32. A unit
+test with forty aliases ahead of the answer is red without the change
+(the answer falls past the ceiling) and green with it.
+
+The small trial was one binary (`/tmp/m593/ox2`), `--only`, off then on
+(`/tmp/m593/small.txt`). The controls `DoublePendulum`, `Pendulum` and
+`Fourbar_analytic` run in both halves at the same seconds. The three
+`e_ia` models and `Fourbar1` refuse identically. Four models move past
+the search's wall to the next one:
+
+```text
+PlanarFourbar       singular subset (95s)  ->  algebraic loop fails (65s)
+Utilities.Cylinder  singular subset (50s)  ->  Newton at t=0, gasForce.v_rel (52s)
+RevoluteConstraint  singular subset (38s)  ->  algebraic loop fails (86s)
+Engine1a            singular subset        ->  singular subset, a later equation (bearing)
+```
+
+None of them runs, so the change wins nothing yet in the small trial.
+It moves a family one storey up. `RevoluteConstraint` is 48 s dearer on
+the run half, because it now spends time in a loop instead of being
+refused early. The corpus pair is the judge of victims and price.
+
+The corpus pair runs from one binary (`/tmp/m593/ox2`), off with
+`OXIDELICA_NO_ALIASES_LAST=1` and then on, over the set of 1019 models,
+under `CAP_GB=24`, with `--slow 60` on both halves. The files are
+`/tmp/m593/off.txt` and `/tmp/m593/on.txt`. The off half printed 974
+flatten / 834 run, runnable 856 / 786, and a run half of 4643 s. The
+patch with its note is parked as `park/m593-aliases-last` until the
+pair is judged.
