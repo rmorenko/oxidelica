@@ -3467,7 +3467,17 @@ WORK_PERCENT=5
 # run 41692484782, as written there.
 WORK_POINTS_DESK=450379
 WORK_NEWTON_DESK=1102467
-WORK_JACOBIANS_DESK=530
+#
+# Jacobians wound 530 -> 586 on 2026-11-06 from the desk's preflight
+# print (/tmp/m595/pre.txt:2386, 597 counted less IMC_InverterDrive 11).
+# The growth is common to both machines: the judge printed 740 against
+# its centre 683 on the same tree (job 127974967996). The carrier is
+# not the start blocks taken as systems (4c22325): with
+# OXIDELICA_NO_INIT_BLOCK_SYS=1 the main pass still counts 576
+# jacobians, the same as with the key on (/tmp/m596/jac_off.txt against
+# /tmp/m595/pre.txt:1471), so the growth came from elsewhere and is
+# left unnamed here rather than guessed.
+WORK_JACOBIANS_DESK=586
 WORK_JACOBIANS_OWN_DESK="Modelica.Electrical.Machines.Examples.InductionMachines.IMC_InverterDrive 11"
 if [ "${FLOOR_DESK:-}" = 1 ]; then
   echo "centres: the desk's (FLOOR_DESK=1)"
