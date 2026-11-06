@@ -71250,3 +71250,73 @@ the wall and stops at the next one, `tank.medium.u = NaN` before its
 block, with the run half going from 1 s to 132 s
 (`/tmp/m595/hs_on.txt`). So there is no win, and the patch is parked
 as mechanism only: `~/oxideflow/park/m595-still-slope-element.*`.
+
+## 6 November, evening: the zero delay merged, the slope patch judged, a map of singles
+
+### The desk's jacobian centre
+
+The preflight of the afternoon printed 586 jacobians against the 530
+written on 3 November, and the judge grew by the same amount on the
+same tree (683 to 740). The suspected carrier, the start blocks taken
+as systems (on by default since m580), was measured with
+`OXIDELICA_NO_INIT_BLOCK_SYS=1` over the main pass from the pinned HEAD
+binary (`/tmp/m596/jac_off.txt`). It counted 576 jacobians, the same
+576 as the preflight's main pass with the key on
+(`/tmp/m595/pre.txt:1471`). So the start blocks are cleared, the
+carrier is not named, and the centre was wound to the preflight's print
+as the rule allows.
+
+### `delay(u, 0)` reads `u` now
+
+Section 3.7.4 allows a delay of nought, and the unclocked flip-flop of
+the digital library defaults its `delayTime` to 0. The parked patch is
+merged. One at a time, HEAD against patched against HEAD:
+`Utilities.RS` goes from 0 run to 1 run (0.31 s, 0.66 s, 0.31 s),
+`DFFREG` 2.63 s, 2.65 s, 2.63 s, `FlipFlop` runs on both. No surprise in
+price. RS carries no experiment, so it counts in the run total and not
+among the runnable.
+
+### The slope of an element of a still call, judged on the corpus
+
+The parked rule (an element of a call that does not mention the name
+has a slope of 0) was tried for the first time on
+`BranchingDynamicPipes`. It meets the same wall with and without it:
+"`der(pipe1.mediums[1].T)`: not a state", so this model's wall is not
+the subscript. `HeatingSystem` under it passes the wall and is refused
+at `tank.portVelocities[1] = smooth(0, ...)` after 146 s of running
+(`/tmp/m596/s_oxs_*.txt`). There is no win in the measured set, so the
+patch stays parked.
+
+### Singles, probed one at a time
+
+From the census of `/tmp/m590/on3.txt`, with the HEAD binary and
+`OXIDELICA_WHERE=1` (`/tmp/m596/u_*.txt`):
+
+- `ThyristorBridge2mPulse_RLV`, `PolyphaseRectifier` and the
+  quasi-static `Rectifier` are one family: a loop over the `s` of ideal
+  switches that is underdetermined. The first two are accepted on the
+  arithmetic floor and found not determined, and the third is a singular
+  Jacobian. The two "arithmetic floor" texts differ only by the step
+  that stopped.
+- `IMC_withLosses` is not the `smee.airGap` family. Its loop is not
+  underdetermined. Its residuals are NaN (stator resistor and rotor
+  cage converter), raised at solvers/mod.rs:1783.
+- `MeasuringTemperature` has a NaN in the tank's `portVelocities`,
+  which divides by `portInDensities`. It is the same tank equation that
+  `HeatingSystem` stops on under the slope patch, so the two meet at one
+  wall.
+- `TestMixingVolumesPressureStates` is a singular Jacobian over a loop
+  that holds `der(mixingVolume*.medium.*)` and saturation temperature.
+- `DynamicPipeClosingValve`: the start does not converge in 50 Newton
+  iterations (compile.rs:10137).
+- `NonCircularPipes` has 8 initial equations for 6 states. Without the
+  surplus the start is a family free along `annulus_pipe.Us[2]`.
+- `AdvancedSolenoid` cannot differentiate `abs`, and
+  `TestInterpolateTimeVarying` refuses to differentiate `interpolate`
+  over a moving table. Both are refusals the notes ask for (no `sign`
+  for `abs`, and a derivative that reads its input as still).
+- `Transformer1PhaseWithHysteresis` is structurally singular. A current
+  balance constrains no state, and six others were tried in its place.
+
+The tank's NaN in `portVelocities` now stands in front of two models,
+and it is the next probe.
