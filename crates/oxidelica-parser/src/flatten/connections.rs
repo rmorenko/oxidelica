@@ -316,7 +316,19 @@ pub(super) fn expand_buses(
     // any unconnected connector variable. Left without one it was an
     // unknown more than the model had equations, which is what two
     // hundred and twenty-three models were refused for.
-    for bus in &buses {
+    //
+    // The zero is owed once per pool, not once per bus: the buses of a
+    // group are joined, so the copies of a declared member are already
+    // equal to one another, and a zero on each of them stated the same
+    // value again. A nested bus that leaves one of its declared signals
+    // undriven was one equation over for every bus in its group beyond
+    // the first - `OneAxis` carries the robot's control bus with five
+    // axes it never wires. `OXIDELICA_NO_BUS_ZERO_POOL` zeroes every
+    // bus again, so one binary gives both numbers.
+    let pooled = std::env::var_os("OXIDELICA_NO_BUS_ZERO_POOL").is_none();
+    let mut zeroed: HashSet<(usize, String)> = HashSet::new();
+    for (position, bus) in buses.iter().enumerate() {
+        let group = root(&mut parent, position);
         let Some(class_name) = acc.connectors.get(bus) else {
             continue;
         };
@@ -345,6 +357,18 @@ pub(super) fn expand_buses(
                 continue;
             }
             if !acc.components.iter().any(|c| c.name == path) {
+                continue;
+            }
+            // Only copies the joining ties together share a zero. Two
+            // buses are joined whole, every declared member with them,
+            // only while neither holds a connector of its own; once a
+            // connection has hung one on a bus, the join is cut into
+            // those connectors and an undriven copy stands alone and
+            // keeps a zero of its own: `PathPlanning1` lost seven
+            // equations when it was pooled.
+            let prefix = format!("{bus}.");
+            let tied = !acc.connectors.keys().any(|key| key.starts_with(&prefix));
+            if pooled && tied && !zeroed.insert((group, member.name.clone())) {
                 continue;
             }
             // What "zero" is depends on the type: a Boolean signal

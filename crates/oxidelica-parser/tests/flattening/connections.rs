@@ -129,6 +129,48 @@ fn expandable_connector_error_paths() {
 }
 
 #[test]
+fn a_declared_member_of_joined_buses_is_zeroed_once() {
+    // Two joined buses each hold a nested bus declaring `b`, and nothing
+    // drives `b`. The copies are already equal through the joined
+    // buses, so the zero 9.1.3 owes an unconnected potential variable is
+    // owed once for the pool: one on each copy was an equation over.
+    let m = parse_model(
+        "expandable connector Inner Real a; Real b; end Inner; \
+         expandable connector Outer Inner i1; end Outer; \
+         model Src Outer bus; equation bus.i1.a = 1; end Src; \
+         model M Src src; Outer bus; Real y = bus.i1.a; \
+         equation connect(src.bus, bus); end M;",
+    )
+    .expect("a nested bus with an undriven member");
+    let zeros = m
+        .equations
+        .iter()
+        .filter(|e| matches!(&e.lhs, Expr::Ref(name) if name.ends_with("i1.b")))
+        .filter(|e| matches!(&e.rhs, Expr::Number(_)))
+        .count();
+    assert_eq!(zeros, 1, "{:?}", m.equations);
+
+    // A nested bus joined straight to a bus of its own type is cut into
+    // the connectors it holds, so its undriven member is tied to nothing
+    // and keeps a zero of its own on each side. Pooled, `src.ib.b` had
+    // no equation, which is what two path planners were refused for.
+    let m = parse_model(
+        "expandable connector Inner Real a; Real b; end Inner; \
+         expandable connector Outer Inner i1; end Outer; \
+         model Src Inner ib; equation ib.a = 1; end Src; \
+         model M Src src; Outer bus; equation connect(src.ib, bus.i1); end M;",
+    )
+    .expect("a nested bus joined to a bus of its own type");
+    for copy in ["src.ib.b", "bus.i1.b"] {
+        let zeroed = m
+            .equations
+            .iter()
+            .any(|e| matches!(&e.lhs, Expr::Ref(name) if name == copy));
+        assert!(zeroed, "{copy}: {:?}", m.equations);
+    }
+}
+
+#[test]
 fn a_parameter_a_bus_declares_keeps_the_value_it_was_given() {
     // A declared member of a bus that nothing connects to is worth
     // zero, which is what 9.1.3 says about a potential variable. A

@@ -70473,3 +70473,63 @@ looks: 2 runnable flow-zero models, 7 orientation models, and 4 single
 ones. Three of those (`ActuatorWithNoise`, `SMPM_CurrentSource`,
 `IMC_DOL_CommonLeakage`) print `runnable examples ...: 1`. `FullRobot`
 was not checked this way.
+
+## One zero for a pool of joined buses, its two victims and a narrower form (m590)
+
+`OneAxis` was refused as 531 equations for 476 unknowns. The cause is
+in `expand_buses`: a declared member of an expandable bus that nothing
+drives gets the zero 9.1.3 owes an unconnected potential variable, and
+it got that zero on every bus of its group, while the join between two
+buses already makes their copies equal. Every copy past the first was
+an equation over.
+
+The first form gave the zero once per group, behind
+`OXIDELICA_NO_BUS_ZERO_POOL`. `OneAxis` left the unbalanced wall for
+the structurally singular one `FullRobot` already stands at, and
+`FullRobot` did not move. The corpus pair with one binary
+(`/tmp/m590/off.txt` and `on.txt`, `--slow 60` on both) gave 974 / 834
+off and 974 / 832 on. Flattening work was equal to the digit. The two
+victims were `RobotR3.Utilities.PathPlanning1` and `PathPlanning6`.
+Shrunk to `/tmp/m590/PP3.mo`: `connect(src.ib, bus.i1)` joins a nested
+bus to a bus of its own type, and once a bus holds connectors of its
+own the join is cut into those connectors (`join_the_connections`,
+`flatten/mod.rs`, the `carries_more` test). The undriven member's
+copies are then tied by nothing, and one zero for the group left the
+other copy with no equation at all. The first form never reached main.
+
+The second form pools only the buses that hold no connector of their
+own, which are the ones joined whole. On `ox3`: `OneAxis` goes to the
+structurally singular wall, both path planners run, and `FullRobot`
+stays where it was. The test
+`a_declared_member_of_joined_buses_is_zeroed_once` covers both shapes
+and fails without the change (two zeros where one is owed). The corpus
+pair for the second form is `/tmp/m590/off3.txt` and `on3.txt`, one
+binary `ox3`. It gave 974 / 834 on both halves and the run lists equal
+line for line, so there are no victims and no wins. The run half went
+from 4531 s to 4508 s and the flattening counters were equal to the
+digit. The change moves no count, because `OneAxis` only travels from
+one wall to the next. What it buys is one wall fewer in the robot
+family, which leaves the structurally singular gear spring as the wall
+`OneAxis` and `FullRobot` now share.
+
+### The underdetermined machines (item 2)
+
+Of the five machine models in the row, four hold ideal switches or
+diodes in the loop the refusal names. `IMC_withLosses` of
+QuasiStatic.FundamentalWave holds none: its loop is the air gap, the
+converter currents and a power sensor. A closing switch in front of an
+inductor (`/tmp/m590/SW.mo`) simulates without a fault. So the open
+switch's conductance is not the shared cause on this evidence. The
+common member of all five is the air gap.
+
+### The two tanks of row 29 and row 10 (item 3)
+
+`TanksWithOverflow` and `BatchPlant_StandardWater` both refuse before
+the run, as a structural singularity on a port's `m_flow = 0`. That
+is not the zero start pairing of `PumpingSystem`, which is a run-time
+pairing of the start with `m`. They are a different mechanism. Row 10,
+"the Newton direction of algebraic loop", holds 12 lines in
+`/tmp/m588/raw.txt`. Nine are Fluid pipe tests, plus `IMC_withLosses`
+of Machines, `ThreeSprings` and `TestTemperature1`. `ThreeSprings`
+names `e_rel_0[1] = r_rel_0[1] / s` inside the loop, a division by a
+spring's length that the loop itself solves for.
