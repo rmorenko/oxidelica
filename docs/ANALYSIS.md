@@ -71489,3 +71489,14 @@ Twelve more singles from `on3.txt`, one capped run
 under the slope rule, where a zero mass made it. Whether the volume's
 NaN has the same origin is not yet measured, and that pair is the next
 probe.
+
+The first probe of that pair, `TestSweptVolume` under the Newton trail
+(`/tmp/m597/sv.txt`). Its first block has one unknown, starts at
+`T_start = 293.15` and doubles at every iteration up to 2.4e6, while
+the residual halves. That is Newton on a residual shaped like `a/T`,
+whose root lies at infinity. The NaN of `h_outflow` downstream is
+DryAirNasa's polynomial read at that temperature. So the origin is a
+temperature solved from an equation that has no finite root at the
+start, not a zero mass. Which equation the one-unknown block holds is
+the next step, and the pair with `HeatingSystem` is not one family as
+far as this probe shows.
