@@ -70533,3 +70533,18 @@ pairing of the start with `m`. They are a different mechanism. Row 10,
 of Machines, `ThreeSprings` and `TestTemperature1`. `ThreeSprings`
 names `e_rel_0[1] = r_rel_0[1] / s` inside the loop, a division by a
 spring's length that the loop itself solves for.
+
+### Row 10 by mechanism, first probe
+
+Row 10 holds 8 models in `/tmp/m590/on3.txt`. `ThreeSprings` refuses
+at t = 0. Three springs meet in a massless node (`spring1.frame_b`,
+`spring2.frame_a`, `spring3.frame_b`), and the loop names
+`e_rel_0 = r_rel_0 / s`. All four starts fail in turn: the step from
+0.001 and from 1 does not reduce the residual, the Jacobian from 1000
+is singular, and the plain Newton does not converge in 60 iterations.
+`BranchingPipes1` is a different mechanism. It fails at t = 0.0008,
+in the middle of the run, on a 21-unknown loop of pipe pressures,
+densities and valve pressure drops. The residual stood at 2.9e5 and
+only steps below 3.8e-6 of the Newton step reduced it. So the row holds
+at least two families, a start-time mechanical node and a mid-run
+Fluid branch. Neither was shrunk this shift.
