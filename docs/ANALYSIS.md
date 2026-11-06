@@ -70575,3 +70575,119 @@ below `s_small` on every spring at once, and the Jacobian there is
 singular. So the mechanism is the start of a torn spring length, and
 the place to look is how the tear picks `s` over the equation that
 bounds it. This is the probe's finding. No fix was built.
+
+## The torn spring's start, the air gap's null direction and a binding read too early (m591)
+
+Three probes, one form built and parked, no code changed.
+
+`ThreeSprings` first. Tearing lives in `build_plan`,
+`crates/oxidelica-sim/src/compile.rs` (the loop near "Still cyclic:
+tear the most-referenced unknown left"). An equation that will not
+solve explicitly for its matched unknown forces that unknown into the
+torn set, and after that the greedy step tears the unknown with the
+most uses. Neither rule looks at what an equation bounds. A probe that
+printed each torn unknown of `/tmp/m590/TS3.mo` with its matched
+equation answered the question of the series: 29 of the 31 torn
+unknowns are forced, not greedy, and the matching that forced them is
+the reversed one. `spring1.lineForce.s` is matched to `e_rel_0[1] =
+r_rel_0[1]/s`, `length` to the guard `s = max(length, s_small)`, and
+`r_rel_0[1]` to `length = sqrt(...)`. So `s` is not torn instead of
+its guard. The guard is the residual of a different torn unknown, and
+`s` begins at the zero its silence gave it.
+
+The first road was to start each silent torn unknown where its own
+defining equation puts it, evaluated on the parameters, the state
+starts and the explicit stages, to a fixpoint. It was built behind
+`OXIDELICA_NO_TORN_DEFINED_START`. On `TS3.mo` it gives `spring1` the
+drawn length 0.3 and `s` 0.3, and the refusal moves from "NaN before
+any Newton step" to "the Newton direction does not reduce the
+residual". Two-spring `TS.mo`, which simulates today, stops simulating
+with it, on the same wall. The cause is in the retry ladder,
+`solvers/mod.rs` near "Only the one refusal is retried": the ladder
+runs only for a block that was never evaluated. `TS.mo` lives on that
+ladder, and a start of `s_small = 1e-10` in place of 0 makes the block
+evaluable, so the ladder is never called. One victim on the small
+court, so the pair was stopped before it ran and the form is parked
+in `~/oxideflow/park/m591-torn-defined-start.patch`. The second road,
+a different choice of tear, was not built: the tear is forced by the
+matching, so changing it means changing which equation each unknown
+is matched to. That is a change to the matching, not to tearing. The
+ladder that fixes the order of starts it tries is the ceiling this
+shift found by reading. `RollingWheelSetDriving` and
+`RollingWheelSetPulling` refuse the same way with and without the key,
+and so do `FullRobot` and `OneAxis`.
+
+The air gap machines second. The census row at `/tmp/m588/raw.txt`
+names five underdetermined Magnetic models: `IMC_DOL_Polyphase`,
+`IMS_Start_Polyphase`, `SMEE_DOL`, `SMEE_Rectifier` and the
+quasi-static `IMC_withLosses`. A temporary probe at the refusal,
+`solvers/mod.rs` near "underdetermined algebraic loop", dumped the
+converged Jacobian, and an SVD of it with rows and columns scaled
+named the null direction. The block converges (`|f|` about 1e-10 on
+`SMEE_DOL`) and is refused afterwards, at the singularity test. Four
+of the five share one null vector, built from the derivatives of two
+stator phase currents and of the air gap's magnetic voltage:
+
+```text
+SMEE_DOL        sigma_min 5e-13   der(i[1]) +1.00  der(port_p.V_m.re) +0.96
+                                  der(airGap.V_mss.re) -0.96  der(i[3]) -0.50
+SMEE_Rectifier  sigma_min 1e-12   the same, sign flipped
+IMC_DOL_Poly    sigma_min 1e-9    der(i[1]) +1.00  der(V_mss.re) -0.96
+                                  der(i[3]) -0.74  der(V_mss.im) -0.26
+IMS_Start_Poly  sigma_min 1e-9    the same to three digits
+```
+
+`der(i[2])` of the stator is not in the block at all, so the block
+holds two of the three phase currents' derivatives and the sum that
+ties them to the magnetic voltage. One relation among the phases is
+missing, and the zero-sequence equation is the candidate for what
+the loop has lost. That is a reading and not yet a probe.
+`IMC_withLosses` is a different family: its null vector is
+`powerSensorQS.power` against `flange_a.tau`, a sensor and not the air
+gap. `SMEE_LoadDump`, probed as a control, has its own block, `star.pin_n.v`
+against `zeroInductor.v0`. Not shrunk this shift, map only.
+
+The `e_ia` row third. Summed by sections of `/tmp/m590/on3.txt`: a
+row of 3 (first `Engine1b_analytic`) and three single rows
+(`Utilities.EngineV6_analytic`, `EngineV6_analytic`,
+`PlanarLoops_analytic`), 3+1+1+1 = 6, matching the count in the
+order. The raw file lists the six as `Engine1b_analytic`,
+`EngineV6_analytic`, `PlanarLoops_analytic`, `CylinderBase`,
+`Cylinder_analytic_CAD` and `Utilities.EngineV6_analytic`. They are
+one family, and the family is not the analytic joints. `oxidelica
+why` shows `jointRRR1.e_ia[1]` bound to `jointRRR1.jointUSR.e2_ia`,
+the whole vector with no subscript, and `jointUSR.e2_ia[1]` bound to
+`rod1.e2_ia` the same way. What differs from a model that works is
+the order of declaration. In `JointRRR.mo` the parameter `e_ia` is
+declared at line 75 and the component `jointUSR` at line 82. In
+`JointUSR.mo`, `e2_ia` is at line 104 and `rod1` at line 125. Both
+readers stand above what they read. It shrinks to ten lines,
+`/tmp/m591/EIA11.mo`:
+
+```modelica
+model EIA11
+  model Rod
+    parameter Real v[3] = {1, 2, 3};
+  end Rod;
+  parameter Real e[3] = r.v;
+  Rod r;
+  Real x(start = 0, fixed = true);
+equation
+  der(x) = e[3];
+end EIA11;
+```
+
+It is refused with `cannot evaluate parameters [e[1] = r.v, e[2] =
+r.v, e[3] = r.v]: nothing gives a value to r.v`. With `Rod r` written
+above the parameter it simulates (`EIA4.mo`, `EIA9.mo`). So an array
+binding that names an array of a component declared later in the
+class is spread whole over the elements instead of subscripted. The
+spreading is in `flatten/components.rs` near "if items.len() == 1 &&
+element_names.len() > 1": the shape it subscripts by comes from
+`handed_shapes` and `sizing_shapes`, and a component not yet
+instantiated is in neither, which is a reading of the code and not
+yet a probe. `EIA10.mo` writes the library's three levels in the
+library's order and refuses the same way. So who
+should give `e_ia` its value is the flattener, by subscripting a
+binding whose target's shape is known only after instantiation. No
+fix was built. The small model is the test.
