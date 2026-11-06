@@ -71514,3 +71514,17 @@ the origin is a zero mass after all, the same as `HeatingSystem`'s
 Both are free-initial masses read as zero, and that pair is one family
 by this probe: a state that nothing starts, standing in for the value
 its equation of state would give. Map only, nothing built.
+
+The trail itself is not new. The section "TestSweptVolume's `NaN` is
+the medium's" already printed the doubling temperature and showed that
+the residual equals `p / (R_s T)` with `p = 1e5`. What this shift adds
+is a reading of what that equality means: the density the block is
+handed is zero, which sends the walk upstream to the free-initial mass.
+The queue's note of 5 November ("the start paired with `m`", for
+`PumpingSystem` and `TestSweptVolume`) is the same family, and
+`HeatingSystem` under the parked slope rule is its third member. Five
+small models were written to reproduce it, `/tmp/m597/small/ZM*.mo`:
+a moving volume, `p` and `T` with and without `prefer`, and `m`
+written as `V * d`. All five run with `m` = 0.0012, so the mechanism
+is not reproduced small. What makes the library's volume differ is
+still open.
