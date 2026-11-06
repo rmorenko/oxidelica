@@ -70685,8 +70685,12 @@ class is spread whole over the elements instead of subscripted. The
 spreading is in `flatten/components.rs` near "if items.len() == 1 &&
 element_names.len() > 1": the shape it subscripts by comes from
 `handed_shapes` and `sizing_shapes`, and a component not yet
-instantiated is in neither, which is a reading of the code and not
-yet a probe. `EIA10.mo` writes the library's three levels in the
+instantiated is in neither. `sizes_here` is filled inside the loop
+over `built_in_reading_order(&class.components)` (same file, near
+"Every array measured so far"), so an array of a component read later
+has no shape yet when the binding is spread. That is a reading of the
+code, consistent with `EIA11.mo` against `EIA4.mo`, and not yet a
+probe of the table. `EIA10.mo` writes the library's three levels in the
 library's order and refuses the same way. So who
 should give `e_ia` its value is the flattener, by subscripting a
 binding whose target's shape is known only after instantiation. No
