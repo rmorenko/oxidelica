@@ -71528,3 +71528,32 @@ a moving volume, `p` and `T` with and without `prefer`, and `m`
 written as `V * d`. All five run with `m` = 0.0012, so the mechanism
 is not reproduced small. What makes the library's volume differ is
 still open.
+
+### The free-initial mass is the silent chain's, decided on 27 October
+
+Shrunk from the library model, the wall is reproduced in twelve lines.
+`/tmp/m597/small/S2.mo` is a `SweptVolume` of DryAirNasa with no
+ports, under `DynamicFreeInitial`, its flange on a `Mass` with
+`s(start = 0.5, fixed = true)`. It refuses with "the equations of
+algebraic loop `["sv.medium.T"]` do not mention it". `S1.mo` is the
+same volume on a `Fixed` flange, and it runs. With
+`OXPROBE_READ_START` the difference is one line. In `S1`, `sv.m =
+0.000614` is read from `m = fluidVolume * d`. In `S2` it is not
+read, because `fluidVolume = V`, `V = clearance + flange.s * A`,
+`flange.s = mass.flange_a.s` and `mass.flange_a.s = mass.s - L/2` are
+four start-less names between the mass and a state that has a start.
+The reach of one equation (compile.rs:7493-7508) does not get there.
+`m` begins at zero, `d` is solved as zero, and `T` is then solved
+from `d = p / (R_s T)` toward infinity.
+
+The chain that reaches four names deep exists (compile.rs:7569-7607),
+and it is off by default by the answer of 27 October (m529, the
+section "the silent chain off by default"). With it switched on,
+`S2` runs with `m = 0.000614`, and so does the library's
+`TestSweptVolume` (`/tmp/m597/sc_out.txt`, `ran`). `PumpingSystem`
+does not. So the family of "the start paired with `m`" is two walls:
+the volume's is this decided switch, and the tank's is something else
+again. Nothing is built. The switch was weighed with a corpus pair and
+a named price, and turning it back on is Roman's word to give, not
+this shift's. `TestSweptVolume` goes beside `OneTank` in the list of
+what the chain would win.
