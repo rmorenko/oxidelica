@@ -70548,3 +70548,19 @@ densities and valve pressure drops. The residual stood at 2.9e5 and
 only steps below 3.8e-6 of the Newton step reduced it. So the row holds
 at least two families, a start-time mechanical node and a mid-run
 Fluid branch. Neither was shrunk this shift.
+
+`ThreeSprings` shrinks to `/tmp/m590/TS3.mo`, 15 lines: two fixed bars,
+three `Forces.Spring` meeting in a massless node, one body on the
+second spring. It refuses at t = 0 the same way the library model
+does, on a 36-unknown loop. The first word is that the residual is NaN
+at the values the block starts from, before any Newton step, although
+every value it reads is finite. With the zero starts moved, the block is
+refused for a singular Jacobian from 1e-6, then for a Newton direction
+that does not reduce the residual from 0.001, then for a singular
+Jacobian again from 1. With two springs in the node (`/tmp/m590/TS.mo`)
+the model simulates. A start on `spring1.lineForce.r_rel_0`, as the
+library model writes it (`TS4.mo`), and moving `fixedRotationAtFrame`
+from spring3 to spring2 (`TS6.mo`) both leave the refusal in place. The
+next probe is which residual of the loop is NaN at the start. A NaN
+from finite inputs points at a division in the torn residual (`r_rel_0
+/ s` with `s` torn out), and that is a reading, not yet a probe.
