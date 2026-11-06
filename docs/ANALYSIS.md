@@ -70250,3 +70250,14 @@ side only, refused as if it had two. The secant over a whole unit is
 also a poor guide at +25, so the next series needs a real
 one-sided solve rather than this extrapolation. This is where an
 either-side series would start, and it has a model that it could win.
+
+A correction to the census paragraph above. The row that went from 4
+to 5 is "algebraic loop [...]", and only two of its five models are
+either-side refusals: `Inverter` and `TestSuddenExpansion`. The other
+three (`OneTank`, `MeasuringTemperature`, `IMC_withLosses`) stepped
+outside the domain of their equations. The same probe on
+`TestSuddenExpansion` prints f = -1e4 on `suddenExpansion1.m_flow` = 0
+with secants 3.05 up and -10.9 down: a root on each side, so that one
+is a real fork, a flow whose sign the block does not settle. Of the
+two either-side models, one is one-sided (`Inverter`) and one is a true
+fork.
