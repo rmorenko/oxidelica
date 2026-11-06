@@ -71596,3 +71596,24 @@ block starts at zero, so every mixing weight sits on its floor
 and `mixingVolume2.U` (INIT_PROBE). This is the steady-state start of
 the family of "the initial match spends an equation on `U`"
 (m371-m474). It is a map and nothing more, and no fix was built.
+
+### Parked: the silent chain through arithmetic alone
+
+Built and parked, not merged
+(`~/oxideflow/park/m597-arithmetic-chain.patch`, with a note beside it).
+The chain of silent starts is on by default in a narrow form. It
+takes a link only through an equation with no call in it, and the
+whole chain stays behind `OXIDELICA_SILENT_CHAIN`. The small court
+used one binary (`/tmp/m597/oxa`), with the off half run under
+`OXIDELICA_NO_ARITHMETIC_CHAIN=1` (`/tmp/m597/c_off.txt`,
+`c_on.txt`, 14 models):
+
+- Runs went from 7 to 9, with `OneTank` and `TestSweptVolume` gained
+  and no victims.
+- The run half went from 449 s to 461 s.
+- `PumpingSystem`, confirmed off/on/off at 14.9 / 23.7 / 14.9 s,
+  costs 8.8 s more and moves to the next wall without running.
+
+A unit test is red without the change and green with it. The test
+that held the old default is turned round. Pricing it on the corpus
+is left to the review.
