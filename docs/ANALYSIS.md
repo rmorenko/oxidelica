@@ -70849,3 +70849,9 @@ family stops. The minutes they spend before refusing are that search.
 Raising the ceiling is not a road, since its comment gives the price.
 Map only, read with no probe: the next step is to shrink one planar loop
 and ask which member of the subset would have been the right one.
+
+One more row of `/tmp/m590/on3.txt`, read and not dug: `delay(..., 0):
+the delay must be positive` on `Digital.Examples.Utilities.RS`. That is
+a utility whose own default is `delayTime=0`, set by every `RSFF` that
+uses it. The refusal is right for the class standing alone, so it
+belongs to the example filter, which waits for Roman (queue item 66).
