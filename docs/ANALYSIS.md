@@ -71571,3 +71571,28 @@ binary), the silent chain moves `OneTank` alone. That is the one
 model m529 named, and the run half is 503 s against 487 s. So the
 chain would win two models, `OneTank` and `TestSweptVolume`, and both
 are already on the list of the decision of 27 October.
+
+### Two more of the free-initial models, one block each
+
+`PumpingSystem` under the silent chain reads `reservoir.m = 109803`
+from `fluidVolume * d` (`/tmp/m597/ps_sc.txt`), so the zero mass is
+gone. It then stops on a start block of 15 unknowns that has a
+singular Jacobian (`/tmp/m597/ps_tr.txt`). The pump stands at
+`s = 0` and `V_flow_single = 0` on the knee of its characteristic, so
+the chain clears the first wall and not the second.
+
+`TestMixingVolumesPressureStates` refuses on its first block, 24
+unknowns, at Newton iteration 0 (`/tmp/m597/tmv2.txt`, with the block
+printed by a probe that was never committed). The block solves both
+volumes' `medium.d = waterBaseProp_ph(p, h)[9]` rows for
+`mixingVolume1.medium.h` and `mixingVolume2.medium.p`. Whether the
+density is pinned twice there, once by the equation of state and once
+by `m = fluidVolume * d`, is a reading this probe does not prove; the
+next step is to print which rows the singular direction lies in.
+Every flow in the
+block starts at zero, so every mixing weight sits on its floor
+`max(-m_flow, 1e-10)`. The same initial match is the reason for both:
+`der(medium.h) = 0` and `der(medium.p) = 0` take `mixingVolume1.m`
+and `mixingVolume2.U` (INIT_PROBE). This is the steady-state start of
+the family of "the initial match spends an equation on `U`"
+(m371-m474). It is a map and nothing more, and no fix was built.
