@@ -70707,3 +70707,128 @@ instantiating the target first: read the declared dimension of
 `e2_ia[3]` from the class, not from the table of what has been
 measured. Any form of it is a flattener change and needs its own
 series, run under a memory cap.
+
+## A binding read by its declared length, and what stood behind it (m592)
+
+The `e_ia` fix of m591 was built behind
+`OXIDELICA_NO_DECLARED_SHAPE=1`, measured, and parked rather than
+merged, at `~/oxideflow/park/m592-e_ia-declared-shape.patch` with its
+test. Where a parameter
+array is bound whole to a member of a component declared further
+down, the member's length is taken from the declaring class rather
+than from the table of what has been measured, along a path of any
+depth and through bases, and only where nothing from above reaches the
+path and every length is a literal. Nothing is reordered, so the
+twenty gigabyte road recorded in `built_in_reading_order` is not
+taken.
+
+Small court, all under `CAP_GB=24`, one binary (`/tmp/m592/ox2`):
+`EIA11` runs with `x = 3` (off: the old refusal), `EIA10` runs with
+`x = 0.5`, `EIA4` and `EIA9` give the same numbers as before. The test
+`a_parameter_array_bound_to_a_component_declared_below_takes_its_elements`
+is red under the switch and green without it. Peak memory stayed under
+1.2 GB on every probe.
+
+The first form handled one level only, and `--only` on the six named
+the next link of the same family: `e_b = jointUSP.prismatic.e`, a path
+of two. The second form takes paths and bases, and with it all six
+leave the parameter wall (`/tmp/m592/six.*.txt`, `/tmp/m592/cb2.txt`;
+the file of `Utilities.EngineV6_analytic` was overwritten by its
+namesake, so only its refusal, from `six.out`, is kept). None of them runs.
+Each is refused as structurally singular, one wall further on:
+
+```text
+model                          run half on ox2   refusal
+Engine1b_analytic                    81 s       structurally singular
+EngineV6_analytic                   189 s       structurally singular
+Utilities.EngineV6_analytic       (not kept)  structurally singular
+PlanarLoops_analytic                106 s       structurally singular
+Utilities.CylinderBase               13 s       structurally singular
+Utilities.Cylinder_analytic_CAD      14 s       structurally singular
+```
+
+`CylinderBase` names `piston.frame_b.R.T[3,1] =
+piston.frameTranslation.frame_b.R.T[3,1]` as constraining no state,
+with 31 other members of its singular subset tried. So the analytic
+loop joints are the next family. The values now reach the model, and
+the structure that `JointRRP` and `JointRRR` solve analytically is
+what index reduction cannot take. The models were refused at 0 s of
+running before, and now spend minutes reaching a refusal, so the
+price falls on the run half with nothing won.
+
+The air gap, probed rather than read. A temporary print at the end of
+index reduction (`compile.rs`, before `Ok(Reduction`, not kept) gave
+on `SynchronousMachines.SMEE_DOL` the equations naming each stator
+phase current and what the matching gave each:
+
+```text
+phase 1  der(V_m.im) = 0.637*N.im*der(i[1])   -> der(i[1])
+         der(V_m.re) = 0.637*N.re*der(i[1])   -> der(V_m.re)
+phase 2  der(V_m.re) = 0.637*N.re*der(i[2])   -> der(i[2])
+phase 3  der(V_m.re) = 0.637*N.re*der(i[3])   -> der(V_m.re)
+         der(i[3]) = der(pin_p.i)             -> der(i[3])
+```
+
+`N.im` of phase 1 is `effectiveTurns*sin(orientation[1])` with the
+orientation 0, so phase 1 hands its current's derivative to a row
+whose coefficient is zero at every point. The matching sees the name
+and not the number, so the row is structurally fine and numerically
+empty. That is the null direction the SVD of m591 found, with
+`der(i[1])` at weight 1.00. The zero-sequence reading of m591 is
+therefore not what the probe shows: `der(i[2])` is outside the block
+because phase 2 matched cleanly, not because a relation is lost. Two
+small models with the same shape (`/tmp/m592/AG1.mo`, `AG2.mo`, three
+phases, `sin(0)` in the first) run, so the shrink has not yet found
+the layer. A parameter with value zero that the matching treats as a
+coefficient is the candidate to shrink towards next. Map only, no fix.
+
+The next row of `/tmp/m590/on3.txt` not covered by a ban, two models
+from `RollingWheelSetDriving`, was probed: the loop holding
+`e_long_0 = aux / length(aux)` of `RollingWheel` does not converge in
+60 Newton iterations from any of the four moved starts (1e-6, 1e-3, 1,
+1e3), every value finite. The model takes about 55 s to reach that.
+Map only.
+
+The pair was taken with `/tmp/m592/ox2`, off half under
+`OXIDELICA_NO_DECLARED_SHAPE=1`, both halves with `--slow 60` and
+`CAP_GB=24` (`/tmp/m592/pair.sh`, `off.txt`, `on.txt`). The off half
+did not have the machine to itself. From about 10:58 to 11:05 four
+single probes ran beside it: three runs of `RollingWheelSetDriving` of
+about 55 s each, then `CylinderBase` and `PlanarLoops_analytic`. That
+is one core against ten, for about seven minutes, all within the off
+half's flattening phase. It is at most a few percent of that half's
+core time, and the flattening time of the pair is not read for that
+reason. Victims and run lists are counts and are not touched by it.
+The price stands on the sum of the six per model above, about 600 s
+against a run half of 4561 s (off), which is about 13%. That is over
+the 6% of 26 October whatever the pair's clock says.
+
+What the pair printed (`/tmp/m592/off.txt`, `on.txt`): flatten 974 and
+run 834 in both halves, runnable 856 / 786, and the run lists of both
+halves equal line for line (1808 lines of `ran` and `flat`). So no
+victim and no win. The work counters of the run half agree to the
+digit (24156506 points, 35486751 Newton steps), and the clock does
+not: running 4561 s off against 5339 s on, +778 s, 17%. Subtracting
+the two `--slow 60` lists names the carriers, all six of the family,
+each absent from the off list because it never ran:
+
+```text
+EngineV6_analytic                +350.7 s
+Utilities.EngineV6_analytic      +260.9 s
+PlanarLoops_analytic             +158.2 s
+Engine1b_analytic                +122.9 s
+Utilities.CylinderBase            +20.1 s
+Utilities.Cylinder_analytic_CAD   +16.9 s
+```
+
+Together that is 930 s, more than the whole difference. Inside the
+corpus each costs more than alone under `--only`, and the remainder is
+counter-flow among models of the top sixty, each inside per-model
+drift. Index reduction does this work and then refuses at 0 points, so
+no work counter registers it, which is the trap the notes name.
+Verdict by the rule of 26 October: lists equal, but the run half is
+17% dearer, well over 6%. The fix stays in the park and the question
+goes to Roman through the review. Merged first, it would only pay for
+the next wall. The analytic loop joints are that wall and want their
+own series. The flattening halves (4018 s against 3701 s) are not read,
+for the reason given above.
