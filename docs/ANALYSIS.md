@@ -70695,3 +70695,15 @@ library's order and refuses the same way. So who
 should give `e_ia` its value is the flattener, by subscripting a
 binding whose target's shape is known only after instantiation. No
 fix was built. The small model is the test.
+
+The obvious fix has a ceiling, and reading found it. The comment in
+`built_in_reading_order` (`flatten/components.rs`, near "moved ahead of
+`eRod1_ia = rod1.eRod_ia`") records that building the rod of every
+`JointUSP` before the parameter that reads it sent the library's
+engine models from a refusal about parameters to more than twenty
+gigabytes. That is why parameters are kept out of the reorder. So a fix
+has to give the spread binding the target's shape without
+instantiating the target first: read the declared dimension of
+`e2_ia[3]` from the class, not from the table of what has been
+measured. Any form of it is a flattener change and needs its own
+series, run under a memory cap.
