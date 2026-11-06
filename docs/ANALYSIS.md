@@ -70879,3 +70879,16 @@ orientation was a literal array. A shrink with `orientation[k] =
 of `0 * x / y` to zero, with `y` known non-zero or not, is a rule that
 is right everywhere but at `y = 0`, and that is the question to carry
 before building anything.
+
+The quotient guess above is wrong, and a probe says so. `/tmp/m592/AG4.mo`
+(orientation `(k - 1)*2*pi/m` with `m` a parameter) and `AG5.mo` (`N`
+a record) both fold the zero and run. Reading then found the reason
+the library differs, in `compile.rs` near "A candidate the parameters
+fold to a number is that number". The fold is withheld on purpose for
+exactly this row. Folding `V_m.im = (2/pi)*N.im*i` to 0 drops the only
+reference to the winding current that grounds it, and the star point's
+Kirchhoff row can then not be differentiated. So the zero that leaves
+the air gap's null direction is kept because a recorded decision keeps
+it, which makes it a ceiling and not an oversight. A fix would have to
+ground `i` some other way before the fold may happen. That is a series
+of its own and goes to the review, not to a shift.
