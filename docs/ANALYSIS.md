@@ -70392,6 +70392,34 @@ coefficient being zero is not enough. In Spice3 the current `icapbx`
 flows back into the node balance that fixes `vbx`, which closes a loop
 the small model does not have. The next small model needs that loop.
 
+A probe then printed the block's rows at the refusal (a temporary
+print under `OXIDELICA_NEWTON_TRAIL`, built as `/tmp/m589/oxp`, not
+committed). In all three the block is one row:
+`Q1.icapbx = if Q1.m_bInit then 0 else Q1.cc.capbx * der(Q1.vbx)`
+in `RtlInverter`, and the same with `capbe` and `der(Q4.vbe)` in
+`NAND` and `ONEBIT`. The residual there is -0.0. So the matching gave
+the derivative of a junction voltage to the one equation that carries
+it through a capacitance. When that capacitance comes out zero at run
+time, the equation still holds (both sides are 0) but it no longer
+says anything about the derivative. The column is dead because a
+number that only the run knows is zero, and the structure cannot see
+that. Two small models with the same shape and a coefficient
+computed as zero at run time (`/tmp/m589/ZL2.mo`, `ZL3.mo`) also fail,
+with "step size underflow" and with a division `der(vbx) = i / c`
+that is NaN before any step. So the family reproduces small, with
+different wording. Where `c` is a parameter that folds to zero
+(`ZL.mo`), the term disappears before matching and the model runs.
+The question for a series is therefore whether `cc.capbx` can be
+known to be zero before the matching. It cannot be done by folding
+parameters. `why` shows that `bjtNoBypassCode` also reads `Q1.vbx`,
+`Q1.B.v` and `Q1.C.v`. It is zero for every voltage only because of
+`XCJC = 1` inside the function body. Proving that means evaluating the
+function symbolically over its voltage inputs, which is a larger job
+than a fold and a series of its own. As a second road, the solver could
+treat a column that is dead only because a run-time coefficient is
+zero the way the zero rule treats a name that does not move. That is
+a design question, and it goes to the review rather than into code.
+
 Five are FundamentalWave or QuasiStatic machines. In
 `IMC_DOL_Polyphase` the block holds the `s` of every ideal closing
 switch, both machines' air-gap phasors, and the star points'
@@ -70430,3 +70458,18 @@ is a reading and not a probe. `SMPM_CurrentSource` names
 angle equality. `FullRobot` is covered above. `IMC_DOL_CommonLeakage`
 names a magnetic potential of the fifth converter. None of the four was
 shrunk further this shift.
+
+Of the eighteen flow-zero and flow-sum models in row 29, sixteen are
+not runnable examples by the corpus's own filter (`--only` prints
+`runnable examples ...: 0` for each). They are building blocks such as
+OpAmp circuits, actuator components and the `Utilities` classes, and
+they are refused rightly. Their open pins carry a flow of zero against a
+connection sum that already settles it. `OpAmpCircuits.Gain` shows
+this: `why n2.i` gives `n1.i + n2.i + opAmp.in_p.i = 0` beside
+`n2.i = 0`, for the outer pins `connect(n1, n2)` joins. The two
+runnable ones are the Fluid tanks, which are already mapped (queue
+item 56 and the m580 chapter). So the row's 29 count for less than it
+looks: 2 runnable flow-zero models, 7 orientation models, and 4 single
+ones. Three of those (`ActuatorWithNoise`, `SMPM_CurrentSource`,
+`IMC_DOL_CommonLeakage`) print `runnable examples ...: 1`. `FullRobot`
+was not checked this way.
