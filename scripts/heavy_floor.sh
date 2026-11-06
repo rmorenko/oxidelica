@@ -96,9 +96,25 @@ set -euo pipefail
 # over all twenty-three, and it is the one these floors answer to.
 # That job last took 98 minutes and these add about 48 of a runner's,
 # inside its 180.
-FLATTEN_FLOOR=23
+#
+# On 2026-11-05 1e2c9f2 carried HeatExchangerSimulation into the list
+# as its twenty-fourth name and left these floors at twenty-three, so
+# the guard on the count of names turned every scheduled run red
+# before a single model was read. The judge of the last green
+# scheduled run, 42022420115, printed 23 / 3 and runnable 21 / 3 (two
+# baskets, 10 / 0 and 11 / 3, added). `--only` the exchanger with
+# `--with-heavy`, one binary built from fcb63b0 (/tmp/m594/hex.txt),
+# printed 1 / 0 and runnable 1 / 0: it flattens and its start block of
+# 162 unknowns refuses. The run floors stay below the print, which
+# swings by one.
+#
+#   flatten          24 = 23 + 1
+#   run               2 =  2 + 0
+#   runnable flatten 22 = 21 + 1
+#   runnable run      2 =  2 + 0
+FLATTEN_FLOOR=24
 RUN_FLOOR=2
-RUNNABLE_FLATTEN_FLOOR=21
+RUNNABLE_FLATTEN_FLOOR=22
 RUNNABLE_RUN_FLOOR=2
 
 # A path given before the `cd` below, made absolute so it still names
