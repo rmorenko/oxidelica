@@ -1998,7 +1998,12 @@ FLATTEN_FLOOR=974
 #   833 - 3 = 830
 # The split secant's one side won Inverter: the judge of 42163083623
 # printed 834 run, so 834 - 3 = 831.
-RUN_FLOOR=831
+# A delay of nought won Modelica.Electrical.Digital.Examples.Utilities.RS,
+# which has no experiment and so counts in the run total only. The
+# desk's preflight printed `OK: 2671 files read, 974 flatten, 835 run;
+# runnable 856 flatten, 786 run` (/tmp/m596/pre.txt:2399), so
+# 835 - 3 = 832, and the runnable floor stays at 786 - 3 = 783.
+RUN_FLOOR=832
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #

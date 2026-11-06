@@ -38,7 +38,7 @@ fn the_compiler_names_what_it_cannot_do() {
     assert!(refused("model M discrete Real d(start = 0); Real y; equation y = 1; when sample(0, 0) then d = 1; end when; end M;")
         .contains("the interval must be positive"));
     assert!(
-        refused("model M Real y; equation y = delay(time, 0); end M;")
+        refused("model M Real y; equation y = delay(time, -1); end M;")
             .contains("the delay must be positive")
     );
     assert!(

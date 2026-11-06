@@ -340,6 +340,13 @@ impl EventRewrite<'_> {
                             depth: 0,
                         },
                     )?;
+                    // Section 3.7.4 allows a delay of nought, and what
+                    // it reads is the expression now: the unclocked
+                    // flip-flop of the digital library defaults its
+                    // `delayTime` to 0.
+                    if seconds == 0.0 && !crate::walk::switch_set("OXIDELICA_NO_ZERO_DELAY") {
+                        return Ok(source);
+                    }
                     if seconds <= 0.0 || seconds.is_nan() {
                         return err(format!("delay(..., {seconds}): the delay must be positive and known before the run"));
                     }

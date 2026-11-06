@@ -1670,3 +1670,13 @@ fn a_mode_is_settled_on_what_the_chosen_branches_define() {
     let at_zero = result.rows.iter().filter(|row| row[0] == 0.0).count();
     assert_eq!(at_zero, 1, "an event at t = 0 corrected the start");
 }
+
+#[test]
+fn a_delay_of_nought_reads_the_expression_now() {
+    let result = run("model D Real y; equation y = delay(2 * time, 0); \
+         annotation(experiment(StopTime=1.0, Interval=0.1)); end D;");
+    let y = result.columns.iter().position(|c| c == "y").unwrap();
+    for row in &result.rows {
+        assert!((row[y] - 2.0 * row[0]).abs() < 1e-9, "{row:?}");
+    }
+}
