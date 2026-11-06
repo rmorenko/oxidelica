@@ -70236,3 +70236,17 @@ wall without having been probed. The remaining three are singles:
 (a sensor speed equation). Eleven of the 29 tried all 31 equations of
 their subset, which is the cap, so their subset was larger than what
 was tried.
+
+The test was then run on the real model with a temporary print at the
+refusal (built as `/tmp/m588/oxp`, not committed). `Kj` prints
+f = 2.5e-4 with secants -1 up and +1 down: each side has a root, so it
+is a real fork. `Kl` prints f = -2.5e-4 with the same secants: neither
+side has one. `Inverter` at the refusal prints f = -2.5e-4 on
+`mp.Sinternal` = 0, a secant of 1.0e-5 upward and 618 downward. The
+upward side puts a root at +25 and the downward side puts none,
+because the step it asks for points the wrong way. So `Inverter` is
+neither a fork nor a double root: it is a block with an answer on one
+side only, refused as if it had two. The secant over a whole unit is
+also a poor guide at +25, so the next series needs a real
+one-sided solve rather than this extrapolation. This is where an
+either-side series would start, and it has a model that it could win.
