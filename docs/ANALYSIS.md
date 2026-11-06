@@ -71738,3 +71738,29 @@ tree. One edge stays open and is named for the review: the price over
 the heavy set was never measured. Only one pipe was, and it grew from
 89 s to more than 23 minutes. The cron's two passes had 94 and 106
 minutes to spare under their 240.
+
+### Two more singular start blocks, by the same instrument
+
+The singular value split used above was run on two more members of the
+`singular Jacobian` row (`/tmp/m598/lg.txt`, `pg.txt`, binary from this
+tree).
+
+- `LossyGearDemo2`, 5 unknowns, rank 4. The left null vector is rows 2
+  and 3 at equal weight: the gear's `a_a = ... gear.sa ...` and the
+  bearing friction's `a_relfric = ... bearingFriction.sa ...`. The right
+  null vector spreads evenly over both `sa`, both quadrants and the
+  flange torque. Two friction elements rigidly coupled each choose their
+  own sliding variable, and their accelerations are one quantity. This
+  is the ideal-friction mode left undetermined by the model, not a
+  fault of the start matching.
+- `PointGravityWithPointMasses2`, 68 unknowns, rank deficient by at
+  least three, with five rows of the Jacobian identically zero (34, 39,
+  44, 50, 61). These are rows giving `v_0` and `a_0` of the point masses
+  through `der(fixedTranslation.frame_a.R.T[...])`. At t = 0 every
+  derivative of the orientation is zero, so the rows lose their
+  dependence on the unknowns. A different mechanism from both above,
+  recorded for a probe of its own.
+
+Also built and parked this shift: `~/oxideflow/park/m598-cli-help.patch`,
+which makes `--help` print the usage. Its test is red without the change
+and green with it.
