@@ -71320,3 +71320,20 @@ From the census of `/tmp/m590/on3.txt`, with the HEAD binary and
 
 The tank's NaN in `portVelocities` now stands in front of two models,
 and it is the next probe.
+
+### The tank's port velocity in `MeasuringTemperature`
+
+The NaN is not a value nobody gave. `why` finds every name it reads
+defined: `portAreas[1]` from the port diameter (0.05), the penetration
+from the level, `vessel_ps_static[1]` from the level and density,
+`junctionIdeal.port_3.h_outflow` from the junction's mixing rule. The
+refusal says when it appears: at t = 0, on Newton iteration 20, with
+the shortened steps back to the last finite point exhausted
+(`/tmp/m596/u_MeasuringTemperature.txt`). Two residuals turn NaN, the
+port velocity and the port pressure of `openTankCold3`, and both call
+`waterBaseProp_ph(vessel_ps_static[1], h, 0, 0)`. So the loop walks
+the pressure or the enthalpy out of the range where IF97 answers, and
+then cannot step back. The next probe is the trail of those two
+arguments over iterations 15 to 20, which says which one leaves. Map
+only. `HeatingSystem` under the parked slope rule stops on the same
+equation, so the answer serves both.
