@@ -71617,3 +71617,12 @@ used one binary (`/tmp/m597/oxa`), with the off half run under
 A unit test is red without the change and green with it. The test
 that held the old default is turned round. Pricing it on the corpus
 is left to the review.
+
+The parked change is not cheap. `DynamicPipeWithNominalLaminarFlow`,
+one of the two pipes m529 turned the chain off for, refuses after
+89.2 s of running without the change (`/tmp/m597/dpn_off.txt`). With
+the change it had spent 23 minutes of CPU and not finished when this
+was written (`/tmp/m597/dpn_on.txt`). Leaving calls out of the chain
+does not keep the pipe away from its dear initial residual. The park
+note says so, and the patch is not a candidate for merging in this
+form.
