@@ -70855,3 +70855,16 @@ the delay must be positive` on `Digital.Examples.Utilities.RS`. That is
 a utility whose own default is `delayTime=0`, set by every `RSFF` that
 uses it. The refusal is right for the class standing alone, so it
 belongs to the example filter, which waits for Roman (queue item 66).
+
+The air gap shrink, one step further. `/tmp/m592/AG3.mo` puts the
+coefficient inside a component, `final parameter Nim =
+turns*(exp(0)*sin(orientation))` with `orientation = o` handed as an
+array modifier, and it runs. The same temporary print shows why. In
+`AG3` the term `Nim*der(c[1].i)` of phase 1 is folded to `0` before
+matching, so `der(c[1].i)` goes to the clean sum of the currents. In
+`SMEE_DOL` the factor `0.637*N.im` stands unfolded in the
+differentiated row, and the matching takes it. So the layer is the
+fold that decides whether `N.im` is a known zero. In the library,
+`N.im` reads `orientation[1]` of the converter, which is itself bound
+from the machine above. The next probe is `oxidelica why` on that
+chain, to find which link the fold cannot see through. Map only.
