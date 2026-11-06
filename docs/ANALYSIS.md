@@ -71337,3 +71337,155 @@ then cannot step back. The next probe is the trail of those two
 arguments over iterations 15 to 20, which says which one leaves. Map
 only. `HeatingSystem` under the parked slope rule stops on the same
 equation, so the answer serves both.
+
+## Shift 597: the jacobian centre named, the tank's enthalpy traced
+
+### The 56 jacobians are one model under aliases-last
+
+The centre of the desk's jacobians was wound 530 to 586 on the same
+day (4d04fb1) with its carrier left unnamed: the start blocks taken as
+systems had been cleared. The change merged that morning, aliases
+ranked last in a singular subset (`OXIDELICA_NO_ALIASES_LAST`), was in
+the tree when 586 was printed and was not asked. It is now. The 49
+models of the main pass that build any jacobian, the two solenoids
+counted apart left out, were run twice by one binary built from HEAD
+(`/tmp/m597/ox1`), with and without the key, and with the work of each
+model printed (`/tmp/m597/jac_on2.txt`, `/tmp/m597/jac_noal2.txt`):
+
+```text
+                    aliases last   switched off
+jacobians           576            520
+newton              443012         441315   (whole set)
+ran                 47 of 49       47 of 49, the same list
+```
+
+All 56 belong to one model. Every other one of the 48 counts the same
+jacobians to the digit:
+
+```text
+FundamentalWave...SynchronousMachines.SMEE_LoadDump
+  aliases last   4978 points  10720 newton  182 jacobians  3.56 s run
+  switched off   4084 points   9021 newton  126 jacobians  8.74 s run
+```
+
+530 + 56 = 586, the new centre exactly, and the judge's 683 to 740 is
+the same 57 within one. So the centre moved for a named reason and
+stays where it is: the change went in with no victims, and what it
+costs in jacobians it pays back on the clock, since the model takes
+five seconds less to run under it (one run each, a single pair, so the
+seconds are a pointer rather than a price).
+
+### Where the tank's enthalpy leaves IF97
+
+`MeasuringTemperature` was run under `OXIDELICA_NEWTON_TRAIL`
+(`/tmp/m597/mt_trail.txt`), and once without it
+(`/tmp/m597/mt_ctrl.txt`): the same refusal on the same iteration 20,
+so the probe does not change the outcome. The 51-unknown block
+converges five times at t = 0 and fails on the sixth solve. Read by
+name against the block's own list, the argument that leaves is the
+enthalpy and not the pressure. `vessel_ps_static` is not in the block
+at all, and every port pressure stays within 101325 to 111008 Pa.
+The sixth solve starts from a converged point where the cold tank's
+flow is `1.6e-6` kg/s and every other port flow is about `1e-21`. Its
+first full Newton step takes `junctionIdeal.port_3.h_outflow` from
+111 J/kg to `-6.8e9`, sends the flows to 1170 kg/s, and the halved
+steps that follow (iterations 2 to 20) bring the enthalpy only to
+`-12795` at a lambda of 2^-19. That is still below where IF97 answers
+for liquid water at one atmosphere. So the step is not walking off
+an edge. A Jacobian taken where every flow is zero sees the mixed
+enthalpy through `m_flow / sum(m_flow)` at a point where both are
+nothing, and its direction is meaningless in the enthalpy. That is
+the family of zero flow through an ideal junction, not the
+density-for-pressure family of `TestTemperature1` (de574d9, queue item
+21), where the pressure is solved from a nearly incompressible density
+and a step of 440 Pa carries the enthalpy away. In this model the
+pressure did not move.
+
+`HeatingSystem` does not reach the same point. On HEAD it stops before
+the run (`der(tank.medium.T)` is not a state). Under the parked slope
+rule (`park/m595-still-slope-element.patch`, applied in a worktree and
+built as `/tmp/m597/oxs`) it gets one wall further and refuses before
+any Newton step: `tank.medium.u := U/m` divides by `tank.m = 0`, and
+the medium is `LinearWater_pT_Ambient`, not IF97
+(`/tmp/m597/hs_slope.txt`). So the two models are two families, and
+the earlier note that one answer serves both is withdrawn.
+
+No fix was built. Two things stop it. First, the cure the trail points
+to, a regularised mixing weight at zero flow, is the domain-of-IF97
+treatment this shift was told not to build. Second, the ceiling
+comment at solvers/mod.rs:1704-1715 already decides how a step over
+an edge is taken back, and it does not apply here, because this step
+was wrong in direction and not too long.
+
+### The ideal-switch rectifiers, counted
+
+The refusal shared by `ThyristorBridge2mPulse_RLV` and
+`PolyphaseRectifier` is the floor's door (solvers/mod.rs:1636-1667):
+a block accepted on the arithmetic floor and found undetermined, so a
+family of switch states fits and one was taken at random. Its census
+row is one line per exit ("after 60 iterations", "after three steps
+that did not descend"), and the census of `/tmp/m590/on3.txt` holds
+those two models and no third. Three more corpus models carry ideal
+switch `s` in an undetermined or singular block, each refused by a
+different door (`/tmp/m597/fam_out2.txt`):
+
+- QuasiStatic `Rectifier`: a singular Jacobian on four `idealDiode.s`.
+  This is the same switch family, met before the floor.
+- `IMC_DOL_Polyphase`: undetermined, with five `idealClosingSwitch.s`
+  in the block beside `airGap.V_mss`. Switches and the forbidden
+  airGap family share this block.
+- `ThreePhaseTransformerWithRectifier`: an initialization that is not
+  square. The rectifier is not what refuses here.
+
+Against the forbidden Spice3 family, the stage differs while the
+check is the same one. `Spice3BenchmarkRtlInverter` refuses with
+`underdetermined algebraic loop ["der(Q1.vbx)"]` from the plain
+`determined` check at solvers/mod.rs:1611, on a block that converged.
+The rectifiers reach that check through the floor's door, on a block
+that did not converge. That gives three models of the switch family
+by name (both floor-door rectifiers and QS `Rectifier`), plus one
+shared with airGap. It is a family of its own, small, and whose
+series it is goes to the review.
+
+### The four singles left, and twelve more
+
+- `TestMixingVolumesPressureStates`: a singular Jacobian on the
+  second Newton iteration of its first block, 24 unknowns, with both
+  volumes' `medium.h`/`medium.p` and the orifices' states in it
+  (`/tmp/m597/tmv.txt`).
+- `DynamicPipeClosingValve`: 599 Newton steps, every one of them
+  descending at a full step (`lambda=1e0 descended=true`). The start
+  converges block by block and still runs out of the outer 50: it
+  walks, it does not stall (`/tmp/m597/dpcv.txt`).
+- `NonCircularPipes`: 8 initial equations for 6 states, free along
+  `annulus_pipe.Us[2]`. This is the family of queue item 97, and the
+  question is not raised again.
+- `Transformer1PhaseWithHysteresis` is a component, not an example
+  with an experiment. Its pins are open connectors, and `winding1.p.i`
+  has three equations and no state behind it. So the singular subset
+  is the open pins of a part, not a defect of the compiler.
+
+Twelve more singles from `on3.txt`, one capped run
+(`/tmp/m597/p4_out.txt`, 11 flatten and 0 run):
+
+- `TestSuddenExpansion`: a root on either side of `m_flow`.
+- `OneTank`: leaves the domain at iteration 20 on a flow balance.
+- `PumpingSystem`: IF97 viscosity called with too low a density
+  before the first step.
+- `TestSweptVolume`: `ports[1].h_outflow` NaN settled before its block.
+- `TestJunctionTraceSubstances`: `solveOneNonlinearEquation` brackets
+  190 and 64 the wrong way round.
+- `ThreeSprings`: a finite residual and a NaN, then every moved start
+  refused (`e_rel_0 = r_rel_0 / s` at `s = 0`).
+- `LossyGearDemo2`: a singular Jacobian on the quadrants.
+- `Friction`: the step size underflows at 0.006.
+- `GearType1`: an initialization that is not square. It is a utility,
+  not an example.
+- `ControlledMixingUnit`: one `when` assigns a discrete twice.
+- `R134a_pTX_phX_all`: `der(T) = dT` mismatched in unit.
+- `Essotherm650`: `Pr` above its maximum.
+
+`TestSweptVolume` reads a NaN settled upstream, as `HeatingSystem` does
+under the slope rule, where a zero mass made it. Whether the volume's
+NaN has the same origin is not yet measured, and that pair is the next
+probe.
