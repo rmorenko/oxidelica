@@ -73028,3 +73028,97 @@ stack patches no longer applied with `git apply` on this tree. They
 went in with `patch -F3`, so the hunks landed on moved context, and
 that is worth knowing before anyone reads this as the same stack.
 Nothing was merged. The road for each is Roman's word.
+
+## The LM stack as a fallback, priced on one binary
+
+The order of 7 November asked whether the LM stack could keep
+BranchingPipes3 while the models that already run stopped paying for
+it. The parked stack (~/oxideflow/park/m606-price-probes.diff) was
+rebuilt behind a new key, `OXIDELICA_LM_FALLBACK`. Under that key a
+block is first solved by plain Newton. The fallback point is
+`solve_implicit_block_tried` in `solvers/mod.rs`, just after the first
+call to `solve_implicit_block_from`. Only a refusal reading "does not
+reduce the residual" is then asked again with the Cauchy and LM step,
+the rein and the second ceiling switched on for that one solve. A
+block that converges on its own never enters the stack.
+
+A pair was run with one binary (/tmp/m607/ox1), the halves one after
+the other, `--list --slow 1100` under a 24 GB cap, over the 1019
+models of the main and dear passes:
+
+| half     | flatten / run | ran list          | running         | file                |
+| -------- | ------------- | ----------------- | --------------- | ------------------- |
+| off      | 974 / 838     | base              | 4524 s          | /tmp/m607/c_off.txt |
+| fallback | 974 / 839     | + BranchingPipes3 | 5508 s (+21.8%) | /tmp/m607/c_fb.txt  |
+
+The ran lists differ by exactly one line, BranchingPipes3, so there
+are no victims. The fallback form is no cheaper than the stack was
+(+20.6% in /tmp/m606/c_lm.txt). `--slow` names who pays:
+BranchingPipes1 +479 s, BranchingPipes3 +377 s, BranchingPipes13
++102 s, and a tail of smaller BranchingPipes. Everything else is under
+ten seconds, either way.
+
+That overturns the reason the stack was refused. The judgement of 7
+November said that the work barely moved while the time grew, so the
+price had to sit in the step and every running model paid it. The
+names say otherwise. The models that ran before pay nothing. The
+price sits in blocks that the stack is asked to rescue and cannot
+rescue: BranchingPipes1 still refuses, but it now takes 592 s to do so
+where it took 122 s alone (`--only`, /tmp/m607/ctl.log), and
+BranchingPipes13 takes 174 s where it took 82. A refusal adds nothing
+to the work counters, which is why the counters did not see it. The
+damped steps of the stack are not Newton iterations either. So a
+fallback form cannot help by construction: the blocks it is meant to
+spare were never paying.
+
+A second key, `OXIDELICA_LM_FALLBACK_ONCE`, lets each block fall back
+only until its first failed rescue, after which plain Newton's refusal
+stands. On single runs (/tmp/m607/ctl.log) BranchingPipes1 refuses in
+356 s instead of 592 s (off 122 s), and BranchingPipes3 still runs, in
+442 s. The corpus pair for this form is below.
+
+## GearType1's friction wall, reproduced small
+
+The earlier entry left GearType1 at a friction wall: with any one of
+its four start conditions left out, the block `bearingFriction.sa`
+refuses as not mentioning `sa` at t = 0. The model mentions `sa` in
+one place that matters at t = 0, `BearingFriction.mo:68`,
+`tau = if locked then sa*unitTorque else ...`. And `locked` is given
+by `PartialFriction.mo:53-54`: it is true when the element is not free
+and neither `pre(mode)` is Forward or Backward nor a start of sliding
+is under way. At t = 0 `pre(mode)` is Unknown (3, its fixed start),
+and with `w = 0` both `startForward` and `startBackward` are false, so
+`locked` is true and the torque is `sa`.
+
+The block reads `locked` at its start value instead, which is false.
+With `NEWTON_TRAIL` its one residual stays at 0.4, which is `tau0`,
+the sliding branch, whatever `sa` is. The column is dead because the
+branch that would read `sa` was never selected, and the refusal is
+raised at `solvers/mod.rs:2647`. Three components show it
+(/tmp/m607/g/G3.mo): a BearingFriction, a SpringDamper with `w_rel`
+and `a_rel` fixed, and a Fixed flange. A BearingFriction on a bare
+inertia with fixed `phi` and `w` runs (G1.mo). GearType1 extended with
+`bearingFriction(locked(start = true))` runs (G5.mo), and it reports
+`mode = 0`, Stuck, which is the physical answer. So what has to
+mention `sa` at t = 0 is the locked branch of line 68, and what keeps
+it from doing so is a Boolean that the start solve takes from its
+start attribute rather than from its own equation. That is a fault in
+how the start settles discrete variables inside a continuous block,
+not in the friction model. No code was changed for it.
+
+The price instrument needed nothing new. `library check --list`
+already prints every model that ran on a line beginning `ran`
+(`crates/oxidelica-cli/src/main.rs`, after the flat list), so the run
+lists of a pair can be diffed by name. Diffed this way, the pairs of
+/tmp/m606 confirm the arithmetic of 7 November: the ladder moves
+nothing, the relative pivot floor loses PumpAndValve, IdealMixing1,
+Air.DryAirNasa and IdealGases.Air, and the LM stack gains
+BranchingPipes3 alone.
+
+Divided over the 136 models that flatten and do not run, the
+fallback's 984 s come to 7.2 s per refusal. That average hides the
+shape: twelve models carry more than 5 s each and 1063 s between them,
+nearly all BranchingPipes, and the rest scatter around zero. So the
+price is not linear in the refusing models. It sits in one family whose
+blocks give up on descent, and BranchingPipes1 at +479 s is that
+family's largest member rather than an outlier from the mean.
