@@ -72920,3 +72920,21 @@ flange's own angle" across walks whose numbering differs. So the
 instrument has reached its limit here. The rule itself, a structural
 preference at near-ties, is the thing to try, behind a switch and
 measured as a pair. That is queue item 101 and needs a word first.
+
+## The start wall of PG8 and PG2, priced by name
+
+Read from /tmp/m602c/raw.txt, the corpus models refused on a
+non-square or singular initialisation are five: AmplifierWithOpAmpDetailed
+(singular, an input nobody pins), NonCircularPipes (8 equations for 6
+states, overdetermined), ThreePhaseTransformerWithRectifier (21 + 4 for
+23, overdetermined), GearType1 (2 + 2 for 3, overdetermined) and
+SimpleNaturalGas (singular). Three of the five have too many
+conditions rather than too few, like PG8. Filling starts from
+`start` values (queue item 97) would reach at most the two singular
+ones, and it would risk a quiet start wherever an author forgot an
+equation. The overdetermined three need the opposite: a consistent
+redundant condition recognised and dropped. The free-motion models
+of PG2's kind (PointGravityWithPointMasses2, UniversalConstraint,
+PrismaticConstraint) do not stand on the start wall at all. They
+refuse on singular Jacobians of algebraic loops, the orientation
+layer mapped above. No change was built, as the order asked.
