@@ -72848,3 +72848,20 @@ whole script passes on this tree (/tmp/m605/witness.txt, no
 `WITNESS` line). 6e86c8a adds the third key. The second judge,
 42362127448 for dd7094d, has the same tree and is expected to fail
 the same way. The fix is in the next commit.
+
+ActuatorWithNoise did not shrink cleanly, and the reason is itself a
+finding. The same model meets two different walls depending on the
+entry point. `library check .msl --only ...ActuatorWithNoise` refuses
+structurally on the voltage sensor's pin row (/tmp/m605/act.txt),
+while `simulate` on a wrapper `model AW extends ActuatorWithNoise`
+(/tmp/m605/small/AW.mo) gets past index reduction and fails at
+t = 8e-6 on a step size underflow. A hand copy with every component
+and connection (P0.mo) behaves like the wrapper, and the same copy
+without the rod mass and the elastic gap (P1.mo) gives the census's
+own structural row. The motor alone (N1.mo) and with a gearbox
+(N2.mo, N3.mo) refuse on a singular Jacobian through the rotator
+angle. So the census row for this model depends on how the entry
+point instantiates it. A wrapper that extends the example is not
+equivalent to the example, which is the same brittleness the
+RobotR3 forces showed (OA.mo). Why the two entry points diverge was
+not probed.
