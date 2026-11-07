@@ -2003,7 +2003,11 @@ FLATTEN_FLOOR=974
 # desk's preflight printed `OK: 2671 files read, 974 flatten, 835 run;
 # runnable 856 flatten, 786 run` (/tmp/m596/pre.txt:2399), so
 # 835 - 3 = 832, and the runnable floor stays at 786 - 3 = 783.
-RUN_FLOOR=832
+# The chain through arithmetic (8a669d9) won OneTank and
+# TestSweptVolume. The judge of push run 42310740390 printed 974
+# flatten, 837 run (the desk's /tmp/m598/on.txt printed the same), so
+# 837 - 3 = 834.
+RUN_FLOOR=834
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -2569,7 +2573,9 @@ RUNNABLE_FLATTEN_FLOOR=856
 # 785 - 3 = 782.
 # Inverter is a runnable example: the judge of 42163083623 printed
 # 856 / 786, so 786 - 3 = 783.
-RUNNABLE_RUN_FLOOR=783
+# OneTank and TestSweptVolume are runnable examples: the judge of
+# 42310740390 printed 856 / 788, so 788 - 3 = 785.
+RUNNABLE_RUN_FLOOR=785
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
@@ -3446,7 +3452,14 @@ WORK_JACOBIANS_OWN_PPM=200000
 # quasi-static solenoid counts 1841 again (10 -> 1841). One binary,
 # /tmp/m529: off 1974 / on 143, and 1841 + 133 = 1974, the value that
 # stood here from 2026-10-05 to 2026-10-26. The band does not move.
-WORK_JACOBIANS_APART=1974
+#
+# Back to 143 on 2026-11-07: 8a669d9 made the chain through arithmetic
+# the default, and the judge of push run 42310740390 printed `143
+# jacobians apart` and refused on this centre alone. It is the same 143
+# as m518, which points at the quasi-static solenoid's 1841 leaving
+# again; that carrier was not checked by name this time. The band does
+# not move.
+WORK_JACOBIANS_APART=143
 WORK_JACOBIANS_APART_PPM=900000
 WORK_PERCENT=5
 
