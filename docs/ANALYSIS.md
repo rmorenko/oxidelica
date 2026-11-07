@@ -72938,3 +72938,46 @@ of PG2's kind (PointGravityWithPointMasses2, UniversalConstraint,
 PrismaticConstraint) do not stand on the start wall at all. They
 refuse on singular Jacobians of algebraic loops, the orientation
 layer mapped above. No change was built, as the order asked.
+
+## The heavy pass b overrun, named by isolation
+
+Heavy cron 42365794628 ran pass b into its 240 minute ceiling and the
+heavy judge was skipped. The ten models of that pass not yet measured
+were each run alone with `--only` from `.msl`, `--with-heavy`, under
+a 9 GB cap and a 900 second budget, five at a time, all on one binary
+built from c8b9faa (/tmp/m606/ox0, files /tmp/m606/d1.txt to
+d10.txt). R134a1, R134a2, MoistAir1 and MoistAir2 took 20 to 40
+seconds, BranchingPipes18 161, BranchingPipes12 252 and SeriesPipes12 224. Three ran past the budget: DynamicPipeWithNominalLaminarFlow,
+FOURBIT and the full Spice3BenchmarkFourBitBinaryAdder.
+
+Each of the three was then run under each rollback key
+(/tmp/m606/r_*.txt). DynamicPipeWithNominalLaminarFlow took 150
+seconds under `OXIDELICA_NO_ARITHMETIC_CHAIN=1` (flattening 43 s,
+running 104 s, refused as a singular initialisation as before) and
+ran past 900 under `OXIDELICA_NO_ARRAY_RATES=1` and
+`OXIDELICA_NO_HELD_ROW=1`. So for this model the carrier is the
+silent chain through arithmetic, 8a669d9, whose price was measured
+on nine models that held none of the heavy ones. It is neither of
+the two late merges that were suspected. The chain carries one model
+of the three and no more. FOURBIT and the full adder stayed at or
+above 891 seconds under the chain key and at or above 903 under the
+other two (hours from /tmp/m606/log.txt). That is a measured lower
+bound, not a gap: with the chain off the same model that fell to 147
+seconds did fall, and these two did not. Their cause is not found
+and stays an open question, parked at "at least 891 s" so as not to
+put a second instrument beside the corpus series. Whether to
+take the chain's default back, carve the model out, or raise the
+ceiling is Roman's word. Nothing was changed.
+
+## GearType1's extra start conditions
+
+`why` on GearType1 (the robot gear, refused as "initialization is not
+square") counts four conditions for three states: the two written
+initial equations `spring.w_rel = 0` and `a_rel = 0`, and the fixed
+starts of `bearingFriction.phi` and `bearingFriction.w`. Leave any
+one out and the start refuses on the friction element's loop
+`bearingFriction.sa`, which no equation at t = 0 mentions. So this is
+not PG8's surplus of written conditions. The surplus comes from
+pinned starts, and behind it stands the friction mode wall. A start
+policy would not reach it alone. This adds one row to the start wall
+map above.
