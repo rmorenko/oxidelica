@@ -673,6 +673,19 @@ pub(crate) fn differentiate_at(
         _ if matches!(target, DiffTarget::Time { .. }) && does_not_move(expr, target) => {
             Expr::Number(0.0)
         }
+        // Inside a walked body, an element of an array that carries a
+        // rate has the element of the rate for its rate, picked by the
+        // same subscript. Turned off by `OXIDELICA_NO_ARRAY_RATES`.
+        Expr::Index(base, subscripts)
+            if IN_BODY.with(|on| on.get())
+                && matches!((base.as_ref(), target), (Expr::Ref(n), DiffTarget::Time { state_rhs, .. })
+                    if matches!(state_rhs.get(n), Some(Expr::Ref(_)))) =>
+        {
+            let (Expr::Ref(n), DiffTarget::Time { state_rhs, .. }) = (base.as_ref(), target) else {
+                unreachable!("asked in the guard")
+            };
+            Expr::Index(Box::new(state_rhs[n].clone()), subscripts.clone())
+        }
         // Inside a walked body, an element of an array that stands
         // still stands still too, whichever element the body picks.
         // A subscript is an Integer, and an Integer does not move
@@ -969,8 +982,23 @@ pub(crate) fn differentiate_at(
         // the derived body would answer with its terms missing.
         Expr::Call(name, args) if crate::derived::derivative_of(name).is_some() => {
             use crate::derived::Handed;
-            let (derived, carries) =
+            let (mut derived, mut carries) =
                 crate::derived::derivative_of(name).expect("asked in the guard");
+            // A call handing a moving array to a body that reads it as
+            // still takes the second body, where one was written.
+            let moves = |arg: &Expr| match target {
+                DiffTarget::Time { .. } => !does_not_move(arg, target),
+                DiffTarget::Variable { name: var, .. } => mentions_name(arg, var),
+            };
+            if carries
+                .iter()
+                .zip(args.iter())
+                .any(|(c, arg)| *c == Handed::Still && moves(arg))
+            {
+                if let Some(moving) = crate::derived::moving_derivative_of(name) {
+                    (derived, carries) = moving;
+                }
+            }
             let mut handed = Vec::new();
             for (at, carried) in carries.iter().enumerate() {
                 match (carried, args.get(at)) {
@@ -989,6 +1017,23 @@ pub(crate) fn differentiate_at(
                         ));
                     }
                     (Handed::Still, _) => {}
+                    (Handed::RateArray, Some(Expr::Array(items))) => handed.push(Expr::Array(
+                        items.iter().map(&d).collect::<Result<Vec<_>, _>>()?,
+                    )),
+                    (Handed::RateArray, Some(arg)) => {
+                        return Err(format!(
+                            "cannot differentiate `{name}`: the array handed as input {} \
+                             is not written out: `{}`",
+                            at + 1,
+                            arg.describe()
+                        ));
+                    }
+                    (Handed::RateArray, None) => {
+                        return Err(format!(
+                            "cannot differentiate `{name}`: input {} is left to its default",
+                            at + 1
+                        ));
+                    }
                     (Handed::Rate, Some(arg)) => handed.push(d(arg)?),
                     (Handed::Rate, None) => handed.push(Expr::Number(0.0)),
                 }

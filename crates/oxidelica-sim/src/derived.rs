@@ -39,6 +39,10 @@ thread_local! {
     /// rate goes with it. Set per model by `with_derivative_bodies`.
     static DERIVABLE: RefCell<HashMap<String, (String, Vec<Handed>)>> =
         RefCell::new(HashMap::new());
+    /// The second derived body of a walked function, written for calls
+    /// that hand it a moving array: each Real array input carries a rate.
+    static DERIVABLE_MOVING: RefCell<HashMap<String, (String, Vec<Handed>)>> =
+        RefCell::new(HashMap::new());
 }
 
 /// What a call to a derived body hands for one input of the value.
@@ -55,6 +59,16 @@ pub(crate) enum Handed {
     /// a moving array handed to a body that read it as still would be
     /// a derivative with terms missing, a wrong number.
     Still,
+    /// An array input whose rate goes in front as an array of the same
+    /// shape, element by element, then the array itself.
+    RateArray,
+}
+
+/// Whether an array input carries a rate of its own instead of being
+/// read as still. `OXIDELICA_NO_ARRAY_RATES` keeps the old reading, in
+/// which every array a walked body is handed stands still.
+fn array_rates_open() -> bool {
+    !walk::switch_set("OXIDELICA_NO_ARRAY_RATES")
 }
 
 /// Whether a body with an array among its inputs is written out, each
@@ -76,6 +90,12 @@ fn walked_derivatives_open() -> bool {
 /// its name, and which inputs carry a rate.
 pub(crate) fn derivative_of(name: &str) -> Option<(String, Vec<Handed>)> {
     DERIVABLE.with(|known| known.borrow().get(name).cloned())
+}
+
+/// The derived body for calls handing a moving array, where one was
+/// written out.
+pub(crate) fn moving_derivative_of(name: &str) -> Option<(String, Vec<Handed>)> {
+    DERIVABLE_MOVING.with(|known| known.borrow().get(name).cloned())
 }
 
 /// The order of smoothness a function promises, or zero.
@@ -172,6 +192,7 @@ fn rate_prefix(class: &ClassDef) -> String {
 /// either way, so a model with none never reads another's.
 pub(crate) fn with_derivative_bodies(model: &Model) -> Option<Model> {
     DERIVABLE.with(|known| known.borrow_mut().clear());
+    DERIVABLE_MOVING.with(|known| known.borrow_mut().clear());
     if !walked_derivatives_open() || model.functions.is_empty() {
         return None;
     }
@@ -186,18 +207,34 @@ pub(crate) fn with_derivative_bodies(model: &Model) -> Option<Model> {
         for at in 0..functions.len() {
             let class = &functions[at];
             if order_of(class, ceiling) < 1.0
+                || class.name.contains("$moving$der")
                 || tried.contains(&class.name)
                 || derivative_of(&class.name).is_some()
             {
                 continue;
             }
-            match derive(class, order_of(class, ceiling)) {
+            let order = order_of(class, ceiling);
+            match derive(class, order, false) {
                 Ok((derived, mask)) => {
+                    let moving = match array_rates_open() && mask.contains(&Handed::Still) {
+                        true => derive(class, order, true).ok(),
+                        false => None,
+                    };
                     DERIVABLE.with(|known| {
                         known
                             .borrow_mut()
                             .insert(class.name.clone(), (derived.name.clone(), mask))
                     });
+                    if let Some((alt, alt_mask)) = moving {
+                        let mut alt = alt;
+                        alt.name = format!("{}$moving$der", class.name);
+                        DERIVABLE_MOVING.with(|known| {
+                            known
+                                .borrow_mut()
+                                .insert(class.name.clone(), (alt.name.clone(), alt_mask))
+                        });
+                        functions.push(alt);
+                    }
                     functions.push(derived);
                     added = true;
                     tried.clear();
@@ -236,7 +273,11 @@ impl Drop for InBody {
 }
 
 /// Write out the derivative of one body, or say why it cannot be.
-fn derive(class: &ClassDef, order: f64) -> Result<(ClassDef, Vec<Handed>), String> {
+fn derive(
+    class: &ClassDef,
+    order: f64,
+    with_rates: bool,
+) -> Result<(ClassDef, Vec<Handed>), String> {
     if class.external || class.builtin.is_some() || class.algorithm.is_empty() {
         return Err(format!(
             "`{}` has no statements to differentiate",
@@ -263,10 +304,16 @@ fn derive(class: &ClassDef, order: f64) -> Result<(ClassDef, Vec<Handed>), Strin
             class.name, array.name
         ));
     }
+    let moving_names: Vec<&str> = class
+        .components
+        .iter()
+        .filter(|c| still_array(c) && with_rates && c.type_name == "Real")
+        .map(|c| c.name.as_str())
+        .collect();
     let still_names: Vec<&str> = class
         .components
         .iter()
-        .filter(|c| still_array(c))
+        .filter(|c| still_array(c) && !moving_names.contains(&c.name.as_str()))
         .map(|c| c.name.as_str())
         .collect();
     let Some(output) = class
@@ -310,9 +357,15 @@ fn derive(class: &ClassDef, order: f64) -> Result<(ClassDef, Vec<Handed>), Strin
         still.insert(name.to_string(), f64::NAN);
     }
     each_read(&class.algorithm, &mut |name| {
-        if let Some((head, _)) = name.split_once('[') {
+        if let Some((head, tail)) = name.split_once('[') {
             if still_names.contains(&head) && name.ends_with(']') {
                 still.insert(name.to_string(), f64::NAN);
+            }
+            if moving_names.contains(&head) && name.ends_with(']') {
+                rates.insert(
+                    name.to_string(),
+                    Expr::Ref(format!("{}[{tail}", rate(head))),
+                );
             }
         }
     });
@@ -350,6 +403,16 @@ fn derive(class: &ClassDef, order: f64) -> Result<(ClassDef, Vec<Handed>), Strin
     {
         if still_names.contains(&input.name.as_str()) {
             mask.push(Handed::Still);
+            continue;
+        }
+        if moving_names.contains(&input.name.as_str()) {
+            mask.push(Handed::RateArray);
+            components.push(rate_component(
+                input,
+                rate(&input.name),
+                Causality::Input,
+                None,
+            ));
             continue;
         }
         mask.push(match carries_rate(input) {

@@ -4937,8 +4937,9 @@ fn a_walked_body_reads_an_array_handed_to_it_as_still() {
     // and `x = 1 + t` is `2 + 6x`: 14 at t = 1. The body also calls a
     // function of its own that promises nothing and is one assignment,
     // which differentiates as its expression would inlined. Handed a
-    // moving array instead, the derivative would miss its terms, and
-    // the call is refused by name.
+    // moving array instead, the array carries a rate of its own:
+    // `y = x + 2x + 3x^2` has the rate `1 + 2 + 6x`, 15 at t = 1,
+    // where the array read as still would have answered 14.
     let source = "model M function g input Real u; output Real v; \
          algorithm v := u*u; end g; \
          function f input Real a[3]; input Real x; output Real y; \
@@ -4958,7 +4959,35 @@ fn a_walked_body_reads_an_array_handed_to_it_as_still() {
         last[column(&result, "yd")]
     );
     let moving = source.replace("y = f(d, x)", "y = f({x, 2, 3}, x)");
-    assert!(compile_err(&moving).contains("reads the array handed as input 1 as still"));
+    let result = run(&moving);
+    let last = result.rows.last().unwrap();
+    assert!(
+        (last[column(&result, "yd")] - 15.0).abs() < 1e-9,
+        "yd = {}",
+        last[column(&result, "yd")]
+    );
+}
+
+#[test]
+fn a_walked_body_handed_a_moving_array_takes_its_rate() {
+    // The array carries a rate of its own:
+    // `f({x, 2, 3}, x) = x + 2x + 3x^2`, whose rate at x = 2 is
+    // 1 + 2 + 12 = 15. Read as still it would answer 14.
+    let source = "model M \
+         function f input Real a[3]; input Real x; output Real y; \
+         algorithm if x > 100 then y := 0; return; end if; \
+         y := a[1] + a[2]*x + a[3]*x*x; \
+         annotation(Inline = false, smoothOrder = 2); end f; \
+         Real x(start = 1, fixed = true); Real y; Real yd; \
+         equation der(x) = 1; y = f({x, 2, 3}, x); yd = der(y); \
+         annotation(experiment(StopTime = 1, Interval = 0.5)); end M;";
+    let result = run(source);
+    let last = result.rows.last().unwrap();
+    assert!(
+        (last[column(&result, "yd")] - 15.0).abs() < 1e-9,
+        "yd = {}",
+        last[column(&result, "yd")]
+    );
 }
 
 #[test]
