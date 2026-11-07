@@ -72311,3 +72311,21 @@ assumed away. The `slowest run` lists hold the same names in both halves
 with shifts of a few seconds each way. The peak resident set of the pass
 rose from 19.9 to 22.3 GB, which is the cost the RoomCO2 reading already
 showed in small. The merge and the default go to the review.
+
+### The census of main after the pair
+
+A fresh census of main (`/tmp/m602c/census.txt`, raw half in
+`/tmp/m602c/raw.txt`) counts 45 refused in 25 rows and 137 flattened
+and not run in 28 rows. Main runs 837 and 856 / 788 runnable against
+835 and 786 in m597: `AST_BatchPlant.Test.OneTank` and
+`TestSweptVolume` have left the raw list, and `PumpingSystem` moved from
+`X of algebraic loop` to `singular Jacobian`. This is a desk print, so
+the floors wait for the judge, as the notes require.
+
+`QuasiStatic.SinglePhase.Examples.Rectifier`, probed with
+`OXIDELICA_NEWTON_TRAIL=1`, stops on a block of 12 unknowns with all
+four `idealDiode.s` among them. At the start every `s` is zero, and rows
+3 and 7 of the Jacobian are equal, so the block is singular at that
+point. `solvers/mod.rs:1117-1125` decides that a dead column is refused
+and not retried from elsewhere, which stands as the ceiling for a
+restart here. No change was built.
