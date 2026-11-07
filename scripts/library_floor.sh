@@ -2007,7 +2007,9 @@ FLATTEN_FLOOR=974
 # TestSweptVolume. The judge of push run 42310740390 printed 974
 # flatten, 837 run (the desk's /tmp/m598/on.txt printed the same), so
 # 837 - 3 = 834.
-RUN_FLOOR=834
+# The moving table (ea84255): the judge of push run 42354475664 (job
+# 128371171177) printed 974 flatten, 838 run, so 838 - 3 = 835.
+RUN_FLOOR=835
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -2575,7 +2577,9 @@ RUNNABLE_FLATTEN_FLOOR=856
 # 856 / 786, so 786 - 3 = 783.
 # OneTank and TestSweptVolume are runnable examples: the judge of
 # 42310740390 printed 856 / 788, so 788 - 3 = 785.
-RUNNABLE_RUN_FLOOR=785
+# The judge of 42354475664 (job 128371171177) printed 856 / 789, so
+# 789 - 3 = 786.
+RUNNABLE_RUN_FLOOR=786
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
