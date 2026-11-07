@@ -71802,13 +71802,17 @@ None of these eight moves in outcome or, beyond a few percent, in price.
 The one dear case is still `DynamicPipeWithNominalLaminarFlow` (m598,
 89 s to more than 23 minutes).
 
-`DynamicPipeEnergyConservationCheck2` is still open. Its first on half
-was stopped by `cap.sh`'s own 45-minute idle limit (the output does not
-grow while a model runs), so the only result is that on takes more than
-about 2700 s. The base was 2674.8 s. Both halves were started again at
-02:03 with `CAP_STALL_MIN=150`, into `/tmp/m599/dpecc2_on2.txt` and
-`dpecc2_off.txt`. They are not orphans: do not kill them before each
-file ends in `cap.sh: кончилось`, which should be by about 04:35.
+`DynamicPipeEnergyConservationCheck2` was run in both halves at once
+with `CAP_STALL_MIN=150` (a first on half had been stopped by `cap.sh`'s
+own 45-minute idle limit, since the output does not grow while a model
+runs). Off 2986 s, on 3000 s, +14 s or 0.5%. Both refuse in the same
+words: an assertion at t = 0.01 that the steady state was not yet
+reached (`/tmp/m599/dpecc2_off.txt`, `dpecc2_on2.txt`). Both halves ran
+side by side, so they are dearer than the 2674.8 s that was run alone
+on 36e3dd1, and only their difference is the price.
+
+With this model the nine heavy models measured here move by +6 s in 4761. The cron's spare of 94 and 106 minutes is spent only by
+`DynamicPipeWithNominalLaminarFlow` (m598), which was not run again.
 
 ### `PointGravityWithPointMasses2`: the orientation that stands still
 
