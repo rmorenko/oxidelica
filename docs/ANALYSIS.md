@@ -72770,3 +72770,19 @@ refuses as structurally singular, and the rows the census prints now
 start on `der(constraint.fr...`, `bodyOfConstraint.`,
 `der(constrain...` and `der(mid.`. That is a family moved one storey
 up, consistent with S1, and no model won. The switch stays a probe.
+
+The machine family has a one-machine reproduction.
+/tmp/m605/small/I0.mo is IMC_DOL_CommonLeakage with the H and 1
+machines and their sensors, loads and stars removed: `aimc0` alone,
+five phases, refuses with the corpus model's own row
+(`...singlePhaseElectroMagneticConverter[5].port_p.V_m.im = ...[4].port_n.V_m.im`)
+after 15 reductions. Dropping the initial equation on the rotor flux
+(I1.mo) changes nothing, so the start is not the cause. Setting
+`m = 3` (I2.mo) moves the refusal to a terminal box star-point
+current row, `terminalBox0.multiStar.starpoints.pin[1].i -
+terminalBox0.starpoint.pin[1].i = 0`, still "constrains no state". So
+the five-phase magnetic chain and the three-phase star point are two
+faces of the walk spending the machine's states on connection rows:
+in I0's trace the rotor cage's eight flux components are taken as
+victims at reductions 8 to 14, and the stator's last connection row
+is left with an empty reach.
