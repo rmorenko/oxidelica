@@ -72616,3 +72616,17 @@ flange equates its angle or speed to the reference
 the axis's angle or speed a second time-pinned copy of the planner's
 state, and index reduction must reach the gear through it. That is
 where it loses the gear's row.
+
+The state-valued explanation does not survive two controls, so it is
+withdrawn as a mechanism and kept only as a description. An
+integrator as the angle reference (/tmp/m605/small/D1.mo) runs. A
+reference written as `s = sin(2*pi*time)` with `sd = der(s)`, so a
+time-pinned state exactly like the planner's (E1.mo), runs too. And
+a bare `GearType1` behind an `InitializeFlange` fed by an integrator
+runs for the angle (C3phi.mo) and refuses for the speed on a
+different, initial-value wall (C3w.mo). What B_q and B_qd have that
+E1 does not is the rest of `KinematicPTP2`: its `if` branches on
+`time` against parameter switch times, `sdd = der(sd)` as a second
+derivative, and `q` written as `p_q_begin + p_deltaq*s`. The next
+probe is to cut KinematicPTP2 down one equation at a time inside
+B_q.mo until it runs.
