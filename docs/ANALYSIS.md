@@ -72630,3 +72630,30 @@ E1 does not is the rest of `KinematicPTP2`: its `if` branches on
 derivative, and `q` written as `p_q_begin + p_deltaq*s`. The next
 probe is to cut KinematicPTP2 down one equation at a time inside
 B_q.mo until it runs.
+
+Cutting KinematicPTP2 down inside the one-axis model (/tmp/m605/small/
+K1.mo to K23.mo, L1.mo to L4.mo, L3_03.mo to L3_09.mo) reaches a
+three-line reference that still refuses with FullRobot's row:
+
+    if time < 0.76 then s = time; else s = 0.76; end if;
+
+with `sd = der(s)`, `sdd = der(sd)` and `q = 2.0944*s` on the angle
+input (L3.mo). The refusal is not at compilation: the same model run
+to 0.7 finishes (L3s.csv), and the event trail of L3_05.mo ends on
+the event at exactly t = 0.5, the reference's switch. So the wall is
+the recompilation at a mode switch where the reference becomes a
+constant: in that mode the reference's derivative is zero, the
+initialising flange then pins the axis angle to a constant, and
+index reduction finds the gear's spring row with nothing left to
+take. Moving the switch: 0.3 runs, 0.5 to 0.8 refuse with the
+spring row, 0.9 refuses with OneAxis's bearing-friction row, and a
+switch past the stop time (L4.mo) runs. Why 0.3 runs is open. The
+bearing friction has already reversed (event at 0.2168) before 0.3,
+so friction mode alone does not explain it. The full KinematicPTP2
+ends on a constant `s = s3` after `Tes`, which is the same shape,
+and OneAxis's planner reaches it inside its run.
+
+So the RobotR3 family is a wall of re-reduction at an event, not of
+the first compilation, and its small test is L3.mo: twelve lines
+around one AxisType1, refusing in under a second. No change was
+built.
