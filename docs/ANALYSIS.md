@@ -73122,3 +73122,16 @@ nearly all BranchingPipes, and the rest scatter around zero. So the
 price is not linear in the refusing models. It sits in one family whose
 blocks give up on descent, and BranchingPipes1 at +479 s is that
 family's largest member rather than an outlier from the mean.
+
+The once form ran as a third half (/tmp/m607/c_once.txt) on its own
+binary, /tmp/m607/ox2, which differs from ox1 only by the new key. It
+gives 974 / 839, the ran list again the base plus BranchingPipes3 and
+nothing else, and running 5344 s: +820 s (+18.1%) on the off half of
+ox1. BranchingPipes1 now costs +247 s rather than +479 s, but
+BranchingPipes13 still costs +101 s and BranchingPipes3 itself +365 s.
+So trimming the failed rescues buys about 160 s and leaves the form
+three times over Roman's 6%. Most of what remains is the price of the
+win itself, BranchingPipes3 running for six minutes, and no fallback
+shape touches that. Neither form is merged. The patch with both keys
+is parked as ~/oxideflow/park/m607-lm-fallback.diff, and the heavy
+basket was not measured under it.
