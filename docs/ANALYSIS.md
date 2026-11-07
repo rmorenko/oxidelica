@@ -71949,6 +71949,28 @@ each taking a different victim. Whether that is the duplicate behind
 row 35 is the next probe: print the equations each reduction adds to
 the system, not only the member it tried.
 
+That probe was made with a print at the one place index reduction adds a
+differentiated constraint (`algebraic_eqs.push((derivative, 0))` in
+`reduce_index_once`, a print not kept; `/tmp/m599/pg8push.txt`, binary
+`/tmp/m599/oxp3`). PG8 pushes 23 differentiated constraints with no
+retreat in the walk, and exactly one of them is pushed twice, identical
+to the character:
+
+```text
+m1.v_0[1] - (der(ft.frame_a.r_0[1]) + der(ft.frame_a.R.T[i,1]) * ft.r[i]) = 0
+    [from ft.frame_b.r_0[1] = ft.frame_a.r_0[1] + R.T * r], at reductions 8 and 13
+```
+
+So the system holds one equation twice and is short by one. That is the
+structural zero row of the start block, the one rank that remains when
+the orientation is turned away from the identity. The fix would belong
+in index reduction: a constraint already differentiated is not
+differentiated and added again, or the second reduction that chose it
+picks another member of its singular set. No fix was built this shift.
+The two reductions took different victims (`m4.r_0[1]`, then
+`m1.r_0[1]`), so a guard that only drops the second copy would also
+need to say what the second victim stands on.
+
 All three stand on a quaternion or a rotation matrix whose derivative is
 zero at t = 0 and keep that derivative as an unknown of the start block.
 `Engine1a` names `der(bearing.frame_b.R.T[2,2])` too, but refuses
