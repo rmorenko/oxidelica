@@ -72293,7 +72293,7 @@ two models. Whatever is built has to be the rule at every recompilation
 and not at t = 0. Two models for a change in how modes are chosen, with
 a new phase to bound, is the question for Roman. No change was built.
 
-### The pair
+### The pair for the moving table
 
 Both halves with `/tmp/m602/ox1`, the off half under `env -u
 OXIDELICA_ARRAY_RATES` and the on half with it set to 1, `--slow 60` on
