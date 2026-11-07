@@ -72696,3 +72696,18 @@ the sensors' aliases, at ties the weights decide by a few parts in
 1e10, carries the family. It is a definition-changing rule of the
 kind AGENTS.md says must be measured by victims, and it goes to the
 queue as a question, not a build.
+
+The orientation family has a small reproduction too.
+/tmp/m605/small/S1.mo is a world, a `FixedRotation` with
+SphericalConstraint's angles, a `Constraints.Spherical` and one
+body: it refuses after 21 reductions with
+`der(fixedRotation.frame_b.R.T[1,1]) = 0` constraining no state, the
+same shape as SphericalConstraint and Engine1a. The walk
+differentiates the world-fixed chain, which is constant by
+construction, and spends body coordinates on it
+(`bodyOfConstraint.r_0[1..2]` in the corpus model, `body.Q[2..3]` in
+PrismaticConstraint). The same chain with a `FixedTranslation` in
+place of the rotation (S2.mo) gets past index reduction and refuses
+later on a force equation of the constraint, a different wall. So a
+constant non-identity rotation between the world and a constraint
+joint is enough to open it.
