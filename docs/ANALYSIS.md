@@ -72635,7 +72635,9 @@ Cutting KinematicPTP2 down inside the one-axis model (/tmp/m605/small/
 K1.mo to K23.mo, L1.mo to L4.mo, L3_03.mo to L3_09.mo) reaches a
 three-line reference that still refuses with FullRobot's row:
 
-    if time < 0.76 then s = time; else s = 0.76; end if;
+```modelica
+if time < 0.76 then s = time; else s = 0.76; end if;
+```
 
 with `sd = der(s)`, `sdd = der(sd)` and `q = 2.0944*s` on the angle
 input (L3.mo). The refusal is not at compilation: the same model run
