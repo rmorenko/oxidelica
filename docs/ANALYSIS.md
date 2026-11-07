@@ -71971,6 +71971,18 @@ The two reductions took different victims (`m4.r_0[1]`, then
 `m1.r_0[1]`), so a guard that only drops the second copy would also
 need to say what the second victim stands on.
 
+This is the m406 invariant (an equation once differentiated is
+differentiated afresh) met again, and the ledger switches it left were
+tried on PG8 with `/tmp/m598/ox5`. `OXIDELICA_SUPPLY_ONCE=1` and `=5`:
+the same singular Jacobian. `=2`: structurally singular, on
+`m4.frame_a.r_0[1] = ft3.frame_b.r_0[1]`. `=3` and `=4`: the walk goes
+through and initialization is not square (3 initial equations and 10
+fixed starts for 12 states). So the ledger takes the duplicate out, and
+what stands next is the count of fixed starts against the states the
+reduction keeps. No fix parked: the m406 note already says this
+changes the reduction of every MultiBody model and wants a series of
+its own.
+
 All three stand on a quaternion or a rotation matrix whose derivative is
 zero at t = 0 and keep that derivative as an unknown of the start block.
 `Engine1a` names `der(bearing.frame_b.R.T[2,2])` too, but refuses
