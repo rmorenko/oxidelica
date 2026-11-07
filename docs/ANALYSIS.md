@@ -72590,3 +72590,29 @@ family is why the planner's states make the hidden module fire, and
 whether the module should refuse a candidate whose derivative is
 already a row. That is a question about `crates/oxidelica-sim/src/
 hidden.rs`, not an answer, and no change was built.
+
+One input at a time settles which reference does it. The sine-driven
+axis A3 was given the planner as an extra component and one of its
+three bus inputs at a time was rewired to the planner's own output
+(/tmp/m605/small/B_q.mo, B_qd.mo, B_qdd.mo; the axis with the planner
+present and unconnected, A5.mo, runs):
+
+- `angle_ref` from `path.q[1]` refuses with OneAxis's row,
+  `-axis.gear.bearingFriction.w + axis.motor.Jmotor.w = 0`, through
+  `hidden-constraint`.
+- `speed_ref` from `path.qd[1]` refuses with FullRobot's row,
+  `axis.gear.spring.phi_rel = flange_b.phi - flange_a.phi`, with no
+  hidden row at all.
+- `acceleration_ref` from `path.qdd[1]` runs.
+
+So OneAxis and FullRobot are one family by layer, as the order
+suspected, and each now has a one-axis reproduction under a second.
+What the two failing inputs share: the reference reaching
+`initializeFlange` is a state of the planner (`q` from `s`, `qd`
+from `sd`), not a function of time. A sine is a function of time, and
+so is `qdd`, which the planner never integrates. The initialising
+flange equates its angle or speed to the reference
+(`set_phi_start`, `set_w_start`), so a state-valued reference makes
+the axis's angle or speed a second time-pinned copy of the planner's
+state, and index reduction must reach the gear through it. That is
+where it loses the gear's row.
