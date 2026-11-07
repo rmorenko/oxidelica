@@ -71846,6 +71846,17 @@ The family, by SVD of the converged block (`/tmp/m599/fam_*.txt`):
 | `PrismaticConstraint`          | 35/38          | 3         | `der(body.frame_a.R.T[1,3])` and `z_a` from `der(Q)` of a body |
 | `UniversalConstraint`          | 40/45          | 3         | constraint rows in `der(r_0)` weighted by `R.T` of a frame     |
 
+Two later probes narrow this, and they correct the word "still". A
+starting spin of `{0.3, 0.2, 0.1}` (PG7) leaves the block exactly as
+it was, rank 38 of 42 with row 37 zero, so rest is not the cause. A
+turned starting orientation, `angles_start = {0.3, 0.2, 0.1}` (PG8,
+`/tmp/m599/pg8_trail.txt`), lowers the shortfall from four to one but
+keeps one zero row (row 35). So the identity orientation accounts for
+three of the four lost ranks. The fourth is structural: the block holds
+an equation in `der(R.T)` whose unknown is not in the block at all.
+That is a fault of how the derivative rows are matched, not a property
+of the start point, and it is the thread to probe next.
+
 All three stand on a quaternion or a rotation matrix whose derivative is
 zero at t = 0 and keep that derivative as an unknown of the start block.
 `Engine1a` names `der(bearing.frame_b.R.T[2,2])` too, but refuses
