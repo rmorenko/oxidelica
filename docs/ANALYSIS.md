@@ -72058,10 +72058,10 @@ All five models that use these circuits (`Adder`, `Subtracter`,
 
 That turned out to describe most of the row. The census file
 `/tmp/m597/raw.txt` has 26 models with `structurally singular` in the
-run half, against 24 in the printed row: two models, `ActuatorWithNoise`
-and `Transformer1PhaseWithHysteresis` among them, have a sum on the left
-of the equation and not a bare `Ref`, so the counter puts them in
-neighbouring rows. Asked one by one with `--only`, the line `runnable
+run half, against 24 in the printed row. The row is exact: 24 models carry
+its whole wording, and the two outside it say `cannot differentiate`
+instead (`TestInterpolateTimeVarying` and `AdvancedSolenoid`), as
+corrected in m601 below. Asked one by one with `--only`, the line `runnable
 examples` reads `0` for 17 of the 26: the four OpAmpCircuits, `Nand`,
 `RealSwitch`, `AnalysatorAC` and `AnalysatorDC`, `MNmos` and `MPmos`, the
 five FluxTubes `Components` the order suggested taking first, and both
@@ -72122,3 +72122,73 @@ members and no victim, after fifteen reductions that each found one.
 Neither looks like the tank family. Both are a cut set of a polyphase
 network, which is closer to the duplicated constraint than to an
 if-equation. Each needs its own walk.
+
+## m601: the tank family is a mode choice, not an incidence
+
+The order asked whether structural analysis reads an if-equation by one
+branch or by the union of its branches. Probed, it reads neither: the
+compiler settles every run-time `if` to the branch that holds at the
+point (`settle_modes`, `crates/oxidelica-sim/src/compile.rs:4561`) and
+compiles that mode as its own equation set (`compile.rs:6339`), asking
+for a fresh compilation when a condition flips. The incidence of the
+branches that are not taken is not used anywhere, by design.
+
+So the union of incidences would not help `Pipe2.mo`. With both ends in
+the `else` branch the mode holds `m = 0` twice and nothing relates `p1`
+to `p2` beyond their difference, so it is singular as a set of
+equations and not only as a structure. The question is why that mode
+was chosen. `OXIDELICA_NEWTON_TRAIL=1` on `TanksWithOverflow` prints
+the chosen branch of each port. The first pass of `settle_modes` takes
+branch 3 (`inFlow`) for both overflow ends, because `s[3]` starts at
+`fluidLevel_max`. The second pass reads the chosen branches,
+including `s[3] = ports[3].m_flow`, which evaluates to the zero start of
+the flow, and on that the upper end's `inFlow[3]` turns false. The upper
+end then takes the closed branch, and so does the lower one, and the
+mode is the singular one. With `OXIDELICA_NO_MODES_READ_BRANCHES=1` the
+start mode is mixed (upper closed, lower `inFlow`), the model runs to
+t = 5 and then 10, and at t = 10 both ends close again and it refuses
+with the same words. `BatchPlant_StandardWater` refuses the same way
+under the switch.
+
+So the wall is the mode selection of a vessel port whose condition reads
+a variable (`s[i]`) that the branch itself defines. The library writes
+`s` as a complementarity variable: the condition and the branch have to
+be solved together, and asking the condition from the value the branch
+gives at a zero start answers the wrong mode. A union of incidences is
+not the fix and no patch was built. The road is a mode search that
+rejects a mode whose equations are singular and tries the next one, or
+that solves `s` together with its branch. That is a change to how modes
+are chosen, larger than a park patch, and it goes to the review as a
+question.
+
+## m601: the two `cannot differentiate` models are different
+
+`TestInterpolateTimeVarying` calls `Modelica.Math.Vectors.interpolate`
+with tables that move (`tabx = {0,...,5} + 0.1*time`). The function
+carries `smoothOrder(normallyConstant=x, normallyConstant=y)=100`, so
+the derived body reads `x` and `y` as still, and the compiler refuses
+rather than hand a moving table to it (`symbolic.rs:984`). The refusal
+is right as far as it goes. The model exists to test exactly the case
+where the table moves, so it needs a second derived body that takes the
+rates of the tables too. `AdvancedSolenoid` refuses on `abs` outside a
+walked body, which is another mechanism, and m600 found it a helper with
+an open connector anyway. So the row does not close for both at once.
+
+## m601: the next rows by name
+
+The 24 models of `parameter X has no value` are all helper classes:
+twelve `.Utilities.`, five `.BaseClasses.`, two `.ExampleUtilities.` and
+five OpAmpCircuits helpers. No real example is in the row, so it is
+closed.
+
+`unbalanced model` holds 18 models across its two rows in
+`/tmp/m597/raw.txt`. Seventeen are helpers (`Utilities`, `BaseClasses`,
+`ControllerUtilities`, `Components`). The one real example is
+`Loops.Fourbar1`, which is the duplicated-constraint series already
+mapped above and under the ban.
+
+`the Newton direction` holds 15 lines in the raw file. Eight are the
+Fluid pipes already measured under the parked LM stack. `ThreeSprings`
+was mapped in m590, the two rolling wheel sets, `Cylinder`,
+`TestTemperature1` and the quasi-static `IMC_withLosses` each have many
+earlier notes. No new family was found in this row.
