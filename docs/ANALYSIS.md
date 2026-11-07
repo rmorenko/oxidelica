@@ -72750,3 +72750,15 @@ and index reduction does not fold it before walking.
 row is the one reduction 8 of S1 could have used to see the frame as
 constant. The force-equation wall the simpler rotations meet is a
 separate family, outside this map.
+
+Three folding switches already in the tree were tried on S1 as
+probes (one binary). `OXIDELICA_STILL_FOLD_FRAME=1` and
+`OXIDELICA_STILL_FOLD_WHOLE=1` leave the refusal word for word.
+`OXIDELICA_GRAPH_FOLD_ANY_RECORD=1`, which extends the
+overconstrained graph's alias fold past the records that name a
+branch or a root, moves it to `der(constraint.frame_a.r_0[3]) = 0`:
+the orientation rows are folded and the position chain of the same
+world frame stands in their place. So the alias fold reaches the
+orientation half of the frame and not the position half, and a frame
+that is constant in both halves needs both read as constant before
+the walk.
