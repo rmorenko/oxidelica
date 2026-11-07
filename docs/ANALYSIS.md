@@ -72865,3 +72865,16 @@ point instantiates it. A wrapper that extends the example is not
 equivalent to the example, which is the same brittleness the
 RobotR3 forces showed (OA.mo). Why the two entry points diverge was
 not probed.
+
+The entry-point divergence above is the tolerance and nothing else.
+`simulate Modelica.Blocks.Examples.Noise.ActuatorWithNoise`, the class
+itself, refuses with the census row, and so does the wrapper AW.mo
+given `--tolerance 1e-5`, the example's own. A wrapper that extends
+an example loses its `experiment` annotation (main.rs says so beside
+`load_named`), runs at the default tolerance, and the structural
+refusal depends on that tolerance. So "the census row depends on the
+entry point" is withdrawn in favour of the narrower fact: the
+refusal depends on the tolerance the model is compiled at, which
+means some decision before or during index reduction reads it. The
+small models of this chapter that extend nothing are unaffected. P0
+(the hand copy) has no annotation and is a tolerance artefact too.
