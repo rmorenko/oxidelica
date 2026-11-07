@@ -71999,7 +71999,12 @@ alone (`/tmp/m599/uc_final.txt`), it pushes 44 and one twice: the
 constraint's relative position row
 `-(constraint.frame_a.R.T[1,j] * (der(constraint.frame_b.r_0[j]) - der(constraint.frame_a.r_0[j]))) = 0`,
 the form of its zero row 41. So the duplicate stands in two of the
-four, `PointGravityWithPointMasses2` and `UniversalConstraint`. The zero rows of `PrismaticConstraint` (23, 24, 26) name only `bodyOfConstraint.body.Q` and its derivatives, and every
+four, `PointGravityWithPointMasses2` and `UniversalConstraint`. On
+`UniversalConstraint` the ledger moves the wall without bringing the
+model through: `=3` refuses as structurally singular, `=4` keeps a
+singular Jacobian on another block (`--only`, `/tmp/m598/ox5`).
+
+The zero rows of `PrismaticConstraint` (23, 24, 26) name only `bodyOfConstraint.body.Q` and its derivatives, and every
 term of them in the unknowns is multiplied by a `der(Q)`, which is 0.0
 at the converged start point (`/tmp/m599/fam_PrismaticConstraint.txt`).
 That one is rest in the literal sense: a body that does not turn at the
