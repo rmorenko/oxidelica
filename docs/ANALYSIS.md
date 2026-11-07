@@ -72329,3 +72329,89 @@ four `idealDiode.s` among them. At the start every `s` is zero, and rows
 point. `solvers/mod.rs:1117-1125` decides that a dead column is refused
 and not retried from elsewhere, which stands as the ceiling for a
 restart here. No change was built.
+
+## m603: a differentiated row that index reduction reaches twice
+
+The order merged the parked moving-table patch (ea84255, default on,
+`OXIDELICA_NO_ARRAY_RATES` takes it back) on the pair of m602, and
+turned to the series of m406 on Roman's word.
+
+### The map of the ledger switches, read whole
+
+`/tmp/m602c/m406map.txt` holds 20 lines, four models by
+`OXIDELICA_SUPPLY_ONCE=1` to `=5`, and every line reads "of the 1 that
+flatten, 0 run". The full refusals on the library members, taken again
+with `--refused` (`/tmp/m603/pg2_r*.txt`, `uc_r*.txt`):
+
+- `PointGravityWithPointMasses2`: `=2` structurally singular on
+  `world.frame_b.R.T[2,2] = freeMotion.frame_a.R.T[2,2]` with 31 other
+  members tried; `=3` a loop whose equations will not settle; `=5` a
+  singular Jacobian on the point masses' accelerations and forces.
+- `UniversalConstraint`: `=2` and `=3` structurally singular on
+  `-(-der(constraint.frame_a.r_0[1]) / -fixedRotation.r[1]) = 0`; `=5`
+  (the default) a singular Jacobian on the joint's torques and the
+  spring's direction, after one retreat at reduction 23.
+
+The ledger refuses a repeat of the _source_ equation. What m598 found
+is a repeat of the _row_: one differentiated row pushed twice. Those
+are different questions, so a guard on the row itself was probed.
+
+### The links
+
+1. A guard placed where the differentiated row is pushed fires on PG8
+   at reduction 13, but by then the victim is demoted, and the model
+   dies with `unknown variable m1.r_0[1]`. A demotion is not taken
+   back, so the guard belongs before the victim is chosen.
+2. Placed before the victim (`/tmp/m603/oxd2`), the guard refuses the
+   members of reduction 13 whose row is already held, the next member
+   is taken, and PG8 goes through index reduction to
+   `initialization is not square: 3 initial equations and 10 fixed
+starts for 12 unknowns`, the wall `=3` and `=4` reached in m598. So
+   the duplicate is gone and the start count is what stands next.
+3. On the library members the guard moves the walls and opens nothing
+   (`/tmp/m603/d2_pg2.txt`, `d2_uc.txt`): PG2 refuses as structurally
+   singular on `-der(freeMotion.frame_a.R.T[1,1]) = 0`, which is the
+   orientation at rest of m598/m599. `UniversalConstraint` keeps its
+   singular Jacobian. Both stand on a rotation whose derivative is zero
+   at the start, the wall m599 named for four models. The chain leaves
+   the family there: the next link is the start block taking rotation
+   rates from start values, which is a different question.
+
+`PrismaticConstraint` and `SMPM_CurrentSource` push no row twice
+(m599) and are outside this family.
+
+### The change and the small court
+
+`refuses_a_held_row` in compile.rs refuses a member whose
+differentiated row the system already holds, compared after
+simplification, before the victim is chosen, so the second victim
+stands on whichever member is taken in its place. `OXIDELICA_NO_HELD_ROW`
+takes it back. Unit test `a_row_already_held_is_found_and_another_is_not`.
+All 54 MultiBody models of the set under one binary, guard off and on
+(`/tmp/m603/mb_off.txt`, `mb_on.txt`): 26 run in both, run lists equal,
+running 1599 against 1618 s; the guard fired 18 times across them. That
+court was taken with the first placement (`/tmp/m603/oxd1`, link 1),
+not with the change as it stands, so the corpus pair is its only judge.
+
+### The pair for the held row
+
+Binary `/tmp/m603/ox2` from the final tree, off with
+`OXIDELICA_NO_HELD_ROW=1`, on by default, `--slow 60`, cap 24 GB,
+`/tmp/m603/off.txt` and `/tmp/m603/on.txt`, started at 08:25.
+
+The pair came back at 09:24. Flattened 974 = 974 and run 838 = 838 in
+both halves, runnable 856 / 789 in both. The run lists are equal line
+for line (`/tmp/m603/ran_off.txt`, `ran_on.txt`), so the change neither
+won nor lost a model of the set. The flat work counters are equal to
+the digit. The run counters moved by 21 points and 151 Newton steps.
+Time: flattening 4305 against 4149 s, running 4258 against 4220 s. The
+run half moved by -38 s, about two floors of the A/A pair of m583, and
+in the cheaper direction. The peak resident set went from 21.8 to
+21.7 GB. Under the rule of 26 October the change goes in without a
+word: lists equal, no dearer, nothing to name. The floors do not move,
+since nothing in the set moved.
+
+What it is worth without a model: the system no longer holds a row
+twice where a second reduction reached it, which was the one rank PG8
+lacked, and the walls it uncovers on the library members are the
+rotation at rest of m599, the next question for the review.
