@@ -71994,9 +71994,12 @@ differentiated constraints and one twice, the same
 PG8. `PrismaticConstraint` (39) and `SMPM_CurrentSource` (16) push none
 twice, so their zero rows have another cause. `UniversalConstraint`
 shows 27 repeats in 73, but its walk has one retreat, which restarts
-the reduction and prints every push again, so those repeats are not
-evidence. The duplicate is a fault of `PointGravityWithPointMasses2`
-alone among the four. The zero rows of `PrismaticConstraint` (23, 24, 26) name only `bodyOfConstraint.body.Q` and its derivatives, and every
+the reduction and prints every push again. Counted after the retreat
+alone (`/tmp/m599/uc_final.txt`), it pushes 44 and one twice: the
+constraint's relative position row
+`-(constraint.frame_a.R.T[1,j] * (der(constraint.frame_b.r_0[j]) - der(constraint.frame_a.r_0[j]))) = 0`,
+the form of its zero row 41. So the duplicate stands in two of the
+four, `PointGravityWithPointMasses2` and `UniversalConstraint`. The zero rows of `PrismaticConstraint` (23, 24, 26) name only `bodyOfConstraint.body.Q` and its derivatives, and every
 term of them in the unknowns is multiplied by a `der(Q)`, which is 0.0
 at the converged start point (`/tmp/m599/fam_PrismaticConstraint.txt`).
 That one is rest in the literal sense: a body that does not turn at the
