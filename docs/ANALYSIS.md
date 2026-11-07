@@ -72659,3 +72659,19 @@ So the RobotR3 family is a wall of re-reduction at an event, not of
 the first compilation, and its small test is L3.mo: twelve lines
 around one AxisType1, refusing in under a second. No change was
 built.
+
+The walks of the two switch times (/tmp/m605/small/L3_03v.txt and
+L3_05v.txt) part at reduction 7 of the re-reduction at the event.
+The reach is weighed by the values the states hold at that instant.
+At 0.3 it holds two candidates of equal weight (131.6) and takes
+`bearingFriction.phi`. At 0.5 it holds three, `spring.phi_rel` at
+0.22, `initializeFlange.phi_flange` at 27.6 and `emf.phi` at 27.8,
+and takes `emf.phi`. Reduction 8 then finds four rows the system
+already holds (`implied-row`), and the walk dies on the spring row.
+So the RobotR3 family is a victim choice weighed by run-time values
+at an event. A state choice that depends on where the axis happens
+to be when the reference stops is the kind of rule the notes warn
+about: true at one instant and leaned on after it. The next probe is
+whether a structural tie-break at reduction 7 (one that ignores
+values) carries L3_05 through, measured as a pair before anything is
+built.
