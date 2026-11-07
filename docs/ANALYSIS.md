@@ -71786,19 +71786,28 @@ One binary, `/tmp/m598/ox5`, each model alone under `--only
 both halves ran under a 24 GB cap. Files: `/tmp/m599/<model>_off.txt`
 and `_on.txt`. Time is the run half.
 
-| model                             | off (s) | on (s) | change | outcome, both halves             |
-| --------------------------------- | ------- | ------ | ------ | -------------------------------- |
-| `HeatExchangerSimulation`         | 478     | 460    | -18    | start block of 162 unknowns      |
-| `DynamicPipesAndFittings`         | 108     | 101    | -7     | singular Jacobian                |
-| `DynamicPipesWithTraceSubstances` | 197     | 197    | 0      | algebraic loop does not settle   |
-| `BranchingPipes12`                | 195     | 196    | +1     | Newton direction                 |
-| `BranchingPipes18`                | 99      | 97     | -2     | initialization, 50 Newton steps  |
-| `DynamicPipeInitialization`       | 296     | 314    | +18    | algebraic loop does not settle   |
-| `SeriesPipes12`                   | 185     | 184    | -1     | algebraic loop does not settle   |
-| `SeriesPipes13`                   | 217     | 218    | +1     | algebraic loop does not settle   |
-| sum                               | 1775    | 1767   | -8     | every refusal the same, in words |
+| model                                 | pass | off (s) | on (s) | change | outcome, both halves               |
+| ------------------------------------- | ---- | ------- | ------ | ------ | ---------------------------------- |
+| `HeatExchangerSimulation`             | a    | 478     | 460    | -18    | start block of 162 unknowns        |
+| `DynamicPipesAndFittings`             | a    | 108     | 101    | -7     | singular Jacobian                  |
+| `DynamicPipeInitialization`           | a    | 296     | 314    | +18    | algebraic loop does not settle     |
+| `SeriesPipes13`                       | a    | 217     | 218    | +1     | algebraic loop does not settle     |
+| `DynamicPipeEnergyConservationCheck2` | a    | 2986    | 3000   | +14    | steady state not reached, t = 0.01 |
+| sum over pass a                       | a    | 4085    | 4093   | +8     | spare was 94 min                   |
+| `DynamicPipesWithTraceSubstances`     | b    | 197     | 197    | 0      | algebraic loop does not settle     |
+| `BranchingPipes12`                    | b    | 195     | 196    | +1     | Newton direction                   |
+| `BranchingPipes18`                    | b    | 99      | 97     | -2     | initialization, 50 Newton steps    |
+| `SeriesPipes12`                       | b    | 185     | 184    | -1     | algebraic loop does not settle     |
+| sum over pass b, measured here        | b    | 676     | 674    | -2     | spare was 106 min                  |
 
-None of these eight moves in outcome or, beyond a few percent, in price.
+The two passes are separate ceilings and their sums are not added.
+Pass b also carries `DynamicPipeWithNominalLaminarFlow` (m598, 89 s to
+more than 23 minutes, not run again), so pass b's spare falls to about
+85 minutes. Pass a's 94 minutes are untouched to within seconds. The
+pass of each model is taken from `scripts/heavy_second.txt` (pass b)
+and `scripts/heavy_models.txt`. Binary `/tmp/m598/ox5` throughout.
+
+None of the nine moves in outcome or, beyond a few percent, in price.
 The one dear case is still `DynamicPipeWithNominalLaminarFlow` (m598,
 89 s to more than 23 minutes).
 
