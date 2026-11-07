@@ -72675,3 +72675,24 @@ about: true at one instant and leaned on after it. The next probe is
 whether a structural tie-break at reduction 7 (one that ignores
 values) carries L3_05 through, measured as a pair before anything is
 built.
+
+The instrument `OXIDELICA_VICTIM_FORCE` answers which victims the
+family needs, without building anything. On L3_05.mo, forcing
+`axis.initializeFlange.phi_flange` at reduction 4 makes the model
+run; forcing at reduction 7 does not, so the walks part at reduction
+4, where the run-time weights leave `accSensor.flange.phi` and
+`bearingFriction.phi` level at 439.82 and `spring.phi_rel` near zero.
+On the corpus model OneAxis, forcing reduction 4 alone is not enough
+(the event walk takes `accSensor.flange.phi` there instead). With
+`OXIDELICA_VICTIM_FORCE=4:axis.initializeFlange.phi_flange,5:axis.initializeFlange.set_a_start.flange.phi`
+it runs: `library check .msl --list --only ...OneAxis` prints
+`ran` (/tmp/m605/one_f45.txt). That proves the mechanism and is no
+corpus win. No change is in the tree, and the values were not checked
+against a reference. The force is also brittle: the same keys on a
+wrapper `model OA extends OneAxis` (/tmp/m605/small/OA.mo) refuse
+again, because the reduction numbers move. So the finding is that a
+structural preference for the initialising flange's own angle over
+the sensors' aliases, at ties the weights decide by a few parts in
+1e10, carries the family. It is a definition-changing rule of the
+kind AGENTS.md says must be measured by victims, and it goes to the
+queue as a question, not a build.
