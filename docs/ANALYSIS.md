@@ -71852,10 +71852,15 @@ it was, rank 38 of 42 with row 37 zero, so rest is not the cause. A
 turned starting orientation, `angles_start = {0.3, 0.2, 0.1}` (PG8,
 `/tmp/m599/pg8_trail.txt`), lowers the shortfall from four to one but
 keeps one zero row (row 35). So the identity orientation accounts for
-three of the four lost ranks. The fourth is structural: the block holds
-an equation in `der(R.T)` whose unknown is not in the block at all.
-That is a fault of how the derivative rows are matched, not a property
-of the start point, and it is the thread to probe next.
+three of the four lost ranks. The fourth is not a property of the
+start point at all. The zero row reads
+`m1.v_0[1] - (der(ft.frame_a.r_0[1]) + der(ft.frame_a.R.T[1,1]) * ft.r[1] + ...) = 0`.
+Of its names only `der(ft.frame_a.R.T[1,1])` is an unknown of the
+block, and its coefficient `ft.r[1]` is 1. The printed Jacobian row is
+nevertheless zero in every column, in PG3 and PG8 alike. Either the
+Jacobian does not see that unknown in this row, or the row is evaluated
+through another name for it. That is the thread to probe next, with
+`why` on the name and the column the Jacobian builds for it.
 
 All three stand on a quaternion or a rotation matrix whose derivative is
 zero at t = 0 and keep that derivative as an unknown of the start block.
