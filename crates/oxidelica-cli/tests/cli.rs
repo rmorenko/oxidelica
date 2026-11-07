@@ -2214,3 +2214,16 @@ fn why_shows_the_bounds_a_variable_declares() {
     assert!(text.contains("min: 0"), "{text}");
     assert!(text.contains("max: 10"), "{text}");
 }
+
+/// `--help` prints the usage and stops, wherever it stands, rather than
+/// falling through to the command it follows: `library check --help` used
+/// to read the whole library.
+#[test]
+fn help_prints_the_usage_and_runs_nothing() {
+    for args in [&["--help"][..], &["-h"], &["library", "check", "--help"]] {
+        let output = bin().args(args).output().unwrap();
+        assert!(output.status.success(), "{args:?}: {}", stderr(&output));
+        assert!(stdout(&output).contains("Usage:"), "{args:?}");
+        assert!(!stdout(&output).contains("files:"), "{args:?}");
+    }
+}

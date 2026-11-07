@@ -56,6 +56,15 @@ fn run() -> Result<(), String> {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let command = args.first().map(String::as_str);
 
+    // Asked for anywhere on the line, help is answered before anything
+    // runs. Without this `library check --help` fell through to a check
+    // of the whole library, and one such run left on a desk spent two
+    // hours of processor time and fifteen gigabytes before it was found.
+    if args.iter().any(|arg| arg == "--help" || arg == "-h") {
+        println!("{USAGE}");
+        return Ok(());
+    }
+
     match command {
         Some("simulate") => simulate(&args[1..]),
         Some("parse") => parse(&args[1..]),
