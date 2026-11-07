@@ -71862,18 +71862,22 @@ Jacobian does not see that unknown in this row, or the row is evaluated
 through another name for it. That is the thread to probe next, with
 `why` on the name and the column the Jacobian builds for it.
 
-A first step down that thread: the other two names in the row,
-`m1.v_0[1]` and `der(ft.frame_a.r_0[1])`, are not unknowns of the
-block, so with a live column for `der(ft.frame_a.R.T[1,1])` the row
-could not be zero. The same name sits in another row of the block,
-`der(ft.frame_a.R.T[1,1]) - der(freeMotion.frame_b.R.T[1,1]) = 0`
-(row 33 of PG8, 35 of PG3), and there it has a live column. So the
-residual of the zero row reads `der(ft.frame_a.R.T[1,1])` from
-somewhere other than the block's slot for it, a value the Newton step
-never moves. `why` cannot answer for it ("declared: nowhere"), because
-the derivative name is minted by index reduction after flattening. The
-next probe is to print, for that row, which slot the compiled residual
-reads the name from.
+A first step down that thread, and a correction of the first reading.
+A probe that prints what each residual reads from outside the block
+(`/tmp/m599/pg8p.txt`, a print not kept in the tree) shows row 35
+reading only `ft.r[1..3]` from outside. Its other names, `m1.v_0[1]`
+and `der(ft.frame_a.r_0[1])`, are inner unknowns of the block, computed
+by its inner assignments from the torn ones. `der(ft.frame_a.R.T[1,1])`
+is torn, with a live column only in row 33,
+`der(ft.frame_a.R.T[1,1]) - der(freeMotion.frame_b.R.T[1,1]) = 0`.
+So the row is not reading a stale slot. Once the inner assignments are
+put in, its dependence on the torn unknowns cancels exactly: the
+equation is already implied by the inner assignments that compute
+`m1.v_0` from the same derivative. It is a redundant equation,
+presumably a velocity relation that index reduction reached twice, once
+through the point mass and once through the translation. The next
+probe is to ask index reduction which constraint it differentiated to
+get row 35 and which to get the inner assignment for `m1.v_0[1]`.
 
 All three stand on a quaternion or a rotation matrix whose derivative is
 zero at t = 0 and keep that derivative as an unknown of the start block.
