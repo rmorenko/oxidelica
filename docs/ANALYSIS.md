@@ -72729,3 +72729,24 @@ subsets as if they moved and use up the body's coordinates. The
 question for the next shift is why `world.frame_b.R` is not folded to
 the identity here when the same world feeds a FixedTranslation
 without harm (S2.mo). No change was built.
+
+The angles of the fixed rotation decide which wall S1's family
+meets (/tmp/m605/small/S3.mo to S8.mo, one binary). No rotation or a
+rotation about one axis ({0,0,0}, {10,0,0}, {0,55,0}, {0,0,68})
+passes index reduction and refuses on the constraint's force
+equation, like the translation in S2. Two axes ({10,55,0},
+{0,55,68}) refuse as structurally singular with a quotient row,
+and all three ({10,55,68}) give the orientation row of S1. So the
+fixed rotation's constant entries reach the structure: an entry that
+is zero for a given rotation takes a term out of the rows where it
+multiplies, and the more general the rotation, the more terms remain
+and the more of the world's constant frame the walk sees as moving.
+That matches `world.frame_b.R.T[1,1] = 1` being written by the world
+(`why`, S1.mo) and still differentiated. The constant world frame
+belongs to the rotation's parameters plus the world's own equation,
+and index reduction does not fold it before walking.
+
+`why` reports that the world writes `world.frame_b.R.T[1,1] = 1`. That
+row is the one reduction 8 of S1 could have used to see the frame as
+constant. The force-equation wall the simpler rotations meet is a
+separate family, outside this map.
