@@ -72878,3 +72878,18 @@ refusal depends on the tolerance the model is compiled at, which
 means some decision before or during index reduction reads it. The
 small models of this chapter that extend nothing are unaffected. P0
 (the hand copy) has no annotation and is a tolerance artefact too.
+
+And a correction to the correction. A sweep refutes "the tolerance
+and nothing else". The class
+`simulate Modelica.Blocks.Examples.Noise.ActuatorWithNoise` refuses
+structurally at every tolerance from 1e-3 to 1e-7
+(/tmp/m605/small/AWt*.txt). The wrapper AW.mo refuses structurally at
+1e-4 and 1e-5 but underflows at 1e-6, the default, while the class at
+1e-6 still refuses structurally. So at the same tolerance the class
+and its wrapper diverge, and the tolerance is one input to the
+divergence, not all of it. Whatever else the wrapper loses with the
+annotation (the stop time, the interval) was not separated, and
+`--dt 0.01` alone does not bring the wrapper back. The finding that
+stands: a wrapper that extends an example is not a faithful
+stand-in for it, so a small reproduction should be compared against
+the class run directly, never against a wrapper.
