@@ -72522,3 +72522,15 @@ SphericalConstraint, UniversalConstraint,
 PointGravityWithPointMasses2 (PG2), RollingWheelSetDriving,
 ThreeSprings and Engine1a. That is a list of candidates by wording;
 only SphericalConstraint, Engine1a and PG2's small form were probed.
+
+The other four candidates, probed the same way (/tmp/m605/{pri,uni,
+thr,rws}.txt), split the list. PrismaticConstraint is the same wall:
+reduction 18 finds six members with an empty reach after an `atan2`
+orientation row. UniversalConstraint ends like PG2, a singular
+Jacobian after 44 reductions with no empty reach. ThreeSprings and
+RollingWheelSetDriving are not this wall at all: both refuse on a
+line-force or rolling direction equation (`e_rel_0`, `e_long_0`)
+that the wording grep caught only because it names `R.T`. So the
+orientation family by probe is SphericalConstraint, Engine1a and
+PrismaticConstraint (empty reach), with UniversalConstraint and PG2
+beside them as the singular-Jacobian form.
