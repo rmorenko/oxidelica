@@ -72893,3 +72893,18 @@ annotation (the stop time, the interval) was not separated, and
 stands: a wrapper that extends an example is not a faithful
 stand-in for it, so a small reproduction should be compared against
 the class run directly, never against a wrapper.
+
+A limit on the OneAxis force result above. `library check` takes a
+model only ten steps (`run_a_little` in main.rs), so its `ran`
+under the two forced victims covers the first ten steps and nothing
+more. Under `simulate` of the class with the same forces, OneAxis
+runs to 0.016 and to 0.4 and refuses before 1.6, its stop time, on
+FullRobot's spring row. That is the event wall L3 showed, met when
+the planner's reference turns constant. The keys force reduction
+numbers, and the walk at the event numbers differently from the walk
+at the start, so the forces carry the first compilation and not the
+re-reduction. So the forces prove the start-time mechanism only. The
+event mechanism of L3_05 (forced at reduction 4 inside the event
+walk) is a separate proof, and OneAxis would need the same done at
+its own event walk. Without the wrapper caveat: these runs are of
+the class directly.
