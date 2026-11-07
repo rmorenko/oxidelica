@@ -72711,3 +72711,21 @@ place of the rotation (S2.mo) gets past index reduction and refuses
 later on a force equation of the constraint, a different wall. So a
 constant non-identity rotation between the world and a constraint
 joint is enough to open it.
+
+S1's walk (/tmp/m605/small/S1.txt) shows where the wall comes from.
+Reductions 5 to 7 differentiate `world.frame_b.r_0[i] =
+fixedRotation.frame_a.r_0[i]` and reduction 8 differentiates
+`world.frame_b.R.T[1,1] = fixedRotation.frame_a.R.T[1,1]`. Both sides
+are the world's own frame, constant by construction, yet the walk
+treats these rows as constraints and spends a state on each: the
+constraint's own positions for the first three, and then the body's
+positions `body.frame_a.r_0[1..3]` (all weighted 0.0) for the
+orientation rows. By reduction 11 the body has no positions left and
+the walk starts on its velocities. At reduction 12 the remaining
+`fixedRotation.frame_b.R.T[3,j]` rows reach nothing. So the mechanism
+is that the world's frame is not read as a constant before index
+reduction. Its orientation and position rows enter the singular
+subsets as if they moved and use up the body's coordinates. The
+question for the next shift is why `world.frame_b.R` is not folded to
+the identity here when the same world feeds a FixedTranslation
+without harm (S2.mo). No change was built.
