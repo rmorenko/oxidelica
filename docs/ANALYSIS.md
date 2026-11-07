@@ -72818,3 +72818,14 @@ came from a file built by the same script, so it is withdrawn until
 it is rebuilt clean. What holds is the narrower claim: the
 five-phase `IM_SquirrelCage` fed directly refuses, and the
 three-phase one does not refuse structurally.
+
+How wide the five-phase machine wall is, by grep of the run half's
+raw lines in /tmp/m602c/raw.txt for names holding a converter or pin
+index past three: eight models match, and only IMC_DOL_CommonLeakage
+refuses structurally. The other seven (IMC_DOL_Polyphase,
+IMS_Start_Polyphase, IMC_withLosses, SMEE_DOL, SMEE_Rectifier,
+SMPM_CurrentSource, PolyphaseRectifier) refuse on underdetermined or
+non-converging algebraic loops, a different layer. So the machine
+family of the top row is one model as far as the census shows, and
+its I9m5 reproduction is worth a probe only if the same walk is
+found under those loops. That was not checked.
