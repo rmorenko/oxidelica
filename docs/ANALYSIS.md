@@ -72796,3 +72796,25 @@ straight to `aimc0`, plus the load inertia, and it refuses after 14
 reductions on the same stator connection row. So nothing outside the
 machine is needed: the five-phase `IM_SquirrelCage` alone, fed
 directly, is the reproduction of the machine family.
+
+A correction to the two paragraphs above. The cutting script left
+two declarations of the removed machines standing, `terminalBoxH` and
+`quadraticLoadTorque1`, because their type sat on a line of its own.
+They are unconnected, so at five phases they changed nothing. At
+other phase counts they did: I7 at `m = 3` and `m = 4` refused on
+`terminalBoxH.plug_sp.pin[1].i = 0`, which came from the stray box.
+With both removed (/tmp/m605/small/I9m5.mo, I9m3.mo, I9m4.mo) the
+picture is:
+
+- `m = 5` still refuses on the stator connection row, so the
+  five-phase reproduction stands.
+- `m = 3` gets past index reduction and fails at t = 0 with a step
+  size underflow, a different wall.
+- `m = 4` is refused by the library's own assertion that four phases
+  are not supported.
+
+The star-point reading of I2 (`m = 3` with the terminal box kept)
+came from a file built by the same script, so it is withdrawn until
+it is rebuilt clean. What holds is the narrower claim: the
+five-phase `IM_SquirrelCage` fed directly refuses, and the
+three-phase one does not refuse structurally.
