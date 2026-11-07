@@ -72192,3 +72192,27 @@ Fluid pipes already measured under the parked LM stack. `ThreeSprings`
 was mapped in m590, the two rolling wheel sets, `Cylinder`,
 `TestTemperature1` and the quasi-static `IMC_withLosses` each have many
 earlier notes. No new family was found in this row.
+
+## m601: a parked patch for the moving table
+
+Built for the park and not merged: `~/oxideflow/park/m601-array-rates.patch`
+behind `OXIDELICA_ARRAY_RATES`. A walked body that reads a Real array
+input as still gets a second derived body in which each such array
+carries a rate array of its own. A call takes that second body only where
+an array it hands actually moves, so every still call keeps the body it
+had. The small model `/tmp/m601_tiv.mo` gives `y(0) = 0.9`, `y(5) = 10`
+and `x(5) = 25.25`, the analytic answer, and a unit test reads 15 where
+the still reading would give 14.
+
+The court went through three versions. The first gave every array a rate
+and lost `Media.Examples.MixtureGases`, whose gas data are a record
+array the body reads element by element. Moving to the second body only
+for moving calls fixed that, but then the run was killed twice for memory
+at the same model. A per-model hunt under a resident-size cap named
+`RoomCO2` and `RoomCO2WithControls`, which went past 17 GB, because the
+second body was differentiated again for each higher order. With that
+stopped, `RoomCO2` peaks at 3.8 GB against 3.1 GB without the switch.
+On a subset of 466 models (Fluid, Media, Math, Blocks) the run lists
+differ by one line, `TestInterpolateTimeVarying` gained, and nothing
+was lost. The run half went from 2785 to 2801 s. This is a subset win
+only. The corpus price, the floor and the merge go to the review.
