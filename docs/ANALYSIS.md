@@ -71919,6 +71919,22 @@ reduction or of the matching, not of the start point. The identity
 orientation then adds three more lost ranks on top. Not treated. This
 is the item to hand to the next shift with PG8 as the reproduction.
 
+The victims of index reduction say where to look (`OXIDELICA_VICTIM_PROBE`,
+`/tmp/m599/pg8v.txt` and `pg5v.txt`). With quaternions (PG8), reductions
+1 to 4 demote all four of `freeMotion.Q`, the first on the unit-norm
+constraint and the next three on `m1.frame_a.r_0[i] = ft.frame_b.r_0[i]`
+with every reach weighed 0.0 at the start. The orientation then has no
+state left, and its derivatives `der(R.T)` become unknowns that the
+start block has to find from position rows alone. With angles (PG5)
+all three `phi` are demoted as well, after two retreats ("reduction 10
+may not take `freeMotion.phi[1]`, starting again"), and t = 0 still
+passes. So demoting the whole orientation is not by itself the fault.
+What differs is the walk: the angles reach it through retreats and
+different rows, the quaternion goes straight in on the norm row and
+three position rows weighed 0.0. Which of the two differences matters
+is the open question. This is a probe, not a fix, and nothing was
+changed.
+
 All three stand on a quaternion or a rotation matrix whose derivative is
 zero at t = 0 and keep that derivative as an unknown of the start block.
 `Engine1a` names `der(bearing.frame_b.R.T[2,2])` too, but refuses
