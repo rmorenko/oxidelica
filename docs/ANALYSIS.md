@@ -72981,3 +72981,50 @@ not PG8's surplus of written conditions. The surplus comes from
 pinned starts, and behind it stands the friction mode wall. A start
 policy would not reach it alone. This adds one row to the start wall
 map above.
+
+## Three unmeasured names priced on one binary
+
+Roman asked on 7 November for three names to become three numbers.
+One binary was built from c8b9faa with every probe asleep behind its
+own key (/tmp/m606/oxp, the probes kept as
+~/oxideflow/park/m606-price-probes.diff). Four corpus runs followed
+one after another on a quiet desk, each over the 1019 models of the
+main and dear passes with `--list --slow 60` under a 24 GB cap. The
+base gave 974 flatten and 838 run, runnable 856 and 789, running
+4258 s (/tmp/m606/c_base.txt).
+
+| name                       | wins            | victims                                                    | running         | file         |
+| -------------------------- | --------------- | ---------------------------------------------------------- | --------------- | ------------ |
+| RESUME_TIE + HELD_ZERO_DER | none            | none                                                       | 4350 s (drift)  | c_ladder.txt |
+| relative pivot floor       | none            | PumpAndValve, IdealMixing1, Air.DryAirNasa, IdealGases.Air | 4353 s (drift)  | c_pivot.txt  |
+| LM stack, four keys        | BranchingPipes3 | none                                                       | 5137 s (+20.6%) | c_lm.txt     |
+
+The ladder does not fire anywhere in the corpus. Its work counters
+match the base to the digit in both phases, so the run lists are
+equal by construction. Because the work is identical, the ladder run
+is in effect an A/A repeat of the base, and it measures today's desk
+rather than the key: flattening 4265 to 4440 s (+4.1%), running 4258
+to 4350 s (+2.2%). The recorded floors of 1 s and 18 s did not hold
+on a desk two hours under load. The drift also runs one way: the
+mark "918 of 1019" came at 801 s in the base, 822 in the ladder run
+and 831 in the pivot run. So the two later prices are read against
+92 s of running noise, not 18. The pivot run's +95 s is therefore
+drift and not a price. The LM stack's +879 s is far above both the
+noise and Roman's 6% (255 s).
+
+The relative pivot floor is `1e-14` times the largest entry of the
+column, applied in `solve_linear` alone. It wins nothing and costs
+four models, each refused afterwards on "the Newton direction of
+algebraic loop". So the absolute floor holds something that the
+relative floor drops: columns that are small in absolute terms but
+not dead. Measured this way, the price is four victims for no win.
+
+The LM stack still wins BranchingPipes3 and still costs no victims,
+as it did on 4 November. But its price has grown from 16.3% to
+20.6%. `--slow` puts the cost on named models: BranchingPipes3
++366 s, BranchingPipes1 +331 s, BranchingPipes13 +91 s and
+TestWaterPumpCheckValve +21 s, which comes to 809 of the 879. The
+stack patches no longer applied with `git apply` on this tree. They
+went in with `patch -F3`, so the hunks landed on moved context, and
+that is worth knowing before anyone reads this as the same stack.
+Nothing was merged. The road for each is Roman's word.
