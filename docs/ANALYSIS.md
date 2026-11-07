@@ -72455,3 +72455,70 @@ So the row is two families by provenance before any layer is named:
 sixteen honest refusals of open components and eight closed models.
 Read as the top of the work queue it overstates the work threefold.
 No change was built.
+
+## The six closed models of the top row, probed
+
+Six of the eight closed models refused as "constrains no state" (the
+two tanks were left alone, already mapped) were each run once under
+`OXIDELICA_VICTIM_PROBE=1 OXIDELICA_WHERE=1` with `--only` from the
+root `.msl`. Traces are in /tmp/m605/{act,imc,sph,eng,full,one}.txt.
+They fall into four layers, not six refusals.
+
+- Orientation rows (SphericalConstraint, Engine1a). The walk takes
+  34 and 98 reductions; the reduction before the last differentiates
+  an orientation entry, `der(fixedRotation.frame_a.R.T[2,2]) = 0`
+  and `der(piston.frame_b.R.T[3,3]) = 0`, and the last one finds only
+  members with an empty reach (`victim: <none>` on every member: 5
+  and 11 of them, among them `world.frame_b.R.T[1,1] = 1`). The
+  constant orientation is differentiated as if it moved. The same
+  wall as PG2 and UniversalConstraint below.
+- The RobotR3 gear (OneAxis, FullRobot), one family as the order
+  guessed, but by two doors. OneAxis's row is not written by the
+  library: `hidden-constraint` writes `-bearingFriction.w + Jmotor.w
+= 0` in place of the gear's speed equation at reduction 13. With
+  `OXIDELICA_NO_HIDDEN_CONSTRAINT=1` it moves to "solver exceeded the
+  evaluation budget at t = 0" - the next wall, not a run. FullRobot
+  has no hidden row and stops at reduction 12 after taking
+  `axis1.initializeFlange.phi_flange` as victim; the switch does not
+  move it. Common to both: the walk spends the motor and gear angles
+  on `initializeFlange`'s alias chain (13 and 4 victims named
+  `initializeFlange`), so the spring's `phi_rel` row is left with
+  nothing.
+- The machines (IMC_DOL_CommonLeakage, ActuatorWithNoise). Both open
+  with `inertiaStator.w = 0` taken as a reduction, then descend into
+  the magnetic or polyphase connections of the machine and die on a
+  connection row whose every member has an empty reach (imc at
+  reduction 16, act at 18 after one retreat). The machine chain
+  already mapped under m355.
+
+No change was built.
+
+## The start block of PG8 and PG2
+
+PG8 (/tmp/m599/small/PG8.mo) is not short of conditions, it has one
+too many: `OXIDELICA_INIT_PROBE=1` prints three written equations,
+the `atan2` angle conditions of `angles_fixed=true`, and ten fixed
+starts on the point masses, thirteen conditions for twelve states.
+The free motion's rotation is pinned twice, once by the angles and
+once by masses whose positions already fix the orientation. The
+missing-rotational-speed reading is wrong for this model: what the
+model needs is an overdetermined start resolved, not a start
+filled in. The fill-in policy (queue item 97) would not help it.
+
+PG2 (/tmp/m599/small/PG2.mo) stops after 16 reductions on a
+singular Jacobian of an algebraic loop over `freeMotion.Q` and the
+orientation entries. Shifting `angles_start` to {0.3, 0.2, 0.1}
+(/tmp/m605/PG2s.mo) does not cure it: the loop shrinks from four
+quaternion entries to two and is still singular. So the singularity
+is not the identity orientation alone. It is the same orientation
+layer as SphericalConstraint and Engine1a. These are small models,
+not corpus wins.
+
+The size of that wall, read by grep and not by probe: of the run
+half's raw lines in /tmp/m602c/raw.txt, the structurally singular or
+singular-Jacobian refusals that name an orientation entry `R.T[` or a
+quaternion `Q[` belong to seven models: PrismaticConstraint,
+SphericalConstraint, UniversalConstraint,
+PointGravityWithPointMasses2 (PG2), RollingWheelSetDriving,
+ThreeSprings and Engine1a. That is a list of candidates by wording;
+only SphericalConstraint, Engine1a and PG2's small form were probed.
