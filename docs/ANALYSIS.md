@@ -71996,7 +71996,11 @@ twice, so their zero rows have another cause. `UniversalConstraint`
 shows 27 repeats in 73, but its walk has one retreat, which restarts
 the reduction and prints every push again, so those repeats are not
 evidence. The duplicate is a fault of `PointGravityWithPointMasses2`
-alone among the four.
+alone among the four. The zero rows of `PrismaticConstraint` (23, 24, 26) name only `bodyOfConstraint.body.Q` and its derivatives, and every
+term of them in the unknowns is multiplied by a `der(Q)`, which is 0.0
+at the converged start point (`/tmp/m599/fam_PrismaticConstraint.txt`).
+That one is rest in the literal sense: a body that does not turn at the
+start gives products of rates that vanish.
 
 All three stand on a quaternion or a rotation matrix whose derivative is
 zero at t = 0 and keep that derivative as an unknown of the start block.
