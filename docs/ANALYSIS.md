@@ -71935,6 +71935,19 @@ three position rows weighed 0.0. Which of the two differences matters
 is the open question. This is a probe, not a fix, and nothing was
 changed.
 
+The same print answers the question left above. The translation's
+position equation `ft.frame_b.r_0[1] = ft.frame_a.r_0[1] + R.T * r` is
+the equation of two reductions, 8 (victim `m4.r_0[1]`, member 23 of 32
+of the singular set) and 13 (victim `m1.r_0[1]`, member 21 of 32). Its
+differentiated form, `m1.v_0[1] - (der(ft.frame_a.r_0[1]) + ...) = 0`,
+is again the equation of two, 17 (victim `m1.v_0[1]`) and 22 (no victim,
+`m1.v_0[1]` already spent). So one flat equation is differentiated
+twice and its derivative enters the system twice. That is row 35 and
+the inner assignment it duplicates. Reduction 22, which found no victim
+and still kept the equation, is the cheapest place to look first: an
+equation with no victim was already accounted for. Grep
+`/tmp/m599/pg8v.txt` for `reduction 22 on`.
+
 All three stand on a quaternion or a rotation matrix whose derivative is
 zero at t = 0 and keep that derivative as an unknown of the start block.
 `Engine1a` names `der(bearing.frame_b.R.T[2,2])` too, but refuses
