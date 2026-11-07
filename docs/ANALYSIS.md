@@ -72216,3 +72216,79 @@ On a subset of 466 models (Fluid, Media, Math, Blocks) the run lists
 differ by one line, `TestInterpolateTimeVarying` gained, and nothing
 was lost. The run half went from 2785 to 2801 s. This is a subset win
 only. The corpus price, the floor and the merge go to the review.
+
+## m602: the moving table on the corpus, and the price of a mode search
+
+The parked patch of m601 (`OXIDELICA_ARRAY_RATES`) was applied, its unit
+test `a_walked_body_handed_a_moving_array_takes_its_rate` passes, and
+one binary built from it (`/tmp/m602/ox1`) carries both halves of the
+pair. Asked one model at a time with `--only` from `.msl`:
+`ModelicaTest.Math.TestInterpolateTimeVarying` refuses without the
+switch (`structurally singular model: cannot differentiate`) and runs
+with it, and `Modelica.Media.Examples.MixtureGases` runs with it. The
+memory of `Modelica.Fluid.Examples.TraceSubstances.RoomCO2` under
+`/usr/bin/time -l` is 3124527104 bytes of maximum resident set without
+the switch and 3709091840 with it, which confirms the 3.1 against 3.8
+GB the park note held unconfirmed (3.1 against 3.7 here). Its build time
+does not move (15536 and 15508 ms).
+
+One trap was found on the way. `walk::switch_set` treats a variable that
+is present but empty as set, so `OXIDELICA_ARRAY_RATES= ox1` is the on
+half and not the off half. The first memory reading of the off half was
+taken that way and came out at 3.78 GB, and the same command on
+`TestInterpolateTimeVarying` ran the model. The off half of the pair is
+therefore started with `env -u OXIDELICA_ARRAY_RATES`.
+
+### The tank family is two models
+
+The census of m597 (`/tmp/m597/raw.txt`) holds 24 models refused as
+`constrains no state`. Only two of them carry a vessel port's zero flow,
+`TanksWithOverflow` (`lowerTank.ports[2].m_flow = 0`) and
+`BatchPlant_StandardWater` (`B5.InnerTankSide[1].port.m_flow = 0`). The
+other 22 are a pin's or a flange's zero current or force in a helper
+class, cut sets of polyphase networks, and MultiBody constraints. So a
+mode search is priced against two models, both of them examples.
+
+### Where the mode is chosen, and why a retry is not enough
+
+`settle_modes` (`crates/oxidelica-sim/src/compile.rs:4561`) calls
+`settle_modes_once` (`:4604`) for a first choice, and then for up to four
+rounds evaluates every `name = expr` of the branches taken, puts the
+values into the environment and asks the conditions again. For a vessel
+port the condition is `inFlow[i] = not regularFlow[i] and (s[i] > 0 or
+...)` (`Vessels.mo:350`) and the `inFlow` branch defines `s[i] =
+ports[i].m_flow`, so the second round answers `s[i]` from the zero start
+of the flow and leaves `inFlow`. Nothing near the code records this as a
+decided question. The comment says only that the rule exists so that a
+condition on a name the branch defines is not answered from its start.
+The choice is consumed at `compile.rs:6339`, where the taken branches
+join the equations, and the conditions become the run's `mode_monitor`.
+
+There are two roads, and each has a cost the m601 chapter did not name.
+
+A retry on a singular mode would catch the refusal in `compile_at`
+(`:6106`) and compile again with another branch for the conditional
+whose taken branch holds the singular equation. It touches `compile_at`
+alone, perhaps forty lines. But the branch it picks is one the
+conditions do not hold, and `mode_holds` (`continuation.rs:377`)
+compares the conditions with the compiled branch at every step. The
+first step would report a change of mode, and the recompilation at
+`solvers/mod.rs:2908` would settle the same singular mode again. That
+loop is ended only by the ceiling of 100000 mode changes (`:2886`). So a
+retry also needs the monitor to accept a mode the search overrode, which
+is a second change, in the run and not in the compiler.
+
+A complementary start would solve `s[i]` together with its branch, so
+that the mode is a fixed point of the conditions under the equations of
+the mode. That is right by construction and covers t = 10, where the
+run reaches both ends closed by itself and the recompilation chooses the
+singular mode again. It means asking a whole mode's algebraic system at
+the point inside the mode choice, which today is a cheap evaluation of
+definitions. Its size is the size of a new phase and it needs a ceiling
+of its own.
+
+The finding of m601 that the model closes both ends again at t = 10
+holds for both roads. Choosing the start alone cures nothing for these
+two models. Whatever is built has to be the rule at every recompilation
+and not at t = 0. Two models for a change in how modes are chosen, with
+a new phase to bound, is the question for Roman. No change was built.
