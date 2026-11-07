@@ -72908,3 +72908,15 @@ event mechanism of L3_05 (forced at reduction 4 inside the event
 walk) is a separate proof, and OneAxis would need the same done at
 its own event walk. Without the wrapper caveat: these runs are of
 the class directly.
+
+Chasing OneAxis's event walk with numbered forces does not converge,
+and that is the last finding of the map. Each force moves the
+displaced choice to another reduction (/tmp/m605/small/OAe.txt,
+OAg.txt): with reduction 1 pinned, reduction 2 takes
+`initializeFlange.phi_flange` instead, reduction 4 falls back on
+`bearingFriction.phi`, and reduction 8 again finds rows already held.
+A force keyed by reduction number cannot express "prefer the
+flange's own angle" across walks whose numbering differs. So the
+instrument has reached its limit here. The rule itself, a structural
+preference at near-ties, is the thing to try, behind a switch and
+measured as a pair. That is queue item 101 and needs a word first.
