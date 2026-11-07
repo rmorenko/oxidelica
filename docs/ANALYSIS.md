@@ -72786,3 +72786,13 @@ faces of the walk spending the machine's states on connection rows:
 in I0's trace the rotor cage's eight flux components are taken as
 victims at reductions 8 to 14, and the stator's last connection row
 is left with an empty reach.
+
+Cutting I0 further keeps the refusal word for word at every step
+(/tmp/m605/small/I3.mo to I7.mo): without the RMS current sensor
+(I3), without the closing switch and its step (I4), without the load
+torque (I5, I6), and without the terminal box and its star point
+(I7). I7 is a five-phase sine source on a star and ground wired
+straight to `aimc0`, plus the load inertia, and it refuses after 14
+reductions on the same stator connection row. So nothing outside the
+machine is needed: the five-phase `IM_SquirrelCage` alone, fed
+directly, is the reproduction of the machine family.
