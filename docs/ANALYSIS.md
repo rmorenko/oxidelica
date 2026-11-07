@@ -72043,3 +72043,82 @@ values rather than as unknowns.
 
 Item 3 of the order (`m598-cli-help`) had already been merged by the
 consultant as 864ab18 and was not applied again.
+
+## m600: the structurally singular row is mostly helpers
+
+The order took the OpAmpCircuits group first and asked what kind of
+singularity it is. Probed one model at a time from the root `.msl`, it
+is not a compiler fault at all. `Add`, `Buffer`, `Feedback` and `Gain`
+extend `PartialOpAmp`, a `FourPin` whose pins are left open for the
+enclosing model to connect. Left open, each pin gets the flow equation
+`p1.i = 0`, and an ideal operational amplifier with both inputs carrying
+zero current and an open output has no solution. The refusal is correct.
+All five models that use these circuits (`Adder`, `Subtracter`,
+`ControlCircuit`, `InvertingAmplifier`, `NonInvertingAmplifier`) run.
+
+That turned out to describe most of the row. The census file
+`/tmp/m597/raw.txt` has 26 models with `structurally singular` in the
+run half, against 24 in the printed row: two models, `ActuatorWithNoise`
+and `Transformer1PhaseWithHysteresis` among them, have a sum on the left
+of the equation and not a bare `Ref`, so the counter puts them in
+neighbouring rows. Asked one by one with `--only`, the line `runnable
+examples` reads `0` for 17 of the 26: the four OpAmpCircuits, `Nand`,
+`RealSwitch`, `AnalysatorAC` and `AnalysatorDC`, `MNmos` and `MPmos`, the
+five FluxTubes `Components` the order suggested taking first, and both
+`SpringDamperNoRelativeStates`. None of these has an experiment or the
+Example icon. They are building blocks with an open connector, and an
+open connector puts a zero flow on it. Where their parents were probed
+they mostly run (`ComparisonQuasiStatic`, `ComparisonPullInStroke`,
+`SinglePhaseTransformerWithHysteresis2`, three `MovingCoilActuator`
+examples, `NandGate`). `ThreePhaseTransformerWithRectifier` and
+`PolyphaseRectifier` flatten without running, and they fail for reasons
+of their own. So the FluxTubes group is not a family to fix. It is five
+correct refusals that sit near ComparisonQuasiStatic only because they
+share a package with it.
+
+Nine of the 26 are runnable: `ActuatorWithNoise`,
+`BatchPlant_StandardWater`, `TanksWithOverflow`,
+`IMC_DOL_CommonLeakage`, `SphericalConstraint`, `Engine1a`, `FullRobot`,
+`OneAxis` and `TestInterpolateTimeVarying`. The four MultiBody ones are
+under the ban on the duplicated-constraint series. Two of the Fluid ones
+were probed.
+
+`TanksWithOverflow`: `OXIDELICA_VICTIM_PROBE` shows reductions 1 and 2
+demoting the two tank volumes, then reduction 3 trying in turn each
+equation of the overflow pipe's subset, which has five equations, and
+finding no victim for any of them. The subset is the overflow pipe with
+its two ends: `upperTank.ports[3].m_flow = 0` and
+`lowerTank.ports[2].m_flow = 0`, the `else` branch of the vessel's
+port if-equation (`Vessels.mo:379-381`, a port above the fluid level
+lets nothing out). The compiler took the closed-port branch at both ends
+of one pipe, which makes two equations for the pipe's one flow and none
+for its pressure. A twelve-line model shows the same wall in a second
+(`/tmp/m600/Pipe2.mo`): two states, one flow `m = p1 - p2` between them,
+and at each end `if up then p = x else m = 0`. It refuses as `equation
+Neg(Ref("m")) = Number(0.0) constrains no state`. With only one end
+switched (`IfEq2.mo`), it runs. So the family is an if-equation whose
+branches give different incidence, and the structure is decided on the
+branch where both ends cut the same unknown.
+
+`BatchPlant_StandardWater` fails in the same way at reduction 8:
+`B5.InnerTankSide[1].port.m_flow = 0` comes from the tank's closed-outlet
+branch, and `B5.SideFluidPort[1].m_flow = 0` comes from the open side
+port. That is two zeros on one flow.
+
+What the order left unprobed is `ActuatorWithNoise`, `IMC_DOL_CommonLeakage`
+and `TestInterpolateTimeVarying`, whose refusal is about differentiating
+`interpolate` and is a different kind under the same words. The tank
+family is the one worth a series: it is outside MultiBody, two runnable
+models, and it has a small model. No change was built. The fix is a
+question of how an if-equation with branches of unequal incidence is
+matched, which is not a cheap park patch.
+
+Two more were probed after that. `ActuatorWithNoise` stops at reduction
+18 in a subset of 32 equations, all of them phase-3 currents of the
+motor's resistor, stray-load and space-phasor plugs, and no member has a
+victim. `IMC_DOL_CommonLeakage` stops at reduction 16 on a magnetic
+potential linking converters 4 and 5 of the stator, again with 32
+members and no victim, after fifteen reductions that each found one.
+Neither looks like the tank family. Both are a cut set of a polyphase
+network, which is closer to the duplicated constraint than to an
+if-equation. Each needs its own walk.
