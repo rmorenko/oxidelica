@@ -72829,3 +72829,22 @@ non-converging algebraic loops, a different layer. So the machine
 family of the top row is one model as far as the census shows, and
 its I9m5 reproduction is worth a probe only if the same walk is
 found under those loops. That was not checked.
+
+## The judge of the held row went red on a witness
+
+The judge 42359804934 for 63a045a (whose tree carries ccfe9be, the
+held-row refusal) failed on one line of `scripts/victim_witness.sh`
+and nothing else. It printed 974 flatten and 838 run, runnable 856
+and 789, which is the expected 838/789, and the floors 835/786 stand.
+The failing witness was "implied row taken": with
+`OXIDELICA_IMPLIED_ROW=0 OXIDELICA_SUPPLY_ONCE=0`, reduction 8 of
+`tests/small/a_delta_secondary_does_not_spend_its_angles_twice.mo` now
+demotes `transformer.r2.resistor[1].pin_p.reference.gamma` instead
+of `transformer.l2sigma.inductor[2].pin_p.reference.gamma`. The
+held-row refusal reads the same repeat as a row already held, so it
+takes the place of the two rules the witness switches off. With
+`OXIDELICA_NO_HELD_ROW=1` added, the old victim returns, and the
+whole script passes on this tree (/tmp/m605/witness.txt, no
+`WITNESS` line). 6e86c8a adds the third key. The second judge,
+42362127448 for dd7094d, has the same tree and is expected to fail
+the same way. The fix is in the next commit.
