@@ -71981,7 +71981,11 @@ fixed starts for 12 states). So the ledger takes the duplicate out, and
 what stands next is the count of fixed starts against the states the
 reduction keeps. No fix parked: the m406 note already says this
 changes the reduction of every MultiBody model and wants a series of
-its own.
+its own. On PG3, the same model at the identity orientation, `=3`
+keeps the singular Jacobian. On the library model it changes the
+refusal from `singular Jacobian` to `the equations of algebraic loop
+[...]` and still does not run (`--only`, same binary). So the duplicate
+is one wall of several, and the identity orientation stands behind it.
 
 All three stand on a quaternion or a rotation matrix whose derivative is
 zero at t = 0 and keep that derivative as an unknown of the start block.
