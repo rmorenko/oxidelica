@@ -71820,8 +71820,8 @@ reached (`/tmp/m599/dpecc2_off.txt`, `dpecc2_on2.txt`). Both halves ran
 side by side, so they are dearer than the 2674.8 s that was run alone
 on 36e3dd1, and only their difference is the price.
 
-With this model the nine heavy models measured here move by +6 s in 4761. The cron's spare of 94 and 106 minutes is spent only by
-`DynamicPipeWithNominalLaminarFlow` (m598), which was not run again.
+Per pass, see the table: pass a moves by +8 s and pass b by -2 s over
+what was measured here.
 
 ### `PointGravityWithPointMasses2`: the orientation that stands still
 
