@@ -71774,6 +71774,10 @@ Push run 42310740390 (8a669d9) printed 974 flatten, 837 run and 856 /
 centre of `jacobians counted apart`: 143 against the 1974 written there.
 The floors went to 834 and 785 (837 and 788, less the three that swing)
 and the centre to the judge's 143 in 2337396. The band did not move.
+The carrier is named: `ComparisonQuasiStatic` alone, one binary
+(`/tmp/m598/ox5`), counts 1841 jacobians apart with the chain off and
+10 with it on. The comment at the centre says the carrier was not
+checked, and it now has been.
 
 ### The chain priced on the heavy set, model by model
 
