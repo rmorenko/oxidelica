@@ -72562,11 +72562,31 @@ for the OneAxis and FullRobot family, and the question it puts is
 why a reference that is a function of time and states of its own is
 treated as a constraint on the axis.
 
-Read after the probe, not before it: `KinematicPTP2` writes no
-`der()` at all. Its `s`, `sd` and `sdd` are algebraic functions of
-`time` under `if` branches, yet A2's walk takes `pathPlanning.path.s`
-and `pathPlanning.path.sd` as reductions 9 and 13 and spends a
-victim on each. A3, without the planner, takes eleven reductions and
-runs. The two extra reductions on a time-only signal are where the
-next probe should start: a reduction on a row with no state in reach
-of the axis should not have been taken.
+Read after the probe, and corrected by `why`: `KinematicPTP2`
+writes `sd = der(s)` and `sdd = der(sd)` and also gives `s` as an
+explicit function of `time` in its `if` branches, so `s` and `sd`
+are states pinned by time, and reductions 9 and 13 on them are
+legitimate index reduction, not a mistake. (A first reading said the
+block wrote no derivative. That was a grep cut short by `head`, and
+`oxidelica why /tmp/m605/small/A2.mo pathPlanning.path.s` refuted it.)
+A3, without the planner, takes eleven reductions and runs. What
+differs is what the planner's outputs pin through the bus: `q`, `qd`
+and `qdd` reach `initializeFlange`, and the next probe is which
+victim the walk takes there in A2 against A3.
+
+A2 is faithful to OneAxis on both sides of the switch: with
+`OXIDELICA_NO_HIDDEN_CONSTRAINT=1` it too moves to "solver exceeded
+the evaluation budget at t = 0", as OneAxis did. And the trace names
+what the hidden row does after it is written. Every equation then
+matches, `hidden-constraint` replaces the gear's speed row with
+`-axis.gear.bearingFriction.w + axis.motor.Jmotor.w = 0`, and
+reduction 14 differentiates it into
+`-axis.gear.bearingFriction.a + axis.motor.Jmotor.a = 0`, which
+`dependent-row` reports as a row the system already holds. So in this
+model the hidden constraint is not hidden: its derivative is already
+in the system, and the stand-in costs the speed row the matching had
+used. A3 never calls the hidden module. The open question for the
+family is why the planner's states make the hidden module fire, and
+whether the module should refuse a candidate whose derivative is
+already a row. That is a question about `crates/oxidelica-sim/src/
+hidden.rs`, not an answer, and no change was built.
