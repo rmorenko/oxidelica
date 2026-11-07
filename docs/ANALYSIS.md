@@ -72544,3 +72544,20 @@ initial equations and 0 fixed starts for 4 unknowns". That is an
 overdetermined start, the same shape as PG8, not the spring row of
 FullRobot. So the gear family has no small reproduction yet; the
 next step is shrinking AxisType1 itself rather than growing G1.
+
+Shrinking the axis found it. /tmp/m605/small/A2.mo is one
+`AxisType1` with OneAxis's parameters, a load inertia and
+`PathPlanning1` on the bus: it refuses in half a second with
+OneAxis's own row, `-axis.gear.bearingFriction.w + axis.motor.Jmotor.w
+= 0`, written by `hidden-constraint`, after the same thirteen
+reductions. A3.mo is the same axis with the planner replaced by a
+sine for the angle, a cosine for the speed and a constant for the
+acceleration, and it runs to t = 1. A1.mo with three constants runs
+too. So the wall is entered through the reference generator: the
+walk differentiates the planner's path (`pathPlanning.path.s`,
+reductions 9 and 13), whose outputs reach `initializeFlange` and
+through its alias chain constrain the motor and gear angles, and the
+gear's speed row is left with nothing. A2 is the small reproduction
+for the OneAxis and FullRobot family, and the question it puts is
+why a reference that is a function of time and states of its own is
+treated as a constraint on the axis.
