@@ -72292,3 +72292,22 @@ holds for both roads. Choosing the start alone cures nothing for these
 two models. Whatever is built has to be the rule at every recompilation
 and not at t = 0. Two models for a change in how modes are chosen, with
 a new phase to bound, is the question for Roman. No change was built.
+
+### The pair
+
+Both halves with `/tmp/m602/ox1`, the off half under `env -u
+OXIDELICA_ARRAY_RATES` and the on half with it set to 1, `--slow 60` on
+both, under a ceiling of 24 GB (`/tmp/m602/off.txt`, `/tmp/m602/on.txt`).
+Flattened 974 = 974, and the flat lists are equal line for line. Run 837
+against 838. The run lists differ by one line,
+`ModelicaTest.Math.TestInterpolateTimeVarying` gained in the set, and
+nothing is lost. The flat work counters are equal to the digit, and the
+run counters differ by 41 points (24125427 against 24125468) and nothing
+else. Time: flattening 4197 against 4209 s, running 4204 against 4196 s.
+The run half moved by -8 s, under the floor of 18 s measured by the A/A
+pair of m583 on 1019 models without a ceiling, so no price is resolved.
+That floor was not taken under a ceiling, which is said here rather than
+assumed away. The `slowest run` lists hold the same names in both halves
+with shifts of a few seconds each way. The peak resident set of the pass
+rose from 19.9 to 22.3 GB, which is the cost the RoomCO2 reading already
+showed in small. The merge and the default go to the review.
