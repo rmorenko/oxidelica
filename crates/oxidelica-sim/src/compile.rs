@@ -2784,6 +2784,24 @@ fn reduce_index_once(
                     // up to is a copy reached by another road: the block it
                     // joins is singular by construction. Asked before the
                     // victim is chosen, since a demotion is not taken back.
+                    // The same differentiated row reached by a second
+                    // reduction (PG8 of m598: the translation's position
+                    // equation, at reductions 8 and 13) is a member that
+                    // adds nothing, and taking it would demote a second
+                    // victim against one row. Refused before the victim is
+                    // chosen, so the next member of the set is tried and
+                    // the second victim stands on that member's row.
+                    if refuses_a_held_row() {
+                        if let Some(at) = held_row(&algebraic_eqs, &derivative) {
+                            if std::env::var_os("OXIDELICA_VICTIM_PROBE").is_some() {
+                                eprintln!(
+                                    "held-row: reduction {reductions} member eq {eq} would add row {at} again"
+                                );
+                            }
+                            only_empty_reach.set(false);
+                            return Ok(false);
+                        }
+                    }
                     if let Some((row, (l, r))) = dependent_row_check(
                         &algebraic_eqs,
                         &derivative,
@@ -3043,6 +3061,47 @@ fn dependent_row_check(
 /// candidate in the tie, as before.
 fn tie_drops_the_undetermined() -> bool {
     std::env::var_os("OXIDELICA_NO_TIE_JOINT").is_none()
+}
+
+/// Whether a member whose differentiated row the system already holds,
+/// to the character, is refused. On by default;
+/// `OXIDELICA_NO_HELD_ROW=1` takes it back (m603).
+fn refuses_a_held_row() -> bool {
+    std::env::var_os("OXIDELICA_NO_HELD_ROW").is_none()
+}
+
+/// Where the system already holds `derivative = 0`, compared after
+/// simplification: the row a member would add a second time.
+fn held_row(algebraic_eqs: &[(Expr, Expr)], derivative: &Expr) -> Option<usize> {
+    let wanted = simplify(derivative);
+    algebraic_eqs
+        .iter()
+        .position(|(l, r)| matches!(r, Expr::Number(z) if *z == 0.0) && simplify(l) == wanted)
+}
+
+#[cfg(test)]
+mod held_row_tests {
+    use super::held_row;
+    use oxidelica_parser::{BinOp, Expr};
+
+    /// The translation's differentiated position row reached by a
+    /// second reduction is found where the first one put it, and a row
+    /// with another right-hand side is not taken for it.
+    #[test]
+    fn a_row_already_held_is_found_and_another_is_not() {
+        let row = Expr::Bin(
+            BinOp::Sub,
+            Box::new(Expr::Ref("m1.v_0[1]".into())),
+            Box::new(Expr::Ref("der(ft.frame_a.r_0[1])".into())),
+        );
+        let eqs = vec![
+            (Expr::Ref("x".into()), Expr::Number(1.0)),
+            (row.clone(), Expr::Number(0.0)),
+        ];
+        assert_eq!(held_row(&eqs, &row), Some(1));
+        let other = vec![(row.clone(), Expr::Number(2.0))];
+        assert_eq!(held_row(&other, &row), None);
+    }
 }
 
 /// Whether a demoted state whose dummy and defining row the system
