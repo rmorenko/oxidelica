@@ -71764,3 +71764,114 @@ tree).
 Also built and parked this shift: `~/oxideflow/park/m598-cli-help.patch`,
 which makes `--help` print the usage. Its test is red without the change
 and green with it.
+
+## m599: the chain over the heavy set, and the orientation that stands still
+
+### The judge of the chain, and its centre
+
+Push run 42310740390 (8a669d9) printed 974 flatten, 837 run and 856 /
+788 runnable, the same as the desk's pair. It refused on one line, the
+centre of `jacobians counted apart`: 143 against the 1974 written there.
+The floors went to 834 and 785 (837 and 788, less the three that swing)
+and the centre to the judge's 143 in 2337396. The band did not move.
+
+### The chain priced on the heavy set, model by model
+
+One binary, `/tmp/m598/ox5`, each model alone under `--only
+--with-heavy`. The off half had `OXIDELICA_NO_ARITHMETIC_CHAIN=1` and
+both halves ran under a 24 GB cap. Files: `/tmp/m599/<model>_off.txt`
+and `_on.txt`. Time is the run half.
+
+| model                             | off (s) | on (s) | change | outcome, both halves             |
+| --------------------------------- | ------- | ------ | ------ | -------------------------------- |
+| `HeatExchangerSimulation`         | 478     | 460    | -18    | start block of 162 unknowns      |
+| `DynamicPipesAndFittings`         | 108     | 101    | -7     | singular Jacobian                |
+| `DynamicPipesWithTraceSubstances` | 197     | 197    | 0      | algebraic loop does not settle   |
+| `BranchingPipes12`                | 195     | 196    | +1     | Newton direction                 |
+| `BranchingPipes18`                | 99      | 97     | -2     | initialization, 50 Newton steps  |
+| `DynamicPipeInitialization`       | 296     | 314    | +18    | algebraic loop does not settle   |
+| `SeriesPipes12`                   | 185     | 184    | -1     | algebraic loop does not settle   |
+| `SeriesPipes13`                   | 217     | 218    | +1     | algebraic loop does not settle   |
+| sum                               | 1775    | 1767   | -8     | every refusal the same, in words |
+
+None of these eight moves in outcome or, beyond a few percent, in price.
+The one dear case is still `DynamicPipeWithNominalLaminarFlow` (m598,
+89 s to more than 23 minutes).
+
+`DynamicPipeEnergyConservationCheck2` is still open. Its first on half
+was stopped by `cap.sh`'s own 45-minute idle limit (the output does not
+grow while a model runs), so the only result is that on takes more than
+about 2700 s. The base was 2674.8 s. Both halves were started again at
+02:03 with `CAP_STALL_MIN=150`, into `/tmp/m599/dpecc2_on2.txt` and
+`dpecc2_off.txt`. They are not orphans: do not kill them before each
+file ends in `cap.sh: кончилось`, which should be by about 04:35.
+
+### `PointGravityWithPointMasses2`: the orientation that stands still
+
+The mechanism reproduces in a small model. `/tmp/m599/small/PG1.mo` is
+a `FreeMotion` to the world, two `FixedTranslation`s and two point
+masses with no gravity field. It refuses with the same singular
+Jacobian (27 unknowns). `PG3.mo` follows the library model, with point
+gravity, four arms and the original `fixed` pattern. It is rank 38 of
+42 (trail `/tmp/m599/pg3_trail.txt`).
+
+- Index reduction keeps the quaternion `freeMotion.Q` as states and puts
+  `der(der(Q))` and `der(R.T[...])` into the start block.
+- At t = 0 the orientation is the identity and nothing turns it. Every
+  first derivative of `R.T` that the block reads therefore has a
+  coefficient of zero. Row 37 of PG3,
+  `m1.v_0[1] = der(ft.frame_a.r_0[1]) + der(ft.frame_a.R.T[1,1])*r[1] + ...`,
+  is identically zero in the unknowns: the one unknown it names,
+  `der(ft.frame_a.R.T[1,1])`, enters only through `R.T[1,1]`'s
+  derivative of a quaternion product that vanishes at the identity.
+- The first left null vector joins `ft.frame_b.r_0[2]` (the `R.T[2,2]`
+  row) with the rows of the masses. `R.T[2,2] = 2(Q2² + Q4²) - 1`, like
+  the unit-norm row, depends at the identity on `Q4` alone. So the block
+  holds two equations for one direction.
+- `useQuaternions = false` on the `FreeMotion` (PG5) clears t = 0 and
+  stops later, at a re-selection of states (129 left). `angles_fixed`
+  and `enforceStates` (PG4, PG6) change nothing. Neither
+  `OXIDELICA_NO_STATE_SELECT`, `NO_READ_STATE_START` nor
+  `NO_STATE_SELECT_ALWAYS` clears it.
+
+The family, by SVD of the converged block (`/tmp/m599/fam_*.txt`):
+
+| model                          | rank           | zero rows | what the zero rows are                                         |
+| ------------------------------ | -------------- | --------- | -------------------------------------------------------------- |
+| `PointGravityWithPointMasses2` | ≥3 short of 68 | 5         | `v_0` / `a_0` through `der(R.T)`, orientation at rest (m598)   |
+| `PrismaticConstraint`          | 35/38          | 3         | `der(body.frame_a.R.T[1,3])` and `z_a` from `der(Q)` of a body |
+| `UniversalConstraint`          | 40/45          | 3         | constraint rows in `der(r_0)` weighted by `R.T` of a frame     |
+
+All three stand on a quaternion or a rotation matrix whose derivative is
+zero at t = 0 and keep that derivative as an unknown of the start block.
+`Engine1a` names `der(bearing.frame_b.R.T[2,2])` too, but refuses
+earlier as structurally singular and is a different wall. Not treated.
+
+### The rest of the seven singular Jacobians
+
+The same instrument on the two members not yet split (`/tmp/m599/p4_rect.txt`,
+`p4_smpm.txt`):
+
+- `Rectifier` (QuasiStatic), 12 unknowns, rank 11. The null vector is
+  `idealDiode1.s`, `idealDiode2.s` and `load2.v` at equal weight, and the
+  left one is a diode's current against the load's. Two ideal diodes in
+  series each choose their own `s`: the ideal mode the model leaves
+  undetermined, the same kind as `LossyGearDemo2`.
+- `SMPM_CurrentSource`, 20 unknowns, rank 18. Rows 3 and 6 are zero. They
+  are the differentiated rotator of `dqToThreePhase`, with every term
+  carrying `smpm.wMechanical` or `der(rotator.angle)`, and both are zero
+  at the start. The null vector is `wMechanical` and `der(rotator.angle)`.
+  This is the electrical version of the orientation at rest: a rotation
+  derivative that is zero at t = 0, kept as an unknown.
+
+So the seven sort into three: an ideal mode left open (`LossyGearDemo2`,
+`Rectifier`), a rotation standing still at the start
+(`PointGravityWithPointMasses2`, `PrismaticConstraint`,
+`UniversalConstraint`, `SMPM_CurrentSource`) and the mixing volume of
+m597 (`TestMixingVolumesPressureStates`). The second is the largest
+group, four models, and the candidate question for the review is whether
+the start block should take the rotation's derivatives from the start
+values rather than as unknowns.
+
+Item 3 of the order (`m598-cli-help`) had already been merged by the
+consultant as 864ab18 and was not applied again.
