@@ -71862,6 +71862,19 @@ Jacobian does not see that unknown in this row, or the row is evaluated
 through another name for it. That is the thread to probe next, with
 `why` on the name and the column the Jacobian builds for it.
 
+A first step down that thread: the other two names in the row,
+`m1.v_0[1]` and `der(ft.frame_a.r_0[1])`, are not unknowns of the
+block, so with a live column for `der(ft.frame_a.R.T[1,1])` the row
+could not be zero. The same name sits in another row of the block,
+`der(ft.frame_a.R.T[1,1]) - der(freeMotion.frame_b.R.T[1,1]) = 0`
+(row 33 of PG8, 35 of PG3), and there it has a live column. So the
+residual of the zero row reads `der(ft.frame_a.R.T[1,1])` from
+somewhere other than the block's slot for it, a value the Newton step
+never moves. `why` cannot answer for it ("declared: nowhere"), because
+the derivative name is minted by index reduction after flattening. The
+next probe is to print, for that row, which slot the compiled residual
+reads the name from.
+
 All three stand on a quaternion or a rotation matrix whose derivative is
 zero at t = 0 and keep that derivative as an unknown of the start block.
 `Engine1a` names `der(bearing.frame_b.R.T[2,2])` too, but refuses
