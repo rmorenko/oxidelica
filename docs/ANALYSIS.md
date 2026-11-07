@@ -72415,3 +72415,43 @@ What it is worth without a model: the system no longer holds a row
 twice where a second reduction reached it, which was the one rank PG8
 lacked, and the walls it uncovers on the library members are the
 rotation at rest of m599, the next question for the review.
+
+## The census's top row, constrains no state, mapped by layer
+
+The top row of the run half's census (/tmp/m602c/census.txt) held 24
+models refused with `equation E constrains no state`. Their names come
+from /tmp/m602c/raw.txt, and each was checked for an `experiment`
+annotation in its source.
+
+Sixteen of the 24 have no experiment and are not closed systems: they
+are components kept under `Examples.Utilities` or `Components`, with
+connectors at the top level that nothing outside drives. The refused
+equation is in every case a flow of such a connector set to zero
+(`p1.i = 0` in `OpAmpCircuits.Buffer`, `x1.i = 0` in `Utilities.Nand`,
+`flange_b.tau = 0` in the rotational `SpringDamperNoRelativeStates`).
+The members: OpAmpCircuits Add, Buffer, Feedback and Gain, Utilities
+Nand and RealSwitch, Polyphase AnalysatorAC and AnalysatorDC, Spice3
+MNmos and MPmos, the four FluxTubes components (both hysteresis
+transformers, PermeanceActuator, SimpleSolenoid) and both
+SpringDamperNoRelativeStates. The smallest reproduction is a resistor
+between two top-level pins (/tmp/m604/Floating.mo), refused with the
+same words on `p.i = 0`. A model like that has a potential no equation
+fixes, so the refusal is correct and is not a defect: these sixteen
+are a property of what the example filter lets in, not of index
+reduction. ActuatorWithNoise is not counted among them: the scan
+found no experiment in it either, but its row is a sum over a
+polyphase plug inside a closed drive and wants a probe of its own.
+
+The remaining eight, seven with an experiment and ActuatorWithNoise,
+are a different matter:
+the two tanks already mapped (BatchPlant_StandardWater,
+TanksWithOverflow, item 100 of the queue), IMC_DOL_CommonLeakage,
+ActuatorWithNoise, and four MultiBody models whose rows are mechanical
+(SphericalConstraint, Engine1a on `der(bearing.frame_b.R.T[2,2])`,
+FullRobot, OneAxis). These were not probed this shift and remain
+the real work in the row: six models at most, not twenty-four.
+
+So the row is two families by provenance before any layer is named:
+sixteen honest refusals of open components and eight closed models.
+Read as the top of the work queue it overstates the work threefold.
+No change was built.
