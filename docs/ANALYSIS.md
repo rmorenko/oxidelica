@@ -71987,6 +71987,17 @@ refusal from `singular Jacobian` to `the equations of algebraic loop
 [...]` and still does not run (`--only`, same binary). So the duplicate
 is one wall of several, and the identity orientation stands behind it.
 
+The same push print on the library members (`/tmp/m599/push_*.txt`,
+binary `/tmp/m599/oxp3`): `PointGravityWithPointMasses2` pushes 83
+differentiated constraints and one twice, the same
+`pointMass1.v_0[1] - (der(fixedTranslation.frame_a.r_0[1]) + ...)` as
+PG8. `PrismaticConstraint` (39) and `SMPM_CurrentSource` (16) push none
+twice, so their zero rows have another cause. `UniversalConstraint`
+shows 27 repeats in 73, but its walk has one retreat, which restarts
+the reduction and prints every push again, so those repeats are not
+evidence. The duplicate is a fault of `PointGravityWithPointMasses2`
+alone among the four.
+
 All three stand on a quaternion or a rotation matrix whose derivative is
 zero at t = 0 and keep that derivative as an unknown of the start block.
 `Engine1a` names `der(bearing.frame_b.R.T[2,2])` too, but refuses
