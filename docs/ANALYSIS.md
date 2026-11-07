@@ -72534,3 +72534,13 @@ that the wording grep caught only because it names `R.T`. So the
 orientation family by probe is SphericalConstraint, Engine1a and
 PrismaticConstraint (empty reach), with UniversalConstraint and PG2
 beside them as the singular-Jacobian form.
+
+A small form of the RobotR3 gear family was attempted and not
+reached. A gear between two inertias (/tmp/m605/small/G1.mo) reduces
+five times and runs. Adding the axis's `InitializeFlange` with its
+three constant inputs (G2.mo, and G3.mo without `stateSelect`)
+refuses earlier and differently: "initialization is not square: 5
+initial equations and 0 fixed starts for 4 unknowns". That is an
+overdetermined start, the same shape as PG8, not the spring row of
+FullRobot. So the gear family has no small reproduction yet; the
+next step is shrinking AxisType1 itself rather than growing G1.
