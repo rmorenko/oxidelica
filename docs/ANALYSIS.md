@@ -72561,3 +72561,12 @@ gear's speed row is left with nothing. A2 is the small reproduction
 for the OneAxis and FullRobot family, and the question it puts is
 why a reference that is a function of time and states of its own is
 treated as a constraint on the axis.
+
+Read after the probe, not before it: `KinematicPTP2` writes no
+`der()` at all. Its `s`, `sd` and `sdd` are algebraic functions of
+`time` under `if` branches, yet A2's walk takes `pathPlanning.path.s`
+and `pathPlanning.path.sd` as reductions 9 and 13 and spends a
+victim on each. A3, without the planner, takes eleven reductions and
+runs. The two extra reductions on a time-only signal are where the
+next probe should start: a reduction on a row with no state in reach
+of the axis should not have been taken.
