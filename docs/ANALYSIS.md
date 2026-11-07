@@ -71879,6 +71879,33 @@ through the point mass and once through the translation. The next
 probe is to ask index reduction which constraint it differentiated to
 get row 35 and which to get the inner assignment for `m1.v_0[1]`.
 
+That probe was made (`/tmp/m599/pg8q.txt`, the block's inner
+assignments printed, again not kept). The chain behind row 35 is:
+
+```text
+inner m1.v_0[1]              := der(ft.frame_b.r_0[1])
+inner der(ft.frame_b.r_0[1]) := freeMotion.frame_a.R.T[1,1] * freeMotion.v_rel_a[1]
+                                + der(ft.frame_a.R.T[i,1]) * ft.r[i]
+inner der(ft.frame_a.r_0[1]) := m1.v_0[1] - der(ft.frame_a.R.T[i,1]) * ft.r[i]
+inner der(freeMotion.frame_b.r_0[1]) := der(ft.frame_a.r_0[1])
+row 35:  m1.v_0[1] - (der(ft.frame_a.r_0[1]) + der(ft.frame_a.R.T[i,1]) * ft.r[i]) = 0
+```
+
+Row 35 is the very equation that the third inner assignment was solved
+from. Put that assignment into the row and the row reads `0 = 0`. The
+block uses one equation twice, once as the definition of
+`der(ft.frame_a.r_0[1])` and once as a residual, and is short of the
+equation it should have had in that place. In this tree that is
+whichever equation gives `der(freeMotion.frame_b.r_0[1])` from the
+joint's own motion. Here it is assigned backwards, from
+`der(ft.frame_a.r_0[1])`. Whether two flat equations of identical form
+reach the block (the translation's differentiated position equation
+written once through each end of the connection), or one equation is
+matched twice, the probe does not tell. Either is a fault of index
+reduction or of the matching, not of the start point. The identity
+orientation then adds three more lost ranks on top. Not treated. This
+is the item to hand to the next shift with PG8 as the reproduction.
+
 All three stand on a quaternion or a rotation matrix whose derivative is
 zero at t = 0 and keep that derivative as an unknown of the start block.
 `Engine1a` names `der(bearing.frame_b.R.T[2,2])` too, but refuses
