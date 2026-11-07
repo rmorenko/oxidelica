@@ -71940,13 +71940,14 @@ position equation `ft.frame_b.r_0[1] = ft.frame_a.r_0[1] + R.T * r` is
 the equation of two reductions, 8 (victim `m4.r_0[1]`, member 23 of 32
 of the singular set) and 13 (victim `m1.r_0[1]`, member 21 of 32). Its
 differentiated form, `m1.v_0[1] - (der(ft.frame_a.r_0[1]) + ...) = 0`,
-is again the equation of two, 17 (victim `m1.v_0[1]`) and 22 (no victim,
-`m1.v_0[1]` already spent). So one flat equation is differentiated
-twice and its derivative enters the system twice. That is row 35 and
-the inner assignment it duplicates. Reduction 22, which found no victim
-and still kept the equation, is the cheapest place to look first: an
-equation with no victim was already accounted for. Grep
-`/tmp/m599/pg8v.txt` for `reduction 22 on`.
+is taken at reduction 17 (victim `m1.v_0[1]`). It appears at 22 too,
+but there with `victim: <none>`. In the code (compile.rs, after the
+print) that is a member tried and handed back for the caller to try
+another, so 22 is not evidence of a second use. What stands is that the
+position equation is the chosen equation of two reductions, 8 and 13,
+each taking a different victim. Whether that is the duplicate behind
+row 35 is the next probe: print the equations each reduction adds to
+the system, not only the member it tried.
 
 All three stand on a quaternion or a rotation matrix whose derivative is
 zero at t = 0 and keep that derivative as an unknown of the start block.
