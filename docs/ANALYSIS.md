@@ -72762,3 +72762,11 @@ world frame stands in their place. So the alias fold reaches the
 orientation half of the frame and not the position half, and a frame
 that is constant in both halves needs both read as constant before
 the walk.
+
+On the four corpus models of the family, the same switch
+(`OXIDELICA_GRAPH_FOLD_ANY_RECORD=1`, `--only` from `.msl`,
+/tmp/m605/g_{sph,pri,uni,eng}.txt) runs none of them. Each still
+refuses as structurally singular, and the rows the census prints now
+start on `der(constraint.fr...`, `bodyOfConstraint.`,
+`der(constrain...` and `der(mid.`. That is a family moved one storey
+up, consistent with S1, and no model won. The switch stays a probe.
