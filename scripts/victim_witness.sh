@@ -94,8 +94,12 @@ model="tests/small/a_delta_secondary_does_not_spend_its_angles_twice.mo"
 nofold=(OXIDELICA_NO_GRAPH_ALIAS_FOLD=1)
 check "implied row refused" 8 "transformer.r2.resistor[2].pin_p.reference.gamma" \
   "$(victim_at 8 "${nofold[@]}")"
+# The refusal of a held row (ccfe9be) reads the implied row's repeat
+# as a row the system already holds and refuses it on its own, so with
+# the implied row and the ledger both taken back reduction 8 still
+# demotes another resistor angle. The old victim needs it off too.
 check "implied row taken" 8 "transformer.l2sigma.inductor[2].pin_p.reference.gamma" \
-  "$(victim_at 8 "${nofold[@]}" OXIDELICA_IMPLIED_ROW=0 OXIDELICA_SUPPLY_ONCE=0)"
+  "$(victim_at 8 "${nofold[@]}" OXIDELICA_IMPLIED_ROW=0 OXIDELICA_SUPPLY_ONCE=0 OXIDELICA_NO_HELD_ROW=1)"
 # With the chain on (the default since m410) the same member is refused
 # a second time over: the dependence check of `=4`, not the ledger,
 # reads its row as one the system already holds, which is the implied
