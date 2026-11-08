@@ -73525,3 +73525,49 @@ series can measure. The five numbers called a band of defaults earlier
 are one default and four keyed runs: they are a band of
 repeatability, not of defaults, and the small real saving once read
 into `NO_FLAT_IF` is withdrawn.
+
+### Builds name 0bf0ac5 as FOURBIT's carrier
+
+With no switch giving the price back, the interval was split by
+builds of the whole tree, each in a worktree, each binary in a new
+name, each probe a script that writes the binary's commit and md5
+into a witness file beside the output, under `cap.sh` 24/160/160 with
+no switch set. Run half, refusal and names:
+
+| build | commit    | md5      | run half | refusal           | names    |
+| ----- | --------- | -------- | -------- | ----------------- | -------- |
+| oxD   | `8784fce` | 5c5075a9 | 1549.5 s | `X2.X1.X1.Q3.B.v` | 14337840 |
+| oxA   | `acdb28d` | 304d9abb | 1549.0 s | `X2.X1.X1.Q3.B.v` | 14337840 |
+| oxB   | `b73fd9b` | fd0ad7d3 | 1540.6 s | `X2.X1.X1.Q3.B.v` | 14337840 |
+| oxC   | `19f2c55` | 3619b1c5 | 1542.4 s | `X2.X1.X1.Q3.B.v` | 14337840 |
+
+Files `/tmp/m616/fourbit_ox{D,A,B,C}.txt`, each with its `.env`
+witness, every tail a full measurement. Against HEAD's 2848.9 s and
+the new refusal on `X2.X2.X7.p1.v`, all four are the old tree. The
+only change to Rust between `19f2c55` and `0bf0ac5` is `0bf0ac5`
+itself (the rest of the diff is `scripts/library_floor.sh` and
+prose), so `0bf0ac5`, "Judge a quotient's denominator by the whole
+walk of zeros", carries both the growth and the moved refusal.
+
+How the halves read, without the profile's narrowing: after oxD
+the surviving half `(8784fce, 0bf0ac5]` held 48 commits, ten of them
+touching Rust; only two of those touched `compile.rs`, and that
+narrowing was an assumption of the profile, not a conclusion. The
+builds did not inherit it, which is what they are for.
+
+The names are not the cause of the price. oxD already has the new
+count, 14337840, while its price and its refusal are still October's,
+so the names turned between `65f3a80` and `8784fce` and the price
+between `8784fce` and `0bf0ac5`: the reading "more names, a longer
+linear scan" is closed by measurement. It also follows that the three
+TWOBIT switches probed for the names (`SIBLING_ARRAY_BINDING`,
+`OWN_SUBTREE_SEAM`, `ALGORITHM_ARRAY_START`) could not have answered,
+since their commits lie in the half where the names are already new.
+`OXIDELICA_NO_BOUND_MODIFIER`, whose commit `baab304` does lie in the
+older half, was measured this time: TWOBIT keeps 7064262 names (run
+390.3 s, `/tmp/m616/twobit_NO_BOUND_MODIFIER.txt` with its `.env`),
+so it is not the names' carrier either in its present form.
+
+What to do with `0bf0ac5` is for the review. It fixed a silent wrong
+answer, a quotient called zero over a zero denominator, so the price
+is paid for correctness and is not to be taken back by reverting it.
