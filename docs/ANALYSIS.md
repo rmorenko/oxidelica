@@ -73135,3 +73135,10 @@ win itself, BranchingPipes3 running for six minutes, and no fallback
 shape touches that. Neither form is merged. The patch with both keys
 is parked as ~/oxideflow/park/m607-lm-fallback.diff, and the heavy
 basket was not measured under it.
+
+The base of ox2 followed the once half (/tmp/m607/c_off2.txt). Its
+work matches the off half of ox1 to the digit in both phases and its
+ran list is identical, so the two binaries agree when the keys are
+off. Its running half took 4656 s against ox1's 4524 s, which is the
+desk drifting by 132 s with no work behind it. Against its own binary
+the once form costs +688 s (+14.8%), still well over 6%.
