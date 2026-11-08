@@ -73486,3 +73486,12 @@ together, was not probed: the three probes took the shift's long
 window. It is the next probe, and if it too leaves the price standing
 the carrier is not switched off by any switch on HEAD, and two builds
 settle it (8784fce first, as the middle of four).
+
+TWOBIT, judged by work rather than time (target 7054992 names, HEAD
+7064262), one `--only` each with `/tmp/m610/oxci2` under `cap.sh`
+24/30/30: `OXIDELICA_NO_SIBLING_ARRAY_BINDING`,
+`OXIDELICA_NO_OWN_SUBTREE_SEAM` and `OXIDELICA_NO_ALGORITHM_ARRAY_START`
+each leave 7064262 names (run 392, 390, 390 s), so none of the three
+accounts for the names gap on TWOBIT. Files
+`/tmp/m615/twobit_NO_*.txt`. `OXIDELICA_NO_BOUND_MODIFIER` was stopped
+unfinished at the end of the shift and is not measured.
