@@ -73660,3 +73660,13 @@ measured. The probe that would price the folding on its own,
 `OXIDELICA_NO_FOLD_GUARD_WHOLE=1` without `NO_ZERO_IF`, was not run:
 the profile of the old build holds the table until after the shift's
 ceiling.
+
+The old build answers (c) at minutes 5 and 15
+(`/tmp/m617/sample_old_{5,15}.txt`, md5 3619b1c5 in the witness): the
+same nested closure tops its stacks, numbered one lower
+(`reduce_index_once::{closure#5}` and its `{closure#10}`, 4112 and
+4145 samples) with `memcmp` beside it in the same share. Nothing at
+the top of HEAD's stacks is absent from the old ones. So `0bf0ac5`
+did not buy a new loop; it bought more turns of the loop that was
+already there, which is what the guess about fewer degenerate
+equations predicts and does not yet prove.
