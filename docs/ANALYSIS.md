@@ -73633,3 +73633,30 @@ What touched the hot path after the carrier, by `git log -S` over
 `quench_zero_if` none, `zero_throughout` one, `c0a559b` (folding a
 guard over parameters, 5 November). `compile.rs` was touched 23 times
 in that range. This is reading, not a verdict.
+
+### Why the switch makes FOURBIT dearer: guard folding lives inside it
+
+Reading the present code (checked line by line, `compile.rs`) explains
+the oddity left standing above. The switch `OXIDELICA_NO_ZERO_IF`
+gates two things, not one. At line 3989 it chooses how a quotient's
+denominator is judged: by the whole walk (`!z(b)`, the rule of
+`0bf0ac5`) or by the old test. At lines 4004 and 4021 it is also the
+guard of both `Expr::If` arms that fold a guard over parameters:
+`fold_guard_on()` and `fold_guard_on() && fold_guard_whole_on()`
+(`guard_of_parameters`, from `c0a559b`) are reached only `if
+zero_if`. So switching it off takes away the strict judgement and the
+later saving of guard folding together, and it is plausible that the
+saving outweighs, by the 97 s measured, the price of the judgement.
+
+It follows that "old judgement of the denominator plus guard folding"
+is not expressible by any switch, since the folding is reachable only
+inside `zero_if`. That is why none of the four switches gave back
+October's price and why only a build could name the carrier.
+
+That the strict judgement costs by letting fewer equations fall out as
+degenerate, and so feeding more candidates into the string comparisons
+the profile shows, is a guess that fits the profile and is not
+measured. The probe that would price the folding on its own,
+`OXIDELICA_NO_FOLD_GUARD_WHOLE=1` without `NO_ZERO_IF`, was not run:
+the profile of the old build holds the table until after the shift's
+ceiling.
