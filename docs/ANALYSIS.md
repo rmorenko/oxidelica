@@ -73407,3 +73407,15 @@ if merge") down to `f5ea6fb` (line 31), oldest last. The refusal moves
 with the price, which says the carrier changed which equation the
 singularity search stops at rather than how fast it reaches the same
 one.
+
+A third step, `/tmp/m614/oxC` at 65f3a80 (line 28,
+`/tmp/m614/fourbit_midC.txt`), runs in 1544.8 s and refuses at
+`X2.X1.X1.Q3.B.v`, which is the old tree's price and the old tree's
+equation to the tenth of a percent. The carrier is therefore one of
+three commits, newest first: `acdb28d` (spell an array once at an if
+merge, count a whole shift of an event clock), `8784fce` (a start
+taken from a type waits for its own equation) and `ca36cca` (leave a
+derivative unsolved where its coefficient is zero on every branch).
+Two more builds settle it; the shift ran out before them. The jump is
+a single step of about 1270 s with the refusal moving alongside, so it
+is one carrier and not several.
