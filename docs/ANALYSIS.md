@@ -73684,3 +73684,25 @@ switch is the bare-parameter arm (`fold_guard_on` alone, switch
 `OXIDELICA_NO_FOLD_GUARD`) and the old denominator test itself; which
 of them makes the 97 s is not measured. The old build's full run, for
 the record, was 1550 s under sampling (`/tmp/m617/fourbit_prof_old.txt`).
+
+What the profile closed and what it cannot. Nine slices put one phase
+under every run, the top taking almost all working samples in each.
+The share of the nested closure against the outer one moved under the
+switch early in the run (0.61 and 0.70 at minutes 5 and 20, against
+0.82 for the default) and not late (0.82 and 0.85 at minute 40):
+three points with no repeat, an observation and not a conclusion.
+`sample` counts frames, not turns of a loop, so it cannot divide the
+price of the strict judgement from the saving of folding when both
+live under one frame. The remaining judge is a counter of candidates
+per pass of `reduce_index_once` (around `compile.rs` lines 2117 to
+2152), which this shift did not build, since the brief allowed no code.
+
+A prediction for the folding probe was written before its number and
+read only after the number was in. It said the run half would come
+out dearer than the default by more than the band, if switching the
+switch off cost FOURBIT by taking the folding away. It came out at
+2840 s against 2856 s, so the prediction failed, and the 87 to 97 s by
+which the switched-off run is dearer comes from somewhere else, still
+to be found. The cheap end has a band too: `oxC` measured twice with
+one binary gave 1542.4 s and 1550.2 s, 7.8 s or 0.5%, so the band of
+repeatability is better carried as a share than as seconds.
