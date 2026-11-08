@@ -73595,3 +73595,41 @@ October's refusal on `X2.X1.X1.Q3.B.v`. A fact from reading:
 undoes the function completely. That the third path lives in an
 interaction with commits after `0bf0ac5` is a guess, marked as one,
 and a profile of the run half is what is to judge it.
+
+### Where FOURBIT's run half burns, by sample
+
+The run half's counters are zeros, so the operating system's `sample`
+was used instead: ten seconds of stacks from the process at set
+minutes, with `/tmp/m610/oxci2` (md5 d7978c3c) under `cap.sh`
+24/160/160, script `/tmp/m617/prof.sh`, witnesses in
+`/tmp/m617/fourbit_prof_*.txt.env`. The run times under sampling are
+not a measurement (head 2856 s) and are not compared with 2848.9 s.
+
+The default (`sample_head_{5,20,40}.txt`): every working stack goes
+`compile_at`, `reduce_index`, `reduce_index_once`, and inside it one
+closure and a closure nested in it (`reduce_index_once::{closure#6}`
+and its `{closure#10}` in the mangled names `s6_0` and `s6_0sa_0`).
+Top of stack, of about 7700 to 8500 working samples: the nested
+closure 5585, 5094 and 5333 at minutes 5, 20 and 40, with `memcmp`
+and its stub another 1350 to 1530 and the outer closure 360 to 600.
+The top does not move from minute 5 to minute 40: one loop of string
+comparisons inside index reduction holds the whole run half.
+
+Under `OXIDELICA_NO_ZERO_IF=1` (`sample_nozif_{5,20,40}.txt`) the top
+is the same function and the same closures: 3884, 4296 and 5192 in
+the nested closure, with `memcmp` beside it. So the "third path" is
+not a different phase. Whatever the switch changes, it changes how
+many times this loop runs, not which loop runs. The guess about an
+interaction with later commits is not refuted by this, but its place
+is narrowed to the work fed into this one closure.
+
+The old build `/tmp/m616/oxC` (`19f2c55`) was started last and its
+slices (`sample_old_{5,15,22}.txt`) fall at the end of the shift. They
+are left for the review to read beside these two; whether the same
+closure tops the old stacks at a smaller share is the question (c).
+
+What touched the hot path after the carrier, by `git log -S` over
+`0bf0ac5..origin/main` on Rust: `reduce_index_once` none,
+`quench_zero_if` none, `zero_throughout` one, `c0a559b` (folding a
+guard over parameters, 5 November). `compile.rs` was touched 23 times
+in that range. This is reading, not a verdict.
