@@ -73419,3 +73419,33 @@ derivative unsolved where its coefficient is zero on every branch).
 Two more builds settle it; the shift ran out before them. The jump is
 a single step of about 1270 s with the refusal moving alongside, so it
 is one carrier and not several.
+
+Two of the paragraphs above are wrong, and the correction is kept
+here rather than written over them. `oxB` was built _at_ 0bf0ac5, so a
+dear `oxB` includes 0bf0ac5 itself: the carrier is 0bf0ac5 _or older_,
+eight commits and not seven. After `oxC` the candidates are therefore
+four, newest first: `0bf0ac5` (judge a quotient's denominator by the
+whole walk of zeros), `acdb28d`, `8784fce` and `ca36cca`, the range
+being `git log 65f3a80..0bf0ac5 -- crates/oxidelica-sim/src/compile.rs`.
+In a bisection by builds the dear end belongs to the suspects. The
+"one carrier" above is also stronger than the measure: the jump lies in
+one interval, not provably on one commit. And strictly the carrier lies
+in (65f3a80, 0bf0ac5] of the whole history; narrowing it to the
+commits that touch `compile.rs` is an assumption taken from the
+profile (`reduce_index_once` at the top of the stack), not a
+measurement. All four candidates still have a switch on HEAD, so the
+next step is probes of those switches on the one binary, not builds.
+
+The heavy cron of 8 November (run 42474026140, head f054d53) gave the
+bench its first verdict: pass a 151.1 min, pass b 97.8 min, and the
+judge `the heavy models still read` green in 0.8 min, where the day
+before (run 42365794628) pass b was cancelled at 240.2 min and the
+judge skipped. The forecast for pass b had been 197.5 min. The formula
+was right and one input was not: the ratio of runner to desk taken as
+3.29 had been measured with the single-threaded pipe the bench removed
+still in the set. From the pass's own log, 935 s flatten plus 11413 s
+run make 12348 s of CPU over a wall of 5868 s, so parallelism 2.10 and
+ratio 12348 / 7744 = 1.59, and 7744 x 1.59 / 2.10 = 5863 s, 97.7 min.
+Pass a is now the narrow place, with 88.9 min (37%) left under its
+ceiling against 142 min (59%) for pass b. Pass b's own progress lines
+put 3127 s of its 97.8 minutes (58%) on the pair read fifth and sixth.
