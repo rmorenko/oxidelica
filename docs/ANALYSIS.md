@@ -73290,3 +73290,84 @@ FOURBIT's size that is passes times candidates times names times
 unknowns, which fits a profile that is all `memcmp`. A probe naming
 the closure's line, and then a hash set in place of the scan, is the
 next step; no Rust was touched in this shift.
+
+## TWOBIT as a cheap conductor for the FOURBIT growth (8 November)
+
+`Spice3BenchmarkFourBitBinaryAdder.TWOBIT` burns its time in the same
+stack as `FOURBIT` (`compile::reduce_index_once`, two samples of the
+consultant in `/tmp/m613/tb_sample{1,2}.txt`), but leaves by a different
+door: `underdetermined algebraic loop ["der(X2.X9.Q4.vbe)"]` with one
+Newton step, where `FOURBIT` is `structurally singular`. Every number
+below is one model under `--only`, binary `/tmp/m610/oxci2` (md5
+d7978c3c), ceiling 24 GB / 40 min, the desk empty between runs, all
+runs ending `exited with code 0`, flattening work equal to the digit in
+all of them (3984 classes, 989847 expansions, 13557 bodies, 7064262
+names). The run half's counters are all but empty (0 points, 1 newton),
+so they cannot judge a key here: time is the judge.
+
+### Band of the model, and six keys of the reduction layer
+
+Defaults, in their own row:
+
+| file                     | run     |
+| ------------------------ | ------- |
+| `twobit_head.txt` 09:59  | 400.4 s |
+| `twobit_base2.txt` 10:08 | 391.7 s |
+
+The band of TWOBIT is therefore 8.7 s (2.2%), the first default
+carrying a known bit of dirt on the desk. This is the band of this
+model, not FOURBIT's 0.31%.
+
+Keys, in launch order:
+
+| key                                | file               | run     |
+| ---------------------------------- | ------------------ | ------- |
+| `OXIDELICA_NO_ALTERNATING_PATH`    | `twobit_noap.txt`  | 392.2 s |
+| `OXIDELICA_NO_FOLD_KEEPS_UNKNOWNS` | `twobit_nofku.txt` | 391.3 s |
+| `OXIDELICA_NO_ZERO_IF`             | `twobit_nozif.txt` | 874.2 s |
+| `OXIDELICA_NO_TIE_BORDERED`        | `twobit_notb.txt`  | 390.8 s |
+| `OXIDELICA_NO_TIE_FRESH`           | `twobit_notf.txt`  | 390.9 s |
+| `OXIDELICA_NO_THROUGH_RELATIVE`    | `twobit_notr.txt`  | 391.6 s |
+
+Five keys sit inside 390.8 to 392.2 s, within 1.4 s of the second
+default: none of them leaves the band, so none of them carries the
+growth on this model. `NO_ZERO_IF` leaves it the wrong way, more than
+twice as dear, and the refusal changes to a loop naming
+`der(X1.X1.Q1.vbe)` first: the key is the cheaper path here, not the
+carrier. No key went on to FOURBIT, because none earned the trip.
+
+### TWOBIT at the fork point
+
+The tree at 36e3dd1 (19 October) built into `/tmp/m613/ox36` (md5
+958953b3, a pair of two binaries, legitimate for the question whether
+the model carries the growth at all): run 433.8 s
+(`twobit_ox36.txt`), its refusal the same `der(X1.X1.Q1.vbe)` loop
+that `NO_ZERO_IF` gives today, and 7054992 names against 7064262. Older
+TWOBIT is dearer than present TWOBIT, so TWOBIT does not carry the
+FOURBIT growth of x1.58 and cannot serve as the bisection conductor.
+The conductor holds on the stack and not on the cost.
+
+### Where the hot closure sits
+
+A release build of HEAD with debug info (`/tmp/m613/oxdbg`, sample
+`/tmp/m613/dbg_sample1.txt`, symbolised through `dsymutil` and
+`atos -i`) names the lines:
+
+- `compile.rs:2384-2386`, the fixpoint `settle`: for every candidate
+  and every name it refers to, `unknowns.iter().any(|u| u == *r)` is a
+  linear scan of the unknowns, and the loop repeats until no progress.
+  This is where the `memcmp` leaves come from.
+- `compile.rs:2443-2451`, the implicit-definition walk: a fresh
+  `Vec<&str>` of unsettled names collected per equation, with the same
+  linear `unknowns.iter().any` in the filter. This is the
+  `spec_from_iter_nested` over `Filter<Copied<..>>` (1585 samples).
+- `compile.rs:2132`, the candidate loop, with the same scan.
+
+Map of the repair, not built (the order of the day forbids it): a
+`HashSet<&str>` of the unknowns built once per reduction beside
+`var_index` (`compile.rs:1927`) and read at 2132, 2386, 2447 and the
+other `unknowns.iter().any` sites (2630, 2680, 2761, 2911); at 2443
+the `Vec` can become a count plus the single name, since only
+`[only]` is read. The repair touches index reduction, so it is judged
+by the victim lists and by `scripts/victim_witness.sh` as well as by
+time.
