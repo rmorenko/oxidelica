@@ -73670,3 +73670,17 @@ the top of HEAD's stacks is absent from the old ones. So `0bf0ac5`
 did not buy a new loop; it bought more turns of the loop that was
 already there, which is what the guess about fewer degenerate
 equations predicts and does not yet prove.
+
+The probe of guard folding on its own was run after all, the shift's
+ceiling having been miscounted by an hour: `OXIDELICA_NO_FOLD_GUARD_WHOLE=1`
+without `NO_ZERO_IF`, `/tmp/m610/oxci2`, witness
+`/tmp/m617/fourbit_prof_nofgw.txt.env`, one sample at minute 20. Run
+half 2840 s against the default's 2856 s in the same series (both
+under sampling), refusal on `X2.X2.X7.p1.v`. Folding a guard written
+over parameters therefore saves FOURBIT nothing measurable, and the
+reading above, that this saving is what outweighs the price when the
+switch is off, is not borne out for that arm. What remains under the
+switch is the bare-parameter arm (`fold_guard_on` alone, switch
+`OXIDELICA_NO_FOLD_GUARD`) and the old denominator test itself; which
+of them makes the 97 s is not measured. The old build's full run, for
+the record, was 1550 s under sampling (`/tmp/m617/fourbit_prof_old.txt`).
