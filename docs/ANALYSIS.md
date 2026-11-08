@@ -73571,3 +73571,27 @@ so it is not the names' carrier either in its present form.
 What to do with `0bf0ac5` is for the review. It fixed a silent wrong
 answer, a quotient called zero over a zero denominator, so the price
 is paid for correctness and is not to be taken back by reverting it.
+
+### Three signs, two events
+
+The builds give back to the earlier reading part of the strength the
+line above took from it. The claim that the refusal moving with the
+price shows one event was called weaker than it read; for the price
+and the refusal the builds have now shown it: both turn at `0bf0ac5`
+and nowhere else. The names are a different event, in the older half
+`(65f3a80, 8784fce]`, and their carrier is not found. So FOURBIT shows
+three signs and two events, not three. The reading that the price
+belonged to a third commit is withdrawn: it was drawn from the switch
+`OXIDELICA_NO_ZERO_IF` giving the old refusal back while not giving
+the price back, and a switch is not bound to undo all of its commit.
+
+The oddity is left standing rather than smoothed over. The carrier
+`0bf0ac5` is named by a bisection of builds; its mechanism is not
+explained; and its switch behaves opposite to expectation.
+`OXIDELICA_NO_ZERO_IF` does not take back the growth of about 1300 s
+but adds to it, 2945.9 s against HEAD's 2848.9 s, while returning
+October's refusal on `X2.X1.X1.Q3.B.v`. A fact from reading:
+`quench_zero_if` has one consumer, `zero_throughout`, and the switch
+undoes the function completely. That the third path lives in an
+interaction with commits after `0bf0ac5` is a guess, marked as one,
+and a profile of the run half is what is to judge it.
