@@ -73150,7 +73150,7 @@ ceiling, which left the basket without a verdict. Its own progress
 line names the owner: read 10 of 12 at 7840 s and cut at 14400 s, so
 each of the two unread models ran at least 6560 s, and one of them is
 DynamicPipeWithNominalLaminarFlow, which the dimension chain of
-8a669d9 took from 147 s to at least 87 minutes on the desk
+8a669d9 took from 147 s to at least 160 minutes on the desk
 (/tmp/m609/dyn.txt). It is now benched: `scripts/heavy_benched.txt`
 names models the heavy list carries and no pass reads. It stays on the
 heavy list, because the main check passes that list to `--without`,
@@ -73186,3 +73186,17 @@ priced by a list of victims and not by a count. No corpus pair was
 taken, the heavy basket was not measured under it, and neither were
 the witnesses. It is parked with a test that fails without the key as
 ~/oxideflow/park/m608-start-pre.diff.
+
+The benched pipe's desk price closed as an inequality: the night's
+run under raised ceilings was cut at 160 minutes (/tmp/m609/dyn.txt),
+so it costs at least that against 106.5 s on 19 October. FOURBIT was
+then priced alone on a quiet desk, one binary built as CI builds it
+from 82ab9be (/tmp/m610/oxci2, /tmp/m610/fourbit.txt): 57 s to
+flatten and 2858 s to run, 2915 s in all, refused as structurally
+singular. Against 1845.5 s on 19 October that is 1.58 times, so the
+growth is real and not an artefact of the parallel night, which read
+3378 s and so ran about 16% high. And the refusal is confirmed on a
+quiet desk: forty-eight minutes of work to say no, which makes it a
+candidate for a cheap refusal rather than a benchmark. The Adder was
+not priced, because a second run of the same size would have ended
+after the shift.
