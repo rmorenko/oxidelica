@@ -83,6 +83,12 @@ Modelica.Mechanics.MultiBody.Examples.Loops.EngineV6
 # 293s to run, 2026-09-22
 # 66.1s / 57.2s, 2026-10-12, run / flatten, both halves
 # 106.5s / 46.4s, 2026-10-19, run / flatten, 36e3dd1, pass b
+# Benched 2026-11-08 (scripts/heavy_benched.txt), read by no pass:
+# 147s before the dimension chain of 8a669d9, at least 87 minutes on
+# the desk under it (/tmp/m609/dyn.txt, still running) and at least
+# 109 minutes of wall on the runner. Returns when the chain grows
+# cheaper here or an addressed guard takes its cost; until then it is
+# measured by hand through the heavy job's `inputs.model`.
 ModelicaTest.Fluid.TestComponents.Pipes.DynamicPipeWithNominalLaminarFlow
 # 67s to flatten, 2026-09-22
 # 0.6s / 136.5s, 2026-10-12, run / flatten, both halves

@@ -20,7 +20,6 @@ ModelicaTest.Fluid.TestComponents.Pipes.DynamicPipesWithTraceSubstances
 ModelicaTest.Fluid.TestPipesAndValves.BranchingPipes12
 ModelicaTest.Fluid.TestPipesAndValves.SeriesPipes12
 ModelicaTest.Fluid.TestPipesAndValves.BranchingPipes18
-ModelicaTest.Fluid.TestComponents.Pipes.DynamicPipeWithNominalLaminarFlow
 Modelica.Media.Examples.R134a.R134a2
 Modelica.Media.Examples.R134a.R134a1
 Modelica.Media.Examples.ReferenceAir.MoistAir1

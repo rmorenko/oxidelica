@@ -112,9 +112,27 @@ set -euo pipefail
 #   run               2 =  2 + 0
 #   runnable flatten 22 = 21 + 1
 #   runnable run      2 =  2 + 0
-FLATTEN_FLOOR=24
+#
+# On 2026-11-08 DynamicPipeWithNominalLaminarFlow went to the bench,
+# `scripts/heavy_benched.txt`, which no pass reads: under the
+# dimension chain of 8a669d9 it went from 147s to at least 109 minutes
+# of wall on the runner, and the scheduled run of 2026-11-07 cut pass b
+# at its 240 minute ceiling with it unread, so the basket had no
+# verdict at all. It flattens and does not run, and it is a runnable
+# example, so it leaves the two flatten floors and neither run floor.
+# The judge of 42022420115 printed 23 / 3 and runnable 21 / 3; the
+# exchanger added 1 / 0 and runnable 1 / 0 above; the pipe takes 1 / 0
+# and runnable 1 / 0 away:
+#
+#   flatten          23 = 24 - 1
+#   run               2 =  2 - 0
+#   runnable flatten 21 = 22 - 1
+#   runnable run      2 =  2 - 0
+#
+# The count of names is now held over the list less the bench.
+FLATTEN_FLOOR=23
 RUN_FLOOR=2
-RUNNABLE_FLATTEN_FLOOR=22
+RUNNABLE_FLATTEN_FLOOR=21
 RUNNABLE_RUN_FLOOR=2
 
 # A path given before the `cd` below, made absolute so it still names
@@ -142,12 +160,18 @@ heavy="scripts/heavy_models.txt"
 # The second basket. Overridable only so the judge can be seen red and
 # green on a stand; CI names no other file.
 second="${HEAVY_SECOND:-scripts/heavy_second.txt}"
+# The bench: names on the heavy list that no pass reads. Overridable
+# for the same reason as the second basket.
+benched="${HEAVY_BENCHED:-scripts/heavy_benched.txt}"
+
+# The names of a list file, one to a line, comments and blanks dropped.
+names_in() { grep -v '^\s*#' "$1" | sed '/^[[:space:]]*$/d' | sort -u; }
 
 # What each pass passes to the check, in one place, so that the pass
 # and the judge's question about its set cannot drift apart.
 pass_flags() {
   case "$1" in
-    a) echo "--only-from $heavy --without $second" ;;
+    a) echo "--only-from $heavy --without $second --without $benched" ;;
     b) echo "--only-from $second" ;;
     *)
       echo "usage: the heavy passes are a and b, not '$1'" >&2
@@ -161,10 +185,24 @@ pass_flags() {
 # check is that the file names as many models as the floors were set
 # over: a name deleted from the list would otherwise lower every count
 # and pass, which is the regression this whole file exists to catch.
-named="$(grep -cvE '^\s*(#|$)' "$heavy")"
+# A benched name is on the list and judged by nobody on purpose, so the
+# count is of the list less the bench - and each benched name must be
+# on the list, or the subtraction takes away a model that was never
+# there, and must not be in the second basket, or pass b reads it.
+off_list="$(names_in "$benched" | comm -23 - <(names_in "$heavy") || true)"
+if [ -n "$off_list" ]; then
+  echo "$off_list" | sed "s|^|BENCH: $benched names a model outside $heavy: |"
+  exit 1
+fi
+in_second="$(names_in "$benched" | comm -12 - <(names_in "$second") || true)"
+if [ -n "$in_second" ]; then
+  echo "$in_second" | sed "s|^|BENCH: a benched model is still in $second, and pass b reads it: |"
+  exit 1
+fi
+named="$(names_in "$heavy" | comm -23 - <(names_in "$benched") | wc -l | tr -d ' ')"
 if [ "$named" -ne "$FLATTEN_FLOOR" ]; then
-  echo "FLOOR: $heavy names $named model(s), and the floors were set over $FLATTEN_FLOOR"
-  echo "       A model added to or taken from that list moves these floors and the main ones."
+  echo "FLOOR: $heavy names $named model(s) off the bench, and the floors were set over $FLATTEN_FLOOR"
+  echo "       A model added to or taken from that list, or benched, moves these floors and the main ones."
   exit 1
 fi
 
@@ -189,7 +227,8 @@ if [ "$mode" = judge ]; then
     OXIDELICA_QUIET=1 ./target/release/oxidelica library check --models $@ "$directory" |
       sed -n 's/^  model  //p'
   }
-  names_of --only-from "$heavy" > "$sets/all"
+  # The set the passes must cover is the list less the bench.
+  names_of --only-from "$heavy" --without "$benched" > "$sets/all"
   # shellcheck disable=SC2046
   names_of $(pass_flags a) > "$sets/a"
   # shellcheck disable=SC2046
@@ -240,7 +279,7 @@ if [ "$mode" = judge ]; then
       printf "time: flattening %.0fs over %d models; running %.0fs over %d, the two passes added\n", fl_s, fl_n, ru_s, ru_n
     }' "$a_report" "$b_report")"
 else
-  report="$(./target/release/oxidelica library check --only-from "$heavy" "$directory")"
+  report="$(./target/release/oxidelica library check --only-from "$heavy" --without "$benched" "$directory")"
 fi
 printf '%s\n' "$report"
 

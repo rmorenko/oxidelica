@@ -1,0 +1,28 @@
+# The bench of the heavy models: names that `scripts/heavy_models.txt`
+# carries and that no pass of `scripts/heavy_floor.sh` reads.
+#
+# A model is benched when it alone threatens a heavy pass's 240 minute
+# ceiling. A pass cut at its ceiling leaves the whole basket without a
+# verdict, so its floors are held by nobody; one model that eats the
+# runner for hours is not worth a basket that goes unjudged. The bench
+# keeps the model out of the library job too, because it stays on the
+# heavy list that the main check passes to `--without` - taking a name
+# off that list would put it back under the library job's ceiling.
+#
+# A benched name comes off every floor in `scripts/heavy_floor.sh` in
+# the same commit, with the arithmetic written there, and stays named
+# here and on the heavy list with its price and the condition for its
+# return. Until then it is measured by hand: the heavy job's
+# `workflow_dispatch` with `inputs.model` runs one model on its own.
+#
+# The bench is a list, not a case. A second model that comes to own a
+# pass is benched by adding its line here; the judge and the guard on
+# the count of names read this file and need no other change.
+#
+# Each name must also stand in `scripts/heavy_models.txt` and must not
+# stand in `scripts/heavy_second.txt`; the judge refuses either.
+
+# Benched 2026-11-08: the dimension chain of 8a669d9 took it from 147s
+# to at least 109 minutes of wall on the runner (the scheduled run of
+# 2026-11-07 cut pass b at 240 minutes with it unread).
+ModelicaTest.Fluid.TestComponents.Pipes.DynamicPipeWithNominalLaminarFlow
