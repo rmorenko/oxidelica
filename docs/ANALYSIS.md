@@ -73495,3 +73495,33 @@ each leave 7064262 names (run 392, 390, 390 s), so none of the three
 accounts for the names gap on TWOBIT. Files
 `/tmp/m615/twobit_NO_*.txt`. `OXIDELICA_NO_BOUND_MODIFIER` was stopped
 unfinished at the end of the shift and is not measured.
+
+### The fourth candidate's switches, probed with a witness
+
+`acdb28d` was probed with both its switches at once, from a script
+that exported them and wrote the environment it handed to `cap.sh`
+into a file beside the output (`/tmp/m616/probe_acdb.sh`, witness
+`/tmp/m616/fourbit_noacdb.txt.env` holding
+`OXIDELICA_NO_EVENT_SHIFT=1` and `OXIDELICA_NO_MERGE_ELEMENTS=1`),
+with `/tmp/m610/oxci2` (md5 d7978c3c) under `cap.sh` 24/160/160. The
+run half came out at 2843.6 s against HEAD's 2848.9 s and the old
+tree's ~1546 s, the refusal stayed on `X2.X2.X7.p1.v`, the names
+stayed at 14337840, and the tail is `cap.sh`'s line of an exit with code 0, a full
+measurement rather than a ceiling. So `acdb28d` does not carry the
+growth in the present form of its features either, and no switch on
+HEAD gives the price back. The carrier is to be named by builds.
+
+One line of honesty about the probes before it. The probes of
+`NO_FLAT_IF` and `NO_GROW_FROM_TYPE_START` carry no witnessed
+command: `cap.sh` does not write the environment, and the marks of
+that shift did not quote it. A switch that did nothing and a switch
+that was forgotten leave the same print, so their "did not cut" is
+indistinguishable from a forgotten key, and the acquittals of
+`ca36cca` and `8784fce` drawn from them are conditional. `NO_ZERO_IF`
+proves itself, since it turned the refusal back to the old equation.
+And 2835.2 s and 2839.0 s, lying about 20 s under the one morning
+default, are not distinguishable from that default within what this
+series can measure. The five numbers called a band of defaults earlier
+are one default and four keyed runs: they are a band of
+repeatability, not of defaults, and the small real saving once read
+into `NO_FLAT_IF` is withdrawn.
