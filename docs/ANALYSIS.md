@@ -73229,3 +73229,64 @@ agree frame for frame, so it is one loop and not phases: the start,
 a body (`Code::run`, `walk::to_scalar`, `walk::elements_of`,
 `walk::number_of`) and the allocator under it. A first pair of samples
 taken from the wrapper's shell instead of the binary was thrown away.
+
+## FOURBIT spends its forty-eight minutes in index reduction
+
+The refusal of FOURBIT was profiled under the defaults with the binary
+that priced it (/tmp/m610/oxci2, /tmp/m612/fourbit_profile.txt, cut by
+its own twenty-minute ceiling, which is what a profile is for). Two
+samples of the binary's own process at the eighth and the fifteenth
+minute (/tmp/m612/fb_sample1.txt and fb_sample2.txt) agree frame for
+frame: 23013 and 23015 of about 23050 samples sit in
+`compile::reduce_index_once`, nearly all of them inside a nested
+closure of it with `memcmp` under it, and almost nothing in the walk
+or the start. So FOURBIT is not the benched pipe's loop. The pipe
+burns its time in the start's implicit blocks; FOURBIT burns it in the
+search over a structurally singular subset, which is where the
+refusal it prints is raised, and every run counter at zero says the
+same.
+
+The candidates of the span were then put to FOURBIT one key at a time,
+each a full run on the same binary under ceilings of 160 minutes, all
+finished and none cut:
+
+| key                           | flatten | run    | work against the default |
+| ----------------------------- | ------- | ------ | ------------------------ |
+| none (/tmp/m610/fourbit.txt)  | 57 s    | 2858 s | -                        |
+| `OXIDELICA_NO_INIT_BLOCK_SYS` | 57 s    | 2850 s | equal to the digit       |
+| `OXIDELICA_NO_ALIASES_LAST`   | 57 s    | 2849 s | equal to the digit       |
+| `OXIDELICA_NO_HELD_ROW`       | 58 s    | 2855 s | equal to the digit       |
+
+Equal work means the key does not fire on this model, so the three to
+nine seconds are drift and none of 4c22325, 78d5b50 and ccfe9be
+carries the growth (/tmp/m612/fourbit_noibs.txt, fourbit_noal.txt,
+fourbit_nohr.txt). The
+start-stall ceiling of eeadcd8 was not run: it was already in the head
+of the green heavy cron of 5 November, and it acts only while the
+start is solving, which FOURBIT never reaches. `OXIDELICA_NO_ALIASES_LAST`
+was taken in its place because the profile named the singular-subset
+search, and among the commits after that green head 78d5b50 and
+ccfe9be are the two that touch it.
+
+What is excluded so far: the silent chain (f6154d9), the start's
+implicit blocks as systems, the stall ceiling by the green cron, the
+order of aliases and the held row. With every key of the span that
+touches the singular-subset search now cleared, the carrier is a
+commit without a key, so a bisection of the span on FOURBIT is
+allowed by the rule that every candidate key returned the default's
+time. The hot closure itself is the next reading: a
+loop comparing names inside the singular-subset search, which grows
+with the number of attempts times the size of the candidate lists.
+
+A first reading of the closure, not yet a measurement: the attempt in
+`reduce_index_once` builds its candidates and then settles them with
+the `settle` closure, which is the one closure nested inside the
+attempt's own and so the likeliest owner of the sampled frame. Its
+fixpoint asks `unknowns.iter().any(|u| u == *r)` for every name of
+every candidate on every pass, a linear scan of string comparisons
+over all unknowns, while the candidate builder just above already
+keeps a hash set of the same unknowns for the fold. On a model of
+FOURBIT's size that is passes times candidates times names times
+unknowns, which fits a profile that is all `memcmp`. A probe naming
+the closure's line, and then a hash set in place of the scan, is the
+next step; no Rust was touched in this shift.
