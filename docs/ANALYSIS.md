@@ -73142,3 +73142,47 @@ ran list is identical, so the two binaries agree when the keys are
 off. Its running half took 4656 s against ox1's 4524 s, which is the
 desk drifting by 132 s with no work behind it. Against its own binary
 the once form costs +688 s (+14.8%), still well over 6%.
+
+## The bench of the heavy basket, and GearType1's pre(mode)
+
+The scheduled heavy run of 7 November cut pass b at its 240 minute
+ceiling, which left the basket without a verdict. Its own progress
+line names the owner: read 10 of 12 at 7840 s and cut at 14400 s, so
+each of the two unread models ran at least 6560 s, and one of them is
+DynamicPipeWithNominalLaminarFlow, which the dimension chain of
+8a669d9 took from 147 s to at least 87 minutes on the desk
+(/tmp/m609/dyn.txt). It is now benched: `scripts/heavy_benched.txt`
+names models the heavy list carries and no pass reads. It stays on the
+heavy list, because the main check passes that list to `--without`,
+and leaves the second basket. Pass a leaves the bench out, the judge
+asks the passes to cover the list less the bench, and the count of
+names is the list less the bench. Two new refusals keep it honest: a
+benched name off the list, and a benched name still in the second
+basket. On a stand the judge was green at 23 = 12 + 11 and red on each
+of the three faults (/tmp/m610/stand). The floors went 24 to 23 and
+22 to 21, the run floors stayed at 2. The bench is a list, so if the
+next scheduled run is still cut, benching the Spice3 pair is two
+lines. A cut run after this commit is the next item, not a refutation:
+the pair's clean price is not yet known.
+
+GearType1's friction wall has a layer now. The start reading of
+discrete values (`compile.rs`, the rounds over `defined_discretes`)
+evaluates each definition over a table that holds no `$pre.*` names.
+`locked` is defined through `pre(mode)`, so its evaluation failed in
+every round with `unknown variable $pre.f.mode`, and `locked` kept its
+declared `false`. The run itself seeds `$pre.x` from the start of `x`,
+so the two disagreed only before the first point. Under the key
+`OXIDELICA_START_PRE=1`, which puts `$pre.x = start(x)` for every
+Boolean and Integer into that table before the rounds, `locked` reads
+true in the second round. `--only` from the root, one binary
+(/tmp/m610/oxk1), off and on: GearType1 and GearType2 run. OneAxis and
+FullRobot move from structurally singular to a singular start, and
+AxisType1, Rotational Friction and LossyGearDemo2 keep their refusals.
+CoupledClutches, LossyGearDemo1 and 3, and Translational Friction,
+Brake and PreLoad run both ways. The small G3 moves from the dead `sa`
+column to an honest "free along s.phi_rel", and G5 runs both ways.
+The change gives discrete starts a definition they lacked, so it is
+priced by a list of victims and not by a count. No corpus pair was
+taken, the heavy basket was not measured under it, and neither were
+the witnesses. It is parked with a test that fails without the key as
+~/oxideflow/park/m608-start-pre.diff.
