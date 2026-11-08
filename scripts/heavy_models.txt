@@ -69,6 +69,7 @@ Modelica.Electrical.Spice3.Examples.Spice3BenchmarkFourBitBinaryAdder.FOURBIT
 # 825s to run, 2026-09-14
 # 1552.3s / 80.6s, 2026-10-12, run / flatten, both halves
 # 1796.8s / 88.2s, 2026-10-19, run / flatten, 36e3dd1, pass b
+# 3292s / 62s, 2026-11-08, run / flatten, alone on a quiet desk, binary built as CI from 82ab9be
 Modelica.Electrical.Spice3.Examples.Spice3BenchmarkFourBitBinaryAdder
 # 225s to run, 2026-09-14
 # 478.8s / 33.5s, 2026-10-12, run / flatten, both halves

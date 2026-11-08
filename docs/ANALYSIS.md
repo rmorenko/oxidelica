@@ -73200,3 +73200,32 @@ quiet desk: forty-eight minutes of work to say no, which makes it a
 candidate for a cheap refusal rather than a benchmark. The Adder was
 not priced, because a second run of the same size would have ended
 after the shift.
+
+## The Spice3 growth is not the silent chain
+
+The Adder was priced alone on a quiet desk with a binary byte-equal to
+the one that priced FOURBIT (/tmp/m611/oxci3 against /tmp/m610/oxci2,
+no line of Rust between them): 62 s to flatten and 3292 s to run,
+refused as structurally singular with every run counter at zero
+(/tmp/m611/adder.txt, peak 0.7 GB, finished and not cut). Against
+1796.8 s on 19 October that is 1.83 times.
+
+FOURBIT was then run with `OXIDELICA_NO_ARITHMETIC_CHAIN=1` on the
+same binary (/tmp/m611/fourbit_nochain.txt): 57 s and 2851 s, against
+57 s and 2858 s with the chain (/tmp/m610/fourbit.txt). The work
+counters of both halves agree to the digit and the refusal names the
+same equation, so the key does not fire on this model at all and the
+seven seconds are drift. The chain of 8a669d9 carries none of the
+growth. The carrier lies elsewhere in the span from 36e3dd1 to
+70a2278, and a bisection over that span on FOURBIT alone, at about
+forty-eight minutes a step, is the next instrument.
+
+The benched pipe was sampled twice inside its runaway, at the fifth
+and the ninth minute, under the chain (/tmp/m611/dyn_sample1.txt and
+dyn_sample2.txt, the process of the binary itself). The two profiles
+agree frame for frame, so it is one loop and not phases: the start,
+`solve_initialization` into `eval_point` into
+`solve_implicit_block_from`, where nearly all the time is the walk of
+a body (`Code::run`, `walk::to_scalar`, `walk::elements_of`,
+`walk::number_of`) and the allocator under it. A first pair of samples
+taken from the wrapper's shell instead of the binary was thrown away.
