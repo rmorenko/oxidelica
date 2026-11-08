@@ -73377,3 +73377,33 @@ Expected price of that repair, from the same sample: the scan leaves
 (1585) are about 5160 of 23128 samples, some 22% of the run half. That
 bounds what the hash set can save on TWOBIT; it does not reach the
 x1.58 growth of FOURBIT, whose carrier stays open.
+
+## FOURBIT's growth sits in the fork, and bisects to its last seven
+
+The question left open was whether the x1.58 growth of
+`Spice3BenchmarkFourBitBinaryAdder.FOURBIT` was a change of the
+compiler or a comparison of a number taken by another binary on
+another desk. It is a change of the compiler. Every measure below is
+one `--only` of the one model under `cap.sh` (ceilings 160/160, every
+tail reporting the model's own exit code 0, none cut by a ceiling), one after the other on an otherwise empty
+desk, the run half compared with the run half of HEAD's quiet default,
+2848.9 s.
+
+| binary           | tree    | flatten | run      | refusal                       |
+| ---------------- | ------- | ------- | -------- | ----------------------------- |
+| `/tmp/m613/ox36` | 36e3dd1 | 49.7 s  | 1546.6 s | singular at `X2.X1.X1.Q3.B.v` |
+| `/tmp/m614/oxA`  | 6a40553 | 49.4 s  | 2819.8 s | singular at `X2.X2.X7.p1.v`   |
+| `/tmp/m614/oxB`  | 0bf0ac5 | 49.7 s  | 2810.7 s | singular at `X2.X2.X7.p1.v`   |
+
+Files: `/tmp/m614/fourbit_ox36.txt`, `fourbit_midA.txt`,
+`fourbit_midB.txt`. The old tree spends 1546.6 s in the run half,
+below the threshold of 2350 set for "the growth is in the fork", so
+the whole growth (x1.84 on the run half) lies between 36e3dd1 and
+70a2278. The two midpoints both sit at HEAD's price and refuse on
+HEAD's equation, so the carrier is older than 0bf0ac5: of the 31
+commits touching `compile.rs` in the fork, the growth lies in the
+seven from `acdb28d` (line 25 of the log, "Spell an array once at an
+if merge") down to `f5ea6fb` (line 31), oldest last. The refusal moves
+with the price, which says the carrier changed which equation the
+singularity search stops at rather than how fast it reaches the same
+one.
