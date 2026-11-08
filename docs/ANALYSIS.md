@@ -73371,3 +73371,9 @@ the `Vec` can become a count plus the single name, since only
 `[only]` is read. The repair touches index reduction, so it is judged
 by the victim lists and by `scripts/victim_witness.sh` as well as by
 time.
+
+Expected price of that repair, from the same sample: the scan leaves
+(`memcmp` and its stub, 3575 samples) and the per-equation collect
+(1585) are about 5160 of 23128 samples, some 22% of the run half. That
+bounds what the hash set can save on TWOBIT; it does not reach the
+x1.58 growth of FOURBIT, whose carrier stays open.
