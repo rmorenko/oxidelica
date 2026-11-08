@@ -73449,3 +73449,40 @@ ratio 12348 / 7744 = 1.59, and 7744 x 1.59 / 2.10 = 5863 s, 97.7 min.
 Pass a is now the narrow place, with 88.9 min (37%) left under its
 ceiling against 142 min (59%) for pass b. Pass b's own progress lines
 put 3127 s of its 97.8 minutes (58%) on the pair read fifth and sixth.
+
+### Three of the four switches probed on FOURBIT
+
+Each probe is one `--only` of FOURBIT with `/tmp/m610/oxci2` (md5
+d7978c3c, HEAD's line) under `cap.sh` 24/160/160, one after the other
+on an empty desk, every tail reporting the model's own exit code 0.
+The run counters are zero in all of them, so the judge is time: run
+half against HEAD's quiet default of 2848.9 s and the old tree's
+1546.6 s.
+
+| switch                              | carrier | run      | refusal           | names    |
+| ----------------------------------- | ------- | -------- | ----------------- | -------- |
+| `OXIDELICA_NO_FLAT_IF`              | ca36cca | 2835.2 s | `X2.X2.X7.p1.v`   | 14337840 |
+| `OXIDELICA_NO_ZERO_IF`              | 0bf0ac5 | 2945.9 s | `X2.X1.X1.Q3.B.v` | 14337840 |
+| `OXIDELICA_NO_GROW_FROM_TYPE_START` | 8784fce | 2839.0 s | `X2.X2.X7.p1.v`   | 14337840 |
+
+Files: `/tmp/m615/fourbit_noflatif.txt`, `fourbit_nozif.txt`,
+`fourbit_nogrow.txt`. None of the three brings the run half near
+1546 s. `NO_FLAT_IF` and `NO_GROW_FROM_TYPE_START` sit inside HEAD's
+band, so `ca36cca` and `8784fce` do not carry the growth _in the
+present form of their features_; that is not a full acquittal, since
+a switch turns off a feature as it stands today. `NO_ZERO_IF` is the
+interesting one: it moves the refusal back to the old tree's equation,
+`X2.X1.X1.Q3.B.v`, and still costs 97 s more than HEAD, not 1300 s
+less. So 0bf0ac5 is what decides which equation the singularity search
+stops at, but the switch does not give back the old price: the
+refusal and the price, which moved together across the interval, come
+apart under this switch. The claim of the chapter above that the
+refusal moving with the price shows one event is therefore weaker
+than it read.
+
+The fourth candidate, `acdb28d`, with its two switches
+`OXIDELICA_NO_EVENT_SHIFT` and `OXIDELICA_NO_MERGE_ELEMENTS` taken
+together, was not probed: the three probes took the shift's long
+window. It is the next probe, and if it too leaves the price standing
+the carrier is not switched off by any switch on HEAD, and two builds
+settle it (8784fce first, as the middle of four).
