@@ -2372,13 +2372,30 @@ fn reduce_index_once(
                     //
                     // `barred` names equations the second settling may not take
                     // a definition from, for the reason given where it is built.
+                    // Each candidate's names, read once: the fixpoint below
+                    // asks the same candidate the same question every round,
+                    // and only `accepted` changes between askings.
+                    let settle_refs: Vec<Vec<&str>> = candidates
+                        .iter()
+                        .map(|(_, expr, _)| {
+                            let mut refs = Vec::new();
+                            expr.collect_refs(&mut refs);
+                            refs.sort_unstable();
+                            refs.dedup();
+                            refs
+                        })
+                        .collect();
+                    let settle_unknowns: std::collections::HashSet<&str> =
+                        unknowns.iter().map(String::as_str).collect();
                     let settle =
                         |grounded: &HashMap<String, (Expr, Expr)>,
                          barred: &std::collections::HashSet<usize>| {
                             let mut accepted: HashMap<String, Expr> = HashMap::new();
                             loop {
                                 let mut progress = false;
-                                for (name, expr, source) in &candidates {
+                                for ((name, expr, source), refs) in
+                                    candidates.iter().zip(&settle_refs)
+                                {
                                     if barred.contains(source) {
                                         continue;
                                     }
@@ -2391,11 +2408,9 @@ fn reduce_index_once(
                                     if accepted.contains_key(name) || grounded.contains_key(name) {
                                         continue;
                                     }
-                                    let mut refs = Vec::new();
-                                    expr.collect_refs(&mut refs);
                                     let ok = refs.iter().all(|r| {
                                         *r != name
-                                            && (!unknowns.iter().any(|u| u == *r)
+                                            && (!settle_unknowns.contains(*r)
                                                 || accepted.contains_key(*r)
                                                 || grounded.contains_key(*r))
                                     });

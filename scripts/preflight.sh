@@ -106,7 +106,19 @@ examples_all_simulate() {
 # The desk's band on the ratio of the two halves, read by the library
 # step and seen red and green by time_band_judges; the arithmetic is at
 # the library step.
-DESK_RATIO_LOW=0.96
+#
+# The floor is 0.88 since 2026-11-09, an edge named by Roman and not
+# computed here. It was lowered with the settling fix, which makes the
+# run half cheaper and the flatten half dearer, so the ratio falls
+# without any model being lost. Witnesses, seven quiet desk prints of
+# the judge on 2026-11-09 (/tmp/m622/ratio{1,2,_head}.txt and
+# /tmp/m623/{h1,r1,h2,r2}.txt, binaries md5 ae40a54f head and 595f9d3c
+# fix): head 1.054 / 1.032 / 1.021, fix 0.940 / 0.935 / 0.923 / 0.933.
+# The fix stands 4.9% over the edge (0.923 / 0.88) against an
+# instrument noise of 0.53% and an evening drift near 1% a print.
+# 0.96 comes back when a delta over one fixed set of models replaces
+# this band, as library_floor.sh:2680-2686 already asks.
+DESK_RATIO_LOW=0.88
 DESK_RATIO_HIGH=1.44
 
 library_floor() {
@@ -193,7 +205,8 @@ library_floor() {
   # m547/preflight 1.182, m549/preflight 1.242, m550/pre 1.219,
   # m551/preflight 1.248, m552/preflight 1.224, m564/pf_quick 1.164,
   # m564/preflight 1.148, m566/preflight 1.143. The room is the same as
-  # every precedent: 1.143 / 1.189 = 0.9613, written 0.96, and
+  # every precedent: 1.143 / 1.189 = 0.9613, written 0.96 (history: the
+  # floor is now 0.88, Roman's word of 2026-11-09, see DESK_RATIO_LOW), and
   # 1.248 x 1.158 = 1.4452, written 1.44. The desk's centres of work
   # come with FLOOR_DESK=1, at the centres in library_floor.sh. The
   # runner's band and centres are not touched.
@@ -251,10 +264,15 @@ time_band_judges() {
   # Inside since 2026-11-03: the lowest and highest desk prints the
   # edges stand on, 1.143 and 1.248, and one between, 1.164. Outside:
   # 0.786, the quiet point of the compiler before, and 1.500.
+  # Inside since 2026-11-09, when the floor went to 0.88: the quiet
+  # prints of the settling fix, 0.923 and 0.940. 0.786 stays outside,
+  # now 10.7% under the floor rather than 18%.
   local desk="env RATIO_LOW=$DESK_RATIO_LOW RATIO_HIGH=$DESK_RATIO_HIGH ./scripts/library_floor.sh --ratio-check"
   $desk 1000 1143 > /dev/null || return 1
   $desk 1000 1248 > /dev/null || return 1
   $desk 1000 1164 > /dev/null || return 1
+  $desk 1000 923 > /dev/null || return 1
+  $desk 1000 940 > /dev/null || return 1
   $desk 1000 786 > /dev/null && return 1
   $desk 1000 1500 > /dev/null && return 1
   return 0
