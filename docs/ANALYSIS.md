@@ -73982,7 +73982,7 @@ the old `/tmp/m614/oxB` hashes 58671b00, another build of the same
 tree), and one `--only` of FOURBIT under `cap.sh` with both ceilings
 at 160 minutes, on a quiet desk, printed 59 s flattening and 2849.1 s
 running, the refusal singular at `X2.X2.X7.p1.v`, and the tail
-`кончилось кодом 0` with a peak of 0.8 GB, so the number is whole and
+reporting exit code 0 with a peak of 0.8 GB, so the number is whole and
 not cut by a ceiling (`/tmp/m621/p3/fourbit_oxB2.txt`, witness in the
 `.env` beside it, no `OXIDELICA_` key set). The unwitnessed figure
 was 2810.7 s; the witnessed one sits at the head's price, so the
