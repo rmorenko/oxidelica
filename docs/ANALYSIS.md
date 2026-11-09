@@ -73987,3 +73987,16 @@ not cut by a ceiling (`/tmp/m621/p3/fourbit_oxB2.txt`, witness in the
 `.env` beside it, no `OXIDELICA_` key set). The unwitnessed figure
 was 2810.7 s; the witnessed one sits at the head's price, so the
 verdict that 0bf0ac5 carries the growth stands on both ends now.
+
+The index probe was then carried to the old tree, to test whether the
+scan's rate of 0.314 ns a comparison, measured only on the head,
+transfers. `/tmp/m621/oxidx_old` is 19f2c55 with the membership set
+ported by hand (`/tmp/m621/idx_old.patch`, md5 c2982273). The forecast
+was written before the number: 763.7 thousand million comparisons at
+0.314 ns take off 240 s, so running near 1306 s within 60, and running
+above 1450 s would say the rate does not transfer. One `--only` of
+FOURBIT on a quiet desk, ceilings at 160, printed 1316.2 s running, the
+old refusal at `X2.X1.X1.Q3.B.v`, exit 0
+(`/tmp/m621/p3/fourbit_idx_old.txt`). The forecast held inside its
+band: the scan cost about 230 s on the old build, 0.30 ns a comparison,
+the same machine rate as on the head.
