@@ -73932,3 +73932,13 @@ gives 0.238 against 0.287, which agree worse. So that factor, measured
 on ordinary runs, does not apply to a run where the probe's cheap
 increments are half the time: a correction for the desk holds only for
 the conditions it was measured under.
+
+After the list, the parked probe was taken to the cheap judges. The
+victim witnesses (`/tmp/m620/witness_fix.txt`) print fourteen lines and
+no mismatch. TWOBIT runs in 69 s against 391 s under the head's
+counter binary, with reduction counts 139, 710985 and 1951833 equal and
+the same refusal (`/tmp/m620/twobit_fix.txt` against
+`/tmp/m620/twobit_cnt.txt`). Six neighbours keep their reduction counts
+and their outcome (`/tmp/m620/small_court.txt`). The corpus pair and
+the rest of the heavy basket are not measured. The patch and these
+numbers are in the park as `m620_settle_fix`.
