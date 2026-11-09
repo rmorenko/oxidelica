@@ -73860,3 +73860,58 @@ comparisons, they were whatever else the loop does per turn, divided
 by a count that happened to move with it. The next instrument counts
 the work of a turn that no counter sees yet: walks of `Expr`, clones
 and allocations in the candidate loop.
+
+## The settling fixpoint counted, head against the old build
+
+The scan of unknowns at the candidate loop was shown to be 194 s of
+FOURBIT's 2841 s, which left the fixpoint that settles definitions as
+the reading's suspect. A counter now puts numbers on it: rounds of the
+fixpoint, candidates reread, references collected, comparisons in its
+own scan of unknowns (counted to the first match, as the earlier probe
+did), and definitions accepted. Patches `/tmp/m620/stl_probe.patch`
+(head, binary `/tmp/m620/oxstl` md5 90d5caf9) and
+`/tmp/m620/stl_probe_old.patch` (a clean worktree at 19f2c55, binary
+`/tmp/m620/oxstl_old` md5 bb426647). Neither is in the tree.
+
+| run  | rounds |   rereads | references |   comparisons | accepted |
+| ---- | -----: | --------: | ---------: | ------------: | -------: |
+| head |   9850 | 278345460 | 1074494850 | 7450431265422 |  3524864 |
+| old  |   3511 |  96601167 |  434570029 | 3209637562865 |  1941792 |
+
+Files: `/tmp/m620/fourbit_stl_head.txt` and
+`/tmp/m620/fourbit_stl_old.txt`, each with a `.env` witness. The head
+keeps its reduction counts (256, 2632064, 7219493) and its refusal at
+`X2.X2.X7.p1.v`; the old build refuses at `X2.X1.X1.Q3.B.v`. The two
+ran together, so their times are not judged.
+
+The forecast held: the settling work of the head is about twice the
+old build's (comparisons 2.32 times, references 2.47, rounds 2.81),
+while the candidate loop's own work fell. And the settling scan is
+twelve times the scan measured before: 7.45 million million
+comparisons against 617 thousand million. At the 0.31 ns per
+comparison the set probe measured, that is about 2310 s of the head's
+2841 s and about 995 s of the old build's 1546 s, a difference close
+to the whole gap. This is a forecast for the next probe, not a result:
+a rate taken by division is checked only by carrying it.
+
+### The settling fixpoint without its rescans
+
+The probe that followed reads each candidate's references once, before
+the fixpoint, and asks a set of unknowns instead of scanning the list
+(`/tmp/m620/stl_fix.patch`, binary `/tmp/m620/oxfix` md5 eac0297e,
+workspace tests green). The accepted definitions are the same and come
+in the same order, since the fixpoint still walks the candidates in
+their order and the expressions do not change inside it. It is not in
+the tree: whether it goes in is the next review's decision.
+
+Forecast before the number: running between about 500 and 900 s; above
+2000 s would mean the settling scan was not the price. Result, alone
+on the desk (`/tmp/m620/fourbit_fix.txt`): running 452 s against
+2841.2 s, 6.3 times less, with the counts 256, 2632064 and 7219493 to
+the digit and the same refusal at `X2.X2.X7.p1.v`. The head's FOURBIT
+now runs in less than a third of the old build's 1546 s. So the price
+0bf0ac5 added was the settling fixpoint, which rescanned every
+candidate's references against the whole list of unknowns on every
+round, and the stricter divisor rule gave it nearly three times the
+rounds. What is not measured: the corpus pair, the victim witnesses
+and the heavy models under this patch.
