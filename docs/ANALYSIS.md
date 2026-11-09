@@ -74048,3 +74048,45 @@ All three prints also turned the work centres red (points 0.423x,
 Newton 0.575x, jacobians 0.859x, IMC_InverterDrive 11 against 5), the
 head as much as the fix, so these belong to centres written from the
 build machine and read on the desk, not to the fix. Nothing was moved.
+
+## Step zero: head and settling fix alternated in one window
+
+The quiet prints of 9 November had the fix flattening 5.56% dearer than
+the head, and on the head's flattening the fix's ratio would have sat
+inside the desk band. Whether that 5.56% belonged to the build or to the
+weather of the desk was not measured, so four prints were taken one
+after another on a quiet desk, alternating head and fix: head binary md5
+ae40a54f5098f25520cceda0a7e0adab run from the main tree, fix binary md5
+595f9d3c243b56ab7c8c66fadde0c373 run from a worktree carrying
+`m621_settle_fix_fmt.patch`, files `/tmp/m623/{h1,r1,h2,r2}.txt`.
+
+| print | build | flatten ms/model | run ms/model | ratio |
+| ----- | ----- | ---------------- | ------------ | ----- |
+| h1    | head  | 4195             | 4331         | 1.032 |
+| r1    | fix   | 4400             | 4062         | 0.923 |
+| h2    | head  | 4183             | 4272         | 1.021 |
+| r2    | fix   | 4323             | 4034         | 0.933 |
+
+All four printed the same sets (1019 / 974 / 838, runnable 890 / 856 /
+789), and the `work:` and `WORK:` lines agree byte for byte across all
+four, so the work done is identical and every difference in time is
+either the build or the desk. Each exited 1 on the same four work centre
+lines already recorded above, head and fix alike.
+
+The two head prints agree on flattening to 0.29%, the two fix prints to
+1.8%, and both fix prints are dearer to flatten than both head prints:
++4.9% (r1 against h1) and +3.3% (r2 against h2), +4.1% on the means.
+The order was head, fix, head, fix, so a desk drifting one way cannot
+produce that pattern. The flattening cost travels with the fix's build,
+not with the weather. The forecast written before the numbers (head
+prints within 1% of each other, fix 4 to 7% dearer) held in direction;
+in magnitude the mean is inside the band and the second pair falls just
+below it.
+
+The run half keeps its gain: -6.2% and -5.6%. Flatten plus run per
+model moves by -0.75% and -1.16%, so on the corpus the fix mostly shifts
+time between halves. Both fix ratios, 0.923 and 0.933, stay below the
+desk band's floor of 0.96 (`scripts/preflight.sh:109-110`), and they
+stay there because the build raises the denominator as well as lowering
+the numerator. Nothing was moved: band, floors and work centres are as
+they were, and the fix stays parked.
