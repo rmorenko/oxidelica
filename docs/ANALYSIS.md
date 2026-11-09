@@ -73754,3 +73754,14 @@ comparisons and not the candidates. The run with
 `OXIDELICA_NO_FOLD_GUARD_WHOLE=1` on `oxcnt` is still going and will
 write `/tmp/m618/fourbit_cnt_nofgw.txt`. It is not an orphan: do not
 kill it before that file ends in a `cap.sh:` line.
+
+Two more runs closed the shift. `NO_FOLD_GUARD_WHOLE=1` on `oxcnt`
+left all three counts equal to the digit (256, 2632064, 7219493,
+`/tmp/m618/fourbit_cnt_nofgw.txt`), so folding a guard over parameters
+does no work in FOURBIT's reductions. A probe build not in the tree
+(`/tmp/m618/oxcmp`, patch `/tmp/m618/cmp_probe.patch`) summed the
+positions reached by the scan over `unknowns`: 617163999641
+comparisons on the head (`/tmp/m618/fourbit_cnt_cmp.txt`). Over about
+2840 s of running, that is about 4.6 ns each, so the linear scan is
+close to the whole price. The same sum on the old build has not been
+measured. It is the next number to take.
