@@ -73915,3 +73915,20 @@ candidate's references against the whole list of unknowns on every
 round, and the stricter divisor rule gave it nearly three times the
 rounds. What is not measured: the corpus pair, the victim witnesses
 and the heavy models under this patch.
+
+Two forecasts were written before this number, one in the shift and
+one by the reviewer: per candidate the head's settling comparisons
+would be about 2.1 times the old build's (they came out 2.79, so the
+direction held and the size was 6% above the band), and the set probe
+would bring running below about 900 s if a settling comparison costs
+what a scanned one does. Both falsifiers, a per-candidate count within
+25% of the old build's and running above about 1900 s, failed to fire.
+
+The probe's own cost per increment agrees between the two builds when
+read raw: (2675.9 − 1546) s over 3.210 million million on the old
+build is 0.352 ns, and (5376.8 − 2841.2) s over 7.450 on the head is
+0.340 ns, within 3.4%. Taking the crowding factor of 1.158 out first
+gives 0.238 against 0.287, which agree worse. So that factor, measured
+on ordinary runs, does not apply to a run where the probe's cheap
+increments are half the time: a correction for the desk holds only for
+the conditions it was measured under.
