@@ -74005,3 +74005,46 @@ Moving the desk band honestly needs two or three quiet prints of the
 judge's ratio (main plus dear, 1019 models) under the fix; one print,
 0.898, is not a band. The runner's band is wider, and whether the
 runner's own ratio stays inside it is not measured.
+
+## Three quiet prints of the judge's ratio, the settling fix against the head
+
+The question for the desk band was whether the ratio of 0.898 printed
+by the fix's preflight is a stable property of the fix. Three passes of
+`scripts/library_floor.sh .msl` were taken one after another on a quiet
+desk, nothing else built or measured while they ran: two with the fix
+(`/tmp/m622/oxr1`, md5 595f9d3c, the park patch
+`m621_settle_fix_fmt.patch` on 0d6a4c5) and one of the head without it
+(`/tmp/m622/oxh`, md5 ae40a54f).
+
+| print                            | flattening ms each | running ms each | ratio |
+| -------------------------------- | -----------------: | --------------: | ----: |
+| fix, `/tmp/m622/ratio1.txt`      |               4364 |            4102 | 0.940 |
+| fix, `/tmp/m622/ratio2.txt`      |               4357 |            4075 | 0.935 |
+| head, `/tmp/m622/ratio_head.txt` |               4131 |            4353 | 1.054 |
+
+All three printed 974/838 and 856/789, the lists of models that run are
+equal line for line, and the `work:` line is byte for byte the same in
+all three, flattening and running alike. The two prints of the fix agree
+to 0.5%, inside the 2% the forecast allowed. The forecast's band of
+0.88 to 0.92 did not hold: the direction held, the size did not. The
+head sits inside the desk band of 0.96 to 1.44, as forecast.
+
+Two findings stand beside the ratios. The flattening half moved by 5.5%
+between the fix and the head with byte-equal work, and the fix does not
+touch flattening, so that is the desk drifting and not the fix. The
+running half fell 6.2% under the fix with equal counters, which is the
+counters' known blindness to price rather than a free change. Taken on
+the head's flattening time, the fix's ratio would be about 0.99, inside
+the band; so the band's verdict on one print is decided as much by the
+weather of the flattening half as by the fix. The band's own comment
+says so (`scripts/library_floor.sh:2680-2686`): "The ceiling is a
+stopgap, and the cure is a delta over one fixed set of models rather
+than a band on one print." That is the honest form of the question for
+Roman: the floor of the band can be lowered under this fix, but the
+instrument is by its design the wrong one, and the replacement it names
+is a delta over a fixed set.
+
+All three prints also turned the work centres red (points 0.423x,
+Newton 0.575x, jacobians 0.859x, IMC_InverterDrive 11 against 5), the
+head as much as the fix, so these belong to centres written from the
+build machine and read on the desk, not to the fix. Nothing was moved.
