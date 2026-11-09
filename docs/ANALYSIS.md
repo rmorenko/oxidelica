@@ -73706,3 +73706,51 @@ which the switched-off run is dearer comes from somewhere else, still
 to be found. The cheap end has a band too: `oxC` measured twice with
 one binary gave 1542.4 s and 1550.2 s, 7.8 s or 0.5%, so the band of
 repeatability is better carried as a share than as seconds.
+
+## A counter on index reduction, and what it says about FOURBIT (9 November)
+
+The work line printed zeros beside FOURBIT's 2850 s of running, so no
+key acting in index reduction could be judged by work. Three counts
+now stand on a line of their own, `reduction: N passes, M equations
+scanned, K candidates` (a271771): reductions made, equations read by
+the candidate loop (the number of algebraic equations, added once per
+member tried) and definitions gathered. The hot loop pays one
+thread-local add per member, never one per turn of the scan.
+
+The counter costs nothing measurable: the default run with it gave
+2841.2 s of running (`/tmp/m618/fourbit_cnt_head.txt`, binary
+`/tmp/m618/oxcnt`, md5 51b41eb0), with the flattening work equal to
+the digit and the same refusal. It is not compared with the earlier
+default of 2855.5 s, which ran under three `sample` slices.
+
+Three runs, each with its `.env` witness beside the file:
+
+| run                   | passes | equations | candidates | running |
+| --------------------- | -----: | --------: | ---------: | ------: |
+| head (a271771)        |    256 |   2632064 |    7219493 |  2841 s |
+| head, `NO_ZERO_IF=1`  |    256 |   5103146 |   13630478 |  3213 s |
+| old (19f2c55 + probe) |    256 |   3250984 |    8681881 |  1596 s |
+
+The old build carries the same three counts as atomics placed at the
+same three points (`/tmp/m618/oxcnt_old`, md5 f5e8a6ea), and it agrees
+with the head binary on a small model (1, 2, 3). Two of the runs
+overlapped on the desk, so their times are not judged. The counts are.
+
+What they say. All three hit the ceiling of 256 reductions, so the
+number of passes is a property of the model and not of the rule about
+denominators, as predicted before the old number came in. The old
+judgement gathers more candidates than the head, not fewer, at a
+little over half the time. So 0bf0ac5 did not add turns of the
+candidate loop. It made each turn dearer: about 184 µs of running per
+candidate in the old build against 394 µs in the head. The switch
+doubles the equations read and the candidates gathered for the same
+256 passes. And the time does not follow the candidates, so candidates
+are not the price either. The price lies inside the turn, and this
+counter does not see it.
+
+Next instrument, not built in this shift: a sum of `unknowns.len()`
+over every scan at the `unknowns.iter().any` test, which counts the
+comparisons and not the candidates. The run with
+`OXIDELICA_NO_FOLD_GUARD_WHOLE=1` on `oxcnt` is still going and will
+write `/tmp/m618/fourbit_cnt_nofgw.txt`. It is not an orphan: do not
+kill it before that file ends in a `cap.sh:` line.
