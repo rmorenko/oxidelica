@@ -74090,3 +74090,45 @@ desk band's floor of 0.96 (`scripts/preflight.sh:109-110`), and they
 stay there because the build raises the denominator as well as lowering
 the numerator. Nothing was moved: band, floors and work centres are as
 they were, and the fix stays parked.
+
+## The desk band lowered to 0.88 and the settling fix merged
+
+The desk band's floor (`DESK_RATIO_LOW` in `scripts/preflight.sh`) goes
+from 0.96 to 0.88. The number was named by Roman on 2026-11-09 and is
+not computed here; the top edge of 1.44 and the runner's band of 0.70
+to 1.67 (`scripts/library_floor.sh:2687-2688`) are untouched, as are
+the five floors and the work centres. The condition for return is
+written beside the edge: 0.96 comes back when a delta over one fixed
+set of models replaces the band, which is what the band's own comment
+at `scripts/library_floor.sh:2680-2686` already names as the cure.
+
+The seven quiet desk prints of the judge the edge stands on:
+
+| print           | build | flatten ms/model | run ms/model | ratio |
+| --------------- | ----- | ---------------- | ------------ | ----- |
+| m622/ratio_head | head  | 4131             | 4353         | 1.054 |
+| m623/h1         | head  | 4195             | 4331         | 1.032 |
+| m623/h2         | head  | 4183             | 4272         | 1.021 |
+| m622/ratio1     | fix   | 4364             | 4102         | 0.940 |
+| m622/ratio2     | fix   | 4357             | 4075         | 0.935 |
+| m623/r1         | fix   | 4400             | 4062         | 0.923 |
+| m623/r2         | fix   | 4323             | 4034         | 0.933 |
+
+Binaries md5 ae40a54f (head) and 595f9d3c (fix). The lowest fix print
+stands 4.9% over the new edge (0.923 / 0.88), against an instrument
+noise of 0.53% and an evening drift near 1% a print. The band's
+self-check gains the two quiet fix points, 0.923 and 0.940, as
+required greens; 0.786 stays a required red, now 10.7% under the floor.
+
+What the fix costs, measured whole: flattening +4.9%, running -5.5%,
+on the corpus -0.4% to -0.7% in sum. On the library it is an exchange
+between halves; its gain of a factor 6.29 is in the heavy models, which
+the main set does not hold. No victims: across the seven prints the
+names and the counts of work agree, and the only line that differs
+between head and fix is the ratio.
+
+The patch merged is `m621_settle_fix_fmt.patch`, identical by md5
+(407246ca) to `m620_settle_fix.patch`. On the heavy basket the merge
+was not measured as a pass this shift; the factor 6.29 above is the
+earlier single-model measurement, and the scheduled heavy run is the
+first whole verdict.
