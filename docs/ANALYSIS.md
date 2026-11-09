@@ -74000,3 +74000,8 @@ old refusal at `X2.X1.X1.Q3.B.v`, exit 0
 (`/tmp/m621/p3/fourbit_idx_old.txt`). The forecast held inside its
 band: the scan cost about 230 s on the old build, 0.30 ns a comparison,
 the same machine rate as on the head.
+
+Moving the desk band honestly needs two or three quiet prints of the
+judge's ratio (main plus dear, 1019 models) under the fix; one print,
+0.898, is not a band. The runner's band is wider, and whether the
+runner's own ratio stays inside it is not measured.
