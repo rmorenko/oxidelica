@@ -73942,3 +73942,36 @@ the same refusal (`/tmp/m620/twobit_fix.txt` against
 and their outcome (`/tmp/m620/small_court.txt`). The corpus pair and
 the rest of the heavy basket are not measured. The patch and these
 numbers are in the park as `m620_settle_fix`.
+
+## The corpus pair of the settling fix, and the desk band it crossed
+
+The parked settling patch (`m620_settle_fix`) was taken to the corpus
+against the head, two binaries run side by side: `/tmp/m621/oxbase`
+(md5 51b41eb0, the tree after the typos fix) and `/tmp/m621/oxpair_fix`
+(md5 eac0297e, a fresh build of the same patch, the same hash as
+`/tmp/m620/oxfix`). Commands are in `/tmp/m621/pair_base.env` and
+`pair_fix.env`, outputs in `pair_base.txt` and `pair_fix.txt`.
+
+Both halves print 1019 examples, 974 flatten and 838 run, runnable 890,
+856 and 789. The run lists and the flatten lists are equal line for
+line, and every work counter of both phases is equal to the digit
+(283617 classes, 90416310 expansions, 1273467 bodies, 1670378977 names;
+24125447 points, 35415289 newton, 598 jacobians, 143 apart, 2115919
+damped). No victims, no wins. The times, taken in parallel and not
+judged: run half 5487 s for the head, 5143 s with the fix. The victim
+witnesses under the fix print fourteen lines and no mismatch
+(`/tmp/m621/witness_fix.txt`).
+
+The patch was then applied to main, formatted (rustfmt changed nothing)
+and tested green, and the full preflight went red on one line only
+(`/tmp/m621/preflight.txt`): the desk's band on run over flatten,
+`CEILING: run/flatten ratio is 0.898, and the band is 0.96..1.44`. The
+counts of that pass were the floors' own, 974/838 and 856/789, and
+coverage and the tests passed. The fix makes running cheaper and
+leaves flattening alone, so it moves the ratio down by construction,
+and the band is a guard against slowing that a speed-up of this size
+falls through from the other side. The band was not moved, because it
+is a floor-like number and moving it needs a word; the patch was taken
+back out of the tree and the formatted copy stands in the park as
+`m621_settle_fix_fmt.patch`. Nothing on the heavy models was measured
+under this patch beyond TWOBIT in m620.
