@@ -73765,3 +73765,98 @@ comparisons on the head (`/tmp/m618/fourbit_cnt_cmp.txt`). Over about
 2840 s of running, that is about 4.6 ns each, so the linear scan is
 close to the whole price. The same sum on the old build has not been
 measured. It is the next number to take.
+
+## The scan over unknowns is not FOURBIT's price (9 November)
+
+The first line, because it overturns the line of work: replacing the
+scan with a set made FOURBIT 6.8% cheaper, not three times cheaper, so
+the scan was not the main price of 0bf0ac5.
+
+The shift before this one counted 617163999641 comparisons in the scan
+over `unknowns` on FOURBIT's head and read about 4.6 ns each into them.
+That figure was 2841 s divided by the count, so multiplying it back
+gave 2841 s whatever the scan did. It was a hypothesis, not a known
+constant, and the way to test it was to carry it to another build.
+
+### Comparisons on the old build and under the switch
+
+The same probe was put by hand into 19f2c55 (`/tmp/m619/oxcmp_old`, md5
+fee0d03a, agreeing with the head probe on a small model), and the
+head probe (`/tmp/m618/oxcmp`, md5 31cd8c7e) was run with
+`OXIDELICA_NO_ZERO_IF=1`. Both ran side by side, so their clocks are
+not judged. The times in the last column are the clean runs of the
+shift before, taken without the probe.
+
+| run                  |   comparisons | clean running | ns per comparison |
+| -------------------- | ------------: | ------------: | ----------------: |
+| head                 |  617163999641 |      2841.2 s |              4.60 |
+| head, `NO_ZERO_IF=1` | 1198788243469 |      2935.8 s |              2.45 |
+| old (19f2c55)        |  763685463676 |       ~1546 s |              2.02 |
+
+Files: `/tmp/m619/fourbit_cmp_old.txt` and
+`/tmp/m619/fourbit_cmp_nozif.txt`, each with its `.env` beside it. The
+clean time under the switch is `/tmp/m617/fourbit_prof_nozif.txt`,
+which ran under `sample` slices, so its last digit is soft.
+
+The forecast written before the old number was about 335 thousand
+million comparisons, if the head paid for volume at a steady price. The
+old build made 24% _more_ comparisons than the head and ran in a little
+over half the time. Carrying 4.6 ns to it gives 3513 s against about
+1546 s, wrong by 2.27 times, so there is no such constant. The switch
+says the same from the other side: comparisons follow its candidates
+(1.94 times the head), and time does not. What 0bf0ac5 made dearer is
+the price of one comparison, not their number.
+
+The probe's own cost carried across builds: 236.4 s over 617 thousand
+million increments on the head is 0.383 ns each, which predicts 293 s
+on the old build, and 1849.6 s minus 293 is 1557 s against the clean
+1542 to 1550 s. So a time taken under this probe is usable after
+subtracting 0.383 ns per counted comparison.
+
+### Not the bytes compared
+
+The next question was whether a dear comparison means more bytes
+walked. A second probe (`/tmp/m619/len_probe.patch`, binaries
+`/tmp/m619/oxlen` md5 551033b5 and `/tmp/m619/oxlen_old` md5 c64178d9)
+counted, over the same scanned prefix, the entries of equal length to
+the name sought, and the bytes of common prefix among those. The
+forecast, written before the numbers: if the price is bytes, the head
+shows about 2.3 times the old build's bytes per comparison; if the two
+agree within 20%, the price is in layout and cache, not length.
+
+| run  |  comparisons |        equal length | prefix bytes per comparison |
+| ---- | -----------: | ------------------: | --------------------------: |
+| head | 617163999641 | 18844281177 (3.05%) |                      0.0958 |
+| old  | 763685463676 | 23850109041 (3.12%) |                      0.0938 |
+
+Files: `/tmp/m619/fourbit_len_head.txt` and
+`/tmp/m619/fourbit_len_old.txt`. The comparison counts equal the first
+probe's to the digit, and the reduction counts on the head equal the
+counter's. Bytes per comparison differ by 2%, so the falsifier holds:
+the head is not comparing longer or more alike names. Nearly every
+comparison stops at the length check. Read alone, this pointed at
+memory layout and the cache. The next probe showed that the scan
+itself was a small part of the time, so the doubled price per
+comparison belongs to other work in the same turn. The two probes ran together, so
+their times are not judged.
+
+### A set in place of the scan, on a quiet desk
+
+The brief made this probe conditional on the old build confirming
+volume, which it did not. It was run anyway on a word sent during the
+shift, as a departure from the brief. The patch builds a `HashSet` of
+`unknowns` once per candidate loop and asks it instead of the two
+linear tests (`/tmp/m619/idx.patch`, binary `/tmp/m619/oxidx` md5
+d749d79b, workspace tests green). It is not in the tree.
+
+Forecast before the number: with the counts unchanged, running falls
+below about 950 s; a fall of less than half means the scan was not the
+main price. Result, alone on the desk
+(`/tmp/m619/fourbit_idx.txt`): running 2647.3 s against 2841.2 s, the
+counts 256, 2632064 and 7219493 to the digit, and the same refusal at
+`X2.X2.X7.p1.v`. So 194 s, about 0.31 ns per comparison, was the scan.
+The falsifier holds: the 4.6 ns per comparison were never the
+comparisons, they were whatever else the loop does per turn, divided
+by a count that happened to move with it. The next instrument counts
+the work of a turn that no counter sees yet: walks of `Expr`, clones
+and allocations in the candidate loop.
