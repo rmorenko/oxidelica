@@ -2008,6 +2008,7 @@ fn reduce_index_once(
         ));
         }
         reductions += 1;
+        oxidelica_parser::work::tick(oxidelica_parser::work::Step::ReductionPass);
 
         // The equation the matching stumbled on is one member of a
         // structurally singular subset, not the whole of it: the search
@@ -2112,6 +2113,13 @@ fn reduce_index_once(
                     }
 
                     let mut candidates: Vec<(String, Expr, usize)> = Vec::new();
+                    // Counted here and handed over once: this loop is where
+                    // the dearest reductions spend their time, and a
+                    // thread-local access per turn would weigh on it.
+                    oxidelica_parser::work::add(
+                        oxidelica_parser::work::Step::ReductionEq,
+                        algebraic_eqs.len() as u64,
+                    );
                     for (index, (l, r)) in algebraic_eqs.iter().enumerate() {
                         // The equation under reduction cannot define its own
                         // way out: `u = 3` must be read through `u = 2*x`.
@@ -2180,6 +2188,10 @@ fn reduce_index_once(
                     // a pendulum's sixty-five. A candidate's names change
                     // only when the fold replaces it by a number, and then
                     // they are cleared with it.
+                    oxidelica_parser::work::add(
+                        oxidelica_parser::work::Step::ReductionCandidate,
+                        candidates.len() as u64,
+                    );
                     let mut named_once: Vec<Vec<String>> = candidates
                         .iter()
                         .map(|(_, expr, _)| {

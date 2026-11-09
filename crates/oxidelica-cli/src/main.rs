@@ -1201,6 +1201,13 @@ fn library_check(args: &[String]) -> Result<(), String> {
         loose_jacobians,
         running_work.damped
     );
+    // The reduction of the index on a line of its own: a model can burn
+    // most of an hour there with every count above at zero, and the
+    // line above is read by the floor script, which this one leaves be.
+    println!(
+        "reduction: {} passes, {} equations scanned, {} candidates",
+        running_work.reductions, running_work.reduction_eqs, running_work.reduction_candidates
+    );
     if list {
         let mut named: Vec<&&String> = flat.iter().collect();
         named.sort();

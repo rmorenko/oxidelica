@@ -36,9 +36,17 @@ pub enum Step {
     /// Not a Newton iteration, which is why it is counted apart: a
     /// change whose cost is spent here moves no other count.
     Damped,
+    /// One reduction of the index: a structurally singular subset
+    /// found and one of its members differentiated.
+    ReductionPass,
+    /// An equation read by a reduction while it gathers the
+    /// definitions it may reach through.
+    ReductionEq,
+    /// A definition so gathered.
+    ReductionCandidate,
 }
 
-const KINDS: usize = 7;
+const KINDS: usize = 10;
 
 impl Step {
     fn at(self) -> usize {
@@ -50,6 +58,9 @@ impl Step {
             Step::Newton => 4,
             Step::Jacobian => 5,
             Step::Damped => 6,
+            Step::ReductionPass => 7,
+            Step::ReductionEq => 8,
+            Step::ReductionCandidate => 9,
         }
     }
 }
@@ -57,6 +68,9 @@ impl Step {
 thread_local! {
     static COUNTED: [Cell<u64>; KINDS] = const {
         [
+            Cell::new(0),
+            Cell::new(0),
+            Cell::new(0),
             Cell::new(0),
             Cell::new(0),
             Cell::new(0),
@@ -74,6 +88,17 @@ pub fn tick(step: Step) {
     COUNTED.with(|counted| {
         let cell = &counted[step.at()];
         cell.set(cell.get() + 1);
+    });
+}
+
+/// Count `n` steps of the given kind at once, for a loop too hot to
+/// pay a thread-local access on every turn: it counts in a local and
+/// hands the total over here when it ends.
+#[inline]
+pub fn add(step: Step, n: u64) {
+    COUNTED.with(|counted| {
+        let cell = &counted[step.at()];
+        cell.set(cell.get() + n);
     });
 }
 
@@ -96,6 +121,12 @@ pub struct Work {
     pub jacobians: u64,
     /// Damped trials of a step cut short.
     pub damped: u64,
+    /// Reductions of the index.
+    pub reductions: u64,
+    /// Equations read by the reductions in search of definitions.
+    pub reduction_eqs: u64,
+    /// Definitions the reductions gathered.
+    pub reduction_candidates: u64,
 }
 
 impl Work {
@@ -111,6 +142,9 @@ impl Work {
             newton: get(Step::Newton),
             jacobians: get(Step::Jacobian),
             damped: get(Step::Damped),
+            reductions: get(Step::ReductionPass),
+            reduction_eqs: get(Step::ReductionEq),
+            reduction_candidates: get(Step::ReductionCandidate),
         }
     }
 
@@ -125,6 +159,9 @@ impl Work {
             newton: self.newton - earlier.newton,
             jacobians: self.jacobians - earlier.jacobians,
             damped: self.damped - earlier.damped,
+            reductions: self.reductions - earlier.reductions,
+            reduction_eqs: self.reduction_eqs - earlier.reduction_eqs,
+            reduction_candidates: self.reduction_candidates - earlier.reduction_candidates,
         }
     }
 
@@ -139,6 +176,9 @@ impl Work {
             newton: self.newton + other.newton,
             jacobians: self.jacobians + other.jacobians,
             damped: self.damped + other.damped,
+            reductions: self.reductions + other.reductions,
+            reduction_eqs: self.reduction_eqs + other.reduction_eqs,
+            reduction_candidates: self.reduction_candidates + other.reduction_candidates,
         }
     }
 }
@@ -158,6 +198,9 @@ mod tests {
         tick(Step::Newton);
         tick(Step::Jacobian);
         tick(Step::Damped);
+        tick(Step::ReductionPass);
+        add(Step::ReductionEq, 5);
+        add(Step::ReductionCandidate, 3);
         let done = Work::here().since(before);
         assert_eq!(
             done,
@@ -170,6 +213,9 @@ mod tests {
                 newton: 1,
                 jacobians: 1,
                 damped: 1,
+                reductions: 1,
+                reduction_eqs: 5,
+                reduction_candidates: 3,
             }
         );
         assert_eq!(done.plus(done).expanded, 4);

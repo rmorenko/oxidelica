@@ -2227,3 +2227,51 @@ fn help_prints_the_usage_and_runs_nothing() {
         assert!(!stdout(&output).contains("files:"), "{args:?}");
     }
 }
+
+#[test]
+fn a_reduction_of_the_index_is_counted_and_a_model_without_one_counts_none() {
+    // `x = y` ties two states together and names no unknown, so the
+    // matching stumbles on it and the index has to come down: the
+    // reduction line counts a pass, the equations it read and the
+    // definitions it gathered. A model with nothing to reduce counts
+    // nothing, and the floor script's `work:` line is left as it was.
+    let library = TempDir::new("reduction counts");
+    std::fs::write(
+        library.0.join("Lib.mo"),
+        "package Lib package Examples \
+         model Tied Real x(start = 1, fixed = true); Real y; Real v; Real z; \
+         equation der(x) = v; der(y) = z - y; z = -v; x = y; end Tied; \
+         model Plain Real x(start = 2, fixed = true); \
+         equation der(x) = -(x - 1); end Plain; \
+         end Examples; end Lib;",
+    )
+    .unwrap();
+    let counts = |model: &str| -> Vec<u64> {
+        let out = bin()
+            .args([
+                "library",
+                "check",
+                library.0.to_str().unwrap(),
+                "--only",
+                model,
+            ])
+            .output()
+            .unwrap();
+        assert!(out.status.success(), "{}", stderr(&out));
+        let text = stdout(&out);
+        assert!(text.contains("of which 1 flatten and 1 run"), "{text}");
+        assert!(text.lines().any(|l| l.starts_with("work:")), "{text}");
+        let line = text
+            .lines()
+            .find(|l| l.starts_with("reduction:"))
+            .unwrap_or_else(|| panic!("no reduction line in: {text}"));
+        line.split(|c: char| !c.is_ascii_digit())
+            .filter(|s| !s.is_empty())
+            .map(|n| n.parse().unwrap())
+            .collect()
+    };
+    let tied = counts("Lib.Examples.Tied");
+    assert_eq!(tied.len(), 3, "{tied:?}");
+    assert!(tied.iter().all(|&n| n > 0), "{tied:?}");
+    assert_eq!(counts("Lib.Examples.Plain"), vec![0, 0, 0]);
+}
