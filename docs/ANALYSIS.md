@@ -74132,3 +74132,32 @@ The patch merged is `m621_settle_fix_fmt.patch`, identical by md5
 was not measured as a pass this shift; the factor 6.29 above is the
 earlier single-model measurement, and the scheduled heavy run is the
 first whole verdict.
+
+## Two quiet prints of the old tree: the desk did not move, the code did
+
+The desk band (0.88..1.44 in `scripts/preflight.sh`) was built over
+eleven desk prints of 1.143 to 1.248, and the head since the settling
+fix prints 1.021 to 1.054, under all eleven. Whether the desk or the
+compiler had moved was settled by printing the old tree on the present
+desk. The tree is a75d0e9 (2026-11-03), the commit that wrote the
+m566 point of 1.143 into the band's comment; its crates are identical
+to its parent's, so the compiler is the one that printed it. Built in
+a worktree, binary md5 ea5434c6, two judge prints one after the other
+on a quiet desk:
+
+| print           | flatten ms/model | run ms/model | ratio |
+| --------------- | ---------------- | ------------ | ----- |
+| m625/drift1.txt | 4032             | 4723         | 1.171 |
+| m625/drift2.txt | 4094             | 4683         | 1.144 |
+
+Ratio = run ms each / flatten ms each, from the `time:` line (line 944
+of both files). The two prints differ by 2.3%. Both stand inside the
+eleven old points (1.143..1.248) and above the falsifier written before
+the number, 1.10. The forecast that the desk had moved (1.02..1.06) is
+refuted: the old code still prints its old ratio here, so the fall to
+1.02..1.05 belongs to the code between 2026-11-03 and the head, and the
+old points remain usable as a base for the delta. The counts of the old
+tree (1020 example models, 825 ran, 855 runnable flatten and 777 run)
+are of that epoch and are not compared with today's floors; its set
+holds one model more than today's 1019, so the ratio is of a slightly
+different set, which a 2.3% spread between two prints does not resolve.
