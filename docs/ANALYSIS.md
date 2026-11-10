@@ -74414,3 +74414,102 @@ zero and exit 2, which under the judge's strict shell would have taken
 the whole pass down despite the promise never to touch the exit
 status. The guard now checks the run base too, and the call cannot
 fail the pass. `delta_judges` holds both as two more shapes.
+
+## m628: the judge's own mode, a second point of it, and 524e6a8 priced
+
+### The judge prints in the per-model mode
+
+The corpus judge itself runs with `OXIDELICA_WORK_EACH=1`
+(`scripts/library_floor.sh:3853`, and `:3941` for the work pass). So
+every live delta line of the preflight was taken in the mode of
+`/tmp/m627/drift5.txt`, while the desk base 3945 / 3910 was taken in
+the mode of `drift3` and `drift4`, without the key. That shifted every
+delta line the same way: about +7.1% flatten, +3.2% run, -3.7% in the
+ratio. Recomputed against `drift5` as the base, the first live print
+4522 / 4058 is +7.0% flatten, +0.6% run and -6.0% in the ratio, not
+the -9.5% first reported. Nearly half of that line was the mode of the
+instrument and not the binary or the desk.
+
+### drift6: the judge's mode does not repeat to 1.5%
+
+A second print in the judge's mode, same binary `/tmp/m626/oxhead`
+(md5 eac0297e), same command as `drift5.env`, desk checked quiet
+before the start: `/tmp/m628/drift6.txt`, witness `drift6.env`.
+
+| print  | flatten ms | run ms | ratio |
+| ------ | ---------- | ------ | ----- |
+| drift5 | 4226       | 4034   | 0.955 |
+| drift6 | 4376       | 4060   | 0.928 |
+
+All nine work counters and the reduction line (3943 / 7353553 / 20260035) are equal to the digit and the run lists agree line for
+line, so the work is identical. The flatten half still moved +3.5%,
+the run half +0.6%. The condition set for winding the base was 1.5% a
+half, so the base was not wound: the flatten half of this mode wanders
+more than the line it would judge.
+
+### 524e6a8 on the corpus
+
+The head with 524e6a8 reverted, built in a worktree from origin/main
+(`/tmp/m628/oxnost`, md5 ae40a54f, worktree removed), run with the
+same command: `/tmp/m628/nost1.txt`, witness `nost1.env`.
+
+Work first: every counter and the reduction line equal the head's to
+the digit, and the run lists are equal, 838 = 838. The settle fix
+changes no work any counter here sees, as the pair m621 already found.
+
+Time against the middle of `drift5` and `drift6`, with the floor taken
+from that same pair:
+
+| half    | head (mid) | floor | without the fix | difference      |
+| ------- | ---------- | ----- | --------------- | --------------- |
+| flatten | 4301       | 150   | 4089            | -212, 1.4 floor |
+| run     | 4047       | 26    | 4302            | +255, 9.8 floor |
+
+The run half is dearer without the fix by 6.3%, about ten floors of
+its own series: the sign predicted from m622 holds, and the fix pays
+for itself in the run half on the corpus. The flatten half is cheaper
+without the fix by 4.9%, close to the +4.9% the fix was expected to
+cost, but that is 1.4 floors of a half whose own floor is 3.5%, so the
+pair does not resolve it. Only the sign is offered there, and not as a
+finding. Both halves sit inside the cross-binary ceiling of about 5%
+except the run half, which clears it.
+
+### The runner's series
+
+Full-library green pushes on main, the judge's print (`time per
+model`), from `gh run view --job ... --log`; `/tmp/m628/series.txt`.
+
+| run id      | head    | date       | flatten ms | run ms | ratio |
+| ----------- | ------- | ---------- | ---------- | ------ | ----- |
+| 42754848026 | 4c8eaf6 | 2026-11-10 | 6673       | 7562   | 1.133 |
+| 42706138814 | 05480b7 | 2026-11-09 | 7751       | 9917   | 1.279 |
+| 42544503967 | a271771 | 2026-11-09 | 5189       | 6193   | 1.193 |
+| 42354475664 | ea84255 | 2026-11-07 | 8241       | 10948  | 1.328 |
+| 42322806997 | 2337396 | 2026-11-07 | 6464       | 7950   | 1.230 |
+| 42221253077 | 78d5b50 | 2026-11-06 | 6780       | 9531   | 1.406 |
+| 42182605330 | a49c9c7 | 2026-11-06 | 6869       | 10650  | 1.550 |
+| 42163083623 | f94ed26 | 2026-11-06 | 7013       | 9563   | 1.364 |
+| 42142671964 | e96de60 | 2026-11-06 | 7539       | 11099  | 1.472 |
+| 42128878280 | 5492dfa | 2026-11-05 | 5296       | 7489   | 1.414 |
+| 42116543027 | e847455 | 2026-11-05 | 6494       | 9086   | 1.399 |
+| 41928064535 | fb1ccec | 2026-11-04 | 8001       | 10579  | 1.322 |
+| 41793241222 | 06f57ef | 2026-11-04 | 7998       | 10880  | 1.360 |
+| 41780306883 | 6a8f9e5 | 2026-11-04 | 6444       | 8320   | 1.291 |
+
+The absolute halves swing by 1.6x between runners and the ratio from
+1.13 to 1.55 over code that changed. That is a map and not a base.
+
+### What the desk wants instead of a written base
+
+The runner already has a delta made the right way: the observer step
+at `.github/workflows/ci.yml:313` calls `scripts/ratio_delta.sh`
+against the previous print found by its artefact. Its base is the
+last print of the same judge, so mode, machine and judge agree by
+construction and nothing is wound by hand; it intersects the two sets
+and prints how many models ran in both; and it counts per-model
+doublings, which no noise measured so far (0.5% within a mode, 3.5% in
+the judge's mode, 5% across binaries, 7% across modes) can fake. The
+desk should keep its last judge's print on disk and call the same
+script, with the doubling check, rather than carry a second written
+base. Until then every desk delta line carries the mode shift named
+above, which is why it stays advisory.
