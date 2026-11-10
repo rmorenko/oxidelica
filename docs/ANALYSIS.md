@@ -75089,3 +75089,17 @@ singular before any Newton step is taken. `Electrical.Machines` `SMEE_DOL` runs
 (128 points). The `FundamentalWave` `SMEE_DOL` refuses as
 underdetermined at `smee.airGap.V_mss.im`, which belongs to the
 machine family. Both were probed only, with no changes.
+
+### Which assemblies carry the second link
+
+`Fourbar_analytic` runs in both halves of the pair. It is built on
+`JointSSP`, which declares no `fixed = false` parameter. The six that
+refuse as singular are built on `JointRRR`, whose `n_b[3]` is
+`fixed = false` (`JointRRR.mo:39`), or on `JointRRP`, whose `e_im[3]`
+is `fixed = false` (`JointRRP.mo:87`). In a small constraint model
+(`/tmp/m633/Q.mo`), a `fixed = false` parameter set by an initial
+equation behaves the same as a literal one once the root is chosen by a
+start value. That model is index 1, though, so it does not reach the
+differentiation where `n_b` shows up in the refusal. The second link is
+mapped to these two parameters inside the assemblies and is not walked
+further in this shift.
