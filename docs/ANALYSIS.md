@@ -74303,3 +74303,13 @@ or the desk thinning towards morning; one point does not tell which,
 and the base needs a second quiet print before it holds anything.
 The counts 838 / 789 are a desk print above the floors 835 / 786;
 the floors move on the runner's print, not on this one.
+
+A second quiet print of the head followed with the same binary
+(`/tmp/m626/drift4.txt`, environment in `drift4.env`): flatten 3950 ms,
+run 3897 ms a model, ratio 0.987, the same 838 / 789 and a run list
+equal to `drift3` line for line. The two points differ by 0.9% in the
+ratio, 0.2% in flattening and 0.7% in running, which is the first
+measured repeatability of the head on a quiet desk and is narrower
+than the 1.5% to 2.3% of the night's earlier pairs. A base of about
+0.99 at the head stands on these two points, written as two points
+with their files and not yet as a band.
