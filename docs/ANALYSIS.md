@@ -74313,3 +74313,22 @@ measured repeatability of the head on a quiet desk and is narrower
 than the 1.5% to 2.3% of the night's earlier pairs. A base of about
 0.99 at the head stands on these two points, written as two points
 with their files and not yet as a band.
+
+### A correction from the counters
+
+The work counters of `keyAB` and `bis2` agree byte for byte in both
+phases (283617 classes, 90416310 expansions, 1273467 bodies,
+1670378977 names; 24157485 points, 35488250 Newton steps, 597
+Jacobians, 1974 apart, 2119652 damped). So the two keys are an exact
+rollback of their commits and 864ab18 is clear by identity, not by a
+band. The same identity prices the clock: with equal counted work the
+flatten half differed by 4.7% (3893 against 4085 ms), so the clock's
+noise between two binaries on this desk is near 5% a half and near 7%
+in the ratio, not the 0.5% measured within one binary. Two readings
+above are withdrawn on that ground: the flatten half under the keys
+being "4.7% under the old tree" is noise and not a finding, and the
+0.9% agreement of `drift3` and `drift4` is repeatability within one
+binary only. A delta that compares prints of different binaries needs
+a threshold no narrower than about 7% until a cross-binary series says
+otherwise. The split of the fall to 8a669d9 stands, since it is a move
+of 465 ms in flattening, about 12%, and is carried by the run lists.
