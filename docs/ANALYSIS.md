@@ -74191,3 +74191,115 @@ ea84255 838 (789). Three models that started to run inside the last
 interval are therefore a candidate cause for the run half's new share,
 alongside the cost of the commits themselves. The two are not told
 apart by these prints.
+
+## m626: the two keys of ea84255, and a map for the delta
+
+The previous shift narrowed the fall of the desk ratio to
+(76350b6, ea84255]. Both remaining suspects carry a key that turns
+them off, so this shift printed the binary at ea84255 under the keys
+instead of building a fourth tree. The worktree build came out at md5
+02586b47, the same as `/tmp/m625/oxmid3`, so the prints are binary for
+binary comparable with `bis3`. The environment of each print was
+written by the launching shell beside it (`/tmp/m626/keyAB.env`,
+`keyB.env`).
+
+| print                   | keys                     | flatten ms | run ms | ratio | ran / runnable |
+| ----------------------- | ------------------------ | ---------- | ------ | ----- | -------------- |
+| m625/bis2.txt (76350b6) | none                     | 4085       | 4710   | 1.153 | 835 / 786      |
+| m625/bis3.txt (ea84255) | none                     | 4300       | 4381   | 1.019 | 838 / 789      |
+| m626/keyAB.txt          | no chain, no array rates | 3893       | 4626   | 1.188 | 835 / 786      |
+| m626/keyB.txt           | no chain                 | 3835       | 4640   | 1.210 | 836 / 787      |
+
+Both keys together bring the run half back to the old tree (4626
+against 4710 ms) and the counts back to 835 / 786 exactly, so 864ab18
+carries nothing, as reading had said. The forecast written before the
+number was 1.13..1.17 with a falsifier at 1.10 or a flatten half still
+near 4300: the falsifier stayed silent and the ratio came out 1.188,
+above the band. The direction stood, the forecast did not: the
+flatten half under the keys is not merely back, it is 4.7% under the
+old tree, which no forecast named.
+
+The second print splits the halves. The forecast was that the flatten
+half would stay near 4300 under the chain key alone, putting the
++219 s of flattening on ea84255. Its falsifier was a flatten half back
+near 4160 under the chain key alone, and that is what happened (3835).
+The forecast is refuted: the flatten half's growth belongs to 8a669d9,
+the silent chain through arithmetic, whose own message spoke of equal
+flattening counters. Those counters count expansion, and the chain
+works in the phase that follows it, so the counters were blind to the
+phase where the time went, the same shape as FOURBIT's zero counters.
+The chain both makes the flatten half dearer by about 465 ms a model
+(4300 against 3835 with the array rates on in both) and the run half
+cheaper by about 259 ms (4381 against 4640). The array rates key moves
+little: 58 ms of flattening and 14 ms of running between keyAB and keyB,
+inside a desk night whose two equal-work prints differed by 1.5%.
+
+The run lists name the winners by commit. Against `bis3`, the chain
+alone accounts for `AST_BatchPlant.Test.OneTank` and
+`TestComponents.Machines.TestSweptVolume`; the array rates for
+`ModelicaTest.Math.TestInterpolateTimeVarying`. No model was lost
+under either key that runs at ea84255.
+
+So the desk ratio's fall from about 1.15 to 1.02 is one commit, 8a669d9,
+moving work from the run half into the flatten half; it is a change
+of compiler, not of desk, and it is paid for by two models.
+
+The head was printed once more on the quiet desk for the delta's base,
+`/tmp/m626/drift3.txt`, binary md5 eac0297e; its numbers are in the
+next section if it finished inside the shift.
+
+### A map for the delta over a fixed set
+
+Where the band lives now. The runner's band is `RATIO_LOW` and
+`RATIO_HIGH` in `scripts/library_floor.sh:2687-2688` (0.70..1.67),
+judged by `ratio_verdict`, which `--ratio-check` exposes so the band
+can be seen red without a library pass. The desk's band is
+`DESK_RATIO_LOW` / `DESK_RATIO_HIGH` in `scripts/preflight.sh:121-122`
+(0.88..1.44), passed into the judge as `RATIO_LOW` / `RATIO_HIGH` by
+the library step (`preflight.sh:209-223`) and seen red and green by
+the checks at `preflight.sh:265-272`.
+
+Where the base would live. A number beside the band in the same
+script, in the shape of `DESK_RATIO_LOW`: the run and flatten ms per
+model of a quiet print of the head, each with its witness file and
+binary md5 in the comment, exactly as the floors carry the judge's
+print. A commit that moves the ratio on purpose winds the base in the
+same commit, as a commit that moves the counts winds the floors; one
+that moves it by accident is what the delta exists to stop.
+
+What sets the threshold. Two quiet equal-work prints of the same
+night differed by 1.5% to 2.3% (m625 drift1 / drift2, and keyAB /
+keyB here, whose work differs by one model); an instrument noise of
+0.5% was measured on m622. A loaded desk printed 0.914 against quiet
+prints near 0.93 of the same code. So a delta threshold under about
+3% would fire on weather on a quiet desk and much more often on a
+loaded one; a first threshold near twice the night's spread, about 5%,
+is what these series support, and the next shift's prints should
+replace that guess with a measured series.
+
+What it guards where. On a shift's pair, change against head on one
+desk one after the other, the delta is a pure comparison and needs no
+stored base at all: the off half is the base. On a single print, the
+judge in CI or a preflight, the stored base is what the print is held
+to, and that is where weather and the room enter.
+
+What it does not close. Both halves growing together leaves the ratio
+still, and so does the delta of a ratio; only a delta of the absolute
+times per model over the fixed set would see it, and absolute times
+are the thing the runner's weather moves most. That blind spot stays
+named, as `AGENTS.md` already names it for the band.
+
+### The first quiet point of the delta's base
+
+The head, 160e151 (binary md5 eac0297e), printed on the same quiet
+desk right after the two key prints (`/tmp/m626/drift3.txt`): flatten
+3941 ms, run 3923 ms a model, ratio 0.995, with 974 flattened and 838
+run, runnable 856 and 789. The expectation was 0.90..0.97 from the
+earlier quiet prints of the settling fix (0.940, 0.935); 0.995 is
+above it but inside the wider 0.88..1.05 named before the number, so
+it is recorded as a point, not as an alarm. Against the same night's
+key prints both halves sit lower, which is either the settling fix
+or the desk thinning towards morning; one point does not tell which,
+and the base needs a second quiet print before it holds anything.
+The counts 838 / 789 are a desk print above the floors 835 / 786;
+the floors move on the runner's print, not on this one.
