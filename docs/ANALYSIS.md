@@ -74873,12 +74873,8 @@ singular family is not one family, so no fix was built.
 A ceiling and an exclusion are different things. An exclusion takes a
 model out of the set, and Roman ruled that out. A ceiling keeps the
 model in the set and prints its refusal with its name and the reason.
-The four wins cost +1081 s of run time, which is +18 min. Yesterday's
-pass a took 152.5 min against a 240 min ceiling. With a 5 min ceiling
-for each of the five hanging models, the pass comes to
-152 + 18 + 25 = 196 min, which leaves 44 min, so a default would fit.
-With 45 min for each, it comes to 152 + 18 + 225 = 396 min, and the
-ceiling is broken almost twice over. So the proposal for the review is
+The arithmetic first written here used the wrong job and the wrong
+clock, and it is corrected in the section on the two prices below. So the proposal for the review is
 the switch on by default, plus a ceiling of 5 min per model, with the set
 left untouched. The five then stay in the set and refuse at the ceiling.
 The 45 min probe below answers a different question, whether they end at
@@ -74912,18 +74908,36 @@ printed set. That set had the five left out, so their cost never
 appeared in it. With the switch off, drift8 refused BranchingPipes1,
 2 and 4, SeriesPipes1 and TestTemperature1 after 91, 83, 25, 28 and
 41 s of run time. With it on, the first four refuse after 1964, 1525,
-1714 and 2236 s, which is 7439 s or 124 min, and they win nothing. So the
+1714 and 2236 s, which is 7439 s, and they win nothing. Before the switch
+they already cost 228 s, so the addition is 7212 s or 120 min. So the
 switch has two prices: +1081 s of useful running on the four wins, and
-about +124 min of waste on four long refusals. TestTemperature1
+about +120 min of waste on four long refusals. TestTemperature1
 finished reading its files, and then the 45 min ceiling stopped it
 with nothing printed, so its outcome is unknown. It is counted neither
 as a long refusal nor as a hang.
 
-That makes a ceiling per model a condition of the default, not a
-convenience. Without a ceiling, the pass would take 152 + 18 + 142 =
-312 min against 240. With 5 min per model it takes about 195 min, and
-the outcome does not change, because the four refuse either way. The
-ceiling cuts about 104 min and costs no win.
+The job and the clock, read by the review and checked by exact line
+match: none of the nine models is in `scripts/heavy_models.txt`, and
+`BranchingPipes1` is in `scripts/dear_models.txt`. So eight of them sit
+in the main pass and one in the dear pass, both under a 180 min ceiling
+(`.github/workflows/ci.yml:204` and `:240`). The heavy pass a counts
+none of them, so an earlier sum against its 240 min was against the
+wrong ceiling. Model seconds are also not wall minutes. In run
+42815502619 the main pass printed 3780 + 4763 = 8543 model seconds over
+a wall of 61.6 min, which means at least 2.31 workers.
+
+The main pass gains 1525 + 1714 + 2236 + 2700 (a lower bound for
+TestTemperature1) - 178 + 1081 = 9079 model seconds, or 151 min, and the
+dear pass gains 1964 - 91 = 1873 s, or 31 min. The wall time is the
+maximum over the workers, and the added time comes in lumps:
+SeriesPipes1 alone takes 37 min on one worker, and TestTemperature1 has
+no known end. Without a ceiling the main pass is bounded below by
+62 + 45 = 107 min and above by 62 + 151 = 213 min against 180, and that
+upper edge stays open while TestTemperature1 has no outcome. With a
+5 min ceiling per model, the addition is 4 x 300 - 178 + 1081 = 2103 s,
+or 35 min, so even the worst lump stays under 97 min against 180. The
+ceiling turns an unbounded risk into a bounded one, cuts about 120 min
+and costs no win. That is the condition for a default.
 
 CI for 8176cf6 (run 42815502619) ended in success. The main library
 pass, the dear pass and their judge all read, and the tests on three
