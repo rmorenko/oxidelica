@@ -74943,3 +74943,22 @@ CI for 8176cf6 (run 42815502619) ended in success. The main library
 pass, the dear pass and their judge all read, and the tests on three
 platforms passed. Only the heavy jobs were skipped. That closes the
 gap left by the preflight's library step being dropped.
+
+### No ceiling per model exists yet
+
+Neither `crates/oxidelica-sim/src/lib.rs` nor
+`crates/oxidelica-cli/src/main.rs` has a budget, deadline or time limit
+for a model. `library check` runs each model through `run_a_little`
+(`main.rs:1390`) with no clock on it, and `--slow N` only reports the
+dearest models. So "the switch plus a 5 min ceiling" is not a setting
+that can be turned on. The ceiling is work that has not been done yet.
+The order follows from the measurement: build the ceiling per model
+first, and turn the default on after it. Until then, the main pass has
+no measured bound, so the default cannot be turned on.
+
+TestTemperature1 was run again under the switch, alone on a quieter
+machine, with a 90 min ceiling (`/tmp/m631/t1_long.txt`, command in
+`t1_long.env`). The ceiling stopped it after 90 minutes with no verdict
+and a peak of 0.2 GB. Its outcome is still unknown, and its run under
+the switch is at least 90 minutes, against 41 s of refusal with the
+switch off.
