@@ -75022,3 +75022,70 @@ ratio 0.757 inside its band. The floors stand at 974/835/856/786 and
 are not moved here, because only the runner's print raises them. The
 same judge with the runner's centres (`/tmp/m632/judge.txt`) is red on
 the work lines alone, as it is on any desk print, and on no count.
+
+## The three analytic loops: an array read before its owner is built (m633)
+
+### The runner on fc69ef4
+
+Run 42890047772 finished green on all three library jobs: main pass,
+dear pass and the judge. The judge printed 2671 files read, 974
+flatten, 838 run; runnable 856 flatten, 789 run. The floors stand at
+974/835/856/786 and are not moved here: the runner's print is above
+them, and raising them is left to review.
+
+### An array read before its owner is built
+
+`Engine1b_analytic`, `EngineV6_analytic` and `PlanarLoops_analytic`
+are one family. All three refuse with `cannot evaluate parameters`
+because `e_ia[1..3]` is bound to the undeclared whole name
+`jointUSR.e2_ia` (or `jointUSP.e2_ia`). The smallest model that refuses
+the same way is four lines, with literal values throughout:
+
+```modelica
+model D
+  model M parameter Real e[3] = {1, 2, 3}; end M;
+  parameter Real t[3] = m.e; M m;
+end D;
+```
+
+The same model with `M m` declared above `t` runs. A parameter is
+deliberately not moved behind the sibling it reads
+(`built_in_reading_order`, `flatten/components.rs`, which explains why). So
+`m.e` has not been measured when `spread_over_elements` hands out the
+value, and every element gets the whole name.
+
+### A mend, measured and parked
+
+After every component is built, a rule rewrites `t[i] = n` to
+`t[i] = n[i]`. It fires only where `n` is declared nowhere and `n[i]`
+is declared. The switch is `OXIDELICA_NO_LATE_SPREAD=1`. A unit test
+fails without the rule and passes with it. The pair used one binary,
+off then on (`/tmp/m633/off.txt`, `/tmp/m633/on.txt`). The run lists
+match line for line, both halves at 974/838 and runnable 856/789, with
+no victims and no wins. The run half went from 3998 s to 4922 s
+(+23%). Six Loops models now pass the parameter wall and refuse in
+index reduction as structurally singular: `EngineV6_analytic` takes
+513.9 s, `PlanarLoops_analytic` 205.1 s, `Engine1b_analytic` 132.7 s,
+and the `Utilities` copies take the rest. Reduction scanned 7.35M
+equations before the change and 23.4M after. The flattening work was
+identical in both halves, so the 4841 s against 4131 s on that half is
+drift. At more than 6%, this goes to the park with the question for
+Roman (`~/oxideflow/park/m633_late_spread.*`). The heavy basket was not
+measured.
+
+The next link is `n_b`, a `fixed = false` parameter set by an initial
+equation. It shows up in the differentiated equations of `jointRRR3`,
+and those equations are the ones refused as singular. That is a
+different layer, so it is mapped here and not taken.
+
+### capbx and SMEE_DOL, probed
+
+`/tmp/m630/Rtl.mo` with XCJC set to 0, 0.5 and 1.0 refuses the same
+way each time: underdetermined `der(Q1.vbx)`, at
+`solvers/mod.rs:1610`. With XCJC at 0, `capbx` is still nonzero by
+`junctionCapRevised`, so `capbx` is not the lock. `OXIDELICA_NEWTON_TRAIL`
+prints nothing before the refusal, which means the block is judged
+singular before any Newton step is taken. `Electrical.Machines` `SMEE_DOL` runs
+(128 points). The `FundamentalWave` `SMEE_DOL` refuses as
+underdetermined at `smee.airGap.V_mss.im`, which belongs to the
+machine family. Both were probed only, with no changes.
