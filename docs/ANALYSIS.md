@@ -74682,6 +74682,15 @@ Q1.cc.capbx * der(Q1.vbx)`, with `capbx` the output of
 `capbe`. A candidate, not a finding: where the transistor's card gives
 that capacitance as zero, the one equation that could fix the
 derivative carries it with a coefficient of zero, and the loop is
-underdetermined at that point by the model's own numbers. Whether the
-coefficient is zero at the refusal, or only small, is the next probe.
+underdetermined at that point by the model's own numbers. Read in the library,
+it is zero identically and not only small: `capbx` is the B-C
+capacitance times `1 - m_baseFractionBCcap` (`Spice3.mo:9748`), that
+fraction is the card's `XCJC`, and `XCJC` defaults to 1.0
+(`Spice3.mo:5040`); the RTL inverter's card sets `CJC` and leaves
+`XCJC` alone. So `der(Q1.vbx)` multiplies a zero by construction, any
+value of it satisfies the loop, and the current it feeds is zero. The
+compiler's refusal is true of the equations; what a fix would have to
+decide is whether an unknown met only under a zero coefficient may be
+carried rather than solved. That is a question of policy and is left to
+the note that follows.
 The five machines name `airGap` unknowns and were not probed.
