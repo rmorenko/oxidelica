@@ -74576,3 +74576,98 @@ Their middle (4260 / 4075) against `nokey1` (4149 / 4051) is -2.6%
 flatten and -0.6% run, 1.1 and 0.3 of the bracket's own span. Within
 one sitting the per-model mode has no price this desk can resolve, and
 the order of the prints shows no drift running one way.
+
+## m629: the desk's delta held against its own last green print
+
+### Why the written base left
+
+The desk's delta compared each judge print with a written base of
+3945 / 3910 ms per model. That base came from `drift3` and `drift4`
+(`/tmp/m626`), taken in the plain shape, while the judge prints with
+`OXIDELICA_WORK_EACH=1`: every line carried the shift of mode. Winding
+the base failed its own condition (`drift6` stood +3.5% from it against
+a band of 1.5%), and the judge's walk over `drift5` to `drift8` spread
+3.9% in flattening and 2.3% in running. `drift3` and `drift4` stay here
+as the measure of the plain shape and leave the machinery.
+
+### The device
+
+`scripts/preflight.sh` now does what the runner does in `ci.yml` after
+the judge: `scripts/ratio_delta.sh` against the previous print of the
+main pass. The store is `$HOME/.oxidelica/delta/main.txt` with a
+witness `main.env` (date, head, md5 of the binary, command), written
+only after a green library step, and printed beside every delta line so
+that an old base explains itself. The line is advisory and the exit
+status of the step is untouched. The written base, `delta_advisory`,
+`--delta-check` and their self-check are removed; a new self-check runs
+`ratio_delta.sh` and the store over small synthetic prints: the overlap
+and both sums, a model on one side named, a doubling over `OUTLIER_MS`
+named and one under it not, a model without a work line left out, an
+empty overlap answered with status 2 and absorbed. It was seen green,
+and red with one expectation changed, before the commit.
+
+The store was not seeded from `/tmp/m628/drift8.txt`. That print was
+taken with `--without scripts/heavy_models.txt` alone, while the main
+pass of the judge (`pass_flags main`) cuts both the heavy and the dear
+models: a seed of a wider set. The first green step seeds the store
+with its own set and shape, and the first delta line is the step after
+it. So this shift's preflight is the seed, not print 1 of 3; the
+condition for `DESK_RATIO_LOW` back to 0.96 (three prints of the line)
+starts counting at the next preflight.
+
+Resolution of the line, in numbers: two spans of the judge's walk are
+7.7% in flattening and 4.5% in running (spans 165 and 92 ms at middles
+of 4280 / 4061, `drift5` to `drift8`, one sitting, one binary, one
+shape). Below that it judges nothing. The per-model doubling stays the
+only check above every measured noise. Correction 34, stated: the +7.1%
+read as the price of the judge's mode was drift between sittings, and
+the claim that the plain shape repeats better stays unchecked, not
+refuted.
+
+### The first print of the device
+
+The full preflight of this shift ran green (`/tmp/m629/preflight.txt`,
+commit c97f7bf, binary md5 595f9d3c): the main pass printed `delta: no
+stored print ... yet`, the judge's ratio was 0.921 inside 0.88..1.44,
+and the green step wrote the store (`main.env`: head c97f7bf with only
+this chapter uncommitted). The seed is that print; the delta line has
+no number yet and will have its first at the next preflight.
+
+### The census against m597
+
+`/tmp/m629/census.txt`, counted between section markers: would not
+flatten 45 models in 25 rows, identical line for line to
+`/tmp/m597/census.txt`; flattened and would not run 136 models in 27
+rows, against 139 in 28. The sum fell by the three models taken since
+m597, but the rows moved more than three: `constrains no state` went
+24 to 28, the Newton direction 11 to 10, `X of algebraic loop` 6 to 4,
+the singular Jacobian 7 to 6, the equations of a loop 5 to 4, a bare
+algebraic loop 4 to 3, and the single `cannot differentiate ... reads
+the array handed as input` row is gone. So four models travelled into
+the row that waits for Roman's word, from loop rows; a total that
+agrees is not the account of who moved. The three models of their own
+among the parameters without a value are the three `_analytic` loops of
+MultiBody (`Engine1b_analytic`, `EngineV6_analytic`,
+`PlanarLoops_analytic`), each refused as `cannot evaluate parameters`
+on `jointRRP.e_ia` or `jointRRR1.e_ia`.
+
+### A map of the Newton direction
+
+The row of ten is not one family by library: eight are Fluid pipes
+(`SeriesPipes1`, `SeriesPipes2`, `BranchingPipes1`, `2`, `3`, `4`,
+`13`, `14`), one is `TestTemperature1`, one is the machine
+`IMC_withLosses`. The eight pipes all name `pipe1.mediums[1].p` first.
+Two were probed with `OXIDELICA_NEWTON_TRAIL=1` and `--only` from the
+root `.msl` (`/tmp/m629/sp2_trail.txt`, `bp14_trail.txt`). Both show
+the same shape: the loop solves at the first ticks in two or three
+steps, then the full Newton step from a good point takes the first
+pressure negative (SeriesPipes2 at t = 0.0008: 746797 to -17653483 Pa;
+BranchingPipes14 at t = 0.0002: the last pressure to -398704 Pa), the
+medium answers NaN, damping walks back, and the iterates then creep the
+pressure towards zero while the residual of the valve equation (scale
+1.6e7) barely falls, until the step has no length left. A candidate
+mechanism, not a finding: the step is set by the valve's
+characteristic, whose slope near the operating point is steep enough
+to send the pressures through zero. The eight underdetermined loops are
+another family (three Spice `der(vbe)`, five machines on `airGap`) and
+were not probed. No change is built; the next note decides.
