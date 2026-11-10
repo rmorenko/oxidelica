@@ -74526,3 +74526,16 @@ flatten (1.4 spans, not resolved) and +5.6% run, 2.6 spans of the
 series: the run half's price of reverting the fix still clears its
 own floor, but by less than the two-point floor made it look. The base
 stays unwound: neither half repeats to 1.5%.
+
+### The mode's price, measured the same morning
+
+The same binary without `OXIDELICA_WORK_EACH`, straight after
+`drift7`: `/tmp/m628/nokey1.txt`, witness `nokey1.env`, 4149 / 4051
+ms, work equal to the digit. Against the middle of the three prints in
+the judge's mode (4303 / 4072) that is -3.6% flatten and -0.5% run,
+both about one span of that series (150 and 87 ms). So on this morning
+the mode costs nothing the series can resolve, and the +7.1% / +3.2%
+read from `drift5` against `drift3` and `drift4` was at least half
+the drift between the two sittings, not the key. The recomputation of
+the first live delta line above leans on that +7.1% and is therefore
+an upper bound on the mode's share, not its measure.
