@@ -74671,3 +74671,17 @@ characteristic, whose slope near the operating point is steep enough
 to send the pressures through zero. The eight underdetermined loops are
 another family (three Spice `der(vbe)`, five machines on `airGap`) and
 were not probed. No change is built; the next note decides.
+
+### A first look at the underdetermined loops
+
+Of the eight, the three Spice models are one shape. `oxidelica why` on
+`Spice3BenchmarkRtlInverter` shows the loop's single unknown
+`der(Q1.vbx)` entering only `Q1.icapbx = if Q1.m_bInit then 0 else
+Q1.cc.capbx * der(Q1.vbx)`, with `capbx` the output of
+`bjtNoBypassCode`; `NAND` has the same pair for `der(Q4.vbe)` and
+`capbe`. A candidate, not a finding: where the transistor's card gives
+that capacitance as zero, the one equation that could fix the
+derivative carries it with a coefficient of zero, and the loop is
+underdetermined at that point by the model's own numbers. Whether the
+coefficient is zero at the refusal, or only small, is the next probe.
+The five machines name `airGap` unknowns and were not probed.
