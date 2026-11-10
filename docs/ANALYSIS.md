@@ -74788,3 +74788,82 @@ measured, the water pipes and nothing else. The corpus under the
 switch was not run in this shift: five pipe models were not shown to
 end within 1200 s, and a corpus pass without a ceiling per model could
 not finish before the shift ended. The floors do not move, because the default is untouched.
+
+## The outside switch: its price, its width, and who hangs (m631)
+
+Shift 587 measured the switch `OXIDELICA_OUTSIDE_MENDS` (8176cf6) in
+three parts so the decision on its default can be made by number. The
+default was not changed. CI for 8176cf6 was in progress at the start of
+the shift: tests on three platforms, coverage and linters and the dear
+pass green, the main library pass still running. CI for 8336f6a was
+green on the linters only, because the library jobs were skipped for a
+docs-only push. The scheduled run on eeb8ddb starts before 8176cf6, so
+it does not test the switch.
+
+### Reach on models that already run
+
+Ten models that already run were run with `--only-from`, off and then on,
+one binary `/tmp/m631/oxm` (md5 27764df2, HEAD 8336f6a). Eight were Fluid
+models (DrumBoiler, ThreeTanks, RoomCO2WithControls, ControlledTanks,
+InverseParameterization, TestControlledPump, TestJunctionVolume,
+TanksWithEmptyingPipe2) and two were controls (ChuaCircuit,
+CoupledClutches). The work counters agree byte for byte on all ten
+models: the same points, Newton steps and Jacobians. So on these models
+the switch is never reached, and it is free by construction. The run
+half went from 182 s to 179 s, which is drift. Files:
+`/tmp/m631/g_off.txt`, `g_on.txt`, `g.env`.
+
+### Width over the corpus
+
+The corpus was run under the switch (`/tmp/m631/corp_mends.txt`, command
+and md5 in `corp_mends.env`). It excluded the heavy models and also the
+five that hang, using the temporary file `/tmp/m631/hang5.txt`:
+`BranchingPipes1`, `BranchingPipes2`, `BranchingPipes4`, `SeriesPipes1`
+and `TestTemperature1`. The comparison base is drift8
+(`/tmp/m628/drift8.txt`, 1019/974/838), and that base has no code
+difference from this tree apart from 8176cf6.
+
+| Measure                  | drift8 (switch off) | m631 (switch on, five fewer) |
+| ------------------------ | ------------------- | ---------------------------- |
+| examples / flatten / run | 1019 / 974 / 838    | 1014 / 969 / 842             |
+| runnable / flatten / run | 890 / 856 / 789     | 885 / 851 / 793              |
+| run half                 | 3924 s              | 4928 s                       |
+
+The 1014 is not a loss. Five models are left out by name, and in drift8
+each of the five was flattened and refused. The lists were intersected
+by name. Four models came alive (`BranchingPipes3`, `BranchingPipes13`,
+`BranchingPipes14`, `SeriesPipes2`), and no model was a victim. The
+work counters changed only on those four models. They now run in 250,
+284, 437 and 279 s, against refusals of 79, 54, 26 and 10 s before.
+Together that adds 1081 s, and it accounts for nearly all of the
+difference between the halves. Every other model on the common list
+did the same work. The largest timing differences there
+(`TestMultiPortTraceSubstances` +101 s, the MultiBody models +4 to +6 s)
+come from models whose counters did not change, so they are drift on a
+crowded machine.
+
+### What a default would cost
+
+On the measured set, the four wins come at a price of about 1081 s of run
+time. That is far above the 6% band (about 235 s against 3924 s), so under
+the standing rule this decision goes to Roman. The five hanging models
+still have no ceiling per model, and a model that hangs in CI is worse
+than one that refuses. All three conditions for a default have now been
+measured, and two of them say no.
+
+### Unbalanced and structurally singular: mostly components
+
+Four were read and probed with `oxidelica why`. `StateGraph`'s `valve`
+and `AST_BatchPlant.BaseClasses.InnerTank` have no `experiment`. They
+are components whose connectors face outward. In
+`OpAmpCircuits.Add` and the Spice3 `MPmos`, the "equation `n2.i = 0`
+constrains no state" refusal comes from the rule for a free connector
+on an outward pin, and no equation gives that pin a voltage. Of the 29
+structurally singular models in the m629 census
+(`/tmp/m629/raw.txt`), 18 are components of this kind: four
+`OpAmpCircuits`, seven `Utilities`, the two Spice3 cards and five
+`FluxTubes` `Components`. Eleven are real examples: seven MultiBody
+models, `TanksWithOverflow`, `BatchPlant_StandardWater`,
+`IMC_DOL_CommonLeakage` and `ActuatorWithNoise`. Those refusals are
+not compiler bugs, and no models were removed from the set. The
+singular family is not one family, so no fix was built.
