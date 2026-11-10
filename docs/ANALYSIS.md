@@ -74513,3 +74513,16 @@ desk should keep its last judge's print on disk and call the same
 script, with the doubling check, rather than carry a second written
 base. Until then every desk delta line carries the mode shift named
 above, which is why it stays advisory.
+
+### drift7: the third point of the judge's mode
+
+Same binary and command again, `/tmp/m628/drift7.txt`, witness
+`drift7.env`: 4308 / 4121 ms, ratio 0.957. Work and run lists equal
+to the other two to the digit. The three prints span 4226-4376 in the
+flatten half (3.5%) and 4034-4121 in the run half (2.2%), so the run
+half's floor taken from the whole series is 87 ms and not 26. Against
+the middle of three (4303 / 4072), the build without 524e6a8 is -5.0%
+flatten (1.4 spans, not resolved) and +5.6% run, 2.6 spans of the
+series: the run half's price of reverting the fix still clears its
+own floor, but by less than the two-point floor made it look. The base
+stays unwound: neither half repeats to 1.5%.
