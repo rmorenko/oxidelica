@@ -75249,3 +75249,10 @@ solver, where the quotient `/(e[2]*cylinder.v)^2` - a row of reduction
 88 to 91 solved for `cylinder.frame_a.R.T[2,2]` through the velocity -
 makes the block singular at rest. No model of the measured set comes
 alive under the lifted ceiling, so no change is parked.
+
+The start-divisor guard (compile.rs:3202) does not stand in the way:
+with `OXIDELICA_NO_START_DIVISORS=1` as well (`/tmp/m634/p7_Engine1a.txt`)
+`Engine1a` still reaches the solver and is refused for a singular Jacobian
+at every start time tried, with the same quotient in 197 lines of its
+trail. The quotient is born at reduction 99, in the differentiated row for
+`connectingRod.v_0[2]`, and not in a row the guard reads.
