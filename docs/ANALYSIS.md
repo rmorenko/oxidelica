@@ -74562,3 +74562,14 @@ Two sittings sit inside each series (the plain one spans two days), so
 these spans are floors of the desk across sittings, not within one.
 Neither mode is the quieter one, and neither carries a base the delta
 line could trust to 1.5%.
+
+### On, off, on within one sitting
+
+`drift8` closes the bracket around `nokey1`: same binary and command
+as `drift7`, `/tmp/m628/drift8.txt`, witness `drift8.env`, 4211 / 4029
+ms, work equal to the digit. The two prints in the judge's mode on
+either side of the plain one differ by 97 ms flatten and 92 ms run.
+Their middle (4260 / 4075) against `nokey1` (4149 / 4051) is -2.6%
+flatten and -0.6% run, 1.1 and 0.3 of the bracket's own span. Within
+one sitting the per-model mode has no price this desk can resolve, and
+the order of the prints shows no drift running one way.
