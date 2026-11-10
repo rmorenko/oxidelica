@@ -74539,3 +74539,26 @@ read from `drift5` against `drift3` and `drift4` was at least half
 the drift between the two sittings, not the key. The recomputation of
 the first live delta line above leans on that +7.1% and is therefore
 an upper bound on the mode's share, not its measure.
+
+### The plain mode also wanders once it has a third point
+
+`nokey1` is also the third print of the plain mode on the same binary,
+beside `drift3` (3941 / 3923) and `drift4` (3950 / 3897). Its work
+counters equal both to the digit. Its times do not: flatten 4149 and
+run 4051, so the three prints span 208 ms flatten (5.3% of 3945) and
+154 ms run (3.9% of 3910). The 0.23% and 0.66% of the first two were
+a two-point spread, not a band. The prediction written before the
+number expected 3866-4024 flatten and 3832-3988 run, and said the
+claim that the plain mode repeats fifteen times better than the
+judge's mode would fall past 1%. Both halves land outside the
+predicted band and the claim falls.
+
+| mode, three prints | flatten span | run span |
+| ------------------ | ------------ | -------- |
+| judge's (key on)   | 150 ms       | 87 ms    |
+| plain (key off)    | 208 ms       | 154 ms   |
+
+Two sittings sit inside each series (the plain one spans two days), so
+these spans are floors of the desk across sittings, not within one.
+Neither mode is the quieter one, and neither carries a base the delta
+line could trust to 1.5%.
