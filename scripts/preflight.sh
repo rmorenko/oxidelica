@@ -121,6 +121,19 @@ examples_all_simulate() {
 DESK_RATIO_LOW=0.88
 DESK_RATIO_HIGH=1.44
 
+# The desk's base for the delta (library_floor.sh, delta_advisory), the
+# middle of two quiet prints of the head 160e151 on 2026-11-10, binary
+# md5 eac0297e: /tmp/m626/drift3.txt 3941 / 3923 and drift4.txt
+# 3950 / 3897 ms per model (flatten / run). Two points give a
+# two-point spread of 0.8% in the ratio, not a band; a third is owed.
+# The base is wound like a floor: a commit that moves the ratio on
+# purpose moves the base in the same commit with the print as its
+# witness, and a move nobody meant is what the delta is there to see.
+# It is the desk's base only and is never set for the runner.
+DESK_BASE_FLATTEN_MS=3945
+DESK_BASE_RUN_MS=3910
+DESK_BASE_FROM="desk, head 160e151, binary md5 eac0297e, /tmp/m626/drift3.txt and drift4.txt"
+
 library_floor() {
   if [ ! -d "$library" ]; then
     return 0
@@ -220,7 +233,9 @@ library_floor() {
   ./scripts/library_floor.sh --pass main "$library" "$reports/main.txt" || return 1
   ./scripts/library_floor.sh --pass dear "$library" "$reports/dear.txt" || return 1
   echo "the two reports: $reports"
-  FLOOR_DESK=1 RATIO_LOW="$DESK_RATIO_LOW" RATIO_HIGH="$DESK_RATIO_HIGH" ./scripts/library_floor.sh --judge "$library" \
+  FLOOR_DESK=1 RATIO_LOW="$DESK_RATIO_LOW" RATIO_HIGH="$DESK_RATIO_HIGH" \
+    DELTA_BASE_FLATTEN_MS="$DESK_BASE_FLATTEN_MS" DELTA_BASE_RUN_MS="$DESK_BASE_RUN_MS" \
+    DELTA_BASE_FROM="$DESK_BASE_FROM" ./scripts/library_floor.sh --judge "$library" \
     "$reports/main.txt" "$reports/dear.txt"
 }
 
@@ -278,6 +293,26 @@ time_band_judges() {
   return 0
 }
 
+# The delta line, seen in its five shapes without a library pass: a
+# quiet print of the head speaks small, a ratio 6% off names the guess,
+# both halves x1.5 at the same ratio are named by the halves, a zero
+# flatten says it cannot divide, and with no base there is no line.
+delta_judges() {
+  local d="env DELTA_BASE_FLATTEN_MS=$DESK_BASE_FLATTEN_MS DELTA_BASE_RUN_MS=$DESK_BASE_RUN_MS DELTA_BASE_FROM=test ./scripts/library_floor.sh --delta-check"
+  local out
+  out="$($d 3941 3923)" || return 1
+  echo "$out" | grep -q '^delta: ratio' || return 1
+  echo "$out" | grep -q 'past' && return 1
+  $d 3945 4150 | grep -q 'ratio moved past' || return 1
+  out="$($d 5918 5865)" || return 1
+  echo "$out" | grep -q 'ratio moved past' && return 1
+  echo "$out" | grep -q 'both halves grew' || return 1
+  $d 0 3910 | grep -q 'cannot be divided' || return 1
+  out="$(env -u DELTA_BASE_FLATTEN_MS -u DELTA_BASE_RUN_MS ./scripts/library_floor.sh --delta-check 3941 3923)" || return 1
+  [ -z "$out" ] || return 1
+  return 0
+}
+
 # The band on the counts of work, seen the same way: five percent
 # either side of the written number fires, inside it is quiet, and a
 # band of its own in parts per million is honoured.
@@ -301,6 +336,7 @@ step "Clippy" cargo clippy --workspace --all-targets -- -D warnings
 step "Tests" cargo test --workspace
 step "The examples all simulate" examples_all_simulate
 step "The time band fires on both sides" time_band_judges
+step "The delta speaks, and is silent without a base" delta_judges
 step "The work band fires on both sides" work_band_judges
 step "The cut of the library job is guarded" partition_judges
 

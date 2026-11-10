@@ -2705,6 +2705,43 @@ if [ "${1:-}" = "--ratio-check" ]; then
   exit $?
 fi
 
+# The delta: how far one print stands from a base taken on the same
+# kind of machine, in the ratio and in each half apart. The band above
+# judges one print alone and is blind when both halves grow together;
+# the halves in milliseconds per model are what show that.
+#
+# Advisory only, never in the exit status. The 5% it names is a guess
+# from the map of 2026-11-10 (the clock between two binaries already
+# moves a half by about 5%, a busy desk by more), not a measured
+# threshold; colouring it waits for a measured series.
+#
+# With no base given the line is absent - not zero, not 0% - because
+# a base belongs to one machine: the desk's base read on the runner
+# would be wrong by 16 to 37%. A base always names where it came from,
+# in DELTA_BASE_FROM, and the line repeats it.
+delta_advisory() {
+  if [ -z "${DELTA_BASE_FLATTEN_MS:-}" ] || [ -z "${DELTA_BASE_RUN_MS:-}" ]; then
+    return 0
+  fi
+  awk -v f="$1" -v r="$2" -v bf="$DELTA_BASE_FLATTEN_MS" -v br="$DELTA_BASE_RUN_MS" \
+    -v from="${DELTA_BASE_FROM:-an unnamed base}" -v guess="${DELTA_GUESS_PCT:-5}" 'BEGIN {
+    if (f <= 0 || bf <= 0) { printf "delta: not computed, flattening %sms against a base of %sms cannot be divided (base: %s)\n", f, bf, from; exit 0 }
+    x = r / f; bx = br / bf; d = (x / bx - 1) * 100
+    df = f - bf; dr = r - br
+    printf "delta: ratio %.3f against the base %.3f, %+.1f%%; flattening %+dms (%+.1f%%), running %+dms (%+.1f%%) per model (base: %s)\n", \
+      x, bx, d, df, df / bf * 100, dr, (br > 0 ? dr / br * 100 : 0), from
+    big = (d > guess || d < -guess)
+    if (big) printf "delta: the ratio moved past %s%%, a guess and not a measured threshold; advisory only\n", guess
+    if (df / bf * 100 > guess && dr > 0 && (br > 0 ? dr / br * 100 : 0) > guess) \
+      printf "delta: both halves grew past %s%% together, which the ratio cannot see; advisory only\n", guess
+  }'
+}
+if [ "${1:-}" = "--delta-check" ]; then
+  delta_advisory "${2:?usage: library_floor.sh --delta-check <flatten ms> <run ms>}" \
+    "${3:?usage: library_floor.sh --delta-check <flatten ms> <run ms>}"
+  exit 0
+fi
+
 # The work the check did, counted in steps rather than seconds, and
 # held to within five percent of what is written here either way.
 #
@@ -4000,6 +4037,7 @@ else
     echo "time per model without them: ${ratio_flatten_ms}ms flattening, ${ratio_run_ms}ms running"
   fi
   ratio_verdict "$ratio_flatten_ms" "$ratio_run_ms" || status=1
+  delta_advisory "$ratio_flatten_ms" "$ratio_run_ms"
 fi
 
 # The work. Each count is read off the `work:` line by the word that
