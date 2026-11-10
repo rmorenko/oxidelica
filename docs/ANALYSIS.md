@@ -74962,3 +74962,63 @@ machine, with a 90 min ceiling (`/tmp/m631/t1_long.txt`, command in
 and a peak of 0.2 GB. Its outcome is still unknown, and its run under
 the switch is at least 90 minutes, against 41 s of refusal with the
 switch off.
+
+## The dearest winner moves to the dear pass
+
+Roman chose to move
+`ModelicaTest.Fluid.TestComponents.Fittings.TestMultiPortTraceSubstances`
+into `scripts/dear_models.txt`, and said nothing about the outside
+switch's default or a ceiling per model. Both stay as they are.
+
+### Why a ceiling had no window
+
+Five prints of the runner (the `library-main` artifacts of runs
+42815502619, 42787601121, 42759782161, 42754848026 and 42706138814)
+show this model doing byte-for-byte the same work in all five (1360
+points, 2396 Newton steps, 0 Jacobians) and running in all five, in
+996.5, 1300.6, 1590.6, 1838.8 and 2113.2 s: a band of 2.12 times on
+the runner. A ceiling of 1200 s would have lost this win in four runs
+of five. Keeping it needed a ceiling of at least about 2390 s, while
+keeping the main pass inside 180 minutes on a slow day needed at most
+about 2265 s. The two missed each other by about 125 s, so no number
+would have done. Moving the model removes that fork. These figures and
+the reasoning are the foreman's corrections 37 to 39, not this shift's
+measurement.
+
+After the move the dearest winner of the main pass, by the worst of
+the same five prints, is
+`ModelicaTest.Fluid.TestComponents.Sensors.TestDensity` at 790.8 s
+(327.4 s in its best print), then `RoomCO2WithControls` at 369.5 s and
+`TestWaterPumpDCMotorHeatTransfer` at 297.1 s, the rest at most
+146.5 s. No ceiling is built here.
+
+### Why the floors do not move
+
+Three places say so. The header of `scripts/dear_models.txt`: nothing
+there leaves the floors, and a model missing from both passes turns
+the judge red. `scripts/library_floor.sh` near the pass mode: a half
+is not judged against floors that stand for the whole. And the `library`
+job in `.github/workflows/ci.yml` downloads both reports and judges
+them together. This is not a carving: the model stays in the set and is
+printed by name in the second pass.
+
+### Why it goes first
+
+On the desk with the switch off (drift8) the model costs 808.1 s,
+37.4 flattening and 770.6 running, against 323.0 s for
+`BatchPlant_StandardWater`, the dearest before it. Its comment in the
+list names its own date and head (2026-11-10, 8176cf6), because the
+other rows come from one quiet print of 0c93f49 on 13 October.
+
+### The desk's judge over the two passes
+
+Both passes were taken on the edited list with one binary
+(`/tmp/m632/main.rep`, 1005 models; `/tmp/m632/dear.rep`, 14 models).
+The model is in the dear report only, flattened and run (37.4 s and
+770.6 s on drift8 against 44.5 s and 851.2 s here). The judge with the
+desk's centres (`FLOOR_DESK=1`, `/tmp/m632/judge_desk.txt`) is green:
+2671 files read, 974 flatten, 838 run, runnable 856 flatten and 789 run,
+ratio 0.757 inside its band. The floors stand at 974/835/856/786 and
+are not moved here, because only the runner's print raises them. The
+same judge with the runner's centres (`/tmp/m632/judge.txt`) is red on
+the work lines alone, as it is on any desk print, and on no count.

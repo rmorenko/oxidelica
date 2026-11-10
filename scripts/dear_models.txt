@@ -15,6 +15,8 @@
 # running), so those totals are a little low.
 #
 # total s  flatten + run   state
+ModelicaTest.Fluid.TestComponents.Fittings.TestMultiPortTraceSubstances
+#  808.1 =  37.4 + 770.6   runs (measured 2026-11-10 at 8176cf6, outside switch off)
 Modelica.Magnetic.QuasiStatic.FundamentalWave.Examples.BasicMachines.InductionMachines.IMC_Transformer
 #  341.5 =   0.0 + 341.5   runs
 ModelicaTest.Fluid.TestComponents.Pipes.DynamicPipeEnergyConservationCheck
