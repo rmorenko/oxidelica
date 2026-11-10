@@ -75235,3 +75235,17 @@ member reduces at all. Raising the ceiling is a priced change in the
 reduction phase (it moved the witnesses' ground before) and is not built
 here; the next question is a pair on the ceiling alone, with victims and
 time, given to the review.
+
+The other multibody models of the census refused structurally singular,
+each with the ceiling lifted to 600 (`/tmp/m634/p6_*.txt`):
+`PrismaticConstraint` takes member 32 of 55 at reduction 18 and then
+stops on a quaternion row, as `Utilities.Cylinder` does;
+`PointGravityWithPointMasses2` takes member 71 of 93 at reduction 65 and
+then exhausts 95; `SphericalConstraint` (41), `RollingWheel` (37) and
+`FullRobot` (14) exhaust their subsets without the ceiling ever binding;
+`OneAxis` refuses on its first member. Of the nine, the ceiling binds in
+four, and only in `Engine1a` does lifting it carry the model to the
+solver, where the quotient `/(e[2]*cylinder.v)^2` - a row of reduction
+88 to 91 solved for `cylinder.frame_a.R.T[2,2]` through the velocity -
+makes the block singular at rest. No model of the measured set comes
+alive under the lifted ceiling, so no change is parked.
