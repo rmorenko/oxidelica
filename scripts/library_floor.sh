@@ -2725,16 +2725,19 @@ delta_advisory() {
   fi
   awk -v f="$1" -v r="$2" -v bf="$DELTA_BASE_FLATTEN_MS" -v br="$DELTA_BASE_RUN_MS" \
     -v from="${DELTA_BASE_FROM:-an unnamed base}" -v guess="${DELTA_GUESS_PCT:-5}" 'BEGIN {
-    if (f <= 0 || bf <= 0) { printf "delta: not computed, flattening %sms against a base of %sms cannot be divided (base: %s)\n", f, bf, from; exit 0 }
+    if (!(f + 0 > 0) || !(bf + 0 > 0) || !(br + 0 > 0)) { printf "delta: not computed, flattening %sms against a base of %sms / %sms cannot be divided (base: %s)\n", f, bf, br, from; exit 0 }
     x = r / f; bx = br / bf; d = (x / bx - 1) * 100
     df = f - bf; dr = r - br
     printf "delta: ratio %.3f against the base %.3f, %+.1f%%; flattening %+dms (%+.1f%%), running %+dms (%+.1f%%) per model (base: %s)\n", \
-      x, bx, d, df, df / bf * 100, dr, (br > 0 ? dr / br * 100 : 0), from
+      x, bx, d, df, df / bf * 100, dr, dr / br * 100, from
+    dt = ((f + r) / (bf + br) - 1) * 100
+    printf "delta: both halves together %+.1f%% per model\n", dt
+    if (dt > guess || dt < -guess) printf "delta: the whole moved past %s%%, which the ratio cannot see; advisory only\n", guess
     big = (d > guess || d < -guess)
     if (big) printf "delta: the ratio moved past %s%%, a guess and not a measured threshold; advisory only\n", guess
-    if (df / bf * 100 > guess && dr > 0 && (br > 0 ? dr / br * 100 : 0) > guess) \
+    if (df / bf * 100 > guess && dr > 0 && dr / br * 100 > guess) \
       printf "delta: both halves grew past %s%% together, which the ratio cannot see; advisory only\n", guess
-  }'
+  }' || true
 }
 if [ "${1:-}" = "--delta-check" ]; then
   delta_advisory "${2:?usage: library_floor.sh --delta-check <flatten ms> <run ms>}" \

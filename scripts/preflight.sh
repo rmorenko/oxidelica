@@ -293,7 +293,7 @@ time_band_judges() {
   return 0
 }
 
-# The delta line, seen in its five shapes without a library pass: a
+# The delta line, seen in its seven shapes without a library pass: a
 # quiet print of the head speaks small, a ratio 6% off names the guess,
 # both halves x1.5 at the same ratio are named by the halves, a zero
 # flatten says it cannot divide, and with no base there is no line.
@@ -308,6 +308,11 @@ delta_judges() {
   echo "$out" | grep -q 'ratio moved past' && return 1
   echo "$out" | grep -q 'both halves grew' || return 1
   $d 0 3910 | grep -q 'cannot be divided' || return 1
+  # Both halves a little dearer, the ratio quiet: only the sum names it.
+  $d 4182 4066 | grep -q 'whole moved past' || return 1
+  # A zero or unreadable base is a line, never a failure of the pass.
+  env DELTA_BASE_FLATTEN_MS=3945 DELTA_BASE_RUN_MS=0 ./scripts/library_floor.sh --delta-check 3941 3923 | grep -q 'cannot be divided' || return 1
+  env DELTA_BASE_FLATTEN_MS=3945 DELTA_BASE_RUN_MS=x ./scripts/library_floor.sh --delta-check 3941 3923 | grep -q 'cannot be divided' || return 1
   out="$(env -u DELTA_BASE_FLATTEN_MS -u DELTA_BASE_RUN_MS ./scripts/library_floor.sh --delta-check 3941 3923)" || return 1
   [ -z "$out" ] || return 1
   return 0
