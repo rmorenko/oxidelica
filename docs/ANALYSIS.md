@@ -74540,28 +74540,31 @@ the drift between the two sittings, not the key. The recomputation of
 the first live delta line above leans on that +7.1% and is therefore
 an upper bound on the mode's share, not its measure.
 
-### The plain mode also wanders once it has a third point
+### Three print shapes, not two modes
 
-`nokey1` is also the third print of the plain mode on the same binary,
-beside `drift3` (3941 / 3923) and `drift4` (3950 / 3897). Its work
-counters equal both to the digit. Its times do not: flatten 4149 and
-run 4051, so the three prints span 208 ms flatten (5.3% of 3945) and
-154 ms run (3.9% of 3910). The 0.23% and 0.66% of the first two were
-a two-point spread, not a band. The prediction written before the
-number expected 3866-4024 flatten and 3832-3988 run, and said the
-claim that the plain mode repeats fifteen times better than the
-judge's mode would fall past 1%. Both halves land outside the
-predicted band and the claim falls.
+The prints compared above have three shapes, checked by bytes:
+`drift3` and `drift4` are 85267 bytes, 1001 lines, no `reduction:`
+line (taken through `library_floor.sh --judge`); `nokey1` is 169017
+bytes, 2215 lines, with `reduction:` and no per-model lines (the bare
+binary without the key); `drift5` to `drift8` are about 310597 bytes,
+3234 lines, with both. So `nokey1` is not a third print of the
+`drift3`/`drift4` shape, and a span taken over the three of them mixes
+two shapes and is withdrawn. The prediction written against `nokey1`
+was written against the `drift3`/`drift4` shape and is void rather
+than refuted: the claim that the plain shape repeats fifteen times
+better than the judge's mode stays unchecked on two points. The size
+of the file showed the difference before the prediction was written.
 
-| mode, three prints | flatten span | run span |
-| ------------------ | ------------ | -------- |
-| judge's (key on)   | 150 ms       | 87 ms    |
-| plain (key off)    | 208 ms       | 154 ms   |
+The clean comparison is `nokey1` against the judge's mode in the same
+sitting: the same command less the key. Against the middle of
+`drift5` to `drift7` it is -154 ms flatten and -21 ms run, 0.74 and
+0.14 of that series' span; the bracket below says the same. The +7.1%
+earlier read as the mode's price was mostly drift between sittings.
 
-Two sittings sit inside each series (the plain one spans two days), so
-these spans are floors of the desk across sittings, not within one.
-Neither mode is the quieter one, and neither carries a base the delta
-line could trust to 1.5%.
+Spans of the judge's mode over its prints, work identical: 150 ms
+flatten and 92 ms run (`drift5` to `drift8`). On this desk the clock
+resolves nothing below about two spans, roughly 7% flatten and 4.5%
+run, in any shape.
 
 ### On, off, on within one sitting
 
