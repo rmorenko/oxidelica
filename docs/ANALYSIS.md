@@ -75110,3 +75110,104 @@ initial equation from the states (`/tmp/m633/S.mo`), runs: 0.5 s,
 `lam = 13.72`. A `fixed = false` parameter inside a differentiated
 constraint is not refused on its own. What singles out the assemblies
 is still to be found.
+
+## The analytic loops' second link is not the fixed=false axis (m634)
+
+The question left by m633 was what singles out the assemblies
+`JointRRR` and `JointRRP` once the late-spread mend carries the analytic
+loops past their parameter wall. Everything below was measured with the
+m633 binary `ox2` (md5 `4c4451fea56f0284c3b347fd214a1c4c`, the mend
+built in) or with `ox3`, the same tree plus a probe-only switch
+`OXIDELICA_PROBE_MAXATT` that overrides the ceiling of 32 members tried
+per singular subset (compile.rs:898, applied at compile.rs:1261). The
+probe switch is not in the tree. Files are under `/tmp/m634`.
+
+### One wall, not two
+
+The m592 park (declared shape) and the m633 park (late spread) meet the
+same refusal on the same models. The census rows of `/tmp/m592/on.txt`
+and `/tmp/m633/on.txt` both read `structurally singular model` first on
+`EngineV6_analytic`, `PlanarLoops_analytic`, `Engine1b_analytic` and the
+`Cylinder` utilities, with the same leading shapes of equation. The
+wall is one.
+
+### Where the refusal is raised, and what n_b is in it
+
+`PlanarLoops_analytic` under `ox2` with `OXIDELICA_WHERE=1`
+(`p1s.txt`): refused at compile.rs:3009, the equation
+`der(jointRRR3.jointUSR.frame_ib.r_0[3]) - ... = 0` "constrains no state
+... nor did the 31 other equations of its singular subset tried in its
+place". The axis `jointRRR3.n_b` stands in that equation only as a
+coefficient, inside `n_b[3]/sqrt(n_b*n_b)`; no `der(n_b)` appears. So
+of the two branches of the fork the answer is the coefficient, not an
+unknown without an equation. `why jointRRR1.n_b[1]` (`p1x.txt`): a
+parameter with `fixed = false`, start 0, set by an initial equation
+that reads `frame_a.R.T` and `frame_b.R.T`, which are variables.
+
+### The ceiling of 32 is one link, and behind it stands another
+
+With the ceiling lifted to 600 (`p2a.txt`), reduction 87 takes member
+101 of 320 and reduction 78 member 30 of 460, both past 32. The model
+then stops at a new place: reduction 90 tries every one of 166 members
+and refuses on `der(jointRRR2.jointUSR.revolute.frame_b.R.T[3,3])`.
+The held-row guard switched off as well (`p2b.txt`,
+`OXIDELICA_NO_HELD_ROW=1`) gives the same refusal. `Cylinder_analytic_CAD`
+with the ceiling lifted (`p2c.txt`) tries all 210 members and refuses on
+`piston.frame_b.R.T[3,1]`. So for these two the ceiling is not the
+whole wall: even an exhaustive search finds no member.
+
+### The control: the axis made a plain parameter
+
+A copy of the library (`/tmp/m634/msl2`) with `JointRRR.n_b` bound to
+`n_a` and its initial equation removed - exact for a planar loop - still
+refuses `PlanarLoops_analytic` structurally singular, at the ceiling of
+32 (`p2d.txt`, 231 passes) and with the ceiling at 600 (`p2e.txt`,
+reduction 81 took member 4 of 341, 236 passes). The `fixed = false`
+axis is therefore not what carries the second link. It was the visible
+difference between `Fourbar_analytic` and the assemblies, and it is not
+the cause.
+
+### The ladder of small models, every outcome
+
+- `V1`: a vector `n[3]` with `fixed = false`, set from the states and
+  used in a differentiated constraint, refused "the initialization
+  problem is singular ... do not pin down [vy]". `V1h`, the same with
+  the start of `n` at the solution instead of `{1,0,0}`, runs
+  (`lam = 7.848`), and so do `V1d` and `V1c` (a fixed `n`). The
+  refusal is the Newton start point meeting a zero entry, not a
+  structure.
+- `V2`: `n` set from other parameters, runs, `lam = 7.848`.
+- `L4`: one `fixed = false` `n[2]` shared by two constraints of two
+  bodies, runs, `l1 = l2 = 7.848`.
+- `L3` and its control `L3c` refuse identically with and without
+  `fixed = false` ("constrains no state ... 11 others"), so that model
+  is mine and wrong, not a rung.
+- `One` and `One2`: one loop of `PlanarLoops_analytic` with a single
+  `JointRRR`, driven by position. Both were stopped by the memory cap at
+  reduction 15 (`One` at least 13 GB, `One2` at least 19 GB under a 12 GB
+  cap, `p1o.txt`, `p1o2.txt`), and so was `One2` on the library copy
+  without `fixed = false` (at least 13 GB, `p1o3.txt`). One loop alone
+  costs more memory than the three-loop model (0.8 GB), which says the
+  single loop takes another road through reduction rather than reducing
+  the wall to its core. These are inequalities, not measurements.
+
+No small model reproduces the wall. No mend is built: the mechanism is
+neither cheap nor proven.
+
+### Neighbours, probes only
+
+The census `/tmp/m629/raw.txt` holds four models refused as an
+underdetermined loop that names an air gap (`IMC_withLosses` quasi-static,
+`SMEE_Rectifier`, `SMEE_DOL`, `IMS_Start_Polyphase`) and one more,
+`IMC_DOL_Polyphase`, whose block lists the switches first. `SMEE_DOL`
+under `ox2` (`p3a.txt`) refuses at solvers/mod.rs:1610 a block of 26
+unknowns that holds the three `idealClosingSwitch[i].s` beside the air
+gap's derivatives.
+
+`Rtl` (`/tmp/m630/Rtl.mo`) refuses a one-by-one block `der(Q1.vbx)`; a
+probe print of the block gives `v = 0`, `f = 0`, `jac = raw = -1e-12`,
+which is `CJC*(1-XCJC)` at `XCJC = 0.5`. A block of one row is
+deliberately not scaled (linear.rs:120-134: scaled, "no one-by-one block
+could ever read singular again"), so its pivot is judged against
+`1e-7` absolutely and a capacitance in farads reads as dead. That is a
+settled question in the code, recorded as the ceiling; no mend.
