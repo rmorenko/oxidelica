@@ -75103,3 +75103,10 @@ start value. That model is index 1, though, so it does not reach the
 differentiation where `n_b` shows up in the refusal. The second link is
 mapped to these two parameters inside the assemblies and is not walked
 further in this shift.
+
+A further small model rules out the simplest reading of that link. An
+index-3 pendulum whose length is a `fixed = false` parameter, set by an
+initial equation from the states (`/tmp/m633/S.mo`), runs: 0.5 s,
+`lam = 13.72`. A `fixed = false` parameter inside a differentiated
+constraint is not refused on its own. What singles out the assemblies
+is still to be found.
