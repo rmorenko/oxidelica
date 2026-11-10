@@ -75211,3 +75211,27 @@ deliberately not scaled (linear.rs:120-134: scaled, "no one-by-one block
 could ever read singular again"), so its pivot is judged against
 `1e-7` absolutely and a capacitance in farads reads as dead. That is a
 settled question in the code, recorded as the ceiling; no mend.
+
+### The same wall without the assemblies
+
+The census `/tmp/m629/raw.txt` shows `Engine1a` and
+`Loops.Utilities.Cylinder`, which hold no analytic assembly, refused with
+the same shape (`der(...R.T)` constrains no state). With the ceiling
+lifted to 600 (`/tmp/m634/p4_Engine1a.txt`), `Engine1a` passes the
+structural wall - reduction 98 takes member 52 of 307 and reduction 99
+member 328 of 600 - and is then refused in the solver, a singular
+Jacobian on a block of 33 unknowns (solvers/mod.rs:2554). Its trail
+(`p5_Engine1a.txt`, `OXIDELICA_NEWTON_TRAIL=1`) shows row 12 holding the
+quotient `/ (e[2]*cylinder.v)^2`: reduction chose `cylinder.s` and
+`cylinder.v` as victims and a later derivative divides by the velocity,
+which is zero at the start. `Utilities.Cylinder` tries all 156 members
+and refuses on a quaternion row `crank1.body.frame_a.R.T[1,1] = 2*(Q1^2+Q4^2)-1`
+(`p4_Cylinder.txt`).
+
+So the wall is shared by the multibody loops at large, not owned by the
+assemblies. It has at least two parts: the ceiling of 32 members, which
+alone stands between `Engine1a` and the solver, and subsets where no
+member reduces at all. Raising the ceiling is a priced change in the
+reduction phase (it moved the witnesses' ground before) and is not built
+here; the next question is a pair on the ceiling alone, with victims and
+time, given to the review.
