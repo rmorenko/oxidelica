@@ -74694,3 +74694,11 @@ decide is whether an unknown met only under a zero coefficient may be
 carried rather than solved. That is a question of policy and is left to
 the note that follows.
 The five machines name `airGap` unknowns and were not probed.
+
+The machine `SMEE_DOL` was asked the same way: its underdetermined
+loop holds air-gap unknowns, the rotor cage currents and the state of
+an ideal closing switch (`switch.idealClosingSwitch`). A candidate of
+the same breed as the Spice loops, not yet probed: an open ideal switch
+puts a zero conductance in front of the currents it carries, so the
+loop may be underdetermined at that point by the model's own numbers.
+The next probe is the value of the switch's coefficient at the refusal.
