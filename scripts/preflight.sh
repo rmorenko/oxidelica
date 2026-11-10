@@ -121,19 +121,6 @@ examples_all_simulate() {
 DESK_RATIO_LOW=0.88
 DESK_RATIO_HIGH=1.44
 
-# The desk's base for the delta (library_floor.sh, delta_advisory), the
-# middle of two quiet prints of the head 160e151 on 2026-11-10, binary
-# md5 eac0297e: /tmp/m626/drift3.txt 3941 / 3923 and drift4.txt
-# 3950 / 3897 ms per model (flatten / run). Two points give a
-# two-point spread of 0.8% in the ratio, not a band; a third is owed.
-# The base is wound like a floor: a commit that moves the ratio on
-# purpose moves the base in the same commit with the print as its
-# witness, and a move nobody meant is what the delta is there to see.
-# It is the desk's base only and is never set for the runner.
-DESK_BASE_FLATTEN_MS=3945
-DESK_BASE_RUN_MS=3910
-DESK_BASE_FROM="desk, head 160e151, binary md5 eac0297e, /tmp/m626/drift3.txt and drift4.txt"
-
 library_floor() {
   if [ ! -d "$library" ]; then
     return 0
@@ -233,10 +220,59 @@ library_floor() {
   ./scripts/library_floor.sh --pass main "$library" "$reports/main.txt" || return 1
   ./scripts/library_floor.sh --pass dear "$library" "$reports/dear.txt" || return 1
   echo "the two reports: $reports"
+  desk_delta "$reports/main.txt"
   FLOOR_DESK=1 RATIO_LOW="$DESK_RATIO_LOW" RATIO_HIGH="$DESK_RATIO_HIGH" \
-    DELTA_BASE_FLATTEN_MS="$DESK_BASE_FLATTEN_MS" DELTA_BASE_RUN_MS="$DESK_BASE_RUN_MS" \
-    DELTA_BASE_FROM="$DESK_BASE_FROM" ./scripts/library_floor.sh --judge "$library" \
-    "$reports/main.txt" "$reports/dear.txt"
+    ./scripts/library_floor.sh --judge "$library" \
+    "$reports/main.txt" "$reports/dear.txt" || return 1
+  desk_delta_store "$reports/main.txt"
+}
+
+# The desk's delta, built as the runner's is (ci.yml, the observer
+# after the judge): the fresh print of the main pass against the last
+# print of a green library step on this desk, through ratio_delta.sh.
+# Mode, machine and set agree by construction, and the models both
+# prints ran are counted and printed.
+#
+# It replaces a written base (3945 / 3910 ms per model) that had been
+# taken in the plain mode, without OXIDELICA_WORK_EACH, while the judge
+# prints with it: every line carried the shift of mode, and the judge's
+# own walk over four prints (/tmp/m628/drift5..drift8) spread 3.9% in
+# flattening and 2.3% in running, wider than a constant can live with.
+# Those plain prints (/tmp/m626/drift3, drift4) stay in the analysis as
+# the measure of the plain mode and leave the machinery here.
+#
+# Resolution, in numbers: two spans of the judge's walk are 7.7% in
+# flattening and 4.5% in running (spans 165 and 92 ms at middles of
+# 4280 / 4061, drift5..drift8, one sitting, one binary, one shape).
+# Under that the line judges nothing. The doubling per model in
+# ratio_delta.sh is the only check above every measured noise and is
+# not cut down.
+#
+# Advisory: it never touches the exit status of the step. The store is
+# not seeded by hand; the first green library step seeds it with its
+# own set and shape. Only a green step writes it, since the print of a
+# red pass is not a base. DESK_RATIO_LOW goes back to 0.96 after at
+# least three prints of this line, in a commit of its own, on numbers.
+DESK_DELTA_DIR="${DESK_DELTA_DIR:-$HOME/.oxidelica/delta}"
+desk_delta() {
+  local fresh="$1"
+  if [ ! -s "$DESK_DELTA_DIR/main.txt" ]; then
+    echo "delta: no stored print in $DESK_DELTA_DIR yet; a green step seeds it"
+    return 0
+  fi
+  echo "delta: base $(tr '\n' ' ' < "$DESK_DELTA_DIR/main.env" 2> /dev/null || echo 'without a witness')"
+  ./scripts/ratio_delta.sh "$DESK_DELTA_DIR/main.txt" "$fresh" || true
+}
+desk_delta_store() {
+  local fresh="$1" bin=target/release/oxidelica
+  mkdir -p "$DESK_DELTA_DIR"
+  cp "$fresh" "$DESK_DELTA_DIR/main.txt"
+  {
+    echo "date=$(date '+%Y-%m-%dT%H:%M:%S%z')"
+    echo "head=$(git rev-parse --short HEAD)$(git diff --quiet HEAD -- || echo '+dirty')"
+    echo "md5=$(md5 -q "$bin" 2> /dev/null || md5sum "$bin" | cut -d' ' -f1)"
+    echo "cmd=library_floor.sh --pass main"
+  } > "$DESK_DELTA_DIR/main.env"
 }
 
 # The guard on the cut of the library job, seen red on a name left out,
@@ -293,28 +329,34 @@ time_band_judges() {
   return 0
 }
 
-# The delta line, seen in its seven shapes without a library pass: a
-# quiet print of the head speaks small, a ratio 6% off names the guess,
-# both halves x1.5 at the same ratio are named by the halves, a zero
-# flatten says it cannot divide, and with no base there is no line.
+# The delta against the stored print, seen in its shapes on small
+# synthetic prints: the overlap counted with both sums, a model on one
+# side named, a doubling over OUTLIER_MS named and one under it not, a
+# model without a work line left out of the sums, and an empty overlap
+# answered with status 2, which the step's `|| true` absorbs.
 delta_judges() {
-  local d="env DELTA_BASE_FLATTEN_MS=$DESK_BASE_FLATTEN_MS DELTA_BASE_RUN_MS=$DESK_BASE_RUN_MS DELTA_BASE_FROM=test ./scripts/library_floor.sh --delta-check"
-  local out
-  out="$($d 3941 3923)" || return 1
-  echo "$out" | grep -q '^delta: ratio' || return 1
-  echo "$out" | grep -q 'past' && return 1
-  $d 3945 4150 | grep -q 'ratio moved past' || return 1
-  out="$($d 5918 5865)" || return 1
-  echo "$out" | grep -q 'ratio moved past' && return 1
-  echo "$out" | grep -q 'both halves grew' || return 1
-  $d 0 3910 | grep -q 'cannot be divided' || return 1
-  # Both halves a little dearer, the ratio quiet: only the sum names it.
-  $d 4182 4066 | grep -q 'whole moved past' || return 1
-  # A zero or unreadable base is a line, never a failure of the pass.
-  env DELTA_BASE_FLATTEN_MS=3945 DELTA_BASE_RUN_MS=0 ./scripts/library_floor.sh --delta-check 3941 3923 | grep -q 'cannot be divided' || return 1
-  env DELTA_BASE_FLATTEN_MS=3945 DELTA_BASE_RUN_MS=x ./scripts/library_floor.sh --delta-check 3941 3923 | grep -q 'cannot be divided' || return 1
-  out="$(env -u DELTA_BASE_FLATTEN_MS -u DELTA_BASE_RUN_MS ./scripts/library_floor.sh --delta-check 3941 3923)" || return 1
-  [ -z "$out" ] || return 1
+  local d out
+  d="$(mktemp -d)"
+  printf 'ran A\nran B\nran C\nwork A 1000 ms flattening 1000 ms running\nwork B 2000 ms flattening 10 ms running\nwork C 5 ms flattening 5 ms running\n' > "$d/prev"
+  printf 'ran A\nran B\nran D\nwork A 1100 ms flattening 900 ms running\nwork B 4500 ms flattening 30 ms running\nwork D 5 ms flattening 5 ms running\n' > "$d/cur"
+  out="$(./scripts/ratio_delta.sh "$d/prev" "$d/cur")" || return 1
+  echo "$out" | grep -q '^delta: 2 models ran in both' || return 1
+  echo "$out" | grep -q 'flatten 3s -> 6s' || return 1
+  echo "$out" | grep -q 'previous only: C' || return 1
+  echo "$out" | grep -q 'current only:  D' || return 1
+  echo "$out" | grep -q 'flatten B 2000 -> 4500' || return 1
+  echo "$out" | grep -q 'run     B' && return 1
+  printf 'ran A\nran B\nwork A 1000 ms flattening 1000 ms running\n' > "$d/nowork"
+  ./scripts/ratio_delta.sh "$d/nowork" "$d/cur" | grep -q '1 without a work line, not summed' || return 1
+  printf 'ran Z\nwork Z 1 ms flattening 1 ms running\n' > "$d/other"
+  local rc=0
+  ./scripts/ratio_delta.sh "$d/prev" "$d/other" > /dev/null 2>&1 || rc=$?
+  [ "$rc" -eq 2 ] || return 1
+  DESK_DELTA_DIR="$d/store" desk_delta "$d/cur" | grep -q 'no stored print' || return 1
+  DESK_DELTA_DIR="$d/store" desk_delta_store "$d/prev"
+  DESK_DELTA_DIR="$d/store" desk_delta "$d/other" > /dev/null 2>&1 || return 1
+  DESK_DELTA_DIR="$d/store" desk_delta "$d/cur" | grep -q '^delta: base date=' || return 1
+  rm -rf "$d"
   return 0
 }
 
@@ -341,7 +383,7 @@ step "Clippy" cargo clippy --workspace --all-targets -- -D warnings
 step "Tests" cargo test --workspace
 step "The examples all simulate" examples_all_simulate
 step "The time band fires on both sides" time_band_judges
-step "The delta speaks, and is silent without a base" delta_judges
+step "The delta against the stored print speaks in its shapes" delta_judges
 step "The work band fires on both sides" work_band_judges
 step "The cut of the library job is guarded" partition_judges
 
