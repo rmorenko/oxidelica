@@ -74161,3 +74161,33 @@ tree (1020 example models, 825 ran, 855 runnable flatten and 777 run)
 are of that epoch and are not compared with today's floors; its set
 holds one model more than today's 1019, so the ratio is of a slightly
 different set, which a 2.3% spread between two prints does not resolve.
+
+### Three prints across the interval, and where the ratio fell
+
+The rest of the shift went on narrowing the interval with the same
+judge print, one build per step, each built in a worktree into a new
+binary name and printed alone on a quiet desk:
+
+| print         | tree    | md5      | flatten ms/model | run ms/model | ratio |
+| ------------- | ------- | -------- | ---------------- | ------------ | ----- |
+| m625/bis1.txt | bd735a5 | 78557fcf | 4097             | 4716         | 1.151 |
+| m625/bis2.txt | 76350b6 | 23b1f9b1 | 4085             | 4710         | 1.153 |
+| m625/bis3.txt | ea84255 | 02586b47 | 4300             | 4381         | 1.019 |
+
+The fall lies in (76350b6, ea84255], where three commits touch Rust:
+8a669d9 (the silent chain through arithmetic by default), 864ab18 (the
+usage printed on request) and ea84255 (a moving array handed to a
+walked body gets a rate of its own). The interval was counted without
+a path filter only for `*.rs`. The step is not small: flattening
++5.3% and running -7.0% per model at once, both halves moving rather
+than one, which is consistent with work changing side between the
+phases rather than with weather. Which of the three carries it is not
+measured here, because a fourth print would have ended after the shift.
+That is one more print, at 8a669d9 or 864ab18.
+
+The models that ran in each print, from the same files: the old tree
+825 (runnable 777) twice, bd735a5 830 (782), 76350b6 835 (786),
+ea84255 838 (789). Three models that started to run inside the last
+interval are therefore a candidate cause for the run half's new share,
+alongside the cost of the commits themselves. The two are not told
+apart by these prints.
