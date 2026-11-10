@@ -132,6 +132,15 @@ impl SimError {
                 && std::env::var_os("OXIDELICA_NO_SINGULAR_REJECT").is_none())
             || (self.1 == Refusal::Unconverged
                 && std::env::var_os("OXIDELICA_NO_UNCONVERGED_REJECT").is_none())
+            // A block that stepped outside its medium on a step too long
+            // for a stiff state: a pipe of one node in water asks a
+            // pressure change of millions of pascals for a small residual
+            // in mass, and a shorter step is what keeps it in range.
+            // Off by default: on the Newton direction row it turns
+            // refusals of 9 s into runs of 231 s to over 1200 s, and its
+            // price on models that already run is not measured.
+            || (self.1 == Refusal::Outside
+                && std::env::var_os("OXIDELICA_OUTSIDE_MENDS").is_some())
     }
 
     /// Whether the refusal is about the point rather than the model:

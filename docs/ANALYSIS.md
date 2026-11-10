@@ -74702,3 +74702,76 @@ the same breed as the Spice loops, not yet probed: an open ideal switch
 puts a zero conductance in front of the currents it carries, so the
 loop may be underdetermined at that point by the model's own numbers.
 The next probe is the value of the switch's coefficient at the refusal.
+
+## The Newton direction row, made small
+
+### A small model of the pipe loop
+
+`/tmp/m630/S1.mo` is a source, one `DynamicPipe` with `nNodes=1`, an
+incompressible valve held open and a sink, in `StandardWater`. It is
+refused the way the row is, with a loop of one unknown,
+`pipe1.mediums[1].p`, at t = 0.0002: the first full Newton step goes
+from 497500 Pa to -1920582 Pa, the medium answers NaN, and damping
+crawls the pressure towards zero until the step has no length left.
+
+The valve candidate from the last note is refuted. Sweeping
+`dp_nominal` from 1e3 to 1e7 changes only the instant of the refusal
+(0.0002 to 0.0008). It never removes it, so there is no threshold of
+steepness. The step is set by the pipe's own mass balance. The loop's
+derivative is the volume times the compressibility of water, so a
+small residual in mass asks for a pressure change of millions of
+pascals. The refusal is of kind `Outside`, and that kind does not
+shorten the implicit solver's step, so the solver never gets the
+smaller step that would keep the pressure in range.
+
+### A switch that lets the step shrink
+
+A switch, `OXIDELICA_OUTSIDE_MENDS=1`, adds `Outside` to the refusals
+that shorten the step in `implicit_step_mends`. It is off by default,
+so nothing changes for anybody who does not set it. With it the small
+model runs to its stop time. Measured with `--only`, one binary
+(`/tmp/m630/oxo`, built with the same hunk under an earlier name), on
+the row: `SeriesPipes2` runs in 231 s, `BranchingPipes3` in 252 s,
+`BranchingPipes13` in 284 s and `BranchingPipes14` in 411 s.
+`BranchingPipes1`, `BranchingPipes2`, `BranchingPipes4`, `SeriesPipes1`
+and `TestTemperature1` were still running when the 1200 s ceiling of
+the measurement stopped them. Without the switch all thirteen models of
+the list flatten and none runs, and the run half of 740 s
+(`/tmp/m630/row_off.txt`) is spent on refusals of about 9 s each. So
+the switch does not slow anything down. It turns refusals into runs,
+and a run costs what a refusal did not. The list with the switch on
+was still running after 80 minutes (`/tmp/m630/row_on.txt`, stopped by
+its ceiling at 12 of 13). A model that runs for ever is worse than a
+refusal, because it eats the corpus job's ceiling, and five models
+were not shown to end. The question that decides whether the switch
+can become the default is still open: its price on models that
+already run, switch on against off, one binary. Not measured on the
+heavy models.
+
+### Who moved between the m597 and m629 censuses
+
+Compared by name from both raw files (`/tmp/m630/c597.txt`,
+`c629.txt`):
+
+| Model                        | m597 row              | m629                  |
+| ---------------------------- | --------------------- | --------------------- |
+| AST_BatchPlant OneTank       | stepped outside       | runs                  |
+| TestSweptVolume              | an equation of a loop | runs                  |
+| TestInterpolateTimeVarying   | cannot differentiate  | runs                  |
+| PrismaticConstraint          | singular Jacobian     | structurally singular |
+| PointGravityWithPointMasses2 | singular Jacobian     | structurally singular |
+| RollingWheel                 | equations of a loop   | structurally singular |
+| Loops.Utilities.Cylinder     | Newton direction      | structurally singular |
+| PumpingSystem                | an equation of a loop | singular Jacobian     |
+
+### XCJC is not the lock
+
+The RTL inverter was copied out as a standalone model (`/tmp/m630/Rtl.mo`)
+with the card's `XCJC = 0.5`, so that the coefficient in front of
+`der(Q1.vbx)` is no longer zero. `oxidelica why` confirms the card
+receives it. The refusal stays the same:
+`underdetermined algebraic loop ["der(Q1.vbx)"]`. Setting
+`capbx(start=1e-12)` does not change it either. So the zero coefficient
+is refuted as the lock. The judgement is made with Newton's first
+point at v = 0, and the next suspect is what `capbx` reads at that
+point. SMEE_DOL was not probed.
