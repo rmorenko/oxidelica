@@ -74332,3 +74332,85 @@ binary only. A delta that compares prints of different binaries needs
 a threshold no narrower than about 7% until a cross-binary series says
 otherwise. The split of the fall to 8a669d9 stands, since it is a move
 of 465 ms in flattening, about 12%, and is carried by the run lists.
+
+## m627: the delta line beside the desk band
+
+### The delta and its base
+
+`scripts/library_floor.sh` gains `delta_advisory` and a
+`--delta-check <flatten ms> <run ms>` entry, so it is seen without a
+library pass the same way `--ratio-check` is. The judge calls it right
+after `ratio_verdict`. It prints how far the ratio stands from a base
+ratio in percent, and how far each half stands from the base in
+milliseconds per model and in percent. The halves are the point: the
+band is blind when both halves grow together, and only they show it.
+
+Three rules are in the code and its comment. The line is advisory and
+never touches the exit status. The 5% it names is printed as a guess
+and not as a measured threshold: the clock between two binaries moves
+a half by about 5% on its own (m626). With no base given the line is
+absent, not zero, because a base belongs to one machine: the desk's
+base read on the runner would be wrong by 16 to 37%. Only
+`scripts/preflight.sh` sets a base, and the line names where it came
+from.
+
+The base is `DESK_BASE_FLATTEN_MS=3945` and `DESK_BASE_RUN_MS=3910`,
+the middles of the two quiet prints of the head 160e151
+(`/tmp/m626/drift3.txt` 3941 / 3923, `drift4.txt` 3950 / 3897, binary
+md5 eac0297e). Two points give a two-point spread of 0.8% in the ratio
+and are not a band. The base is wound like a floor: a commit that moves
+the ratio on purpose moves the base with its print as the witness.
+
+`delta_judges` in preflight shows five shapes with stand-in numbers: a
+quiet print speaks small; a ratio 6% off names the guess; both halves
+times 1.5 at the same ratio stay quiet in the ratio and are named by
+the halves; a zero flatten says it cannot divide; no base gives no
+line. With the base set to zero the check went red, so it checks
+something.
+
+### The first print
+
+The full preflight on 4c8eaf6 (`/tmp/m627/preflight.txt`) passed with
+974 flatten / 838 run, runnable 856 / 789. Its line: ratio 0.897
+against the base 0.991, -9.5%; flattening +577 ms (+14.6%), running
++148 ms (+3.8%) per model. That is a different binary from the base
+(the preflight builds the tree, the base is eac0297e) on a desk where
+the session itself was working, so it is not a finding: the
+cross-binary noise alone is near 7% in the ratio. It is the reason the
+line stays advisory.
+
+### Not a third point: the price of the per-model work lines
+
+`/tmp/m627/drift5.txt` was meant as the third quiet print of the head
+and is not one. It ran the same binary (`/tmp/m626/oxhead`, md5
+eac0297e, witness `drift5.env`) but straight through
+`library check --list` with `OXIDELICA_WORK_EACH=1`, not the way
+`drift3` and `drift4` were taken: those two are 85267 bytes and 1001
+lines each with no per-model work line, this one is 310591 bytes,
+3234 lines, with 1019 lines of `work <model> ...`. All nine work
+counters still equal the first two to the digit, so the work is the
+same by identity. The clock is not: flatten 4226 against 3945 (+7.1%),
+run 4034 against 3910 (+3.2%), both halves together +5.3%, ratio 0.955
+against 0.991.
+
+So it goes into neither the base nor any spread. What it is instead is
+the first measurement of what that instrument mode costs with the work
+held identical: about 5% of the whole, most of it on the flatten side.
+One print cannot say which part of the mode carries the 7%, and the
+desk was quiet but not proven quiet. The 0.8% stays a two-point spread
+of one mode. A true third point has to be taken exactly as `drift3`
+and `drift4` were.
+
+### Two holes closed in the delta after review
+
+Both found by measurement in review, both fixed in the same session
+and shown with `--delta-check`, without a second preflight. First, a
+print of 4182 / 4066 against the base is +6.0% flattening, +4.0%
+running and +5.0% in all, yet the ratio moves only -1.9% and neither
+earlier line spoke: the quotient is blind to a common move. The line
+now prints the two halves together and names a move of the whole past
+the guess. Second, a zero or unreadable run base made awk divide by
+zero and exit 2, which under the judge's strict shell would have taken
+the whole pass down despite the promise never to touch the exit
+status. The guard now checks the run base too, and the call cannot
+fail the pass. `delta_judges` holds both as two more shapes.
