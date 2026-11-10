@@ -74775,3 +74775,16 @@ receives it. The refusal stays the same:
 is refuted as the lock. The judgement is made with Newton's first
 point at v = 0, and the next suspect is what `capbx` reads at that
 point. SMEE_DOL was not probed.
+
+### The switch beyond the pipes
+
+Four models refused as outside or on the arithmetic floor that are not
+pipes were run with the switch on, `--only`, 5 minute ceiling
+(`/tmp/m630/o3_*.txt`): `PolyphaseRectifier`,
+`ThyristorBridge2mPulse_RLV`, `MeasuringTemperature` and the
+`Machines` `IMC_withLosses`. None runs, and each keeps the refusal it
+had in the m629 census. So the models the switch wins are, as far as
+measured, the water pipes and nothing else. The corpus under the
+switch was not run in this shift: five pipe models were not shown to
+end within 1200 s, and a corpus pass without a ceiling per model could
+not finish before the shift ended. The floors do not move, because the default is untouched.
