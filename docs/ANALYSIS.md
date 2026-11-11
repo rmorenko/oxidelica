@@ -76793,9 +76793,14 @@ measured. The change is wording only.
 A modifier that a package writes on a type through its `extends` loses
 every attribute but `start`. `Modelica/Media/Water/package.mo:118-122`
 gives `AbsolutePressure(start=50e5, nominal=10e5, min=611.657,
-max=100e6)`. `oxidelica why ModelicaTest.Fluid.TestPipesAndValves.SeriesPipes1
-'pipe2.mediums[1].p'` answers `min: 0`, which is the base type's.
-A twelve-line model reproduces it (`/tmp/m646/minp/T.mo`): a partial
+max=100e6)`. (Corrected in m649: `SeriesPipes1`'s `pipe2.mediums[1].p`
+was first quoted here as the lost `min`, and it is not one. That `p`
+is declared `InputAbsolutePressure p`
+(`Modelica/Media/package.mo:4003`), and `InputAbsolutePressure` is
+`input SI.AbsolutePressure` (`:4029`), not the medium's replaceable
+type, so its `min: 0` is right. The witnesses on the real model are
+`pipe2.mediums[1].state.p` and `pipe2.mediums[1].T`, in
+`/tmp/m649/witness_statep.txt`.) A twelve-line model reproduces it (`/tmp/m646/minp/T.mo`): a partial
 package with `replaceable type AbsolutePressure = AP`, where `AP` is
 `Real(min = 0, unit = "Pa")`, a package that extends it with
 `AbsolutePressure(min = 611.657, start = 50e5)`, and a component of
@@ -76805,11 +76810,13 @@ written before the run, was `min: 0`, and the falsifier would have been
 `resolve_type` (:213) takes `min`, `max` and `nominal` only from the
 alias's own attributes (:360-362). The search through the extends
 clauses of the package, `package_start` (:437), looks for the key
-`<Type>.start` alone. No change was built. This withdraws the
-conclusion of m643 that step limiting at the bound cannot reach the
-water bound because `min = 0` stands on the pressures: that zero was a
-lost attribute, not the water's limit. The m643 patch is to be measured
-again only after the attribute is read.
+`<Type>.start` alone. No change was built. This paragraph first
+withdrew the conclusion of m643 that step limiting at the bound cannot
+reach the water bound because `min = 0` stands on the pressures. That
+withdrawal is itself withdrawn (m649): the pressure m643 limited is
+the `InputAbsolutePressure p` above, whose zero is the declared bound
+and not a lost one. The m643 conclusion stands, and its patch stays
+parked.
 
 `NonCircularPipes`: the steady variant `/tmp/m644/ncp/N2.mo` keeps
 `ms[1]`, `ms[2]` and `Us[2]` of each pipe as states, and `Us[1]` of
