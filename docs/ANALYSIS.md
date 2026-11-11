@@ -75339,3 +75339,16 @@ equation printed is 575 characters. A `sample` of the second run
 `does_not_move` and `simplify` under `shared_derivatives`. It is not the
 breed of 7 November (`$moving$der` climbing orders); it is the size of
 one derivative of the joint's rotation matrix.
+
+### The two examples of the row outside the families
+
+Both runnable carriers left over were probed with the subset printer
+(`/tmp/m635/p5_act.txt`, `p5_imc.txt`, binary `ox6`). `ActuatorWithNoise`
+refuses after many reductions on a subset of 32 that is the stator of its
+permanent-magnet machine: the plug currents of `rs`, `strayLoad` and
+`spacePhasorS`, the zero-sequence current `spacePhasorS.zero.i`, and
+`statorCore.spacePhasor.i_[1] = 0`, `i_[2] = 0`. `IMC_DOL_CommonLeakage`
+refuses on a subset of 32 in the five-phase stator converter: magnetic
+potentials and fluxes of the single-phase converters and the pin currents
+of the plug. Both are the machine-shaped wall, not the open-pin family, and
+both hit the ceiling of 32 members.
