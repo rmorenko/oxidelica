@@ -76367,3 +76367,16 @@ documentation says it: when both friction models are stuck there is
 no unique solution, and a simulator is asked to handle that. The small
 model proves the mechanism and is not a win: nothing in the measured
 set moved.
+
+The `PumpingSystem` reading was put to the same kind of falsifier
+(`/tmp/m641/PS0.mo`, `PS1.mo`, commands in the `.env` files). `PS0`,
+the example copied whole, refuses with the same block of 15, rank 14,
+dead column `pumps.s`. `PS1` is the copy with `checkValve=false`, so
+that `V_flow_single` and `head` carry `s` in every branch. It passes the
+start with no singular refusal and then crawls: after 17 minutes the
+step stood at t = 4.5e-11 with Newton converging each time, and it was
+stopped by hand (the stop is written in `PS1.env`). The falsifier did
+not fire: the dead column is the check valve's closed branch at the
+start, where `s` has no derivative. With the valve gone the model meets
+a different wall, a step that collapses near zero, which was not
+mapped. Mechanism only, nothing in the measured set moved.
