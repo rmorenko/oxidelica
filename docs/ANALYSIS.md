@@ -75352,3 +75352,125 @@ refuses on a subset of 32 in the five-phase stator converter: magnetic
 potentials and fluxes of the single-phase converters and the pin currents
 of the plug. Both are the machine-shaped wall, not the open-pin family, and
 both hit the ceiling of 32 members.
+
+## Engine1a's fifth link is structural, not rest; two Newton carriers and One2's flat sizes (m636)
+
+### Engine1a, link 5
+
+The hypothesis carried in was that the loop of 17 unknowns failing to
+mention `b2.frame_a.f[2]` at t = 0 is a wall of rest, like the divisor
+`v` and the quotient over `(e[2]*v)^2`. Two probes, binary `/tmp/m634/ox3`
+(md5 `1eb945d22fc6570c3e11e604e7945c18`), each with an env witness beside
+it in `/tmp/m636`:
+
+- The source already starts `inertia.w` at 10 rad/s with `fixed=true`, so
+  the model is not at rest in velocity. In a copy of the library
+  (`/tmp/m636/msl_start`) the crank was moved off dead centre,
+  `inertia.phi(start=0.3)`. The model then refuses earlier, as structurally
+  singular at `compile.rs:3014` after 159 members of the subset were tried
+  (`p1phi.txt`), and never reaches the loop. Moving the start changes the
+  path, so it neither confirms nor refutes the rest reading.
+- The control on the real library with `OXIDELICA_DEAD_PROBE=1`
+  (`p1ctl.txt`) answers directly: `b2.frame_a.f[2]` is reported as never
+  mentioned, not as flat at this point only. Moving it a whole unit leaves
+  the residual of the block untouched.
+
+So the rest hypothesis is refuted for this link. `why` (`why_f2.txt`)
+names the five equations that carry the unknown: the planar loop
+constraint's `f[2] = ex_a[2]*f_c[1] + ey_a[2]*f_c[2]`, the three rows of
+`frame_b.f` and the connection with `mid.frame_b.f[2]`. None of them is in
+the block of 17. The unknown was matched into a block whose equations do
+not hold it, which is a matching fault upstream of the solver: the
+refusal at `solvers/mod.rs:2559` only reports it. Reading that site gives
+the ceiling: a column that does not move from a unit away "keeps its
+refusal", by design. The chain stands at: parameters, ceiling 32, divisor
+`v`, quotient at rest, a block assigned an unknown none of its equations
+carry. A `NEWTON_TRAIL` run (`p1trail.txt`) takes two Newton evaluations
+and prints no rows, because the row dump lives only on the singular branch.
+
+### The unbalanced row by name
+
+All 18 rows of `unbalanced model` in `/tmp/m629/raw.txt` were classified.
+Seventeen are components under `Utilities`, `BaseClasses` or `Components`
+with an open connector or bus (13 "nothing determines", 4 StateGraph
+composite steps "nothing is left for"). The one example is `Fourbar1`,
+which belongs to the MultiBody ring series and was not touched. The
+family of parts not meant to run alone therefore counts 16 + 17 = 33 rows
+across the census.
+
+### The Newton-direction row
+
+The row holds 13 models in the raw file: eight `TestPipesAndValves`
+networks, `TestTemperature1`, `IMC_withLosses`, and three MultiBody models
+whose refusal names an equation. Two carriers were traced with the tree
+binary `/tmp/m636/ox` (md5 `4c897b0acf5ee3b3ad909bf4d760989f`):
+
+- `SeriesPipes1` (`p3b.txt`): the initial point is solved at t = 0. At
+  t = 0.0008 the full Newton step sends `pipe2.mediums[1].p` to -2.2e6 Pa
+  and the residual to NaN. The damped steps crawl back to a pressure of
+  614 Pa, and the residual stays at 3.77e4 on row 1.
+- `BranchingPipes4` (`p3d.txt`): the same shape. The full step sends
+  `splitter.medium.p` to -5.3e8 and to NaN, and the damping settles at a
+  residual of 231.7.
+
+Both are one breed: an undamped step that leaves the region where the
+medium is defined, and a line search that cannot get back into it. The
+damped least-squares step that runs `BranchingPipes3` is in the park and
+was not touched. No change was built.
+
+### One2's memory
+
+Probe binary `/tmp/m636/ox8` is the tree plus the parked late spread plus
+a print of the sizes per reduction pass (`growth_probe.patch`). The tree
+alone refuses One2's parameters. Under an 8 GB cap (`p4b.txt`) the total
+size of the equations stays flat across reductions 1 to 15 at 13.4 to
+13.5 million printed characters. The largest single equation,
+`world.z_label.R_rel[2,3]` at 0.98 million characters, is that large from
+the first pass. The cap took the run after pass 15, so the growth is not
+in index reduction's equations. It comes later, which matches the stack
+in differentiation and simplification seen in m635. A single
+million-character equation from the world's label geometry is the
+suspect to probe next.
+
+### Engine1a, link 5 traced to its row
+
+A probe binary `/tmp/m636/ox9` (the tree plus the m634 probe patch plus a
+print of the block's rows on the dead-column branch,
+`deadrows_probe.patch`, md5 in `ox9.md5`) names the 17 rows
+(`p1rows.txt`). Exactly one carries the unknown: row 5,
+`b2.frame_b.f[3] = -((0 + b2.R_rel.T[3,2] * b2.frame_a.f[2]) + b2.R_rel.T[3,3] * b2.frame_a.f[3])`.
+`b2.R_rel.T[3,2]` is not an unknown of the block, so it enters as a
+number, and at the start configuration it is zero. The column is
+therefore dead by geometry, not by speed and not by matching: the matching
+put `f[2]` in the one row whose coefficient vanishes at the starting
+angle of the planar loop. That is also why the dead probe says "never
+mentioned": moving `f[2]` a whole unit is multiplied by that zero. The
+chain now reads: parameters, ceiling 32, divisor `v`, quotient at rest,
+`f[2]` matched to a row through a rotation entry that is zero at t = 0.
+The next question is why matching picked row 5 over the constraint row
+`f[2] = ex_a[2]*f_c[1] + ey_a[2]*f_c[2]`, which carries it with a live
+coefficient. No change was built.
+
+A third and fourth carrier of the Newton row were traced as well
+(`p3e_*.txt`). `TestTemperature1` is the same breed as the pipes: at
+t = 0.0002 the full step sends the pressure to -3.5e5 and the residual to
+NaN. `IMC_withLosses` is a different breed: it fails at t = 0 with no NaN
+and the residual stuck at 156, in the air-gap currents. So the row holds
+at least two breeds.
+
+### The dead-column row is one breed: a coefficient that is zero at the start
+
+The census row `do not mention` holds five models (`/tmp/m629/raw.txt`).
+Two more were probed with `ox9`. In `PlanarFourbar` (`p5pf.txt`) the dead
+unknown `der(revolute2.R_rel.T[1,1])` sits in three rows of the block, and
+all three multiply it by rotation entries that vanish at the start angle.
+That is the same shape as Engine1a's row 5. In
+`Spice3BenchmarkDifferentialPair` (`p5sp.txt`) the dead unknown
+`der(Q2.vbx)` sits in one row, `Q2.icapbx = if Q2.m_bInit then 0 else ...
+der(Q2.vbx)`, so its coefficient is zero because the start is the
+initial phase. Three of the five carry an unknown that only a zero at
+t = 0 multiplies. The two RobotR3 gear helpers (`bearingFriction.sa`)
+are in the open-part family and were not probed. The repair this points
+at is in matching, not in the solver: an unknown should not be assigned
+to a row whose only term for it is known to vanish at the start, when
+another row carries it with a live coefficient. No change was built.
