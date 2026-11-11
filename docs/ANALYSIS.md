@@ -77008,3 +77008,33 @@ Spice `der(vbe)` loops are the policy question of the zero
 coefficient, the machines sit under the floor of `reads_singular`, and
 the rest are mapped in m630, m644 and earlier chapters. No probe was
 owed and none was run.
+
+## m651: a tie preference on RobotR3 carries the small model and not OneAxis
+
+Queue item 101 proposed that at near-ties in the victim weights, a
+structural preference for the initialising flange's own angle carries
+the RobotR3 family. A probe key was built outside the tree
+(`OXIDELICA_TIE_PREFER_OWN=<rel>`, binary md5 f776623f, patch and note
+in the park as `m651_tie_prefer_own`). Among candidates within `rel`
+of the heaviest weight, it keeps the one that earlier reductions
+weighed most often and left standing.
+
+The walk of /tmp/m605/small/L3_05.mo at its event is not a tie in the
+1e-10 sense. Reduction 4 weighs `initializeFlange.phi_flange` at
+27.62 and `bearingFriction.phi` at 27.84, 0.8% apart. So at
+`rel = 1e-10` the small model still refuses, and at `rel = 0.01` it
+runs to the end with L3_03 still running (/tmp/m651/s_*.txt). That
+proves the mechanism on a small model only.
+
+On the class `RobotR3.OneAxis` under `simulate`, the key reaches
+further and still refuses with the off refusal word for word,
+`-bearingFriction.w + Jmotor.w = 0` constraining no state. Off makes
+two walks and `rel = 0.01` makes four, so two more re-reductions are
+reached. In the last one, reductions 10 to 12 take `accSensor.w`,
+`load.w` and `spring.w_rel`, and the velocity layer runs dry. At 0.1
+and 0.5 it makes three walks, at 1 two, all with the same refusal,
+and L3_03 breaks at 0.5 and 1. FullRobot at 0.01 refuses as before on
+the `axis1` spring row (/tmp/m651/b_*.txt). So the road closes at step
+(b). A preference on the angle layer does not carry the velocity layer
+of the same walk, and no pair was run. The heavy basket was not
+measured, since nothing was proposed for the tree.
