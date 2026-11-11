@@ -76703,7 +76703,12 @@ tree.
   612, 610 Pa while `|f|` stays at 3.770. Nearly all of it is one row,
   3.77e4, the valve's. In `BranchingPipes4`, `pipe3.mediums[1].p` goes
   207350, 78779, 14510, 2483, 977, 475 Pa at `|f|` = 2.317. At the next
-  step IF97 is asked for a pressure at or below zero and answers NaN.
+  step the iterate is below the medium's own lower edge, not at zero:
+  610.29 Pa is under the triple point of water, 611.657 Pa, where IF97
+  stops applying, and NaN is born there. `BranchingPipes4` has crossed
+  the same edge at 475 Pa. An earlier closing of the step-bound road
+  (m643) tested a bound at `min = 0`; against the triple point the step
+  does reach the edge and crosses it at the twelfth iteration.
 
 So the chain ends where m643's stall began. The block's Newton
 direction points at zero pressure in one volume, and the residual it
@@ -76712,9 +76717,12 @@ damping or column scaling changes that direction, because the direction
 comes from a full-rank, well-conditioned matrix (singular values above).
 The next question belongs to the model and not to the solver. It is why
 the valve row asks for a pressure drop that only a vacuum downstream can
-give at 0.8 ms. Since it is a question about the start of the flow, this
-is the outside-key ground the coordinator has kept for the decision at
-Roman's desk, and the shift stops here.
+give at 0.8 ms. The road ends at a question about the start of the flow.
+An earlier version of this paragraph said a decision on it was waiting
+with Roman; that was false. The decision was answered on 10 November
+(moving the model to the dear set, fc69ef4), with no word on making the
+outside key the default, so the default stays off (coordinator log,
+`LOG.md:1986`).
 
 ### `NonCircularPipes`: the surplus comes from the fixed start, and a steady start runs
 
@@ -76733,3 +76741,30 @@ equation is not dropped the way a `fixed = true` start is. This is a
 map with no change built. The repair would have to decide which written
 initial equation a reduction may drop, and that is the kind of
 definition change these notes say to measure by victims.
+
+### m645: the retry-leads wording was not merged, and the walls of the singular Jacobian row
+
+The parked change that lets the last retry's words lead a refusal applied
+cleanly on bf50af9, and its two rewritten tests pass, but two other tests
+in `tests/simulation/systems.rs` turn red with it:
+`a_function_that_refused_inside_a_loop_says_why` and
+`a_model_that_refuses_in_prose_is_quoted_whole_with_its_numbers`. Both
+lose real content, not only order: the reason a walked function gave
+("guard: u must exceed one", "u is 0, which is below one") is dropped,
+because only the gist of the first try is kept in the tail. The m644
+census could not see this, since none of the library's models carries
+such a reason in that row. The change went back to the park with that
+note, and nothing was merged.
+
+Of the three entries in the singular Jacobian row with older chapters on
+other walls, the m644 raw census (`/tmp/m644/raw.txt`, lines 107, 155,
+196) now places all three at `singular Jacobian in algebraic loop`:
+QuasiStatic `Rectifier` (loop over `rectifierQS.vDC` and the diode
+switches), `UniversalConstraint` (loop over frame torques and
+`constraint.R_rel.T`) and `TestMixingVolumesPressureStates` (loop over
+`mixingVolume1.medium.h` and `flowSource2.medium.sat.Tsat`). The wall
+changed for all three. They have not been probed yet.
+
+No `p_min`, `pMin` or triple-point bound is read anywhere in `crates/`
+outside tests (grep, this shift), so the solver reads no validity range a
+medium declares. This is a map line, not a plan for a change.
