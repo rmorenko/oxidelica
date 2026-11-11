@@ -76394,3 +76394,79 @@ not fire: the dead column is the check valve's closed branch at the
 start, where `s` has no derivative. With the valve gone the model meets
 a different wall, a step that collapses near zero, which was not
 mapped. Mechanism only, nothing in the measured set moved.
+
+## Shift m642: who demotes the stator current in Act3, and one wall under four pipes
+
+Binary `/tmp/m638/ox20` (md5 bf11e4ce) throughout. Every command is in
+the `.env` file beside its output in `/tmp/m642`, and the forecasts are
+in `forecast.txt`, written before the runs.
+
+### Reduction 7 of Act3
+
+Forecast: several candidates at reduction 7, with the current taken on
+weight. Falsified (`act3p.txt`, `OXIDELICA_VICTIM_PROBE=1`). On the
+final attempt, after the retreat from reduction 6, two states reach
+reduction 7: `lssigma.i_[2]` and `inertiaRotor.phi`. Both have a slope
+of zero in the residual `airGap.i_[2] + lssigma.i_[2] = 0`, so the tie
+goes to the joint weights. Those come back as -1.0 for the current and
+0.0 for the angle. `drop_the_undetermined` (compile.rs, the
+`tie_drops_the_undetermined` arm) then removes the angle, which leaves
+one candidate. No weighing chooses the current. The choice is made by
+the joint-weight filter, and that filter cannot see that the ideal
+source upstream already fixes the current.
+
+Forcing the alternatives through `OXIDELICA_VICTIM_FORCE` showed that
+neither one opens a road:
+
+- `7:inertiaRotor.phi` (`f7phi.txt`): the retreat refuses the angle at
+  reduction 7 and the run ends in the same singular block of 14.
+- `6:lssigma.i_[1]` (`f6i.txt`): the supply cycle stops at reduction 14
+  with "structurally singular", one wall earlier.
+
+Point 2 is parked. The filter gives the reduction no candidate other
+than the current, and neither forced choice runs, so the narrow road
+the brief asked for does not exist at this layer.
+
+### The four pipes
+
+Probe: `OXIDELICA_NEWTON_TRAIL=1` on each example (`nt_*.txt`). Names
+come from the refusal and negative pressures are listed by
+`neg2.py`.
+
+- `BranchingPipes1`, block of 19: the first full step puts
+  `pipe1.mediums[1].p` at -1.62e7 and `pipe3.port_a.p` at -2.53e6, and
+  rows go NaN. The step is halved six times, and the iteration then
+  stalls at |f| = 2.9e5.
+- `BranchingPipes2`, block of 17: `pipe2/pipe3.mediums[1].p` go to
+  -2.02e6, NaN for three halvings, then a stall at |f| = 3.06e6.
+- `BranchingPipes4`, block of 6: `splitter.medium.p` goes to -5.28e8,
+  NaN for ten halvings, then a stall at |f| = 231.7.
+- `SeriesPipes1`, block of 6 (reference): `pipe2/pipe3.mediums[1].p`
+  go to -2.2e6, NaN for three halvings, then a stall at |f| = 3.77e4.
+
+The `BranchingPipes4` forecast held. The forecast that `BranchingPipes1`
+and `BranchingPipes2` stand at a different wall (tsat or density) was
+falsified. All four take the same path: the full Newton step drives a
+medium pressure below zero, the medium returns NaN, the step is halved
+until the pressure turns positive again, and by then the direction no
+longer reduces the residual.
+
+Verdict in the form the brief asked for: a family of four, confirmed
+name by name, needs one fix. A step limit that keeps medium pressures
+positive is the change that would justify building, and none was
+built.
+
+### TestMixingVolumesPressureStates
+
+Forecast: a dead pressure column with Tsat independent of the state.
+Falsified in its details. The block holds 24 unknowns, with rank 21 at
+t = 0 (`nt_TMV.txt`, `rk.py`), and has no zero row or zero column. The
+`Tsat` column is clean (a single entry, row 3). The weakest null
+direction is almost pure `der(mixingVolume1.medium.p)`, singular value
+3.5e-24. That derivative enters only the volume's mass and energy rows
+(20 to 23), with coefficients from 5e-7 to 1.5e-3, because the IF97
+density reacts to pressure almost not at all. The other two weak
+directions are the enthalpy of each volume chained with its orifice's
+`h_outflow` and `state.h`. What is near-singular is a pressure-states
+volume of almost incompressible water, and Tsat does not come into it.
+Nothing was changed.
