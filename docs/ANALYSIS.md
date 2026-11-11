@@ -77038,3 +77038,45 @@ the `axis1` spring row (/tmp/m651/b_*.txt). So the road closes at step
 (b). A preference on the angle layer does not carry the velocity layer
 of the same walk, and no pair was run. The heavy basket was not
 measured, since nothing was proposed for the tree.
+
+## m651: the models that live on the soft half of the Newton test
+
+A block is accepted as converged when every row has
+`|f| <= 1e-10 * (1 + |v|)` or `|f| <= 1e-12 * (|lhs| + |rhs|)`
+(crates/oxidelica-sim/src/solvers/mod.rs:2028-2030). The first half
+grows with the unknown, so at `|v| = 1e20` it accepts a residual of
+1e10. This counts who leans on it. A print outside the tree (park
+`m651_soft_residents_probe.diff`, binary md5 03afde2f, switch
+`OXIDELICA_M651_SOFT=1`) fires at acceptance when a row has
+`|f| > 1e-8` and fails the second half, so it passed on the first
+half alone. It names the model, the row, `|f|`, `|v|`, and the
+largest `|v|` of the block at entry and at acceptance. It changes no
+outcome. One corpus half, `library check .msl --list` (so ten steps
+a model), printed 974 flatten and 838 run, the counts of the head,
+and 5638 such lines (/tmp/m651/soft.txt, per model in
+/tmp/m651/per_model.txt).
+
+Residents: 127 models, of which 104 run. The forecast was "a few to a
+few tens", so the count stands outside its band, and the soft half is
+far more common than the queue assumed. Of the 50 models in the m477
+list, 45 are among them.
+
+By how far the block grew between entry and acceptance (ratio of the
+largest `|v|`):
+
+- 44 models grew a thousandfold or more, 39 of which run. 23 of the
+  44 end with `|v|` above 1e12. These are the runaway kind.
+- 15 models did not grow that far but hold `|v|` of 1e6 or more:
+  honestly large values, such as media and pipe pressures.
+- 68 models hold small values, with the accepted residual between
+  1e-8 and about 1e-4.
+
+The accepted residual itself goes above 1 in 16 models, 13 of which
+run: ControlledSwitchWithArc and Dimmer_RL at about 4e19 and 4e18,
+IMS_Start and IMC_DOL at 4e12, ComparisonPullInStroke at 1e11, and
+then SMPM_Braking, ComparisonQuasiStatic, IMC_YD, DCPM_Drive,
+both `ThyristorBridge2Pulse` drives, `SinglePhaseTransformerWithHysteresis2` and SMEE_Rectifier. The three IMC_withLosses accept a
+residual of 156 with `|v|` up to 1e50 and refuse later. So thirteen
+running models count as running while accepting a block whose
+equations are off by more than one unit. This is the material for the
+question on items 18 and 30, not a fix. The tolerance was not touched.
