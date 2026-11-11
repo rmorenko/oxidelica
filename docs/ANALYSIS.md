@@ -76155,3 +76155,35 @@ The question for the reduction is why, with the source's current
 present, reduction 15 takes the rotor angle and leaves the stator
 current row without unknowns. That needs a trace inside
 `reduce_index_once` and is left open.
+
+### The airGap breed across all four machines: switches into a star
+
+The m639 probe was rerun on `SMEE_DOL` and on the ComparisonPolyphase
+`IMC_DOL_Polyphase` (`/tmp/m640/u_dol.txt`, `u_imc.txt`, binary
+`/tmp/m639/ox22`), and the left null space of the m639 prints was read
+for those two and for `IMS_Start_Polyphase` (`/tmp/m639/p1b_*.txt`).
+Every machine has the same shape as SMEE_Rectifier:
+
+- `SMEE_DOL`, rank 23 of 26. One direction is rows 4, 5 and 6 with equal
+  weights, the three `switch.idealClosingSwitch[k].i = s*unitVoltage*...`
+  rows. A second is rows 16 and 17, stator converter `V_m`, mixed with
+  the switch rows. A third is row 1 on its own, the `Phi_sr.im` rotation
+  row.
+- `IMC_DOL_Polyphase`, rank 53 of 59. The directions are 3 rows of
+  `idealCloser3` with equal weights, then 5 rows of `idealCloserM`, and
+  four more on the stator converters of `aimc3` and `aimcM`.
+- `IMS_Start_Polyphase`, rank 74 of 80, with the same pattern of 3 and 5
+  equal rows of switches and converter rows.
+
+The common cause is an `m`-phase bank of ideal switches (or a diode
+bridge) feeding a machine whose stator is a star, so the currents sum
+to a value fixed elsewhere. The switch rows give `i_k` from `s_k`, and
+their sum is already determined, so one combination of the `s_k` is
+free. That is one rank per bank. The row-1-alone direction in the
+synchronous machines is a second, separate defect on the rotation row.
+It does survive a perturbed angle in the hand experiment, so even it is
+not a point singularity. None of the four is curable at a point. The
+family is the ideal switch bank in front of a star, which is an
+index-reduction and tearing question about which `s_k` should be
+determined by the star's constraint, and is for Roman to decide before
+any change.
