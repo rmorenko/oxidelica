@@ -21,6 +21,8 @@ pub(super) fn instantiate(
     // And on whose behalf a body is inlined: what an alias filled in
     // belongs to the instance that wrote it.
     let _building = super::statements::BuildingInstance::at(prefix);
+    // And in which package's terms: a bare type's bounds are asked of it.
+    let _package = super::inheritance::BuildingPackage::of(registry, class, prefix);
     if depth > MAX_DEPTH {
         return Err(format!(
             "instantiation deeper than {MAX_DEPTH} levels at `{}` (recursive classes?)",

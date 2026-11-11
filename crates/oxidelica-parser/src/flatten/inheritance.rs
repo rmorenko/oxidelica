@@ -332,6 +332,71 @@ pub(super) fn resolve_type(
             component.start_given_by_package =
                 start_given_to_type(registry, &written, &scope, &imports, &attributes);
         }
+        // The bounds a package writes on a type through its extends
+        // clause are the type's bounds as reached through that package,
+        // the same as its start: `Water` says `AbsolutePressure(min =
+        // 611.657)`, and reading the base type's zero instead is a
+        // silent wrong value. Taken only where it settles to a number.
+        // `OXIDELICA_NO_TYPE_BOUND_MOD=1` keeps the old reading.
+        if type_bounds_open() {
+            // A type written with a path is asked of the package the
+            // path names. One written bare - `AbsolutePressure p` inside
+            // a medium - is asked of the packages around the place it
+            // was written, the nearest first, since that is where the
+            // medium's own extends clause stands.
+            let heads: Vec<String> = match written.rsplit_once('.') {
+                Some((head, _)) => vec![head.to_string()],
+                None => {
+                    let mut around = Vec::new();
+                    let mut at = scope.as_str();
+                    while let Some((outer, _)) = at.rsplit_once('.') {
+                        around.push(at.to_string());
+                        at = outer;
+                    }
+                    // And of the packages the instances being built
+                    // belong to, innermost first: a medium's
+                    // `BaseProperties` declares `AbsolutePressure p`
+                    // in the partial package, and the bounds are
+                    // written by the medium that redeclared it, which
+                    // the scope of the declaration cannot see.
+                    if type_bounds_through_instance_open() {
+                        BUILDING_PACKAGES.with(|held| {
+                            for (_, package) in held.borrow().iter().rev() {
+                                if !around.contains(package) {
+                                    around.push(package.clone());
+                                }
+                            }
+                        });
+                    }
+                    around
+                }
+            };
+            let tail = written
+                .rsplit_once('.')
+                .map_or(written.as_str(), |(_, t)| t);
+            // Not the nominal: it is where a Newton block begins an
+            // unknown that has no start (compile.rs, the first guess),
+            // so reading it moves the starts of every medium and is a
+            // change of its own - `TestJunctionIdeal` begins its gas
+            // temperature at 500 K from it and the root is no longer
+            // bracketed. And not inside a function: a local's bounds
+            // there are a check of the walk, and the incompressible
+            // tables' `specificEnthalpyOfT` stopped being walked
+            // (`Glycol47`) once its temperature was bounded.
+            let in_function = registry
+                .get(scope.as_str())
+                .is_some_and(|class| matches!(class.kind, crate::ast::ClassKind::Function));
+            if !in_function {
+                for (attribute, field) in [("min", &mut component.min), ("max", &mut component.max)]
+                {
+                    if field.is_none() {
+                        *field = heads.iter().find_map(|head| {
+                            package_start(registry, head, tail, &scope, &imports, None, attribute)
+                        });
+                    }
+                }
+            }
+        }
         // A type that is an array gives its dimensions to whatever is
         // declared with it, after that declaration's own: `Orientation
         // o[2]` with `type Orientation = Real[4]` is `[2, 4]`.
@@ -375,6 +440,63 @@ pub(super) fn resolve_type(
 /// Whether a type's start is read where its package gives it.
 /// `OXIDELICA_NO_TYPE_START_MOD=1` leaves the old reading, so that one
 /// binary gives both numbers.
+/// Whether a bare type's bounds are also asked of the packages of the
+/// instances being built. `OXIDELICA_NO_TYPE_BOUND_INSTANCE=1` leaves
+/// them to the scope of the declaration alone.
+fn type_bounds_through_instance_open() -> bool {
+    std::env::var("OXIDELICA_NO_TYPE_BOUND_INSTANCE").as_deref() != Ok("1")
+}
+
+/// The package holding a class being instantiated, for as long as it
+/// is: what [`resolve_type`] asks a bare type's bounds of.
+pub(super) struct BuildingPackage(bool);
+
+impl BuildingPackage {
+    pub(super) fn of(registry: &HashMap<&str, &ClassDef>, class: &ClassDef, prefix: &str) -> Self {
+        // A base is built at the instance's own path, and the package
+        // that speaks for the instance is the one of the class that
+        // extends it: `WaterIF97_base.BaseProperties` and not the
+        // `PartialMedium` its base was written in.
+        if BUILDING_PACKAGES.with(|held| held.borrow().last().is_some_and(|(at, _)| at == prefix)) {
+            return BuildingPackage(false);
+        }
+        let package = class
+            .name
+            .rsplit_once('.')
+            .map(|(head, _)| head)
+            .filter(|head| {
+                registry
+                    .get(head)
+                    .is_some_and(|holder| holder.kind == ClassKind::Package)
+            });
+        match package {
+            Some(head) => {
+                BUILDING_PACKAGES.with(|held| {
+                    held.borrow_mut()
+                        .push((prefix.to_string(), head.to_string()))
+                });
+                BuildingPackage(true)
+            }
+            None => BuildingPackage(false),
+        }
+    }
+}
+
+impl Drop for BuildingPackage {
+    fn drop(&mut self) {
+        if self.0 {
+            BUILDING_PACKAGES.with(|held| {
+                held.borrow_mut().pop();
+            });
+        }
+    }
+}
+
+fn type_bounds_open() -> bool {
+    std::env::var("OXIDELICA_NO_TYPE_BOUND_MOD").as_deref() != Ok("1")
+}
+
+/// Whether a type's start is read where its package gives it.
 fn type_starts_open() -> bool {
     std::env::var("OXIDELICA_NO_TYPE_START_MOD").as_deref() != Ok("1")
 }
@@ -425,7 +547,7 @@ fn start_given_to_type(
             return known;
         }
     }
-    let answer = package_start(registry, head, tail, scope, imports, own);
+    let answer = package_start(registry, head, tail, scope, imports, own, "start");
     if standing {
         PACKAGE_STARTS.with(|held| held.borrow_mut().insert(key, answer.clone()));
     }
@@ -441,8 +563,9 @@ fn package_start(
     scope: &str,
     imports: &[(String, String)],
     own: Option<&(String, Expr)>,
+    attribute: &str,
 ) -> Option<Expr> {
-    let wanted = format!("{tail}.start");
+    let wanted = format!("{tail}.{attribute}");
     // And where no extends clause in the whole library says a word
     // about this type's start, and the type said nothing either, the
     // walk through the bases would only come back empty.
@@ -485,6 +608,9 @@ fn package_start(
 }
 
 thread_local! {
+    /// The packages of the classes being instantiated, outermost first.
+    static BUILDING_PACKAGES: std::cell::RefCell<Vec<(String, String)>> =
+        const { std::cell::RefCell::new(Vec::new()) };
     /// Every `Type.start` some extends clause of the registry writes,
     /// gathered once while the registry stands.
     pub(super) static STARTS_WRITTEN: std::cell::RefCell<Option<HashSet<String>>> =
@@ -509,7 +635,11 @@ fn some_extends_says(registry: &HashMap<&str, &ClassDef>, wanted: &str) -> bool 
             .values()
             .flat_map(|class| class.extends.iter())
             .flat_map(|extend| extend.modifiers.iter())
-            .filter(|(name, _)| name.ends_with(".start"))
+            .filter(|(name, _)| {
+                [".start", ".min", ".max"]
+                    .iter()
+                    .any(|attribute| name.ends_with(attribute))
+            })
             .map(|(name, _)| name.clone())
             .collect()
     };

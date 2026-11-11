@@ -2167,3 +2167,51 @@ fn an_alias_named_like_the_start_of_a_path_still_reaches_the_medium() {
         "the medium's k was not read: {text}"
     );
 }
+
+#[test]
+fn a_bound_a_package_writes_on_a_type_through_extends_is_the_types_bound() {
+    // `Water` says `AbsolutePressure(min = 611.657)` through its
+    // extends clause, the triple point, and the base type says zero.
+    // Only the start was read from such a clause, so a pressure of
+    // the medium was bounded at zero: a wrong value with no refusal.
+    let source = "model T \
+         type AP = Real(min = 0, unit = \"Pa\"); \
+         partial package PM replaceable type AbsolutePressure = AP; end PM; \
+         package W extends PM(AbsolutePressure(min = 611.657, max = 1e8, nominal = 1e6)); end W; \
+         W.AbsolutePressure q; \
+       equation q = 1e5; end T;";
+    let model = parse_model(source).unwrap();
+    let q = model
+        .components
+        .iter()
+        .find(|c| c.name == "q")
+        .expect("q is declared");
+    assert_eq!(q.min, Some(oxidelica_parser::Expr::Number(611.657)));
+    assert_eq!(q.max, Some(oxidelica_parser::Expr::Number(1e8)));
+    // The nominal is not taken: it is where a Newton block begins an
+    // unknown, so reading it would move starts, a change of its own.
+    assert_eq!(q.nominal, None);
+}
+
+#[test]
+fn a_bare_type_in_a_redeclared_medium_model_takes_the_mediums_bound() {
+    // `BaseProperties` declares `AbsolutePressure p` inside the
+    // partial package, and only the medium the instance was given
+    // writes the bound. The scope of the declaration cannot see it.
+    let source = "model T2 \
+         type AP = Real(min = 0); \
+         partial package PM replaceable type AbsolutePressure = AP; \
+           replaceable partial model BaseProperties AbsolutePressure p; end BaseProperties; end PM; \
+         package W2 extends PM(AbsolutePressure(min = 611.657)); \
+           redeclare model extends BaseProperties equation p = 1e5; end BaseProperties; end W2; \
+         partial model Holder replaceable package Medium = PM; Medium.BaseProperties medium; end Holder; \
+         model Inst extends Holder(redeclare package Medium = W2); end Inst; \
+         Inst c; end T2;";
+    let model = parse_model(source).unwrap();
+    let p = model
+        .components
+        .iter()
+        .find(|c| c.name == "c.medium.p")
+        .expect("c.medium.p is declared");
+    assert_eq!(p.min, Some(oxidelica_parser::Expr::Number(611.657)));
+}
