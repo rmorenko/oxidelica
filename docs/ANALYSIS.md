@@ -76657,3 +76657,22 @@ loop ... does not reduce the residual". The trail of `TS3`
 make the block solvable, so the stall is in the loop's own geometry,
 with a massless junction whose position the springs alone determine.
 Starting `s` at its clamp is not the fix.
+
+### The other two models of the old row, by trail
+
+- `RollingWheelSetPulling` (`/tmp/m644/rw_trail.txt`, binary `ox28`).
+  Each of the six solves of the 32-unknown wheel-set block opens on NaN,
+  and every retry diverges. From 1e-6 the residual jumps to 9.6e17 at
+  the first step, and from 1000 it reaches 1e21 to 1e29. The one retry
+  that comes near is from 1, which falls to 7.5e-2 and then stalls. The
+  steps are not damped enough to avoid leaving the basin, which points
+  at the start of the wheel geometry (`rolling1.aux` normalised from
+  zero) rather than at the solver's damping. This is a map only.
+- `TestJunctionTraceSubstances`. `MoistAir.T_phX` is called with
+  `junction.port_3.h_outflow`, the mixing enthalpy of the junction. At
+  that enthalpy both ends of the 190..647 K bracket give a negative
+  residual (-1.09e6 and -5.88e5). So the enthalpy handed in lies about
+  1e6 J/kg above air at 190 K, which is beyond what moist air reaches
+  at 647 K. The value is the junction's tear start and not a physical
+  state. This is a start problem of the mixing block, and it is the
+  same breed the census names under MoistAir elsewhere. Map only.
