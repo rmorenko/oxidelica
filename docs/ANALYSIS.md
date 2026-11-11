@@ -76470,3 +76470,13 @@ directions are the enthalpy of each volume chained with its orifice's
 `h_outflow` and `state.h`. What is near-singular is a pressure-states
 volume of almost incompressible water, and Tsat does not come into it.
 Nothing was changed.
+
+### Two tsat refusals are not the pressure wall
+
+`TwoPhaseWater.BaseProperties` and `ExtendedProperties` refuse with
+`tsat` at p = 0 Pa, and the cause is not a Newton step.
+`oxidelica why` (`/tmp/m642/why_tpw.txt`) shows that `p` and `h` are
+the medium's unbound top-level inputs, and the flat model sets both to
+`p = 0` and `h = 0`. IF97's `tsat` then asserts below the triple point.
+The example has nothing to drive it, so it is not part of the pipe
+family above and no step limit would move it.
