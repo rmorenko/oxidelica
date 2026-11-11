@@ -76239,3 +76239,25 @@ at the start. This also explains why a perturbed angle changes nothing.
 What a fix would have to decide is how an open ideal switch in front of
 an inductive star determines its `s`. It is a modelling question for
 Roman, and nothing was built.
+
+### The open switch bank is a matter of scale, not structure
+
+The last shrink overturns the structural reading above. `E5` (bank held
+open) was rerun with only the switch's `Goff` changed, from the
+example's `1e-5*m/3` (`/tmp/m640/E6.mo` to `E12.mo`, outputs
+`f6.txt` to `f12.txt`, binary `/tmp/m639/ox22`). With `Goff` at 1, 1e-2,
+1e-3 and 1e-4 it runs. At 3e-5, 1e-5 and 5e-6 it is refused as
+underdetermined. The threshold therefore lies between 3e-5 and 1e-4.
+After both orders of equilibration, the smallest singular values of the
+refused blocks are near 1e-9, against the `1e-7 * scale` floor of
+`reads_singular` (`linear.rs:202-208`). The same holds for
+SMEE_Rectifier, SMEE_DOL and IMC_DOL_Polyphase. The block is determined,
+but a leakage conductance of 1e-5 beside the stator's magnetic scale
+puts its pivot under the floor. It is the picofarad breed of m639 seen
+again in a wider block, and not a lost rank. This changes what item 4's
+road would be. The road is not completing a null space. It is the
+floor that `reads_underdetermined` sets for a block whose spread of
+scales is physical, and that is a ceiling question for Roman (the floor
+and the comments around `solvers/mod.rs:1586-1614`). Nothing was built.
+Forecast tally for the shift: Ag pair held, Act5 refuted, Act6 refuted,
+Sw refuted, and the E6/E7 forecast held (scale).
