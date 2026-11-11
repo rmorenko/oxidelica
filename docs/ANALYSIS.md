@@ -75892,3 +75892,106 @@ The other `vbx` columns carry only 1e-12 entries that cancel each other.
 That is RtlInverter's parameter zero (`capbx = tBCcap*(1 - XCJC)` with
 `XCJC = 1`). The chain has therefore ended in a different family, and
 the patch on its own wins nothing in the trio.
+
+## Shift m640: is the airGap breed a singularity of one point?
+
+### The small pair for the airGap breed
+
+The m639 map named `rotator.im = sin(gamma) = 0` at the start as the cause
+of the three missing ranks in the four FundamentalWave machines. A small
+pair was meant to test whether the breed is a singularity of one point.
+Three first drafts did not ask that question, and they are recorded
+because they fail in instructive ways. In the first, the two rotated
+equations were dependent at every angle. In the second and third, the
+block was linear enough that tearing reduced it to one unknown at
+`g = 0`, which gives the dead-column refusal ("do not mention ... at
+t = 0") rather than the rank one. The fourth draft is what
+`/tmp/m640/Ag1.mo` and `Ag2.mo` now hold: three unknowns, nonlinear
+couplings, and one equation that differs from another only by
+`sin(g)*z*(...)`. With the start angle at 0 it is refused as
+`singular Jacobian in algebraic loop ["x", "z", "y"]`. With the start
+angle at 1e-3 it runs to t = 1. The binary was `/tmp/m638/ox20`
+(`md5 bf11e4ce...`), and the outputs are `/tmp/m640/ag1.txt` and
+`ag2.txt`. A rank lost only at the start point is therefore a real and
+reproducible thing. The small pair, though, is refused by the
+`singular Jacobian` path and not by `underdetermined`, so it shows the
+mechanism and not the machines' exact refusal.
+
+### The rank at a perturbed point: it does not come back
+
+Two instruments were used, and they agree.
+
+First, by hand (`/tmp/m640/pert.py`, output `pert.txt`). The probe matrix
+of SMEE_Rectifier (`/tmp/m639/p1a_rect2.txt`, 27 unknowns) was taken,
+and the terms that `-rotator.im` multiplies in source rows 0, 1, 10 and
+11 were added back at sin g = 1e-6, 1e-3 and 0.1. The rank stays at 24
+of 27 unscaled and 26 of 27 after scaling rows and columns, at every
+value.
+
+Second, directly. `/tmp/m640/R2.mo` extends SMEE_Rectifier with
+`smee.inertiaRotor.phi(start = 1e-3, fixed = true)` and was run under
+the m639 probe binary `/tmp/m639/ox22` (`/tmp/m640/r2.txt`). It is
+refused with the same text and the same 27 names, and again the rank is 24. One caveat: row 0 still carries no `V_mss.im` entry, so the angle may
+not have reached the block's `gamma` at the point where it is judged.
+The hand-made perturbation does not have this weakness, and it gives
+the same answer.
+
+What does hold the rank down is in the left null space. One direction is
+exactly rows 4, 5 and 6 with equal weights. These are the three
+`idealDiode1.idealDiode[k].i = s*unitVoltage*(...) + ...` rows, which
+read the diode bridge's three currents into a star whose sum is fixed
+somewhere else. A second direction mixes rows 17 and 18 (stator
+converter voltages) with the diode rows. A third is row 1 by itself.
+The right null space likewise names the diode `s` columns and
+`terminalBox.star.pin_n.v`. The m639 reading, "the culprit is
+`rotator.im`", is therefore refuted for SMEE_Rectifier: the deficiency is
+structural in the diode bridge and the star, and the rotation angle does
+not take part. Item 4 of the order, a prototype that completes the null
+space at the start, was not built, since its condition (a rank that
+comes back) failed.
+
+### Where the refusal is judged, and what the ceiling says
+
+The test is `determined`, a closure inside `solve_implicit_block_from`
+(`solvers/mod.rs:1468`), and it is run on whatever point the block is
+accepted at. That covers every solve of the block, at the start and at
+later steps alike, not just the first. The underdetermined verdict
+itself is at `solvers/mod.rs:1596-1614`: `reads_singular` on the
+equilibrated Jacobian, and then `reads_underdetermined` in the other
+order of scaling. A start that slipped past it would therefore meet the
+same judge on the first step. There is no existing path for "defer the
+judgement" or "fill the missing directions from start values". The
+dead-column ceiling (`solvers/mod.rs:1117-1125`, "a property of the
+block, not of the point") covers a column that is structurally empty.
+The machines are the other case: every column is structurally full, and
+it is a combination of rows that is numerically dependent. After this
+shift's measurement, the dependence in SMEE_Rectifier is also not a
+property of the point.
+
+### The tails, below
+
+- FundamentalWave `IMC_withLosses` (`/tmp/m640/g1.txt`): the refusal is
+  "stepped outside the domain ... on Newton iteration 3". The NaN rows
+  include `der(powerSensor.flange_a.phi) = powerSensor.power /
+powerSensor.flange_a.tau`. Here `tau` is itself an unknown of the
+  block, alongside `power`, so the division by zero is met mid-Newton
+  inside the loop. It is not a divisor that the start's settle pass ever
+  sees, which is why the start-divisor line does not cover it. Map
+  only.
+- QuasiStatic `SMPM_CurrentSource` (`/tmp/m640/g2.txt`): 60 Newton
+  iterations without convergence. The block holds the FundamentalWave
+  machine and the QuasiStatic machine together, 17 unknowns including
+  `dqToThreePhase.rotator.angle` and both `inertiaRotor.a`. It is the
+  same rotation-and-air-gap shape as the airGap block, but a
+  convergence wall and not a rank one. Its FundamentalWave twin
+  (census line 147) is refused as a singular Jacobian.
+- Census rows 9 to 12 by name (`/tmp/m629/raw.txt`): eight models under
+  singular Jacobian or a NaN equation, in five families (a QS rectifier,
+  a pump, the SMPM above, MultiBody constraints with `e_rel/s`, and
+  LossyGear quadrants with mixing volumes). Six `cannot evaluate
+parameters` models, all one `e_ia` family. Five `nothing is left for`
+  models (Fourbar1 and four StateGraph helpers). Five dead-column
+  models in three families (Spice3 `vbx`, MultiBody constraints, RobotR3
+  gear `sa`).
+- The unit test owed by the `single_by_zero` park patch is written into
+  its park note as a form, and not into the tree.
