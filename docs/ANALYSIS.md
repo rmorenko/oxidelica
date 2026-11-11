@@ -77080,3 +77080,23 @@ residual of 156 with `|v|` up to 1e50 and refuse later. So thirteen
 running models count as running while accepting a block whose
 equations are off by more than one unit. This is the material for the
 question on items 18 and 30, not a fix. The tolerance was not touched.
+
+## m651: a Full chapter probed, and a centre left behind by a silent judge
+
+Following the standing order to probe the confident chapters, three
+probes of chapter 14 (binary and unary operators, an overloaded
+constructor, `'=='` and `'0'`; /tmp/m651/full/O1.mo to O3.mo) came back
+right to the digit, and so did five of chapter 19 (U1.mo to U5.mo).
+Chapter 16 fell on one: `ud = sample(u, Clock(0.1))` is refused as a
+type mismatch against Boolean (C7.mo), while the same clock bound to a
+name first runs and ticks at 0.1 (C6.mo). The status is lowered to
+Mostly in docs/COMPLIANCE.md with the probe named there.
+
+The first preflight of the shift went red on the library step alone,
+on the names centre: 1709225508 looked up against 1670061690 written.
+The rise belongs to 8a0aa34, whose own pair printed 1670378977 off and
+1709225508 on (/tmp/m649). Its CI run 43084651741 has the main pass
+red only on uploading the artefact (a 404 from the artefact service
+after "Read it" passed) and the judge skipped, so no judge printed the
+new count and the centre stayed. It is moved to the print in the same
+series of commits as this chapter.
