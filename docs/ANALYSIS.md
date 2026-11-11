@@ -76034,3 +76034,32 @@ try, which was then stopped, so these seconds are drift and not a price.
 The verdict, on this set of ten only: no victims and no wins. Any cost
 difference is below what this pair can resolve. The five models left
 out remain unmeasured.
+
+### The top of the census by probe, and where ActuatorWithNoise leads
+
+Of the 28 `structurally singular` refusals (`/tmp/m629/raw.txt`), 19
+name an equation that sets the flow of a connector to zero. Probes of
+OpAmp `Gain` (`n2.i = 0`), Rotational
+`SpringDamperNoRelativeStates` (`flange_b.tau = 0`) and FluxTubes
+`SimpleSolenoid` (`n.i = 0`) show it is the flow of the top level's own
+unconnected connector. These are components caught by the example
+filter, which is not to be changed. Only two real examples stand in the
+row: `TanksWithOverflow`, the tank family that is parked, and
+`ActuatorWithNoise`.
+
+`ActuatorWithNoise` was shrunk. The QuasiRMS voltage sensor alone runs
+(`/tmp/m640/Vq1.mo`), and so does `MotorWithCurrentControl` alone. The
+motor with a constant `iq = 1` and an inertia (`Act1.mo`), or with no
+load at all (`Act3.mo`), is refused as a singular Jacobian. Its 14
+unknowns include `motor.smpm.airGap.i_sr[1]`,
+`motor.dqToThreePhase.rotator.angle` and `smpm.inertiaRotor.a`. With
+`iq = 0` (`Act2.mo`) it runs. This is the same block shape as the
+QuasiStatic `SMPM_CurrentSource` above, so the example's
+structural-singular refusal stands in front of the current-source
+machine breed, and `Act3.mo` is a twelve-line entry to it. Under
+`OXIDELICA_NEWTON_TRAIL` (`/tmp/m640/act3t.txt`) the block has rank 13
+of 14. The deficient direction is a row that is entirely zero: row 4,
+`-spacePhasorS.spacePhasor.i_[2] = TransformationMatrix[2,k] * i[k]`,
+whose residual moves with none of the block's unknowns, including
+`spacePhasorS.i[2]`. Why its `i[2]` coefficient reads as zero is the
+next question. It is open, and no change was built.
