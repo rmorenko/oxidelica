@@ -75869,3 +75869,19 @@ the corpus, so this is a map and not a change.
 - Five `unbalanced ... nothing is left for`: `Fourbar1` and four
   `StateGraph.Examples.Utilities` composites, which are helpers caught by
   the example filter.
+
+### A park patch for the picofarad breed, and where it leads
+
+`/tmp/m639/Sp7.mo`, a one-unknown block `ic = 1e-12*der(v)`, is refused
+as underdetermined by the head. The same model with 1e-6 runs. This is
+because `equilibrate_rows` leaves a one-by-one block unscaled on purpose
+(9de48f8), so the absolute 1e-7 floor of `reads_singular` ends up judging
+the unit. A patch that calls a single-unknown block underdetermined only
+at an exact zero is parked as `m639_single_by_zero.patch`, with
+`OXIDELICA_NO_SINGLE_BY_ZERO=1` as the switch back. A small court on the
+16 Spice3 examples with one binary (`/tmp/m639/c_off.txt`, `c_on.txt`)
+gave equal lists, 8 runs in both halves, and Newton steps 4998 against
+5010. NAND and ONEBIT move one wall, to a wider block holding the
+`der(Q*.vbx)` columns that `XCJC = 1` zeroes, which is RtlInverter's
+breed. The chain is two links long and not yet walked to its end. The
+heavy basket was not measured.
