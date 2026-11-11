@@ -76632,3 +76632,17 @@ residual. This is a map and not a measured cause. The next question is
 why the retries from moved zero starts all reach a configuration where
 `spring2`'s two frames coincide, when the model's own frames place
 them 0.36 m apart.
+
+The configuration answers that question. The free junction of
+`spring1.frame_b`, `spring2.frame_a` and `spring3.frame_b` is massless,
+so its position is an unknown of the algebraic loop. The retry from
+1e-6 settles at `spring1.r_rel_0 = {0.2, -0.3, 1.4e-9}`, and starting
+from `bar1`'s end at `{0.3, 0, 0}` that puts the junction at
+`{0.5, -0.3, 0}`. This is exactly `body1.r_0`'s fixed start, where
+`spring2.frame_b` is attached. So the retry has found a spurious root
+in which the junction sits on the body and `spring2` has no direction.
+The model's own start for `spring1.r_rel_0` is `{-0.2, -0.2, 0.2}`. The
+first try failed only because `spring2.lineForce.s` starts at 0 inside
+the block. Candidate for the next shift: a first try that starts
+`s`-like clamped quantities at their clamp (`s_small`) rather than at
+0. This is a map with no change built.
