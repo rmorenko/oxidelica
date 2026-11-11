@@ -76112,3 +76112,18 @@ this: the block loses that row's dependence on its unknowns in every
 case, and a forced stator current is the likely reason, which has not
 been traced. The next probe is the reduction step that leaves
 `spacePhasorS.i[k]` out of that row's unknowns.
+
+The FundamentalWave `SMPM_CurrentSource` under the same trail
+(`/tmp/m640/c_Magnetic.txt`) shows the same shape: a 20-unknown block
+of rank 18, with two dead rows (3 and 6). They are the first and second
+derivatives of the source's phase current, written through
+`dqToThreePhase.rotator` with factors `toGamma.k * smpm.wMechanical` and
+`inertiaLoad.a`, set equal to `der(terminalBox.plugSupply.pin[2].i)`
+and its derivative. Index reduction has differentiated the imposed
+current twice, and at a start at rest (`wMechanical = 0`) those rows
+read no unknown of the block. This makes the breed index reduction
+differentiating a commanded current through a rotation whose speed is
+zero at the start. It is near the m639 airGap reading, but on the
+source's rotator and not the machine's. The Electrical.Machines twin
+refuses as not converging in 60 Newton iterations before the trail
+prints a Jacobian, so it is not yet compared.
