@@ -75880,8 +75880,7 @@ the unit. A patch that calls a single-unknown block underdetermined only
 at an exact zero is parked as `m639_single_by_zero.patch`, with
 `OXIDELICA_NO_SINGLE_BY_ZERO=1` as the switch back. A small court on the
 16 Spice3 examples with one binary (`/tmp/m639/c_off.txt`, `c_on.txt`)
-gave equal lists, 8 runs in both halves, and Newton steps 4998 against
-5010. NAND and ONEBIT move one wall, to a wider block holding the
+gave equal lists, 8 runs in both halves, and Newton steps 4998 against 5010. NAND and ONEBIT move one wall, to a wider block holding the
 `der(Q*.vbx)` columns that `XCJC = 1` zeroes, which is RtlInverter's
 breed. The chain is two links long and not yet walked to its end. The
 heavy basket was not measured.
