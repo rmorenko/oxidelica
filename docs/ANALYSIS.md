@@ -76884,3 +76884,23 @@ mechanism. Two of these six belong to the machine chain. Two stop on
 an alias whose position the earlier reductions had already demoted
 (`RollingWheel`, `PointGravityWithPointMasses2`). Two are families that
 are mapped elsewhere. No change was built.
+
+### m646: reading a type's bounds through extends, built and parked
+
+The repair of the lost `min` was built behind
+`OXIDELICA_NO_TYPE_BOUND_MOD=1`. Its test is red without it, and the
+small model gives `min: 611.657`. It does not yet reach the water
+pressure, because `BaseProperties` writes the type bare and the medium
+of the instance is not in its scope. One census under the change
+(`/tmp/m646/census_b.txt` against `census.txt`, one tree) has the run
+half at 138 refusals against 136. `TestJunctionIdeal` and `Glycol47`
+stop running, and `Essotherm650` moves wall. So a bound read at last is
+leaned on somewhere, and the change is parked as
+`m647_min_through_extends` and not merged.
+The second link of that chain is mapped by a small model,
+`/tmp/m646/minp/T2.mo`: a holder with a replaceable `Medium`,
+redeclared to the package that writes the bound, and a component of
+type `Medium.BaseProperties`. With the first link in place, `why
+c.medium.p` still gives `min: 0`, as forecast. The bare type in the
+base properties has to be asked of the package the redeclaration put
+there. The chain, numbered, is in the park note.
