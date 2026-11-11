@@ -643,13 +643,11 @@ fn an_algebraic_loop_that_comes_apart_says_so() {
              equation 1 / x = 0; der(s) = x; \
              annotation(experiment(StopTime = 1, Interval = 0.1)); end D;"
         ),
-        "`1 / x = 0` of algebraic loop [\"x\"] is inf at t = 0, before any \
-         Newton step: the equations cannot be evaluated at the values the \
-         block starts from; and every value the residual reads is a finite number; \
-         started again with its zero starts moved, it was refused from 0.000001 on \
-         underdetermined algebraic loop, from 0.001 on underdetermined algebraic \
-         loop, from 1 on underdetermined algebraic loop, from 1000 on \
-         underdetermined algebraic loop"
+        "underdetermined algebraic loop [\"x\"]: the equations do not determine a \
+         unique solution; this from its zero starts moved to 1000, after its own start \
+         was refused on `1 / x = 0` of algebraic loop is inf at t = 0 and it was refused \
+         from 0.000001 on underdetermined algebraic loop, from 0.001 on underdetermined \
+         algebraic loop, from 1 on underdetermined algebraic loop"
     );
 
     // The other way a loop fails: `x^2 * y = 1` where y is sin(t),
@@ -1257,12 +1255,16 @@ fn a_function_that_refused_inside_a_loop_says_why() {
     .expect_err("the assert fires at the point the block starts from")
     .to_string();
     assert_eq!(
-        refused,
-        "`(W.guard(x) + x) + 3 = 0` of algebraic loop [\"x\"] is NaN at t = 0, \
-         before any Newton step, because a function it calls could not be \
-         walked: guard: u must exceed one; started again with its zero starts \
-         moved, it was refused from 1000 on the Newton direction of algebraic \
-         loop does not reduce the residual at t = 0"
+        refused.split(": from |f|").next().unwrap(),
+        "the Newton direction of algebraic loop [\"x\"] does not reduce the residual at t = 0"
+    );
+    assert!(
+        refused.ends_with(
+            "this from its zero starts moved to 1000, after its own start was refused on \
+             `(W.guard(x) + x) + 3 = 0` of algebraic loop is NaN at t = 0, because a \
+             function it calls could not be walked: guard: u must exceed one"
+        ),
+        "{refused}"
     );
 }
 
@@ -1342,13 +1344,18 @@ fn a_model_that_refuses_in_prose_is_quoted_whole_with_its_numbers() {
     .expect_err("the shout fires at the point the block starts from")
     .to_string();
     assert_eq!(
-        refused,
-        "`(P.shout(x) + x) + 3 = 0` of algebraic loop [\"x\"] is NaN at t = 0, \
-         before any Newton step, because a function it calls could not be \
-         walked: u is 0, which is below one; started again with its zero starts \
-         moved, it was refused from 1 on algebraic loop stepped outside the domain \
-         of its own equations at t = 0, from 1000 on the Newton direction of \
-         algebraic loop does not reduce the residual at t = 0"
+        refused.split(": from |f|").next().unwrap(),
+        "the Newton direction of algebraic loop [\"x\"] does not reduce the residual at t = 0"
+    );
+    assert!(
+        refused.ends_with(
+            "this from its zero starts moved to 1000, after its own start was refused on \
+             `(P.shout(x) + x) + 3 = 0` of algebraic loop is NaN at t = 0, because a \
+             function it calls could not be walked: u is 0, which is below one and it was \
+             refused from 1 on algebraic loop stepped outside the domain of its own \
+             equations at t = 0"
+        ),
+        "{refused}"
     );
 }
 
@@ -1960,14 +1967,15 @@ fn a_block_retried_from_moved_starts_says_what_the_retries_met() {
     .expect_err("there is no real root to find")
     .to_string();
     assert!(
-        refused.contains("is inf at t = 0, before any Newton step"),
+        refused.starts_with("the Newton direction of algebraic loop"),
         "{refused}"
     );
     assert!(
         refused.contains(
-            "started again with its zero starts moved, it was refused from 0.000001 on \
-             the Newton direction of algebraic loop does not reduce the residual"
-        ) && refused.contains("from 1000 on the Newton direction"),
+            "this from its zero starts moved to 1000, after its own start was refused on \
+             `x + (1 / y) = 0` of algebraic loop is inf at t = 0 and it was refused from \
+             0.000001 on the Newton direction"
+        ),
         "{refused}"
     );
 }

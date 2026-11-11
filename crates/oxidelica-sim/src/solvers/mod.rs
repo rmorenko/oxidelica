@@ -1134,6 +1134,7 @@ impl CompiledModel {
             return first;
         }
         let mut met: Vec<String> = Vec::new();
+        let mut last: Option<(f64, String)> = None;
         for magnitude in [1e-6, 1e-3, 1.0, 1e3] {
             let start: Vec<f64> = block
                 .iter()
@@ -1153,7 +1154,44 @@ impl CompiledModel {
                 // evaluable where it starts, as a NaN parameter makes
                 // every start - has nothing to add to the first words.
                 Err(error) if error.0.contains("before any Newton step") => {}
-                Err(error) => met.push(format!("from {magnitude} {}", retry_gist(&error.0))),
+                Err(error) => {
+                    met.push(format!("from {magnitude} {}", retry_gist(&error.0)));
+                    last = Some((magnitude, error.0));
+                }
+            }
+        }
+        // Which words lead is a question of what the census counts: it
+        // reads the head of a refusal, and the head used to be the
+        // first try's - a quotient at a zero start the retries had
+        // already got past. Three of the four models in the census row
+        // "`X` of algebraic loop" were standing at walls of their own
+        // further on, counted under a wall they were not at. So where a
+        // retry was evaluated, the last of them leads and the first try
+        // follows. The kind of the refusal is the first's still: only
+        // the words move, never what a solver does with them.
+        // `OXIDELICA_FIRST_TRY_LEADS` keeps the old order.
+        if let (Err(error), Some((magnitude, words))) = (&first, &last) {
+            if std::env::var_os("OXIDELICA_FIRST_TRY_LEADS").is_none() {
+                let earlier = &met[..met.len() - 1];
+                // The gist of the first try keeps the reason a walked
+                // function gave, which is the library's own sentence
+                // and the one thing in the first refusal no retry says.
+                let mut own = retry_gist(&error.0);
+                const WALKED: &str = "before any Newton step, because ";
+                if let Some(at) = error.0.find(WALKED) {
+                    let reason = &error.0[at + WALKED.len() - "because ".len()..];
+                    let reason = reason.split("; ").next().unwrap_or("");
+                    own.push_str(", ");
+                    own.push_str(reason);
+                }
+                let mut said = format!(
+                    "{words}; this from its zero starts moved to {magnitude}, after its own \
+                     start was refused {own}"
+                );
+                if !earlier.is_empty() {
+                    said.push_str(&format!(" and it was refused {}", earlier.join(", ")));
+                }
+                return Err(first.unwrap_err().reworded(said));
             }
         }
         // The first refusal is the one kept, since it says what the

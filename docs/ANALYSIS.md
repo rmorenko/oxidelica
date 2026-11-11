@@ -76757,8 +76757,7 @@ such a reason in that row. The change went back to the park with that
 note, and nothing was merged.
 
 Of the three entries in the singular Jacobian row with older chapters on
-other walls, the m644 raw census (`/tmp/m644/raw.txt`, lines 107, 155,
-196) now places all three at `singular Jacobian in algebraic loop`:
+other walls, the m644 raw census (`/tmp/m644/raw.txt`, lines 107, 155, 196) now places all three at `singular Jacobian in algebraic loop`:
 QuasiStatic `Rectifier` (loop over `rectifierQS.vDC` and the diode
 switches), `UniversalConstraint` (loop over frame torques and
 `constraint.R_rel.T`) and `TestMixingVolumesPressureStates` (loop over
@@ -76768,3 +76767,79 @@ changed for all three. They have not been probed yet.
 No `p_min`, `pMin` or triple-point bound is read anywhere in `crates/`
 outside tests (grep, this shift), so the solver reads no validity range a
 medium declares. This is a map line, not a plan for a change.
+
+### m646: the retry leads and keeps the function's reason, and a type modifier on `extends` loses `min`
+
+The parked retry-leads wording (m644) is merged with the repair m645
+named. Where the first try was refused because a walked function could
+not answer, the tail now keeps the function's own sentence after the
+first try's gist ("because a function it calls could not be walked:
+guard: u must exceed one"). The four tests in
+`tests/simulation/systems.rs` pass:
+`an_algebraic_loop_that_comes_apart_says_so`,
+`a_block_retried_from_moved_starts_says_what_the_retries_met`,
+`a_function_that_refused_inside_a_loop_says_why` and
+`a_model_that_refuses_in_prose_is_quoted_whole_with_its_numbers`. Under
+`OXIDELICA_FIRST_TRY_LEADS=1` the last two go red. The small pair over
+the seven models of `/tmp/m644/set7.txt` was taken with one binary
+(`/tmp/m646/ox1`, md5 886f9f688dd7cb365bd24e49efeec376) into
+`/tmp/m646/j_off.txt` and `j_on.txt`. Lists and `work:` were equal byte
+for byte. The census under the change (`/tmp/m646/census.txt`,
+`raw.txt`) matches `/tmp/m644/census.txt` line for line over both
+counted sections: 45 refused and 136 not run, 52 rows, 181 statuses.
+Its run half took 3901 s against 4132 s. The heavy models were not
+measured. The change is wording only.
+
+A modifier that a package writes on a type through its `extends` loses
+every attribute but `start`. `Modelica/Media/Water/package.mo:118-122`
+gives `AbsolutePressure(start=50e5, nominal=10e5, min=611.657,
+max=100e6)`. `oxidelica why ModelicaTest.Fluid.TestPipesAndValves.SeriesPipes1
+'pipe2.mediums[1].p'` answers `min: 0`, which is the base type's.
+A twelve-line model reproduces it (`/tmp/m646/minp/T.mo`): a partial
+package with `replaceable type AbsolutePressure = AP`, where `AP` is
+`Real(min = 0, unit = "Pa")`, a package that extends it with
+`AbsolutePressure(min = 611.657, start = 50e5)`, and a component of
+that type. `why` gives `min: 0` and no start at all. The forecast,
+written before the run, was `min: 0`, and the falsifier would have been
+611.657. The place is `crates/oxidelica-parser/src/flatten/inheritance.rs`.
+`resolve_type` (:213) takes `min`, `max` and `nominal` only from the
+alias's own attributes (:360-362). The search through the extends
+clauses of the package, `package_start` (:437), looks for the key
+`<Type>.start` alone. No change was built. This withdraws the
+conclusion of m643 that step limiting at the bound cannot reach the
+water bound because `min = 0` stands on the pressures: that zero was a
+lost attribute, not the water's limit. The m643 patch is to be measured
+again only after the attribute is read.
+
+`NonCircularPipes`: the steady variant `/tmp/m644/ncp/N2.mo` keeps
+`ms[1]`, `ms[2]` and `Us[2]` of each pipe as states, and `Us[1]` of
+each pipe as an algebraic variable (`/tmp/m646/ncp_n2.txt`). So the
+two of the eight fixed conditions that lose their state are the energy
+conditions on the first node of the two pipes. In `FixedInitial`, those
+conditions are the `mediums[1].h = h_start` equations.
+
+Three entries of the singular Jacobian row, traced with
+`OXIDELICA_NEWTON_TRAIL=1` (`/tmp/m646/tr_*.txt`, ranks in
+`p3_rank.txt`):
+
+- the QuasiStatic `Rectifier` has rank 11 of 12. The null direction is
+  `idealDiode1.s`, `idealDiode2.s` and `load2.v` in equal parts. This
+  is the switching diodes at their zero start, the same shape as the
+  ideal-diode bridges.
+- `UniversalConstraint` has rank 40 of 44, with one zero row (41). That
+  row is the differentiated position constraint along `frame_a.R.T[3,:]`,
+  and its derivative reads nothing the block solves for. This is the
+  dead-row breed of the MultiBody constraints, not the airGap one.
+- `TestMixingVolumesPressureStates` has rank 23 of 24. The null
+  direction is the orifice enthalpies `state_a.h` and
+  `port_b.h_outflow`, which carry `max(-m_flow, 1e-10)`: a flow at zero
+  takes the enthalpy out of both rows together.
+
+Row 28, `structurally singular`, holds 29 entries in `/tmp/m644/raw.txt`.
+The source list of the shift 218 chapter (`/tmp/m217`) no longer
+exists, so the diff can only be made by name against the chapter's
+text. The one probe here, `Spice3.Examples.InvertersExtendedModel.MNmos`
+(`/tmp/m646/p4_MNmos.txt`), confirmed the forecast. It reports
+`runnable examples: 0`, and `G.i = 0` is the free gate current of a
+component standing alone. That is kind (1) of that chapter, which
+missed it because it sits under neither `Utilities` nor `Components`.
