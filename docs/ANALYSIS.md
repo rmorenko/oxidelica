@@ -76957,3 +76957,19 @@ with an open control bus and flange (`axisControlBus.motorSpeed`,
 the open pins `p.v` and `n.v`. Each is short by what a holder would
 connect, the same breed as the current family of m635. Nothing was
 built.
+
+The other nine of the row were probed in m650 with the same binary
+(`/tmp/m650/r13_*.txt`, the names left open in
+`/tmp/m650/r13_open_names.txt`). The forecast was that all nine are
+components and not examples. It held: each prints
+`runnable examples: 0`. `DirectCapacitor` and `DirectInductor` have
+30 equations for 31 unknowns, open at the input `currentToVoltage.y1`.
+`Adapter_Superposition` has 0 for 25 and `Buffer_Recipe_TBD` 0 for 40,
+both fed through their `actuators` and `S` inputs from outside.
+`InnerTank` has 6 for 11, open at the port quantities `aboveLevel`,
+`h`, `d` and the tank's own parameters a holder supplies. `AxisType1`
+has 289 for 291, `Controller` 22 for 26 and `Motor` 188 for 189, all
+open at `axisControlBus`. `valve` has 3 for 4, open at `outflow1.Fo`.
+No real example with an experiment is among the thirteen, so the row
+is mapped by name and closed: it belongs to the question of the
+example filter, not to the compiler.
