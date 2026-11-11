@@ -76911,3 +76911,36 @@ type `Medium.BaseProperties`. With the first link in place, `why
 c.medium.p` still gives `min: 0`, as forecast. The bare type in the
 base properties has to be asked of the package the redeclaration put
 there. The chain, numbered, is in the park note.
+
+### m649: the bounds series merged, its two victims named by attribute
+
+The two victims of the first link were probed off and on twice with
+one binary (`/tmp/m646/ox3`, files `/tmp/m649/tj_*.txt`).
+`TestJunctionIdeal` ran in both off halves and in neither on half, so it
+was a victim and not the swinging model. Taking the attributes one at a
+time (`/tmp/m649/at_*.txt`) split the two apart. `TestJunctionIdeal`
+falls on the nominal alone: a nominal is the first guess a Newton block
+takes for an unknown without a start (`compile.rs`, near :7971), so
+the gas temperature began at 500 K and `solveOneNonlinearEquation` no
+longer bracketed the root. `Glycol47` falls on min and max, read on
+the temperature locals of `TableBased.specificEnthalpyOfT`. With
+function locals left out (`/tmp/m649/gly_nofn.txt`) it runs.
+
+The second link asks a bare type's bounds of the packages of the
+instances being built as well. Without that, `BaseProperties` sees only
+the partial package. The small model `/tmp/m646/minp/T2.mo` gives
+`min: 611.657`, and 0 under `OXIDELICA_NO_TYPE_BOUND_INSTANCE=1`. On
+`SeriesPipes1`, `pipe2.mediums[1].T` reads `min: 273.15` against 1
+under that switch (`/tmp/m649/witness_statep.txt`).
+
+The census under the series (`/tmp/m649/census.txt`) equals the m644
+one in both counted sections: 45 over 25 rows, 136 over 27 rows, and
+181 statuses by name. The corpus pair (`/tmp/m649/off.txt`, `on.txt`,
+binary md5 b979b4c8) gives 974 / 838 and 856 / 789 on both halves. The
+flat and run lists are equal line for line, and the run work is equal
+to the digit. The run half took 3833 s against 3931 s off. No model was
+bought. The heavy models were not measured. Merged as 8a0aa34.
+
+Row 28 was checked by name against the chapters
+(`/tmp/m649/row28.txt`). All 28 entries are mapped in the m635 and m646
+chapters or in older ones, so no probe was owed there.
