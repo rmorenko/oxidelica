@@ -76355,3 +76355,15 @@ in direction: the block dies on the pump's curve parameter at zero,
 where the `else` branches have no derivative in `s`.
 
 Neither was changed; both are maps for a later series.
+
+The `LossyGearDemo2` reading was put to a falsifier on a copy of the
+example (`/tmp/m641/LG0.mo`, `LG1.mo`, commands in the `.env` files).
+`LG0`, the example copied whole, refuses with the same block of 5 and
+rank 4. `LG1`, the same copy with `bearingFriction` taken out and
+`torque1` driving `Inertia1` directly, runs to its stop time of 0.5 s
+(`LG1.csv`, 507 lines). The dead direction is therefore the pair of
+friction elements on one shaft, as read. The example's own
+documentation says it: when both friction models are stuck there is
+no unique solution, and a simulator is asked to handle that. The small
+model proves the mechanism and is not a win: nothing in the measured
+set moved.
