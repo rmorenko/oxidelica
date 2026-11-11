@@ -76521,3 +76521,92 @@ queue item 56. `RobotR3.OneAxis`, which an earlier chapter left at this
 wall, now refuses as structurally singular on
 `axis.motor.Jmotor.w = axis.gear.bearingFriction.w`, so it has moved to
 the top row of the census.
+
+## m644: the retry's verdict at the head of the refusal, the pipe family's singular values, and four maps
+
+Every number below comes from a file under `/tmp/m644`. The `.env` file
+beside each output holds its command and the binary's md5. The tree was
+`228e97a` throughout.
+
+### The census row "`X` of algebraic loop" counted a wall the models had passed
+
+Before the probe, the forecast (`forecast_2a.txt`) said that three of
+the row's four models would head their refusal with the first try's
+words ("before any Newton step") and carry the real wall in the retry
+tail. It also said `TestJunctionTraceSubstances` would have no tail.
+Had the three shown no tail, the falsifier would have fired. The probe
+(`/tmp/m644/ox28`, `off.txt`) agreed with the forecast. `ThreeSprings`
+starts at `-inf` on `spring2.lineForce.e_rel_0[1] = r_rel_0[1] / s`,
+and its retries end on "did not converge in 60 Newton iterations".
+Both `RollingWheelSet` models start at NaN on the normalisation of
+`rolling1.aux`. From 1000, Driving ends on a singular Jacobian and
+Pulling on non-convergence. `TestJunctionTraceSubstances` has no tail.
+Its NaN comes from `MoistAir.T_phX`, whose bracket 190..647 K does not
+enclose the root (fa = -1.09e6, fb = -5.88e5). Every retry hits the same
+unevaluable wall, so every retry is dropped by design.
+
+A change of wording only was built, in `/tmp/m644/ox30` (md5 1f59b3ec).
+The refusal now leads with the last evaluated retry's verdict, and the
+first try follows as "after its own start was refused on ...". The kind
+of the refusal and the solver are untouched. `OXIDELICA_FIRST_TRY_LEADS`
+restores the old order. The two tests that fixed the old wording were
+rewritten, and they fail under the switch. The small court ran the
+four models and three running controls from `/tmp/m631/ran_on.txt`
+with one binary, switch on and off (`j_off.txt`, `j_on.txt`). The lists
+were equal, and the work counters were equal to the digit (1052 points,
+7319 Newton steps).
+
+The census taken with `ox30` (`census.txt`, raw `raw.txt`) was compared
+with `/tmp/m629/census.txt`. The would-not-flatten half had 45 models
+in 25 rows before and after. The run half had 136 models in 27 rows
+before and after. All 181 refused models kept their status. Three rows
+moved. "`X` of algebraic loop" went from 4 to 1, leaving only
+`TestJunctionTraceSubstances`. "did not converge in N Newton
+iterations" went from 3 to 5, and "singular Jacobian" from 6 to 7.
+Three models now stand under walls they actually reach. The patch is
+parked as `~/oxideflow/park/m644_final_try_leads.patch` with its note.
+It was not measured on the heavy set.
+
+### The pipe family's direction stall is not the air-gap rank wall
+
+Before the run, the forecast (`forecast_sig.txt`) said the pipe block
+would have healthy singular values. The falsifier was a smallest
+equilibrated value below 1e-7, which is the air-gap breed's 1e-9 and the
+question already waiting on items 30/18. A probe binary
+(`/tmp/m644/oxsig`, never in the tree) printed the Jacobian where the
+direction refusal is raised (`sig_SeriesPipes1.txt`,
+`sig_BranchingPipes4.txt`, SVD by `sv.py`). Both blocks have six
+unknowns. The raw values are 1, 1 and four near 4.5e-7, which is the
+pascal scale of the pressure columns. After equilibration they all lie
+between 0.993 and 1.007. The blocks have full rank and good conditioning.
+The forecast held. The pipe family's stall comes from the nonlinearity
+along a well-conditioned direction. The pivot floor that guards the
+machines does not cover it, so the road stays open.
+
+### Maps without changes
+
+- The four `StateGraph.Examples.Utilities` in the "nothing is left for"
+  row (`map_4.txt`) are one mechanism, and the forecast held.
+  `PartialCompositeStep` writes `inPort.occupied = false` when
+  `cardinality(inPort) < 2`, and does the same for `outPort.available`.
+  A composite step checked alone has its outer ports connected only
+  from inside, so both branches fire next to the connect equations.
+  That gives exactly two extra equations each time: 52/50, 113/111,
+  144/142 and 191/189. These are helpers without an experiment, not a
+  compiler fault.
+- The three `SMPM_CurrentSource` models (`p5.txt`, `map_5.txt`) are not
+  the air-gap breed, and none is refused as underdetermined. Machines
+  and QuasiStatic do not converge in 60 Newton iterations on a block
+  that holds `dqToThreePhase.rotator.angle` and the air-gap
+  derivatives. The FundamentalWave one is refused as a singular
+  Jacobian. Its trail (`fw_trail.txt`) gives a 20-unknown block with
+  two singular values at 1.5e-16 and 1.7e-18, an exact loss of two
+  ranks rather than 1e-9. The null direction is mostly
+  `smpm.wMechanical` (0.94), which matches the machine-speed row in the
+  table above.
+- `NonCircularPipes` has a non-square initialization, 8 equations for 6
+  states. Without the surplus it leaves a family free along
+  `annulus_pipe.Us[2]`.
+  `ThreePhaseTransformerWithRectifier` has 21 initial equations and 4
+  fixed starts for 23 states. Without the surplus it is singular, and
+  `transformer.core3.Hstat` (the hysteresis core) is not pinned down.
