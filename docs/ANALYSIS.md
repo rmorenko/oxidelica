@@ -75474,3 +75474,218 @@ are in the open-part family and were not probed. The repair this points
 at is in matching, not in the solver: an unknown should not be assigned
 to a row whose only term for it is known to vanish at the start, when
 another row carries it with a live coefficient. No change was built.
+
+## The dead-column row as two breeds, the Newton row as ten pipes and one machine, and what eats One2's memory (m637)
+
+### Two counts corrected
+
+The previous chapter counted the Newton row as thirteen and the
+dead-column row as five. Both were counts of mentions, not rows of the
+census. The census row is the first text a model is refused with; a
+restart that moves the zero starts prints a second refusal, and that
+tail is not counted. Read that way, the Newton row holds ten (eight
+`TestPipesAndValves` networks, `TestTemperature1`, `IMC_withLosses`),
+and the three MultiBody models that also print a Newton line are refused
+first with "cannot be evaluated ... at t = 0". The dead-column row holds
+four (`Spice3BenchmarkDifferentialPair`, `RevoluteConstraint`,
+`PlanarFourbar`, `GearType2`); `GearType1` is refused first as "initialization
+is not square". A row is the primary refusal text; a grep over all
+mentions is not a row.
+
+### The dead-column row, probed to the last carrier
+
+`/tmp/m636/ox9` (md5 `3eb1ee64b676251714df31da61f40c6c`, the print of the
+block's rows on the dead-column branch) was run on the two carriers not
+yet probed (`/tmp/m637/p3rc.txt`, `p3g2.txt`).
+
+- `RevoluteConstraint`: dead `der(constraint.R_rel.T[3,3])` and its
+  second derivative; the block's rows multiply them by rotation entries,
+  as in Engine1a and `PlanarFourbar`. Same breed: a coefficient that is
+  zero at the start configuration.
+- `GearType2`: dead `bearingFriction.sa`, held by the one row
+  `tau = if locked then sa*unitTorque else ...`, and `locked` is false at
+  t = 0. `why` (`/tmp/m637/why_sa.txt`) shows the other rows naming `sa`
+  are the `startForward`/`startBackward` conditions and `a_relfric`,
+  whose branches for `sa` are also closed at the start. A second breed:
+  the unknown stands only inside a branch the start does not take.
+
+`Spice3BenchmarkDifferentialPair` is the second breed as well
+(`Q2.icapbx = if Q2.m_bInit then 0 else ... der(Q2.vbx)`). So the row of
+four is two and two: a geometric zero (`RevoluteConstraint`,
+`PlanarFourbar`) and a closed branch (`GearType2`, the differential pair).
+
+### Why Dead1 runs, and three small models that do not
+
+`Dead1.mo`, written on the Spice3 pattern, runs (`p2d1.txt`): its
+`der(y)` is worked out by index reduction from `y + x = 3*sin(time)`, so
+no unknown of a block stands under the zero branch. In Spice3 the
+derivative is itself an unknown of the block. Six attempts were made
+(`/tmp/m637/small`, every file with its run beside it as `p1b_*.txt`):
+
+| model | coefficient of `z`            | outcome                  | what protected it                       |
+| ----- | ----------------------------- | ------------------------ | --------------------------------------- |
+| Dead2 | `time`, `sin(time)`, linear   | underdetermined at t = 0 | linear block, refused as rank-deficient |
+| Dead3 | `time`, `z` solved explicitly | runs                     | `z` assigned, not in a block            |
+| Dead4 | state `c`, start 0            | runs                     | as Dead3                                |
+| Dead5 | `sin(time)`, nonlinear loop   | refused, do not mention  | none                                    |
+| Dead6 | `time`                        | refused, do not mention  | none                                    |
+| Dead7 | state `c`, start 0            | refused, do not mention  | none                                    |
+
+`Dead5` to `Dead7` reproduce the corpus refusal word for word, Dead7 on
+the motif of `R_rel.T`: a state that starts at zero multiplies the unknown
+in the only rows that hold it. The closed-branch breed is shown by
+`Lock1.mo` (`p5_Lock1.txt`, refused in the same words); `Lock3.mo`, where
+another row carries the unknown outside the branch, runs. The defences
+seen are therefore three: a linear block is refused for another reason, an
+unknown with an explicit equation leaves the block, and a live row
+elsewhere is taken by matching. These are mechanisms; none of the small
+models is in the measured set.
+
+### Where the matching decides
+
+Matching is `try_match` (compile.rs:1426), over equation lists ordered by
+`order_by_solve_cost` (compile.rs:1398). The ordering already knows one
+kind of zero: `solve_shape` (compile.rs:1336-1358) returns `ZeroSlope`
+when the slope of the residual in the name folds to exactly zero after
+the parameters are put in, and `solve_cost` ranks that pairing dearest.
+A slope that is zero only at the start, because it names `time` or a state
+that begins at zero, folds to nothing and is ranked as an ordinary
+slope. That is the gap all four carriers go through. The solver's ceiling
+is stated at solvers/mod.rs:1117-1125: a dead column is a statement about
+the block, not the point, and retrying from elsewhere is refused there on
+purpose because `der(x)^2 = 4` would come back with either root.
+
+Three roads, for Roman to choose; none was built:
+
+1. Rank a slope that evaluates to zero at the start values the way
+   `ZeroSlope` is ranked. This works only on order, so it keeps the
+   refusal wherever no live row exists (which is the closed-branch case of
+   `GearType2`, where every row's branch is closed). It touches the
+   matching that index reduction leans on, so the victim witness and a
+   corpus pair are its judges; price not measured.
+2. Special-case the start in the solver. Barred by the ceiling above.
+3. Do nothing, and leave the four as an honest refusal.
+
+### The Newton row, ten of ten
+
+All six remaining carriers were traced with `/tmp/m636/ox` (md5
+`4c897b0acf5ee3b3ad909bf4d760989f`, `OXIDELICA_NEWTON_TRAIL=1`,
+`/tmp/m637/p2_*.txt`). Each is the pipe breed: the full Newton step sends
+a medium pressure below zero, the residual is NaN for the next steps, and
+damping then stalls.
+
+| model            | t      | pressure sent below zero                 | stalled residual |
+| ---------------- | ------ | ---------------------------------------- | ---------------- |
+| BranchingPipes1  | 0.0008 | `pipe1.mediums[1].p` 3.6e5 to -1.6e7     | 2.9e5            |
+| BranchingPipes2  | 0.0008 | `pipe2/3.mediums[1].p` 5.1e5 to -2.0e6   | 3.1e6            |
+| BranchingPipes3  | 0.0008 | `pipe2/3.mediums[1].p` 5.1e5 to -2.0e6   | 1.6e3            |
+| BranchingPipes13 | 0.0008 | `pipe2/3.mediums[1].p` 5.0e5 to -1.0e7   | 1.1e3            |
+| BranchingPipes14 | 0.0002 | `junctionIdeal.medium.p` 5.0e5 to -4.0e5 | 0.18             |
+| SeriesPipes2     | 0.0008 | `pipe1.mediums[1].p` 7.5e5 to -1.8e7     | 3.1e3            |
+
+With the four of the last chapter this is nine of ten in one breed.
+`BranchingPipes3` runs under the parked LM stack; the binary and files
+of that stack (`/tmp/m578`, `/tmp/m579`) no longer exist, so the
+difference LM buys cannot be traced: instrument lost, nothing to measure
+with.
+
+`IMC_withLosses` was taken one level deeper from its existing trail
+(`/tmp/m636/p3e_IMC_withLosses.txt`). In the last iterate
+`powerSensor.power` and `powerSensor.flange_a.tau` stand at 4.2e46, and
+the stuck residual is row 3, `power/flange_a.tau - wMechanical = 0`, at
+-156. Both unknowns have run to infinity together, where the slopes of
+that row in each, `1/tau` and `power/tau^2`, vanish. The direction does not
+cut the residual because the iterate has walked out along a valley in
+which the ratio is fixed, not because the Jacobian at the start is
+singular. One machine, its own breed.
+
+### One2: the memory is taken by the derivatives of the start
+
+`/tmp/m637/ox10` and `ox11` (the tree, the late-spread park, and marks
+at each stage boundary printing resident size, md5 in `ox11.md5`)
+answered the stage. Every stage of compilation, through index reduction,
+the plan, the starts, the Jacobian pattern and the code, ends at
+1.14-1.36 GB (`p4b.txt`). The growth comes after compilation returns:
+a stack sample at 3.4 GB (`p4c_sample.txt`) has 2875 of 2889 samples in
+`CompiledModel::solve_initialization`, under a deep recursion of
+`symbolic::differentiate_at`. The run was stopped by its 8 GB cap, and
+the repeat under 16 GB reached 18 GB.
+
+The prediction was written before the number: under
+`OXIDELICA_NO_INIT_ALG_DER=1`, which skips
+`algebraic_definition_derivatives` (compile.rs:9344), the peak would stay
+under 2 GB. It came out 0.8 GB (`p4d.txt`), and the model then refuses
+with a singular Jacobian in `jointRRR1.jointUSR.rod1`. A print per name
+(`ox12`, `p4e.txt`) showed the single name `body1.frame_a.t[2]` with a
+derivative of 743 million characters, resident size going from 1.5 to
+4.5 GB on it, and `rod2.frame_b.f[3]` after it taking the rest.
+
+The table those derivatives fill is read in one place only, the `der(x)`
+of initial equations (`substitute_derivatives_with`), and One2 writes no
+such `der`. A parked change (`~/oxideflow/park/m637_init_der_asked.patch`)
+works out only the names some initial equation writes `der` of, with
+`OXIDELICA_INIT_DER_ALL=1` to give the old behaviour. On top of the
+late-spread park it takes One2 from at least 18 GB to 0.9 GB
+(`p6_one2b.txt`), and the refusal becomes the singular Jacobian above.
+
+The small court for the parked change was a pair from one binary
+(`/tmp/m637/ox13`, md5 in `ox13.md5`) over the 153 Fluid, Media and
+FluidHeatFlow examples (`court.txt`), the off half under
+`OXIDELICA_INIT_DER_ALL=1` (`c_off.txt`, `c_on.txt`). The run lists are
+equal line for line (110 and 110), and the counters of work are equal to
+the digit in both phases. Run half 2673 s and 2580 s, flatten half 2938 s
+and 2979 s. With equal work the difference is drift, not price. Not
+measured on the heavy models; no corpus pair was run.
+
+A prototype of road 1 was built as well (`/tmp/m637/ox15`, switch
+`OXIDELICA_START_ZERO_RANK=1`): a slope that is zero once `time` is put at
+zero is ranked as `ZeroSlope`. It moves none of `Dead5` to `Dead7`, and
+not `RevoluteConstraint` (`p7_*_off.txt` and `p7_*_on.txt`, refusal
+unchanged). For `Dead5` to `Dead7` the zero row is the only row the
+unknown has, so order cannot help. In `RevoluteConstraint` the zero comes
+from a state's start, which the prototype does not read. Road 1 as
+written is therefore empty on the evidence, and a version that reads the
+starts of states is the open question. Not parked.
+
+A second prototype reads the starts of states as well
+(`/tmp/m637/ox16`, patch `start_zero_rank_probe.patch`, same switch).
+Under it `PlanarFourbar` moves one storey: the dead-column refusal is gone,
+and the block now fails to converge in 60 Newton iterations at t = 0, the
+residual growing from 1.6e3 to 7.6e11 (`p8_PlanarFourbar_on.txt`,
+`p10_pf_trail.txt`). `RevoluteConstraint`, `GearType2` and the
+differential pair do not move (`p8_*`, `p9_*`). One model moved a storey
+and none ran, so the road is a matching change that buys a different
+wall. Not parked, and the victims of a matching change were not measured.
+
+The per-model print of the court (`--slow 60`) named one candidate,
+`Modelica.Fluid.Examples.BranchingDynamicPipes`, 41.1 s and 6.4 s in the
+run half. A single run each way, off, on, off (`p12_bdp_*.txt`), gave
+22.8 s, 4.3 s and 23.1 s, with the same refusal in all three
+(`der(pipe1.mediums[1].T)` is not a state). So the parked change also
+removes 18.6 s of derivatives that model built and never read. It moves
+no model in the court.
+
+With the parked change on top of late-spread, One2's next wall is a
+singular Jacobian of 17 unknowns at t = 0 (`p11_one2.txt`): no zero
+column and no zero row, rank 15. One null direction is
+`der(der(jointRRR1.jointUSR.revolute.k2))` alone, carried by just two rows
+(14 and 15) whose combination cancels. The second null direction mixes
+`rod1.frame_a.R.w[3]`, `der(rod1.length_n2_a)` and `der(rod1.e2_a[1])`.
+That is a rank question for index reduction, left as the next link.
+
+On eight of the cheaper heavy models (`/tmp/m637/heavy_court.txt`, the
+Spice3 adders left out at an hour each) the same pair gave equal lists
+(0 and 0 run) and counters equal to the digit, run half 1351 s and 1306 s
+(`h_off.txt`, `h_on.txt`). The change touches initialisation only, not
+index reduction, so the victim witness does not apply. The parked patch
+now carries a unit test, `init_derivative_tests`, which passes with the
+change and fails under `OXIDELICA_INIT_DER_ALL=1` (2 names against 0).
+
+The prototype's victims were measured on the 54 MultiBody examples outside
+the heavy set (`/tmp/m637/mb_off.txt`, `mb_on.txt`, one binary `ox16`):
+the run lists are equal (26 and 26), but the work is not, with Newton
+8016 against 9418 and damped steps 5917 against 9037, and the run half
+1042 s against 1145 s. Named in `--slow`: `UniversalConstraint` +33.5 s,
+`SphericalConstraint` +11.4 s, `PlanarFourbar` +11.3 s. So the matching
+change wins nothing and costs about ten percent on this family. That is
+a second reason not to park it.
