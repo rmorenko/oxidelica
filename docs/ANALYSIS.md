@@ -76063,3 +76063,18 @@ of 14. The deficient direction is a row that is entirely zero: row 4,
 whose residual moves with none of the block's unknowns, including
 `spacePhasorS.i[2]`. Why its `i[2]` coefficient reads as zero is the
 next question. It is open, and no change was built.
+
+Two further probes narrow the zero row (`/tmp/m640/act3t.txt`,
+`act4t.txt`). At the start, row 4's residual is -1.414 with `iq = 1`
+and -2.828 with `iq = 2`, which is -sqrt(2) times the current command.
+Its derivative with respect to every unknown of the block is zero. Once
+the block is substituted, the row no longer involves the block at all:
+it is a constraint between the current command and something fixed
+outside the block, and it is violated. That makes it an inconsistent
+equation rather than an underdetermined direction, and `iq = 0` runs
+because only then is the constraint satisfied. The next probe should
+follow what the substitution put in place of
+`spacePhasorS.i[1..3]` in that row. With `iq = 2` the same block is
+refused as not converging in 60 Newton iterations, which is the
+QuasiStatic `SMPM_CurrentSource` text. Both refusals of the breed are
+therefore one row read at two magnitudes.
