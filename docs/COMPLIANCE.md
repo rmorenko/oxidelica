@@ -21,7 +21,7 @@ under a chapter works as specified for the subset this project covers.
 | 13  | Packages                      | Mostly  |
 | 14  | Overloaded operators          | Full    |
 | 15  | Stream connectors             | Full    |
-| 16  | Synchronous language elements | Full    |
+| 16  | Synchronous language elements | Mostly  |
 | 17  | State machines                | Partial |
 | 18  | Annotations                   | Mostly  |
 | 19  | Unit expressions              | Full    |
@@ -536,6 +536,15 @@ ask for the held value by name. Where the inference cannot decide -
 two clocks reaching one variable, a factor with nothing to settle it -
 it refuses and names what it could not decide, rather than picking one
 and carrying on.
+
+One form is refused that the specification allows, which is why the
+chapter stands at Mostly since 11 November: a clock constructed inside
+the call. `ud = sample(u, Clock(0.1))` is refused with "type mismatch
+in `ud = sample(u, Clock(0.1))`: Real against Boolean", as if the
+event form `sample(start, interval)` had been read. The same model
+with `Clock c = Clock(0.1)` and `sample(u, c)` runs and ticks at 0.1.
+The form appears in the library once, in `ModelicaReference`
+(`dc.yd=sample(plant.y, Clock(3))`).
 
 A derived clock is kept as its root plus two exact fractions — the rate
 and the shift — so `subSample`, `superSample`, `shiftSample` and
