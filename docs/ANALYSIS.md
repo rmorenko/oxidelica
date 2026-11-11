@@ -76610,3 +76610,25 @@ machines does not cover it, so the road stays open.
   `ThreePhaseTransformerWithRectifier` has 21 initial equations and 4
   fixed starts for 23 states. Without the surplus it is singular, and
   `transformer.core3.Hstat` (the hysteresis core) is not pinned down.
+
+### Where `ThreeSprings` stalls once its retries are read
+
+With the retries' verdict at the head, `ThreeSprings` reads as a block
+that does not converge. The Newton trail (`/tmp/m644/ts_trail.txt`,
+binary `ox28`) shows the retry from 1e-6 reaching `|f| = 1.2e-3` in
+five iterations and then stalling with the step cut to 1e-6. At that
+point the loop has made `spring2.lineForce.length` equal to -1.6e-9
+and `spring2.lineForce.s` equal to `s_small` (1e-10). The residual
+left over sits wholly in the six rows `e_rel_0[i] = r_rel_0[i] / s` and
+`e_a[i] = r_rel_a[i] / s` of `spring2`, each with a reach of 2e9 to
+3e9. The loop has found the root where spring 2 has collapsed to zero
+length. The length row is the definition itself (row 14,
+`length = sqrt(r_rel_0 . r_rel_0)`), and -1.6e-9 is that square root
+held to within its tolerance at a point where `r_rel_0` is near zero.
+So this is not a wrong branch of the square root but a degenerate
+geometry. With `s` clamped at `s_small` the direction rows carry a
+reach of 1e10 per unit of `r_rel`, and no step size shrinks their
+residual. This is a map and not a measured cause. The next question is
+why the retries from moved zero starts all reach a configuration where
+`spring2`'s two frames coincide, when the model's own frames place
+them 0.36 m apart.
