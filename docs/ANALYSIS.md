@@ -76480,3 +76480,44 @@ the medium's unbound top-level inputs, and the flat model sets both to
 `p = 0` and `h = 0`. IF97's `tsat` then asserts below the triple point.
 The example has nothing to drive it, so it is not part of the pipe
 family above and no step limit would move it.
+
+## A step that stops at a bound does not carry the pipe family
+
+Shift m643 tried the one change the pipe family seemed to ask for. The
+pressures of that wall do carry a bound: `oxidelica why` on
+`splitter.medium.p` of `BranchingPipes4` prints `min: 0`. A probe key,
+`OXIDELICA_STEP_BOUNDS`, built into `/tmp/m643/ox27` (md5 4c8ddc93),
+cuts the whole Newton step to nine tenths of the distance to any
+declared `min` or `max` of an unknown in the block. The forecast was
+written before the run (`/tmp/m643/forecast.txt`): either the pressures
+stay positive and the block converges, or they stay positive and the
+stall remains, which would mean the fault is the direction and not the
+edge.
+
+The falsifier fired. In the trails (`/tmp/m643/ont_SeriesPipes1.txt`,
+`ont_BranchingPipes4.txt`) every pressure stays positive. The bound
+share then shrinks about tenfold each iteration, from 1.2e-3 to 1.2e-6
+on `BranchingPipes4`, while `|f|` stays at 2.317e2. On `SeriesPipes1`
+it stays at 3.770e4. The Newton direction points at the bound
+iteration after iteration, so keeping the step on the right side of
+the bound only shortens a step that was not going anywhere anyway.
+`BranchingPipes4` still ends on the domain edge one iteration later,
+when the pressure falls to 72 Pa.
+
+The small court ran one binary, off and then on, over eight models
+(`/tmp/m643/j_off.txt`, `j_on.txt`). These were the four of the family,
+`TestTemperature1`, two running tank controls and `BranchingPipes3`.
+Each half ran the same two models, so nothing was won and nothing was
+lost. The run half took 352 s off and 331 s on. The outside-key four,
+read through `BranchingPipes3`, are not taken. The patch is parked as
+`~/oxideflow/park/m643_step_bounds.patch` and the tree is untouched.
+The road is closed by measurement: a bound exists, and it can reach the
+solver, but the stall is in the direction itself.
+
+The "unbalanced" row of `/tmp/m629/census.txt` (13 models) was read by
+name. Twelve are `Utilities` or `BaseClasses` classes with no
+experiment. The one example is `Loops.Fourbar1`, already mapped as
+queue item 56. `RobotR3.OneAxis`, which an earlier chapter left at this
+wall, now refuses as structurally singular on
+`axis.motor.Jmotor.w = axis.gear.bearingFriction.w`, so it has moved to
+the top row of the census.
