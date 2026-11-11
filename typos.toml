@@ -33,6 +33,8 @@ abd = "abd"
 # `caf` turns up inside md5 hashes quoted in the analysis notes
 # (`90d5caf9`), which are names and not words.
 caf = "caf"
+# `ba` turns up inside short commit hashes (`c5ba376`), the same case.
+ba = "ba"
 # `nd.txt` is the name of a probe output in the analysis notes (the
 # Newton-direction row of the census), not a misspelling of `and`.
 nd = "nd"
