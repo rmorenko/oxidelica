@@ -76139,3 +76139,19 @@ unknowns in the reduction itself. The FundamentalWave twin's dead rows
 look different (twice-differentiated source currents), so the two may
 not be one family. That is a question for the next probe, in the
 reduction, before any change.
+
+The reduction itself separates the runnable twin from the refused one.
+Under `OXIDELICA_VICTIM_PROBE` (`/tmp/m640/vic_Act1.txt` and
+`vic_Act2.txt`, both with the load inertia), reductions 1 to 14 are
+the same. At reduction 15, `Act1` (`iq = 1`) demotes
+`motor.smpm.phiMechanical`. `Act2` (`iq = 0`) instead walks twenty
+connection equations of the stator path, among them
+`statorCore.spacePhasor.i_[2] = 0`, and demotes
+`motor.smpm.airGap.psi_mr[2]`. The constant `iq = 0` therefore changes
+the structure the reduction sees (a zero parameter folds the source's
+terms away), and not merely a value. `Act2` runs on a different state
+choice, so it is not a twin that shows the breed curable at a point.
+The question for the reduction is why, with the source's current
+present, reduction 15 takes the rotor angle and leaves the stator
+current row without unknowns. That needs a trace inside
+`reduce_index_once` and is left open.
