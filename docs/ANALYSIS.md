@@ -76974,3 +76974,37 @@ open at `axisControlBus`. `valve` has 3 for 4, open at the outflow of its
 No real example with an experiment is among the thirteen, so the row
 is mapped by name and closed: it belongs to the question of the
 example filter, not to the compiler.
+
+### m650: the media series on the heavy models, and the step clamp measured again
+
+The series that reads bounds through `extends` (8a0aa34) was not
+measured on the heavy basket. Five heavy media models were run off
+(`OXIDELICA_NO_TYPE_BOUND_MOD=1 OXIDELICA_NO_TYPE_BOUND_INSTANCE=1`)
+and on, one at a time, with `/tmp/m649/ox9` (md5 b979b4c8, files
+`/tmp/m650/p1_*.txt`, each with its command beside it). The forecast
+was equal outcomes and equal run work, and it held. `MoistAir` runs in
+both halves on 37 points. `MoistAir1` and `MoistAir2` are refused as a
+singular start in both, on 18 and 30 Newton steps. `R134a1` and
+`R134a2` are refused on the Newton direction of the
+`volume.medium.p` loop in both, 10 Newton steps and 120 damped. The
+refusal texts are equal word for word. The series has no victim there.
+
+The parked step clamp (`m643_step_bounds.patch`) was judged when the
+lower bound of a pressure still read zero. With the bounds now
+reaching the solver, it was measured again on the same small court
+(`/tmp/m650/ox1`, md5 e27a5ed6, files `/tmp/m650/p3_*.txt`). The clamp
+now engages: the damped steps of `BranchingPipes1`, `2`, `4` and
+`SeriesPipes1` fall from 99, 89, 87 and 89 to 6, 22, 0 and 16. None of
+the four runs. `BranchingPipes4` moves to a different refusal, a loop
+that does not converge, rather than the Newton direction. The controls
+`DrumBoiler`, `BranchingPipes15` and `TestJunctionIdeal` keep their
+outcome and their run work to the digit. So the clamp engages and wins
+nothing, which closes the road with its mechanism: the step was not
+held back by the bound. The patch stays parked as a closed road.
+
+The underdetermined row (10 entries) and the non-converging row (7)
+were checked by name against the chapters. Every entry is mapped: the
+Spice `der(vbe)` loops are the policy question of the zero
+coefficient, the machines sit under the floor of `reads_singular`, and
+the rest are mapped in m630, m644 and earlier chapters. No probe was
+owed and none was run.
