@@ -75256,3 +75256,86 @@ with `OXIDELICA_NO_START_DIVISORS=1` as well (`/tmp/m634/p7_Engine1a.txt`)
 at every start time tried, with the same quotient in 197 lines of its
 trail. The quotient is born at reduction 99, in the differentiated row for
 `connectingRod.v_0[2]`, and not in a row the guard reads.
+
+## The structurally singular row by family, and the next links of Engine1a (m635)
+
+The census row "structurally singular" of `/tmp/m629/raw.txt` holds 29
+lines: 28 "constrains no state" and one "cannot differentiate function
+`abs`" (`AdvancedSolenoid`). Counted line by line they fall as the review
+had them: 8 multibody loops, 11 with the current of a hanging connector set
+to zero (`OpAmpCircuits.Add/Buffer/Feedback/Gain`, `Utilities.Nand`,
+`RealSwitch`, `AnalysatorAC`, `AnalysatorDC`, `MNmos`, `MPmos`,
+`ActuatorWithNoise`), 2 `SpringDamperNoRelativeStates` with the force or
+torque of a hanging flange, 2 tanks, 4 FluxTubes, 1 FundamentalWave. One
+correction: `ActuatorWithNoise` is not of the current family by its form -
+its equation is a sum of two sensor currents, not `X.i = 0`.
+
+### The current family is not a compiler fault
+
+`Buffer`, `Gain` and `Nand` refuse from one line,
+`crates/oxidelica-sim/src/compile.rs:3009` (`OXIDELICA_WHERE=1`, binary
+`/tmp/m635/ox`, md5 27764df2, tree a76d5cc). Every one of the eleven is a
+component, not an example: `--only` prints "runnable examples: 0" for
+`Add`, `Nand`, `RealSwitch`, `AnalysatorAC`, `MNmos` and the spring
+damper, and no file of `OpAmpCircuits` holds an `experiment`. Their top
+level has an outer pin left open, and the open pin is given current zero
+by the connection rules, so the equation `p1.i = 0` really does fix
+nothing the model could solve for: the subset is over-determined because
+the class was never meant to run alone.
+
+The lock is a twelve-line model (`/tmp/m635/OpIn.mo`): a top-level
+positive pin connected to the input of `IdealizedOpAmpLimited`, its output
+fed back to the negative input. It refuses with the same form,
+`p.i = 0 constrains no state ... nor did the 2 other equations`. The same
+amplifier with the input driven by a source and a load resistor
+(`OpIn3.mo`) simulates to the end, 1002 points. So the family is the
+correct answer for a class run on its own; the eleven belong to the
+examples set by the filter, not to a wall. The FluxTubes four have the same
+form (`resistor1.n.i + winding1.p.i = 0`, `starPoint1.i = 0`, `p.i = 0`,
+`n.i = 0`, all `Components` classes), so 10 + 2 + 4 of the 28 are this one
+family (the eleven less `ActuatorWithNoise`, the two spring dampers, the
+four FluxTubes; none of them runnable by `--only`). `IMC_DOL_CommonLeakage` is an example, and its line (a magnetic
+port of the fifth phase converter) was not probed here.
+
+### RollingWheel: the subset holds no orientation identity
+
+A scratch printer of the subset order (`/tmp/m635/subset_probe.patch`,
+binary `ox6`, not in the tree; output `/tmp/m635/p3_rw.txt`) lists the 32
+members of the last refusal. None of them is a `der(R.T)` row: the wheel's
+`R.T` entries are given outright through `cos` and `sin` of
+`rollingWheel.angles`, and the core of the subset is the rolling contact -
+`vContact_0 * e_long_0 = 0`, `vContact_0 * e_lat_0 = 0`, the contact
+geometry `delta_0 * e_axis_0 = 0` and `radius = ...`, and the duplicated
+velocity `rollingWheel.v_0[i] - body.v_0[i] = 0`. The review's reading
+(orthonormality of `T` unknown to the reduction) is refuted on this
+carrier; the redundancy is that of a non-holonomic constraint written on
+top of a body that also carries the velocity as a state. That is still a
+question for the architecture, not a change to build here.
+
+### Engine1a past the divisor
+
+With the ceiling lifted (`OXIDELICA_PROBE_MAXATT=600`, binary
+`/tmp/m634/ox3`, md5 1eb945d2, every probe with its `.env` beside it):
+
+- `OXIDELICA_QUENCH_ELEMENTS=1` (`p2a.txt`): the quotient by
+  `(e[2]*v)^2` is gone. The next wall is an algebraic loop of 17 unknowns
+  that does not mention `b2.frame_a.f[2]` at t = 0
+  (`solvers/mod.rs:2559`), 98 reductions, 600 members tried in total.
+- `OXIDELICA_VICTIM_FORCE=92:cylinder.v` (`p2b.txt`): reduction 92 takes
+  the cylinder's velocity instead of `connectingRod.body.v_0[1]`; the model
+  ends in a singular Jacobian of the algebraic loop, 99 reductions.
+- Both keys together (`p2c.txt`): the same loop as the first, without
+  `b2.frame_a.f[2]` at t = 0 - the forced victim does not move it.
+
+So the chain reads parameters, ceiling 32, divisor `v`, and then a loop
+without a determined force: a fourth link and no run. The ceiling stays.
+
+### One2's memory is differentiation, not a higher order
+
+`One2.mo` under an 8 GB cap was taken by the cap after reduction 15
+(`p4_one2.txt`). No `der(der(` appears in the reductions; the largest
+equation printed is 575 characters. A `sample` of the second run
+(`p4_sample.txt`) puts the whole stack in `symbolic::differentiate_at`,
+`does_not_move` and `simplify` under `shared_derivatives`. It is not the
+breed of 7 November (`$moving$der` climbing orders); it is the size of
+one derivative of the joint's rotation matrix.
