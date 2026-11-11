@@ -9345,6 +9345,7 @@ impl CompiledModel {
         &self,
         derivative_exprs: &[Expr],
         plan: &Worked<'_>,
+        asked_for: Option<&std::collections::HashSet<&str>>,
     ) -> HashMap<String, Expr> {
         let mut worked_out = HashMap::new();
         if std::env::var_os("OXIDELICA_NO_INIT_ALG_DER").is_some() {
@@ -9413,6 +9414,16 @@ impl CompiledModel {
             .chain(implicit_defs.keys().map(|name| (name.clone(), None)))
             .collect();
         for (name, definition) in &names {
+            // Only a name some initial equation writes `der` of is
+            // ever read from this table, so only those are worked
+            // out. Differentiating every name the plan computes cost
+            // a body's torque in `One2` 743 million characters and the
+            // run eighteen gigabytes, for derivatives nothing asked.
+            if asked_for.is_some_and(|asked| !asked.contains(name.as_str())) {
+                continue;
+            }
+            #[cfg(test)]
+            INIT_DERIVATIVES_WORKED.with(|c| c.set(c.get() + 1));
             let target = DiffTarget::Time {
                 state_rhs: &state_rhs,
                 params: &params,
@@ -9785,7 +9796,26 @@ impl CompiledModel {
         // than one the solver carries - which this refused outright
         // for seventeen models of the library, having in hand the
         // definition it needed to differentiate.
-        let algebraic_derivatives = self.algebraic_definition_derivatives(derivative_exprs, plan);
+        // The names whose derivative an initial equation writes. Under
+        // the probe every name is worked out, because the probe reports
+        // on all of them.
+        let mut asked: std::collections::HashSet<&str> = std::collections::HashSet::new();
+        for equation in initial_equations {
+            for side in [&equation.lhs, &equation.rhs] {
+                side.for_each(&mut |e| {
+                    if let Some(name) = e.as_der_of() {
+                        asked.insert(name);
+                    }
+                });
+            }
+        }
+        let every_name = std::env::var_os("OXIDELICA_INIT_DER_PROBE").is_some()
+            || std::env::var_os("OXIDELICA_INIT_DER_ALL").is_some();
+        let algebraic_derivatives = self.algebraic_definition_derivatives(
+            derivative_exprs,
+            plan,
+            (!every_name).then_some(&asked),
+        );
         if std::env::var_os("OXIDELICA_INIT_DER_PROBE").is_some() {
             self.probe_init_derivative_boxes(initial_equations, &algebraic_derivatives, plan);
         }
@@ -11361,4 +11391,37 @@ fn calls_anything(expr: &Expr) -> bool {
         }
     });
     found
+}
+
+#[cfg(test)]
+thread_local! {
+    /// How many names the initialisation worked a derivative out for.
+    static INIT_DERIVATIVES_WORKED: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+#[cfg(test)]
+mod init_derivative_tests {
+    use super::INIT_DERIVATIVES_WORKED;
+    use oxidelica_parser::parse_model;
+
+    fn worked(source: &str) -> usize {
+        INIT_DERIVATIVES_WORKED.with(|c| c.set(0));
+        let model = parse_model(source).unwrap();
+        crate::compile(&model).unwrap();
+        INIT_DERIVATIVES_WORKED.with(std::cell::Cell::get)
+    }
+
+    /// Only a name some initial equation writes `der` of is
+    /// differentiated for the start: the table is read nowhere else,
+    /// and working out every name the plan computes cost One2
+    /// eighteen gigabytes for derivatives nothing asked.
+    #[test]
+    fn the_start_differentiates_only_the_names_it_is_asked_about() {
+        let unasked = "model U Real x; Real y; Real z; \
+            initial equation x = 1; equation der(x) = -x; y = sin(x); z = y * y; end U;";
+        assert_eq!(worked(unasked), 0);
+        let asked = "model A Real x(start = 1); Real y; \
+            initial equation der(y) = 0; equation der(x) = 1 - x; y = x * x; end A;";
+        assert_eq!(worked(asked), 1);
+    }
 }

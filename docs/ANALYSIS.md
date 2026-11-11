@@ -75689,3 +75689,74 @@ the run lists are equal (26 and 26), but the work is not, with Newton
 `SphericalConstraint` +11.4 s, `PlanarFourbar` +11.3 s. So the matching
 change wins nothing and costs about ten percent on this family. That is
 a second reason not to park it.
+
+## The start differentiates only what it is asked about: the corpus pair, and two maps
+
+The park patch m637 (`m637_init_der_asked.patch`) makes the start's table
+of algebraic derivatives work out only the `der` names that
+`substitute_derivatives_with` will actually read, instead of every
+algebraic name. It was taken into the tree on a full corpus pair of one
+binary, `/tmp/m638/ox20` (md5 `bf11e4ce3d4a8df634e485627170f578`, built
+from 8b08303 plus the patch), the two halves one after the other under a
+24 GB ceiling: off with `OXIDELICA_INIT_DER_ALL=1`
+(`/tmp/m638/f_off.txt`), on with the default (`/tmp/m638/f_on.txt`).
+
+- Lists: 974 flatten and 838 run in both halves; the `ran` and `flat`
+  lists are equal line for line (`diff` of the sorted lists empty).
+  Runnable 856 / 789 in both.
+- Work: both phases' counters equal to the byte - 283617 classes,
+  90416310 expansions, 1273467 bodies, 1670378977 names; 24125447
+  points, 35415289 Newton steps, 598 Jacobians, 143 apart, 2115919
+  damped. The flattening counters did not move, which is what a change
+  living in `solve_initialization` must show.
+- Time: run half 3998 s off, 3865 s on, -133 s (-3.3%); flattening
+  4377 s against 4369 s. The price is on the other side of zero.
+  Named in `--slow 60`: cheaper `UniversalConstraint` -12.3 s,
+  `RoomCO2WithControls` -8.0 s, `RevoluteConstraint` -5.8 s; dearer
+  `Dimmer_RL` +2.4 s and `Engine1a` +2.1 s, both inside the per-model
+  noise of a corpus run and named as candidates rather than as a price.
+- No victims and no wins, so the floors do not move. The heavy basket
+  was not measured by this pair; the earlier small court measured eight
+  heavy models at -45 s.
+
+The unit test `the_start_differentiates_only_the_names_it_is_asked_about`
+is green with the change and red under `OXIDELICA_INIT_DER_ALL=1`.
+
+### One2's next wall
+
+Behind the memory, `One2` (not in the measured set) is refused with a
+singular Jacobian of 17 unknowns. Rows 14 and 15 of that block are
+proportional: their entries in the columns of
+`frame_a.R.w[3]` and `rev.phi` stand at -53.2475 / 69.2218 and
+-12284.79 / 15970.23, both 0.769230769, and row 14's own coefficient
+against `der(der(revolute.k2))` is -0.7692307692 = -1/1.3. So the null
+direction is not a zero of the start: the two differentiated rows
+(the angle's second derivative through `kcos/ksin`, and `k2`'s second
+derivative through `k1b`) carry the same combination, a structural
+cancellation of index reduction, and no start value would lift it.
+
+### NaN at the start against the rest-divisor guard
+
+The guard (`start_divisors_read`, `compile.rs:2308-2364`) refuses a
+reduction candidate whose expression is itself `a / den` with `den`
+reading below 1e-12, and only when every name in `den` already has a
+value worked out from written starts. The three refused models fall
+outside it on its own terms: the wheels' `e_long_0 = aux/sqrt(aux*aux)`
+is 0/0 where the numerator is zero too and the zero comes through
+`sqrt`, typically inside a product rather than at the top of the
+candidate; and `ThreeSprings` divides by a length `s` that is an unknown
+the start has no value for, so the guard keeps the definition by design
+("a divisor that cannot be read so keeps its definition"). That sentence
+is the written ceiling; a guard that read unvalued divisors would be
+guessing them.
+
+### The census rows behind it
+
+From `/tmp/m629/raw.txt`: the eight `underdetermined algebraic loop` are
+two families - three Spice3 bipolar models where `der(Q.vbx)` appears
+only in the `else` branch of `if Q.m_bInit then 0 else ...`, so at the
+start no equation carries it, and five machines whose loop is in the
+air gap (`airGap.V_mss`, `Phi_ss`). The thirteen `unbalanced ... nothing
+determines` are all `Utilities` or `BaseClasses` classes with open
+inputs (`DirectCapacitor`, the batch-plant adapters, the RobotR3 axes),
+helpers caught by the example filter rather than models that fail.
