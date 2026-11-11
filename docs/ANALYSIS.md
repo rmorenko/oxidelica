@@ -76127,3 +76127,15 @@ zero at the start. It is near the m639 airGap reading, but on the
 source's rotator and not the machine's. The Electrical.Machines twin
 refuses as not converging in 60 Newton iterations before the trail
 prints a Jacobian, so it is not yet compared.
+
+A second forecast, also written down first, is refuted as well.
+`Act6.mo` is `Act3` with the rotor started at `w = 10` (fixed, which
+`why` confirms). If the dead rows came from zero speed at the start,
+the rank would be full. It is still 13 of 14, with the same dead row 4
+(`/tmp/m640/act6t.txt`). In the small model the dead row is therefore
+neither a matter of the start current nor of the start speed. What is
+left is structure: the stator space-phasor current row has lost its
+unknowns in the reduction itself. The FundamentalWave twin's dead rows
+look different (twice-differentiated source currents), so the two may
+not be one family. That is a question for the next probe, in the
+reduction, before any change.
