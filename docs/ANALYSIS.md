@@ -75884,3 +75884,11 @@ gave equal lists, 8 runs in both halves, and Newton steps 4998 against 5010. NAN
 `der(Q*.vbx)` columns that `XCJC = 1` zeroes, which is RtlInverter's
 breed. The chain is two links long and not yet walked to its end. The
 heavy basket was not measured.
+
+The next link was probed with `/tmp/m639/ox24` (the probe plus the park
+patch, `/tmp/m639/p4_nand.txt`). NAND's new block has 12 unknowns, and
+two of its columns are exactly zero: `der(Q2.vbx)` and `der(Q3.vbx)`.
+The other `vbx` columns carry only 1e-12 entries that cancel each other.
+That is RtlInverter's parameter zero (`capbx = tBCcap*(1 - XCJC)` with
+`XCJC = 1`). The chain has therefore ended in a different family, and
+the patch on its own wins nothing in the trio.
