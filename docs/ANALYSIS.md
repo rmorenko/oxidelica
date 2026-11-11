@@ -76969,7 +76969,8 @@ both fed through their `actuators` and `S` inputs from outside.
 `InnerTank` has 6 for 11, open at the port quantities `aboveLevel`,
 `h`, `d` and the tank's own parameters a holder supplies. `AxisType1`
 has 289 for 291, `Controller` 22 for 26 and `Motor` 188 for 189, all
-open at `axisControlBus`. `valve` has 3 for 4, open at `outflow1.Fo`.
+open at `axisControlBus`. `valve` has 3 for 4, open at the outflow of its
+`outflow1` connector.
 No real example with an experiment is among the thirteen, so the row
 is mapped by name and closed: it belongs to the question of the
 example filter, not to the compiler.
