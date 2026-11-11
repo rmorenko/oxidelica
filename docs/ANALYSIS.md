@@ -77041,6 +77041,17 @@ measured, since nothing was proposed for the tree.
 
 ## m651: the models that live on the soft half of the Newton test
 
+The forecast missed by an order of magnitude. It said "a few to a few
+tens" of residents, and the count is 127. That changes the question:
+this is no corner case. Of the 838 models that run in the corpus of
+1019 examples (974 flatten), 104 accept at least one block on the soft
+half alone, which is 12.4% of the run half. The worst of them first:
+13 running models accept a block whose residual is above 1, up to
+3.84e19 in ControlledSwitchWithArc with the block's largest unknown
+grown from its entry to 2.89e30. Those are thirteen answers that are
+wrong while looking right. The 127 residents are counted over the 974
+models that flatten.
+
 A block is accepted as converged when every row has
 `|f| <= 1e-10 * (1 + |v|)` or `|f| <= 1e-12 * (|lhs| + |rhs|)`
 (crates/oxidelica-sim/src/solvers/mod.rs:2028-2030). The first half
