@@ -76644,5 +76644,4 @@ in which the junction sits on the body and `spring2` has no direction.
 The model's own start for `spring1.r_rel_0` is `{-0.2, -0.2, 0.2}`. The
 first try failed only because `spring2.lineForce.s` starts at 0 inside
 the block. Candidate for the next shift: a first try that starts
-`s`-like clamped quantities at their clamp (`s_small`) rather than at
-0. This is a map with no change built.
+`s`-like clamped quantities at their clamp (`s_small`) rather than at 0. This is a map with no change built.
