@@ -76722,13 +76722,13 @@ Roman's desk, and the shift stops here.
 `massDynamics` defaults to it. Every pipe node therefore writes both
 `mediums.h = h_start` and `mediums.p = ps_start`
 (`Modelica/Fluid/Interfaces.mo:924-962`). That is 8 initial equations
-over the two pipes, against 6 states once reduction has taken the two
-pressures that the boundary ties. Two probes on `ox28` (`/tmp/m644/ncp/`)
+over the two pipes, against the 6 states left after index reduction.
+Which two of the eight conditions lost their state was not measured. Two probes on `ox28` (`/tmp/m644/ncp/`)
 tested this. `N1` sets the annulus `diameter` from 0 to 0.01 and is
 refused the same way, so the zero diameter is not the cause. `N2` sets
 `energyDynamics = SteadyStateInitial` and runs to the end (1008 lines
-of output). The wall is the pair of fixed pressure starts on states
-that index reduction removed. A demoted start that was written as an
+of output). The wall is that two of the written fixed starts name
+states that index reduction did not keep. A demoted start that was written as an
 equation is not dropped the way a `fixed = true` start is. This is a
 map with no change built. The repair would have to decide which written
 initial equation a reduction may drop, and that is the kind of
