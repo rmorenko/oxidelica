@@ -76843,3 +76843,44 @@ text. The one probe here, `Spice3.Examples.InvertersExtendedModel.MNmos`
 `runnable examples: 0`, and `G.i = 0` is the free gate current of a
 component standing alone. That is kind (1) of that chapter, which
 missed it because it sits under neither `Utilities` nor `Components`.
+
+### m646: six more of row 28, by where the reduction stood
+
+Six probes with `OXIDELICA_DEFS_PROBE=1` on `/tmp/m646/ox1`. Each file
+starts with its command line and md5: `/tmp/m646/p4b.txt`, `p4c.txt`,
+and `p4d_*.txt`. These six are runnable examples (`runnable examples:
+1`), unlike `MNmos`.
+
+- `TanksWithOverflow` is refused at reduction 3, on `lowerTank.ports[2].m_flow = 0`.
+  The first two reductions pinned both tank pressures to their ambient
+  values. With those pinned, the overflow's flow balance has nothing
+  left to reach. This is the tank family of item 100 in the queue, so
+  it is not taken further here.
+- `ActuatorWithNoise` is refused at reduction 18, after 17 dummies, on a
+  sensor pin current pinned to zero. Reduction 1 was
+  `motor.smpm.inertiaStator.w = 0` and reduction 2 an `airGap` flux
+  equation. This is the machine chain, not kind (1).
+- `IMC_DOL_CommonLeakage` is refused at reduction 16. The run starts
+  the same way, `inertiaStator.w = 0` three times, once per machine,
+  and ends on the alias of two magnetic potentials of the converter.
+  This is the machine chain as well.
+- `PointGravityWithPointMasses2` is refused at reduction 63, on
+  `-der(freeMotion.frame_a.R.T[1,1]) = 0`. Reduction 18 had already
+  taken `world.frame_b.R.T[1,1] = freeMotion.frame_a.R.T[1,1]`, so the
+  entry is the world frame's constant, differentiated. The forecast
+  (a rotation matrix entry) held in direction only. The mechanism is a
+  constant frame, not a relative rotation.
+- `RollingWheel` is refused at reduction 6, on
+  `rollingWheel.v_0[2] - body.v_0[2] = 0`. Reductions 2 to 5 took the
+  three position aliases and `v_0[1]`, and demoted all three positions
+  of `rollingWheel.frame_a` to dummies. The velocity alias then has
+  nothing left to reach. The forecast held.
+- `PrismaticConstraint` is refused at reduction 70 on a quaternion
+  entry of the body's rotation. This is kind (3) of the shift 218
+  chapter.
+
+So "constrains no state" is a place where a reduction stops, not one
+mechanism. Two of these six belong to the machine chain. Two stop on
+an alias whose position the earlier reductions had already demoted
+(`RollingWheel`, `PointGravityWithPointMasses2`). Two are families that
+are mapped elsewhere. No change was built.
