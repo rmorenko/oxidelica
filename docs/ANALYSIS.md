@@ -76011,3 +76011,26 @@ Because the halves shared the machine, the wall seconds would not have
 priced the change even if the run had finished. The heavy basket of
 c5ba376 is still unmeasured. A sequential pair needs more than 160
 minutes, which did not fit in the time left to the shift.
+
+### The heavy court of c5ba376, sequentially on ten models
+
+After the parallel pair, the halves were run one after the other, with
+the same binary and switch, on ten of the fifteen (`/tmp/m640/h10.txt`).
+Five models were left out: TWOBIT, DynamicPipesWithTraceSubstances,
+DynamicPipesAndFittings and DynamicPipeEnergyConservationCheck2, which
+the parallel run had shown to be the tail, and
+DynamicPipeWithNominalLaminarFlow, which held a first sequential try
+(`/tmp/m640/s2_off.txt`) at model 11 until its 30-minute cap. The
+outputs are `/tmp/m640/s3_off.txt` and `s3_on.txt`, with `.env`
+witnesses.
+
+Both halves report 10 flatten and 2 run (Spice3 `Oscillator` and
+ReferenceAir `MoistAir`). The ran lists and the refusals are equal, and
+the work counters are equal to the byte in both phases (590643 points,
+3162178 Newton steps, 10066 Jacobians). The run half took 1794 s off and
+1776 s on, and the flattening half 770 s and 752 s. For the first 25 s
+the off half shared the machine with a stray process from the first
+try, which was then stopped, so these seconds are drift and not a price.
+The verdict, on this set of ten only: no victims and no wins. Any cost
+difference is below what this pair can resolve. The five models left
+out remain unmeasured.
