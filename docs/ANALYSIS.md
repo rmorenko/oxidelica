@@ -76201,3 +76201,16 @@ electromagnetic converter rows that stand beside them in every null
 direction are the candidate. The family is therefore narrowed to an
 ideal switch bank into a FundamentalWave stator. The small model that
 reproduces it is not yet written.
+
+The real model answers item 2 directly, without the caveat on `R2`.
+`SMEE_DOL` has its own parameter for the start angle, `gamma0`, which
+sets `smee.phiMechanical(start = -(pi + gamma0)/p, fixed = true)`.
+`/tmp/m640/D2.mo` extends it with `gamma0 = 0.3`, an angle where neither
+sine nor cosine is near zero. Under `/tmp/m639/ox22` (`/tmp/m640/d2.txt`)
+it is refused with the same text and the block has rank 23 of 26, the
+same as at `gamma0 = 0`. The rank does not return away from the start
+point, so item 2's condition for the prototype fails on the machine
+itself. Two further shrinks, without the damper cage or without the
+losses, were refused before the run, because the example's conditional
+`irRMS` output depends on `useDamperCage`. They are left for a shrink
+that copies the example rather than extending it.
