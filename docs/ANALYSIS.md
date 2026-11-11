@@ -76676,3 +76676,42 @@ Starting `s` at its clamp is not the fix.
   at 647 K. The value is the junction's tear start and not a physical
   state. This is a start problem of the mixing block, and it is the
   same breed the census names under MoistAir elsewhere. Map only.
+
+### The pipe family's chain, walked one link past the sliver release
+
+The step is the wall, not the rank. Measured by the coordinator
+(`/tmp/pahan_sliver/`, binary `ox30`), `OXIDELICA_SLIVER_STEPS=1`
+removes the "does not reduce the residual" refusal from `SeriesPipes1`
+and `BranchingPipes4`. Both then stop on "stepped outside the domain"
+(IF97 density NaN), at iterations 12 and 18, and neither runs. That is
+link 1. This shift took two more links by probe, with nothing in the
+tree.
+
+- Link 2: equilibrate the columns on every step, not only when the
+  plain solve fails. The probe binary is `/tmp/m644/oxcu` (md5
+  123c79a9, switch `OXIDELICA_COLUMN_UNITS_ALWAYS`), with outputs
+  `ch_cu_*.txt` and `ch_cusl_*.txt`. The forecast
+  (`forecast_chain2.txt`) named a falsifier: the same domain refusal at
+  the same iterations. It fired with one difference. The refusal is the
+  same, but it comes earlier, at iteration 9 instead of 12 and 8 instead
+  of 18, with or without the sliver switch. Equilibration does not
+  change where the direction leads.
+- Link 3: where the direction leads. The trails under the sliver switch
+  (`sp1_sliver_trail.txt`, `bp4_sliver_trail.txt`, binary `ox28`) follow
+  one pressure monotonically down to zero while `|f|` stands still. In
+  `SeriesPipes1`, `pipe2.mediums[1].p` goes 14142, 5523, 1291, 753, 619,
+  612, 610 Pa while `|f|` stays at 3.770. Nearly all of it is one row,
+  3.77e4, the valve's. In `BranchingPipes4`, `pipe3.mediums[1].p` goes
+  207350, 78779, 14510, 2483, 977, 475 Pa at `|f|` = 2.317. At the next
+  step IF97 is asked for a pressure at or below zero and answers NaN.
+
+So the chain ends where m643's stall began. The block's Newton
+direction points at zero pressure in one volume, and the residual it
+cannot reduce lies in the valve's flow row. No release of step length,
+damping or column scaling changes that direction, because the direction
+comes from a full-rank, well-conditioned matrix (singular values above).
+The next question belongs to the model and not to the solver. It is why
+the valve row asks for a pressure drop that only a vacuum downstream can
+give at 0.8 ms. Since it is a question about the start of the flow, this
+is the outside-key ground the coordinator has kept for the decision at
+Roman's desk, and the shift stops here.
