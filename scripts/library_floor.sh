@@ -3678,7 +3678,16 @@ fi
 # that tree printed 1670378977 (/tmp/m580/pf_quick.txt), 190 per
 # million above the new centre, where against the old one it stood
 # 9700 per million below and turned red for a model that moved.
-WORK_NAMES=1670061690
+#
+# Moved to 1709225508 on 2026-11-11 for 8a0aa34, which reads a type's
+# min and max where its medium writes them through extends and so looks
+# up more names: its pair printed 1670378977 off and 1709225508 on
+# (/tmp/m649/off.txt, on.txt), 23259 per million up. The judge of that
+# commit never ran (its main pass died uploading the artefact), and the
+# pushes after it touched prose only, so the centre was left behind. Two
+# later prints of the same tree agree to the digit: the soft-tolerance
+# half (/tmp/m651/soft.txt) and the preflight (/tmp/m651/preflight.txt).
+WORK_NAMES=1709225508
 WORK_NAMES_PPM=2000
 
 # The band, as a function, so that it can be seen red without a library
