@@ -76078,3 +76078,21 @@ follow what the substitution put in place of
 refused as not converging in 60 Newton iterations, which is the
 QuasiStatic `SMPM_CurrentSource` text. Both refusals of the breed are
 therefore one row read at two magnitudes.
+
+`why` and the runnable twin `Act2.mo` (`/tmp/m640/act2.txt`) give a
+reading of the zero row. The run of `Act2` lists, among its variables,
+derivatives of stator currents all along the phase-3 path:
+`der(motor.smpm.spacePhasorS.i[3])`,
+`der(motor.smpm.spacePhasorS.spacePhasor.i_[2])` and
+`der(motor.smpm.lssigma.spacePhasor_a.i_[2])`. The stator inductance's
+current is therefore kept as a differentiated quantity, whose value at
+the start comes from its start (zero). Yet `signalCurrent` imposes the
+same current from `iq`, so with a nonzero command the start's current
+and the commanded one disagree. Row 4 is where the two meet once
+everything else is substituted, and the mismatch reads -sqrt(2) times
+`iq`. This is the familiar index problem of a machine fed by an ideal
+current source: the inductor's current is forced and should not keep a
+start of its own. The fault is then in which current the reduction
+keeps as a state and lets the start fix, and not in the solver. This is
+a reading from the variable list and the residual. It has not been
+traced in the reduction, and nothing was built.
