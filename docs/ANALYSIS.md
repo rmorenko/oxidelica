@@ -76261,3 +76261,97 @@ scales is physical, and that is a ceiling question for Roman (the floor
 and the comments around `solvers/mod.rs:1586-1614`). Nothing was built.
 Forecast tally for the shift: Ag pair held, Act5 refuted, Act6 refuted,
 Sw refuted, and the E6/E7 forecast held (scale).
+
+## Shift 636 (m641): the heavy debt of c5ba376, the Act3 trace, two census families
+
+Scratch in `/tmp/m641`, binary `/tmp/m638/ox20` (md5 `bf11e4ce`) for
+every probe, each with its command in a `.env` file beside its output.
+Forecasts were written before the runs in `/tmp/m641/forecast.txt`.
+
+### Heavy models under INIT_DER_ALL, one at a time
+
+The first launch of the five died in a minute on every model: `--only`
+on a name from `scripts/heavy_models.txt` refuses unless `--with-heavy`
+is passed (the refusal says so). Those files are kept in
+`/tmp/m641/bad/` and measure nothing. With the key, sequentially, off
+(`OXIDELICA_INIT_DER_ALL=1`) then on:
+
+- `TWOBIT` (`TWOBIT_off.txt`, `TWOBIT_on.txt`): flattens and does not
+  run in both halves, the same refusal (underdetermined loop on
+  `der(X2.X9.Q4.vbe)`), work equal to the digit (3984 classes, 989847
+  expansions, 13557 bodies, 7064262 names, 1 Newton), run half 70.4s
+  off and 69.8s on. No victim, no win, no price.
+
+The other four are reported below as they land.
+
+### Act3: where reduction leaves the stator row without unknowns
+
+Read from the existing `OXIDELICA_VICTIM_PROBE` prints
+(`/tmp/m640/vic_Act1.txt`, `vic_Act3.txt`), with no new build. Both
+models retreat once (reduction 6 may not take
+`motor.smpm.inertiaRotor.phi`) and start again. After the retreat the
+victim lists differ only by the load inertia that `Act1` carries
+(`load.phi` at 4 and 5, `load.w` at 16): the electrical victims are the
+same and in the same order. Reductions 6 and 7 differentiate the
+air-gap and stray-inductance current junctions and demote
+`lssigma.i_[1]`, `lssigma.i_[2]`; 12 demotes `lszero.i`; 13 demotes
+`lssigma.i_[1]` again; 14 differentiates the third voltage sensor pin
+junction and demotes `motor.smpm.phiMechanical`. So the earlier
+reading that the two part at reduction 15 was an offset of one from the
+missing load, and not a different choice: `Act3` takes the rotor angle
+at 14 exactly as `Act1` does at 15.
+
+The dead row 4 of `Act3`,
+`-spacePhasorS.spacePhasor.i_[2] = TransformationMatrix[2,k]*i[k]`,
+lives in a block whose fourteen unknowns (`/tmp/m640/act3.txt`) hold
+only one stator current, `spacePhasorS.i[2]`, and no
+`spacePhasor.i_[2]`. `oxidelica why` on both (`/tmp/m641/why_act3.txt`)
+gives the other equations they appear in: the star junction
+`m*zero.i = sum(i)` and the space-phasor junction
+`lssigma.i_[2] + spacePhasorS.i_[2] + statorCore.i_[2] = 0`. With
+`lssigma.i_[2]` demoted at 7 and taken as a state, the junction defines
+`spacePhasor.i_[2]`, and the `i[k]` are defined by the source through
+the pin equations, so row 4 is left as a relation between knowns. It
+is an implied constraint the reduction never differentiated: the
+stator current state chosen at 7 and the currents the ideal source
+imposes meet in it. Why reduction 7 takes `lssigma.i_[2]` as a state
+when the source fixes the current is the open question. Nothing was
+built.
+
+### Act3 and the FundamentalWave twin are two families
+
+Forecast: one family if the twin's dead rows are stator current rows.
+Run (`/tmp/m641/vic_FW.txt`, `fwt.txt`, under `OXIDELICA_VICTIM_PROBE`
+and `OXIDELICA_NEWTON_TRAIL` on
+`Magnetic.FundamentalWave...SMPM_CurrentSource`): the twin also
+demotes `smpm.phiMechanical` at reduction 14, with no retreat, but its
+block of 20 has rank 18 and the two dead directions are rows 3 and 6,
+the once and twice differentiated `dqToThreePhase.fromSpacePhasor`
+source current equations through `rotator.angle` and `wMechanical`
+(`/tmp/m641/jrank.out`). The falsifier fired: two families. Act3 loses
+a stator row to a state choice; the twin loses the source's
+derivative rows.
+
+### Census row 9: two more families shrunk to their blocks
+
+`LossyGearDemo2` (`/tmp/m641/t_LossyGearDemo2.txt`): block of 5
+(`gear.quadrant2`, `gear.quadrant4`, `gear.sa`, `bearingFriction.sa`,
+`gear.flange_a.tau`), rank 4. Forecast was a dead quadrant row;
+refuted. The left null direction is rows 2 and 3 with equal weight,
+`gear.a_a = ... sa ...` and `bearingFriction.a_relfric = ... sa ...`:
+the two friction elements on one shaft each write the same
+acceleration through their own `sa`, and at the start neither is
+locked, so the pair is one equation twice. The right null direction
+loads all five columns equally.
+
+`PumpingSystem` (`/tmp/m641/t_PumpingSystem.txt`, names in
+`pump_names.txt`): block of 15, rank 14, smallest singular value
+7e-17 against 7e-5 for the next. The dead column is 3, `pumps.s`, and
+the dead row is row 1, `pumps.medium.d` from IF97 (only weakly
+connected), with the pump characteristic rows
+`V_flow_single = if s > 0 then ... else 0` and `head = if s > 0 ...`
+carrying `s` only in the branch not taken at `s = 0`. Forecast held
+in direction: the block dies on the pump's curve parameter at zero,
+where the `else` branches have no derivative in `s`.
+
+Neither was changed; both are maps for a later series.
