@@ -75760,3 +75760,112 @@ air gap (`airGap.V_mss`, `Phi_ss`). The thirteen `unbalanced ... nothing
 determines` are all `Utilities` or `BaseClasses` classes with open
 inputs (`DirectCapacitor`, the batch-plant adapters, the RobotR3 axes),
 helpers caught by the example filter rather than models that fail.
+
+## Row 8 mapped: four air-gap machines, one quasi-static sensor, and two Spice3 breeds (m639)
+
+A probe binary, `/tmp/m639/ox22` (md5 in `/tmp/m639/ox22.md5`, the tree
+at the head plus `/tmp/m639/ud_probe2.patch`, never committed), prints the
+unscaled Jacobian, the names and the source of every row of a block just
+before it is refused as underdetermined. The null directions below are
+taken from that print with an SVD of the row-and-column equilibrated
+matrix (`/tmp/m639/null.py`, `rank.py`, `srank.py`). The commands are
+in the `.env` file beside each output.
+
+### The five machines of row 8 are two families
+
+The forecast written before the print (`/tmp/m639/forecast.txt`) said
+the dead direction would sit in the diode `s` columns, zeroed by the
+start. It was refuted: every `idealDiode*.s` column carries a live
+entry (1e-5 and 1 in the unscaled matrix).
+
+- Four machines, one family: `SMEE_Rectifier` (27 unknowns, numeric
+  rank 24), `SMEE_DOL` (26, rank 23), `IMC_DOL_Polyphase` (59, rank 53,
+  two machines in the model) and `IMS_Start_Polyphase` (80, rank 74).
+  Each machine loses exactly three ranks. In all four the structural
+  rank is full and only the numeric rank falls, so this is a zero of
+  values and not of structure. The null direction lives in the air
+  gap derivatives and the stator current derivatives
+  (`der(airGap.V_mss.re)`, `der(stator...[1].i)`,
+  `der(stator.port_p.V_m.re)`, weights 0.567 each in `SMEE_Rectifier`),
+  and the left null space names the rotator rows: row 1 is
+  `airGap.Phi_sr.im = Phi_ss.re*(-rotator.im) + Phi_ss.im*rotator.re`,
+  whose `Phi_ss.re` coefficient is `-rotator.im`, and the rotator angle is
+  zero at the start. The same structure appears in the IMC/IMS pair with
+  identical singular values (1.06e-9, 1.44e-9), which is one mechanism
+  printed twice. Files `/tmp/m639/p1a_rect2.txt`, `p1b_dol.txt`,
+  `p1b_imc.txt`, `p1b_ims.txt`.
+- One machine apart: QuasiStatic `IMC_withLosses` (21 unknowns, rank 19,
+  structural rank 19 once 1e-12 entries are dropped). Its null direction
+  is `powerSensorQS.power` against `powerSensorQS.flange_a.tau` (0.707
+  each), and the two rows are
+  `der(flange_a.phi) = power / flange_a.tau` and
+  `power / flange_a.tau - wMechanical = 0`. Both rows see only the ratio
+  of the two unknowns, which is a property of how `power = tau*der(phi)`
+  was solved for `der(phi)`, with entries of order 3e-24. This is a
+  choice of solved form, not a start zero (`/tmp/m639/p1c_qs2.txt`).
+
+Two families in five models. No change was built.
+
+### The Spice3 trio is not the Lock1 breed, and is itself two
+
+`RtlInverter`'s block is the single unknown `der(Q1.vbx)`. Its one row is
+`Q1.icapbx = if Q1.m_bInit then 0 else Q1.cc.capbx * der(Q1.vbx)` with a
+Jacobian entry of exactly 0. `m_bInit` is the constant `false`, so the
+branch is not closed at the start. The zero is `capbx` itself, which the
+library computes from `m_tBCcap * (1 - XCJC)`, and the model card leaves
+`XCJC` at its default 1.0. The coefficient is zero for the whole run
+because a parameter makes it zero, and the start has nothing to do with
+it. Lock1's breed (an unknown that only a branch closed at t = 0 reads)
+is a different mechanism.
+
+Small models (`/tmp/m639/Sp1.mo` to `Sp5.mo`) do not reproduce the
+underdetermined text. A coefficient that is zero at the start gives
+the dead-column refusal ("do not mention ... at t = 0") when the
+residual is not already zero (Sp1, Sp4). Where the residual is already
+zero, the model runs (Sp2, Sp3). A coefficient that is zero by parameter
+is refused earlier, as structurally singular (Sp5). So the trio reaches
+`underdetermined` along a path that none of the five small models
+takes. The likely reason is that `capbx` is the output of a function
+call that the structure cannot see is zero. This is written as a
+candidate, not measured.
+
+`NAND` (and `ONEBIT` by the same `Q4.vbe` name) is a second breed. Its row
+`Q4.icapbe = ... Q4.cc.capbe * der(Q4.vbe)` has an entry of -1e-12,
+not zero: a picofarad capacitance read as underdetermined on a 1x1 block
+(`/tmp/m639/p2_nand.txt`). That is a question about the scale judgement
+in `reads_underdetermined`, not about a missing equation. Row 8's three
+Spice3 models are therefore two mechanisms: a parameter zero
+(RtlInverter) and a small coefficient judged by scale (NAND, ONEBIT).
+
+### One2's second direction
+
+From the Jacobian already printed in `/tmp/m637/p11_one2.txt`
+(equilibrated, singular values 1.3e-16 and 5.5e-18 under 1.5e-2), the
+second null direction is `der(rod1.e2_a[1])`,
+`rod1.frame_a.R.w[3]` (-0.607 each) and `der(rod1.length_n2_a)`
+(-0.506). Its left null space pairs row 4
+(`rod1.frame_ia.R.w[3] = R_rel_ia.T[3,3]*frame_a.R.w[3] + ...`) with row 9
+(the revolute's `R_rel.w[3]` divided by `n_b[3]` normalised). The first
+direction, recorded by m637, is rows 8 and 16. The third, on rows 14 and
+15, is `rod1.f_b_a1[2]` against `der(revolute.R_rel.w[3])`. One2 is not in
+the corpus, so this is a map and not a change.
+
+### The ladder rows by name
+
+- Six `singular Jacobian` (`/tmp/m639/g2_*.txt`, newton trail, the same
+  SVD): six mechanisms. The QuasiStatic `Rectifier` has diode `s`
+  against `load2.v`. `PumpingSystem` has `pumps.s` against
+  `V_flow_single`. `LossyGearDemo2` has the gear quadrants against `sa`.
+  `SMPM_CurrentSource` has `wMechanical` against
+  `der(airGap.Phi_ss.im)` through the rotator. That last one is the
+  nearest relative of the four air-gap machines above, but it is
+  refused at a different wall. `TestMixingVolumesPressureStates` has
+  `der(p)` against `der(h)` through IF97, and `UniversalConstraint` is a
+  MultiBody constraint with a 44-wide block and three null directions.
+- Six `cannot evaluate parameters` from the census
+  (`/tmp/m629/raw.txt` lines 162 to 170): three analytic examples and
+  three `Utilities` classes, all on the same `e_ia[k] = ....e2_ia`
+  binding, which is the late-spread park patch's family.
+- Five `unbalanced ... nothing is left for`: `Fourbar1` and four
+  `StateGraph.Examples.Utilities` composites, which are helpers caught by
+  the example filter.
