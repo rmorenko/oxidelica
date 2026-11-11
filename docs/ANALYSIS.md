@@ -76187,3 +76187,17 @@ family is the ideal switch bank in front of a star, which is an
 index-reduction and tearing question about which `s_k` should be
 determined by the star's constraint, and is for Roman to decide before
 any change.
+
+The switch-bank reading was tested on a small model first, with the
+forecast written down beforehand (`/tmp/m640/forecast.txt`). `Sw1.mo`
+is a three-phase source, an `IdealClosingSwitch` bank that is open at
+the start, inductors, resistors, and an ungrounded star. `Sw2.mo` is
+the same with the star grounded. The forecast was that `Sw1` would be
+refused and `Sw2` would run. Both run (`/tmp/m640/sw1.txt`, `sw2.txt`),
+so the forecast is refuted: a switch bank into a floating star is not
+enough. The equal-weight switch rows in the machines' null space must
+combine with something the machine adds, and the stator
+electromagnetic converter rows that stand beside them in every null
+direction are the candidate. The family is therefore narrowed to an
+ideal switch bank into a FundamentalWave stator. The small model that
+reproduces it is not yet written.
