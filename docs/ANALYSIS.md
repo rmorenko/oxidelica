@@ -75995,3 +75995,19 @@ parameters` models, all one `e_ia` family. Five `nothing is left for`
   gear `sa`).
 - The unit test owed by the `single_by_zero` park patch is written into
   its park note as a form, and not into the tree.
+
+### The heavy court of c5ba376: not measured
+
+The 15 heavy models outside the m637 court of eight, without FOURBIT
+(`/tmp/m640/hv.txt`), were run with one binary, `/tmp/m638/ox20`
+(`md5 bf11e4ce...`). The off half used `OXIDELICA_INIT_DER_ALL=1`. Both
+halves ran at the same time, under a cap of 80 minutes each
+(`/tmp/m640/h_off.txt`, `h_on.txt`, with `.env` witnesses). Both were
+stopped by their own time cap at 14 of 15 models: 4172 s and 4160 s at
+model 14, peak memory 3.2 GB. A stopped run prints no lists and no work
+counters, so this gives neither victims nor a price. The only reading
+is an inequality: the last model costs at least 800 s in either half.
+Because the halves shared the machine, the wall seconds would not have
+priced the change even if the run had finished. The heavy basket of
+c5ba376 is still unmeasured. A sequential pair needs more than 160
+minutes, which did not fit in the time left to the shift.
