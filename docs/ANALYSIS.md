@@ -76645,3 +76645,15 @@ The model's own start for `spring1.r_rel_0` is `{-0.2, -0.2, 0.2}`. The
 first try failed only because `spring2.lineForce.s` starts at 0 inside
 the block. Candidate for the next shift: a first try that starts
 `s`-like clamped quantities at their clamp (`s_small`) rather than at 0. This is a map with no change built.
+
+The candidate was refuted the same shift. `/tmp/m644/ts/TS2.mo` and
+`TS3.mo` extend `ThreeSprings`, the first with
+`spring2.lineForce.s(start = 1e-10)` and the second with `start = 0.3`.
+Run with `ox28`, both are refused on "the Newton direction of algebraic
+loop ... does not reduce the residual". The trail of `TS3`
+(`ts3_trail.txt`) shows the first try now evaluated, at
+`|f| = 11.6`. It jumps to 5.4e11 at iteration 2 and then crawls from
+470 down to about 30 without settling. A start on the clamp does not
+make the block solvable, so the stall is in the loop's own geometry,
+with a massless junction whose position the springs alone determine.
+Starting `s` at its clamp is not the fix.
