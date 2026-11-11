@@ -76096,3 +76096,19 @@ start of its own. The fault is then in which current the reduction
 keeps as a state and lets the start fix, and not in the solver. This is
 a reading from the variable list and the residual. It has not been
 traced in the reduction, and nothing was built.
+
+The reading was tested before it went further, and the forecast was
+written down first (`/tmp/m640/forecast.txt`). `Act5.mo` drives `iq`
+with a ramp from 0 that starts at t = 0.01, so the start is consistent.
+The forecast was that it would run. It does not. At t = 0 a 19-unknown
+block of the same machine has rank 18, and its dead row is again the
+`spacePhasorS.spacePhasor.i_[2]` row, now with a residual of about
+1e-4 instead of -sqrt(2) times `iq` (`/tmp/m640/act5t.txt`). The zero
+row is therefore structural: it exists whatever the start current is,
+and the start current only sets how far its residual is from zero.
+`Act2` runs because with `iq` identically zero that residual is exactly
+zero. The forecast is refuted, and the reading above is narrowed to
+this: the block loses that row's dependence on its unknowns in every
+case, and a forced stator current is the likely reason, which has not
+been traced. The next probe is the reduction step that leaves
+`spacePhasorS.i[k]` out of that row's unknowns.
