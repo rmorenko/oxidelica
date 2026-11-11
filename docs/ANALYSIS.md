@@ -76214,3 +76214,28 @@ itself. Two further shrinks, without the damper cage or without the
 losses, were refused before the run, because the example's conditional
 `irRMS` output depends on `useDamperCage`. They are left for a shrink
 that copies the example rather than extending it.
+
+The real machine was then shrunk by copying the example, not by
+extending it (`/tmp/m640/E0.mo` to `E5.mo`, all under `/tmp/m639/ox22`).
+
+- `E0`, a faithful copy, is refused as the original.
+- `E1`, without the damper cage, is still refused, with rank 18 of 21.
+  The null directions are the switch rows, the stator converter rows,
+  and the `V_msr.im` rotation row.
+- `E4`, with the switch bank closed from the start by a constant
+  `true` control, runs to the end (`/tmp/m640/e4.txt`).
+- `E5`, with the bank held open by a constant `false`, is refused with
+  the same underdetermined text.
+
+The breed is therefore the open switch bank. An open `IdealClosingSwitch`
+writes `i = s*unitVoltage*Goff`, with the leakage conductance that the
+machine's stator converts into flux. With all three phases open, the
+stator current is set by `Goff` alone and its sum by the star, so the
+switch variables `s` and the stator's magnetic potentials share one
+undetermined combination per open bank. The rotation rows join because
+they are the only other path to the stator's quantities. In
+SMEE_Rectifier the diode bridge is the same thing: diodes that are off
+at the start. This also explains why a perturbed angle changes nothing.
+What a fix would have to decide is how an open ideal switch in front of
+an inductive star determines its `s`. It is a modelling question for
+Roman, and nothing was built.
