@@ -76282,7 +76282,21 @@ is passed (the refusal says so). Those files are kept in
   expansions, 13557 bodies, 7064262 names, 1 Newton), run half 70.4s
   off and 69.8s on. No victim, no win, no price.
 
-The other four are reported below as they land.
+- `DynamicPipeWithNominalLaminarFlow` and
+  `DynamicPipeEnergyConservationCheck2`: all four halves were stopped by
+  their own 35-minute ceiling (the wrapper's stop line ends each file,
+  peak 0.2 to 0.3 GB). Each half therefore took at least 2100 s, and
+  nothing is known about whether either runs or what it costs. These
+  are inequalities, not measurements.
+- `DynamicPipesAndFittings` and `DynamicPipesWithTraceSubstances` were
+  not started: a 35-minute half would have run past the shift's edge
+  less fifteen minutes, and the script skipped them by that rule
+  (`/tmp/m641/p1.log`).
+
+So the debt of c5ba376 stands at four of the five heavy models. The
+ceiling of 35 minutes per half is below what two of them need, and a
+next measure of them needs a ceiling above their real length, which is
+not known.
 
 ### Act3: where reduction leaves the stator row without unknowns
 
