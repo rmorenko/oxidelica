@@ -76944,3 +76944,16 @@ bought. The heavy models were not measured. Merged as 8a0aa34.
 Row 28 was checked by name against the chapters
 (`/tmp/m649/row28.txt`). All 28 entries are mapped in the m635 and m646
 chapters or in older ones, so no probe was owed there.
+
+The next row, "unbalanced: nothing determines", holds 13 entries
+(`/tmp/m649/row13.txt`). The four named least in the chapters were
+probed with `/tmp/m649/ox9` (`/tmp/m649/r13_*.txt`). All four print
+`runnable examples: 0`, so they are components and not examples.
+`Adapter_Inference` has 0 equations for 2 unknowns, and `BufferMain`
+has 0 for 80. Both are controller parts whose inputs (`idleTanks.T5_idle`,
+`Recipe1.S0` and on) are fed from outside. `AxisType2` has 278 for 280,
+with an open control bus and flange (`axisControlBus.motorSpeed`,
+`initializeFlange.w_flange`). `ConstantActuator` has 75 for 76, with
+the open pins `p.v` and `n.v`. Each is short by what a holder would
+connect, the same breed as the current family of m635. Nothing was
+built.
