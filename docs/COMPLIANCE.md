@@ -12,7 +12,7 @@ under a chapter works as specified for the subset this project covers.
 | 4   | Classes, types, declarations  | Mostly  |
 | 5   | Scoping, lookup, flattening   | Partial |
 | 6   | Type relationships            | Minimal |
-| 7   | Inheritance, redeclaration    | Full    |
+| 7   | Inheritance, redeclaration    | Mostly  |
 | 8   | Equations                     | Mostly  |
 | 9   | Connectors and connections    | Mostly  |
 | 10  | Arrays                        | Mostly  |
@@ -235,6 +235,20 @@ distinction between a type and the class that names it. For the
 standard library this has cost nothing measurable, which is why it
 stays where it is; it would be felt first by code that redeclares
 across unrelated hierarchies.
+
+**Inheritance and redeclaration** (ch. 7) stand at Mostly since 12
+November, lowered on two probes that give a wrong number rather than a
+refusal, each beside a twin that runs right. A replaceable class
+declared in long form (`replaceable model C ... end C;`) ignores a
+`redeclare model C = C2` from the modifier: with `der(x) = -x` in the
+original and `der(x) = -2*x` in `C2`, `x(1)` comes out 0.3679 instead
+of 0.1353, while the same redeclaration of a short-form `replaceable
+model C = C0` gives 0.1353. And a component redeclared to a short class
+definition with a modification (`model G3 = G(k = 3)`, then
+`redeclare G3 g`) loses the modification: 0.3679 instead of 0.0498,
+while `redeclare G3x g` with `G3x` written as `extends G(k = 3)` gives
+0.0498. Both probes are twelve to twenty lines (`/tmp/m652/full/W7a.mo`
+and `W7b.mo`, shift 646), and both are quoted whole in the analysis.
 
 **Statements and algorithms** (ch. 11) are complete in their forms and
 partial in one direction only. `if`, `for`, `while`, `when`, `break`,
