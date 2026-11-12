@@ -77487,3 +77487,18 @@ on both sides, and the `work:` line of each agrees in every counter.
 The switch does not reach them: in the media, the extended class is
 used through the medium package, by a name that already resolves in
 the medium. `MoistAir` and the other carved-out models were not run.
+
+The `H2` reading above does not hold, and is withdrawn here: its
+control `H4` (the same shape, no extension at all) refuses as well,
+binding `r` both by its record default and by the call. The shape was
+asked badly. Asked well, as `H5`, it gives the worse answer. A function
+`h` that `Base` writes builds an `S` inside it and returns its `T`, and
+`D` extends `S` with `T = 7`. `Base.h(time)` gives 1 and `D.h(time)`
+also gives 1 on both binaries, where 7 is owed (`/tmp/m654/full/H5D.mo`,
+`h_H5D_ox1.csv`). An inherited function reached through `D` is
+instantiated in `Base`'s scope and builds `Base`'s record: a wrong
+number without a word, the K1d road in function form. The census cannot
+show it, since nothing refuses. Whether a medium of the library leans on
+it would take a function that a medium inherits unredeclared and that
+builds a replaceable record inside; that search was not made this
+shift. This is the case the lookup change has to answer first.
