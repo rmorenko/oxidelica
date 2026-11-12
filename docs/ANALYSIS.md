@@ -78186,3 +78186,18 @@ rows stand on another wall. A running model shows the world rows are
 not wrong in themselves: DoublePendulum (`/tmp/m660/q_DoublePendulum.txt`)
 takes six of its victims through world-frame rows, all of them positions,
 and runs.
+
+### A guard on the last quaternion entry, as a probe
+
+A probe switch refused any victim that is the last `Q[i]` of a body
+still standing as a state (binary `/tmp/m660/ox2`, md5 e3919e3d,
+parked with a note as `m660_last_quaternion_guard_probe.patch`). It
+finds the body by the `.Q[` spelling, which is a guess and fine for a
+probe only. On PointGravityWithPointMasses2 it fires at reductions 18,
+19 and 54. It keeps `freeMotion.Q[1]`, and the wall moves from
+`der(freeMotion.frame_a.R.T[1,1]) = 0` to the differentiated definition
+`der(freeMotion.R_rel.T[1,3]) = f(der(Q))`, still structurally singular
+(`/tmp/m660/g_PointGravityWithPointMasses2.txt`). That is one link of a
+chain, not a model won. On PrismaticConstraint it never fires, and the
+refusal stands unchanged. No victim list or corpus pair was taken, and
+nothing about the heavy set was measured.
