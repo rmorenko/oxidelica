@@ -79114,7 +79114,7 @@ pieces and `InnerTank`, `ConstantActuator`, the RobotR3 utilities
 `AxisType1`, `AxisType2`, `Controller` and `Motor`, and StateGraph's
 `valve`. The names left undetermined are inputs and bus signals a
 parent would drive (`axisControlBus.motorSpeed`, `actuators.P1`,
-`Recipe1.S0`, `outflow1.Fo`), so the row is the same family as the
+`Recipe1.S0`, StateGraph's valve outflow), so the row is the same family as the
 seventeen of row 28: a part asked about alone. No compiler queue here.
 
 The Newton-direction refusal is 14 lines in the raw file, ten of them
