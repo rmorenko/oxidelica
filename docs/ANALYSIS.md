@@ -78014,3 +78014,16 @@ plus `Spice3BenchmarkRtlInverter`. Singular Jacobians are
 `UniversalConstraint`, `RollingWheelSetDriving` and `LossyGearDemo2`.
 `ThreeSprings` reaches a Newton limit. Ownership against the park was
 not checked name by name in this pass.
+
+One switch separates the three further. With `useQuaternions=false` on
+the free body (`/tmp/m659/R1q.mo`, `PrismaticConstraintQ.mo`,
+`SphericalConstraintQ.mo`, all run on `/tmp/m657/ox1`), the structural
+refusal is gone in `PointGravityWithPointMasses2`, which stops at an
+algebraic loop instead, and in `PrismaticConstraint`, which stops at a
+singular Jacobian in the loop through `constraint.frame_b.R.T`.
+`SphericalConstraint` refuses exactly as before. So two of the three
+stand on the quaternion states and their norm constraint
+`0 = Q*Q - 1`, and the third does not. Neither of the two runs with
+the switch flipped, so this names a factor, not a repair. It does not
+change what a library model reads either: the switch was edited into
+copies.
