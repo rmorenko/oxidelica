@@ -79220,3 +79220,23 @@ remedy is state selection. Seen in passing: `ThreeSprings` swings,
 its residual growing from 2.7e3 to 3.5e3 over the last twelve of 60
 iterations, and `RollingWheelSetDriving` refuses as a singular
 Jacobian at t = 0 with the residual near 1e23.
+
+## The pipe family's mechanism, in twelve lines
+
+`/tmp/m664/SqrtRho2.mo` keeps mass as the state and reads pressure
+back from a density that barely depends on it:
+`d = 995 + 1e-3*sqrt(p)`, `m = V*d`, `der(m) = 1 - 1e-3*(p - 1e5)`.
+It refuses exactly as `SeriesPipes2` does, at t = 0.0002, with a first
+Newton step to p = -2.1e7 and NaN after it, under `dopri45` and under
+`bdf` alike (`/tmp/m664/sqrtrho2.txt`). With the outflow a hundred
+times gentler, `SqrtRho3.mo`, the same model runs to the end.
+
+The arithmetic says why. With `dd/dp` near 7e-7, a unit of mass moves
+the pressure by about 2.8e8 Pa, so the flow law makes the system stiff
+with an eigenvalue near 3e5. The first step moves `m` to a value below
+`V*995`, for which no pressure exists at all: the loop is not failing
+to find a root, it has none. The refusal names the Newton direction,
+but the fault is a state stepped outside the range the algebra can
+invert. Index reduction choosing `p` and `h` as states, as the medium
+asks, removes the inversion, which agrees with the cut that ran on a
+constant-density medium. No fix was built: state selection is parked.
