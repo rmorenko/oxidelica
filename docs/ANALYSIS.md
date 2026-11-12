@@ -78343,3 +78343,22 @@ Same instrument on `/tmp/m657/ox1`. The row is not one wall.
   `der(Q1.vbx)`, that its equations do not determine
   (`solvers/mod.rs:1648`). A one-name loop is the cheapest of the row to
   shrink, and it is a model of its own breed.
+
+### SphericalConstraint and the one-name Spice3 loop
+
+`SphericalConstraint` (`/tmp/m660/v_sph.txt`, binary `/tmp/m660/ox1`)
+takes 33 victims and stops at reduction 34 on a velocity-level row of
+the constraint, over `der(constraint.frame_b.r_0)` and
+`der(constraint.frame_a.r_0)`. The 32 members split as 12
+dependent-row, 12 supply-once, 3 held-row and 5 with no victim. It
+demotes only one quaternion entry, by the norm, so it is the same
+ledger-and-held-rows ground as PrismaticConstraint but one derivative
+level up, and not the quaternion question.
+
+`Spice3BenchmarkRtlInverter`'s loop of one name is
+`Q1.icapbx = if Q1.m_bInit then 0 else Q1.cc.capbx * der(Q1.vbx)`.
+`Q1.cc.capbx` comes from `bjtNoBypassCode` and has start 0, so at the
+start the coefficient of `der(Q1.vbx)` is zero and the block has a
+dead column. That is the breed queue item 105 closed by measurement,
+with a written ceiling at `solvers/mod.rs:1117-1125`. It is not a new
+road.
