@@ -79056,3 +79056,51 @@ The heavy line (`/tmp/m662/h_off.txt`, `h_on.txt`, off and on in
 parallel under their own caps) had read 21 of 24 models in both
 halves at the end of the shift, and is still running. It is not an
 orphan: the marker `/tmp/m662/heavy.done` appears when both halves end.
+
+## The coverage floor fell with the compiler, not with the code
+
+The coverage job went red on `dd8eaa2`, a commit touching one Markdown
+file: lines 91.95% (45514, 3664 missed) against the 92.5% floor. The
+run on `0366d0d`, also docs-only and green, printed 92.59% (48949,
+3629 missed). Read from the two logs, the runners differ in one thing
+that matters: the green run compiled with rustc 1.99.1, the red one
+with rustc 1.100.0, both taken from `dtolnay/rust-toolchain@stable`.
+Per file, the count of instrumented lines fell in all 62 files (the
+CLI 921 to 846, `flatten/arrays.rs` 2643 to 2407), while the missed
+lines barely moved. So the denominator shrank under a new compiler
+and the same uncovered lines now weigh more. Nothing in the tree
+lowered the coverage; the gate measured a different instrument.
+
+The floor is not moved and no tests are written for it: moving a
+recorded threshold is Roman's word. The choice to put to him is
+between pinning the toolchain of the coverage job and resetting the
+floor against the new compiler's count. Per-file tables are in
+`/tmp/m663/g_lines.txt` and `r_lines.txt`.
+
+## Row 28, "constrains no state", read by fault
+
+The register row holds 28 models (`grep -c` on `/tmp/m649/raw.txt`).
+Read against the libraries rather than run:
+
+- Seventeen are utility parts asked about alone, and in each the
+  refused equation sets the through variable of a top-level connector
+  left open to zero: `n2.i`, `p1.i`, `p1_2.i` in the four op-amp
+  circuits, `x1.i` in `Nand`, `control.i` in `RealSwitch`, `nv.i` and
+  `plug_nv.pin[1].i` in the two analysers, `G.i` in `MNmos` and
+  `MPmos`, `starPoint1.i` and `resistor1.n.i + winding1.p.i` in the two
+  hysteresis transformers, `p.i` and `n.i` in the two actuators,
+  `flange_b.tau` and `flange_b.f` in the two spring dampers. The
+  exception in kind is `Loops.Utilities.Cylinder`, whose refusal names
+  an orientation of `crank1.body`, not a flow; its frames
+  `crank_a`/`crank_b` are open, so it is the same fault seen through
+  MultiBody's root search. The first column holds 16, the second 1.
+- Two are tanks, closed by word on 12 November.
+- Four stand on open questions: `PrismaticConstraint`,
+  `PointGravityWithPointMasses2`, `FullRobot`, `OneAxis`.
+- Five are the real queue: `ActuatorWithNoise`,
+  `IMC_DOL_CommonLeakage`, `RollingWheel`, `Engine1a` and
+  `SphericalConstraint` (line 154 of the raw file).
+
+17 + 2 + 4 + 5 = 28, counted by name. The seventeen are not compiler
+faults: a part with an open connector is under-determined by design,
+the same family as the parameters chapter `b1498de`.
