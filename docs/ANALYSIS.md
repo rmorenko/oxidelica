@@ -77769,3 +77769,14 @@ So L + B(ab) = 77387 + 71716 + 61996 = 211099 names. The split between
 them waits for `rest_ab`. One bound is known: `HeatingSystem` alone
 carries L = 420. Since 64c7f28 the switch skips the lookup, so L no
 longer exists under the switch in the present tree.
+
+A `sample` of one `rest_ab` process at 09:56
+(`/tmp/m656/sample_ab.txt`) puts 2442 of 2454 samples in
+`compile_at` -> `solve_initialization`, in one worker thread. So the
+half has not been stuck in flattening for two hours. One model of the
+42 left, `CombiTimeTable` or `Utilities`, is spending that time
+initialising, and nothing bounds it. A start that takes hours with no
+ceiling is a phase without a size, and that is a finding in its own
+right. The model is not named here because `--only` on each of the 42
+was not run in this shift. The processes were left running, as the
+order asked.
