@@ -107,8 +107,12 @@ examples_all_simulate() {
 # step and seen red and green by time_band_judges; the arithmetic is at
 # the library step.
 #
-# The floor is 0.88 since 2026-11-09, an edge named by Roman and not
-# computed here. It was lowered with the settling fix, which makes the
+# The floor is 0.86 since 2026-11-12, Roman's word, lowered from the
+# 0.88 of his word of 2026-11-09; both edges are named by him and not
+# computed here. On 2026-11-12 the desk printed 0.869 / 0.871 / 0.879 /
+# 0.885 with work counters equal byte for byte: the level fell about 6%,
+# and 0.86 stands only 1.0% under the worst print against a spread of
+# 1.8%, so it may go red again without any code moving. Of 0.88: It was lowered with the settling fix, which makes the
 # run half cheaper and the flatten half dearer, so the ratio falls
 # without any model being lost. Witnesses, seven quiet desk prints of
 # the judge on 2026-11-09 (/tmp/m622/ratio{1,2,_head}.txt and
@@ -118,7 +122,7 @@ examples_all_simulate() {
 # instrument noise of 0.53% and an evening drift near 1% a print.
 # 0.96 comes back when a delta over one fixed set of models replaces
 # this band, as library_floor.sh:2680-2686 already asks.
-DESK_RATIO_LOW=0.88
+DESK_RATIO_LOW=0.86
 DESK_RATIO_HIGH=1.44
 
 library_floor() {
@@ -206,7 +210,8 @@ library_floor() {
   # m551/preflight 1.248, m552/preflight 1.224, m564/pf_quick 1.164,
   # m564/preflight 1.148, m566/preflight 1.143. The room is the same as
   # every precedent: 1.143 / 1.189 = 0.9613, written 0.96 (history: the
-  # floor is now 0.88, Roman's word of 2026-11-09, see DESK_RATIO_LOW), and
+  # floor is now 0.86, Roman's word of 2026-11-12, which lowered the 0.88
+  # of his word of 2026-11-09, see DESK_RATIO_LOW), and
   # 1.248 x 1.158 = 1.4452, written 1.44. The desk's centres of work
   # come with FLOOR_DESK=1, at the centres in library_floor.sh. The
   # runner's band and centres are not touched.
