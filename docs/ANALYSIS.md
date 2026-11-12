@@ -78989,3 +78989,34 @@ the StopTime of 1e-8 s moves in the sixth digit (`C2.v` 5.383045 against
 5.383041, `C4.v` -3.755016 against -3.755019, `/tmp/m661/da2_*.csv`),
 within the tolerance of the run, so the key takes a different and
 cheaper road to the same numbers there.
+
+### Both parked keys over the remaining 553 models
+
+The last yard of the not-heavy corpus: the 553 models outside the two
+earlier yards (`/tmp/m661/rest.txt`), run off, under the divisor key
+and under the pivot edge (`/tmp/m661/r_off.txt`, `r_div.txt`,
+`r_edge.txt`, each with its command and binary checksum on the first
+line). All three print 553 read, 516 flattened, 466 run; the ran lists
+are equal line for line in both directions, and so are the refusals.
+No victims and no wins for either key.
+
+The divisor key moved the work by one Newton step (65734 against 65733) and the run half by +3.5% (2719 s against 2815 s). That is
+drift, not price: a one-model probe off, on and off again
+(`/tmp/m661/td_ooo.txt`) did identical work in all three runs (583
+points, 1239 Newton steps) and took 302, 297 and 292 s, falling in the
+order the runs were started. The edge pass ran alongside the divisor
+pass, which is the likelier cause; a pair is run on a quiet machine.
+
+The pivot edge's work is equal to the digit (29184 classes, 79114199
+expansions, 1059330 bodies, 1598215321 names; 52723 points, 65734
+Newton steps, 13 Jacobians, 11795 damped). Its flattening half took
+4337 s against 3977 s and its run half 2743 s against 2719 s; with the
+work identical and the two halves moving by 9% and 0.9%, that is the
+desk.
+
+With the three yards disjoint by name (182 + 284 + 553 = 1019), the
+pivot edge has been run over the whole not-heavy corpus, and the
+divisor key over 970 of it: the 49 `Mechanics.MultiBody` models of the
+first yard were not under it. The off counts sum to 136 + 236 + 466 =
+838 running, which agrees with the floor of 835 plus the three
+swinging models.
