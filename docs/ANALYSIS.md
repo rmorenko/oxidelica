@@ -78559,3 +78559,21 @@ steps; the run half 1109 s -> 1125 s with the flatten half 823 s -> 834 s
 on equal flatten counters, so the price is not resolved on this desk.
 The held-row check is therefore a gate in front of four MultiBody walls,
 not the last one. Nothing is merged; the switch already lives in the tree.
+
+### The second link: the rows the held-row check was refusing
+
+Under `OXIDELICA_NO_HELD_ROW=1` S2 stops at t = 0 on a 23 by 23 block
+of rank 18 (`OXIDELICA_NEWTON_TRAIL=1`, `/tmp/m661/nt_S2.txt`). Three
+rows are zero to the last entry: the differentiated quaternion row
+`der(body.frame_a.R.T[1,3]) - 2*(...) = 0` and the two `z_a` rows
+built from it, though each names block unknowns symbolically. They
+are the rows the held-row check refused at reduction 12 ("would add
+row N again"): added a second time, they only restate what the system
+already solves outside the block, so they carry no column of their
+own. The real model does the same, 38 by 38 of rank 35 with the same
+three rows dead (`/tmp/m661/nt_real.txt`). So the switch does not
+open a road: it trades the structural refusal for the numeric one
+the check exists to prevent, and the held-row check is right. The
+first wall stands where the held row and the last quaternion meet,
+which leaves the 32-member ceiling and the order of payers as the
+places the second reader did not rule out.
