@@ -77893,3 +77893,41 @@ The small model T2 gives `c.medium.p` a min of 611.657, and 0 under
 (`Media/package.mo:4029`), so the medium's bound does not apply to it. The
 temperature of the same medium gets 273.15 / 2273.15. The m644 tail fix is
 on main as 456fe1f.
+
+### Three census rows sorted by who owns them
+
+The three largest rows of the run half of `/tmp/m649/census.txt` hold 51
+models: 28 structurally singular, 13 unbalanced with nothing determining
+a name, and 10 Newton directions that do not descend. Each name was taken
+from `/tmp/m649/raw.txt` and run on its own on the head binary
+`/tmp/m657/ox1` (md5 `e4bc7e57`) to check whether it is in the runnable
+set (experiment or Example icon) and that it refuses the same way today
+(`/tmp/m658/rows/each.txt`). Park ownership was checked by name against
+the notes in the park.
+
+| row                    | models | outside the 890 runnable | in a park patch or a standing word | nobody's |
+| ---------------------- | -----: | -----------------------: | ---------------------------------: | -------: |
+| structurally singular  |     28 |                       17 |                           2 (m651) |        9 |
+| unbalanced, no definer |     13 |                       13 |                                  0 |        0 |
+| Newton direction       |     10 |                        0 |                                  9 |        1 |
+
+Each of the 30 models outside the runnable set is a utility or a
+component, such as the `OpAmpCircuits` parts, the `RobotR3.Utilities`
+axes and the `AST_BatchPlant` controller adapters. Fixing one can win
+nothing on the runnable floors. Whether each of them refuses rightly
+was not judged one by one. The unbalanced row is this kind entirely: its
+utilities leave an input with no definer, which is what an unconnected
+part says. Of the Newton row, `BranchingPipes3/13/14` and `SeriesPipes2`
+are under Roman's word of 10 November. `BranchingPipes1/2/4` and
+`SeriesPipes1` are covered by m643, which was measured at zero wins.
+`TestTemperature1` is in m630.
+
+The ten that nobody owns, all runnable: `ActuatorWithNoise`,
+`BatchPlant_StandardWater`, `TanksWithOverflow`, `IMC_DOL_CommonLeakage`,
+`PrismaticConstraint`, `SphericalConstraint`,
+`PointGravityWithPointMasses2`, `RollingWheel`, `Engine1a` (all
+structurally singular on an equation that constrains no state) and
+`IMC_withLosses` (Newton direction in the air gap loop). This is a
+measured list of land not taken by anyone. It is not a measured prize.
+Whether one wall stands behind several of the nine is not probed, and
+the census only sees the first refusal of each.
