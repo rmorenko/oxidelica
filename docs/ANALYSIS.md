@@ -78657,3 +78657,12 @@ twice, `body.z_a[3] - 2*(...)` and `body.z_a[2] - 2*(...)`. The
 held-row check refuses a row the system already holds to the
 character, and with it off those rows go in twice. The check is
 right, and the switch is not a road in either model.
+
+`UniversalConstraint` is not the same shape. Its index reduction runs
+to the end (`/tmp/m661/vp_Univ.txt`, four held-row refusals in all, no
+structural refusal) and the run-half block it then refuses has one dead
+row, `-(frame_a.R.T[3,*] * (der(frame_b.r_0) - der(frame_a.r_0))) = 0`,
+whose block unknowns are `der(constraint.frame_b.r_0[1])` and `[3]`
+with their coefficients read from outside the block. That is a
+differentiated position constraint whose coefficients vanish at the
+start, not a duplicate; the first breed of row 7 holds two shapes.
