@@ -506,8 +506,12 @@ jobs:
         timeout-minutes: 10
         run: ./scripts/linux_deps.sh
 
+      # Pinned for the same reason as the tools below: the compiler
+      # decides which lines count, and 1.100.0 moved the number from
+      # 92.59% to 91.95% on a commit that changed no code.
       - uses: dtolnay/rust-toolchain@stable
         with:
+          toolchain: 1.99.1
           components: llvm-tools-preview
 
       - uses: Swatinem/rust-cache@v2
