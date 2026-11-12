@@ -78779,3 +78779,17 @@ on `smee.airGap.Phi_sr.im` against the same converter rows, beside an
 open switch or a diode. Both shapes stand where a switch has not yet
 closed; the two induction machines may be a judgement of scale rather
 than a true dependency, which is the question for their next probe.
+
+### Three SMPM_CurrentSource, three rows, one machine
+
+`SMPM_CurrentSource` stands in the census three times, as the
+IMC_withLosses did: the `Electrical.Machines` one in `algebraic loop
+did not converge` (420 Newton steps at t = 0, `/tmp/m661/c_SMPM.txt`),
+the FundamentalWave one in `singular Jacobian` (two dead rows on
+`der(dqToThreePhase.rotator.angle)`, `/tmp/m661/nt_SMPM.txt`), the
+QuasiStatic one in `did not converge`. All three loops hold
+`dqToThreePhase.rotator.angle`, the angle of the dq transformation fed
+from the rotor speed through `toGamma.k * wMechanical`. The power-sensor
+probe key does not reach them (none runs under it). The same machine
+in three rows is a family the census splits by wording, and the
+rotator's angle is where its next probe starts.
