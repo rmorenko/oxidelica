@@ -78902,3 +78902,13 @@ direction, and the last on 60 iterations (`/tmp/m661/c_3S.txt`, 574
 steps). The wheels' `e_long_0 = aux / length(aux)` is the same shape:
 a unit vector divided by a length that a start of zero makes zero.
 Neither parked key reaches it.
+
+Sharper: the library guards that length, `s = max(length, s_small)`
+with `s_small = 1e-10` (`LineForceBase.mo:45`), so `s` cannot be zero
+where the guard holds. It is zero here because `spring1.lineForce.s`
+and `spring2.lineForce.s` are themselves unknowns of the Newton block
+(the census names them in the loop), started at 0, and the quotient is
+evaluated before the guard's own residual has been satisfied. A
+tearing that computes `s` from `length` inside the block would never
+see the zero; that is the question for this breed, and it is a
+question of which unknowns the block keeps.
