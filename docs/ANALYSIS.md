@@ -78826,3 +78826,12 @@ size of what the block can see of it. The block is determined, faintly.
 Whether the edge of 1e-7 is the place to read this is a judgement on
 the edge, and its comment names the machine at rest as the case it was
 tuned on, so it is a question and not a fix.
+
+A probe reading the edge from `OXP_PIVOT_EDGE` (`/tmp/m661/oxp`, md5
+56436124, patch `~/oxideflow/park/m661_pivot_edge_probe.patch`, not
+merged) answers how much rests on it: at 1e-9 both
+`IMC_DOL_Polyphase` and `IMS_Start_Polyphase` pass the check's trial
+run (`/tmp/m661/edge9.txt`). That is a mechanism shown, not a win:
+the edge judges every block of the library, its price and victims are
+unmeasured, and a lower edge is exactly the trade of a refusal for a
+possibly wrong number that these notes warn against.
