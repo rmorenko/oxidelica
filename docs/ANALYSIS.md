@@ -78577,3 +78577,18 @@ the check exists to prevent, and the held-row check is right. The
 first wall stands where the held row and the last quaternion meet,
 which leaves the 32-member ceiling and the order of payers as the
 places the second reader did not rule out.
+
+### The ceiling, the third place, refuted
+
+A probe binary reading the singular-set ceiling from `OXP_CAP`
+(`/tmp/m661/oxc`, md5 0403fb87, patch
+`~/oxideflow/park/m661_cap_probe.patch`, not merged) answers the second
+reader's third prediction. With the ceiling at 128 S2 tries its whole
+subset, 46 members ("nor did the 45 other"), and refuses on the same
+member; the real model takes 19 reductions instead of 18 and refuses
+the same way (`/tmp/m661/cap_S2.txt`, `/tmp/m661/cap_real.txt`). The
+ceiling is not what stands there. What is measured, then: the wall is
+not geometry, not the ceiling, not the supply ledger; the held-row
+check guards it correctly; forcing the payer moves it. The order in
+which the first three orientation rows pay is the place left, and that
+is the matching the last chapter showed only moves the payer.
