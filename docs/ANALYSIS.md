@@ -78239,3 +78239,27 @@ steps went from 8016 to 8149. The run half went from 1165 s to 984 s,
 but the flatten half also fell from 847 s to 787 s with its counters
 equal byte for byte, so the price is drift and not resolved. The heavy
 set was not measured.
+
+### Owners of the middle rows, one probe each
+
+Each probe is `--refused --only` under `OXIDELICA_WHERE` on the head
+binary `/tmp/m657/ox1`.
+
+- `CompositeStep` and `MakeProduct` (row "nothing is left for"):
+  144 equations for 142 unknowns and 113 for 111. The extra pair is
+  `inPort.occupied` and `outPort.available` of the composite's own top
+  ports, raised at `compile.rs:7239`. Both are utilities with no
+  experiment (runnable 0), checked as top-level models whose outer ports
+  nobody connects. A twelve-line model of the inner default,
+  `if cardinality(inPort) < 2 then inPort.occupied = false`, with the
+  port connected through one level, simulates
+  (`/tmp/m660/sg/C1.mo`). So the cardinality rule itself is not what
+  fails here.
+- `GearType1` (row "initialization is not square"): 2 conditions for
+  3 states, with `bearingFriction.phi` and `bearingFriction.w` pinned.
+  Also a utility, runnable 0.
+- `NonCircularPipes` (same row): 8 initial equations for 6 states. It
+  is runnable, and it is a Fluid wall, not a MultiBody one.
+- `SMPM_CurrentSource` (row "did not converge in 60 Newton"): the loop
+  runs over `smpm.airGap.i_sr` and `der(i_sr)`. It is the machines'
+  air-gap family, not mechanics.
