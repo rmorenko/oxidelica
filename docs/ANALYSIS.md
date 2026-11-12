@@ -78398,3 +78398,24 @@ residues need runs through `constraint.frame_b.R.T` to
 offers it. This is where the map stops. It is a chain of at least
 three links (who pays, which road, the held rows at the end), and by
 the rule of chains it goes to a second reader before anything is built.
+
+### Five singles of the lower census rows
+
+Each probe is `--refused --only` under `OXIDELICA_WHERE` on `/tmp/m657/ox1`.
+
+| model                | runnable | refusal, where raised                                                  |
+| -------------------- | -------: | ---------------------------------------------------------------------- |
+| SpeedControl         |        0 | unknown function `previous`, `code.rs:1226`                            |
+| Friction             |        1 | step size underflow at t = 0.006, `solvers/mod.rs:2935`                |
+| AdvancedSolenoid     |        0 | cannot differentiate `abs` under index reduction                       |
+| HeatingSystem        |        1 | `der(tank.medium.T)`: not a state, `compile.rs:31`                     |
+| ControlledMixingUnit |        1 | `inverseBlockConstraints.u1` assigned twice in one `when sample(0, 1)` |
+
+`SpeedControl` writes `previous(x_d)` inside `when Clock()` with no
+clock named. `clocks.rs:1247` lowers `previous` to `pre` only for an
+equation the clock layer reached, so here the call survives to the
+evaluator. It is a utility with no experiment, so it is worth no
+runnable model. Fixing it would still be cheap, and it would remove a
+refusal of a kind found nowhere else. The three runnable singles are
+three different layers: the solver at a friction event, medium states,
+and the clocked inverse-block constraints.
