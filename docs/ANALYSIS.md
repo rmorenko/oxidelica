@@ -78649,3 +78649,11 @@ in that one reduction. So the last quaternion is not what stands in
 S4; the first wall of S2 is where the fixed rotation's three frame
 equalities and the quaternion rows compete for the same payers, and a
 second wall stands behind it in both. The chain is at least three links.
+
+In S4 the held-row switch shows the same thing more plainly
+(`/tmp/m661/ni_S4.txt`): the block is 21 by 21 of rank 19, and the two
+missing ranks are two pairs of rows that are the same equation written
+twice, `body.z_a[3] - 2*(...)` and `body.z_a[2] - 2*(...)`. The
+held-row check refuses a row the system already holds to the
+character, and with it off those rows go in twice. The check is
+right, and the switch is not a road in either model.
