@@ -1330,6 +1330,9 @@ pub(super) fn record_asked_under<'a>(
     let kept_for_another =
         record.kind == ClassKind::Record && (record.components.is_empty() || adds_to_another);
     let under = asked_under(record);
+    if matches!(record.kind, ClassKind::Model | ClassKind::Block) {
+        return class_asked_under(record, registry, &under);
+    }
     let theirs = record
         .name
         .rsplit_once('.')
@@ -1347,6 +1350,31 @@ pub(super) fn record_asked_under<'a>(
         // and read its default, a wrong number where `D` changed it.
         .filter(|found| kept_for_another || (inherited_member_scope_open() && adds_to(found)));
     theirs.unwrap_or(record)
+}
+
+/// A model or block reached through a package that extends the one
+/// that wrote it, where that package says `redeclare model extends`
+/// of it: the package's, which adds to the base's, is what the
+/// component means. `D.U` with `D extends Base` and a `C` redeclared in
+/// `D` builds `D.C` for `U`'s `C c`.
+fn class_asked_under<'a>(
+    class: &'a ClassDef,
+    registry: &HashMap<&'a str, &'a ClassDef>,
+    under: &str,
+) -> &'a ClassDef {
+    if under == class.name || !inherited_member_scope_open() {
+        return class;
+    }
+    let Some((owner, tail)) = class.name.rsplit_once('.') else {
+        return class;
+    };
+    if under == owner || !descends_from(registry, under, owner) {
+        return class;
+    }
+    lookup(registry, tail, under, &class.imports)
+        .filter(|found| found.name != class.name)
+        .filter(|found| found.kind == class.kind && adds_to(found))
+        .unwrap_or(class)
 }
 
 /// Whether a record is written as `redeclare record extends`, adding to

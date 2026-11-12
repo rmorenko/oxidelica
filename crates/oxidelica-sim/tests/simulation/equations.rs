@@ -3137,3 +3137,31 @@ fn a_model_reached_through_a_package_holds_the_record_it_extended() {
          D.U u; annotation(experiment(StopTime=1.0, Interval=0.01)); end K1c;");
     assert!((last_of(&result, "u.x") - (-3.0f64).exp()).abs() < 1e-4);
 }
+
+#[test]
+fn a_model_reached_through_a_package_holds_the_class_it_extended() {
+    // The class form of the record above: `C` is a model, which `D`
+    // extends with `k = 3`, and `D.U` built the base's `C` and decayed
+    // at e^-1.
+    let result = run("model K1d \
+         package Base replaceable model C Real x(start = 1); parameter Real k = 1; \
+           equation der(x) = -k * x; end C; \
+           model U C c; end U; end Base; \
+         package D extends Base; redeclare model extends C(k = 3) end C; end D; \
+         D.U u; annotation(experiment(StopTime=1.0, Interval=0.01)); end K1d;");
+    assert!((last_of(&result, "u.c.x") - (-3.0f64).exp()).abs() < 1e-4);
+}
+
+#[test]
+fn a_class_redeclared_a_floor_below_the_package_asked_under_is_found() {
+    // `D` extends `Mid`, which redeclares `C` with `k = 3`; `D.U` must
+    // build `Mid.C`, found from `D` through its base.
+    let result = run("model K1g \
+         package Base replaceable model C Real x(start = 1); parameter Real k = 1; \
+           equation der(x) = -k * x; end C; \
+           model U C c; end U; end Base; \
+         package Mid extends Base; redeclare model extends C(k = 3) end C; end Mid; \
+         package D extends Mid; end D; \
+         D.U u; annotation(experiment(StopTime=1.0, Interval=0.01)); end K1g;");
+    assert!((last_of(&result, "u.c.x") - (-3.0f64).exp()).abs() < 1e-4);
+}

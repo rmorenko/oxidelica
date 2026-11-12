@@ -77825,3 +77825,37 @@ with several. A slice of 29 models can also pass 8 minutes by
 arithmetic alone. Slice `aa` was a separate case: it was stopped by
 its 6 GB memory ceiling after 81 s (`/tmp/m656/s2_aa.out`), so it hit
 a wall of memory, not of time, and that is a different breed.
+
+### The class form merged, and the hunt closed
+
+The patch that builds a class reached as `D.U` from its redeclared
+`model extends` version (`class_asked_under`, switch
+`OXIDELICA_NO_INHERITED_MEMBER_SCOPE`) is merged. One binary
+`/tmp/m657/ox1` (md5 `e4bc7e57`), both keys, `--slow 60`. Its md5
+differs from `/tmp/m656/ox3`, so the off half was the judge. Off half
+`/tmp/m657/pair_off.txt` is byte-equal in work to `/tmp/m656/pair_off.txt`:
+283617 classes, 90452591 expansions, 1273855 bodies, 1709225508 names.
+On half `/tmp/m657/pair_on.txt`: 283930 classes, same expansions and
+bodies, 1709303411 names. That is 516 names above the head's
+1709302895, which is the cost of the lookup. Both halves have the same
+five running counters (24125447 / 35415289 / 598 / 143 / 2115919),
+974 flatten and 838 run, 856 and 789 runnable, and the flat and ran
+lists are equal name by name to m656. The run half took 5117 s on and
+5083 s off. That gap is drift, not a price, because the work is equal
+and the desk was shared. K1d gives 0.0498 where it gave 0.3679, and the
+small models match ox3 number for number. Heavy models were not measured.
+The daily cron judges them.
+
+The three candidates for the hung start, each run on both binaries
+(`/tmp/m657/one/`), did not hang. `FixedAmbient` and
+`FixedMassFlowRate` are refused at once on
+`PartialMedium.BaseProperties`. `TestWallFriction` is refused by the
+parser's expression depth wall, which is a different breed. That model
+is outside the 1019 selected models, so fixing that wall wins zero
+models. Of the 24 names of lines 1 to 230 of `rest_ab` that the full
+pass did not report, 18 are in `scripts/heavy_models.txt` (two of those
+are also mentioned in the pass), 3 are only mentioned, and 3 are
+neither (`/tmp/m657/unseen24.txt`). No hung model was found. The more
+than four hours of `rest_ab` are plausibly its heavy tail, but that
+price is not measured. One `--only-from` run over those 18 names with
+`--slow 60` would measure it.
