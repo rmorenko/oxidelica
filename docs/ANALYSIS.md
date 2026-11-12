@@ -78885,8 +78885,9 @@ not this one.
 The FundamentalWave `SMPM_CurrentSource`'s two dead rows name block
 unknowns `smpm.wMechanical`, `dqToThreePhase.rotator.angle` and its
 derivative, all standing at 0 at the start
-(`/tmp/m661/ni_SMPM_CurrentSource.txt`). Each term of those rows is a
-product carrying `wMechanical` or `sin(angle)` as a factor, so at a
-machine at rest with the angle at zero every partial derivative is a
-product with a zero in it. That is a dead row by the starting point,
-not by structure: the same shape as the Rectifier's diodes at `s = 0`.
+(`/tmp/m661/ni_SMPM_CurrentSource.txt`). Their terms carry
+`wMechanical`, `sin(angle)` and `cos(angle)` multiplied by the inputs
+`rotator.u`, whose values at the start were not printed, so which
+factor zeroes each partial derivative is not measured. A dead row by
+the starting point rather than by structure is the reading to test
+next, as with the Rectifier's diodes at `s = 0`.
