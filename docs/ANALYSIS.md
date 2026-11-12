@@ -77447,3 +77447,13 @@ numbers and moves no model either way, which is what a fault of wrong
 numbers rather than refusals predicts. The times of the two halves are
 not compared: the off half ran beside another job. The heavy models
 were not measured; the nightly run judges them.
+
+A second round on the merged tree (6316de7, binary `/tmp/m654/ox1`),
+prediction first in the same `PRED.txt`. `G1` puts a `Mid` between the
+base and the extending class: head 0.3679, merged 0.0498, so the
+hand-down travels through an intermediate base. `G2` writes
+`redeclare replaceable model extends`: the same pair of numbers. `G4`
+redeclares `C` at the site of `D d(redeclare model C = C5)` with
+k = 5: 0.00674 on both binaries, so a redeclaration from the site still
+outranks the class extension, as the code's `continue` says. All three
+stood.
