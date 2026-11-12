@@ -78327,3 +78327,19 @@ should be differentiated to take the last `Q`. A probe can answer the
 local question cheaply: under a switch, keep the matching from giving
 an `atan2` residue an `R.T` entry, and see whether eq 180 is then
 differentiated. This shift stops at the map.
+
+### The underdetermined-loop row, four owners
+
+Same instrument on `/tmp/m657/ox1`. The row is not one wall.
+
+- `PolyphaseRectifier`: a block accepted on the arithmetic floor after
+  three steps that did not descend, at t = 0.00004, over the ideal
+  diodes. An event-time loop of switching elements.
+- `ThyristorBridge2mPulse_RLV`: the same floor refusal, after 60
+  iterations. The same breed as the rectifier.
+- `SMEE_DOL`: a loop over `smee.airGap.V_mss` and the rotor cage
+  converter currents. This is the machines' air-gap family again.
+- `Spice3BenchmarkRtlInverter`: a loop of one unknown,
+  `der(Q1.vbx)`, that its equations do not determine
+  (`solvers/mod.rs:1648`). A one-name loop is the cheapest of the row to
+  shrink, and it is a model of its own breed.
