@@ -77907,7 +77907,7 @@ the notes in the park.
 
 | row                    | models | outside the 890 runnable | in a park patch or a standing word | nobody's |
 | ---------------------- | -----: | -----------------------: | ---------------------------------: | -------: |
-| structurally singular  |     28 |                       17 |                           2 (m651) |        9 |
+| structurally singular  |     28 |                       17 |                    4 (m651, tanks) |        7 |
 | unbalanced, no definer |     13 |                       13 |                                  0 |        0 |
 | Newton direction       |     10 |                        0 |                                  9 |        1 |
 
@@ -77929,5 +77929,88 @@ The ten that nobody owns, all runnable: `ActuatorWithNoise`,
 structurally singular on an equation that constrains no state) and
 `IMC_withLosses` (Newton direction in the air gap loop). This is a
 measured list of land not taken by anyone. It is not a measured prize.
-Whether one wall stands behind several of the nine is not probed, and
-the census only sees the first refusal of each.
+Corrected on the word of the next review: `TanksWithOverflow` and
+`BatchPlant_StandardWater` stand under Roman's standing word of 7
+November (queue item 100), so they belong in the standing-word column
+and the models nobody owns are eight, not ten. The sentence that said
+no wall had been probed behind several of the nine was also wrong: the
+m652 chapter above probed all six unmapped names one by one.
+
+## m659: the MultiBody orientation row is not one layer, and not the cut
+
+The m652 map put `PrismaticConstraint`, `SphericalConstraint` and
+`PointGravityWithPointMasses2` in one layer: a row of `R.T` that
+constrains no state, with 31 other members of the singular subset tried.
+That grouping was by the shape of the refusal. This shift tested it with
+a trace, on the head binary `/tmp/m657/ox1` (md5 `e4bc7e57`) and a probe
+build `/tmp/m659/ox1` (md5 `94365017`, not committed) that prints the
+length of the attempt order before `truncate` and reads the cap from an
+environment switch. The predictions were written first, in
+`/tmp/m659/PRED.txt`.
+
+`MAX_SINGULAR_ATTEMPTS = 32` cuts the list rather than ranking it
+(`compile.rs:898` and the `truncate` in `attempt_order`), so the first
+question was whether the right member is merely cut off. Before the cut
+the lists are longer than 32: at most 110, 60 and 54 members for the
+three models (`/tmp/m659/len_*.txt`). With the cap lifted to 100000 all
+three still refuse, now after 94, 54 and 52 other members
+(`/tmp/m659/cap_*.txt`, peak memory 0.8 GB each). So the cut is not the
+mechanism. Every member of the subset was tried and none reaches a
+state. The first prediction is refuted.
+
+The refused equations are of three different kinds:
+
+| model                          | refused at | refused equation                                                 |
+| ------------------------------ | ---------: | ---------------------------------------------------------------- |
+| `PointGravityWithPointMasses2` |    pass 63 | `-der(freeMotion.frame_a.R.T[1,1]) = 0`                          |
+| `PrismaticConstraint`          |    pass 18 | `R.T[1,3] = 2*(Q[1]*Q[3] - Q[2]*Q[4])`, the quaternion row       |
+| `SphericalConstraint`          |    pass 34 | `R.T[2,:] * der(r_0_b - r_0_a) = 0`, a velocity-level constraint |
+
+With the cap lifted, `PointGravityWithPointMasses2` refuses on yet
+another equation, a `pointMass4.v_0[3]` row through `fixedTranslation3`.
+The victim probe (`OXIDELICA_VICTIM_PROBE=1`, `/tmp/m659/vp_*.txt`)
+shows different histories as well. `PointGravityWithPointMasses2` takes
+a member six times before it refuses, `PrismaticConstraint` once
+(member 21 of 32) and `SphericalConstraint` once (member 1). The second
+prediction holds against the grouping. One fix to one alias is not
+shown to win three models. Until each is mapped on its own, the prize
+of this row is one model at a time, not three. (The pass counts here
+are this binary's own and differ from the counts m652 quoted.)
+
+The small model is the real file with its `referenceSystem` (the
+Body-based copy) taken out: `/tmp/m659/R1.mo` refuses with the same
+equation in 22 seconds. Taking two of the six arms out as well
+(`R3.mo`) moves the refusal to an algebraic loop, a different wall.
+Synthetic models built from `FreeMotion`, `FixedTranslation` and
+`PointMass` (`Shr2` to `Shr6`) never reach the structural refusal.
+They stop at a singular Jacobian or an algebraic loop, which is why the
+shrink stays at R1.
+
+The ceiling `solvers/mod.rs:1117-1125` (a dead column is a property of
+the block) is about the solver. It does not bar this road, which is in
+index reduction. No repair was built: the cut was the only cheap
+mechanism and it is refuted. The two closed precedents, re-matching by
+shape (queue item 105) and m651, were not repeated.
+
+`IMC_withLosses`, the one unprobed name in the Newton row, refuses at
+t = 0 in 93 ms (`/tmp/m659/p_IMC_withLosses.txt`). The Newton direction
+of the loop through `aimc.airGap.i_sr`, `powerSensor.power` and the
+stator space phasors does not reduce the residual from 156.07, and the
+damped steps after three tries buy nothing. The loop is the air gap's.
+
+The next three run-half rows of the census `/tmp/m649/census.txt`
+(parameter without a value 24, underdetermined loop 8, singular
+Jacobian 7) give 41 distinct names in `/tmp/m649/raw.txt`. Run one by
+one with a copy of the m658 instrument (`/tmp/m659/each.txt`), 26 are
+outside the runnable set. They are utilities and components, every one
+of them refusing on a parameter that its user supplies. The other 15
+are runnable and flatten. Two of them refuse in the first refusal of
+this check on an arithmetic-floor block instead of the census row:
+`PolyphaseRectifier` and `ThyristorBridge2mPulse_RLV`. Underdetermined
+loops are the air gaps of `IMC_DOL_Polyphase`, `IMS_Start_Polyphase`,
+`SMEE_DOL`, `SMEE_Rectifier` and the quasi-static `IMC_withLosses`,
+plus `Spice3BenchmarkRtlInverter`. Singular Jacobians are
+`SinglePhase.Rectifier`, `PumpingSystem`, `SMPM_CurrentSource`,
+`UniversalConstraint`, `RollingWheelSetDriving` and `LossyGearDemo2`.
+`ThreeSprings` reaches a Newton limit. Ownership against the park was
+not checked name by name in this pass.
