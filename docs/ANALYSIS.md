@@ -77780,3 +77780,13 @@ ceiling is a phase without a size, and that is a finding in its own
 right. The model is not named here because `--only` on each of the 42
 was not run in this shift. The processes were left running, as the
 order asked.
+
+The two halves were stopped at 09:56, as ordered, and the remainder of
+the decomposition is unmeasured. The last 43 lines of the list
+(`/tmp/m656/tail42.txt`) were run alone on `/tmp/m656/ox1`
+(`/tmp/m656/tail42_run.txt`) and finished in seconds: 37 flatten and
+37 run. So the model that hangs is not in the tail of the list.
+`read N of M` counts models that have finished on seven workers, so
+the 460th line names nothing. The hanging model is somewhere among the
+first 458 lines and is still unnamed. The next instrument is
+`--only-from` on slices of those lines under a ceiling.
