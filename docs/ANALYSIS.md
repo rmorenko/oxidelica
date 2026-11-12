@@ -79137,3 +79137,60 @@ spent on the pressure while the one residual that matters is a kink
 whose derivative the Jacobian sees on one side only. That is the
 mechanism to test next with a twelve-line model: a `max` and a
 branch on the same variable inside one algebraic loop.
+
+## SeriesPipes2 shrunk to one pipe and one valve
+
+Cut from `ModelicaTest.Fluid.TestPipesAndValves.SeriesPipes2` one
+factor at a time, each cut a single `simulate` of a copy in
+`/tmp/m664` with the command and the binary's md5 (1b3bce1c, tree at
+87de661) on the first line of its file:
+
+- the medium swapped to `ConstantPropertyLiquidWater`: runs to 5 s;
+- `use_eps_Re` dropped: still refused, and `dp_turbulent` leaves the
+  loop, which is now `pipe1.mediums[1].p`, `pipe3.mediums[1].p`;
+- `filteredOpening`, the detailed flow model, `dp(start=...)`, a
+  given `T_start`: no change in kind;
+- `pipe3` removed and the time table replaced by a constant opening:
+  still refused, the loop now one unknown, `pipe1.mediums[1].p`
+  (`SP2_c5.mo`, trail `c5_trail.txt`).
+
+The minimal model is one `DynamicPipe` with `nNodes=1` and a valve
+on IF97 water. `oxidelica why` says the states chosen are `pipe1.ms[1]`
+and `pipe1.Us[1]`, mass and energy, while `p` and `h` are algebraic.
+The pressure is then found from `m = V*d(p,h)`, and liquid water's
+density hardly depends on pressure: the trail at t = 0.0002 has the
+residual at -1.10 for p = 497500 Pa and -0.87 for p = 635 Pa. One
+Newton step goes to p = -1.9e6, where the property functions give
+NaN, and the damped steps then creep toward zero pressure without
+reducing anything.
+
+That is what `KinkLoop` lacked: the stall is not the `max` in the
+valve, which `use_eps_Re=false` removes without changing the fault,
+but a pressure read back out of a nearly incompressible density. The
+medium asks for `p` and `h` as preferred states, and the constant
+property medium, whose density does not depend on `p` at all, runs.
+The remedy is state selection, which is parked (queue item 108), so
+nothing was built.
+
+## Row 28's five, probed
+
+`library check .msl --only` on each of the five (files
+`/tmp/m664/r28_*.txt`) reproduces the register: every one refused as
+structurally singular, the same equation as line 154 and its
+neighbours of `/tmp/m649/raw.txt`. `why` on two of them:
+
+- `ActuatorWithNoise`: the refused equation is a pure connection,
+  `VoltageSensor1.plug_p.pin[3].i` against
+  `voltageSensor[3].p.i`; the current through a voltage sensor's
+  plug, a flow balance the sensor alone cannot settle.
+- `RollingWheel`: `wheel1.rollingWheel.v_0[2] - wheel1.body.v_0[2] =
+0`, a velocity equality that is the derivative of a position
+  constraint between two frames; the same breed as
+  `SphericalConstraint` and `Engine1a`, whose refused rows are also
+  derivatives of frame constraints.
+
+So the five are two families, by name: three MultiBody models whose
+row is a differentiated kinematic constraint (`RollingWheel`,
+`SphericalConstraint`, `Engine1a`), and two electrical ones whose row
+is a flow balance at a sensor or a converter (`ActuatorWithNoise`,
+`IMC_DOL_CommonLeakage`). No fix was attempted.
