@@ -78027,3 +78027,127 @@ stand on the quaternion states and their norm constraint
 the switch flipped, so this names a factor, not a repair. It does not
 change what a library model reads either: the switch was edited into
 copies.
+
+## m660: where the quaternion states stand when PrismaticConstraint refuses
+
+A probe printed, at every reduction, the states, the members of the
+singular subset and the victim taken (binary `/tmp/m660/ox1`, md5
+f237aecf, built from 2e5c2c9 in a scratch worktree; the tree holds none
+of it). The control run without the probe, on the head binary
+`/tmp/m657/ox1`, refuses with the same equation
+(`/tmp/m660/ctl_prism.txt`, `/tmp/m660/ctl_pg.txt`).
+
+### The prediction it refuted
+
+Written before the probe (`/tmp/m660/PRED.txt`): at the refusal all four
+`bodyOfConstraint.body.Q[i]` are no longer states. Falsifier one fired.
+`Q[1]` is a state when the walk stops (`/tmp/m660/q_prism.txt`); the
+other three were demoted early and correctly, `Q[4]` at reduction 1 by
+the norm `0 = Q*Q - 1`, and `Q[2]`, `Q[3]` at reductions 15 and 16. Three
+of four quaternion entries demoted with the norm held is the right
+count for a free body. So the quaternions are not the wall in this
+model, and the refusal's text, which quotes `R.T[1,3] = f(Q)`, names
+only the first member of a subset of 32.
+
+### What the eighteenth reduction meets
+
+The equation the matching stumbled on is eq 1944,
+`world.frame_b.R.T[3,3] = fixedRotation.frame_a.R.T[3,3]`, the
+connection of the world frame, whose orientation the world already
+fixes (`world.frame_b.R.T[3,3] = 1`). With `OXIDELICA_VICTIM_PROBE` and
+`OXIDELICA_SUPPLY_PROBE` (`/tmp/m660/v_prism.txt`) every member of the
+subset is refused for one of four reasons:
+
+| reason                                         | members |
+| ---------------------------------------------- | ------: |
+| held-row (the row is already in the system)    |      11 |
+| dependent-row (a row the system already holds) |      10 |
+| supply-once (eq 179 or 181 again)              |       8 |
+| no victim: empty reach                         |       3 |
+
+The three with an empty reach are the three `atan2` residues of the
+prismatic constraint, `0 = atan2(...)` over `constraint.frame_a.R.T` and
+`constraint.frame_b.R.T`. Every road from a world-frame entry back to
+`Q[1]` passes `fixedRotation` and `constraint.frame_a`, and at that
+point needs eq 179 or 181, residues an earlier reduction already
+differentiated. That is the shape m470 and m471 found on `Fourbar1`:
+orientation residues of a closed ring, a supply-once ledger, and a
+world frame whose rows are already held.
+
+### The switches, one binary
+
+All on `/tmp/m657/ox1`, files `/tmp/m660/k_*.txt`:
+
+| switch                         | refusal                  | run half |
+| ------------------------------ | ------------------------ | -------: |
+| none (control)                 | `bodyOfConstraint...R.T` |      17s |
+| `OXIDELICA_SUPPLY_ONCE=0`      | same                     |      18s |
+| `OXIDELICA_NO_SINGULAR_SET=1`  | `world.frame_b.R.T`      |      10s |
+| `OXIDELICA_NO_ALIASES_LAST=1`  | same as control          |      17s |
+| `OXIDELICA_NO_REPEAT_MEMBER=1` | `world.frame_b.R.T`      |      19s |
+
+With the ledger off (`/tmp/m660/v0_prism.txt`) the same 17 victims are
+taken and reduction 18 refuses with 21 members finding no victim at all.
+So supply-once is not what holds the wall: without it the roads it cut
+reach nothing either. No switch moves the wall.
+
+### PointGravityWithPointMasses2 is a different case
+
+The same probe (`/tmp/m660/q_pg.txt`) shows all four `freeMotion.Q[i]`
+demoted, at reductions 1, 3, 9 and 18. The refusal stands at reduction
+63 on `der(freeMotion.frame_a.R.T[1,1]) = 0`. Four of four is one too
+many: the norm leaves room for three, so one demotion went through
+`R.T` rows that should have stayed with an orientation state.
+`referenceSystem.pointMass1` keeps `Q[1..3]` and loses `Q[4]`, which is
+the right count. So the two models have two mechanisms. Prismatic stops
+at a ring of orientation residues with a world frame already held.
+PGWPM2 over-demotes the quaternion of a free motion joint.
+
+### Is the road locked by an earlier decision
+
+Item 56 of the queue says the Fourbar1 chain ends at link 6, the choice
+of victim at the velocities made blind, and calls that "the limit of
+the rule, not removable by a probe". The m471 chain pair cost 17 models
+for 3 won. Prismatic now stands on the same ground, and none of the
+four switches moves it. So no local repair is in view here, and nothing
+was built for the park. What would move it is a choice of states
+that sees the world frame's orientation as fixed before index reduction
+starts. That is the dynamic or global state selection that item 1d
+forbids building, and that the reviewer carries as a question to Roman.
+
+PGWPM2's over-demotion is a narrower question: why a fourth `Q` is taken
+while the norm only owes three. A guard that refuses to demote the last
+quaternion entry of a body would be local. It was not built this shift.
+Its cost is the victims of every MultiBody model with a free body, and
+those have to be measured first.
+
+### Two neighbours, by the same probe
+
+`UniversalConstraint` (`/tmp/m660/q_univ.txt`) demotes no quaternion,
+gets past reduction 44, and refuses in the run half with a singular
+Jacobian in the loop of `joint.revolute_b.frame`. It is past index
+reduction, so it is not this wall. `ThreeSprings`
+(`/tmp/m660/q_three.txt`) takes one reduction, `body1.Q[4]` by the norm,
+the right count, and then refuses with an algebraic loop that does not
+converge in 60 Newton iterations over `body1.a_0`. That is a solver
+wall, not a structural one.
+
+### The middle rows of the census, by name
+
+From `/tmp/m649/raw.txt`, run half, below the rows of 24, 8 and 7
+already sorted. The census column is the row of `/tmp/m649/census.txt`.
+The grep column counts names in the raw file whose message holds the
+row's words. Where the two differ, the extra names belong to another
+row that uses the same words, so the names are owners and not a recount.
+
+| row                             | census | grep | owners                                                      |
+| ------------------------------- | -----: | ---: | ----------------------------------------------------------- |
+| cannot evaluate parameters      |      6 |    6 | MultiBody `_analytic` loops, all six                        |
+| unbalanced, nothing is left for |      5 |    5 | Fourbar1, four StateGraph utilities                         |
+| did not converge in 60 Newton   |      5 |    6 | 3 MultiBody, 2 SMPM_CurrentSource, Spice3 Nand              |
+| the equations of algebraic loop |      4 |    5 | RevoluteConstraint, PlanarFourbar, GearType1/2, Spice3 pair |
+| initialization is not square    |      3 |    3 | NonCircularPipes, a transformer, GearType1                  |
+| underdetermined algebraic loop  |      8 |   10 | 7 machines, 3 Spice3 and rectifiers                         |
+
+MultiBody owns 16 of the grep names across these six rows. Most of them
+stand behind the closed-ring wall above.
