@@ -78220,3 +78220,22 @@ are held rows and 8 meet the supply-once ledger. The question for
 the next shift is the weight that prefers `Q[3]` over `r_rel_a[1]`, and
 a probe of the weight alone would answer it. This shift built nothing
 for it.
+
+### Preferring a position over a quaternion in the tie
+
+A second probe switch, `OXP_PREFER_POS`, drops the quaternion entries
+from a tie once the undetermined candidates are gone, when a candidate
+that is not a quaternion remains (binary `/tmp/m660/ox4`, md5 f5fb6b95,
+parked as `m660_prefer_position_probe.patch` with a note). It finds the
+entries by spelling, so it is a probe only. One binary over the 54
+MultiBody models (`--only-from`, files `/tmp/m660/pp_off.txt` and
+`pp_on.txt`) gave equal run lists, 26 and 26, line for line. Nothing was
+lost and nothing won. The switch fired 18 times, in PGWPM2, Cylinder
+and the `bodyCylinder` bodies. One refusal moved:
+PointGravityWithPointMasses2 gets past the structural wall and stops on
+a singular Jacobian in the loop of `pointMass1.a_0`. That is the second
+wall the review predicted, so this is a link and not a model. Newton
+steps went from 8016 to 8149. The run half went from 1165 s to 984 s,
+but the flatten half also fell from 847 s to 787 s with its counters
+equal byte for byte, so the price is drift and not resolved. The heavy
+set was not measured.
