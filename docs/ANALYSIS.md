@@ -77823,8 +77823,12 @@ show that one model was to blame. Three slices of the second cut ran
 into the time ceiling, and that is consistent with one dear model or
 with several. A slice of 29 models can also pass 8 minutes by
 arithmetic alone. Slice `aa` was a separate case: it was stopped by
-its 6 GB memory ceiling after 81 s (`/tmp/m656/s2_aa.out`), so it hit
-a wall of memory, not of time, and that is a different breed.
+its 6 GB memory ceiling after 81 s (`/tmp/m656/s2_aa.out`). Six
+gigabytes was the ceiling of that run alone, a quarter of the 24 GB
+default of the wrapper, and under the default the same binary flattens
+the whole corpus (974 models, `/tmp/m657/pair_on.txt`). So no wall of
+a different breed was measured there; an earlier version of this
+paragraph said one was, and that is withdrawn.
 
 ### The class form merged, and the hunt closed
 
@@ -77859,3 +77863,33 @@ neither (`/tmp/m657/unseen24.txt`). No hung model was found. The more
 than four hours of `rest_ab` are plausibly its heavy tail, but that
 price is not measured. One `--only-from` run over those 18 names with
 `--slow 60` would measure it.
+
+### The heavy tail of rest_ab, priced in one run
+
+One `--only-from` run over the 17 heavy names of `/tmp/m657/unseen24.txt`
+(binary `/tmp/m657/ox1`, md5 `e4bc7e57`, `CAP_GB=24 CAP_STALL_MIN=100`,
+`--with-heavy --slow 60`; command and md5 in `/tmp/m658/h17.env`, output
+`/tmp/m658/h17.txt`). The 18th, `DynamicPipeWithNominalLaminarFlow`, was
+left out because its witness `/tmp/m609/dyn.txt` holds a lower bound: it
+was stopped by its own 160 minute ceiling. `DynamicPipeEnergyConservationCheck2`
+was put back in, because the file that was said to price it does not exist.
+The run ended normally (exit 0, memory peak 4.7 GB of 24). All 17 flatten
+and 1 runs; flattening took 1447 s and running 5133 s, which is 110 minutes
+in all. `DynamicPipeEnergyConservationCheck2` alone took 2967.7 s of running
+and was refused by its own steady-state assertion at t = 0.01. Then come
+`DynamicPipeInitialization` (361 s) and `EngineV6` (275 s). Adding the
+lower bound of 160 minutes for the 18th name gives at least 270 minutes,
+which is more than the four hours `rest_ab` took. So the tail is explained
+by arithmetic. No model hung, and the hunt for a hung start is closed.
+
+The m647 chain needs no park patch, because it is already on main as
+8a0aa34, with the nominal and function locals left out. The three
+witnesses `TestJunctionIdeal`, `Glycol47` and `Essotherm650` flatten and
+run with and without `OXIDELICA_NO_TYPE_BOUND_MOD` (`/tmp/m658/singles.txt`).
+The small model T2 gives `c.medium.p` a min of 611.657, and 0 under
+`OXIDELICA_NO_TYPE_BOUND_INSTANCE=1`. The last witness, `SeriesPipes1`
+`pipe2.mediums[1].p` with min 0, is not a gap. The library declares that
+`p` as `InputAbsolutePressure`, a connector over `SI.AbsolutePressure`
+(`Media/package.mo:4029`), so the medium's bound does not apply to it. The
+temperature of the same medium gets 273.15 / 2273.15. The m644 tail fix is
+on main as 456fe1f.
