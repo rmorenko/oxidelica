@@ -78432,7 +78432,10 @@ where an initial `der()` is substituted only for a state or for a
 derivative the plan has already worked out. Two small models with the
 same shape run (`/tmp/m660/hs/D1.mo`, `D2.mo`: an initial `der(T) = 0`
 of an algebraic `T = f(h)` with `h` or `U = 3h` the state). So the plain
-case is handled, and HeatingSystem's `T` is not reached by the worked-out
-derivatives because the chain from `U` and `m` to `T` passes through the
-medium's `h = f(T)`. That has to be inverted, not differentiated forward.
-The shrinking was not finished this shift.
+case is handled. A third model inverts the relation, `h = U/2` with
+`h = 4T + 0.1T^2` and `U` the state, and it runs too
+(`/tmp/m660/hs/D3.mo`). That refutes the reading that the inverted
+medium relation is the gap. What HeatingSystem has that the three do not
+is still unnamed: the medium's record `state.T`, the parameters it
+cannot evaluate before the run (`heater.h_start` and its neighbours,
+noted by `why`), or the tank's mass state. The shrinking was not finished this shift.
