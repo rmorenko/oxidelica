@@ -77471,3 +77471,19 @@ is a refusal rather than a wrong number, and the census holds no model
 refusing this way (`/tmp/m649/raw.txt` has one "never assigns", the
 `scanDelimiter` C body). It joins K1d as a case for the lookup change
 the m653 chapter named and left unbuilt.
+
+A census of the merged head (edaa0a7, `target/release` md5 `df0d0b1b`,
+`/tmp/m654/c/census.txt`) against the m649 one: the flatten half 45
+models in 25 rows and the run half 136 in 27, both equal to m649, and
+the two halves agree line for line. The fix moved no row, as the pair
+said it would not.
+
+The pair does not read the carved-out models, and four of them are the
+media that write the form (`R134a1`, `R134a2`, `MoistAir1`,
+`MoistAir2`). Each was run alone off and on with one binary
+(`/tmp/m654/ox1`, off under `OXIDELICA_NO_CLASS_EXTENSION`), files and
+their command lines in `/tmp/m654/h`. All four flatten and do not run
+on both sides, and the `work:` line of each agrees in every counter.
+The switch does not reach them: in the media, the extended class is
+used through the medium package, by a name that already resolves in
+the medium. `MoistAir` and the other carved-out models were not run.
