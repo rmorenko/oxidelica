@@ -78864,3 +78864,10 @@ not rank-deficient by two. Their smallest singular values are 1.3e-9 and
 routine used to read them, which called them rank 24 and 25; the court
 shows the pivot edge alone held them back too. All four FundamentalWave
 machines are faintly determined blocks beside an open switch or diode.
+
+A number to check the edge against: `IMC_DOL_Polyphase` starts a
+five-phase and a three-phase machine of equal ratings side by side, and
+their speeds must agree. Under the probe edge they do, to 3.3e-10 rad/s
+over the whole run, reaching 150.844 rad/s at 1 s
+(`/tmp/m661/T2.csv`, `OXP_PIVOT_EDGE=1e-9`). The faint block was
+determined, and the edge was what refused it.
