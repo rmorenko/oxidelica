@@ -189,6 +189,25 @@ pub(super) fn effective_imports(
         };
         imports.push((alias.name.clone(), target));
     }
+    // A replaceable class written in long form is a nested class, not
+    // an alias, so the loop above never saw it, and a redeclaration
+    // naming it was dropped without a word: the class kept its own
+    // body and the run gave the number of the class it replaced. The
+    // redeclaration enters the same road an alias's would - an import
+    // entry under the nested class's name, which is asked before the
+    // walk out to the nested class itself.
+    if std::env::var_os("OXIDELICA_NO_NESTED_REDECLARE").is_none() {
+        for redeclare in redeclares.iter().filter(|r| r.class_level) {
+            let nested = format!("{}.{}", class.name, redeclare.name);
+            if redeclare.type_name == nested
+                || !registry.contains_key(nested.as_str())
+                || imports.iter().any(|(local, _)| *local == redeclare.name)
+            {
+                continue;
+            }
+            imports.push((redeclare.name.clone(), redeclare.type_name.clone()));
+        }
+    }
     Ok(imports)
 }
 

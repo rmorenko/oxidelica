@@ -77309,3 +77309,67 @@ parameter in a class-level redeclaration (`K5`). Two more ch. 15
 probes came out right: two stream variables into a volume (`S6`) and
 four connectors with one reversed flow, `inStream` of each the
 outflow-weighted mean of the others (`S7`, 16.667 and 10 and 30).
+
+## m653: the two chapter 7 fixes taken in, and the class extension narrowed
+
+### The corpus pair over the park patch
+
+The park patch `m652_redeclare` was put to a corpus pair, one binary
+per half, run side by side: `/tmp/m653/ox1` (the head, d6963b2) and
+`/tmp/m653/ox2` (the head with the patch, formatted), md5 in
+`ox1.md5` and `ox2.md5`, outputs `/tmp/m653/pair_off.txt` and
+`pair_on.txt` with their commands in the `.env` files beside them.
+Both halves print 974 flatten and 838 run of 1019, runnable 856 and
+789 of 890. The `ran` and `flat` lists are equal line for line (838
+and 974 lines, empty diff), the refusal rows of the run half are equal
+to the byte, and every work counter is equal to the digit (1709225508
+names, 35415289 Newton steps, 598 Jacobians). The times are not a
+price: the two halves shared the desk, running 6027 s against 6029 s.
+The faults were wrong numbers rather than refusals, so the pair could
+only show that nothing else moved, and it did not; the numbers are
+proved by the two tests the patch carries. The heavy models were not
+measured; the nightly run is their judge.
+
+### The class extension: where it breaks
+
+The fault named in m652 (`K1`, `redeclare model extends C(k = 3)` giving
+the base's `k = 1`) is narrower than it looked. Probes on the head
+binary (`/tmp/m653/full`, the forecast written first in `PRED.txt`):
+
+- `M1`: the same `D`, with a second `C c2` declared in `D` itself.
+  `d.c2.x(1) = 0.0498`, right; `d.c.x(1) = 0.3679`, wrong.
+- `M2`: `D` a package, `D.C c` used from outside. Right.
+- `M3`: an equation in the extension's body, the component declared in
+  `D`. Read, `y = 2x`.
+- `K1c` (record, `R r` held in a model `U` that `D` inherits) wrong,
+  `M4` (the same record, `U` written in `D`) right.
+
+So the one feature is where the component is declared: a component the
+base holds is looked up in the base and finds the base's class. The
+extension is never offered to it.
+
+### A fix built into the park
+
+`~/oxideflow/park/m653_redeclare_extends.{patch,md}`, stacked on
+`m652_redeclare` (alone it changes nothing: the redeclaration it hands
+down reaches the base's nested class only through the import road
+m652 opens). The parser records the nested classes written as an
+extension (`ClassDef.class_extensions`), and `instantiate_bases` hands
+each to every base as a class-level redeclaration. Switch:
+`OXIDELICA_NO_CLASS_EXTENSION`. `K1` gives 0.0498 and `K1b` runs with
+`y = 2x`; `K1c` is not fixed, since there the inherited `U` is
+instantiated in the base's scope, a different road. The new test is red
+with the switch and green without, the workspace tests pass with none
+failed (`/tmp/m653/tests_ox5.txt`), and seven library models under
+`--only` with the switch and without gave equal counts, work and
+reduction lines (`/tmp/m653/c_{off,on}_*.txt`). No corpus pair, and the
+heavy models not measured.
+
+### The run half of the census below row 28
+
+Rows 2 to 10 of `/tmp/m649/census.txt` were held against the chapters
+by name. Row 2 (24, a parameter with no value) is service classes the
+census itself marks as refusing rightly; row 3 (13) is the helpers of
+m650; rows 4, 5, 6, 8, 9 and 10 are named in the m629, m639, m641 and
+m644 chapters, and row 5 holds the same ten names as `/tmp/m629/raw.txt`.
+Row 7 is locked. No row was found without a map, so no probe was owed.

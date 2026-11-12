@@ -158,19 +158,56 @@ pub(super) fn qualify_redeclare(
                 redeclare.type_name, redeclare.name
             )
         })?;
+    let mut modifiers: Vec<(String, Expr)> = redeclare
+        .modifiers
+        .iter()
+        .map(|(n, e)| {
+            let e = substitute_class_constants(e, registry, scope, &class_imports, &[]);
+            (n.clone(), prefix_expr(&e, prefix, outers))
+        })
+        .collect();
+    // A component redeclared to a short class with a modification -
+    // `model G3 = G(k = 3)` then `redeclare G3 g` - resolves to `G`,
+    // and what the alias wrote was lost on the way: the run gave the
+    // number of `G`. Only literal values are carried, since a value
+    // naming something means it in the terms of the class that wrote
+    // the alias, and this point has no prefix for that class. What
+    // the redeclaration wrote itself is more local and wins.
+    if !redeclare.class_level
+        && !redeclare.type_name.contains('.')
+        && std::env::var_os("OXIDELICA_NO_ALIAS_REDECLARE_MODS").is_none()
+    {
+        fn literal(e: &Expr) -> bool {
+            match e {
+                Expr::Number(_) | Expr::Bool(_) | Expr::Str(_) => true,
+                Expr::Neg(inner) => literal(inner),
+                _ => false,
+            }
+        }
+        let mut holder = Some(scope);
+        while let Some(at) = holder {
+            if let Some(alias) = registry.get(at).and_then(|owner| {
+                owner
+                    .class_aliases
+                    .iter()
+                    .find(|a| a.name == redeclare.type_name && !a.redeclaration)
+            }) {
+                for (n, e) in &alias.modifiers {
+                    if literal(e) && !modifiers.iter().any(|(known, _)| known == n) {
+                        modifiers.push((n.clone(), e.clone()));
+                    }
+                }
+                break;
+            }
+            holder = at.rsplit_once('.').map(|(up, _)| up);
+        }
+    }
     Ok(Redeclare {
         name: redeclare.name.clone(),
         type_name: target.name.clone(),
         class_level: redeclare.class_level,
         each_modifiers: redeclare.each_modifiers.clone(),
-        modifiers: redeclare
-            .modifiers
-            .iter()
-            .map(|(n, e)| {
-                let e = substitute_class_constants(e, registry, scope, &class_imports, &[]);
-                (n.clone(), prefix_expr(&e, prefix, outers))
-            })
-            .collect(),
+        modifiers,
     })
 }
 

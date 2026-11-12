@@ -3015,3 +3015,47 @@ fn a_folded_reference_angle_keeps_its_initial_equation() {
     let gamma = result.rows.last().unwrap()[column];
     assert!((gamma - 2.5).abs() < 1e-9, "gamma={gamma}");
 }
+
+/// The last value of a column, read by its name.
+fn last_of(result: &oxidelica_sim::SimResult, column: &str) -> f64 {
+    let at = result.columns.iter().position(|c| c == column).unwrap();
+    result.rows.last().unwrap()[at]
+}
+
+#[test]
+fn a_long_form_replaceable_class_takes_its_redeclaration() {
+    // `replaceable model C ... end C;` is a nested class rather than
+    // an alias, and the redeclaration handed to it used to be dropped:
+    // `l.c.x` decayed at the original's rate, e^-1, beside the short
+    // form's e^-2.
+    let result = run("model W7a \
+         model C0 Real x(start = 1); equation der(x) = -x; end C0; \
+         model C2 Real x(start = 1); equation der(x) = -2 * x; end C2; \
+         model BShortForm replaceable model C = C0; C c; end BShortForm; \
+         model BLongForm replaceable model C Real x(start = 1); \
+           equation der(x) = -x; end C; C c; end BLongForm; \
+         BShortForm s(redeclare model C = C2); \
+         BLongForm l(redeclare model C = C2); \
+         annotation(experiment(StopTime=1.0, Interval=0.01)); end W7a;");
+    let expected = (-2.0f64).exp();
+    assert!((last_of(&result, "s.c.x") - expected).abs() < 1e-4);
+    assert!((last_of(&result, "l.c.x") - expected).abs() < 1e-4);
+}
+
+#[test]
+fn a_component_redeclared_to_a_short_class_keeps_its_modification() {
+    // `model G3 = G(k = 3)` then `redeclare G3 g`: the `k = 3` was
+    // lost on the way to `G`, and the run gave e^-1 instead of e^-3.
+    let result = run("model W7b \
+         model G parameter Real k = 1; Real x(start = 1); \
+           equation der(x) = -k * x; end G; \
+         model G3 = G(k = 3); \
+         model G3x extends G(k = 3); end G3x; \
+         model Base replaceable G g; end Base; \
+         Base viaShort(redeclare G3 g); \
+         Base viaExtends(redeclare G3x g); \
+         annotation(experiment(StopTime=1.0, Interval=0.01)); end W7b;");
+    let expected = (-3.0f64).exp();
+    assert!((last_of(&result, "viaExtends.g.x") - expected).abs() < 1e-4);
+    assert!((last_of(&result, "viaShort.g.x") - expected).abs() < 1e-4);
+}
