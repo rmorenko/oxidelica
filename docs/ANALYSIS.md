@@ -77269,3 +77269,19 @@ that reverses through a two-port with `actualStream` switching from the
 upstream 7 to the downstream 99 at the zero of `sin(10t)`, while an
 unconnected top-level connector's `inStream` returns its own 3
 (`/tmp/m652/full/S1.mo` to `S5.mo`). All right. Chapter 15 stays Full.
+
+### The two chapter 7 faults, built into the park
+
+Both faults have a fix in the park (`m652_redeclare.patch` with a
+note), not merged. A class-level redeclaration whose name is a nested
+class of the redeclared component's class now enters that class's
+imports, the road an alias's redeclaration takes. A component
+redeclared to a short class keeps the literal values the short class
+wrote. Each has a switch to take it away (`OXIDELICA_NO_NESTED_REDECLARE`,
+`OXIDELICA_NO_ALIAS_REDECLARE_MODS`). Two tests, one per fault, are red
+with the switches set and green without. The workspace passed 1285
+tests with none failed (`/tmp/m652/tests.txt`). Eight library models,
+`--only` with the switches set and without, one binary (`/tmp/m652/ox2`),
+gave the same counts and byte-equal work lines
+(`/tmp/m652/c_{off,on}_*.txt`). No corpus pair was run, and nothing
+was measured on the heavy models.
