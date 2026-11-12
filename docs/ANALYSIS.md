@@ -78835,3 +78835,14 @@ run (`/tmp/m661/edge9.txt`). That is a mechanism shown, not a win:
 the edge judges every block of the library, its price and victims are
 unmeasured, and a lower edge is exactly the trade of a refusal for a
 possibly wrong number that these notes warn against.
+
+The Spice3 owners of the underdetermined row are another shape. The
+`RtlInverter`'s refused block is one equation, `Q1.icapbx = if
+Q1.m_bInit then 0 else Q1.cc.capbx * der(Q1.vbx)`, one unknown,
+`der(Q1.vbx)`, and a Jacobian of exactly zero
+(`/tmp/m661/u_Rtl.txt`): the capacitance `Q1.cc.capbx` that multiplies
+the derivative comes from `bjtNoBypassCode` and stands at 0 where the
+block is solved, so the derivative of the base-collector voltage is
+read through a capacitance of zero. That is the transistor model's
+own zero, the same family as the Spice3 benchmarks the heavy basket
+carries, and the pivot edge does not enter it.
