@@ -78263,3 +78263,22 @@ binary `/tmp/m657/ox1`.
 - `SMPM_CurrentSource` (row "did not converge in 60 Newton"): the loop
   runs over `smpm.airGap.i_sr` and `der(i_sr)`. It is the machines'
   air-gap family, not mechanics.
+
+### The tie at reduction 3 follows the model's own StateSelect
+
+Reading the source after the probes corrects the reading above. In
+`Joints/FreeMotion.mo` (lines 10 and 78), `r_rel_a` carries
+`StateSelect.always` when `enforceStates` holds, and `Q` carries
+`StateSelect.prefer`. So at reduction 3, demoting `freeMotion.Q[3]` and
+keeping `r_rel_a[1]` is what the model asks for. `OXP_PREFER_POS`
+reversed it, which demoted an `always` state. That is breaking what the
+model said, not choosing among what it left open. The probe got
+PointGravityWithPointMasses2 past the structural wall by breaking a
+declared priority, so it is not a candidate for the tree in any form.
+The parked note says so. What remains is the question the source
+raises. The model declares `always` on `r_rel_a` and `prefer` on four
+quaternion entries with one norm, while rigidly fixed point masses add
+position constraints that must be paid for with something. With
+`always` honoured, only orientation is left to pay with. Dymola
+answers this with dynamic state selection over `Q`. That is item 1d's
+forbidden road, and this model now stands squarely on it.
