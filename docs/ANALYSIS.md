@@ -78921,8 +78921,7 @@ models, two of them a dead column by name (census `/tmp/m649/raw.txt`).
 transistor capacitance at zero as the `RtlInverter` of the
 underdetermined row: one Spice3 breed split over two rows by wording.
 `GearType2` is dead on `bearingFriction.sa`, the friction element's
-free coordinate, which its equations name only through a branch that
-is not taken while it sticks; it is a `Utilities` component and not a
-runnable example. The other two, `RevoluteConstraint` and
+free coordinate; why its equations do not move with it was not
+probed. It is a `Utilities` component and not a runnable example. The other two, `RevoluteConstraint` and
 `PlanarFourbar`, carry a whole MultiBody loop in their message and are
 the constraint family of the chapters above.
