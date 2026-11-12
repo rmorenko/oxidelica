@@ -78592,3 +78592,28 @@ not geometry, not the ceiling, not the supply ledger; the held-row
 check guards it correctly; forcing the payer moves it. The order in
 which the first three orientation rows pay is the place left, and that
 is the matching the last chapter showed only moves the payer.
+
+### Row 7 by rank: three breeds, not seven
+
+The seven `singular Jacobian` models were each run once under
+`OXIDELICA_NEWTON_TRAIL=1` on the head binary and the printed block
+taken apart by rank (`/tmp/m661/nt_*.txt`, the reading script
+`/tmp/m661/rank.py`). All fail at t = 0 on the first Newton step but
+one. The census row is three breeds:
+
+```text
+dead rows of differentiated equations  SMPM_CurrentSource   20, rank 18
+                                       UniversalConstraint  44, rank 40
+two rows proportional at a switch      LossyGearDemo2        5, rank 4
+  (locked/free or diode on/off)        Rectifier            12, rank 11
+a water density row dependent          PumpingSystem        15, rank 14
+                                       TestMixingVolumes... 24, rank 23
+a rolling contact, after 26 steps      RollingWheelSetDriving 32, rank 7
+```
+
+The first breed is the shape of the second link above: a row that
+index reduction added names block unknowns symbolically and is zero
+in every entry at the point, so it restates what is solved outside.
+`PrismaticConstraint` under the held-row switch joins it. That is the
+one breed of the row that crosses libraries (a machine and a
+constraint), and it is the one worth a small model next.
