@@ -78881,3 +78881,12 @@ refuses both ways. The victim witnesses print the same under the edge
 basket were not measured. The three `SMPM_CurrentSource` and the
 QuasiStatic `Rectifier` stay refused under the edge, so their walls are
 not this one.
+
+The FundamentalWave `SMPM_CurrentSource`'s two dead rows name block
+unknowns `smpm.wMechanical`, `dqToThreePhase.rotator.angle` and its
+derivative, all standing at 0 at the start
+(`/tmp/m661/ni_SMPM_CurrentSource.txt`). Each term of those rows is a
+product carrying `wMechanical` or `sin(angle)` as a factor, so at a
+machine at rest with the angle at zero every partial derivative is a
+product with a zero in it. That is a dead row by the starting point,
+not by structure: the same shape as the Rectifier's diodes at `s = 0`.
