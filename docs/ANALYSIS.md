@@ -78636,3 +78636,16 @@ and `SMPM_CurrentSource` the same probe did not find the dead rows'
 derivative names among the inner unknowns (`/tmp/m661/ni_*.txt`), so
 the breed of row 7 may be two shapes rather than one; that is left
 open.
+
+### Without the fixed rotation all four quaternions pay
+
+The nine-line variant `/tmp/m661/S4.mo` (the constraint straight on the
+world, no `FixedRotation`) breaks the map of m660 in one place
+(`/tmp/m661/f_S4.txt`, head binary, victim and supply probes). All four
+components pay: `Q[4]` to the norm, then `Q[1]`, `Q[2]` and, at reduction
+8, `Q[3]`. The wall comes three reductions later, at 11, on
+`-der(constraint.frame_a.R.T[1,1]) = 0`, with sixteen held-row refusals
+in that one reduction. So the last quaternion is not what stands in
+S4; the first wall of S2 is where the fixed rotation's three frame
+equalities and the quaternion rows compete for the same payers, and a
+second wall stands behind it in both. The chain is at least three links.
