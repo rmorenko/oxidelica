@@ -77518,3 +77518,150 @@ from a package that extends the record further down. So by this search
 the media do not lean on `H5`, and the wrong number stays a fault of
 the language rather than of a model in the corpus. It goes to the lookup
 change with K1d, and it costs no model while it waits.
+
+## m655: an inherited function builds the record its package extended
+
+### The seat, read before the change
+
+The road named K1d in the m653 and m654 chapters was a guess that a
+member inherited by `D` is read in the scope of the base that declared
+it. The probes say the mark of the package asked under is pushed: H6,
+where `Base.h2` calls the replaceable `f` and `D` redeclares it, gives
+3 through `D.h2`. What refuses is one seat, `record_asked_under`
+(`flatten/inlining.rs`), which swaps a record for the one under the
+mark only where the base's record is empty or is itself a `redeclare
+record extends`. A base record with fields of its own was built as the
+base's, whatever the package below did to it. That is H5D (a function
+inherited unredeclared and called as `D.h`, building `S(p = p)`: 1
+where 7 is owed, a wrong number without a word), H2 (the same as a
+refusal, `g` never assigns `s.T`), and K1c (`D.U` holding an `R` that
+`D` extended with `k = 3`).
+
+The change also swaps such a record when the record found under the
+mark is a `redeclare record extends` of it, since that writer says its
+record is this one and more. `OXIDELICA_NO_INHERITED_MEMBER_SCOPE`
+restores the old reading. The forecast was written before the build
+(`/tmp/m655/PRED.txt`).
+
+### Small models, one binary both ways
+
+With `/tmp/m655/oxa` (the same tree as `ox1`, md5 682fe808), the
+changed reading against the switch:
+
+- H5D 7 against 1, K1c `u.x` 0.0498 against 0.3679, and H2c (H2 made
+  well posed: the record `g` returns read inside a function) 7 against
+  the refusal.
+- Unchanged both ways: H1, H5Base, H6, G1, G2, G4, B1, B1t, F1, F1t,
+  P1, P1t.
+- K1d, the model form (`D.U` holding a `C` that `D` extends), stays
+  at e^-1 both ways. It is a class rather than a record and goes
+  through another seat, so it is still open.
+- H2 as m654 wrote it (`r = D.g(time)` beside a field default
+  `T = 7`) now refuses as unbalanced. A binding of the whole record has
+  to displace the field defaults, which is a separate fault, and H2 is
+  overdetermined in Modelica as written anyway.
+
+Three tests in `equations.rs` cover H5D, H2c and K1c. All three fail
+under the switch.
+
+### Does the corpus lean on it (item 2)
+
+A grep of `.msl` for `redeclare record extends` turns up only one
+extension of a base record that has fields of its own:
+`SaturationProperties` in `Water` and `R134a`, and both add no field
+and no modifier. Every `ThermodynamicState` base is empty and was
+already swapped. `f_nonlinear_Data` lives in `ObsoleteModelica4`. So
+the K1c, H2 and H5 forms do not live in the corpus, and the forecast
+for the pair was 0 victims, 0 wins, and equal counts and work.
+
+## m655: which rows of the run half stand on a numeric threshold (item 62)
+
+This is a summary for the question about thresholds. It was drawn from
+the m649 census (`/tmp/m649/census.txt`, the run half at lines
+137-164) and from the code that raises each refusal. Nothing was run
+and nothing was changed. A row is assigned to a threshold when the
+refusal is raised by that threshold's judge. That says which knob an
+answer would turn. It does not say that turning the knob makes the
+model run, because one model has one refusal at a time.
+
+| Census row                                      | Models | Judge                                                                             | Where                                                | Chapter                                                                               |
+| ----------------------------------------------- | -----: | --------------------------------------------------------------------------------- | ---------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| underdetermined algebraic loop                  |      8 | `reads_singular`, smallest pivot `<= 1e-7 * scale`, both orders of scaling        | `linear.rs:202-208`, raised at `solvers/mod.rs:1649` | "Where the refusal is judged, and what the ceiling says"; "The census rows behind it" |
+| singular Jacobian in algebraic loop             |      7 | `solve_linear`, pivot `< 1e-14`                                                   | `linear.rs:448`, raised at `solvers/mod.rs:2594`     | "m645: ... the walls of the singular Jacobian row"                                    |
+| the initialization problem is singular          |      2 | `solve_linear`, pivot `< 1e-14`                                                   | `compile.rs:10158`                                   | none of its own                                                                       |
+| accepted on the arithmetic floor (two wordings) |      2 | the `determined` judge on a floor-accepted block, which is `reads_singular` again | `solvers/mod.rs:1700`                                | "Singles, probed one at a time"; "The switch beyond the pipes"                        |
+
+That is 19 models behind the two pivot floors: 10 behind the 1e-7
+floor of `reads_singular` and 9 behind the 1e-14 floor of
+`solve_linear`.
+
+Rows that a threshold answer would not move, named so that nobody
+counts them in:
+
+- the equations do not mention X (4). This is the dead column, a
+  structural ceiling that is settled in the code
+  (`solvers/mod.rs:1117-1125`, "a property of the block, not of the
+  point").
+- The Newton direction does not reduce (10), did not converge in N
+  iterations (5), and initialization did not converge (1). These are
+  convergence and iteration budgets. The m644 SVD probe showed the
+  pipe blocks in the direction row at full rank, so no pivot floor
+  binds them ("The pipe family's direction stall is not the air-gap
+  rank wall").
+- The acceptance tolerance at `solvers/mod.rs:2028-2030` refuses
+  nobody. It is what lets blocks in. The m651 count of who leans on its
+  soft half (127 residents, 104 running, 13 with `|f| > 1`) is the
+  number a tightening would put at risk. It is not a count of refusals.
+- Structural and balance rows (28, 13, 5, 3) and row 24, parameter X
+  has no value, which belongs to item 66 and not to the thresholds.
+
+## m655: the corpus pair over the inherited record
+
+The off half is `/tmp/m654/pair_on.txt` (`/tmp/m654/ox1`, md5 475e9914,
+the code of 6316de7). `git diff 6316de7..HEAD` touches only
+`docs/ANALYSIS.md`. The on half is `/tmp/m655/pair_on.txt`
+(`/tmp/m655/ox1`, md5 682fe808, built from the final tree). Both halves
+print 1019 examples, 974 flatten and 838 run, and 856 flatten and 789
+run among the runnable ones. The ran lists are equal by name, 838 = 838,
+with no victims and no wins. The running work is equal in all five
+counters. The flattening work moved: classes 283617 to 283930 (+313),
+names 1709225508 to 1709302895 (+77387), while expansions and bodies
+did not change at all. Time is not judged.
+
+What moved the names has two parts, and they have opposite signs:
+
+- The extra lookup. The rewritten seat looks up the record under the
+  mark for every record that has fields, and the switch is checked
+  only after that lookup. So the new binary pays for the lookup even
+  under the switch. `Modelica.Fluid.Examples.HeatingSystem`, run with
+  `--only`: the old binary gives 255442595 names, the new binary under
+  the switch gives 255443015 (+420), and the other three counters are
+  equal.
+- The swap taking effect. One binary, off against on: the 41 Water,
+  R134a and two-phase examples (`/tmp/m655/sub1_*.txt`) give classes
+  +88 and names -71716. The first half of the remaining examples
+  (`/tmp/m655/rest_aa.*`, 501 models) gives classes +77 and names
+  -61996. Expansions and bodies are equal in both. My forecast was that
+  only the media examples would carry this. That was wrong, because
+  `SaturationProperties` is reached under a medium's mark from Fluid
+  models as well. The swapped record is identical in fields, which is
+  why the product stays the same.
+
+### Heavy models
+
+The heavy models were not measured. The nightly run is their judge.
+
+### A cost the switch does not remove
+
+Because the lookup runs before the switch is checked, the switch
+restores the old outcome but not the old cost. The corpus pays the
++313 classes and +77387 names whether the switch is set or not, so an
+off half taken with this binary is not the old baseline. The fix is
+to move the switch into the first filter of the chain, as
+`kept_for_another || inherited_member_scope_open()`. With the switch
+off and the record not kept for another, the last filter refuses every
+record it is given, so skipping the lookup changes the cost and never
+the outcome. The falsifier for whoever takes it: run one binary both
+ways against the old binary, and the switch-off half must match the
+old classes and names exactly. Left for a later shift because it needs
+a new pair.

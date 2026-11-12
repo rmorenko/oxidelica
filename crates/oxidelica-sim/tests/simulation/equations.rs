@@ -3093,3 +3093,47 @@ fn a_function_and_a_package_extension_replace_what_the_base_calls() {
     assert!((last_of(&result, "d.z") - 3.0).abs() < 1e-6);
     assert!((last_of(&result, "d.w") - 3.0).abs() < 1e-6);
 }
+
+#[test]
+fn an_inherited_function_builds_the_record_its_package_extended() {
+    // A function of the base, inherited unredeclared and called as
+    // `D.h`, built the base's `S` and read its default `T = 1`, where
+    // `D` extends `S` with `T = 7`: a wrong number without a word.
+    let result = run("model H5D \
+         package Base replaceable record S Real p; Real T = 1; end S; \
+           function h input Real p; output Real t; protected S s; \
+           algorithm s := S(p = p); t := s.T; end h; end Base; \
+         package D extends Base; redeclare record extends S(T = 7) end S; end D; \
+         Real y; equation y = D.h(time); \
+         annotation(experiment(StopTime=1.0, Interval=0.01)); end H5D;");
+    assert!((last_of(&result, "y") - 7.0).abs() < 1e-9);
+}
+
+#[test]
+fn an_inherited_function_returns_the_record_its_package_extended() {
+    // The same road as a refusal: the base's `g` returns `S`, which
+    // `D` extends with a field `T = 7`, and the constructor built the
+    // base's record, so `g` was refused for never assigning `s.T`.
+    let result = run("model H2c \
+         package Base replaceable record S Real p; end S; \
+           function g input Real p; output S s; algorithm s := S(p = p); end g; \
+         end Base; \
+         package D extends Base; redeclare record extends S Real T = 7; end S; end D; \
+         function k input Real p; output Real t; protected D.S s; \
+           algorithm s := D.g(p); t := s.T; end k; \
+         Real y; equation y = k(time); \
+         annotation(experiment(StopTime=1.0, Interval=0.01)); end H2c;");
+    assert!((last_of(&result, "y") - 7.0).abs() < 1e-9);
+}
+
+#[test]
+fn a_model_reached_through_a_package_holds_the_record_it_extended() {
+    // `D.U` is the base's `U`, holding an `R` that `D` extends with
+    // `k = 3`; it held the base's `R` and decayed at e^-1.
+    let result = run("model K1c \
+         package Base replaceable record R Real k = 1; end R; \
+           model U R r; Real x(start = 1); equation der(x) = -r.k * x; end U; end Base; \
+         package D extends Base; redeclare record extends R(k = 3) end R; end D; \
+         D.U u; annotation(experiment(StopTime=1.0, Interval=0.01)); end K1c;");
+    assert!((last_of(&result, "u.x") - (-3.0f64).exp()).abs() < 1e-4);
+}

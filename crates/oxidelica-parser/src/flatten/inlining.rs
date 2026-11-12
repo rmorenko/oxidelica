@@ -1330,13 +1330,33 @@ pub(super) fn record_asked_under<'a>(
     let kept_for_another =
         record.kind == ClassKind::Record && (record.components.is_empty() || adds_to_another);
     let under = asked_under(record);
-    let theirs = kept_for_another
-        .then(|| record.name.rsplit_once('.'))
-        .flatten()
-        .filter(|_| under != record.name)
+    let theirs = record
+        .name
+        .rsplit_once('.')
+        .filter(|_| under != record.name && record.kind == ClassKind::Record)
         .and_then(|(_, tail)| lookup(registry, tail, &under, &record.imports))
-        .filter(|found| found.kind == ClassKind::Record && found.name != record.name);
+        .filter(|found| found.kind == ClassKind::Record && found.name != record.name)
+        // A record of the base with fields of its own is still
+        // replaced where the package asked under writes `redeclare
+        // record extends` of it: that writer says in so many words
+        // that its record is this one and more. A function inherited
+        // unredeclared and reached as `D.h` built the base's record
+        // and read its default, a wrong number where `D` changed it.
+        .filter(|found| kept_for_another || (inherited_member_scope_open() && adds_to(found)));
     theirs.unwrap_or(record)
+}
+
+/// Whether a record is written as `redeclare record extends`, adding to
+/// the one of that name below it.
+fn adds_to(record: &ClassDef) -> bool {
+    record.extends.iter().any(|extend| extend.from_base)
+}
+
+/// Whether a record with fields of its own is built as the one the
+/// package asked under extends it into. `OXIDELICA_NO_INHERITED_MEMBER_SCOPE`
+/// builds the base's, as before, so that one binary gives both numbers.
+fn inherited_member_scope_open() -> bool {
+    std::env::var_os("OXIDELICA_NO_INHERITED_MEMBER_SCOPE").is_none()
 }
 
 /// The scope a body is being worked out under: what it was asked as,
