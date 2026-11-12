@@ -79123,3 +79123,17 @@ in `ModelicaTest.Fluid` pipes (`BranchingPipes1` to `4`, `13`, `14`,
 the parked divisor change already wins. The pipes all stall on
 `pipe1.mediums[1].p` at the start of the run: one family, left as the
 next map.
+
+The trace of the pipe family, taken on `SeriesPipes2` with
+`OXIDELICA_NEWTON_TRAIL=1` (`/tmp/m663/sp2_trail.txt`): the loop is
+three unknowns at t = 0.0008, and the residual that will not fall is
+the second, about 3138 against a scale of 1.6e7, on
+`valveIncompressible1.dp_turbulent`. Its value sits at 5885 and moves
+by thousandths per step while the first unknown, a pressure, is
+pushed from 32750 down to 1030 under ever smaller damping. The
+equation for it is `max(dp_small, f(viscosity of state_a))`, and the
+flow equation branches on `dp >= dp_turbulent`. So the direction is
+spent on the pressure while the one residual that matters is a kink
+whose derivative the Jacobian sees on one side only. That is the
+mechanism to test next with a twelve-line model: a `max` and a
+branch on the same variable inside one algebraic loop.
