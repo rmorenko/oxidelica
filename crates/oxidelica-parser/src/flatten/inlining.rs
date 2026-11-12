@@ -1334,6 +1334,9 @@ pub(super) fn record_asked_under<'a>(
         .name
         .rsplit_once('.')
         .filter(|_| under != record.name && record.kind == ClassKind::Record)
+        // Asked before the lookup, so that the switch takes away the
+        // cost of the road as well as its outcome.
+        .filter(|_| kept_for_another || inherited_member_scope_open())
         .and_then(|(_, tail)| lookup(registry, tail, &under, &record.imports))
         .filter(|found| found.kind == ClassKind::Record && found.name != record.name)
         // A record of the base with fields of its own is still

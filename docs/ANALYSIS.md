@@ -77665,3 +77665,59 @@ the outcome. The falsifier for whoever takes it: run one binary both
 ways against the old binary, and the switch-off half must match the
 old classes and names exactly. Left for a later shift because it needs
 a new pair.
+
+### The switch now takes the cost with it
+
+m656 took the fix above. The switch is asked in the first filter of
+the chain, before the lookup. One binary, `/tmp/m656/ox1` (md5
+0894c2a4), was run both ways over the corpus.
+
+- On (`/tmp/m656/pair_on.txt`): equal to `/tmp/m655/pair_on.txt` in
+  every counter. That is 283930 classes, 90452591 expansions, 1273855
+  bodies and 1709302895 names.
+- Under `OXIDELICA_NO_INHERITED_MEMBER_SCOPE=1`
+  (`/tmp/m656/pair_off.txt`): equal to the old binary's
+  `/tmp/m654/pair_on.txt`. That is 283617 classes and 1709225508
+  names, with the same expansions and bodies.
+- Both halves: running work 24125447 / 35415289 / 598 / 143 / 2115919,
+  974 flatten and 838 run, runnable 856 and 789, and the ran lists
+  equal by name to their references.
+
+The switch-off half is the old baseline again, so the debt is closed.
+The run halves took 5946 s on and 5886 s off. That is drift on a
+shared desk with equal work, not a cost. No models were won or lost.
+The heavy models were not measured, and the nightly run is their
+judge.
+
+The md5 of `/tmp/m656/ox1` differs from `/tmp/m655/ox2` (8fe0a780)
+although the patch is the same and the build here is reproducible.
+`HeatingSystem` under the switch gives 255442595 names on both. The
+difference is in the bytes and not in the behaviour.
+
+### The class form of the road
+
+`K1d` (a model `C` that `D extends Base` redeclares with `k = 3`,
+reached as `D.U`) used to decay at e^-1 under both settings. Its seat
+is the same as the record's: `components.rs:2123` calls
+`record_asked_under` under the mark `D`. The filters there turn a model
+away by its kind alone. A draft parked as
+`~/oxideflow/park/m656_k1d.patch` adds a model and block branch,
+behind the same switch. Under the mark, where the mark descends from
+the class's owner, it looks up the tail. It builds what it finds when
+that is of the same kind and written `redeclare model extends`.
+
+The small models were run both ways on `/tmp/m656/ox3`:
+
+- `K1d`, `K1e` (two floors of `extends`) and `K1g` (redeclared in a
+  middle package and asked as the one above) give 0.0498 on and 0.3679
+  under the switch.
+- `K1f`, which adds a variable, gets it.
+- Every model of `/tmp/m654/full` and `/tmp/m653/full` is unchanged
+  except `K1d`.
+
+An earlier draft read the registry at `mark.tail` and missed `K1g`. A
+grep of `.msl` finds `redeclare model extends` only as `BaseProperties`,
+in eight Media files. On the 33 Media and Fluid examples
+(`/tmp/m656/k1d_ox1.txt` against `k1d_ox3b.txt`) the work is equal
+apart from 32 names, and the ran lists are equal. So the form barely
+lives in the corpus. The draft waits for a pair of its own.
