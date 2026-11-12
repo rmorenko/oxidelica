@@ -78747,3 +78747,16 @@ The victim witnesses under the key (`scripts/victim_witness.sh .msl
 names `Sensors.PowerSensor`; the heavy basket was not run. Eleven of the
 twelve machine models refused elsewhere in the run census were in the
 court and kept their refusals.
+
+### The underdetermined row: one owner is the power sensor
+
+Of the eight `underdetermined algebraic loop` models of the run census,
+the QuasiStatic `IMC_withLosses` is the power-sensor breed (21 by 21 of
+rank 19, the two dependent rows the sensor's quotient,
+`/tmp/m661/ud_IMC_withLosses.txt`), and the probe key above runs it.
+The other seven - three Spice3 benchmarks and four FundamentalWave
+machines (`IMC_DOL_Polyphase`, `IMS_Start_Polyphase`, `SMEE_DOL`,
+`SMEE_Rectifier`) - refuse in the branch at `solvers/mod.rs:1649`,
+which `OXIDELICA_NEWTON_TRAIL` does not print, so their blocks are not
+taken apart here (`/tmp/m661/ud_summary.txt`). The trail printing that
+branch too is the instrument the next probe of this row needs.
