@@ -78740,3 +78740,10 @@ price is not resolved here. The Machines model runs to its StopTime of
 at 4.5 s. Not measured: the corpus pair, the victim witnesses (the key
 changes which equations become state equations), the heavy basket.
 Nothing is merged.
+
+The victim witnesses under the key (`scripts/victim_witness.sh .msl
+/tmp/m661/oxd`, off then on) print the same lines and both exit 0
+(`/tmp/m661/witness_on.txt`). No file of `scripts/heavy_models.txt`
+names `Sensors.PowerSensor`; the heavy basket was not run. Eleven of the
+twelve machine models refused elsewhere in the run census were in the
+court and kept their refusals.
