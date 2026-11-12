@@ -78687,3 +78687,26 @@ a Newton direction in a loop of the air gap's currents, and its two
 `FundamentalWave` and `QuasiStatic` namesakes stand in other rows of
 the census (`/tmp/m649/raw.txt`). Three machines of one name in three
 rows is the next thing worth a probe.
+
+### `IMC_withLosses` stands on a power sensor solved for its speed
+
+The `Electrical.Machines` `IMC_withLosses` of row 10 runs Newton from
+a torque of about -1.7e15 (`/tmp/m661/imc_el.txt`): its block is 10 by
+10 of rank 8, and the two dependent rows are the power sensor's
+`der(powerSensor.flange_a.phi) = powerSensor.power /
+powerSensor.flange_a.tau` and the same quotient set equal to the
+machine's speed. The library writes `power = flange_a.tau *
+der(flange_a.phi)` (`Rotational/Sensors/PowerSensor.mo:15`); the
+compiler has solved it for the derivative, by division by a torque
+that is zero at the start. Eleven lines of `Rotational` show it
+(`/tmp/m661/W1.mo`: a constant torque, an inertia, a power sensor, a
+second inertia): `singular Jacobian in algebraic loop
+["ps.flange_a.tau", "ps.power"]`, after the first start gave NaN on
+that very quotient. Under the victim probe (`/tmp/m661/nt_W1.txt`)
+reduction 2 demotes `ps.flange_a.phi`, whose derivative then becomes
+an unknown of the block, and the sensor's equation is the one left to
+pay for it. With the second inertia replaced by a damper to ground, or
+with no load at all (`W3.mo`, `W4.mo`), the model runs. A power
+sensor between two inertias is common in the library (23 example
+files name `Sensors.PowerSensor`), so this is a candidate family, not
+yet a census row: the victim choice at reduction 2 is the question.
