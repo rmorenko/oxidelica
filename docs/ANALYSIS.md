@@ -77790,3 +77790,14 @@ the decomposition is unmeasured. The last 43 lines of the list
 the 460th line names nothing. The hanging model is somewhere among the
 first 458 lines and is still unnamed. The next instrument is
 `--only-from` on slices of those lines under a ceiling.
+
+The first 458 lines were cut into four slices of about 115
+(`/tmp/m656/sl_{aa,ab,ac,ad}`, outputs `.out` beside them) and run in
+parallel on `/tmp/m656/ox1`, each under a 12 minute ceiling. Two
+slices finished: `ac` in 201 s and `ad` in 4 s. `aa` (96 of 115 done)
+and `ab` (84 of 115 done) were stopped by the ceiling. So each of them
+took at least 12 minutes, and the hanging model is in one or both of
+them. That is lines 1 to 230 of `/tmp/m655/rest_ab`, still unnamed. It
+hangs in `solve_initialization` under both settings of the switch, so
+the switch does not cause it. A start that never ends is no row of the
+census, because the census counts refusals.
