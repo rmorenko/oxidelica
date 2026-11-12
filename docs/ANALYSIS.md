@@ -78912,3 +78912,17 @@ evaluated before the guard's own residual has been satisfied. A
 tearing that computes `s` from `length` inside the block would never
 see the zero; that is the question for this breed, and it is a
 question of which unknowns the block keeps.
+
+### The dead-column row, two owners
+
+`the equations of algebraic loop ... do not mention X` holds four
+models, two of them a dead column by name (census `/tmp/m649/raw.txt`).
+`Spice3BenchmarkDifferentialPair` is dead on `der(Q2.vbx)`, the same
+transistor capacitance at zero as the `RtlInverter` of the
+underdetermined row: one Spice3 breed split over two rows by wording.
+`GearType2` is dead on `bearingFriction.sa`, the friction element's
+free coordinate, which its equations name only through a branch that
+is not taken while it sticks; it is a `Utilities` component and not a
+runnable example. The other two, `RevoluteConstraint` and
+`PlanarFourbar`, carry a whole MultiBody loop in their message and are
+the constraint family of the chapters above.
