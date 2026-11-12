@@ -78891,3 +78891,14 @@ derivative, all standing at 0 at the start
 factor zeroes each partial derivative is not measured. A dead row by
 the starting point rather than by structure is the reading to test
 next, as with the Rectifier's diodes at `s = 0`.
+
+`ThreeSprings` belongs with the rolling wheels and not with the power
+sensor. Its first start was refused on `spring2.lineForce.e_rel_0[1] =
+r_rel_0[1] / s`, which is `-inf` at t = 0 (census `/tmp/m649/raw.txt`).
+This is the library's own normalization, `e_rel_0 = r_rel_0/s`
+(`Interfaces/LineForceBase.mo:46`), at a spring length the zero start
+puts at 0. The later starts at 1e-6 and 1e-3 then fail on the Newton
+direction, and the last on 60 iterations (`/tmp/m661/c_3S.txt`, 574
+steps). The wheels' `e_long_0 = aux / length(aux)` is the same shape:
+a unit vector divided by a length that a start of zero makes zero.
+Neither parked key reaches it.
