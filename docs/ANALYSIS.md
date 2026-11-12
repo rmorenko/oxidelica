@@ -77373,3 +77373,14 @@ census itself marks as refusing rightly; row 3 (13) is the helpers of
 m650; rows 4, 5, 6, 8, 9 and 10 are named in the m629, m639, m641 and
 m644 chapters, and row 5 holds the same ten names as `/tmp/m629/raw.txt`.
 Row 7 is locked. No row was found without a map, so no probe was owed.
+
+The road left open was probed once more. `K1d` puts the component in a
+model `U` that the package `D` inherits from `Base` (`D.U u`, with `C c`
+inside `U`): 0.3679 on the head and on the park binary alike
+(`/tmp/m653/full/K1d_ox1.csv`, `K1d_ox5.csv`). `D.U` resolves to
+`Base.U` through the member-of-base lookup, and from there `C` is
+looked up in `Base`'s scope. Nothing on that road remembers that `U`
+was reached through `D`. A fix would have to instantiate an inherited
+member class in the scope of the class it was reached through. That is
+a change to lookup, not a hand-down of redeclarations, so it was not
+built.
