@@ -77502,3 +77502,19 @@ show it, since nothing refuses. Whether a medium of the library leans on
 it would take a function that a medium inherits unredeclared and that
 builds a replaceable record inside; that search was not made this
 shift. This is the case the lookup change has to answer first.
+
+Two more probes bound it. `H6`: a function `h2` that `Base` writes,
+not replaceable, calls the replaceable `f`, and `D` redeclares `f` as
+`3 * u`. `D.h2(time)` gives 3 on both binaries, as owed, so a call made
+inside an inherited function does resolve through `D`. The fault of
+`H5` is narrower: a record built by its constructor inside an
+inherited function. The library was then searched for that shape. Every
+`ThermodynamicState(...)` and `SaturationProperties(...)` constructor in
+`Modelica.Media` sits in a function of the same package that extends
+the record (`PartialSimpleMedium`, `PartialSimpleIdealGasMedium`,
+`SingleGasNasa`, `MixtureGasNasa`, `WaterIF97_base`, `MoistAir`,
+`ReferenceMoistAir`, `R134a_ph`). None is written in a base and reached
+from a package that extends the record further down. So by this search
+the media do not lean on `H5`, and the wrong number stays a fault of
+the language rather than of a model in the corpus. It goes to the lookup
+change with K1d, and it costs no model while it waits.
