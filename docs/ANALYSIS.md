@@ -78663,6 +78663,7 @@ to the end (`/tmp/m661/vp_Univ.txt`, four held-row refusals in all, no
 structural refusal) and the run-half block it then refuses has one dead
 row, `-(frame_a.R.T[3,*] * (der(frame_b.r_0) - der(frame_a.r_0))) = 0`,
 whose block unknowns are `der(constraint.frame_b.r_0[1])` and `[3]`
-with their coefficients read from outside the block. That is a
-differentiated position constraint whose coefficients vanish at the
-start, not a duplicate; the first breed of row 7 holds two shapes.
+with their coefficients read from outside the block. It is a
+differentiated position constraint and not a written-twice row; why it
+differences to zero is not measured (the coefficients' values are not
+in the trail). The first breed of row 7 holds two shapes.
