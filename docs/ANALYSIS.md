@@ -77801,3 +77801,18 @@ them. That is lines 1 to 230 of `/tmp/m655/rest_ab`, still unnamed. It
 hangs in `solve_initialization` under both settings of the switch, so
 the switch does not cause it. A start that never ends is no row of the
 census, because the census counts refusals.
+
+A second cut, eight slices of 29 under an 8 minute ceiling
+(`/tmp/m656/s2_*`), and then single runs of slice `af` under 5 minutes
+(`/tmp/m656/one/`), did not name the model. The one single that ran
+into its ceiling, `TestMultiPortTraceSubstances`, is dear rather than
+hung: in the pair `/tmp/m656/pair_on.txt` it costs 862 s of running
+and ends as refused. The other capped slices hold models that cost
+tens to hundreds of seconds in the pair (`TestDensity` 367 s, the
+`BranchingPipes` family). So a ceiling of minutes cannot tell dear
+from hung on this list, and the model that held `rest_ab` for more
+than two hours is still unnamed. One candidate is
+`TestMultiPortTraceSubstances` under the m655 binary, which would make
+it the same model 14 times dearer. That is not measured. The next
+instrument is one run of each candidate under a ceiling above 862 s,
+and the bisection was stopped here.
