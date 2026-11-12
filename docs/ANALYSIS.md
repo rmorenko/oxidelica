@@ -78948,3 +78948,9 @@ Two keys, seven models, no victims in either court, neither merged.
 The census counts these as one model per row it happens to stand in;
 the breeds cross the rows, and the three machine names standing in
 three rows each are the plainest case of it.
+
+The four-bit adder's `NAND` refuses the same way, on a one-by-one
+block `Q4.icapbe = if Q4.m_bInit then 0 else Q4.cc.capbe * der(Q4.vbe)`
+with the unknown `der(Q4.vbe)` (`/tmp/m661/sp_NAND.txt`): the Spice3
+breed is the transistor's junction capacitance multiplying a voltage
+derivative, three models probed now.
