@@ -78793,3 +78793,9 @@ from the rotor speed through `toGamma.k * wMechanical`. The power-sensor
 probe key does not reach them (none runs under it). The same machine
 in three rows is a family the census splits by wording, and the
 rotator's angle is where its next probe starts.
+
+The court's `--slow 60` lists name one model dearer by more than a
+second, `ActuatedDrive` (+1.4 s); run alone off, on and off it costs
+8626, 8596 and 8647 ms of run with its work equal to the digit
+(`/tmp/m661/ad_ooo.txt`), so that was drift. The court's run work moved
+by 324 points and 994 Newton steps, the three machines' own.
