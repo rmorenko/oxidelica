@@ -79020,3 +79020,39 @@ divisor key over 970 of it: the 49 `Mechanics.MultiBody` models of the
 first yard were not under it. The off counts sum to 136 + 236 + 466 =
 838 running, which agrees with the floor of 835 plus the three
 swinging models.
+
+## The divisor road taken default-on, and the work centre that stopped it (m662)
+
+The parked divisor key (m661) was built default-on, with
+`OXIDELICA_UNKNOWN_DIVISOR` as the rollback key, read once. Its test
+runs without setting the environment: green by default, red under the
+rollback key. One binary, `/tmp/m662/ox1`, md5
+735b46afbc92ab64191230006f60af0f.
+
+The corpus pair was run one half after the other on a quiet desk
+(`/tmp/m662/p_off.txt`, `p_on.txt`, each with its command on the
+first line). Off prints 974 flattened, 838 run, 789 runnable, as
+predicted before the run. On prints 974, 841 and 792. The ran lists
+differ by exactly the three `IMC_withLosses` models (`Machines`,
+`FundamentalWave`, QuasiStatic `FundamentalWave`), with no victims.
+The 26 `Mechanics.MultiBody` models that run are the same in both
+halves, which closes the 49 MultiBody names the earlier yards had not
+put under the key. The flattening lists and the flattening work are
+equal. The run half went from 3900 s to 3932 s, +0.8%. Run work:
+points +94, Newton steps 35415289 to 35293176, damped steps 2115919
+to 1402996. The victim witnesses are identical under both keys, exit
+0 for both (`/tmp/m662/wit_off.txt`, `wit_on.txt`).
+
+The merge stopped at the quick preflight (`/tmp/m662/pf.txt`). The
+library step refused on the desk's work centre: Newton steps 911704
+against 1102467, 0.83 of it, outside the band of 100000 per million.
+The change lowers the work it is held to, and moving the centres
+(`WORK_NEWTON` and `WORK_NEWTON_DESK` in `scripts/library_floor.sh`)
+was outside what this shift was allowed to touch. The patch and notes
+are parked as `m662_unknown_divisor_default_on`, and the tree is back
+at main.
+
+The heavy line (`/tmp/m662/h_off.txt`, `h_on.txt`, off and on in
+parallel under their own caps) had read 21 of 24 models in both
+halves at the end of the shift, and is still running. It is not an
+orphan: the marker `/tmp/m662/heavy.done` appears when both halves end.
