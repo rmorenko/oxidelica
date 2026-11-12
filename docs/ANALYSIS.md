@@ -78419,3 +78419,20 @@ runnable model. Fixing it would still be cheap, and it would remove a
 refusal of a kind found nowhere else. The three runnable singles are
 three different layers: the solver at a friction event, medium states,
 and the clocked inverse-block constraints.
+
+### HeatingSystem: an initial derivative of a temperature that is not a state
+
+`oxidelica why` on `tank.medium.T` shows the one equation that asks for
+it: the initial equation `der(tank.medium.T) = 0`, written by
+`Fluid/Interfaces.mo:647` for `energyDynamics == SteadyStateInitial`
+when the medium's thermodynamic states are `pT`. The tank's states are
+its mass and energy, and `tank.medium.T` is an algebraic name bound
+through `tank.medium.state.T`. The refusal is raised at `compile.rs:31`,
+where an initial `der()` is substituted only for a state or for a
+derivative the plan has already worked out. Two small models with the
+same shape run (`/tmp/m660/hs/D1.mo`, `D2.mo`: an initial `der(T) = 0`
+of an algebraic `T = f(h)` with `h` or `U = 3h` the state). So the plain
+case is handled, and HeatingSystem's `T` is not reached by the worked-out
+derivatives because the chain from `U` and `m` to `T` passes through the
+medium's `h = f(T)`. That has to be inverted, not differentiated forward.
+The shrinking was not finished this shift.
