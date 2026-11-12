@@ -78760,3 +78760,22 @@ machines (`IMC_DOL_Polyphase`, `IMS_Start_Polyphase`, `SMEE_DOL`,
 which `OXIDELICA_NEWTON_TRAIL` does not print, so their blocks are not
 taken apart here (`/tmp/m661/ud_summary.txt`). The trail printing that
 branch too is the instrument the next probe of this row needs.
+
+### The FundamentalWave machines of the underdetermined row, by rank
+
+A probe printing the same trail in the underdetermined branch
+(`/tmp/m661/oxu`, md5 fa263a62, patch
+`~/oxideflow/park/m661_underdetermined_trail_probe.patch`, not merged)
+takes the four machines apart at t = 0 (`/tmp/m661/u_*.txt`). Two
+shapes. `IMC_DOL_Polyphase` and `IMS_Start_Polyphase` hand in blocks of
+full rank (59 and 80) with a condition number of 4.8e12: the smallest
+singular value is 2.1e-9 against a largest of 1.0e4, and the direction
+it names is the derivatives of the stator converter's phase currents
+and the air gap's magnetic potential, with the left side on the
+converter's `V_m` rows and the open closing switch's current. The
+scaling judges that block underdetermined. `SMEE_DOL` and
+`SMEE_Rectifier` are rank-deficient by two (26 of rank 24, 27 of 25)
+on `smee.airGap.Phi_sr.im` against the same converter rows, beside an
+open switch or a diode. Both shapes stand where a switch has not yet
+closed; the two induction machines may be a judgement of scale rather
+than a true dependency, which is the question for their next probe.
