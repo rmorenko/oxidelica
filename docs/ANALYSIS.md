@@ -78618,3 +78618,21 @@ in every entry at the point, for a reason not yet measured.
 `PrismaticConstraint` under the held-row switch joins it. That is the
 one breed of the row that crosses libraries (a machine and a
 constraint), and it is the one worth a small model next.
+
+### Why the held rows come out zero, measured on S2
+
+A probe printing the torn inner unknowns beside the refused block
+(`/tmp/m661/oxi`, patch `~/oxideflow/park/m661_inner_names_probe.patch`,
+not merged; output `/tmp/m661/ni_S2.txt`) shows `der(body.Q[3])`,
+`body.z_a[2]` and `body.z_a[3]` among the inner assignments of S2's
+block under the held-row switch. These are exactly the unknowns of the
+three dead rows. Each such row is the held row the check refused,
+written a second time: the inner assignment that computes `der(Q[3])`
+from the block unknowns already satisfies it, so every perturbation of
+a block unknown moves `der(Q[3])` with it and the row stays at zero.
+The reading withdrawn above is now measured on S2: the duplicate is
+answered by the tearing, not by the block. For `UniversalConstraint`
+and `SMPM_CurrentSource` the same probe did not find the dead rows'
+derivative names among the inner unknowns (`/tmp/m661/ni_*.txt`), so
+the breed of row 7 may be two shapes rather than one; that is left
+open.
