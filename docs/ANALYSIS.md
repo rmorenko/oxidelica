@@ -78378,3 +78378,23 @@ are differentiated, and the wall moves seventeen reductions further.
 It does not fall. SphericalConstraint and RevoluteConstraint refuse as
 before, and Fourbar_analytic still runs. No pair was taken, and nothing
 about the heavy set was measured.
+
+### What the residues pay for once they are differentiated
+
+With the probe prints on top of `OXP_RES_LAST` (binary `/tmp/m660/ox7`,
+md5 aa7f7850, file `/tmp/m660/rlv.txt`), the quaternion count changes
+for the worse. Only two entries are demoted, `Q[4]` by the norm at
+reduction 1 and `Q[1]` by residue eq 179 at reduction 34. `Q[2]` and
+`Q[3]` are still states when the walk stops, and two of the four owed
+demotions are missing. Reductions 17 to 33 take positions and velocities
+of `bodyOfJoint` and `bodyOfConstraint` instead, through rows the world
+frame no longer pays for. At the last reduction, 15 members find no
+victim, 8 are held rows and 1 is a dependent row. So matching the
+residues last only trades one wrong payer for another. The world-frame
+rows that took `Q[2]` and `Q[3]` before were paying for the residues'
+rotations, by the wrong road but with the right count. The road the
+residues need runs through `constraint.frame_b.R.T` to
+`bodyOfConstraint.body.Q`, and no single ordering of the matching
+offers it. This is where the map stops. It is a chain of at least
+three links (who pays, which road, the held rows at the end), and by
+the rule of chains it goes to a second reader before anything is built.
