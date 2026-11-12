@@ -78169,3 +78169,20 @@ narrower than the choice of states. Why does the walk see the world's
 constant orientation rows as constraints to differentiate at all,
 when it could settle them as constants first? Nothing was built for it.
 The probe files are `/tmp/m660/q_prism.txt` and `/tmp/m660/q_pg.txt`.
+
+### How far the shared factor reaches
+
+A pass of the same probe over the 28 MultiBody models the run half
+refuses (`/tmp/m660/qsurvey.sh`, output `/tmp/m660/qsurvey.txt`, binary
+md5 f237aecf) counted the quaternion entries each model demotes, and how
+many of those were taken through a row naming `world.`. Only two models
+take a quaternion entry through the world frame: PrismaticConstraint (2)
+and PointGravityWithPointMasses2 (1). Five more demote one entry by the
+norm alone, which is the right count: SphericalConstraint, ThreeSprings,
+and Cylinder for two bodies. The other twenty-one demote no quaternion
+at all. So the world-frame factor is worth at most two models, and the
+closed loops behind most of the sixteen MultiBody names in the middle
+rows stand on another wall. A running model shows the world rows are
+not wrong in themselves: DoublePendulum (`/tmp/m660/q_DoublePendulum.txt`)
+takes six of its victims through world-frame rows, all of them positions,
+and runs.
