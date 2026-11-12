@@ -78974,3 +78974,18 @@ same machine, and under the key their speeds agree at 157.0446 rad/s
 at 1 s and 4.4 s, and part by 0.017 rad/s at 5 s, half a second after
 the load step, where a quasi-static stator is expected to differ from
 a transient one (`/tmp/m661/T1_5.csv`, `/tmp/m661/T3_5.csv`).
+
+### Both parked keys over the rest of the electrical side
+
+To look for victims outside the neighbours, both keys were run over
+the 284 remaining `Electrical`, `Magnetic`, `Blocks` and `Thermal`
+models (`/tmp/m661/wide.txt`), off, divisor key and pivot edge, one
+binary per key (`/tmp/m661/w_off.txt`, `w_div.txt`, `w_edge.txt`).
+For both: ran lists equal (236), refusals equal line for line, no
+victims, no wins. The pivot edge's work is equal to the digit. The
+divisor key moved one model's work: `DifferenceAmplifier` drops from
+266728 to 144328 Newton steps and runs in half the time. Its answer at
+the StopTime of 1e-8 s moves in the sixth digit (`C2.v` 5.383045 against
+5.383041, `C4.v` -3.755016 against -3.755019, `/tmp/m661/da2_*.csv`),
+within the tolerance of the run, so the key takes a different and
+cheaper road to the same numbers there.
