@@ -78151,3 +78151,21 @@ row that uses the same words, so the names are owners and not a recount.
 
 MultiBody owns 16 of the grep names across these six rows. Most of them
 stand behind the closed-ring wall above.
+
+### One factor the two models share
+
+The equations that took each quaternion entry, read from the probe
+files, point to one factor. In PrismaticConstraint `Q[2]` and `Q[3]`
+were taken through eq 1936 and eq 1940,
+`world.frame_b.R.T[i,i] = fixedRotation.frame_a.R.T[i,i]`. In
+PointGravityWithPointMasses2 the fourth demotion, `freeMotion.Q[1]` at
+reduction 18, was taken through eq 2539,
+`world.frame_b.R.T[1,1] = freeMotion.frame_a.R.T[1,1]`. The world's
+orientation is a constant (`world.frame_b.R.T[3,3] = 1`), so these rows
+differentiate to `der(...) = 0`. Index reduction then pays for them
+with a body's orientation state. Each model refuses on another row of
+the same world frame (eq 1944, eq 2876). So the next question is
+narrower than the choice of states. Why does the walk see the world's
+constant orientation rows as constraints to differentiate at all,
+when it could settle them as constants first? Nothing was built for it.
+The probe files are `/tmp/m660/q_prism.txt` and `/tmp/m660/q_pg.txt`.
