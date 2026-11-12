@@ -78967,3 +78967,10 @@ SI.Frequency f` with no default (for instance `Derivative.mo:8`,
 `Integrator.mo:6`). A refusal is the right answer for all of them; the
 row measures what the example filter lets through, not a fault of the
 compiler, and it is not a work queue.
+
+A second number for the power-sensor key: the transient
+`Electrical.Machines` and the QuasiStatic `IMC_withLosses` model the
+same machine, and under the key their speeds agree at 157.0446 rad/s
+at 1 s and 4.4 s, and part by 0.017 rad/s at 5 s, half a second after
+the load step, where a quasi-static stator is expected to differ from
+a transient one (`/tmp/m661/T1_5.csv`, `/tmp/m661/T3_5.csv`).
