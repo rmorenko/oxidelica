@@ -77457,3 +77457,17 @@ redeclares `C` at the site of `D d(redeclare model C = C5)` with
 k = 5: 0.00674 on both binaries, so a redeclaration from the site still
 outranks the class extension, as the code's `continue` says. All three
 stood.
+
+The K1d road was then asked in the shape the media use, without
+building anything. `H1`: a package `D extends Base`, extends the record
+`S` with `T`, and redeclares the function `f` that reads it. `D.f`
+gives 3 on both binaries, as owed, so a function redeclared beside its
+record sees the record. `H2` leaves the base's function `g` alone, and
+`g` returns an `S` built by `S(p = p)`. Both binaries refuse with "`g`
+never assigns `s.T` of its output", where `r.T = 7` is owed. The output
+is typed by `D`'s record and the constructor by `Base`'s: the K1d road
+again, a member reached through `D` and read in `Base`'s scope. Here it
+is a refusal rather than a wrong number, and the census holds no model
+refusing this way (`/tmp/m649/raw.txt` has one "never assigns", the
+`scanDelimiter` C body). It joins K1d as a case for the lookup change
+the m653 chapter named and left unbuilt.
