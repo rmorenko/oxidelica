@@ -77747,3 +77747,25 @@ fields, so the kept-for-another branch already covers it. So the
 whole-redeclare form does not live in the corpus. It is a known wrong
 number for user code, not a wall any example stands at, and it is left
 mapped rather than built.
+
+### The decomposition of the names, as far as it got
+
+This is about the tree of 8ff6b16. The corpus moved names by +77387
+between the old binary and 8ff6b16 with the switch open. That figure
+is the sum of two parts: L, the lookup that 8ff6b16 paid in both
+settings, and B, the swap of the record. Each subset taken with one
+binary both ways gives B for that subset alone, because L is in both
+halves and cancels:
+
+- `sub1` (41 Water, R134a and two-phase examples): B = -71716.
+- `rest_aa` (501 models): B = -61996.
+- `rest_ab` (the other 501): its halves `/tmp/m655/rest_ab.{on,off}`
+  have stood at 459 of 501 since 07:31. The models left are
+  `CombiTimeTable` tests and `Utilities`. Both processes are still
+  burning CPU (about 424 and 418 minutes at 09:36), so one model in the
+  run half is slow, not dead.
+
+So L + B(ab) = 77387 + 71716 + 61996 = 211099 names. The split between
+them waits for `rest_ab`. One bound is known: `HeatingSystem` alone
+carries L = 420. Since 64c7f28 the switch skips the lookup, so L no
+longer exists under the switch in the present tree.
