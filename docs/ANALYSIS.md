@@ -77285,3 +77285,27 @@ tests with none failed (`/tmp/m652/tests.txt`). Eight library models,
 gave the same counts and byte-equal work lines
 (`/tmp/m652/c_{off,on}_*.txt`). No corpus pair was run, and nothing
 was measured on the heavy models.
+
+### A third chapter 7 fault: the class extension
+
+`redeclare model extends C(k = 3) end C;`, written in a class that
+extends a base holding `replaceable model C`, runs with the base's
+`k = 1`: `d.c.x(1) = 0.367880` where exp(-3) = 0.0498 is owed
+(`/tmp/m652/full/K1.mo`, head binary `/tmp/m652/ox1`). With an equation
+added in the extension's body instead (`K1b.mo`) the model is refused
+as unbalanced on the variable that equation defines, so the
+extension's body is not read at all. The park patch does not change
+either. The parser reads the form (`parser/classes.rs:62-89`) as a
+class of the base's name with the base as its parent; what it does
+not do is put that class in the place of the inherited one. Seven
+`redeclare model extends` or `block extends` stand in the library. Not
+built in this shift. Further ch. 7 probes that came out right on the
+head binary: redeclaration through an extends modifier with a later
+modification on top (`J1`), a redeclared package constant (`J2`),
+modification precedence (`J3`), `redeclare each` on an array (`K2`), a
+modifier on the redeclared component (`K3`), a short replaceable class
+with a modification redeclared by another (`K4`), and an enclosing
+parameter in a class-level redeclaration (`K5`). Two more ch. 15
+probes came out right: two stream variables into a volume (`S6`) and
+four connectors with one reversed flow, `inStream` of each the
+outflow-weighted mean of the others (`S7`, 16.667 and 10 and 30).

@@ -249,6 +249,11 @@ definition with a modification (`model G3 = G(k = 3)`, then
 while `redeclare G3x g` with `G3x` written as `extends G(k = 3)` gives
 0.0498. Both probes are twelve to twenty lines (`/tmp/m652/full/W7a.mo`
 and `W7b.mo`, shift 646), and both are quoted whole in the analysis.
+A third probe of the same breed, found the same shift: a class
+extension, `redeclare model extends C(k = 3) end C;` in a class that
+extends the base, keeps the original `k = 1` (0.3679 instead of
+0.0498), and an equation added in the extension's body is not seen
+(`/tmp/m652/full/K1.mo`, `K1b.mo`).
 
 **Statements and algorithms** (ch. 11) are complete in their forms and
 partial in one direction only. `if`, `for`, `while`, `when`, `break`,
