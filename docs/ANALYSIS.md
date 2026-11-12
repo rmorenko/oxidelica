@@ -79240,3 +79240,26 @@ but the fault is a state stepped outside the range the algebra can
 invert. Index reduction choosing `p` and `h` as states, as the medium
 asks, removes the inversion, which agrees with the cut that ran on a
 constant-density medium. No fix was built: state selection is parked.
+
+## The unknown-divisor key on the heavy set
+
+The pair of the default-on divisor rule over the 23 names of
+`/tmp/m663/heavy23.txt`, one binary (`/tmp/m662/ox1`, md5 735b46af),
+both halves under the same memory and stall caps:
+
+```text
+off: OXIDELICA_UNKNOWN_DIVISOR=1 ox1 library check .msl --list --slow 60 --with-heavy --only-from /tmp/m663/heavy23.txt
+on:  ox1 library check .msl --list --slow 60 --with-heavy --only-from /tmp/m663/heavy23.txt
+```
+
+Both halves read 23 models, 23 flatten and 2 run, and the ran and
+flat lists agree name for name; no victims. The work counters agree
+to the digit in both phases, 3172706 Newton iterations on each side,
+so the fall in Newton steps is zero here and the rule is inert on the
+heavy set. Time: flattening 2245 s against 2229 s, running 9481 s
+against 9451 s, a difference of 0.3% on equal work, which is the
+desk and not the rule. Files `/tmp/m664/h_off.txt` and `h_on.txt`.
+
+The first rerun, under the default stall cap of 45 minutes, was taken
+down at 1216 s with two models left, one of them `FOURBIT`, which runs silent for longer than that cap; the pair above was
+taken with the stall cap at 90 minutes.
