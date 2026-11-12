@@ -78282,3 +78282,27 @@ position constraints that must be paid for with something. With
 `always` honoured, only orientation is left to pay with. Dymola
 answers this with dynamic state selection over `Q`. That is item 1d's
 forbidden road, and this model now stands squarely on it.
+
+### PrismaticConstraint owes all four quaternion entries, and pays three
+
+The source settles what the count should be. `Joints/Constraints/Prismatic.mo`
+line 55 writes
+`zeros(3) = Orientation.equalityConstraint(frame_a.R, frame_b.R)`: the
+constraint locks all three rotations of `bodyOfConstraint` against the
+world. The norm takes one of the four quaternion entries and the three
+residues take the other three, so all four `Q[i]` owe a demotion. That
+corrects "three of four is right" above, which held for a free body
+and not for this one. The trail (`/tmp/m660/v_prism.txt`) shows the
+residues paying one at a time. Eq 181 is differentiated at reduction 15
+and takes `Q[2]`. Eq 179 is differentiated at reduction 16 and takes
+`Q[3]`. Eq 180, the third residue, is never differentiated in the
+whole walk (0 lines), and at reduction 18 all three residues report an
+empty reach. So the wall is narrow and nameable. The third orientation
+residue of a locked constraint cannot reach the last quaternion entry,
+because the two roads it could take, through `constraint.frame_a.R.T`
+(eq 179 and 181 again) and through `bodyOfConstraint.body.frame_a.R.T`
+(rows already held), are both closed by rules that are each right on
+their own. This is a local question and not dynamic state selection.
+The next shift should ask why the reach of eq 180 is empty when its
+names include `constraint.frame_b.R.T`, which `bodyOfConstraint`'s
+orientation determines.
