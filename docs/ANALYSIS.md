@@ -77111,3 +77111,161 @@ red only on uploading the artefact (a 404 from the artefact service
 after "Read it" passed) and the judge skipped, so no judge printed the
 new count and the centre stayed. It is moved to the print in the same
 series of commits as this chapter.
+
+## m652: row 28 counted against its maps, and three Full chapters probed
+
+### Row 28, name by name
+
+Row 28 of the reference census (`/tmp/m649/census.txt:138`, 28
+models, `structurally singular model: equation E constrains no state`)
+was taken from `/tmp/m649/row28.txt` and each name looked up in this
+document before anything was run. Six names had no map of their
+mechanism. Those six were asked under `--only` from `.msl` with one
+binary (`/tmp/m652/ox1`, md5 `7586789a9124bf103a16ab5f30929feb`, tree
+`6792085`, files `/tmp/m652/p_*.txt`, each carrying its command), and
+each refused exactly as the census said.
+
+| model                                               | equation that constrains nothing         | map                                   |
+| --------------------------------------------------- | ---------------------------------------- | ------------------------------------- |
+| OpAmpCircuits.Add, Gain                             | `n2.i = 0` (open pin)                    | m472, item 34: open component         |
+| OpAmpCircuits.Buffer, Feedback                      | `p1.i = 0`, `p1_2.i = 0` (open pin)      | m472, the same                        |
+| Analog Utilities.Nand, RealSwitch                   | `x1.i = 0`, `control.i = 0`              | m472, the same                        |
+| Polyphase Utilities.AnalysatorAC, AnalysatorDC      | `plug_nv.pin[1].i = 0`, `nv.i = 0`       | m472, the same                        |
+| Spice3 InvertersExtendedModel.MNmos, MPmos          | `G.i = 0` (open gate)                    | open component, no chapter by name    |
+| FluxTubes Hysteresis Transformer1Phase, 3PhaseYy    | `resistor1.n.i + winding1.p.i = 0`, star | m469: parts, open component           |
+| FluxTubes PermeanceActuator, SimpleSolenoid         | `p.i = 0`, `n.i = 0`                     | m472, the same                        |
+| Rotational, Translational SpringDamperNoRelative... | `flange_b.tau = 0`, `flange_b.f = 0`     | m472: singular as written             |
+| MultiBody Loops.Utilities.Cylinder                  | `crank1.body.frame_a.R.T[1,1]` = quat.   | m630 table only (moved row), no layer |
+| Tanks.TanksWithOverflow                             | `lowerTank.ports[2].m_flow = 0`          | item 100, waits for word              |
+| AST_BatchPlant.BatchPlant_StandardWater             | `B5.InnerTankSide[1].port.m_flow = 0`    | item 100, waits for word              |
+| RobotR3.FullRobot, OneAxis                          | spring `phi_rel`, friction `w` alias     | shift 606: re-reduction wall          |
+| Loops.Engine1a                                      | `der(bearing.frame_b.R.T[2,2])` ...      | item 60, named_zero                   |
+| Noise.ActuatorWithNoise                             | KCL of a quasi-RMS sensor pin, 31 tried  | probed here: new map below            |
+| IMC_DOL_CommonLeakage                               | `V_m.im` alias of two converter ports    | probed here: new map below            |
+| Constraints.PrismaticConstraint                     | `frame_a.R.T[1,3]` = quaternion product  | probed here: orientation layer        |
+| Constraints.SphericalConstraint                     | relative-velocity row in `R.T[2,*]`      | probed here: orientation layer        |
+| Elementary.PointGravityWithPointMasses2             | `der(freeMotion.frame_a.R.T[1,1]) = 0`   | probed here: orientation layer        |
+| Elementary.RollingWheel                             | `rollingWheel.v_0[2] - body.v_0[2] = 0`  | probed here: velocity alias, 6 passes |
+
+The six probed, read from the refusal and the reduction line of each
+file:
+
+- `PrismaticConstraint`, `SphericalConstraint` and
+  `PointGravityWithPointMasses2` end on a row of an orientation matrix
+  (`R.T`, either written as the quaternion product of a body or
+  differentiated) after 18, 34 and 63 passes, each with 31 alternatives
+  tried. That is the cap of `MAX_SINGULAR_ATTEMPTS = 32`
+  (`compile.rs:898`), so for these three "nothing else would do" means
+  "nothing among the first 32". They are one layer, the MultiBody
+  orientation, and the brief's guess that they are kin of the two kinds
+  of row 4 in item 105 (a geometric zero coefficient at the start, an
+  unknown only in a branch closed at t = 0) does not hold for them: no
+  branch and no coefficient appears in the refused equation. It is an
+  alias of a state-carrying orientation that index reduction already
+  spent.
+- `RollingWheel` ends after 6 passes on a velocity alias between the
+  rolling contact and the body, also with 31 tried.
+- `IMC_DOL_CommonLeakage` ends after 16 passes on an alias between the
+  imaginary magnetic potentials of two neighbouring single-phase
+  converters (`[5].port_p.V_m.im = [4].port_n.V_m.im`), 31 tried. That
+  is the quasi-static network's angles of the m401 chapter, the layer of
+  the QuasiStatic machines, by its shape. Not proven by a trace.
+- `ActuatorWithNoise` ends after 53 passes on the current balance of a
+  voltage sensor's third pin inside the motor's quasi-RMS sensor, 31
+  tried. This one is the only model of the six that spends Newton work
+  before the refusal (4841 points, 9856 Newton steps).
+
+The forecast written before the probes (`/tmp/m652/forecast_1c.txt`)
+expected three in the orientation layer, one in the quasi-static
+network and two new. All three were right in direction. Its falsifier,
+that three or more would fall into the two kinds of item 105, did not
+fire. None did.
+
+### How many of row 28 are helpers
+
+The test for an example used here is the one the check uses for
+runnable models: an `experiment` annotation or the `Icons.Example`
+icon in the class's own text. Counted per class (`/tmp/m652/markers.txt`,
+with `ActuatorWithNoise`, `TanksWithOverflow` and
+`BatchPlant_StandardWater` checked by hand where the lookup failed):
+
+- 16 carry neither, and all 16 sit in a `Utilities`, `Components`,
+  `OpAmpCircuits` or `InvertersExtendedModel` package: the eight
+  OpAmp and Analog and Polyphase utilities, `MNmos` and `MPmos`, the
+  four FluxTubes components, and the two `SpringDamperNoRelativeStates`.
+  Each refuses on the zero an open port is given, which a parent would
+  have replaced with a connection.
+- `Loops.Utilities.Cylinder` carries neither as well, which makes 17
+  of 28 helpers, but it refuses on the orientation layer rather than an
+  open port.
+- 11 are examples by the test: `ActuatorWithNoise`, the two tank
+  models, `IMC_DOL_CommonLeakage`, the three constraint and gravity
+  models, `RollingWheel`, `Engine1a`, `FullRobot` and `OneAxis`.
+
+So for the question of item 66 the row is 17 helpers and 11 examples.
+The filter is not changed here.
+
+### Chapter 2, lexical structure: eight probes, stands
+
+Quoted identifiers with a space, a dollar, a plus, Greek letters and an
+escaped quote (`'\'q\''`); every escape the specification lists in a
+string; Unicode in strings and comments; numbers as `.5`, `1.e3`,
+`1E-3`, `0.5e+0`, `1.`, `12E0`, `0e-5`; a comment that opens a second
+`/*` inside the first. All eight ran and the values come out right
+(`/tmp/m652/full/L1.mo` to `L8.mo`). The escape `\x41` is refused by
+name, which matches the specification's list. Chapter 2 stays Full.
+
+### Chapter 7, inheritance and redeclaration: lowered to Mostly
+
+Two probes give a wrong number, each with a twin that runs right.
+
+```modelica
+model W7a
+  model C0  Real x(start = 1); equation der(x) = -x;     end C0;
+  model C2  Real x(start = 1); equation der(x) = -2 * x; end C2;
+  model BShortForm replaceable model C = C0; C c; end BShortForm;
+  model BLongForm
+    replaceable model C Real x(start = 1); equation der(x) = -x; end C;
+    C c;
+  end BLongForm;
+  BShortForm s(redeclare model C = C2);
+  BLongForm l(redeclare model C = C2);
+end W7a;
+```
+
+`s.c.x(1) = 0.135335`, which is exp(-2). `l.c.x(1) = 0.367879`, which
+is exp(-1): the long-form replaceable class kept its own body, and the
+redeclaration was dropped without a word.
+
+```modelica
+model W7b
+  model G parameter Real k = 1; Real x(start = 1);
+    equation der(x) = -k * x; end G;
+  model G3 = G(k = 3);
+  model G3x extends G(k = 3); end G3x;
+  model Base replaceable G g; end Base;
+  Base viaShort(redeclare G3 g);
+  Base viaExtends(redeclare G3x g);
+end W7b;
+```
+
+`viaExtends.g.x(1) = 0.049787`, which is exp(-3). `viaShort.g.x(1) =
+0.367879`: the redeclared type is a short class with a modification,
+and the modification is lost. `G3 g;` declared directly keeps it (probe
+`I3.mo`, `g.x = 0.049787`), so the loss is in the redeclaration of a
+component to a short class, not in short classes.
+
+Both give a value where a refusal was owed, which is the worst outcome
+this project names. The chapter is lowered in its own commit. No fix
+is built in this shift.
+
+### Chapter 15, stream connectors: five probes, stands
+
+Two connectors (`inStream` is the other side's value, 7), three
+connectors weighted by outflow (`(1*10 + 3*40)/4 = 32.5`, exact), zero
+flow on three connectors (the regularised mean 25, not NaN), stream
+connectors in an array of components under a `for` connect, and a flow
+that reverses through a two-port with `actualStream` switching from the
+upstream 7 to the downstream 99 at the zero of `sin(10t)`, while an
+unconnected top-level connector's `inStream` returns its own 3
+(`/tmp/m652/full/S1.mo` to `S5.mo`). All right. Chapter 15 stays Full.
