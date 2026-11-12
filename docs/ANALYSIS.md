@@ -78667,3 +78667,10 @@ with their coefficients read from outside the block. It is a
 differentiated position constraint and not a written-twice row; why it
 differences to zero is not measured (the coefficients' values are not
 in the trail). The first breed of row 7 holds two shapes.
+
+`LossyGearDemo2`'s two proportional rows are the case its own
+documentation names: "If both friction models are stuck, there is no
+unique solution" (the model's `Documentation`). Rows 2 and 3 of its
+block are the gear's and the bearing's locked branches, proportional
+at t = 0 where both stand stuck (`/tmp/m661/nt_LossyGearDemo2.txt`).
+That is a known hard case of friction, not a defect of the matching.
