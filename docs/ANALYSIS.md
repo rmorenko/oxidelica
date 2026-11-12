@@ -78201,3 +78201,22 @@ probe only. On PointGravityWithPointMasses2 it fires at reductions 18,
 chain, not a model won. On PrismaticConstraint it never fires, and the
 refusal stands unchanged. No victim list or corpus pair was taken, and
 nothing about the heavy set was measured.
+
+### Where PGWPM2's extra quaternion goes
+
+With the probe and the guard together (binary `/tmp/m660/ox3`, md5
+02bb573e, file `/tmp/m660/g3_pg.txt`), the demotion that leaves the body
+one entry short shows up at reduction 3. It is
+`pointMass3.frame_a.r_0[1] = fixedTranslation2.frame_b.r_0[1]`, a point
+mass held rigidly to the free body by a fixed translation. The victim
+is chosen by joint weights, `freeMotion.Q[3]` at 2.0 against
+`freeMotion.r_rel_a[1]` at -1.0, with `Q[1]` and `Q[2]` at 0. The
+reach also holds `pointMass1.r_0[1]` and `pointMass3.r_0[1]`. So the
+position constraint of a rigidly attached point mass is paid for with
+an orientation entry rather than a position. After that the norm and
+`R_rel` rows take the rest, and the guard only moves the wall to reduction
+54, on `der(freeMotion.R_rel.T[1,3]) = f(der(Q))`. There 15 members
+are held rows and 8 meet the supply-once ledger. The question for
+the next shift is the weight that prefers `Q[3]` over `r_rel_a[1]`, and
+a probe of the weight alone would answer it. This shift built nothing
+for it.
