@@ -78812,3 +78812,17 @@ at 0 at the start, against a density row of IF97. So the breed is a
 flow or pressure derivative that starts at zero where a branch of the
 medium or the pump curve has no slope; the two share the symptom and
 not yet a cause.
+
+The two induction machines are judged by the pivot edge, not by a
+dependency. Scaled either way, their smallest pivot is 3.7e-9 (rows
+first) and 5.6e-9 (columns first) against the edge of 1e-7 at
+`linear.rs:202` (`/tmp/m661/u_IMCDOL.txt`, `/tmp/m661/u_IMS.txt`).
+The scaled null direction is the derivatives of `aimc3`'s stator phase
+currents and air-gap potential against the rows of the open
+`idealCloser3` switches, whose off conductance is `Goff = 1e-5`
+(the model's own modifier): before the switch closes the stator is
+tied to the supply through a conductance of 1e-5, and that is the
+size of what the block can see of it. The block is determined, faintly.
+Whether the edge of 1e-7 is the place to read this is a judgement on
+the edge, and its comment names the machine at rest as the case it was
+tuned on, so it is a question and not a fix.
