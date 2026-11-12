@@ -78871,3 +78871,13 @@ their speeds must agree. Under the probe edge they do, to 3.3e-10 rad/s
 over the whole run, reaching 150.844 rad/s at 1 s
 (`/tmp/m661/T2.csv`, `OXP_PIVOT_EDGE=1e-9`). The faint block was
 determined, and the edge was what refused it.
+
+The heavy basket's one machine, `IMC_YDarc`, was asked under the edge
+too (`--with-heavy --only`, off and on in parallel under the memory
+ceiling, `/tmp/m661/yd2_off.raw`, `/tmp/m661/yd2_on.raw`): its work is
+equal to the digit, 335270 points and 2417274 Newton steps, and it
+refuses both ways. The victim witnesses print the same under the edge
+(`/tmp/m661/pe_witness.diff` is empty). The five Spice3 models of the
+basket were not measured. The three `SMPM_CurrentSource` and the
+QuasiStatic `Rectifier` stay refused under the edge, so their walls are
+not this one.
