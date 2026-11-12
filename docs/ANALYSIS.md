@@ -79194,3 +79194,29 @@ row is a differentiated kinematic constraint (`RollingWheel`,
 `SphericalConstraint`, `Engine1a`), and two electrical ones whose row
 is a flow balance at a sensor or a converter (`ActuatorWithNoise`,
 `IMC_DOL_CommonLeakage`). No fix was attempted.
+
+## Row 10 beyond the pipes, probed
+
+Row 10 holds ten models whose refusal begins `the Newton direction`
+(tab-anchored `grep` on `/tmp/m649/raw.txt`): eight pipe models,
+`TestTemperature1` and `Machines...IMC_withLosses`. A looser `grep`
+for the phrase anywhere finds three more, `ThreeSprings` and the two
+`RollingWheelSet` models, whose refusals belong to other rows. Run
+alone under `OXIDELICA_NEWTON_TRAIL=1`, files `/tmp/m664/r10_*.txt`,
+binary md5 1b3bce1c:
+
+- `IMC_withLosses` runs: `of the 1 that flatten, 1 run`, and it is in
+  the `ran` list of the pair in `/tmp/m662/p_off.txt`. The census of
+  `/tmp/m649` is older than the change that won it, so row 10 now
+  holds nine.
+- `TestTemperature1` is the pipe family seen through a vessel: the
+  loop opens on `volume1.medium.p`, the medium is IF97 water and the
+  volume has mass and energy dynamics, the shape the `SeriesPipes2`
+  cut came down to. The trail matches: a first step into NaN at
+  t = 0.0002, then a residual stuck at 5.5e11.
+
+So row 10 is one family of nine, eight pipes and a vessel, whose
+remedy is state selection. Seen in passing: `ThreeSprings` swings,
+its residual growing from 2.7e3 to 3.5e3 over the last twelve of 60
+iterations, and `RollingWheelSetDriving` refuses as a singular
+Jacobian at t = 0 with the residual near 1e23.
