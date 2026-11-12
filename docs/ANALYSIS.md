@@ -78439,3 +78439,109 @@ medium relation is the gap. What HeatingSystem has that the three do not
 is still unnamed: the medium's record `state.T`, the parameters it
 cannot evaluate before the run (`heater.h_start` and its neighbours,
 noted by `why`), or the tank's mass state. The shrinking was not finished this shift.
+
+## A small PrismaticConstraint, a second reader, and the gate it names (m661)
+
+No model moves in this chapter. It pays the debt of the last one (a
+small model with the same refusal), puts the question to a second
+reader, and measures the reader's falsifiers.
+
+### PrismaticConstraint in fourteen lines
+
+`PrismaticConstraint` shrinks to fourteen lines - a world, the
+`FixedRotation`, `Joints.Constraints.Prismatic` and one `Body` - and
+keeps its refusal (`/tmp/m661/S2.mo`, run on the head binary md5
+e4bc7e57 with no probes): `body.frame_a.R.T[1,3] = 2*(Q[1]*Q[3] -
+Q[2]*Q[4]) constrains no state`. Without the `FixedRotation` the
+refusal moves to `-der(constraint.frame_a.R.T[1,1]) = 0`, the same
+family from the other side. The small model repeats the map of m660
+(`/tmp/m661/q_S2.txt`, `/tmp/m661/e_S2.txt`): the norm pays `Q[4]` at
+reduction 1, `world.R.T[1,1]` and `[2,2]` pay `Q[1]` and `Q[2]` at 9
+and 10, the wall stands at reduction 12 with `Q[3]` still a state, and
+the three `atan2` residues of the constraint are matched to `R.T`
+inputs in every reduction and never differentiated. So the map holds
+on a model small enough to quote whole.
+
+### The second reader
+
+The question went to the consulting model with the small model in it
+(`QUESTION_FOR_FABLE.md`, answer in `/tmp/m661/fable.txt`). Its answer,
+retold: the geometry is innocent - the norm and three locked rotations
+are four rows on four quaternion components with rank four at any unit
+quaternion, and since the constraint locks the body to a constant
+frame the quaternion never moves, so no dynamic state selection is
+needed. Both roads proposed in the question only slide the wall along
+the web of orientation equations. The refusal's wording, "constrains
+no state", is written for five different refusal roads in the
+singular-set loop, and a member naming `Q[3]` literally cannot have an
+empty reach, so a gate refused it: the supply ledger, the held-row
+check, the dependent-row check, or the 32-member ceiling.
+
+### The falsifiers, measured
+
+With `OXIDELICA_VICTIM_PROBE=1 OXIDELICA_SUPPLY_PROBE=1` on S2
+(`/tmp/m661/f_probe.txt`) reduction 12 prints ten `held-row: ...
+would add row N again` lines, one for each quaternion row and the
+norm, besides `supply-once` and `dependent-row` lines on the frame
+equalities. The reader's first prediction stands: a gate speaks
+before the refusal. Under each switch:
+
+```text
+OXIDELICA_SUPPLY_ONCE=4      same wall, same member      /tmp/m661/f_so4.txt
+OXIDELICA_VICTIM_FORCE=Q[3]  wall moves to der(fixedRotation.frame_a.R.T[2,2]) = 0
+OXIDELICA_NO_HELD_ROW=1      Q[3] is demoted, the wall goes to a
+                             singular Jacobian in the run   /tmp/m661/f_nohr.txt
+```
+
+So the gate is the held row (m603), not the supply ledger, and its
+removal takes the model past the first wall into a different family:
+a singular Jacobian of the loop holding `constraint.frame_b.R.T`,
+the body's quaternion and its second derivatives, raised at
+`solvers/mod.rs:2592`. The real `PrismaticConstraint` does the same
+under the switch: 39 reductions instead of 18, then `singular
+Jacobian in algebraic loop` (`/tmp/m661/real_nohr.txt`). That is a
+link of a chain and not a win: the model still does not run. The
+reader's second prediction holds in direction (the wall leaves the
+family) and the fourth is refuted in the reader's favour (forcing the
+victim moved the wall rather than letting the model through).
+
+The held-row check refuses a member whose differentiated row the
+system already holds to the character. Here the row it would add is
+the derivative of a quaternion row already differentiated, so the
+check is right that the row is not new; what it costs is the only
+member that names the last quaternion. Whether a narrower held-row
+test exists is the next question, and the switch alone is not it:
+taking the check back broadly is measured below on the MultiBody set.
+
+### StateGraph's +2 is the library's, and not a compiler fault
+
+The census row the shift was sent to is not where StateGraph stands.
+The 13 models of `unbalanced ... nothing determines` are thirteen
+`Utilities` components with open inputs (`DirectCapacitor`,
+`RobotR3.Utilities.Motor`, `ControllerUtilities.*`), under-determined
+by construction. The `CompositeStep`, `CompositeStep1`,
+`CompositeStep2` and `MakeProduct` stand in the row of five, `nothing
+is left for` (+2). The cause is the library: `PartialCompositeStep`
+writes `if cardinality(inPort) < 2 then inPort.occupied = false;
+inPort.set = false; end if` (StateGraph.mo:2631), meant for the
+composite step used inside a graph. Checked alone its `inPort` has one
+connection, the inner step's, so both defaults apply while the inner
+step also writes `occupied`. `/tmp/m661/G3.mo` repeats it in nine
+lines: 5 equations for 4 unknowns, `nothing is left for s.p.set =
+inPort.set`. None of the four is a runnable example (no experiment, no
+Example icon), and the models that use them, `ShowCompositeStep` and
+`ControlledTanks`, run. No fix is owed.
+
+### The run-half rows, by owner
+
+Row 10, `the Newton direction`, is nine `ModelicaTest.Fluid` pipes
+(`BranchingPipes1/2/3/4/13/14`, `SeriesPipes1/2`, `TestTemperature1`)
+and `IMC_withLosses`, not ten Fluid models: the queue's record of "the
+same ten models of m363" names one machine too few
+(`/tmp/m661/row10s.txt`). Row 6, `cannot evaluate parameters`, is six
+MultiBody `_analytic` loops, all on `jointRRP.e_ia` or `jointRRR.e_ia`
+from the joint's `e2_ia`: one family. Row 7, `singular Jacobian`, is
+seven models in seven layers - a rectifier's diodes, a pump, a
+synchronous machine's air gap, `UniversalConstraint`,
+`RollingWheelSetDriving`, `LossyGearDemo2`'s quadrants and a mixing
+volume (`/tmp/m661/sj7.txt`): no common breed.

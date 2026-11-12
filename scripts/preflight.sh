@@ -112,9 +112,10 @@ examples_all_simulate() {
 # computed here. On 2026-11-12 the desk printed 0.869 / 0.871 / 0.879 /
 # 0.885 with work counters equal byte for byte: the level fell about 6%,
 # and 0.86 stands only 1.0% under the worst print against a spread of
-# 1.8%, so it may go red again without any code moving. Of 0.88: It was lowered with the settling fix, which makes the
-# run half cheaper and the flatten half dearer, so the ratio falls
-# without any model being lost. Witnesses, seven quiet desk prints of
+# 1.8%, so it may go red again without any code moving. Of 0.88: It
+# was lowered with the settling fix, which makes the run half cheaper
+# and the flatten half dearer, so the ratio falls without any model
+# being lost. Witnesses, seven quiet desk prints of
 # the judge on 2026-11-09 (/tmp/m622/ratio{1,2,_head}.txt and
 # /tmp/m623/{h1,r1,h2,r2}.txt, binaries md5 ae40a54f head and 595f9d3c
 # fix): head 1.054 / 1.032 / 1.021, fix 0.940 / 0.935 / 0.923 / 0.933.
