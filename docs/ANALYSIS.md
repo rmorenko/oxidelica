@@ -77721,3 +77721,29 @@ in eight Media files. On the 33 Media and Fluid examples
 (`/tmp/m656/k1d_ox1.txt` against `k1d_ox3b.txt`) the work is equal
 apart from 32 names, and the ran lists are equal. So the form barely
 lives in the corpus. The draft waits for a pair of its own.
+
+### Twins of the class form
+
+The twins are in `/tmp/m656/twins.txt`. Each was run with `/tmp/m656/ox1`
+(this tree) and `/tmp/m656/ox3` (the parked draft), both ways.
+
+- `K1i` is `K1d` with `block` for `model`. It is 0.3679 on `ox1`, and
+  0.0498 on `ox3` with the switch open.
+- `K1h` redeclares `C` whole in `D` (`redeclare model C ... k = 3`, no
+  `extends`). It is 0.3679 on both binaries and under both settings,
+  where e^-3 is owed. The draft asks for `redeclare model extends`
+  through `class_extensions`, and the structure records nothing for a
+  class redeclared whole. Finding it would need the parser to record
+  that writer, not a test on the spelling.
+- `K1j` is the record form of `K1h`, a record with a field redeclared
+  whole. It is 0.3679 on both binaries as well. The record seat lets
+  such a record through only when the base keeps it empty
+  (`kept_for_another`) or when it is written `extends`.
+
+A grep of `.msl` for a record, model, block or connector redeclared
+whole inside a package finds two, and both are `ThermodynamicState`
+(`Media/package.mo:3862`, `:4790`). Its base declares it with no
+fields, so the kept-for-another branch already covers it. So the
+whole-redeclare form does not live in the corpus. It is a known wrong
+number for user code, not a wall any example stands at, and it is left
+mapped rather than built.
