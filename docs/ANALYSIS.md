@@ -78674,3 +78674,16 @@ unique solution" (the model's `Documentation`). Rows 2 and 3 of its
 block are the gear's and the bearing's locked branches, proportional
 at t = 0 where both stand stuck (`/tmp/m661/nt_LossyGearDemo2.txt`).
 That is a known hard case of friction, not a defect of the matching.
+
+The `Rectifier` is the same breed with a diode in place of the friction:
+every block unknown starts at zero, the bridge's ideal diodes all stand
+at `s = 0` (`/tmp/m661/nt_Rectifier.txt`), and rows 3 and 7 - the first
+diode's current and the load's Ohm's law - come out with identical
+entries (-20 on `idealDiode1.s`, `load2.v` and `pin_nDC.v`, 1 on
+`idealDiode3.p.i`). At an all-zero start the switch has not said which
+diodes conduct, so two branches carry the same current. Row 10 holds
+one machine, not Fluid: `Electrical.Machines` `IMC_withLosses` stops on
+a Newton direction in a loop of the air gap's currents, and its two
+`FundamentalWave` and `QuasiStatic` namesakes stand in other rows of
+the census (`/tmp/m649/raw.txt`). Three machines of one name in three
+rows is the next thing worth a probe.
