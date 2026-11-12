@@ -77816,3 +77816,12 @@ than two hours is still unnamed. One candidate is
 it the same model 14 times dearer. That is not measured. The next
 instrument is one run of each candidate under a ceiling above 862 s,
 and the bisection was stopped here.
+
+A correction to the frame above. The two halves stopped at the same
+size, which shows that they stopped at the same place. It does not
+show that one model was to blame. Three slices of the second cut ran
+into the time ceiling, and that is consistent with one dear model or
+with several. A slice of 29 models can also pass 8 minutes by
+arithmetic alone. Slice `aa` was a separate case: it was stopped by
+its 6 GB memory ceiling after 81 s (`/tmp/m656/s2_aa.out`), so it hit
+a wall of memory, not of time, and that is a different breed.
