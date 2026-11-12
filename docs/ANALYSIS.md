@@ -78710,3 +78710,33 @@ with no load at all (`W3.mo`, `W4.mo`), the model runs. A power
 sensor between two inertias is common in the library (23 example
 files name `Sensors.PowerSensor`), so this is a candidate family, not
 yet a census row: the victim choice at reduction 2 is the question.
+
+### A probe key for the power sensor, and its small court (parked)
+
+The power sensor's wall is the isolation of a derivative, not the
+victim choice: `split_equations` takes `der(x)` out of an equation in
+place (`isolate_der`, compile.rs), and from `power = tau * der(phi)` it
+gets `der(phi) = power / tau`, a division by an unknown that is zero
+at the start. A probe key, `OXP_NO_UNKNOWN_DIVISOR=1`, leaves such an
+equation as an equation when the isolated value divides by a name of
+the continuous system (binary `/tmp/m661/oxd`, md5 950d3219; patch and
+note `~/oxideflow/park/m661_no_unknown_divisor.*`). Under it the
+pure-equation model `/tmp/m661/W6.mo` - two inertias sharing an angle
+under a unit torque through `p = tau * der(phis)` - runs to the exact
+answer, tau = 1/2, phi = t^2/4, p = t/4; without it, the same refusal
+as `IMC_withLosses`. A unit test checks those numbers and is red
+without the key.
+
+The small court is 133 neighbours (`/tmp/m661/nb.txt`: Machines,
+Rotational, the FundamentalWave and QuasiStatic machines, every file
+naming `Sensors.PowerSensor`), one binary, off then on
+(`/tmp/m661/nb_off.txt`, `/tmp/m661/nb_on.txt`). Run 115 -> 118, the
+three `IMC_withLosses` - Machines, FundamentalWave and QuasiStatic,
+which stood in three different census rows - and no victims; every
+other refusal is equal line for line. The run half went 279 s -> 283 s
+with the flatten half 177 s -> 182 s on equal flatten counters, so the
+price is not resolved here. The Machines model runs to its StopTime of
+5 s, its speed falling from 157.08 to 156.66 rad/s after the load step
+at 4.5 s. Not measured: the corpus pair, the victim witnesses (the key
+changes which equations become state equations), the heavy basket.
+Nothing is merged.
