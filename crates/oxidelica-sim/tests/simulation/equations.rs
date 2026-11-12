@@ -3059,3 +3059,37 @@ fn a_component_redeclared_to_a_short_class_keeps_its_modification() {
     assert!((last_of(&result, "viaExtends.g.x") - expected).abs() < 1e-4);
     assert!((last_of(&result, "viaShort.g.x") - expected).abs() < 1e-4);
 }
+#[test]
+fn a_class_extension_replaces_the_class_a_base_holds() {
+    // `redeclare model extends C(k = 3)` beside `extends Base` used to
+    // leave the `C c` the base declares as the base's own `C`: the run
+    // gave e^-1 where e^-3 is owed, and an equation in the extension's
+    // body was never read.
+    let result = run("model K1 \
+         model Base replaceable model C Real x(start = 1); Real y; \
+           parameter Real k = 1; equation der(x) = -k * x; end C; C c; end Base; \
+         model D extends Base; redeclare model extends C(k = 3) \
+           equation y = 2 * x; end C; end D; \
+         D d; annotation(experiment(StopTime=1.0, Interval=0.01)); end K1;");
+    let expected = (-3.0f64).exp();
+    assert!((last_of(&result, "d.c.x") - expected).abs() < 1e-4);
+    assert!((last_of(&result, "d.c.y") - 2.0 * expected).abs() < 1e-4);
+}
+
+#[test]
+fn a_function_and_a_package_extension_replace_what_the_base_calls() {
+    // The same fault in the other two forms: the base's own equation
+    // called the base's `f` and read the base's `P.k`, giving 1 where
+    // the extension owes 3.
+    let result = run("model F1 \
+         model Base replaceable function f input Real u; output Real y; \
+           algorithm y := u; end f; \
+           replaceable package P constant Real k = 1; end P; \
+           Real z; Real w; equation z = f(time); w = P.k * time; end Base; \
+         model D extends Base; \
+           redeclare function extends f algorithm y := 3 * u; end f; \
+           redeclare package extends P(k = 3) end P; end D; \
+         D d; annotation(experiment(StopTime=1.0, Interval=0.01)); end F1;");
+    assert!((last_of(&result, "d.z") - 3.0).abs() < 1e-6);
+    assert!((last_of(&result, "d.w") - 3.0).abs() < 1e-6);
+}

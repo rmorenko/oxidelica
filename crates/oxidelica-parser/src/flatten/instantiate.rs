@@ -721,6 +721,30 @@ fn instantiate_bases(
                 &[],
             )?);
         }
+        // `redeclare model extends C(k = 3) end C;` written beside this
+        // `extends` replaces the base's `C` for everything the base
+        // declares as well: a `C c` the base holds is the extended
+        // class, not the one the base wrote. The nested class says so
+        // only by its name and its `from_base` extends, so it is handed
+        // down here as the class-level redeclaration it stands for.
+        if !class_extension_off() {
+            for short in &class.class_extensions {
+                let short = short.as_str();
+                if base_redeclares
+                    .iter()
+                    .any(|r: &Redeclare| r.class_level && r.name == short)
+                {
+                    continue;
+                }
+                base_redeclares.push(Redeclare {
+                    name: short.to_string(),
+                    type_name: format!("{}.{short}", class.name),
+                    modifiers: Vec::new(),
+                    each_modifiers: Vec::new(),
+                    class_level: true,
+                });
+            }
+        }
         let own_redeclares = base_redeclares.clone();
         // What came down from the site outranks what this `extends`
         // says, as any modification from outside outranks the one
@@ -1739,4 +1763,11 @@ fn handed_names_open() -> bool {
 /// keeps the old order, so that one binary gives both numbers.
 fn extends_redeclare_first() -> bool {
     std::env::var_os("OXIDELICA_EXTENDS_REDECLARE_FIRST").is_some()
+}
+
+/// Whether a `redeclare model extends` is left out of what its
+/// enclosing class hands its bases, as it was before: the switch that
+/// lets one binary give both numbers.
+fn class_extension_off() -> bool {
+    std::env::var_os("OXIDELICA_NO_CLASS_EXTENSION").is_some()
 }

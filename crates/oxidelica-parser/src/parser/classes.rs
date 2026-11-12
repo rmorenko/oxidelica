@@ -539,9 +539,15 @@ impl Parser {
             alias_of = Some((base.base, base.modifiers));
         }
 
+        let class_extensions = nested
+            .iter()
+            .filter(|c| c.extends.iter().any(|e| e.from_base))
+            .map(|c| c.name.clone())
+            .collect();
         Ok(ClassItem::Class(Box::new(ClassDef {
             kind,
             name,
+            class_extensions,
             partial,
             encapsulated,
             protected: false,

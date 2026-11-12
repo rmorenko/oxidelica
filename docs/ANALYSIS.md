@@ -77384,3 +77384,66 @@ was reached through `D`. A fix would have to instantiate an inherited
 member class in the scope of the class it was reached through. That is
 a change to lookup, not a hand-down of redeclarations, so it was not
 built.
+
+## m654: the class extension in its block, function and package forms
+
+The m653 fix was found on the `model` form of `redeclare X extends C`.
+The question left was whether the `block`, `function` and `package`
+forms break on the same trait - a member declared in the base itself -
+and whether the fix reaches them. Six small models in `/tmp/m654/full`,
+each run on the head binary (`/tmp/m653/ox2`, md5 `cba63e98`) and on
+the park binary (`/tmp/m654/ox1`, md5 in `/tmp/m654/ox1.md5`), with the
+prediction written first in `PRED.txt`.
+
+```text
+B1   block, `C c` in the base            head 0.3679  park 0.0498  (owed 0.0498)
+B1t  block, `C c2` in the extending one  head 0.0498  park 0.0498
+F1   function, `z = f(time)` in the base head 1       park 3       (owed 3)
+F1t  function, the call in the extender  head 3       park 3
+P1   package, `z = P.k * time` in base   head 1       park 3       (owed 3)
+P1t  package, the use in the extender    head 3       park 3
+```
+
+The prediction stood whole: all three forms give a wrong number, not a
+refusal, exactly where the base itself names the class, and run right
+where the extending class does. The park change is written over any
+nested class with a base-relative `extends` and so reaches all three
+without being told the kind. The function case is narrower than the
+green test `a_redeclared_function_extends_the_one_it_replaces`, which
+calls the function from outside through a package alias and so never
+asks the base's own scope. No separate park was built: there is
+nothing left for one to fix.
+
+### The flatten half of the m649 census against its maps
+
+Census `/tmp/m649/census.txt`, 45 models in 25 rows between the first two
+section marks. Each row was looked up in this document by its own words
+before any probe. Twenty-three rows are on maps already, by the names
+the m574 row-by-row list used: C and FORTRAN externals, partial
+functions and classes, `MAX_DEPTH` nesting, the flexible size, the
+thyristor branches, the Clock without an interval, the three unit
+mismatches, `AbsoluteClocks`, `scanDelimiter`, `SimpleAir`, the strings
+and files, `min` of an empty array, `dgesvd` of size 0, the 6 against
+18, and `dewEnthalpy(sat)`. The two rows whose words did not match were
+read in `/tmp/m649/raw.txt` by name: `ImplicitEuler` asking for the
+derivative at the point it solves for is
+`ClockedWithDiscretizedContinuousController`, mapped as the
+`ImplicitEuler` clocked partition. The undecidable `if` in
+`PartialDistributedVolume` is `IncompressibleFluidNetwork`, mapped in
+the m-chapter that followed it from `size(poly_Cp)` to that `if`. No
+row lacks a map, so no probe was owed.
+
+### The m653 class extension taken in, on one corpus
+
+The off half is `/tmp/m653/pair_on.txt`, binary md5 `cba63e98`, built
+from the tree of fa4f348; the head since then changed only this
+document, so it stands as the off half without a second run. The on
+half is `/tmp/m654/pair_on.txt`, binary `/tmp/m654/ox1` built from the
+park diff over that tree. Both print 974 flatten and 838 run, runnable
+856 and 789. The run lists agree by name (838 against 838, none on
+one side only), the refusal rows agree line for line (144 each), and
+the `work:` line is equal in all nine counters. The change fixes wrong
+numbers and moves no model either way, which is what a fault of wrong
+numbers rather than refusals predicts. The times of the two halves are
+not compared: the off half ran beside another job. The heavy models
+were not measured; the nightly run judges them.

@@ -441,6 +441,10 @@ pub struct ClassDef {
     pub enumeration: Vec<String>,
     /// Classes declared inside a package, by qualified name.
     pub nested: Vec<ClassDef>,
+    /// Short names of the nested classes written `redeclare model
+    /// extends C`: each replaces the `C` a base of this class declares.
+    /// Recorded here because the nested classes leave for the registry.
+    pub class_extensions: Vec<String>,
     /// Short class definitions: local names for other classes.
     pub class_aliases: Vec<ClassAlias>,
     /// `import` clauses: (local name, qualified target).
@@ -545,6 +549,7 @@ impl ClassDef {
             alias_unit: None,
             enumeration: Vec::new(),
             nested: Vec::new(),
+            class_extensions: Vec::new(),
             class_aliases: Vec::new(),
             imports: Vec::new(),
             description: None,
