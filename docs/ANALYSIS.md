@@ -78799,3 +78799,16 @@ second, `ActuatedDrive` (+1.4 s); run alone off, on and off it costs
 8626, 8596 and 8647 ms of run with its work equal to the digit
 (`/tmp/m661/ad_ooo.txt`), so that was drift. The court's run work moved
 by 324 points and 994 Newton steps, the three machines' own.
+
+### The water breed of row 7, by its null direction
+
+The two water models' blocks have one near-null direction each, read
+from the same trails (`/tmp/m661/nt_PumpingSystem.txt`,
+`/tmp/m661/nt_TMV.txt`). In `PumpingSystem` it is the pump's own
+curve parameter `pumps.s`, standing at 0 with the flow at 0: the pump
+head row reads `if pumps.s > 0` and gives no slope there. In
+`TestMixingVolumesPressureStates` it is `der(mixingVolume1.medium.p)`,
+at 0 at the start, against a density row of IF97. So the breed is a
+flow or pressure derivative that starts at zero where a branch of the
+medium or the pump curve has no slope; the two share the symptom and
+not yet a cause.
