@@ -78362,3 +78362,19 @@ start the coefficient of `der(Q1.vbx)` is zero and the block has a
 dead column. That is the breed queue item 105 closed by measurement,
 with a written ceiling at `solvers/mod.rs:1117-1125`. It is not a new
 road.
+
+### Matching the residues last
+
+A probe switch, `OXP_RES_LAST`, has the reduction's matching visit the
+`0 = atan2(...)` residues after every other equation, so that no residue
+takes an `R.T` entry a quaternion row could give (binary `/tmp/m660/ox6`,
+md5 d56faca8, parked as `m660_residue_last_probe.patch`). On
+PrismaticConstraint the walk then takes 35 reductions instead of 18. It
+fails three times on a residue (eq 179 at 33 and 34, eq 180 at 35), and
+the refusal now quotes the residue itself, `0 = atan2(...)`, rather than
+a quaternion row (`/tmp/m660/rl_PrismaticConstraint.txt`). So the
+reading of the matching above holds: given the chance, the residues
+are differentiated, and the wall moves seventeen reductions further.
+It does not fall. SphericalConstraint and RevoluteConstraint refuse as
+before, and Fourbar_analytic still runs. No pair was taken, and nothing
+about the heavy set was measured.
