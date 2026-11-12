@@ -78954,3 +78954,16 @@ block `Q4.icapbe = if Q4.m_bInit then 0 else Q4.cc.capbe * der(Q4.vbe)`
 with the unknown `der(Q4.vbe)` (`/tmp/m661/sp_NAND.txt`): the Spice3
 breed is the transistor's junction capacitance multiplying a voltage
 derivative, three models probed now.
+
+### Row 24 of the run census: library components asked alone
+
+`parameter X has no value` (24 models) is, model by model, library
+parts with a parameter the library leaves for the user to give
+(census `/tmp/m649/raw.txt`). Nineteen of the 24 live under
+`Utilities` or `BaseClasses`; the other five are the
+`OpAmpCircuits` blocks (`Derivative`, `FirstOrder`, `PI`, `Der`,
+`Integrator`), each declaring `parameter SI.Time T` or `parameter
+SI.Frequency f` with no default (for instance `Derivative.mo:8`,
+`Integrator.mo:6`). A refusal is the right answer for all of them; the
+row measures what the example filter lets through, not a fault of the
+compiler, and it is not a work queue.
