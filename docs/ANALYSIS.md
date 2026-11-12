@@ -78306,3 +78306,24 @@ their own. This is a local question and not dynamic state selection.
 The next shift should ask why the reach of eq 180 is empty when its
 names include `constraint.frame_b.R.T`, which `bodyOfConstraint`'s
 orientation determines.
+
+### The third residue is matched, not idle
+
+The probe `OXP_EQ` (binary `/tmp/m660/ox5`, md5 3ed3c3bb, file
+`/tmp/m660/e180.txt`) prints, at every reduction, the unknown the
+matching gave each residue. Eq 180 is never differentiated, but it is
+not idle. The matching uses it to determine an orientation entry of
+the constraint: `constraint.frame_a.R.T[1,1]` at reduction 1,
+`[1,3]` at 14 and 15, then `constraint.frame_b.R.T[1,1]` at 16 and
+`constraint.frame_b.R.T[1,2]` at 17 and 18. None of the three residues
+names a state at any reduction. `constraint.frame_b` is
+`bodyOfConstraint.frame_a`, whose `R.T` the nine rows `R.T = f(Q)`
+also determine. So by reduction 17 a residue has taken over an entry
+that a quaternion row was meant to give, and that quaternion row is
+the excess the matching stumbles on. The refusal quotes it,
+`R.T[1,3] = f(Q)`. Read this way, the wall is a matching that solves
+an orientation residue for an orientation entry, where the residue
+should be differentiated to take the last `Q`. A probe can answer the
+local question cheaply: under a switch, keep the matching from giving
+an `atan2` residue an `R.T` entry, and see whether eq 180 is then
+differentiated. This shift stops at the map.
