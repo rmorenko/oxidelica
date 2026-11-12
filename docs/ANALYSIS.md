@@ -78925,3 +78925,26 @@ free coordinate; why its equations do not move with it was not
 probed. It is a `Utilities` component and not a runnable example. The other two, `RevoluteConstraint` and
 `PlanarFourbar`, carry a whole MultiBody loop in their message and are
 the constraint family of the chapters above.
+
+### The run half by breed, as this shift left it
+
+Taken model by model over five rows of the run census (`/tmp/m649`),
+counted as models and keyed to the files above:
+
+```text
+breed                                   models  key that moves it (parked)
+power sensor solved for its speed            3  OXP_NO_UNKNOWN_DIVISOR: 3 run
+faint block beside an open switch            4  OXP_PIVOT_EDGE=1e-9: 4 run
+Spice3 capacitance at zero (probed)          2  none tried; NAND, ONEBIT unprobed
+unit vector over a zero start length         3  none
+switch or friction at a tie (s = 0)          2  none (LossyGearDemo2 documented)
+water branch without slope                   2  none
+rotor angle and speed at rest (SMPM)         3  neither key
+Fluid pipes of row 10                        9  (the queue's m363 family)
+constraint and orientation walls             4  none; held-row is right
+```
+
+Two keys, seven models, no victims in either court, neither merged.
+The census counts these as one model per row it happens to stand in;
+the breeds cross the rows, and the three machine names standing in
+three rows each are the plainest case of it.
