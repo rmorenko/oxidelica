@@ -78846,3 +78846,21 @@ block is solved, so the derivative of the base-collector voltage is
 read through a capacitance of zero. That is the transistor model's
 own zero, the same family as the Spice3 benchmarks the heavy basket
 carries, and the pivot edge does not enter it.
+
+### The pivot edge's small court, and a correction
+
+One binary (`/tmp/m661/oxp`), 182 models (`/tmp/m661/nb2.txt`: the
+MultiBody set and the machine neighbours), off then `OXP_PIVOT_EDGE=1e-9`
+(`/tmp/m661/pe_off.txt`, `/tmp/m661/pe_on.txt`). Run 136 -> 140, the four
+FundamentalWave machines of the underdetermined row, and no model that
+ran stops running. One refusal moves: the QuasiStatic `IMC_withLosses`
+goes from `underdetermined` to `step size underflow at t = 0`. The run
+half went 1062 s -> 1085 s with the flatten half 757 s -> 769 s on equal
+flatten counters, so the price is not resolved. Parked, not merged.
+
+Correction to the paragraph above: `SMEE_DOL` and `SMEE_Rectifier` are
+not rank-deficient by two. Their smallest singular values are 1.3e-9 and
+1.7e-12 (and 2.6e-9, 3.5e-12), under the default tolerance of the rank
+routine used to read them, which called them rank 24 and 25; the court
+shows the pivot edge alone held them back too. All four FundamentalWave
+machines are faintly determined blocks beside an open switch or diode.
