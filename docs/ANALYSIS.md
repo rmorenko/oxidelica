@@ -78545,3 +78545,17 @@ seven models in seven layers - a rectifier's diodes, a pump, a
 synchronous machine's air gap, `UniversalConstraint`,
 `RollingWheelSetDriving`, `LossyGearDemo2`'s quadrants and a mixing
 volume (`/tmp/m661/sj7.txt`): no common breed.
+
+### The held-row switch over the MultiBody set
+
+One binary (e4bc7e57), the 54 MultiBody models of `/tmp/m660/mbnames.txt`,
+off then on (`/tmp/m661/mb_off.txt`, `/tmp/m661/mb_on.txt`). The ran
+lists are equal, 26 = 26: no victims, no wins. Four refusals move,
+each past its first wall into a run-half family: `PrismaticConstraint`
+and `PointGravityWithPointMasses2` to a singular Jacobian, `RollingWheel`
+to an algebraic loop whose equations do not solve, `Loops.Utilities.Cylinder`
+to a Newton direction. Run work 2496 -> 2517 points, 8016 -> 8167 Newton
+steps; the run half 1109 s -> 1125 s with the flatten half 823 s -> 834 s
+on equal flatten counters, so the price is not resolved on this desk.
+The held-row check is therefore a gate in front of four MultiBody walls,
+not the last one. Nothing is merged; the switch already lives in the tree.
