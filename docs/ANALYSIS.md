@@ -78568,15 +78568,16 @@ rows are zero to the last entry: the differentiated quaternion row
 `der(body.frame_a.R.T[1,3]) - 2*(...) = 0` and the two `z_a` rows
 built from it, though each names block unknowns symbolically. They
 are the rows the held-row check refused at reduction 12 ("would add
-row N again"): added a second time, they only restate what the system
-already solves outside the block, so they carry no column of their
-own. The real model does the same, 38 by 38 of rank 35 with the same
-three rows dead (`/tmp/m661/nt_real.txt`). So the switch does not
-open a road: it trades the structural refusal for the numeric one
-the check exists to prevent, and the held-row check is right. The
-first wall stands where the held row and the last quaternion meet,
-which leaves the 32-member ceiling and the order of payers as the
-places the second reader did not rule out.
+row N again"). The real model does the same, 38 by 38 of rank 35 with
+the same three rows dead (`/tmp/m661/nt_real.txt`). Why a row reading
+`der(body.Q[1]) * body.Q[3]` with `Q[3]` at 0.53 and `der(body.Q[1])`
+a block unknown differences to zero is not measured: the reading that
+the duplicate restates a row solved outside the block is a reading,
+and the Jacobian's row sparsity is the other suspect. What is
+measured is that the switch does not open a road: it trades the
+structural refusal for a numeric one on exactly the rows the check
+names. The ceiling and the order of payers are the places the second
+reader did not rule out.
 
 ### The ceiling, the third place, refuted
 
@@ -78613,7 +78614,7 @@ a rolling contact, after 26 steps      RollingWheelSetDriving 32, rank 7
 
 The first breed is the shape of the second link above: a row that
 index reduction added names block unknowns symbolically and is zero
-in every entry at the point, so it restates what is solved outside.
+in every entry at the point, for a reason not yet measured.
 `PrismaticConstraint` under the held-row switch joins it. That is the
 one breed of the row that crosses libraries (a machine and a
 constraint), and it is the one worth a small model next.
