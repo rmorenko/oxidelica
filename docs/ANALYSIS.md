@@ -79836,3 +79836,13 @@ zero. The falsifier is one run with the start of `R.T` set to the
 identity: if the first `|f|` is still NaN, this reading is wrong. Not
 measured. This is the start-value question, behind Roman's word on
 starts.
+
+The `UniversalConstraint` falsifier was run with the same probe binary
+(`/tmp/m672/rd_univ.txt`). Row 41 reads `constraint.frame_a.R.T[3,1] =
+0.819`, `[3,2] = -0.0996` and `[3,3] = 0.565`, and the reported row is
+still all zeros in each of its seven reports. The zero-coefficient
+reading is refuted for both sub-layer A models. Row 41 also writes
+`der(constraint.frame_b.r_0[2])`, which is not a block unknown, so the
+redundant-balance reading given for `SMPM_CurrentSource` has the same
+form here: the inner equations may give the differentiated constraint
+back to itself. Both models now wait on that one falsifier.
