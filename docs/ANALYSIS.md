@@ -80043,3 +80043,18 @@ loss may be a scaling verdict rather than a structural one. Not
 measured. The falsifier is the rank of the same Jacobian with each row
 divided by its own largest entry: if it is still 23 of 24, this reading
 is wrong.
+
+The `TestMixingVolumesPressureStates` falsifier, computed from the
+printed Jacobian (`/tmp/m672/tmv_rank.txt`, numpy over the first
+matrix of `/tmp/m671/t_tmv.txt`). Raw, the matrix has rank 23 of 24
+with a smallest-to-largest singular value of 3.5e-24. With each row
+divided by its largest entry it has rank 24 (2.2e-12), and with columns
+scaled after that also rank 24 (1.0e-9). The falsifier did not fire:
+the block reads singular only unscaled. `crate::linear::reads_singular`
+(`crates/oxidelica-sim/src/linear.rs:202-209`) judges the raw pivot
+against `1e-7` times the largest entry, while `reads_underdetermined`
+(`:224`) already exists for exactly this case: "a block one honest
+scaling shows determined is determined". Which of the two the refusal
+at `solvers/mod.rs:2593` goes through on this road was not traced. That
+is the next probe, and if it is `reads_singular` alone, this model's
+refusal is a scaling verdict. Behind word p.62 as the m671 table says.
