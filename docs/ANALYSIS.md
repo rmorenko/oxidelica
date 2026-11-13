@@ -80442,3 +80442,12 @@ whatever the textual order, either by instantiating `inner` declarations
 first or by deferring the if-equation decision until the inner is
 built. Nothing was built: the brief allows maps only until Roman's
 word. `SS3` is the test a fix would have to turn green.
+
+A fourth small model narrows it (/tmp/m673/SS4.mo): `SS3` with the
+modifier written as the literal `Dynamics.SteadyStateInitial` instead of
+the model parameter `systemMassDynamics` flattens and simulates, inner
+still declared last. So both conditions are needed: the `inner` comes
+after the component reading it, and its modifier names a parameter of
+the enclosing model rather than a literal. That is why the
+`AST_BatchPlant` and `TestMixingVolumes` examples, which write a
+literal there, do not meet the wall.
