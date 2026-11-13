@@ -79335,3 +79335,14 @@ at the evaluator, `tsat`, the asserted bounds, `step size underflow`,
 `unknown function`, the discrete variable never assigned, the
 arithmetic floor) each already turn up between 7 and 71 times in this
 document by model name, so none were taken again.
+
+The trail corrects the reading of the 1e23 above. The failing block is
+tried five times (`rw_trail.txt`). The first three attempts start near a
+residual of 10 (10.45, 10.45, 12.96) and diverge from there, to 1.5e10,
+9.3e8 and 1.2e6. Only the fourth starts every one of its 32 unknowns at
+1000, and that flat guess is what puts 9.99e11 on
+`revolute.frame_b.f[1]` and grows to 9.5e22. So the 1e23 is the last
+retry's flat start, not the cause: the cause is Newton diverging from a
+start that was already close. `RollingWheelSetPulling` (`RPx.mo`,
+`rp_trail.txt`) shows the same five attempts with the same starts,
+9.988e11 on the fourth, so the two wheel sets are one family by trail.
