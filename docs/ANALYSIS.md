@@ -79507,3 +79507,17 @@ join, not index reduction, so it is not the layer that holds the three
 `e_ia` models. With the residues written (m470 probe) the model
 reaches index reduction and stops at the planar-loop limit, which is
 where the `e_ia` models stop too. Nothing was built.
+
+The next four run rows, read the same way (`/tmp/m668/rows3.txt`; a
+first pass that looked only under `Modelica/` missed the `ModelicaTest`
+sources and reported them as parts, and was rechecked by hand), are
+the opposite of the unbalanced family: nearly all examples. Newton
+direction, 12 models, all examples (three MultiBody, nine
+`ModelicaTest.Fluid` pipes and sensors); its layer is the damped-step
+line already mapped. Underdetermined loop, 9, of which `NAND` and
+`ONEBIT` are parts of the four-bit adder and seven are examples
+(rectifiers, Spice3 RTL inverter, four machines). Singular Jacobian,
+8, all examples. Cannot evaluate, 6, of which `CylinderBase` and
+`Cylinder_analytic_CAD` are utilities and four are the analytic loop
+engines. These rows are where the debt to the loop lies, not the
+unbalanced one.
