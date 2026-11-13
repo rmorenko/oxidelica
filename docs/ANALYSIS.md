@@ -79518,18 +79518,21 @@ line already mapped. Underdetermined loop, 9, of which `NAND` and
 `ONEBIT` are parts of the four-bit adder and seven are examples
 (rectifiers, Spice3 RTL inverter, four machines). Singular Jacobian,
 8, all examples. Cannot evaluate, 6, of which `CylinderBase` and
-`Cylinder_analytic_CAD` are utilities and four are the analytic loop
-engines. These rows are where the debt to the loop lies, not the
+`Cylinder_analytic_CAD` are utilities and three are the analytic loop
+examples (the fourth, `Utilities.EngineV6_analytic`, is a part). These rows are where the debt to the loop lies, not the
 unbalanced one.
 
 The whole run half was then split the same way, all 133 models of
-`/tmp/m667/raw.txt` (`/tmp/m668/all_run.txt`, rows with the example
-count beside them in `/tmp/m668/rows_fault.txt`): 69 examples and 64
-parts. The two top rows differ sharply. "Parameter has no value", 24
+`/tmp/m667/raw.txt` (`/tmp/m668/all_run.txt`): 65 examples and 68
+parts. A first reading said 69 and 64, because it found each class by
+its last name, and four parts (`Utilities.Nand`, `OpAmpCircuits.Integrator`,
+`Utilities.EngineV6_analytic`, `RobotR3.Utilities.Motor`) took the
+experiment of an example of the same name elsewhere; they were looked
+up again by path. The two top rows differ sharply. "Parameter has no value", 24
 models, holds 1 example and 23 parts, as the census already says by
 fault. "Constrains no state", 28 models in the census and 29 by this
-reading, holds 14 examples and 15 parts. The examples are
-`ActuatorWithNoise`, `Nand`, `MNmos`, `MPmos`,
+reading, holds 13 examples and 16 parts. The examples are
+`ActuatorWithNoise`, `MNmos`, `MPmos`,
 `BatchPlant_StandardWater`, `TanksWithOverflow`,
 `IMC_DOL_CommonLeakage`, `PrismaticConstraint`, `SphericalConstraint`,
 `PointGravityWithPointMasses2`, `RollingWheel`, `Engine1a`, `FullRobot`
