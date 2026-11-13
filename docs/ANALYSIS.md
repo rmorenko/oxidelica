@@ -80342,3 +80342,40 @@ m416 and m563 maps named (a steady initial equation over a variable
 solved inside a torn block), unchanged by the array-input merge. The
 166 s of flattening is a cost of its own, worth a `--slow` look when
 the pass time next presses its ceiling.
+
+## Where HeatingSystem's flattening goes (m673)
+
+`HeatingSystem` is the second dearest model to flatten in the m672 pair
+(`dearest 379.6s` in /tmp/m672/p_on.raw; 163 s alone under `--only`,
+/tmp/m673/heat_run.txt). One `sample` of 60 s taken 40 s into that run
+(/tmp/m673/heat_sample.txt; command and md5 cca28f69 in
+/tmp/m673/heat_prof.txt) gives 47990 samples under `how_far`, and
+26400 of them, 55%, under `flatten::algorithms::recursive`. That count
+is inclusive and taken at the outermost frame, so nested repeats are
+not counted twice (/tmp/m673/incl.awk). Nearly all of it arrives
+through `holds_unbounded_call` (23677), called from
+`inlining::inline_function` and from `constants::substitute_at` /
+`gathering_settled`.
+
+`recursive` (`flatten/algorithms.rs:145-173`) answers whether a
+function's calls lead back to itself by walking the whole call graph
+under it with `gather_calls_in_statements`, which resolves every call
+name through `lookup`. Nothing remembers the answer, and a function's
+recursiveness depends only on the registry, which holds still for the
+life of a flattening. So the same graph is walked again on every call
+of `holds_unbounded_call`, for every inlined call of every media
+function the model holds. The self-time top of the stack agrees:
+`carried::gather_calls` 13119 samples and `lookup::lookup` 865.
+
+The same probe on `BatchPlant_StandardWater`, the dearest model (207 s
+alone, /tmp/m673/bp_sample.txt, `bp_prof.txt`), puts only 3957 of
+42922 samples (9%) under `recursive`. There the time goes to
+allocation (`_xzm_free` 6282, `_xzm_xzone_malloc_tiny` 4701 at the top
+of the stack). So the walk is one model's giant rather than a cost
+spread over the Fluid family. A table of answers keyed by the class
+name, held for one registry (the `StandingNames` bracket this file
+already names), would be keyed over a bounded set and would be the
+remedy the AGENTS.md rule about tables allows. Nothing was built: the
+brief allows maps only until Roman's word. One 60 s window is a sample,
+not a whole run, so 55% is the share over that window and is not
+claimed for the whole 163 s.
