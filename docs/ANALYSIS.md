@@ -79974,3 +79974,17 @@ because a walked function stops on "The arguments u_min and u_max
 provided in the function call" (the bracket of `T_phX`). The map at the
 m668 table (the junction's tear start for `port_3.h_outflow` lying above
 moist air at 647 K) stands unchanged.
+
+The `RollingWheelSetDriving` falsifier, run (`/tmp/m672/rw/RW1.mo`
+extends the example and sets only `revolute2.frame_a.R.T(start =
+identity(3))`, output `rw1.txt`, binary `/tmp/m670/ox1`). The start is
+taken, since column 9 reads 1.0, and the first `|f|` is still NaN. So
+the reading as written is refuted. It is refuted in part only: rows
+9-11, the `rolling1` contact frame, are finite now, while rows 18-20
+(`rolling2`) and 26-28 are still NaN. In `rolling2`, `aux[1]` is itself
+a block unknown (column 19) and starts at zero, so `e_long_0 = aux /
+length(aux)` is 0/0 whatever the rotation's start is. The narrower
+reading is that a normalised vector whose components are tearing
+unknowns starts at the zero vector. Measured on one probe model.
+Nothing was built, and the model is still refused, by the same Newton
+direction refusal.
