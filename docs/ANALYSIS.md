@@ -79756,3 +79756,18 @@ falsifier is the value of `dqToThreePhase.rotator.u[1]` at the point
 where the trace writes row 3. If it is -53.5 times `toPeak_d.k`, this
 reading is wrong and the dead row comes from a cancellation in the
 coefficients instead.
+
+`UniversalConstraint` (sub-layer A). The dead row of the 44-unknown
+block in `/tmp/m671/t_univ.txt` is row 41 (`:55`), the differentiated
+position constraint along the third axis of `constraint.frame_a`. Its
+slope along the block unknown `constraint.frame_b.r_0[3]` (column 41)
+is `-constraint.frame_a.R.T[3,3]`, and along `der(constraint.frame_b.r_0[1])`
+it is `-R.T[3,1]`. Those are entries of the fixed rotation
+`fixedRotation(angles = {10, 55, 68})` (`UniversalConstraint.mo:75-78`),
+so they are not zero. A row that reads all zeros there is the same
+shape as `SMPM_CurrentSource` above: coefficients outside the block
+seen at zero when the block is first linearised. Not measured. The
+falsifier is `constraint.frame_a.R.T[3,3]` as the trace's start holds
+it. If it is nonzero, the reading is wrong. Both sub-layer A models
+then point at one place to probe: what the block's first Jacobian reads
+for names that the plan computes before it.
