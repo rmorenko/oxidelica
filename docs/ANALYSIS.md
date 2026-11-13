@@ -79660,3 +79660,18 @@ dT` and then writes `der(T) = dT` (`ModelicaTest/Media.mo`, in
 texts among the twenty-two models of the three rows: the two `dddX`,
 `Graetz`, this one and the `Essotherm650` table, the last of which is
 queue item 42 and waits for Roman's word.
+
+### The empty `min` behind a settled guard, built and parked
+
+`TestBooleanFunctions` stood on `size(b, 1) > 0 and min(b)`: the array
+layer expanded both sides of `and` before the guard was read, and so
+refused an empty `min` that the model never asks for. A left side that
+is already a constant now decides `and` and `or` on its own
+(`~/oxideflow/park/m671_settled_guard_short_circuit.patch`, with a
+note). The small court of 190 models (the Math, Blocks, Utilities,
+Clocked and Digital examples, `/tmp/m671/court_{off,on}.txt`, one
+binary per half) runs 160 -> 161, the one model being
+`TestBooleanFunctions`, with no victims. A test is red without the
+change. The price is not resolved: the flatten half moved 187 s ->
+240 s with every dear model rising alike, which is desk load. Nothing
+is merged.
