@@ -79383,3 +79383,14 @@ the compiler could read (`/tmp/m666/t66.txt`). All four refusals are
 honest. The 22 models in the rows `the Newton direction`, `singular
 Jacobian` and `did not converge` still refuse on today's head, one at a
 time under `--only` (`/tmp/m666/r3_now.txt`).
+
+The row `parameter X has no value` (24 models, `/tmp/m666/novalue.txt`)
+holds only utility classes. In every one checked, the parameter has no
+default in the library itself, for example `parameter SI.Frequency f`
+in `OpAmpCircuits/Der.mo:6`, `parameter SI.Conductance Ga` in
+`Utilities/NonlinearResistor.mo:5` and `parameter SI.Height maxLevel`
+in `ControlledTankSystem.mo:212`. `BlockMain` asks for
+`Recipe1.startTime` because it declares `Block_Recipe_TBD Recipe1`
+with no modification. These refusals are honest. The rows
+`unbalanced`, `underdetermined` and `cannot evaluate parameters` hold
+no model this file does not already name.
