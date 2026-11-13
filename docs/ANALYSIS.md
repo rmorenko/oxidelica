@@ -80116,3 +80116,20 @@ small court's +942: the settled-guard short circuit saves expansions
 across the corpus. The heavy pair was started and had not finished at
 the end of the shift (`/tmp/m672/heavy.done`). The times of this pair
 are not a cost. Nothing is merged.
+
+The cost, one model at a time (`--only`, off, on, off again, one after
+the other under `cap.sh`, files `/tmp/m672/only/<tag>_{off1,on,off2}.txt`
+with the command and md5 on their first lines). The two models the
+pair moved: `TestBooleanFunctions` is refused off in 6 and 7 ms and runs
+on in 8 ms. `SMPM_ResistiveBraking` is refused off in 28 ms twice, and
+on it flattens in 120 ms and is refused by index reduction in 251 ms,
+work that did not exist before. Two of the three dearest models of
+`scripts/dear_models.txt` with equal work byte for byte in all three
+runs: `Dimmer_RL` runs in 86.57 s and 86.55 s off and 86.04 s on, and
+`IMC_Transformer` in 75.32 s and 75.17 s off and 74.94 s on, flattening
+7.07, 7.06 and 7.14 s. The two off runs are this series' own floor (0.03
+s and 0.15 s apart). Both on runs sit below both off runs, by 0.5 s and
+0.2 s. That is the opposite sign to a cost and within a few floors, so
+the honest statement is a sign, not a price: no cost is seen. The third,
+`TestMultiPortTraceSubstances`, was still running at the time of
+writing.
