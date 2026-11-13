@@ -79880,3 +79880,21 @@ friction element is taken again on every try and lands on the other
 side. The reading is a stuck/sliding mode decided without hysteresis.
 The falsifier is the brake's mode flag across the restarts. If it holds
 one value while `v[1]` alternates, this reading is wrong. Not measured.
+
+`ControlledMixingUnit` (clocks layer). The refusal now reads
+"discrete variable `inverseBlockConstraints.y2` is never assigned by a
+when clause; `inverseBlockConstraints.u1` is assigned twice in the same
+`when sample(0, 1)`" (`/tmp/m672/cmu.txt`, raised at
+`crates/oxidelica-sim/src/compile.rs:5284`, the second half by
+`assigned_twice` at `:5138`). `InverseBlockConstraints` writes `u1 = u2`
+and `y1 = y2` (`Modelica/Blocks/Math.mo:507-508`). The clock layer
+turns every clocked equation into an assignment to its left side
+(`crates/oxidelica-parser/src/flatten/partitions.rs:397-408`). Its one
+reorientation (`:364-391`) turns `a = b` round only where `b` is
+written nowhere. Here that is not enough, because the block is a real
+inverse: `u1 = u2` is a constraint whose unknown is `y2`, reached only
+through `invMixingUnit`. No orientation of single equations can give
+that. The partition is an algebraic system solved at each tick, and the
+clock layer lifts equations one at a time. The repair is a solve of a
+clocked partition as a block. That is architecture, so nothing was
+built.
