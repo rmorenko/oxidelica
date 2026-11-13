@@ -79566,14 +79566,14 @@ the 65 examples of the run half (`/tmp/m668/all_run.txt`) the loop owes
 | singular loop Jacobian                | 9 run    | yes                        | open          |
 | balance, underdetermined              | 8 run    | Fourbar1, airGap           | Roman (93)    |
 | run-time evaluator, assertions, mixed | 8 run    | partly                     | open          |
-| arrays and strings in flattening      | 7 flat   | flexible size only         | open          |
+| arrays and strings in flattening      | 7 flat   | yes, m653 row list         | open          |
 | expression depth ceiling              | 7 flat   | yes, raising it ran OOM    | open, memory  |
-| unit check                            | 6 flat   | thin                       | open          |
+| unit check                            | 6 flat   | yes, m653 row list         | open          |
 | parameters `e_ia`                     | 3 run    | yes                        | Roman (104)   |
 | initialization                        | 3 run    | partly                     | open          |
 | derivative of a non-state             | 2 run    | yes                        | Roman (108)   |
 | clocked semantics                     | 2 flat   | yes                        | open          |
-| `if` equation without `else`          | 1 flat   | no                         | open          |
+| `if` equation without `else`          | 1 flat   | yes, m653 row list         | open          |
 | NaN in a loop residual                | 1 run    | yes (MeasuringTemperature) | open          |
 
 What the flat half owes is mostly not the loop's numerics: of its 34
