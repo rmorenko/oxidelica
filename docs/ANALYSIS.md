@@ -80058,3 +80058,16 @@ scaling shows determined is determined". Which of the two the refusal
 at `solvers/mod.rs:2593` goes through on this road was not traced. That
 is the next probe, and if it is `reads_singular` alone, this model's
 refusal is a scaling verdict. Behind word p.62 as the m671 table says.
+
+Which scaling the step tries. The Newton step on this road first solves
+the raw matrix and then retries with the columns equilibrated
+(`crates/oxidelica-sim/src/solvers/mod.rs:2238-2250`). It never divides
+the rows. The same computation over the printed matrix with columns
+only gives rank 23 again, with a smallest-to-largest singular value of
+8.8e-16 (last line of `/tmp/m672/tmv_rank.txt`). So the one scaling the
+step tries leaves it singular, and the scaling that shows the block
+determined, rows first, is used by `reads_underdetermined` for a
+converged block but not for a step. This is the same order question
+that function's own comment names (an induction machine at rest needs
+its rows divided first). A step retry that divides rows is a solver
+change, behind word p.62. Not built.
