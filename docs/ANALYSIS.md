@@ -79263,3 +79263,75 @@ desk and not the rule. Files `/tmp/m664/h_off.txt` and `h_on.txt`.
 The first rerun, under the default stall cap of 45 minutes, was taken
 down at 1216 s with two models left, one of them `FOURBIT`, which runs silent for longer than that cap; the pair above was
 taken with the stall cap at 90 minutes.
+
+## The sensor-balance family, cut down to its reduction
+
+Row 28 holds two models whose refusal names a bare connection balance:
+`Modelica.Blocks.Examples.Noise.ActuatorWithNoise` (the flow balance of
+pin 3 of `motor.voltageQuasiRMSSensor.VoltageSensor1`) and
+`IMC_DOL_CommonLeakage` (a magnetic potential balance in the stator
+converter). Both were probed with one binary, md5
+e4bc7e571bfd40fe9354fa1ba6a78095, files under `/tmp/m665`.
+
+The actuator was cut by `simulate` on copies of the real model. The full
+model refuses the same way (`cut0.txt`). The motor alone with a constant
+current command gets past the structure and stops on a singular Jacobian
+(`cut2.txt`); so does the motor with the whole drive train but no
+controller (`cut6.txt`); the motor with the controller and a bare inertia
+stops on a step size underflow (`cut5.txt`). The motor with the
+controller, an `IdealGear` and an inertia refuses exactly as the full
+model does (`cut11.txt`, and with the motor copied into a package of its
+own, `P12.mo` and `cut12.txt`). Dropping the noise, the current RMS
+sensor or the speed and torque sensors keeps it red (`r_noise.txt`,
+`r_crms.txt`, `r_spd.txt`). A synthetic three-phase current source
+feeding inductors through a voltage sensor runs (`S1.mo`), so the
+connection unrolled over the plug is not the layer at fault.
+
+`OXIDELICA_VICTIM_PROBE=1` on `P12.mo` (`vp12.txt`) names the layer. The
+refusing balance is the third of three identical balances, one per
+phase, each taken in turn by reductions 13, 14 and 15. Reduction 13
+weighs `controller.busdelay.y` at 1.3e-10, `motor.inertiaLoad.phi` at
+7.5e-14 and `motor.smpm.lszero.i` at 4.4e-16, and demotes the controller
+output. Reduction 14 demotes `motor.inertiaLoad.phi` at 1.32. Reduction
+15 weighs an empty list: there is no candidate left, and every other
+member of the singular subset is turned away as a row already held or a
+derivative already supplied. The balance is where the matching
+stumbled, not what is wrong. What is wrong is that the two phases before
+it spent candidates that were not stator currents.
+
+`IMC_DOL_CommonLeakage` (`IMCx.mo`, `vpimc.txt`) has the same shape:
+reductions 13 to 15 demote converter fluxes `Phi.re` and `Phi.im` at a
+weight of 0.0, and reduction 16 weighs an empty list. One family by
+mechanism, not only by wording: a chain of reductions whose last member
+finds the reach exhausted by the choices made before it. That is state
+selection, item 108 in the queue, which waits for a word from Roman, so
+no change was built and nothing went to the park.
+
+## Two MultiBody loops, by trail
+
+`ThreeSprings` (`TSx.mo`, `three_trail.txt`, `OXIDELICA_NEWTON_TRAIL=1`)
+does not swing between two points. In its last block the residual falls
+from 6.3e7 to 584 by iteration 14 and then climbs monotonically, 1816,
+2471, and on to 2944 at iteration 52 and beyond: a spiral outward. The
+largest residuals at the end are `spring2.lineForce.s`, `body1.a_0[2]`
+and `spring1.lineForce.s`, and the unknowns that move most are
+`spring1.e_a[1]`, `body1.z_a[3]` and `body1.a_0[1]`, the direction of a
+spring and the body's angular acceleration. That is the shape of a
+Newton step along a nearly singular direction of the line force, a
+solver wall. No small red model was written, so no solver change.
+
+`RollingWheelSetDriving` (`RWx.mo`, `rw_trail.txt`) starts its failing
+block at a residual of 9.99e11, almost all of it in a single member,
+`wheelSet.wheelSetJoint.revolute.frame_b.f[1]` at -9.99e11, with the
+largest start value 1000. Newton then walks to 9.5e22 over 27 iterations
+and the Jacobian goes singular. The 1e23 is not degeneracy in the start:
+it is what a 1e12 residual on one constraint force grows to, and the
+start guess for that force is the place to look. The same joint
+(`wheelSetJoint`) heads the `RollingWheelSetPulling` refusal in row 10,
+so the two are probably one family. Not proven here.
+
+The small rows named as spare ground (`der(X) is not a state`, the array
+at the evaluator, `tsat`, the asserted bounds, `step size underflow`,
+`unknown function`, the discrete variable never assigned, the
+arithmetic floor) each already turn up between 7 and 71 times in this
+document by model name, so none were taken again.
