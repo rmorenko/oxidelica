@@ -80154,3 +80154,33 @@ runs. The series rises monotonically in the order it was started, which
 is the desk drifting, not the change. So the floor of this series is
 13.2 s, the on run sits inside it, and no cost is seen here either.
 Every number of this item is in `/tmp/m672/only/`.
+
+## The census after the array-input merge, and ThreeSprings re-probed (m673)
+
+Commit 09431fe merged both array-input repairs with the floors. Its
+preflight printed 976 flatten and 842 run, runnable 858 / 793
+(/tmp/m673/preflight.txt), which are the numbers the pair predicted.
+
+The census on the merged code (/tmp/m673/census.txt, raw in
+/tmp/m673/raw.txt) against /tmp/m667/census.txt, counted between the
+section markers: would not flatten 45 models in 25 rows becomes 43 in
+23, and flattened but would not run 133 in 27 becomes 134 in 27. The
+rows `X of an empty array` and `X has N element(s) but its value has
+N` are gone, and `constrains no state` goes from 28 to 29 because
+`SMPM_ResistiveBraking` now stands at `3*smpm.lszero.i = 0`. No other
+row moved. The top of the run half is now: constrains no state 29,
+parameter has no value 24, unbalanced with nothing determining 13, the
+Newton direction 9, underdetermined loop 7, singular Jacobian 7.
+
+`ThreeSprings` re-probed with the merged binary (/tmp/m673/p_3spr.txt,
+command and md5 cca28f69 on its first lines). The trail has 32 blocks.
+The ones started from 0, 1e-6 and 1e-3 settle to a residual near 1e-3
+and then stop descending (`descended=false`, damping at 9.5e-7). The
+refused block is the last start, with every unknown seeded at 1000.0
+apart from the five spring geometry values: its residual is 6.3e7,
+falls to 584 at iteration 14 and climbs monotonically to 3458 at
+iteration 59. The Jacobian rows of the first block carry entries of
+-4.36e8 beside entries of order 1. So the map above stands, with one
+addition: the outward spiral is the run from the last fallback seed,
+and the earlier seeds failed differently, by stalling near a small
+residual. No change was built.
