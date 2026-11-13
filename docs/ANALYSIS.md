@@ -79578,11 +79578,18 @@ the 65 examples of the run half (`/tmp/m668/all_run.txt`) the loop owes
 
 What the flat half owes is mostly not the loop's numerics: of its 34
 examples, 11 call outside code this compiler has no library for, and
-none of them is a solver question. The walls with no map of their own
-are three small ones in the flat half: an empty-array `min`
-(`TestBooleanFunctions`), a String held by an equation (`TestStreams`)
-and the undecided `if` equation in `IncompressibleFluidNetwork`, whose
-earlier chapter followed it only to this wall. These are where the next
-probe goes. Wall assignment is by refusal text checked against each
+none of them is a solver question. Every wall has a map: the three
+small flat ones first read here as unmapped - an empty-array `min`
+(`TestBooleanFunctions`, `BooleanVectors.allTrue` reading `min(b)` of
+a size-zero `b` behind `size(b, 1) > 0 and`), a String held by an
+equation (`TestStreams`) and the undecided `if` in
+`PartialDistributedVolume` (`IncompressibleFluidNetwork`) - are on the
+row-by-row list of the m653 chapter, and probes of all three
+(`/tmp/m669/p_*.txt`, binary md5 and command as their first two lines)
+refuse exactly as mapped, at `builtins.rs:436`, `strings.rs:441` and
+`instantiate.rs:1587`. So the queue of prizes is the table itself, and
+the open walls without anyone's word are the singular loop Jacobian
+(9), the mixed run-time evaluator (8), arrays in flattening (7) and
+units (6). Wall assignment is by refusal text checked against each
 full message; one model (`MeasuringTemperature`) needed its probe to be
 placed.
