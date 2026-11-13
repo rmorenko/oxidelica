@@ -79936,3 +79936,15 @@ not on which rows are redundant. A matching cannot say which rows are
 redundant. That needs the Jacobian of the conditions: the rows to leave
 out are those that are dependent on the others at the start, and the
 present branch takes the two that the order left.
+
+A probe of the `PumpingSystem` reading, measured. A two-line model that
+extends the example and only sets `pumps(s(start = 0.1))`
+(`/tmp/m672/ps/PS1.mo`, output `ps1.txt`, binary `/tmp/m670/ox1`) no
+longer meets the singular Jacobian. It stops one wall later, at t = 0,
+on the pump's own bound: `pumps.port_b.m_flow` = 141.4 above its max,
+with `checkValve = 1`. So the dead `s` column at the zero start is
+confirmed as the cause of the singular row. The start the library meant,
+the closed valve of the simplified `homotopy` side, gives `s = 0` and a
+determined head through `- s*unitHead`. A start away from zero walks the
+pump into reverse flow. The probe is a mechanism, not a win: the corpus
+model is unchanged.
