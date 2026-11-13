@@ -80324,3 +80324,21 @@ a sum. Nothing was built: the brief allows maps only until Roman's word.
 The FFT chain does not end here either: the model then calls
 `realFFTwriteToFile`, which reaches `writeRealMatrix`, the MAT writer
 parked with the file family (m275).
+
+## HeatingSystem at `not a state`, re-probed (m673)
+
+`Modelica.Fluid.Examples.HeatingSystem` re-probed with the merged binary
+(md5 cca28f69, /tmp/m673/p_heat.txt; `why` output beside it). It costs
+166 s to flatten and 0.9 s to refuse, at
+`der(tank.medium.T): tank.medium.T is not a state of the model`
+(`crates/oxidelica-sim/src/compile.rs:32`). The `why` answer gives the
+source: the tank writes `der(tank.medium.T) = 0` as an initial equation
+(steady start), while `tank.medium.T` is fixed by
+`tank.medium.T = tank.medium.state.T` and by the medium's `h` and `d`
+equations, so index reduction did not keep it as a state.
+`substitute_derivatives_with` then finds it neither among the states
+nor in the worked-out derivatives and refuses. That is the layer the
+m416 and m563 maps named (a steady initial equation over a variable
+solved inside a torn block), unchanged by the array-input merge. The
+166 s of flattening is a cost of its own, worth a `--slow` look when
+the pass time next presses its ceiling.
