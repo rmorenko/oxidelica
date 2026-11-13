@@ -79815,3 +79815,24 @@ model. Nothing the run needs depends on that derivative. A repair would
 have to recognise an unknown whose every occurrence is under a zero
 factor and leave it undetermined instead of solving for it. That is a
 solver rule, and it goes with the questions to Roman. Not built.
+
+`RollingWheelSetDriving` (sub-layer D). The 1113 Newton iterations and
+the rank of 6 in 32 that `r3_layers.txt` records are the end of the
+story, not its start. The first evaluation of the block, at the all-zero
+guess, is already `|f| = NaN` (`/tmp/m671/t_rwsd.txt:13`): rows 9-11 and
+18-20 and 26-28 are NaN. Rows 9 and 18 are `e_long_0[1] = aux[1] /
+sqrt(aux[1]^2 + aux[2]^2 + 0)`, from `e_long_0 = aux /
+length(aux)` with `aux = cross(e_n_0, e_axis_0)` and `e_axis_0 =
+resolve1(frame_a.R, {0, 1, 0})`
+(`Modelica/Mechanics/MultiBody/Joints/Internal/RollingConstraintVerticalWheel.mo:50-53`).
+`rolling2.aux[1]` is a block unknown (column 19), and
+`revolute2.frame_a.R.T[2,2]` is another (column 9). Starting at zero
+gives a rotation matrix of zeros, so the wheel axis is the zero vector,
+`aux` is zero and the normalisation is 0/0. The guess is not a
+rotation. Everything after that is Newton walking away from a NaN start
+until the contact subsystem degenerates. The reading is that a block
+whose unknowns include entries of an orientation must not start at
+zero. The falsifier is one run with the start of `R.T` set to the
+identity: if the first `|f|` is still NaN, this reading is wrong. Not
+measured. This is the start-value question, behind Roman's word on
+starts.
