@@ -79920,3 +79920,19 @@ diode reads `Goff` times its voltage, the load reads `G_actual` times
 its own, and in this circuit both are the same branch current. The
 reading "two diode rows describe the same branch" was wrong in its
 names. Its conclusion, a start question of which diodes conduct, stands.
+
+Why the matching leaves out the two annulus pressure rows. The
+conditions are matched in the order they are written
+(`crates/oxidelica-sim/src/compile.rs:9063-9068`, one augmenting path
+per condition through `try_match`). The written order is circular pipe
+`h[1..2]` and `p[1..2]`, then annulus `h[1..2]` and `p[1..2]`, so the
+annulus pressure rows come last (rows 6 and 7 in the probe). Each pipe's
+first node lost its energy state to index reduction. So in each pipe
+one `h[1]` row and the two `p` rows compete for the states that are
+left, and an augmenting path frees a state by moving an earlier row to
+another state. The matching is maximal, so it pairs six of eight. Which
+two stay unpaired depends on the order in which the paths are tried,
+not on which rows are redundant. A matching cannot say which rows are
+redundant. That needs the Jacobian of the conditions: the rows to leave
+out are those that are dependent on the others at the start, and the
+present branch takes the two that the order left.
