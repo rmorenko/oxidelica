@@ -80095,3 +80095,24 @@ mechanism of the first wall, and a second wall stands behind it. A
 mechanism, not a win, and a change to the step's scaling is for every
 model that reaches this retry, so it would need a corpus pair. Behind
 word p.62. Nothing in the tree.
+
+### m672: the corpus pair of the two parked flattening repairs
+
+Both m671 patches applied together on 7d09978 (`/tmp/m672/ox_both`, md5
+cca28f6926002c463aa9a3664c3edeba) against `/tmp/m670/ox1` (md5
+735b46afbc92ab64191230006f60af0f), halves run one after the other
+(`/tmp/m672/p_off.raw`, `p_on.raw`). Off: 974 flatten and 841 run,
+runnable 856 and 792. On: 976 and 842, runnable 858 and 793. The run
+lists differ by one line, `ModelicaTest.Math.TestBooleanFunctions`
+arriving, and no model left (`/tmp/m672/ran_off.txt`, `ran_on.txt`).
+Two models arrive in the flattened list,
+`SMPM_ResistiveBraking` and `TestBooleanFunctions`. In the census the
+rows `InverseTransformation has 6 element(s) but its value has 1` and
+`min of an empty array` empty, and one `structurally singular` row on
+`3*lszero.i` appears, the next link of `SMPM_ResistiveBraking`.
+Flattening work moved by -6117 expansions (-68 ppm) and -78299 names
+(-46 ppm), inside the 5% band, but in the opposite direction to the
+small court's +942: the settled-guard short circuit saves expansions
+across the corpus. The heavy pair was started and had not finished at
+the end of the shift (`/tmp/m672/heavy.done`). The times of this pair
+are not a cost. Nothing is merged.
