@@ -80574,3 +80574,12 @@ six controls take 19 s to run against 419 s (`ctl3_on.txt`), with the
 same work and the same four models running. Victims, the price on other
 models and the heavy models are still unmeasured, because no corpus
 pair was run.
+
+The neighbours were judged next with the same binary over all 60
+Fluid and Media examples (`/tmp/m675/fm_off2.txt` with the switch,
+`fm_on2.txt` without, script and md5 in `fm2.env`). Both halves have
+55 models flattening and 32 running, the flat and ran lists are equal
+line for line, and run work is identical byte for byte (3385 points,
+4281 Newton steps, 1346 damped). The run half falls from 599 s to 76 s.
+Peak memory falls from 7.1 GB to 2.8 GB. Other libraries are still
+unmeasured.
