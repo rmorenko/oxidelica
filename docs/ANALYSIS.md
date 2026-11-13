@@ -80451,3 +80451,45 @@ after the component reading it, and its modifier names a parameter of
 the enclosing model rather than a literal. That is why the
 `AST_BatchPlant` and `TestMixingVolumes` examples, which write a
 literal there, do not meet the wall.
+
+## IncompressibleFluidNetwork: the declaration-order fix, built and parked (m674)
+
+The wall mapped in m673 has a small remedy. `instantiate` settled the
+shared instances (`settle_the_inner_instances`) before
+`settle_parameters_early`, so a modifier on the `inner` naming a
+parameter of the class holding it (`systemMassDynamics`) had no value
+yet. Calling the same pass a second time after the early parameters
+settle is the whole fix, under the switch
+`OXIDELICA_NO_INNER_PARAM_MOD=1` that restores the old order. `SS3`
+flattens and simulates, `SS2` and `SS4` are unchanged, `SS3` is refused
+again under the switch. A unit test of the same shape in
+`tests/flattening/names.rs` is red under the switch and green with the
+fix, and the whole suite passes.
+
+The model runs, and it is dear. Alone under `--only`
+(`/tmp/m674/p_ifn.txt`, binary md5 35c27787) it takes 24.2 s to flatten
+and 293.0 s to run, 317 s in all, peak memory 0.3 GB. That is above the
+300 s threshold the brief set for one model, so the fix was not merged.
+
+The census pair (off: `/tmp/m673/census.txt` and `raw.txt`, md5
+cca28f69; on: `/tmp/m674/census.txt` and `raw.txt`, md5 35c27787) is
+clean. The flatten half goes from 43 models in 23 rows to 42 in 22: the
+undecidable `if` row leaves, with this one model in it. The run half
+stays at 134 models in 27 rows, identical row by row. Totals go from
+976 / 842 to 977 / 843, runnable from 858 / 793 to 859 / 794. The run
+work grows by 298 points and 552 Newton steps, which is the model's own
+work in the single probe. No victims. The pair is not an A/A pair, so
+its times give no price beyond the single probe. Heavy models were not
+measured. The patch and a note are in the park as
+`m674_ifn_inner_param_mod`. Whether a 317 s model is worth one more run
+is for the brief to decide.
+
+Where the 293 s go is named by the probe's own notes, not measured
+yet. Eleven `pipeN.h_start` parameters cannot be evaluated before the
+run and are carried into it as expressions of 125467 characters each
+(125532 for `pipe10` and `pipe11`), an `If` on `use_T_start` over the
+inlined Glycol47 enthalpy. The run takes 298 points and 552 Newton
+steps in 293 s, about one second a point, so the time is not spent in
+Newton iterations. The likely carrier is the evaluation of those
+carried expressions, which is a question for the next series and was
+not probed here.
