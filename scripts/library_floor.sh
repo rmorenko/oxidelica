@@ -2009,7 +2009,11 @@ FLATTEN_FLOOR=974
 # 837 - 3 = 834.
 # The moving table (ea84255): the judge of push run 42354475664 (job
 # 128371171177) printed 974 flatten, 838 run, so 838 - 3 = 835.
-RUN_FLOOR=835
+# The unknown-divisor rule (5c9197c) won the three IMC_withLosses of
+# Machines, FundamentalWave and QuasiStatic.FundamentalWave: the judge
+# of push run 43409657587 (job 131860987835) printed 974 flatten,
+# 841 run, so 841 - 3 = 838.
+RUN_FLOOR=838
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -2579,7 +2583,10 @@ RUNNABLE_FLATTEN_FLOOR=856
 # 42310740390 printed 856 / 788, so 788 - 3 = 785.
 # The judge of 42354475664 (job 128371171177) printed 856 / 789, so
 # 789 - 3 = 786.
-RUNNABLE_RUN_FLOOR=786
+# The three IMC_withLosses won by the unknown-divisor rule are all
+# runnable examples: the judge of 43409657587 (job 131860987835)
+# printed 856 / 792, so 792 - 3 = 789.
+RUNNABLE_RUN_FLOOR=789
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
