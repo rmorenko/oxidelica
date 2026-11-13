@@ -80400,3 +80400,10 @@ if the table is ever built, not a corpus-wide claim.
 /tmp/m673/dp_{prof,run,sample}.txt): 4913 of 31192 samples (16%) under
 `recursive`, the rest allocation and `gather_calls` self time. The walk
 is a minority share there too.
+
+Two more, 30 s windows taken 15 s in: `Explanatory.MeasuringTemperature`
+(52 s alone) has 1392 of 22469 samples (6%) under `recursive`, and
+`TraceSubstances.RoomCO2WithControls` (41 s alone) 18 of 20747 (0%)
+(/tmp/m673/{mt,co2}\_{prof,run,sample}.txt). Of the seven dearest
+models probed, the walk carries a majority in the two IF97 water
+models only.
