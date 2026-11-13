@@ -80407,3 +80407,38 @@ Two more, 30 s windows taken 15 s in: `Explanatory.MeasuringTemperature`
 (/tmp/m673/{mt,co2}\_{prof,run,sample}.txt). Of the seven dearest
 models probed, the walk carries a majority in the two IF97 water
 models only.
+
+## IncompressibleFluidNetwork: the undecidable `if` is declaration order (m673)
+
+`IncompressibleFluidNetwork` is refused while flattening with `an if
+equation in PartialDistributedVolume has a condition the compiler
+cannot decide and no else`. A temporary print at the refusal
+(`flatten/instantiate.rs:1584`, binary /tmp/m673/oxp3, output
+/tmp/m673/p_ifn_if.txt, not committed) names the condition: the last
+branch of the initial `if massDynamics == ...` chain, resolved to
+`pipe1.massDynamics == 3`. `pipe1.massDynamics` is bound to
+`system.massDynamics`, and the example writes `inner System
+system(massDynamics = systemMassDynamics, ...)`.
+
+Small models settle it (files /tmp/m673/s/SS2.mo and SS3.mo, 13 lines
+each, one `DynamicPipe` between two `FixedBoundary`, Glycol47):
+
+- `SS2` declares `inner system(massDynamics = systemMassDynamics)`
+  before the pipe: it flattens, `pipe1.massDynamics` settles to 4, and
+  it simulates.
+- `SS3` is the same text with the `inner system` line moved after the
+  three components, as the library example has it: it is refused with
+  exactly the library's message, condition `pipe1.massDynamics == 3`.
+
+So the condition is undecidable only because the pipe is instantiated
+before the `inner` that its `outer system` reads, and at that moment
+the modifier on the inner is not yet a value. The library's own value
+does not matter (fixing `systemMassDynamics` to a literal in a copy
+of the example still refuses). Modelica gives declaration order no
+meaning, so this is a compiler fault, not a library one, and it is
+the first refusal of the flatten half reduced to a model this small.
+The remedy would be to settle a component's `outer` from its `inner`
+whatever the textual order, either by instantiating `inner` declarations
+first or by deferring the if-equation decision until the inner is
+built. Nothing was built: the brief allows maps only until Roman's
+word. `SS3` is the test a fix would have to turn green.
