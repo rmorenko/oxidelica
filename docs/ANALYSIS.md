@@ -80291,3 +80291,36 @@ three answers before its asserts can speak. Both models check
 themselves with asserts, so a wrong scanner is caught rather than
 silent. `TestInternal` (`getenv`) stands with the file family under the
 m275 park. Nothing was built.
+
+## The FFT depth wall is a left-deep sum (m673)
+
+`RealFFT1` (and by the same refusal text `RealFFT2` and the two
+`Rectifier*pulseFFT`) is refused with `nested deeper than the compiler
+follows: Bin(Add, Bin(Add, Bin(Add, ...`. A temporary print at the
+raising sites (binary /tmp/m673/oxp, /tmp/m673/p_fft_site2.txt, not
+committed) puts the raising at `flatten/arrays.rs:39`, the depth guard
+of `expand`, under thirty nested `arrays::expand` frames below one
+`expand_call`, reached from `statements::one_assignment` in the inlined
+body of `realFFT` (`inline_function_outputs`, `worked_body`) inside the
+model's `when sample` algorithm.
+
+The body's first statement is `u_DC := sum(u)/nu` over `u = y_buf[ns]`
+(`Math/FastFourierTransform.mo`, `realFFT`), with `ns` some hundreds of
+sample points for the defaults `f_max = 4`, `f_resolution = 0.2`.
+`folded_over_an_array` (`flatten/builtins.rs:407-409`) writes the sum
+out through `sum_of` (`flatten/arrays.rs:2697`), which reduces the terms
+left to right, so a sum of n elements is an `Add` tree n deep. The
+next `expand` of that tree walks one storey per term and meets
+`MAX_DEPTH = 32` (`flatten/mod.rs:98`) after thirty-odd terms. The same
+holds for `product`, and for `min` and `max`, which nest calls in the
+same way (`builtins.rs:433-436`).
+
+So the wall here is not a deep expression the model wrote but the shape
+the compiler gives a flat sum. A balanced reduction would make the tree
+log2(n) deep, about 8 for 200 terms, and leave every value unchanged up
+to the order of floating-point addition. That ordering is the one
+question such a change would carry, because it can move the last bit of
+a sum. Nothing was built: the brief allows maps only until Roman's word.
+The FFT chain does not end here either: the model then calls
+`realFFTwriteToFile`, which reaches `writeRealMatrix`, the MAT writer
+parked with the file family (m275).
