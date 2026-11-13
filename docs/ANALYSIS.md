@@ -79695,3 +79695,47 @@ now stands at the next link: index reduction demotes `smpm.lszero.i`
 and leaves `3*lszero.i = 0` constraining no state. That is the loop's
 work, so the change is link one of a chain and wins nothing alone.
 Nothing is merged.
+
+### m672: three open rows of the m671 tables, mapped without a change
+
+`NonCircularPipes`. The refusal is raised by the count at
+`crates/oxidelica-sim/src/compile.rs:9769`: 8 written initial equations
+for 6 states. The section is two over, and the surplus branch (`:9797`)
+takes it, because the matching left exactly two written rows unpaired.
+A probe build (`/tmp/m672/ox_probe`, md5
+f1a7b0bb149365a8d344212a0d24ce56, printing the rows left out, not
+committed) names them in `/tmp/m672/ncp_probe.txt`: rows 6 and 7,
+`annulus_pipe.mediums[1].p = annulus_pipe.ps_start[1]` and the same on
+node 2. Both are rows of one pipe. The m646 steady variant showed that
+the states lost to index reduction are `Us[1]` of each pipe, one per
+pipe. So the rows left out do not match the states lost: the annulus is
+left with two conditions for its three states and the circular pipe
+with four for its three. That is the refusal behind the surplus, "free
+along `annulus_pipe.Us[2]`", raised at `:10172`. The first unpaired rows
+the matching meets are not the rows that are redundant, and choosing
+between them means telling which written condition names a state that
+reduction removed. This is the same definition question as the m644
+map, but now the place is known: the choice is the `unclaimed` filter at
+`:9797`.
+
+`Rectifier` (QuasiStatic). In the trace `/tmp/m671/t_rect.txt` at the
+all-zero start, Jacobian rows 3 and 7 are identical
+(`-20.000015865662135` in columns 3, 7 and 11, and `0.99998942...` in
+column 10). Row 9 differs from them only in which column carries the
+`0.99998942...`. With every diode at zero voltage, two diode rows
+describe the same branch. Which diodes conduct is a start question, not
+a solver defect.
+
+`PumpingSystem`. The pump sets `checkValve = true` and
+`checkValveHomotopy = Closed`
+(`Modelica/Fluid/Examples/PumpingSystem.mo:30-31`). For that case the
+library gives the start problem as the simplified side of a `homotopy`,
+`V_flow_single = 0` and `head = N/N_nominal*flowCharacteristic(0) -
+s*unitHead` (`Modelica/Fluid/Machines.mo:451-459`). The compiler takes
+the actual side of every `homotopy` and drops the simplified one
+(`crates/oxidelica-parser/src/flatten/names.rs:916-919`). At `s = 0`
+the actual side is `if s > 0 then s*unitMassFlowRate/rho else 0`, so
+the column of `s` is dead and the `medium.d` row is dependent. That
+matches the C sub-layer of `r3_layers.txt`. A start that uses the
+simplified side is a solver-strategy change, and it belongs with the
+questions to Roman. No change was built.
