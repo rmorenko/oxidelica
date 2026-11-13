@@ -80379,3 +80379,19 @@ remedy the AGENTS.md rule about tables allows. Nothing was built: the
 brief allows maps only until Roman's word. One 60 s window is a sample,
 not a whole run, so 55% is the share over that window and is not
 claimed for the whole 163 s.
+
+The same probe on three more of the dearest models to flatten (60 s
+windows shortened to 40 s, taken 20 s in; files
+/tmp/m673/{lw,b17,rma}\_{prof,run,sample}.txt):
+
+| model                               | flattening alone | samples | under `recursive` |
+| ----------------------------------- | ---------------: | ------: | ----------------: |
+| `LinearFluid.LinearWater_pT`        |             50 s |   20879 |       12521 (60%) |
+| `BranchingPipes17`                  |             57 s |   26442 |            1 (0%) |
+| `IncompleteMedia.ReferenceMoistAir` |             23 s |    1998 |           63 (3%) |
+
+So the repeated walk carries more than half of two media-heavy models
+(`HeatingSystem`, `LinearWater_pT`, both on IF97 water) and nothing of
+the pipe models, whose time is allocation and `Expr` clone and drop.
+Two models out of five is a candidate set for an `--only` off/on pair
+if the table is ever built, not a corpus-wide claim.
