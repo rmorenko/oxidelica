@@ -80493,3 +80493,17 @@ steps in 293 s, about one second a point, so the time is not spent in
 Newton iterations. The likely carrier is the evaluation of those
 carried expressions, which is a question for the next series and was
 not probed here.
+
+Probed afterwards with three `sample` cuts of the same binary at 90,
+150 and 210 s (`/tmp/m674/ifn_s*.txt`, run in `/tmp/m674/ifn_prof.txt`,
+16 s flat and 278 s run under the sampler). All three cuts read alike.
+Nearly the whole run sits under `solve_implicit_block_from`, inside the
+expression walk (`walk::run`, `walk::walk`, `walk::number_of`,
+`code::eval`, `walk::to_scalar`), with string hashing, allocation and
+the dropping of `Expr` trees at the top of the stack. Only about 2% of
+the samples are in the Newton arithmetic. So the time goes into
+evaluating walked bodies inside a block, rebuilding and hashing
+expressions on every residual call. That fits the carried `h_start`
+expressions, but the profile names the phase and not the expression, so
+the attribution stays a candidate until a counter or a switch settles
+it.
