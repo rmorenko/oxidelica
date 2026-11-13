@@ -80507,3 +80507,53 @@ expressions on every residual call. That fits the carried `h_start`
 expressions, but the profile names the phase and not the expression, so
 the attribution stays a candidate until a counter or a switch settles
 it.
+
+## Where IncompressibleFluidNetwork spends its run, by body
+
+The candidate of the last chapter, the eleven carried `pipeN.h_start`
+expressions, is refuted by a counter. A probe build (`/tmp/m675/oxz`,
+not committed) timed and counted every walk of a function body by the
+body's name, on the parked declaration-order fix. Out of 237 s of run
+(`/tmp/m675/carry.txt`, witness `carry.env`), 199.4 s go to 896171
+walks of one body,
+`Modelica.Math.Nonlinear.solveOneNonlinearEquation` specialised to
+`T_ph_f_nonlinear` of Glycol47. The next body is the wall friction
+`massFlowRate_dp_staticHead`, 7.8 s over 356287 walks. Run work is the
+same as without the probe, 298 points, 552 Newton steps, no Jacobians.
+
+A second probe (`/tmp/m675/carry2.txt`, `carry3.txt`) kept the exact
+bits of every argument set. Of 900000 walks, 20783 were different, so
+each question was asked about 43 times on average. The most frequent
+sets carry varying enthalpies such as 176977.0054 and 236285.6273,
+not one fixed value per pipe. These are the pipes' state enthalpies,
+which move from step to step. So the expensive body is not a parameter
+the run could settle once at its start, and the brief's proposed form
+does not apply.
+
+The repetition comes from the memory of walked answers in
+`Walked::answer` (`crates/oxidelica-sim/src/lib.rs`), which keeps only
+the last answer of each body. Eleven pipes ask the same body in turn, so
+the asking just before is always another pipe's and nothing is reused.
+
+A change was built and parked rather than merged: keep the sixteen most
+recent answers of each body instead of one, with
+`OXIDELICA_NO_PROPS_MANY=1` keeping one as before. The brief forbade a
+table in this item, and this is one, so the judgement belongs to the
+next review. Measured with one binary (`/tmp/m675/ox2`, md5 094d5cf5,
+a witness `.env` beside every file):
+
+- IncompressibleFluidNetwork alone: run 235 s with the switch
+  (`ifn_off.txt`) and 180 s without it (`ifn_on.txt`), 236 s on the
+  binary without the change (`p_ifn_off.txt`). Run work is identical
+  byte for byte and the model runs in both.
+- Six Fluid controls (`ctl2_on.txt`, `ctl2_off.txt`): run work is
+  identical byte for byte (235 points, 615 Newton steps, 2172 damped)
+  and the same four models run. The run half falls from 419 s to 28 s.
+  `HeatExchangerSimulation`, which refuses, goes from 374 s to 16 s,
+  `RoomCO2` from 20 s to 4.3 s, `InverseParameterization` from 16.5 s
+  to 4.6 s and `DrumBoiler` from 8.8 s to 2.7 s.
+- A unit test, `a_body_asked_in_turn_by_several_callers_is_walked_once_each`,
+  passes with the change and fails under the switch.
+
+No corpus pair was run and the heavy models were not measured. The
+patch and a note are in the park as `m675_props_many`.
