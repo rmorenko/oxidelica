@@ -79846,3 +79846,25 @@ reading is refuted for both sub-layer A models. Row 41 also writes
 redundant-balance reading given for `SMPM_CurrentSource` has the same
 form here: the inner equations may give the differentiated constraint
 back to itself. Both models now wait on that one falsifier.
+
+### m672: the heavy cron of 13 November, both passes
+
+Cron run 43420436722 (6d7e140) against the previous green cron
+43215823084 (87de661), logs in `/tmp/m672/cronlog_new.txt` and
+`cronlog_old.txt`. The judge's counts are identical in both: 23 example
+models, 23 flatten and 2 run, and 21 runnable with 21 flatten and 2
+run. No heavy model was lost. The times, new against old:
+
+| pass  | flattening      | running                     |
+| ----- | --------------- | --------------------------- |
+| a     | 1697 s / 1897 s | 13509 s / 13922 s (-3.0%)   |
+| b     | 1335 s / 1336 s | 4592 s / 3923 s (+17.1%)    |
+| total | 3032 s / 3233 s | 18101 s / 17845 s (+1.4%)   |
+
+The CI passes print no `work:` lines, no `slowest run` and no per-model
+`ran` or `flat` lists, so the slowdown cannot be judged by work
+counters. The cost is therefore not resolved. It is not shown to be
+absent. The two passes moved in opposite directions by amounts in the
+tens of percent, which is what runner drift looks like rather than a
+systematic cost. A real cost of the divisor change would slow both
+passes. The verdict rests on the model counts alone.
