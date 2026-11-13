@@ -79521,3 +79521,17 @@ line already mapped. Underdetermined loop, 9, of which `NAND` and
 `Cylinder_analytic_CAD` are utilities and four are the analytic loop
 engines. These rows are where the debt to the loop lies, not the
 unbalanced one.
+
+The whole run half was then split the same way, all 133 models of
+`/tmp/m667/raw.txt` (`/tmp/m668/all_run.txt`, rows with the example
+count beside them in `/tmp/m668/rows_fault.txt`): 69 examples and 64
+parts. The two top rows differ sharply. "Parameter has no value", 24
+models, holds 1 example and 23 parts, as the census already says by
+fault. "Constrains no state", 28 models in the census and 29 by this
+reading, holds 14 examples and 15 parts. The examples are
+`ActuatorWithNoise`, `Nand`, `MNmos`, `MPmos`,
+`BatchPlant_StandardWater`, `TanksWithOverflow`,
+`IMC_DOL_CommonLeakage`, `PrismaticConstraint`, `SphericalConstraint`,
+`PointGravityWithPointMasses2`, `RollingWheel`, `Engine1a`, `FullRobot`
+and `OneAxis`. So the largest row by examples is the structural one,
+and the parameter row, though second by count, owes the loop one model.
