@@ -80395,3 +80395,8 @@ So the repeated walk carries more than half of two media-heavy models
 the pipe models, whose time is allocation and `Expr` clone and drop.
 Two models out of five is a candidate set for an `--only` off/on pair
 if the table is ever built, not a corpus-wide claim.
+
+`DynamicPipeEnergyConservationCheck` (third dearest, 135 s alone,
+/tmp/m673/dp_{prof,run,sample}.txt): 4913 of 31192 samples (16%) under
+`recursive`, the rest allocation and `gather_calls` self time. The walk
+is a minority share there too.
