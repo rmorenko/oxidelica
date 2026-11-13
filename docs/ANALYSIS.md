@@ -80583,3 +80583,18 @@ line for line, and run work is identical byte for byte (3385 points,
 4281 Newton steps, 1346 damped). The run half falls from 599 s to 76 s.
 Peak memory falls from 7.1 GB to 2.8 GB. Other libraries are still
 unmeasured.
+
+Two more courts with the same binary cover most of the rest. The 422
+examples of Electrical, Magnetic, Thermal, Blocks and the rotational and
+translational mechanics (`oth_off.txt`, `oth_on.txt`) keep 415
+flattening and 358 running, with equal lists and identical work, and
+their run half moves from 290 s to 293 s while the untouched flatten
+half moves by 5 s, so that difference is drift and no price is
+resolved. The 426 models of MultiBody and ModelicaTest (`mb_off.txt`,
+`mb_on.txt`) keep 405 and 359, again with equal lists and identical
+work, and their run half falls from 3076 s to 1280 s. The fluid tests
+carry it: `TestMultiPortTraceSubstances` from 678 s to 40 s,
+`TestDensity` from 274 s to 62 s, `TestWaterPumpDCMotorHeatTransfer`
+from 164 s to 34 s. Over the three courts, 908 models, no list moved
+and the run half fell from 3965 s to 1649 s. A corpus pair and the
+heavy models remain for the review to order.
