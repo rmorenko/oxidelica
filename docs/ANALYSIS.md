@@ -80261,3 +80261,33 @@ against the obvious lever. A narrower one, folding a record field that
 the record's constructor algorithm sets to a literal before the
 inlining walks it, would give `zeta2_at_a` a value at depth zero; it
 was not built.
+
+## The scan family behind two C-external refusals (m673)
+
+`ModelicaTest.Utilities.TestStrings` and `TestExamplesCalculator` both
+stop at `Strings.Advanced.scanReal`, whose body is the C
+`ModelicaStrings_scanReal(string, startIndex, unsigned, nextIndex,
+number)` (`Utilities/Strings.mo:1057`); probe with md5 cca28f69 in
+/tmp/m673/p_TestStrings.txt. The compiler already answers
+`ModelicaStrings_scanInteger` of exactly this shape, two outputs
+written through pointers, split into the number and
+`SCAN_INTEGER_NEXT` (`flatten/inlining.rs:2426` and
+`flatten/external.rs:226`, the scanner `scan_integer` below it). So
+`scanReal` is the same mechanism with a different token grammar.
+
+It is one link of a chain, not the whole. `TestStrings` goes on, in
+`ModelicaTest/Utilities.mo` lines 127 to 131, to
+`Advanced.scanString` and `Advanced.scanIdentifier`, whose C bodies
+(`ModelicaStrings_scanString`, `ModelicaStrings_scanIdentifier`) the
+compiler has none of either (no match in `external.rs`). The
+calculator reaches `scanReal` through `Strings.scanToken`
+(`Utilities/Examples.mo:115`), and `scanToken` dispatches to all four
+scanners by the token's first letter, so a calculator run needs at
+least `scanReal`, and the model has no string tokens to reach the other
+two. The order of the chain, then: `scanReal` would plausibly win
+`TestExamplesCalculator` alone (not measured: the model may meet
+`scanDelimiter` next, which is also absent), and `TestStrings` needs
+three answers before its asserts can speak. Both models check
+themselves with asserts, so a wrong scanner is caught rather than
+silent. `TestInternal` (`getenv`) stands with the file family under the
+m275 park. Nothing was built.
