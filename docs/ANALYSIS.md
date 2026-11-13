@@ -79948,3 +79948,21 @@ the closed valve of the simplified `homotopy` side, gives `s = 0` and a
 determined head through `- s*unitHead`. A start away from zero walks the
 pump into reverse flow. The probe is a mechanism, not a win: the corpus
 model is unchanged.
+
+The redundant-balance reading of `SMPM_CurrentSource`, judged with what
+the probes already printed. The Jacobian is taken by differences
+(`crates/oxidelica-sim/src/solvers/mod.rs:2053-2075`), so an all-zero
+row 3 means the residual of row 3 did not move when `smpm.wMechanical`
+was stepped, with the loud-row ladder (`:2340-2365`) also finding
+nothing. The values the row reads make its written terms move by about
+-11.4 per unit of `wMechanical`. Together the two say that the inner
+equation for `der(terminalBox.plugSupply.pin[2].i)` moves by the
+opposite amount, so the row is `0 = 0` along that column. The reading
+survives on the probe outputs (`rd_smpm.txt`) and is not refuted. It is
+still not proven for every column. The block's Newton never left the
+start (seven reports, all at the zero guess), so the second falsifier,
+the residual at two values of `wMechanical`, could not be read from
+this run. The inner equations are printed in `/tmp/m672/in_smpm.txt`
+(`ox_probe3`). Their right sides name the phase-2 currents through the
+stator, the stray load, the terminal box and both sensors, which is the
+current path that row 3 also sums.
