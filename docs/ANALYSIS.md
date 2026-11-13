@@ -79593,3 +79593,70 @@ the open walls without anyone's word are the singular loop Jacobian
 units (6). Wall assignment is by refusal text checked against each
 full message; one model (`MeasuringTemperature`) needed its probe to be
 placed.
+
+## The singular-Jacobian wall and the mixed run-time wall, layer by layer
+
+Binary `/tmp/m670/ox1` (md5 735b46afbc92ab64191230006f60af0f, built at
+f72cee5). Each probe carries its command and the md5 on its first two
+lines: `/tmp/m671/t_*.txt` under `OXIDELICA_NEWTON_TRAIL=1`, read by
+rank with `/tmp/m671/an2.py`; the tables are `/tmp/m671/r3_layers.txt`
+and `/tmp/m671/r8_layers.txt`.
+
+### The singular-Jacobian wall is two code sites and five layers
+
+The census row of ten holds two refusal texts from two places.
+`solvers/mod.rs:2594` refuses a block whose Jacobian has lost rank.
+`solvers/mod.rs:2598` refuses a block with an unknown that no equation
+in it mentions at the point. `Spice3BenchmarkDifferentialPair` (a block
+of one unknown, `der(Q2.vbx)`), `RevoluteConstraint` and
+`PlanarFourbar` stand at the second site. The census files them with
+the first only because their words begin alike. Re-measured by rank,
+the seven at the first site match the breeds of the m661 chapter
+above:
+
+```text
+A  dead rows of differentiated equations   SMPM_CurrentSource      20, rank 18
+                                           UniversalConstraint     44, rank 40
+B  two rows proportional at a switch       LossyGearDemo2           5, rank 4
+                                           Rectifier (QuasiStatic) 12, rank 11
+C  a water density row dependent           PumpingSystem           15, rank 14
+                                           TestMixingVolumesPS     24, rank 23
+D  rolling contact after 1113 Newton steps RollingWheelSetDriving  32, rank 6
+E  dead column (mod.rs:2598)               DifferentialPair, RevoluteConstraint, PlanarFourbar
+```
+
+One reading differs from m661. `RollingWheelSetDriving` was printed
+there at rank 7 and comes out at rank 6 here, with 26 null directions
+across the whole contact subsystem. Both readings agree that the block
+does not lose a row or two. It degenerates as a whole after the
+damped steps drift. In C, the null column of `PumpingSystem` is
+`pumps.s`, which the `s > 0` branch leaves out of every row at the
+start. In `TestMixingVolumesPressureStates` it is
+`der(mixingVolume1.medium.p)` against the dependent row
+`mixingVolume2.medium.d`. That model's sibling stands on the threshold
+artefact that Roman accepted on 13 November, and no fix is proposed
+here. The layers worth a small model without anyone's word are A, the
+`Rectifier` half of B (which diodes conduct at an all-zero start), and
+E's one-unknown `DifferentialPair`.
+
+### The mixed run-time wall: two new readings, the rest already mapped
+
+Six of the eight models in the run-time row, and five of the six in the
+units row, already have maps above; the table names the line of each.
+Two were probed fresh.
+
+`Friction` does not stall at the torque step (0.5 s). It stalls at
+t = 0.00678 s, where Newton converges to a residual of exactly zero
+and the step is still refused. There are 209 restarts at that one
+instant, so the guard at `solvers/mod.rs:2935`, "a stall that made no
+ground", fires (`/tmp/m671/p_fric.txt`). The block is fine and the
+step is what cannot move. That points at the stuck and sliding mode
+of the clutch, not at the algebraic loop.
+
+`R134a_pTX_phX_all` refuses `der(T) = dT` as `s-1.K against 1`, and the
+library is what is wrong. The model declares `Modelica.Units.SI.PerUnit
+dT` and then writes `der(T) = dT` (`ModelicaTest/Media.mo`, in
+`R134a_pTX_phX_all`), so the refusal is right. That makes five library
+texts among the twenty-two models of the three rows: the two `dddX`,
+`Graetz`, this one and the `Essotherm650` table, the last of which is
+queue item 42 and waits for Roman's word.
