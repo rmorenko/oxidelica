@@ -79739,3 +79739,20 @@ the column of `s` is dead and the `medium.d` row is dependent. That
 matches the C sub-layer of `r3_layers.txt`. A start that uses the
 simplified side is a solver-strategy change, and it belongs with the
 questions to Roman. No change was built.
+
+`SMPM_CurrentSource` (sub-layer A of `/tmp/m671/r3_layers.txt`). The
+dead rows of the 20-unknown block in `/tmp/m671/t_smpm.txt` are rows 3
+and 6 (`:17`, `:20`), the differentiated current balance of phase 2 and
+its second derivative. Each term of row 3 that reaches a block unknown
+is a product with `dqToThreePhase.toGamma.k * smpm.wMechanical` and a
+`dqToThreePhase.rotator.u[i]`. At `rotator.angle = 0` the slope along
+`angle` carries `wMechanical`, which is 0 at the start, and the slope
+along `wMechanical` is `k*(IT[2,2]*u[1] - IT[2,1]*u[2])`. That is zero
+only if both `u` are zero. But `u[1] = toPeak_d.k * d` and `d` is fed by
+`Constant id(k = Idq[1])` with `Idq = {-53.5, 84.6}`
+(`SMPM_CurrentSource.mo:7,60-62`). So the reading, not yet measured, is
+that the block is evaluated with `rotator.u` still at zero. The
+falsifier is the value of `dqToThreePhase.rotator.u[1]` at the point
+where the trace writes row 3. If it is -53.5 times `toPeak_d.k`, this
+reading is wrong and the dead row comes from a cancellation in the
+coefficients instead.
