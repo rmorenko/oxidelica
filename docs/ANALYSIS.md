@@ -79346,3 +79346,29 @@ retry's flat start, not the cause: the cause is Newton diverging from a
 start that was already close. `RollingWheelSetPulling` (`RPx.mo`,
 `rp_trail.txt`) shows the same five attempts with the same starts,
 9.988e11 on the fourth, so the two wheel sets are one family by trail.
+
+### The wheel set at today's head, and the census window by name (m666)
+
+`/tmp/m666/W1.mo` is `Parts.RollingWheelSet` on its own, with the
+example's parameters and nothing driving it. It refuses with the same
+`singular Jacobian` as both examples (`/tmp/m666/w1.txt`, binary md5
+e4bc7e57). `why` on `rolling1.aux[1]` (`/tmp/m666/why_aux1.txt`)
+shows no start is lost: `aux = cross(e_n_0, e_axis_0)` and `e_axis_0`
+is read from `frame_a.R.T`. The 0/0 at the flat start comes from the
+orientation, whose unknowns `revolute.phi` and `revolute2.frame_a.R.T`
+stand inside the loop, so the heading was demoted by index reduction.
+That is the chain m429 walked to its end (a tie of zero weights, and
+the zero quench). It is victim choice, so it is parked with item 108.
+The two examples have never run. Their 54 to 56 seconds in the old
+`--slow` print were the price of the retries before the refusal.
+
+The census window, taken by name from `/tmp/m649/raw.txt`
+(`/tmp/m666/p2_names.txt`, `p3_names.txt`): every model in the rows
+`initialization is not square`, `algebraic loop`, `initialization
+problem is singular`, the `mixingUnit` equation, `cannot
+differentiate function` and `initialization did not converge` is
+named in this file by its last part at least 8 times. Over the whole
+run half, five models are named nowhere (`/tmp/m666/unnamed_run.txt`).
+All five are utilities whose parameter has no default in the library
+itself, for example `parameter Modelica.Units.SI.Current yMax` in
+`SpacePhasorLimiter.mo:4`. Those refusals are honest.
