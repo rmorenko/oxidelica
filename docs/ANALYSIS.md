@@ -79988,3 +79988,17 @@ reading is that a normalised vector whose components are tearing
 unknowns starts at the zero vector. Measured on one probe model.
 Nothing was built, and the model is still refused, by the same Newton
 direction refusal.
+
+A probe of the `Rectifier` start reading, and a warning. A model that
+extends the example and only sets `idealDiode1.s` and `idealDiode4.s`
+to start at 1 (`/tmp/m672/rect/RC1.mo`, output `rc1.txt` and
+`rc1.csv`, binary `/tmp/m670/ox1`) runs to its stop time with 150
+events. So the diode start is the singular row's cause. But the run is
+not a right answer. The transient half looks plausible (`Itr` rises to
+95.2 A as `load2.G` ramps to 1). The quasi-static half does not:
+`rectifierQS.vDC`, `load1.v` and `iDC1.i` are 0 in all 1151 rows, and
+`Iqs` is 2000 A throughout, which is `VAC / R_ref` = 100 / 0.05, a
+short circuit through `resistorQS`. The `IdealACDCConverter` side
+therefore carries no load. This is a wrong number produced from a
+moved start, and it has to be explained before any start policy for
+this model is proposed. Not built.
