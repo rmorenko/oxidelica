@@ -79898,3 +79898,12 @@ that. The partition is an algebraic system solved at each tick, and the
 clock layer lifts equations one at a time. The repair is a solve of a
 clocked partition as a block. That is architecture, so nothing was
 built.
+
+`Inverse_sh_TX` and `ReferenceMoistAir`, re-probed on `/tmp/m670/ox1`
+(`/tmp/m672/ish_ra.txt`, `ish_rma.txt`). `ReferenceAir.Inverse_sh_TX`
+and `IncompleteMedia.ReferenceMoistAir` are both still refused with "an
+array reached the evaluator: {0.03680171...", so the m595 map (the
+`Complex[2]` local of the ice Gibbs function) stands. The other model of
+the same short name, `SolveOneNonlinearEquation.Inverse_sh_TX`
+(`/tmp/m672/ish.txt`), runs. A table row that names a model by its last
+part names two models here.
