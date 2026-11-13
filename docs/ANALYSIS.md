@@ -80081,3 +80081,17 @@ trace, numpy rank raw, with columns scaled and with rows scaled):
 `TestMixingVolumesPressureStates` is the only scaling verdict in the
 table, and the other five are structural or start questions as mapped
 above.
+
+The row-scaling reading, probed. A probe build (`/tmp/m672/ox_rows`,
+not committed) divides each row by its largest entry before the
+column-equilibrated retry of the Newton step, behind `M672_ROWS`. One
+binary, two runs of `TestMixingVolumesPressureStates`
+(`/tmp/m672/tmv_off.txt`, `tmv_on.txt`, the command and md5 on their
+first lines). Off, it is the singular Jacobian after 2 points and 2
+Newton iterations. On, the singular wall is gone: 8 points, 168 Newton
+iterations and 1039 damped steps, and then "algebraic loop did not
+converge in 60 Newton iterations". So the rows-first retry is the
+mechanism of the first wall, and a second wall stands behind it. A
+mechanism, not a win, and a change to the step's scaling is for every
+model that reaches this retry, so it would need a corpus pair. Behind
+word p.62. Nothing in the tree.
