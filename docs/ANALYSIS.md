@@ -79439,3 +79439,43 @@ declares `VNominal` with no value
 (`QuasiStatic/FundamentalWave/Examples/ExampleUtilities/FieldWeakeningController.mo:4`),
 and `Media.Examples.Utilities.ShortPipe` declares `m_flow_nominal`
 with no value (`Media/package.mo:3553`). Neither is meant to run alone.
+
+## The census after the unknown-divisor rule
+
+The first census since the rule went in (5c9197c), taken on the tree of
+0da5ea1 (`/tmp/m667/census.txt`, `/tmp/m667/raw.txt`), against the last
+one (`/tmp/m649`). Summed between the section markers: would not
+flatten 45 models in 25 rows before and after; flattened and would not
+run 136 in 27 rows before, 133 in 27 rows after. The three models that
+left are exactly the three `IMC_withLosses` of Machines,
+FundamentalWave and QuasiStatic.FundamentalWave, which stood in three
+different loop rows (the Newton direction, a plain algebraic loop and an
+underdetermined one), so each row lost one and none emptied. Every
+other model of the run half keeps its refusal word for word once the
+numbers are masked, so nothing travelled to another wall and nothing was
+lost. The prediction given before the run, minus three and no other
+movement, held. This pair is the new reference for the census.
+
+Rows 148 to 150, 156, 157 and 159 of the old census, by name: the
+eleven models standing in them (`NonCircularPipes`,
+`ThreePhaseTransformerWithRectifier`, `GearType1`,
+`AmplifierWithOpAmpDetailed`, `MeasuringTemperature`,
+`TestSuddenExpansion`, `SimpleNaturalGas`, `FilterOrder`,
+`AdvancedSolenoid`, `DynamicPipeClosingValve`, and the FundamentalWave
+`IMC_withLosses`, which has since left) are all still named in this
+document, between 13 and 73 times each. The ten that remain refuse in
+the fresh census exactly as they did.
+
+`IMC_DOL_CommonLeakage`, the one unnamed model of row 28, was probed on
+the library itself with `OXIDELICA_VICTIM_PROBE=1`
+(`/tmp/m667/vp_cl.txt`). Its sixteen victims are, line for line, the
+sixteen of the cut-down `IMCx.mo` (`/tmp/m665/vpimc.txt`): the three
+stator inertias, four mechanical angles, then converter fluxes `Phi.re`
+and `Phi.im` at weight 0.0, and reduction 16 weighs an empty list. So
+the library model is confirmed in the state-selection family, item 108,
+by mechanism and not by wording; no change was built.
+
+Every model of the fresh run half, all 133, is named somewhere in this
+document. The thinnest, named once or twice, are utilities that are not
+meant to run alone, such as `UniformDensity`, `SpacePhasorLimiter` and
+`ShortPipe`.
