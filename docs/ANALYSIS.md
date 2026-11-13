@@ -80226,3 +80226,38 @@ binary (/tmp/m673/p_ims.txt): it still stops at t = 0 after 17 points
 and 47 Newton steps, on a block that holds the air-gap `V_mss`, the
 rheostat and closer switch variables and the zero inductors' `v0`. The
 m661 map of it stands unchanged.
+
+## TestWallFriction at the depth wall, by trace (m673)
+
+`ModelicaTest.Fluid.TestComponents.Fittings.TestWallFriction` is in the
+1019 selected models (`library check .msl --models` names it, binary
+md5 cca28f69), which corrects the m657 sentence above that put it
+outside: a fix to its wall would count. It is refused while flattening
+with `an expression did not come to an end here, nested deeper than the
+compiler follows: Ref("pipe4.data.zeta2_at_a")` (/tmp/m673/p_twf.txt).
+
+A temporary print at the two raising sites (not committed; binaries
+/tmp/m673/oxp and oxp2, outputs p_twf_site.txt and p_twf_depth.txt with
+command and md5 on their first lines) puts all 15 raisings at
+`flatten/names.rs:604`, the `depth > MAX_DEPTH` refusal in `resolve`,
+reached from `arrays::expand_call` under `flatten_if_equations` of
+`instantiate`. The 33 nested `resolve` frames are not one deep
+expression but a chain of inlined function bodies: the scopes that
+reach depth 30 to 32 are `regSquare2.regSquare2_utility`, `regFun3`,
+`WallFriction.Detailed.Internal.m_flow_of_dp_fric` and its
+`interpolateInRegion2_withDerivative`, `dp_fric_of_m_flow` and
+`QuadraticTurbulent.BaseModel`. The last leaf before the refusal is
+`If(pipe4.data.zeta2_at_a, pipe4.data.diameter_a, pipe4.data.diameter_b)`
+at depth 32, a three-name expression; the record `pipe4.data` is the
+result of `LossFactorData.wallFriction(...)`, an algorithm that sets
+`zeta2_at_a := false` (`Fluid/Fittings.mo`).
+
+So the wall is the depth count spent by nested inlining, and the name
+it quotes is only where the count ran out. The `SETTLING_PARAMETER`
+fold beside the refusal does not apply because this is an equation,
+not a parameter being settled. The m451 measurement (raising
+`MAX_DEPTH` to 48 cost tens of GB on two Fluid base classes) stands
+against the obvious lever. A narrower one, folding a record field that
+the record's constructor algorithm sets to a literal before the
+inlining walks it, would give `zeta2_at_a` a value at depth zero; it
+was not built.
