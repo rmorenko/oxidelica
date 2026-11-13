@@ -79785,3 +79785,17 @@ values handed to the block. It is between the written row and the
 Jacobian the solver builds from it, and that is where the next probe
 goes. The `UniversalConstraint` reading has the same form and is now
 suspect for the same reason. Its falsifier has not been run.
+
+The next reading, also not yet measured. Row 3 also contains
+`der(terminalBox.plugSupply.pin[2].i)`, and that name is not among the
+block unknowns or the settled names the row reads. It is computed by an
+inner equation of the torn block. `why` gives that current two
+equations: the star's balance `(currentQuasiRMSSensor.plug_n.pin[2].i +
+terminalBox.plugSupply.pin[2].i) + voltageQuasiRMSSensor.plug_p.pin[2].i
+= 0` and `-plugSupply.pin[2].i - plug_sp.pin[2].i = 0`. If the inner
+equation gives that derivative as the same expression of `angle`,
+`wMechanical` and `u` that the current source imposes, row 3 cancels to
+`0 = 0` for every value. Then the dead row would be a redundant
+differentiated balance and not a numerical zero. The falsifier is to
+evaluate row 3 at two distinct values of `wMechanical`. If the
+residual moves, this reading is wrong as well.
