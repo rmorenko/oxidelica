@@ -80017,3 +80017,16 @@ start policy that only moves the diodes lands the converter on that
 root. Any repair here has to start the quasi-static voltage away from
 zero as well, and it has to be checked against the physical root
 (`vDC` near `VAC`), not only against "it runs".
+
+The second falsifier of the redundant-balance reading, run. A model that
+extends `SMPM_CurrentSource` and starts `smpm.wMechanical` at 10
+(`/tmp/m672/sm/SM1.mo`, output `sm1.txt`, probe binary `ox_probe2`)
+gives the block a start with `wMechanical = 10`, and row 3's residual is
+0 there and its Jacobian row is all zeros again. The same refusal
+follows. Row 3 holds at zero for `wMechanical` = 0 and 10 with nonzero
+`rotator.u`. That is what an identity `0 = 0` does and what a
+coincidence would not. The reading stands on two measurements: the dead
+row is the differentiated phase-2 current balance, made redundant by
+the inner equations that already sum that current. Index reduction
+differentiated a balance that the current source's own equations
+already determine.
