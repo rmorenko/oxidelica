@@ -80030,3 +80030,16 @@ row is the differentiated phase-2 current balance, made redundant by
 the inner equations that already sum that current. Index reduction
 differentiated a balance that the current source's own equations
 already determine.
+
+`TestMixingVolumesPressureStates` (sub-layer C), read off the m671
+trace `/tmp/m671/t_tmv.txt`. The column of `der(mixingVolume1.medium.p)`
+(column 22) is reached by only three rows, 20, 21 and 23, with slopes
+-5.1e-7, 1.0e-3 and 1.5e-3. Rows 21 and 23 are the energy balances of
+the two volumes written through `der(medium.h)` and `der(medium.p) * d`
+over `d^2`, so the pressure derivative enters scaled by `1/d`, about
+1e-3 for water. The column is not dead. It is small beside rows whose
+residual starts at 1e3 to 2e5 (row 2 at -199000). So the reported rank
+loss may be a scaling verdict rather than a structural one. Not
+measured. The falsifier is the rank of the same Jacobian with each row
+divided by its own largest entry: if it is still 23 of 24, this reading
+is wrong.
