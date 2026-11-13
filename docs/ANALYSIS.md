@@ -80071,3 +80071,13 @@ converged block but not for a step. This is the same order question
 that function's own comment names (an induction machine at rest needs
 its rows divided first). A step retry that divides rows is a solver
 change, behind word p.62. Not built.
+
+The same scaling test over the other singular blocks of the R3 table
+(`/tmp/m672/r3_scaling.txt`, the first printed matrix of each m671
+trace, numpy rank raw, with columns scaled and with rows scaled):
+`PumpingSystem` 14 of 15 under all three, `Rectifier` 11 of 12,
+`LossyGearDemo2` 4 of 5, `SMPM_CurrentSource` 18 of 20 and
+`UniversalConstraint` 40 of 44. None of them is rescued by scaling. So
+`TestMixingVolumesPressureStates` is the only scaling verdict in the
+table, and the other five are structural or start questions as mapped
+above.
