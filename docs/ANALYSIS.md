@@ -79907,3 +79907,16 @@ array reached the evaluator: {0.03680171...", so the m595 map (the
 the same short name, `SolveOneNonlinearEquation.Inverse_sh_TX`
 (`/tmp/m672/ish.txt`), runs. A table row that names a model by its last
 part names two models here.
+
+A correction to the `Rectifier` paragraph above, by the names the same
+trace prints (`/tmp/m671/t_rect.txt`). Rows 3 and 7, which read
+identically, are not two diodes. Row 3 is `idealDiode1.i = (s *
+unitVoltage) * (if off then Goff else 1) + Goff*Vknee`, and row 7 is
+`load2.i = load2.G_actual * load2.v`. Their Jacobian rows coincide
+because the inner equations carry both currents back to the same three
+block unknowns: `idealDiode1.s` (column 3), `load2.v` (column 7) and
+`pin_nDC.v` (column 11). With every diode at `s = 0` and `off` true, the
+diode reads `Goff` times its voltage, the load reads `G_actual` times
+its own, and in this circuit both are the same branch current. The
+reading "two diode rows describe the same branch" was wrong in its
+names. Its conclusion, a start question of which diodes conduct, stands.
