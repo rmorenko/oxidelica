@@ -79414,3 +79414,16 @@ the judge's own print. The heavy set was compared on 21 of 23 names
 with no difference, and the two dearest names were reached by neither
 half, so this is not a full judgement of the heavy set. The five
 floors are left for the next review to raise from the runner.
+
+## Row 28 of the census, name by name
+
+The census row `equation E constrains no state` (/tmp/m649/census.txt
+line 138) holds 28 models in /tmp/m649/raw.txt. Each name was counted
+by grep in this file (/tmp/m666/r28_counts.txt): 27 are already named
+here, from 1 to 38 times. The one that was not,
+`ComparisonPolyphase.IMC_DOL_CommonLeakage`, flattens and refuses on
+the head binary (md5 735b46af, /tmp/m666/imc_cl.txt) with an equation
+that starts `aimc0.stator.elec`, after 16 reduction passes. This is the
+same machine prefix as the sensor-balance probe of m665, but its
+mechanism was not probed here, so the family is a candidate and not a
+finding.
