@@ -80557,3 +80557,20 @@ a witness `.env` beside every file):
 
 No corpus pair was run and the heavy models were not measured. The
 patch and a note are in the park as `m675_props_many`.
+
+### How deep the memory has to be
+
+Sixteen answers took the run only to 180 s, which is less than the
+repetition promised. A probe of the parked change (`/tmp/m675/carry5.txt`)
+showed why: 750000 walks still happened, and 4403 argument sets were
+walked twenty times or more. The questions come round in a cycle longer
+than sixteen, since each stage of a step asks every pipe again. A depth
+switch in a probe build (`/tmp/m675/oxz6`, files `k64.txt`, `k256.txt`)
+gave 179 s at 16, 26 s at 64 and 22 s at 256, with run work identical
+byte for byte at every depth. The parked patch now keeps 64. Its clean
+binary (`/tmp/m675/ox3`, md5 d37aef25) runs IncompressibleFluidNetwork
+in 14 s plus 24 s (`ifn3_on.txt`), against 235 s with the switch. The
+six controls take 19 s to run against 419 s (`ctl3_on.txt`), with the
+same work and the same four models running. Victims, the price on other
+models and the heavy models are still unmeasured, because no corpus
+pair was run.
