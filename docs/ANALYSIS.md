@@ -80184,3 +80184,45 @@ iteration 59. The Jacobian rows of the first block carry entries of
 addition: the outward spiral is the run from the last fallback seed,
 and the earlier seeds failed differently, by stalling near a small
 residual. No change was built.
+
+## The parameter-without-value row by declaration (m673)
+
+The second row of the run half in /tmp/m673/census.txt, `parameter X
+has no value`, holds 24 built models (one refused `TestStreams` is a
+different text sharing the words). Every one is a utility class asked
+about alone, and for each the parameter named in the refusal was read
+at its declaration in `.msl` (table in /tmp/m673/novalue.txt, with
+`oxidelica why` checked on `ImpureRandom`, `NormalDensity`,
+`OpAmpCircuits.Der` and `BlockMain`, binary md5 cca28f69):
+
+- Noise utilities: `samplePeriod` of `ImpureRandom`, `mu` of
+  `NormalDensity`, `u_min` of `UniformDensity`, `lambda` of
+  `WeibullDensity` are all declared without a binding in
+  `Blocks/package.mo`.
+- OpAmp circuits `Der`, `Derivative`, `FirstOrder`, `Integrator`, `PI`:
+  `f` or `T` declared bare in their own files (`Der.mo:5`,
+  `Derivative.mo:8`, `FirstOrder.mo:8`, `Integrator.mo:6`, `PI.mo:8`).
+- `NonlinearResistor.Ga`, the three DC-drive converters (`fS`, `Td`),
+  `FieldWeakeningController.VNominal`, `SpacePhasorLimiter.yMax`,
+  `GasForce2.L`: bare in the utility's own file.
+- Fluid: `BlockMain` and `Block_Recipe_TBD` (`startTime` of
+  `Block_Recipe_TBD`, bare), the evaporator tank `crossArea`
+  (`AST_BatchPlant.mo:604`), `maxLevel` of `NormalOperation` and
+  `TankController` (`ControlledTankSystem.mo:212` and `:354`),
+  `BasicHX.length`, `WallConstProps.s`, and `ShortPipe.m_flow_nominal`
+  in `Media/package.mo`.
+
+So the row is 24 of 24 library declarations with no default, which is
+what the census's own fault section says (27 service classes refusing
+rightly, 3 models of their own, the latter being the `e_ia` trio under
+item 104). The refusal is right in every case and there is no work in
+the row. The first row with work in it is therefore `constrains no
+state` (mapped in "Row 28, constrains no state, read by fault"), then
+the unbalanced row, whose AST and RobotR3 members are the same kind of
+open utilities.
+
+`IMS_Start_Polyphase` (underdetermined loop) re-probed with the merged
+binary (/tmp/m673/p_ims.txt): it still stops at t = 0 after 17 points
+and 47 Newton steps, on a block that holds the air-gap `V_mss`, the
+rheostat and closer switch variables and the zero inductors' `v0`. The
+m661 map of it stands unchanged.
