@@ -79427,3 +79427,15 @@ that starts `aimc0.stator.elec`, after 16 reduction passes. This is the
 same machine prefix as the sensor-balance probe of m665, but its
 mechanism was not probed here, so the family is a candidate and not a
 finding.
+
+## The top run rows, name by name
+
+The rows `has no value`, `unbalanced`, `underdetermined` and `cannot
+evaluate parameters` of /tmp/m649/raw.txt hold 62 distinct names
+(/tmp/m666/r3.txt). Counted by their last segment as a whole word, 60
+are already named in this file. The two that were not are honest
+refusals of utilities without defaults: `FieldWeakeningController`
+declares `VNominal` with no value
+(`QuasiStatic/FundamentalWave/Examples/ExampleUtilities/FieldWeakeningController.mo:4`),
+and `Media.Examples.Utilities.ShortPipe` declares `m_flow_nominal`
+with no value (`Media/package.mo:3553`). Neither is meant to run alone.
