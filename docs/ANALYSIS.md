@@ -80002,3 +80002,18 @@ short circuit through `resistorQS`. The `IdealACDCConverter` side
 therefore carries no load. This is a wrong number produced from a
 moved start, and it has to be explained before any start policy for
 this model is proposed. Not built.
+
+What the shorted half is. In `rc1.csv` the converter holds
+`rectifierQS.vQSabs = 0`, `iQSabs = 2000`, `pQS = 0`, `qQS = 0` and
+`pDC = -0` in every row, and `resistorQS.abs_v = 100`. Every equation
+of `IdealACDCConverter` holds there: `vDC = abs(vQS)*conversionFactor`
+gives 0, the power balance `pQS + pDC = 0` gives 0 = 0, and `qQS = 0`
+holds because `vQS` is zero. So it is a second root of the written
+equations, the converter collapsed to a short, and not an arithmetic
+fault. The refused block of the corpus model names `rectifierQS.vDC`
+and `rectifierQS.vQS` among its unknowns. So the same block that is
+singular at the all-zero start has a degenerate root next to it, and a
+start policy that only moves the diodes lands the converter on that
+root. Any repair here has to start the quasi-static voltage away from
+zero as well, and it has to be checked against the physical root
+(`vDC` near `VAC`), not only against "it runs".
