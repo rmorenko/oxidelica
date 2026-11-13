@@ -79372,3 +79372,14 @@ run half, five models are named nowhere (`/tmp/m666/unnamed_run.txt`).
 All five are utilities whose parameter has no default in the library
 itself, for example `parameter Modelica.Units.SI.Current yMax` in
 `SpacePhasorLimiter.mo:4`. Those refusals are honest.
+
+The flattening half was checked the same way
+(`/tmp/m666/unnamed_flat.txt`): four models are named nowhere in this
+file. Three call C code written outside Modelica
+(`ModelicaIO_writeRealMatrix`, LAPACK `dgees`, `ModelicaInternal_getenv`).
+The fourth, `Test66_usertab`, sets `tableOnFile=true` and gets its
+table from `usertab.c`, so `columns = 2:size(table, 2)` has no length
+the compiler could read (`/tmp/m666/t66.txt`). All four refusals are
+honest. The 22 models in the rows `the Newton direction`, `singular
+Jacobian` and `did not converge` still refuse on today's head, one at a
+time under `--only` (`/tmp/m666/r3_now.txt`).
