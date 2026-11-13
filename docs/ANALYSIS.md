@@ -80145,3 +80145,12 @@ the corpus, with classes, bodies and names equal. Times: run 12670 s
 against 12628 s, flattening 3430 s against 3386 s, with the two halves
 running side by side. Peaks 8.3 GB and 8.5 GB. No heavy model was
 touched, and no cost is resolved on that set.
+
+`TestMultiPortTraceSubstances`, the third dear model, finished after
+the paragraph above was written. Work equal in all three (1360 points,
+2396 Newton). Running 762.2 s off, 773.2 s on, 775.4 s off again, and
+flattening 33.2, 34.7 and 35.2 s. The on run lies between the two off
+runs. The series rises monotonically in the order it was started, which
+is the desk drifting, not the change. So the floor of this series is
+13.2 s, the on run sits inside it, and no cost is seen here either.
+Every number of this item is in `/tmp/m672/only/`.
