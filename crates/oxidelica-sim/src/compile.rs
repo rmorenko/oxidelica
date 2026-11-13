@@ -4429,7 +4429,10 @@ fn split_equations(
     let mut left_over = Vec::new();
     for (lhs, rhs) in std::mem::take(&mut algebraic_eqs) {
         let taken = isolate_der(&lhs, &rhs).filter(|(state, value)| {
-            !state_rhs.contains_key(state) && !value.contains_der() && !divides_by_zero(value)
+            !state_rhs.contains_key(state)
+                && !value.contains_der()
+                && !divides_by_zero(value)
+                && (unknown_divisor_off() || !divides_by_unknown(value, continuous))
         });
         match taken {
             Some((state, value)) => {
@@ -4493,6 +4496,44 @@ fn split_equations(
     }
     implicit.extend(read_only);
     Ok((state_rhs, algebraic_eqs, implicit))
+}
+
+/// Whether a derivative may still be got out of an equation by dividing
+/// by an unknown, as it was before. `OXIDELICA_UNKNOWN_DIVISOR` keeps the
+/// old reading, so that one binary gives both numbers.
+fn unknown_divisor_off() -> bool {
+    static OFF: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *OFF.get_or_init(|| std::env::var_os("OXIDELICA_UNKNOWN_DIVISOR").is_some())
+}
+
+/// Whether a value divides by a name of the continuous system. Getting
+/// `der(phi)` out of `p = tau * der(phi)` as `p / tau` is only the same
+/// equation where `tau` is not zero, and an unknown may start at zero:
+/// the power sensor of `IMC_withLosses` does exactly that. Such an
+/// equation is left as it stands, for the implicit side to solve.
+fn divides_by_unknown(e: &Expr, continuous: &[&str]) -> bool {
+    if let Expr::Bin(BinOp::Div, _, d) = e {
+        let mut hit = false;
+        fn names(e: &Expr, continuous: &[&str], hit: &mut bool) {
+            if let Expr::Ref(n) = e {
+                *hit |= continuous.contains(&n.as_str());
+            }
+            e.map_children(&mut |c| {
+                names(c, continuous, hit);
+                c.clone()
+            });
+        }
+        names(d, continuous, &mut hit);
+        if hit {
+            return true;
+        }
+    }
+    let mut hit = false;
+    e.map_children(&mut |c| {
+        hit |= divides_by_unknown(c, continuous);
+        c.clone()
+    });
+    hit
 }
 
 /// Get the derivative out of an equation that states it in place:

@@ -3488,7 +3488,14 @@ WORK_PERCENT=5
 # judge's two lines above were then set from the judge's own print of
 # run 41692484782, as written there.
 WORK_POINTS_DESK=450379
-WORK_NEWTON_DESK=1102467
+#
+# Newton moved 1102467 -> 911704 on 2026-11-13 when the unknown-divisor
+# rule went on by default: a derivative is no longer isolated by
+# dividing by an unknown, and the solver does less work for it. Taken
+# from the desk's preflight print (/tmp/m662/pf.txt, the line
+# `newton iterations is 911704`), binary /tmp/m662/ox1 md5 735b46af.
+# The band is unchanged; only the centre moves.
+WORK_NEWTON_DESK=911704
 #
 # Jacobians wound 530 -> 586 on 2026-11-06 from the desk's preflight
 # print (/tmp/m595/pre.txt:2386, 597 counted less IMC_InverterDrive 11).

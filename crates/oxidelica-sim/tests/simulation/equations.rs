@@ -3165,3 +3165,24 @@ fn a_class_redeclared_a_floor_below_the_package_asked_under_is_found() {
          D.U u; annotation(experiment(StopTime=1.0, Interval=0.01)); end K1g;");
     assert!((last_of(&result, "u.c.x") - (-3.0f64).exp()).abs() < 1e-4);
 }
+
+#[test]
+fn a_derivative_is_not_isolated_by_dividing_by_an_unknown() {
+    // `p = tau * der(phis)` with `tau` an unknown that starts at zero:
+    // got out as `der(phis) = p / tau` it is NaN at the start, and the
+    // power sensor of `IMC_withLosses` stood on exactly that. Left as
+    // an equation, the system is two inertias sharing an angle under a
+    // unit torque, so tau = 1/2, phi = t^2/4 and p = tau * w = t/4.
+    let result = run("model W6 \
+         Real phi1(start=0, fixed=true); Real w1(start=0, fixed=true); \
+         Real phi2; Real w2; Real phis; Real tau; Real p; \
+         equation der(phi1) = w1; der(w1) = 1 - tau; \
+         der(phi2) = w2; der(w2) = tau; phis = phi1; phis = phi2; \
+         p = tau * der(phis); \
+         annotation(experiment(StopTime=1)); end W6;");
+    let col = |n: &str| result.columns.iter().position(|c| c == n).unwrap();
+    let last = result.rows.last().unwrap();
+    assert!((last[col("phi1")] - 0.25).abs() < 1e-6, "{last:?}");
+    assert!((last[col("tau")] - 0.5).abs() < 1e-6, "{last:?}");
+    assert!((last[col("p")] - 0.25).abs() < 1e-6, "{last:?}");
+}
