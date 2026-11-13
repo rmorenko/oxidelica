@@ -79538,3 +79538,12 @@ reading, holds 13 examples and 16 parts. The examples are
 `PointGravityWithPointMasses2`, `RollingWheel`, `Engine1a`, `FullRobot`
 and `OneAxis`. So the largest row by examples is the structural one,
 and the parameter row, though second by count, owes the loop one model.
+
+The examples named least often in this document were probed again on
+the head (`/tmp/m668/p_*.txt`, `amp.txt`, `sng.txt`, each with the binary
+md5 and command on its first lines): `AmplifierWithOpAmpDetailed` and
+`SimpleNaturalGas` (singular start), `BranchingPipes13` (Newton
+direction), `IMS_Start_Polyphase` (underdetermined loop),
+`DynamicPipeClosingValve` (start not converging) and
+`MeasuringTemperature` (algebraic loop). Each refuses as its existing map
+says, so no new layer was found among them.
