@@ -79855,11 +79855,11 @@ Cron run 43420436722 (6d7e140) against the previous green cron
 models, 23 flatten and 2 run, and 21 runnable with 21 flatten and 2
 run. No heavy model was lost. The times, new against old:
 
-| pass  | flattening      | running                     |
-| ----- | --------------- | --------------------------- |
-| a     | 1697 s / 1897 s | 13509 s / 13922 s (-3.0%)   |
-| b     | 1335 s / 1336 s | 4592 s / 3923 s (+17.1%)    |
-| total | 3032 s / 3233 s | 18101 s / 17845 s (+1.4%)   |
+| pass  | flattening      | running                   |
+| ----- | --------------- | ------------------------- |
+| a     | 1697 s / 1897 s | 13509 s / 13922 s (-3.0%) |
+| b     | 1335 s / 1336 s | 4592 s / 3923 s (+17.1%)  |
+| total | 3032 s / 3233 s | 18101 s / 17845 s (+1.4%) |
 
 The CI passes print no `work:` lines, no `slowest run` and no per-model
 `ran` or `flat` lists, so the slowdown cannot be judged by work
