@@ -79966,3 +79966,11 @@ this run. The inner equations are printed in `/tmp/m672/in_smpm.txt`
 (`ox_probe3`). Their right sides name the phase-2 currents through the
 stator, the stray load, the terminal box and both sensors, which is the
 current path that row 3 also sums.
+
+`TestJunctionTraceSubstances`, re-probed on `/tmp/m670/ox1`
+(`/tmp/m672/tjts.txt`). The refusal is still a residual of the
+junction's algebraic loop that is NaN at t = 0 before any Newton step,
+because a walked function stops on "The arguments u_min and u_max
+provided in the function call" (the bracket of `T_phX`). The map at the
+m668 table (the junction's tear start for `port_3.h_outflow` lying above
+moist air at 647 K) stands unchanged.
