@@ -79560,10 +79560,10 @@ the 65 examples of the run half (`/tmp/m668/all_run.txt`) the loop owes
 
 | Wall                                  | Examples | Mapped in chapters         | Waits on      |
 | ------------------------------------- | -------- | -------------------------- | ------------- |
-| Newton and LM loop solve              | 18 run   | yes                        | Roman (LM)    |
+| Newton and LM loop solve              | 17 run   | yes                        | Roman (LM)    |
 | structural singularity                | 13 run   | yes                        | Roman (108)   |
 | external C or FORTRAN function        | 11 flat  | named, no plan             | Roman, policy |
-| singular loop Jacobian                | 9 run    | yes                        | open          |
+| singular loop Jacobian                | 10 run   | yes                        | open          |
 | balance, underdetermined              | 8 run    | Fourbar1, airGap           | Roman (93)    |
 | run-time evaluator, assertions, mixed | 8 run    | partly                     | open          |
 | arrays and strings in flattening      | 7 flat   | yes, m653 row list         | open          |
@@ -79589,7 +79589,7 @@ row-by-row list of the m653 chapter, and probes of all three
 refuse exactly as mapped, at `builtins.rs:436`, `strings.rs:441` and
 `instantiate.rs:1587`. So the queue of prizes is the table itself, and
 the open walls without anyone's word are the singular loop Jacobian
-(9), the mixed run-time evaluator (8), arrays in flattening (7) and
+(10), the mixed run-time evaluator (8), arrays in flattening (7) and
 units (6). Wall assignment is by refusal text checked against each
 full message; one model (`MeasuringTemperature`) needed its probe to be
 placed.
