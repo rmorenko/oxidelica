@@ -79547,3 +79547,42 @@ direction), `IMS_Start_Polyphase` (underdetermined loop),
 `DynamicPipeClosingValve` (start not converging) and
 `MeasuringTemperature` (algebraic loop). Each refuses as its existing map
 says, so no new layer was found among them.
+
+## The loop's debt by wall, flat and run halves together (13 November)
+
+Reference census `/tmp/m667/raw.txt` (unchanged code since). The flat
+half refuses 45 models: 34 examples and 11 parts, each judged by full
+path (`/tmp/m669/all_flat.txt`), which agrees with the census's own
+count of runnable examples, 890 minus 856 flattening is 34. Added to
+the 65 examples of the run half (`/tmp/m668/all_run.txt`) the loop owes
+99 examples. Summed by mechanism rather than by wording
+(`/tmp/m669/walls.txt`, one line per model in `walls_by_model.txt`):
+
+| Wall                                  | Examples | Mapped in chapters         | Waits on      |
+| ------------------------------------- | -------- | -------------------------- | ------------- |
+| Newton and LM loop solve              | 18 run   | yes                        | Roman (LM)    |
+| structural singularity                | 13 run   | yes                        | Roman (108)   |
+| external C or FORTRAN function        | 11 flat  | named, no plan             | Roman, policy |
+| singular loop Jacobian                | 9 run    | yes                        | open          |
+| balance, underdetermined              | 8 run    | Fourbar1, airGap           | Roman (93)    |
+| run-time evaluator, assertions, mixed | 8 run    | partly                     | open          |
+| arrays and strings in flattening      | 7 flat   | flexible size only         | open          |
+| expression depth ceiling              | 7 flat   | yes, raising it ran OOM    | open, memory  |
+| unit check                            | 6 flat   | thin                       | open          |
+| parameters `e_ia`                     | 3 run    | yes                        | Roman (104)   |
+| initialization                        | 3 run    | partly                     | open          |
+| derivative of a non-state             | 2 run    | yes                        | Roman (108)   |
+| clocked semantics                     | 2 flat   | yes                        | open          |
+| `if` equation without `else`          | 1 flat   | no                         | open          |
+| NaN in a loop residual                | 1 run    | yes (MeasuringTemperature) | open          |
+
+What the flat half owes is mostly not the loop's numerics: of its 34
+examples, 11 call outside code this compiler has no library for, and
+none of them is a solver question. The walls with no map of their own
+are three small ones in the flat half: an empty-array `min`
+(`TestBooleanFunctions`), a String held by an equation (`TestStreams`)
+and the undecided `if` equation in `IncompressibleFluidNetwork`, whose
+earlier chapter followed it only to this wall. These are where the next
+probe goes. Wall assignment is by refusal text checked against each
+full message; one model (`MeasuringTemperature`) needed its probe to be
+placed.
