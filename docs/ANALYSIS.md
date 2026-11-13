@@ -79675,3 +79675,23 @@ binary per half) runs 160 -> 161, the one model being
 change. The price is not resolved: the flatten half moved 187 s ->
 240 s with every dear model rising alike, which is desk load. Nothing
 is merged.
+
+### An iterator read as a model array of its name, built and parked
+
+`SMPM_ResistiveBraking` refused in flattening on
+`InverseTransformation` holding 18 values for 6 elements. Shrunk by
+deletion from the real model (`/tmp/m671/S/*.mo`), the cause is the
+model's own `parameter Real k[3]`. The phasor blocks it holds write
+`{... phi[k] ... for k in 1:m}`, and the array layer read the sized
+name `k` before the bound iterator, so each row became three. Eleven
+lines show it (`/tmp/m671/E/K3.mo`). A scalar `k` of the same name
+already gave the right value, so this was a refusal and never a wrong
+number. The change lets a bound iterator come first
+(`~/oxideflow/park/m671_iterator_shadows_array.patch`, with a note),
+and a test is red without it. Over a court of 168 machine and
+polyphase models (`/tmp/m671/court2_{off,on}.txt`), flatten goes from
+167 to 168 and run stays at 149, with the ran lists equal. The model
+now stands at the next link: index reduction demotes `smpm.lszero.i`
+and leaves `3*lszero.i = 0` constraining no state. That is the loop's
+work, so the change is link one of a chain and wins nothing alone.
+Nothing is merged.
