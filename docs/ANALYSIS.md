@@ -79799,3 +79799,19 @@ equation gives that derivative as the same expression of `angle`,
 differentiated balance and not a numerical zero. The falsifier is to
 evaluate row 3 at two distinct values of `wMechanical`. If the
 residual moves, this reading is wrong as well.
+
+`Spice3BenchmarkDifferentialPair` (sub-layer E, the dead-column site
+`solvers/mod.rs:2598`). The block of one unknown is `der(Q2.vbx)`, and
+its only equation is `Q2.icapbx = if Q2.m_bInit then 0 else
+Q2.cc.capbx * der(Q2.vbx)` (`Modelica/Electrical/Spice3.mo:4953`). The
+coefficient is zero in the library's own arithmetic: `capbx` is computed
+from `aux2 = in_c.m_tBCcap*(1 - in_p.m_baseFractionBCcap)`
+(`:9748-9749`), `m_baseFractionBCcap := ex.XCJC` (`:9859`), and `XCJC`
+defaults to 1.0 (`:5040`). The model card `MOD1` does not set it
+(`:1315`). So `der(Q2.vbx)` is multiplied by an exact zero, and no
+equation determines it. Its value cannot change any other variable
+either. The refusal is correct about the block and wrong about the
+model. Nothing the run needs depends on that derivative. A repair would
+have to recognise an unknown whose every occurrence is under a zero
+factor and leave it undetermined instead of solving for it. That is a
+solver rule, and it goes with the questions to Roman. Not built.
