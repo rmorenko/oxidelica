@@ -79868,3 +79868,15 @@ absent. The two passes moved in opposite directions by amounts in the
 tens of percent, which is what runner drift looks like rather than a
 systematic cost. A real cost of the divisor change would slow both
 passes. The verdict rests on the model counts alone.
+
+`Friction` (new in m671). The stall at t = 0.00678 is a chatter between
+two converged answers, not a failing Newton. The last eight block starts
+in `/tmp/m671/p_fric.txt` alternate between `v[1] = 1166.65` and
+`v[1] = -2033.35` with `v[2] = 15.40` fixed, and each converges to
+`|f| = 0`. The two differ by 3200, which is twice the brake's
+`fn_max = 1600` (`Rotational/Examples/Friction.mo:37`). So the brake's
+friction torque flips sign at each restart: the mode decision of the
+friction element is taken again on every try and lands on the other
+side. The reading is a stuck/sliding mode decided without hysteresis.
+The falsifier is the brake's mode flag across the restarts. If it holds
+one value while `v[1]` alternates, this reading is wrong. Not measured.
