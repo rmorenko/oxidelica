@@ -79394,3 +79394,23 @@ in `ControlledTankSystem.mo:212`. `BlockMain` asks for
 with no modification. These refusals are honest. The rows
 `unbalanced`, `underdetermined` and `cannot evaluate parameters` hold
 no model this file does not already name.
+
+## The unknown-divisor rule goes on by default
+
+Merged as 5c9197c on 13 November, on Roman's word that the recorded
+work centres may move. The rule keeps an equation from being solved
+for a derivative by dividing through by an unknown of the continuous
+system; `OXIDELICA_UNKNOWN_DIVISOR` restores the old reading. The test
+`a_derivative_is_not_isolated_by_dividing_by_an_unknown` fails with
+that key set and passes without it.
+
+The corpus pair, one binary (md5 735b46af), gave 838 to 841 run and
+789 to 792 runnable: the three `IMC_withLosses` examples won, no
+victims, flattening identical. The desk preflight after the merge
+(`/tmp/m666/pf.txt`) is green and prints 974 / 841 and 856 / 792. The
+desk's Newton centre moved 1102467 to 911704 from the m662 preflight
+print; the band is unchanged and the judge's centre, 1797205, waits for
+the judge's own print. The heavy set was compared on 21 of 23 names
+with no difference, and the two dearest names were reached by neither
+half, so this is not a full judgement of the heavy set. The five
+floors are left for the next review to raise from the runner.
