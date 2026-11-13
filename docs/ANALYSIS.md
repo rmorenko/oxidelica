@@ -80133,3 +80133,15 @@ s and 0.15 s apart). Both on runs sit below both off runs, by 0.5 s and
 the honest statement is a sign, not a price: no cost is seen. The third,
 `TestMultiPortTraceSubstances`, was still running at the time of
 writing.
+
+The heavy pair of the same two binaries finished within the shift
+(`/tmp/m672/h_off.txt`, `h_on.txt`, the 23 models of
+`/tmp/m663/heavy23.txt`, both halves in parallel under `cap.sh` at 12
+GB). Both: 23 flatten and 2 run, runnable 21 and 2. The `ran`, `flat`
+and refusal lines are equal line for line. The run counters are equal
+byte for byte (595200 points, 3172706 Newton, 10073 Jacobians, 16325872
+damped). Flattening differs by -2400 expansions, the same direction as
+the corpus, with classes, bodies and names equal. Times: run 12670 s
+against 12628 s, flattening 3430 s against 3386 s, with the two halves
+running side by side. Peaks 8.3 GB and 8.5 GB. No heavy model was
+touched, and no cost is resolved on that set.
