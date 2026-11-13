@@ -79771,3 +79771,17 @@ falsifier is `constraint.frame_a.R.T[3,3]` as the trace's start holds
 it. If it is nonzero, the reading is wrong. Both sub-layer A models
 then point at one place to probe: what the block's first Jacobian reads
 for names that the plan computes before it.
+
+The `SMPM_CurrentSource` reading above is refuted, measured within the
+same shift. A probe build (`/tmp/m672/ox_probe2`, md5 in the first line
+of `/tmp/m672/rd_smpm.txt`, not committed) prints the settled names each
+residual reads when the singular Jacobian is reported. Row 3 reads
+`rotator.u[1] = -75.66`, `rotator.u[2] = 119.64`, `toGamma.k = -2`,
+`InverseTransformation[2,1] = -0.5` and `[2,2] = 0.866`. So `u` is not
+zero. At `angle = 0`, the written row gives a slope along
+`smpm.wMechanical` of `k*(IT[2,1]*u[2] - IT[2,2]*u[1])`, about -11.4,
+and the reported row 3 is still all zeros. So the zero is not in the
+values handed to the block. It is between the written row and the
+Jacobian the solver builds from it, and that is where the next probe
+goes. The `UniversalConstraint` reading has the same form and is now
+suspect for the same reason. Its falsifier has not been run.
