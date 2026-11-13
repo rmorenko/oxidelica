@@ -79479,3 +79479,31 @@ Every model of the fresh run half, all 133, is named somewhere in this
 document. The thinnest, named once or twice, are utilities that are not
 meant to run alone, such as `UniformDensity`, `SpacePhasorLimiter` and
 `ShortPipe`.
+
+## The unbalanced family split by fault, m668
+
+The census of m667 (`/tmp/m667/raw.txt`) holds two rows of one family,
+"unbalanced, nothing determines" (13 models) and "unbalanced, nothing
+is left for" (5 models), 18 models together. Each was looked up in its
+`.mo` source for an `experiment` annotation (`/tmp/m668/unb_raw.txt`,
+table in `/tmp/m668/unb.txt`). Seventeen have none: the two
+`Analog.Examples.Utilities` capacitors, the four AST_BatchPlant
+controller utilities and `InnerTank`, `ConstantActuator`, the four
+`RobotR3.Utilities` classes and five `StateGraph.Examples.Utilities`.
+They are parts, refused rightly. One is an example: `Loops.Fourbar1`.
+So the family owes the loop one model, not eighteen. The forecast made
+before the count (17 and 1) held.
+
+`Fourbar1` was probed with `--only` and `why` on
+`b1.frame_a.r_0[1]` (`/tmp/m668/fb1.txt`, `/tmp/m668/why_b1.txt`,
+binary md5 735b46afbc92ab64191230006f60af0f): 1999 equations for 1990
+unknowns, the same surplus of 9 as queue item 56 (then 2002/1993). The
+surplus is the ring the join closes: a connection that closes the
+loop writes the full orientation equalities where the specification
+asks for the three residues of `equalityConstraint`, 12 less 3. The
+named leftovers are frame-equals-body aliases only because they are
+the first rows the matching cannot place. The layer is the connection
+join, not index reduction, so it is not the layer that holds the three
+`e_ia` models. With the residues written (m470 probe) the model
+reaches index reduction and stops at the planar-loop limit, which is
+where the `e_ia` models stop too. Nothing was built.
