@@ -269,8 +269,13 @@ pub(super) fn expand(
                 return Err("`:` and `end` make sense only inside a subscript".to_string())
             }
             // A name that was declared with dimensions stands for all of its
-            // elements at once.
-            Expr::Ref(name) if shapes.sizes.contains_key(name) => {
+            // elements at once - unless an iterator of the same spelling
+            // is bound here: in `{phi[k] for k in 1:m}` written inside a
+            // model with its own `k[3]`, the `k` is the iteration's, and
+            // reading the array instead made each row three rows.
+            Expr::Ref(name)
+                if shapes.sizes.contains_key(name) && !shapes.loop_vars.contains_key(name) =>
+            {
                 elements_of(name, &shapes.sizes[name])
             }
             // `plug.pin.v` where `pin` is an array of connectors is the
@@ -356,14 +361,25 @@ pub(super) fn expand(
                 None => map_value(&recur(inner)?, &|e| Expr::Not(Box::new(e))),
                 Some(_) => Value::Scalar(Expr::Not(Box::new(recur(inner)?.scalar()?))),
             },
-            Expr::And(l, r) => Value::Scalar(Expr::And(
-                Box::new(recur(l)?.scalar()?),
-                Box::new(recur(r)?.scalar()?),
-            )),
-            Expr::Or(l, r) => Value::Scalar(Expr::Or(
-                Box::new(recur(l)?.scalar()?),
-                Box::new(recur(r)?.scalar()?),
-            )),
+            // A left side that is already settled decides the operator,
+            // and the right is not looked at: `size(b, 1) > 0 and min(b)`
+            // is the library's guard for an empty `b`, and expanding
+            // `min(b)` behind a false guard refuses an empty reduction
+            // the model never asks for.
+            Expr::And(l, r) => {
+                let left = recur(l)?.scalar()?;
+                if settled_truth(&left) == Some(false) {
+                    return Ok(Value::Scalar(Expr::Bool(false)));
+                }
+                Value::Scalar(Expr::And(Box::new(left), Box::new(recur(r)?.scalar()?)))
+            }
+            Expr::Or(l, r) => {
+                let left = recur(l)?.scalar()?;
+                if settled_truth(&left) == Some(true) {
+                    return Ok(Value::Scalar(Expr::Bool(true)));
+                }
+                Value::Scalar(Expr::Or(Box::new(left), Box::new(recur(r)?.scalar()?)))
+            }
             Expr::Bin(op, l, r) | Expr::Elementwise(op, l, r) => {
                 // An operator on records is whatever the record says it
                 // is; anything else combines element by element.
@@ -3932,4 +3948,26 @@ fn statement_exprs<'a>(body: &'a [Statement], out: &mut Vec<&'a Expr>) {
 /// that one binary gives both halves of a measurement.
 fn records_read_as_settled() -> bool {
     std::env::var_os("OXIDELICA_NO_MEDIUM_RECORDS_READ").is_none()
+}
+
+/// The truth of a condition that needs no value from the model: a
+/// literal, or a comparison of two numbers. Anything that still names
+/// something is not settled, and the operator keeps both its sides.
+fn settled_truth(expr: &Expr) -> Option<bool> {
+    match expr {
+        Expr::Bool(b) => Some(*b),
+        Expr::Not(inner) => settled_truth(inner).map(|b| !b),
+        Expr::Rel(op, l, r) => match (l.as_ref(), r.as_ref()) {
+            (Expr::Number(a), Expr::Number(b)) => Some(match op {
+                RelOp::Lt => a < b,
+                RelOp::Le => a <= b,
+                RelOp::Gt => a > b,
+                RelOp::Ge => a >= b,
+                RelOp::Eq => a == b,
+                RelOp::Ne => a != b,
+            }),
+            _ => None,
+        },
+        _ => None,
+    }
 }

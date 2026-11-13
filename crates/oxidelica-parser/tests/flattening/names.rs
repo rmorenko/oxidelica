@@ -906,12 +906,13 @@ fn a_boolean_constant_keeps_its_kind() {
         .iter()
         .find(|e| matches!(&e.lhs, Expr::Ref(name) if name == "v.y"))
         .expect("the model keeps its one equation");
-    // The condition is Booleans and not numbers: `Bool(false) and
-    // Bool(true)`, which the type layer accepts and an Integer in
-    // either seat would not.
+    // The condition is Booleans and not numbers. `Bool(false) and
+    // Bool(true)` is settled by its false left side, so what remains is
+    // `Bool(false)` - which the type layer accepts and an Integer in
+    // that seat would not.
     let said = format!("{:?}", y.rhs);
     assert!(
-        said.contains("Bool(false)") && said.contains("Bool(true)"),
+        said.starts_with("If(Bool(false),"),
         "a Boolean constant came through as a number: {said}"
     );
 }

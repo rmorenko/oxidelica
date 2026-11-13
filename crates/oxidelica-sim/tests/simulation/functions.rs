@@ -5397,3 +5397,41 @@ fn a_medium_state_holding_an_array_travels_through_two_walked_bodies() {
         "eta = {eta}, by hand {hand}"
     );
 }
+
+/// `size(b, 1) > 0 and min(b)` is how the library guards a reduction of
+/// an empty vector (`BooleanVectors.allTrue`). Expanding `min(b)` behind
+/// a false guard refused the model with "`min` of an empty array"; a
+/// settled left side now decides `and` and `or` alone, and the guard
+/// gives its answer for both an empty and a full vector.
+#[test]
+fn a_settled_guard_keeps_an_empty_reduction_unasked() {
+    let result = run("model E \
+           function allT input Boolean b[:]; output Boolean r; \
+           algorithm r := size(b, 1) > 0 and min(b); end allT; \
+           function anyT input Boolean b[:]; output Boolean r; \
+           algorithm r := size(b, 1) == 0 or max(b); end anyT; \
+           Boolean y = allT(fill(true, 0)); Boolean z = allT({true, true}); \
+           Boolean w = anyT(fill(false, 0)); Real x(start = 0); \
+         equation der(x) = if y then 1 else if z then 2 else 3; \
+         annotation(experiment(StopTime = 1)); end E;");
+    assert_eq!(last_of(&result, "y"), 0.0);
+    assert_eq!(last_of(&result, "z"), 1.0);
+    assert_eq!(last_of(&result, "w"), 1.0);
+    assert!((last_of(&result, "x") - 2.0).abs() < 1e-9);
+}
+
+/// An iterator is the iteration's even where the model has an array of
+/// the same name: `SMPM_ResistiveBraking` declares `k[3]`, and the
+/// phasor blocks it holds write `{cos(-phi[k]) ... for k in 1:m}`. The
+/// array was read for the iterator and each row became three, refused
+/// as "6 element(s) but its value has 18".
+#[test]
+fn an_iterator_shadows_an_array_of_its_name() {
+    let result = run("model K \
+           block B parameter Integer m = 3; parameter Real phi[m] = {0, 2, 4}; \
+             parameter Real T[m, 2] = {{cos(phi[k]), sin(phi[k])} for k in 1:m}; \
+             Real y; equation y = T[2, 1]; end B; \
+           parameter Real k[3] = {1, 2, 3}; B b; \
+         annotation(experiment(StopTime = 1)); end K;");
+    assert!((last_of(&result, "b.y") - 2f64.cos()).abs() < 1e-12);
+}

@@ -590,7 +590,10 @@ FILES_FLOOR=2671
 # this floor and the runnable one, 857 - 1 = 856, and no run floor. The
 # quick preflight on 51b334d printed 974 / 830 and runnable 856 / 782
 # (/tmp/m580/pf_quick.txt). The run floors wait for the judge.
-FLATTEN_FLOOR=974
+# And 976 = 974 + TestBooleanFunctions and SMPM_ResistiveBraking, won by
+# the array-input repairs of m671; the pair /tmp/m672/p_on.raw printed
+# 976 flatten, no victims.
+FLATTEN_FLOOR=976
 # The two run floors came down by one, and the one is named: giving a
 # record constructor called with no arguments the values its `extends`
 # stated took `Modelica.Thermal.FluidHeatFlow.Examples.WaterPump` out
@@ -2013,7 +2016,9 @@ FLATTEN_FLOOR=974
 # Machines, FundamentalWave and QuasiStatic.FundamentalWave: the judge
 # of push run 43409657587 (job 131860987835) printed 974 flatten,
 # 841 run, so 841 - 3 = 838.
-RUN_FLOOR=838
+# The array-input repairs won ModelicaTest.Math.TestBooleanFunctions:
+# the pair /tmp/m672/p_on.raw printed 842 run, so 842 - 3 = 839.
+RUN_FLOOR=839
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -2284,7 +2289,9 @@ RUN_FLOOR=838
 # by the judge of 6a8f9e5 (job 126437647954 of push run 41780306883).
 # And 856 = 857 - HeatExchangerSimulation, carried into the heavy set;
 # see `FLATTEN_FLOOR`.
-RUNNABLE_FLATTEN_FLOOR=856
+# And 858 = 856 + TestBooleanFunctions and SMPM_ResistiveBraking; see
+# `FLATTEN_FLOOR`.
+RUNNABLE_FLATTEN_FLOOR=858
 # And runnable run 674 = 671 + the three batteries, all runnable
 # examples, by the same runner job as `RUN_FLOOR` (d58700e, job
 # 112530851204).
@@ -2586,7 +2593,9 @@ RUNNABLE_FLATTEN_FLOOR=856
 # The three IMC_withLosses won by the unknown-divisor rule are all
 # runnable examples: the judge of 43409657587 (job 131860987835)
 # printed 856 / 792, so 792 - 3 = 789.
-RUNNABLE_RUN_FLOOR=789
+# TestBooleanFunctions: the pair /tmp/m672/p_on.raw printed 858 / 793,
+# so 793 - 3 = 790.
+RUNNABLE_RUN_FLOOR=790
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
