@@ -81382,3 +81382,12 @@ nothing is lost, and the flattening work is equal byte for byte. The
 condition's component is still read from the spelling of its left side,
 which this document warns against, so a merge needs the equation's origin
 recorded instead.
+Over the 135 models of the run half that refuse (`/tmp/m680/rr_off.txt`
+and `rr_on.txt`), the second version again gains only
+`NonCircularPipes`. It also moves one refusal text: `SimpleNaturalGas`
+goes from a singular start to an argument check. The component test
+read `der(volume.medium.T)` as the component `der(volume.medium`, so the
+steady conditions found no state of their own and lost the pairing they
+had before. That is a second reason to take the component from the
+equation's origin rather than from its spelling, and the probe stays in
+the park.
