@@ -80883,3 +80883,11 @@ examples, print no runnable example on the head and are parts.
 `ComponentsMixingUnit.FilterOrder`, which m668 counted as a part,
 prints one runnable example. So 65 = 65 - 2 + 1 + 1, and the agreement
 of the totals was a coincidence of the parts, not a confirmation.
+
+`FilterOrder` counts as an example only by its icon: it
+`extends Modelica.Icons.Example` and has no `experiment`, and its input
+`c_ref` is a top-level `RealInput` left open. Its refusal,
+`der(mixingUnit.c) = 0 + wa13` with `c` pinned through the inverse
+block, is a statement about an input nobody drives, the open-connector
+breed of the parts. So of the 65 run-half examples, at least one is
+owed to the example filter and not to the loop.
