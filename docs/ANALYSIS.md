@@ -81146,3 +81146,130 @@ the block's unknowns. That is the dead row the solver refuses by its
 written rule (`solvers/mod.rs`, "a dead column is a statement about the
 block"), so behind the open star stands the air gap's rotation block,
 the second wall m541 already named for `S6`/`S7`. Nothing was built.
+
+## m679: the recursion answer remembered, and the depth of the flattening wall
+
+### The judge's second point of the band
+
+The full run of b0bdca3 (43589855398) finished green on every job, and the
+judge printed `ratio: run/flatten is 0.540, inside 0.41..0.63`. That is the
+second real point of the band, after 0.555 for 154f060. The three
+documentation runs after it (f1ca2ca, 72c2f1c, 3936399) all finished success.
+
+### What was dear
+
+The m673 chapter traced HeatingSystem's flattening to `recursive` in
+`flatten/algorithms.rs`. It walked the whole call graph again on every
+asking, and `holds_unbounded_call` asks it for every inlining of every
+medium function. The answer depends on the function's body and the registry
+alone, and the registry stands still for the whole of one flattening: it is
+built once in `flatten`, passed only by shared reference, and bracketed by
+`StandingNames`. So the answer can be remembered by class name while that
+bracket is open, and cleared with it at both ends - which is what was built
+and measured here, and parked rather than merged (below). Only the registry's own
+entry is remembered. A copy carrying the same name, such as the ones
+`arrays.rs` makes, is checked against the registry by pointer and asked the
+long way. `OXIDELICA_NO_RECURSIVE_CACHE=1` restores the old walk.
+
+A unit test asks two registries that share names but differ in bodies.
+With the bracket's clearing removed, the second registry gets the first
+one's answer and the test goes red.
+
+### One model at a time
+
+One binary (`/tmp/m679/oxr1`, md5 95c6164194d17cf10b576ed25ba26286), off
+then on. Files are `/tmp/m679/only_<model>_{off,on}.txt`, each with its
+`.env` witness. Every refusal and list line was the same in both halves.
+
+| model                | flatten off | flatten on | names off | names on |
+| -------------------- | ----------- | ---------- | --------- | -------- |
+| HeatingSystem        | 168 s       | 74 s       | 255327044 | 44456405 |
+| LinearWater_pT       | 46 s        | 18 s       | 77287468  | 13431487 |
+| BranchingPipes17     | 55 s        | 56 s       | 27909540  | 27902212 |
+| ReferenceMoistAir    | 24 s        | 23 s       | 25132551  | 21560630 |
+| MeasuringTemperature | 44 s        | 41 s       | 25070840  | 18941726 |
+
+### The corpus pair of the recursion cache
+
+Same binary, off half then on half, `--list --slow 60`. Files are
+`/tmp/m679/off.txt` and `/tmp/m679/on.txt`. Both halves print 977 flatten
+and 843 run, and the runnable examples 859 and 794. Once the time-bearing
+lines are dropped, the 2050 remaining lines of the two halves are equal,
+`ran` lines included. The running counters are equal to the digit: 24125965
+points, 35294110 Newton steps, 598 Jacobians, 143 apart and 1402996 damped.
+The four flattening counters for classes, expansions and bodies are equal
+too. Names fell from 1717443649 to 1189388945, which is the work the cache
+removes. Flattening went from 5177 s to 4554 s (-12.0%), and running from
+1738 s to 1741 s (+0.2%, inside the drift). This change wins no models: in
+the measure it is zero, and the gain is in seconds of flattening. The
+heavy models were not measured.
+
+### Why it is parked
+
+The preflight (`/tmp/m679/preflight.txt`) passed everything but one held
+centre: `WORK: names looked up is 1189388945 against 1717443649 written here
+(0.692534x), outside 2000 per million`. The desk ratio printed 0.367, inside
+0.28..0.40, and the floors held. That centre is the cache's own witness of
+the work it removes, and moving it belongs in the same commit. Centres were
+not this shift's to move, so the patch waits in the park
+(`m679_recursive_cache.patch`) with these numbers. The names fell by
+528054704, which is -30.75% against a band of 2000 per million, so 153.7
+times its width.
+
+That centre also changes what it measures. Before the cache, `names
+looked up` counts the names the compiler asks about. After it, the count
+leaves out every lookup the cache answers, so it counts the questions the
+cache could not answer. An instrument whose meaning has moved has to say
+so, and the commit that moves the centre should say it beside the new
+number.
+
+### The flattening wall, family by family
+
+Every family below has a small model under `/tmp/m679/p3`.
+
+- `unknown function previous` (SpeedControl): a lone `when Clock()` with no
+  clock anywhere to settle it. Z3 is red, and Z2 with `Clock(0.1)` runs.
+  `clocks_of_the_model` in `partitions.rs` says outright that such a model
+  "has nothing that could" settle it. The refusal is honest and only its
+  wording is poor.
+- `is a Clock, so it needs an interval` (two utility blocks): a clock input
+  nothing connects. C1 is red. This is a ceiling.
+- Partial media (eight models): each of them takes its medium default from
+  `PartialMedium` and is a template rather than an example. This is a
+  ceiling (section 4.7 of the specification).
+- Depth, outside the locked FFT family: RAM (Digital `Table` unrolled 80
+  steps deep, T30 runs and T40 is red), GenerateRandomNumbers (R3 runs and
+  R2 with `128plus` is red) and TestWallFriction (`from_dp=false` takes the
+  `pressureLoss_m_flow_and_Re` branch, W2 runs and W1 is red). All three
+  stop at `MAX_DEPTH = 32` in `flatten/mod.rs`. Raising that ceiling killed
+  a corpus pass before, so the open question is to fold the chain rather
+  than to go deeper.
+- Thyristor (two models): `Thyristor.mo:53` writes `10000*(iGK-..)*vAK`
+  against `10*vAK`, which are watts against volts. The open question is
+  whether a whole literal may stand for a unit.
+- Graetz, R134a_pTX_phX_all, SimpleAir: the units are wrong in the library
+  itself. They are `m_dTC1` declared in ohms per kelvin, `PerUnit dT` against
+  `der(T)`, and `R_gas*log(..)` with `/cp_const` missing at
+  `Media/package.mo:6281`. The refusals are honest.
+- Hysteresis: `everett` writes `unitT*(...)` with `unitT` a constant in
+  tesla. Substituted as a bare `1`, it is weak in `check.rs` and the unit is
+  lost. U5 is red and U6 runs. The open question is that the structure
+  carries no unit on a substituted number.
+- readRealParameterModel: `scanDelimiter` assigns its output only on the
+  branches that find a delimiter. The other branch ends in `syntaxError`,
+  which never returns, but the inliner at `inlining.rs` takes it for a path
+  that leaves the output unassigned.
+- DrumBoiler: shrunk to the package `P.C`, which does
+  `extends B(redeclare package Medium = StandardWater)` and then calls
+  `Medium.density_pT`. It is red with `unknown function` and runs without
+  the `extends`. The recursion in `effective_imports` (`scoping.rs`) hands a
+  base's aliases the site's redeclarations and never the `extends`'
+  own. This is a candidate for the park.
+- TestMatrices3: `nullSpace(fill(0,0,0))` reaches `dgesvd` with shape `[0]`,
+  and M1 is red. The empty matrix loses its second dimension.
+- AbsoluteClocks: two exact clocks are two roots. `same()` demands one root,
+  so the factor 5 that was found cannot be proven, and the message claims
+  "no whole number" while it names 5. K2 is red.
+- usertab, LAPACK `dgees`/`dgglse`/`dhseqr`, `scanReal`, `getenv`,
+  TestFiles and TestStreams: outside code or the file family m275, which is
+  parked. ImplicitEuler is a ceiling its own refusal names.
