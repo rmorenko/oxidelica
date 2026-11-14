@@ -81447,3 +81447,48 @@ On the heavy models, one at a time with the same binary: DynamicPipesAndFittings
 R134a1 and SeriesPipes12 give the same outcome text both ways, with names
 81403648 against 81404230, 193723 against 193723, and 19862267 against
 19862435 (`/tmp/m681/hv_*`). Each lies within 8 ppm.
+
+### The written condition paired by the instance that wrote it
+
+The parked probe of m680 picked the state for a lost written initial
+condition by reading the condition's component from the spelling of its left
+side. A probe this shift showed why it had to read the spelling: every
+written initial equation reached the compiler with an empty origin. The
+flattener stamped `""` on them, and the compiler's rewrite of the initial
+system dropped whatever origin it was given. Both now carry the instance
+the equation was written in, so the structure records what the spelling
+used to guess.
+
+The pairing then takes the first orphan the condition reads through the
+blocks (`states_behind_algebraics`) whose instance is the condition's own,
+or lies inside it, or contains it. A condition the top-level model writes
+has no instance to be held to, and any orphan it reads will do. That
+matters for `ThreePhaseTransformerWithRectifier`, whose `derHstat = 0`
+conditions are written by the example itself. A first version held
+those to an empty instance, took nothing, and moved the transformer's
+refusal text from 4 fixed starts to 5. That was a stop under the court's
+rule, and the empty-origin case was added after it. The rollback key is
+`OXIDELICA_NO_PAIR_WRITTEN_COARSE=1`, which pairs the next orphan in line as
+before.
+
+A unit test without the library builds two instances, one plain state and
+one block-bound condition. Paired by position, the condition took the
+neighbour's state and the initialisation was refused as singular. Paired by
+origin, it runs with `c1.i = 2`. The test is red with the key and green
+without it. The small model `NP2`, two dynamic pipes on one boundary,
+refuses with the key ("not square: 8 ... for 6") and runs without it.
+
+One model at a time with one binary (`/tmp/m681/c4_*`), `NonCircularPipes`
+runs where it refused. `ThreePhaseTransformerWithRectifier`,
+`SimpleNaturalGas`, `EmptyTanks`, `IMC_DOL` and `PumpingSystem` keep the
+same text and the same work byte for byte. The corpus pair
+(`/tmp/m681/p2off.txt` and `p2on.txt`, one binary, `--slow 60`) printed
+977 / 843 off and 977 / 844 on, and runnable 859 / 794 against 859 / 795.
+The one model gained is `NonCircularPipes`, with no victims, and every
+other refusal is equal line for line. Flattening work is equal byte for
+byte. The run lines are 24125965 points and 35294110 newton off against
+24126014 points and 35294336 newton on, the +49 and +226 being the new
+model's own. Running took 1677 s off and 1668 s on. The floors move by the
+pair's print: `RUN_FLOOR` 840 to 841 and `RUNNABLE_RUN_FLOOR` 791 to 792.
+On the heavy models (`/tmp/m681/hw_*`), DynamicPipesAndFittings, R134a1 and
+SeriesPipes12 give the same text and the same work both ways.
