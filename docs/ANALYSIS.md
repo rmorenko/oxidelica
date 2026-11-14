@@ -81057,3 +81057,23 @@ m550), `GearType1/2` (an open flange), and the two TwoPhaseWater
 property parts (pressure 0 at the start, an input no one drives). Every
 model of the run half now has a named wall. The work they leave is the
 65 examples, and those stand behind maps already written.
+
+### m678: a small witness for the start of `SimpleNaturalGas`
+
+m575 named the layer of `SimpleNaturalGas`: a steady start written on
+every mass fraction, `der(Xi) = 0` over fractions bound by
+`sum(X) = 1`, so one row repeats the others and the mass is pinned by
+nothing. Fifteen lines show it (`/tmp/m678/R1.mo`): a mass `m`, three
+fractions with `sum(X) = 1`, balances on `m*X`, and
+`der(X[k]) = 0` for all three. It refuses with `the initialization
+problem is singular ... do not pin down [m, mX[1], mX[2]]`, the corpus
+wording. With the third row replaced by `m = 1` (`/tmp/m678/R.mo`) it
+runs. That proves the mechanism and wins nothing.
+
+The ceiling is a rule of this project, not a missing piece. Dropping the
+dependent row leaves the mass with no row at all, and only a start
+value could then pin it, which is the start-filling policy that
+`AmplifierWithOpAmpDetailed` also waits on (m595). A value taken from a
+start where the model wrote none is a guess, and guessing is worse than
+refusing. So nothing was built; the question belongs with Roman's word
+on start filling, not with a shift.
