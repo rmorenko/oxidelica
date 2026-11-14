@@ -80769,3 +80769,23 @@ stator's single-phase converters. So the three models of supply-once
 (the wheel above, these two) are one wall. Index reduction wants an
 equation it has already differentiated once, and the guard says no.
 They differ only in the domain the equation comes from.
+
+The dependent-row five, read from the same probes. `SMPM_ResistiveBraking`
+stops at reduction 13 on `3*smpm.lszero.v/smpm.lszero.L = 0`, a row the
+system already holds. `oxidelica why` on `smpm.lszero.i` shows it
+carrying `L*der(i) = v` while the run settles it as algebraic. The
+machine's zero-sequence current is pinned by the star point, so its
+derivative is a second statement of the same zero, and the
+differentiated row repeats it. `OneAxis` stops at reduction 14 on the
+gear's `-bearingFriction.a + Jmotor.a = 0`, and `FullRobot` at
+reduction 12 on the same gear of `axis1`, written once through the
+spring and once through the ratio. That is the RobotR3 family of m605
+and m651, one wall in two models. `PrismaticConstraint` (reduction 18)
+and `SphericalConstraint` (reduction 34, second derivatives) stop on
+derivatives of orientation entries `R.T` that the constraint has
+already fixed. So the five are three shapes: a zero-sequence current
+(1), the RobotR3 gear (2), and an orientation constraint differentiated
+past what it fixes (2). The implied-row pair is the third shape again:
+`PointGravityWithPointMasses2` at reduction 63 on `der(freeMotion.frame_b.R.T)`
+against `fixedTranslation`, and `Loops.Utilities.Cylinder`, which is a
+part (`runnable examples: 0`), at reduction 28.
