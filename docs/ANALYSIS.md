@@ -81088,3 +81088,19 @@ the preflight of that tree. The arithmetic of the merge expected 0.49 to
 the edges stand on one runner print now instead of on arithmetic. They
 were not moved. The same run's linters job was red only on the second
 copy of the band's self-check, fixed in b0bdca3.
+
+### m678: the start of `ThreePhaseTransformerWithRectifier`, read
+
+Run alone (`/tmp/m678/tptr.txt`, command and md5 in `tptr.env`), it
+refuses as the census says: 21 conditions and 4 pinned states for 23
+states, and without the surplus `core3.Hstat` and `core3.MagRel` are
+not pinned. The library's own text explains the surplus. In
+`Transformer3PhaseYyWithHysteresis` all three secondary windings take
+`i(start=I2Start[1], fixed=I2Fixed[1])`, index 1 three times, so the
+example's `I2Fixed={true,false,false}` fixes all three secondary
+currents. The secondary is a star grounded at `starPoint2`, so the three
+currents are not free of each other, and the start the example asks
+for is over by the copies. Core 3 has `HFixed` true and `MagRelFixed`
+false, which leaves its hysteresis state to the dependency. The
+refusal names a surplus that is in the library as written. Nothing was
+built; treating `[1]` as what the author meant would be a guess.
