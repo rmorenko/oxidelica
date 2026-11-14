@@ -80722,3 +80722,14 @@ to weigh. Some models have also changed walls since m544
 (`SphericalConstraint` from supply-once to dependent-row,
 `ActuatorWithNoise` and `IMC_DOL_CommonLeakage` the other way), so the
 walls between equations are not settled either.
+
+Two of the three newcomers to the empty weighing are closures of the
+same kind m544 described. `MNmos` and `MPmos` of
+`Spice3.Examples.InvertersExtendedModel` are utility transistors refused
+at reduction 1 on `G.i = 0`, with `icGS`, `icGD` and `icGB` set to zero
+beside it: an unconnected outer pin closed by the zero-flow equation.
+They are not work for the reducer. `Engine1a` is different. It is an
+example, it weighs at 208 reductions, and it is refused at reduction 96
+on the orientation of `bearing.frame_b.R.T[2,2]`, after the probe has
+walked through `connectingRod.v_0` and the piston's frame. It belongs
+with the MultiBody chains of m540 to m543, which wait for Roman.
