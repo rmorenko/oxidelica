@@ -81277,3 +81277,64 @@ Every family below has a small model under `/tmp/m679/p3`.
 - usertab, LAPACK `dgees`/`dgglse`/`dhseqr`, `scanReal`, `getenv`,
   TestFiles and TestStreams: outside code or the file family m275, which is
   parked. ImplicitEuler is a ceiling its own refusal names.
+
+## m680: the extends clause's redeclaration reaches the base's alias, stopped at the names gate
+
+### The extends clause and the base's alias
+
+A class may write `extends B(redeclare package Medium = StandardWater)`
+and then call `Medium.density_pT` in its own body. The alias `Medium`
+is declared in `B`, and `effective_imports` in
+`crates/oxidelica-parser/src/flatten/scoping.rs` reaches it by recursing
+into the base. That recursion handed the base only the redeclarations
+that came down from the site, and never the ones the `extends` clause
+itself wrote. So the alias kept its default, `PartialMedium`, and
+`density_pT` was a function that nothing declared. The small package
+`P.C` (m679) is red with `unknown function Medium.density_pT`, and the
+same body without the `extends` runs.
+
+The change hands the base the clause's own redeclarations as well,
+qualified where the class wrote them. They come after the site's,
+because the reader takes the first of a name and a modification from
+outside outranks the one written inside. That is the order `instantiate`
+already uses for the same two lists (see the comment at
+`extends_redeclare_first`). `OXIDELICA_NO_EXTENDS_ALIAS=1` keeps the old
+reading. A simulation test, where the body calls a function that only
+the redeclared package has, fails with the key and passes without it.
+A second test, where the site and the clause both redeclare, guards the
+order. It passes both ways, so it checks precedence and not the
+mechanism.
+
+### What the extends alias bought, by name
+
+The per-model check used one binary, `/tmp/m680/oxa1`, with off and on
+selected by the key (`/tmp/m680/only_*.txt`). `EquilibriumDrumBoiler`
+went from refused to flattened, and stops at the next wall, `parameter
+m_D has no value`. `m_D` belongs to a `BaseClasses` template and has no
+default, so that refusal is honest. `DrumBoiler.DrumBoiler` runs both
+ways. `HeatingSystem`, `WaterIF97` and `SimpleLiquidWater` give the same
+answer both ways.
+
+The corpus pair is `/tmp/m680/off.txt` and `on.txt`, both from the same
+binary:
+
+```text
+off: 977 flatten / 843 run, runnable 859 / 794, flatten 4398 s, run 1670 s
+on:  978 flatten / 843 run, runnable 859 / 794, flatten 4237 s, run 1661 s
+```
+
+The run lists match line for line. The flatten list gains
+`EquilibriumDrumBoiler` and nothing else, and every other refusal text
+is unchanged. There are no victims. The run-half counters match to the
+digit.
+
+### Why the extends alias was not merged
+
+The flattening counters moved: names went from 1717443649 to
+1722681546, which is +5237897, or 3050 ppm against `WORK_NAMES_PPM =
+2000`. About 0.1 million of that is the new model itself
+(`--only`: +98826). The rest is spread over models that now read more
+aliases. `HeatingSystem` alone accounts for +9035. The pair prints no
+work per model, so the spread is not attributed. Merging would mean
+moving the `WORK_NAMES` centre, which the order reserves for Roman. The
+patch and its numbers are in the park as `m680_extends_alias.*`.
