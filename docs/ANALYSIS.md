@@ -80652,3 +80652,31 @@ equal and every work counter identical, and the run half fell from
 3965 s to 1649 s. No corpus pair had been run under it and the heavy
 models were unmeasured when this was merged; it stays in the park for
 the review to decide.
+
+### The memory of many answers, measured three more ways
+
+Three instruments were taken under the parked `m675_props_many` on
+14 November with one binary (`/tmp/m676/ox1`, md5 d37aef25), on main
+after the merge above, without committing the patch.
+
+The census pair (`/tmp/m676/census.txt` and `raw.txt` against
+`/tmp/m674`) left both counted sections equal row for row, 42 refusals
+in 22 rows to flatten and 134 in 27 to run, with the 176 named refusals
+equal to the text. Work was identical byte for byte in both phases, and
+the run half fell from 4410 s to 1652 s.
+
+Three heavy models were run alone with the switch and without
+(`/tmp/m676/hv_*`): R134a1 from 8.3 s of run to 4.9 s, R134a2 from
+13.2 s to 5.0 s, SeriesPipes12 from 165.7 s to 52.5 s, with the same
+outcome and counters. All three flatten and do not run in both halves,
+so they measure the price of a refusal, not of a run.
+
+The preflight of that tree (`/tmp/m676/preflight_props.txt`) printed
+the same counts, 977 flatten, 843 run, runnable 859 and 794, and failed
+on one line alone: the run over flatten ratio was 0.342 against a band
+of 0.86 to 1.44. Its delta printed run 1995 s to 703 s and five models
+that doubled their flattening. The patch does not touch flattening, and
+the dearest of the five, `TestValveCoefficients`, flattened in 7964,
+7823, 7869 and 8009 ms alone, off, on, on and off. The doublings belong
+to the desk, not the change. The ratio is what the review has to decide
+on, since a run half this much cheaper leaves the band by construction.
