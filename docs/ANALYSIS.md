@@ -80992,3 +80992,54 @@ this is an if equation whose chosen branch makes the set singular
 structurally. It is the one example in the group that looks like work,
 but it and `BatchPlant_StandardWater` stand under Roman's standing
 word of 7 November (queue item 100), so no repair was built for them. `Engine1a` stays with the MultiBody chains of m540 to m543.
+
+### m678: the next rows of the run half, wall by wall
+
+Read from the m676 census (`/tmp/m676/raw.txt`) and its count of
+runnable examples per model (`/tmp/m676/run_runnable.txt`), with
+`oxidelica why` asked of each parameter on the head binary
+(`/tmp/m678/ox1`, list in `/tmp/m678/pnv.txt`). No corpus was run.
+
+"parameter X has no value", 24, all parts. Twenty are a part whose own
+parameter is declared with no binding (`NormalDensity.mu`,
+`OpAmpCircuits.Derivative.T`, `ShortPipe.m_flow_nominal`, and so on):
+the value is the parent's to give. Four also carry an `outer` with no
+`inner` above it (`ImpureRandom`, `BasicHX`, `WallConstProps`,
+`TankWith3InletOutletArraysWithEvaporatorCondensor`), which the
+compiler already supplies with the class's defaults; the parameter it
+then names is still unbound. One wall, the part asked as a model, and
+the refusal is right.
+
+"unbalanced model", 13 in that wording plus 5 of "nothing is left for":
+17 parts and one example. The parts are AST_BatchPlant controller
+utilities with no equations at all (`BufferMain`, 0 for 80), RobotR3
+utilities whose bus inputs no one drives (`Controller`, `Motor`,
+`AxisType1/2`), StateGraph composite steps whose open ports add the
+two surplus equations, and `DirectCapacitor`, `DirectInductor`,
+`ConstantActuator`, `valve` with an input left open. The example is
+`Loops.Fourbar1`, mapped in m470 and m471 and under Roman's word
+(queue item 93).
+
+"underdetermined algebraic loop", 7 plus 2 more that print it inside
+"a block accepted on the arithmetic floor". Four FundamentalWave
+machines (`IMC_DOL_Polyphase`, `IMS_Start_Polyphase`, `SMEE_DOL`,
+`SMEE_Rectifier`) are the faintly determined blocks beside an open
+switch of m661, held back by the pivot edge, parked there. Three are
+the Spice3 zero capacitance of `RtlInverter` (`der(Q1.vbx)`), and the
+two `FourBitBinaryAdder` parts `NAND` and `ONEBIT` have the same shape
+on `der(Q4.vbe)`. The two floor blocks are the ideal diodes and
+thyristors of `PolyphaseRectifier` and `ThyristorBridge2mPulse_RLV`.
+
+"Newton direction" (9) and "singular Jacobian" (7) hold only
+examples, every one named in an earlier chapter: the BranchingPipes
+and SeriesPipes under Roman's word of 10 November and m643,
+`TestTemperature1` in m630, the rolling wheel sets and `ThreeSprings`
+in the MultiBody chains, `PumpingSystem` and
+`TestMixingVolumesPressureStates` in the water breed of m661,
+`SMPM_CurrentSource` as one machine in three rows. No name of these
+rows lacks a map.
+
+So of the 134 refusals of the run half, 69 are parts (m676), and every
+part read here refuses on a value or a connection its parent would
+give. The 65 examples are where the loop owes work, and the rows above
+leave none of them without a named wall.
