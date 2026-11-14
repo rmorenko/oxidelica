@@ -80838,3 +80838,16 @@ For the wheel it is the last wall of reduction, which makes
 `RollingWheel` the one model in which the ledger alone is the wall.
 Whether its run block is singular at the point or in structure is the
 next probe.
+
+The next probe answered it the same shift. Under `=4` with
+`OXIDELICA_NEWTON_TRAIL=1` (`/tmp/m676/rw_trail.txt`, `rw_trail.env`)
+the refused block of `RollingWheel` has 28 rows, and rows 12 and 17 are
+the same equation, the derivative of the contact condition
+`delta_0 . e_axis_0 = 0`. They match in text and in every Jacobian
+entry. With the ledger taken back, index reduction supplied that
+equation twice and the block holds it twice, so it is singular in
+structure and not at a point. The supply-once guard refuses exactly
+this. The ledger is right for the wheel too, and the model's wall is
+upstream: reduction 5 asks for the wheel's orientation through an
+equation it has already used. All three models of the wall are now
+honest refusals of the guard. Nothing was built.
