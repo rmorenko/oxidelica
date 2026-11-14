@@ -80851,3 +80851,13 @@ this. The ledger is right for the wheel too, and the model's wall is
 upstream: reduction 5 asks for the wheel's orientation through an
 equation it has already used. All three models of the wall are now
 honest refusals of the guard. Nothing was built.
+
+Corrected the same shift: the count by examples says the row
+"parameter X has no value" holds 1 example and 23 parts. Each of its 24
+models was run alone with the binary of fd2d82b
+(`/tmp/m676/nv_runnable.txt`, command and md5 in `nv.env`), and every
+one prints `runnable examples (experiment or Example icon): 0`. The row
+holds 24 parts and no example on the head. The census agrees by fault:
+the 24 and the six of "cannot evaluate parameters" are 27 service
+classes and 3 models of their own, and the three are the `e_ia` loop
+examples, not a member of this row.
