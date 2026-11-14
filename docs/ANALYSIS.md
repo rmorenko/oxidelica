@@ -81492,3 +81492,20 @@ model's own. Running took 1677 s off and 1668 s on. The floors move by the
 pair's print: `RUN_FLOOR` 840 to 841 and `RUNNABLE_RUN_FLOOR` 791 to 792.
 On the heavy models (`/tmp/m681/hw_*`), DynamicPipesAndFittings, R134a1 and
 SeriesPipes12 give the same text and the same work both ways.
+
+### The extends clause's alias, measured over the cache
+
+The m680 patch that reads an alias redeclared by an extends clause was
+parked because names rose 3050 per million, above the 2000 band. Roman's
+standing rule lets a clean pair move a centre by less than 5%, so it was
+measured again on top of the recursion cache. With one binary
+(`/tmp/m681/oxe1`), `OXIDELICA_NO_EXTENDS_ALIAS=1` off against on
+(`/tmp/m681/eoff.txt`, `eon.txt`): 977 / 844 off and 978 / 844 on,
+runnable 859 / 795 both. The one model gained is EquilibriumDrumBoiler,
+flattened and refused at the next wall (`parameter m_D has no value`), with
+no victims. Running work is equal to the digit. Names went from 1717485997
+to 1722724050, 3050 per million, the same share as without the cache. The
+off half agrees to the digit with the on half of the pairing pair before
+it. `FLATTEN_FLOOR` goes to 978 and `WORK_NAMES` to 1722724050. The heavy
+models were measured in m680 without the cache (`/tmp/m680/hv_*`, answers
+equal) and were not measured again over it.
