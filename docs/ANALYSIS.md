@@ -81373,3 +81373,12 @@ as the demoted starts are already paired, lets the model run. It gives
 outlet pressures of 7.3247 and 9.2531 bar against the documented
 7.324 and 9.231, and four neighbours do not move. It is in the park as
 `m680_pair_coarse_probe.*`, not merged and not measured on the corpus.
+A second version holds the pairing to states of the condition's own
+component, because the first had `ThreePhaseTransformer` pair core 1's
+condition with core 3's state. A per-model check of 112 Fluid, FluxTubes
+and machine examples with one binary, `/tmp/m680/v2c_off.txt` and
+`v2c_on.txt`, ran 82 off and 83 on. The one gained is `NonCircularPipes`,
+nothing is lost, and the flattening work is equal byte for byte. The
+condition's component is still read from the spelling of its left side,
+which this document warns against, so a merge needs the equation's origin
+recorded instead.
