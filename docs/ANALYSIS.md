@@ -80903,3 +80903,36 @@ run half, above), `IncompressibleFluidNetwork` (now running, merged in
 fd2d82b) and `ModelicaTest.Math.TestBooleanFunctions` (now running,
 merged in 09431fe). Every move is a won model, and no example entered
 the flat half.
+
+## The cache of property answers merged, and the ratio bands moved with it
+
+Merged in 154f060 by Roman's word of 14 November (variant A). The cache
+remembers up to sixty-four property answers per body, so a medium's
+properties are no longer worked out afresh each time a body asks. It
+switches off with `OXIDELICA_NO_PROPS_MANY=1`.
+
+It wins no model. The census before and after (`/tmp/m674/census.txt`
+against `/tmp/m676/census.txt`) is equal row for row in both counted
+sections, and the 176 refusals are equal by name. What it buys is time:
+the census run half went from 4410 s to 1652 s, and the desk preflight's
+from 1995 s to 703 s. The preflight on the merged tree
+(`/tmp/m677/preflight.txt`) prints `1019, of which 977 flatten and 843
+run` and `runnable 890, of which 859 flatten and 794 run`, the same as
+before, so the floors stay where they were. On the heavy models it was
+measured one at a time with the switch (`/tmp/m676/hv_*`): R134a1 ran in
+8.3 s before and 4.9 s after, R134a2 13.2 s and 5.0 s, SeriesPipes12
+165.7 s and 52.5 s. The full heavy pass was not run.
+
+Because the run half now costs about a third of what it did, the ratio
+of the two halves fell well outside both bands with no model lost. Both
+bands were moved in the same commit by the factor the change put on the
+ratio, keeping the room the old bands left, as when the giants were
+carved out on 6 October. The desk's band is now 0.28..0.40, around its
+two prints of 0.342 and 0.351. The runner's band is now 0.41..0.63:
+the judge's green prints of 1.383 to 1.447, times the measured factor of
+0.353 to 0.375, give an expected row of 0.49 to 0.54. That band rests on
+arithmetic, not on a print. The first judge print after 154f060 is its
+first real point, and the band should be worked again from it. The
+band's own self-test in `preflight.sh` was the only red step of the
+preflight, because it still asserted the old points. It now checks the
+new ones: 1.045 and 0.923 are outside, and the desk's prints are inside.
