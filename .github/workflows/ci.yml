@@ -547,10 +547,14 @@ jobs:
       - name: The time band fires on both sides
         # Written with `if` and not `!`: a negated command does not stop
         # a `bash -e` step, so a band that stayed green would pass.
+        # The points moved with the band on 2026-11-14 (0.41..0.63, the
+        # cache of property answers): 0.300 under it, 1.045 - the old
+        # median - past its top, and 0.520 inside, the same three points
+        # as time_band_judges in scripts/preflight.sh.
         run: |
-          if ./scripts/library_floor.sh --ratio-check 1000 500; then exit 1; fi
-          if ./scripts/library_floor.sh --ratio-check 1000 2000; then exit 1; fi
-          ./scripts/library_floor.sh --ratio-check 1000 1045
+          if ./scripts/library_floor.sh --ratio-check 1000 300; then exit 1; fi
+          if ./scripts/library_floor.sh --ratio-check 1000 1045; then exit 1; fi
+          ./scripts/library_floor.sh --ratio-check 1000 520
 
       - name: The cut of the library job is guarded
         # A model read by neither pass would be judged by nobody while
