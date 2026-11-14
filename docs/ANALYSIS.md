@@ -80891,3 +80891,8 @@ of the totals was a coincidence of the parts, not a confirmation.
 block, is a statement about an input nobody drives, the open-connector
 breed of the parts. So of the 65 run-half examples, at least one is
 owed to the example filter and not to the loop.
+
+And it is the only one. A text scan of each of the 65 class bodies for
+`experiment(` (`/tmp/m676/run_exp.txt`) finds 64 with an experiment
+annotation and `FilterOrder` alone without. The run half owes the loop
+64 examples that state how they want to be run.
