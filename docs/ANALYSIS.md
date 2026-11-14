@@ -81043,3 +81043,17 @@ So of the 134 refusals of the run half, 69 are parts (m676), and every
 part read here refuses on a value or a connection its parent would
 give. The 65 examples are where the loop owes work, and the rows above
 leave none of them without a named wall.
+
+The rest of the 134, checked by name against the m669 walls
+(`/tmp/m669/walls_by_model.txt`) and the parts list of m676: 63 of the
+65 examples carry an m669 wall, and the two that do not
+(`SMPM_ResistiveBraking`, `FilterOrder`) were mapped by m676 itself
+(dependent-row, and the open `c_ref` input). Eleven parts stand outside
+the rows above, each on its parent's missing piece: `SpeedControl`
+(`previous` of a clock no parent gives), the two Spice3 adder parts
+(zero capacitance), `AdvancedSolenoid` (`abs` under a derivative, a
+part), three MultiBody cylinder utilities (`e_ia`, the analytic loop of
+m550), `GearType1/2` (an open flange), and the two TwoPhaseWater
+property parts (pressure 0 at the start, an input no one drives). Every
+model of the run half now has a named wall. The work they leave is the
+65 examples, and those stand behind maps already written.
