@@ -80598,3 +80598,57 @@ carry it: `TestMultiPortTraceSubstances` from 678 s to 40 s,
 from 164 s to 34 s. Over the three courts, 908 models, no list moved
 and the run half fell from 3965 s to 1649 s. A corpus pair and the
 heavy models remain for the review to order.
+
+## IncompressibleFluidNetwork merged at a price the owner accepted
+
+The parked repair that declares an inner parameter's modifier in order
+(`m674_ifn_inner_param_mod`, switch `OXIDELICA_NO_INNER_PARAM_MOD`) went
+into main on 14 November with its floors and the centre of names in one
+commit. It buys one running model,
+`Modelica.Fluid.Examples.IncompressibleFluidNetwork`, with no victims:
+the census pair `/tmp/m673` against `/tmp/m674` lost exactly the one row
+about an if equation that could not be decided, and nothing else moved.
+
+The price is 293 s of run half against a base of about 4160 s, 7.0%
+against the usual ceiling of 6%. Roman accepted it by name on 13
+November ("merge as is"). The ceiling is not moved by this; the next
+change dearer than 6% is a question again.
+
+### What carries the price
+
+The first reading named the start value `h_start` of every pipe, left
+unevaluated and carried into the run as a large expression. A probe
+refuted it (`/tmp/m675/carry*.txt`): 199 s of the 237 s of run are
+896171 walks of the medium's `T_ph` inverse, called with the enthalpies
+of the pipes' states, 20783 distinct argument sets each asked about 43
+times. The arguments move with the states, so a single evaluation at
+the start could never have removed the cost. The repetition comes from
+a memory of one answer per body while eleven pipes ask in turn, which
+is what the parked `m675_props_many` addresses below.
+
+### The two passes, and what the preflight prints
+
+The main pass alone prints about 963 flatten and 836 run, because the
+dear models are measured in a pass of their own. The floors are held by
+the judge, which adds the two. The preflight of this commit printed the
+sum, 977 flatten and 843 run, runnable 859 and 794, from
+`/tmp/m676/preflight.txt`; the run floors take three swinging models
+off as before (840 and 791).
+
+The centre of names was moved on the owner's standing word for centres:
+its own measurement left the band. The preflight before the merge
+(`/tmp/m675/preflight.txt`) printed 1717443649 names against the centre
+1709225508, 0.48% out at a band of 2000 per million. The new count
+equals the on half `/tmp/m674/raw.txt` to the digit, and the growth of
+8218537 is close to the 8578570 names the arriving model looks up on
+its own. The band was not touched.
+
+### The memory of many answers, still parked
+
+`m675_props_many` keeps 64 answers per walked body instead of one.
+Three courts with one binary over 908 models (Fluid and Media, the
+other domain libraries, MultiBody with ModelicaTest) kept every list
+equal and every work counter identical, and the run half fell from
+3965 s to 1649 s. No corpus pair had been run under it and the heavy
+models were unmeasured when this was merged; it stays in the park for
+the review to decide.
