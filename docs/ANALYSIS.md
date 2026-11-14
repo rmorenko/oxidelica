@@ -80690,12 +80690,12 @@ binary of fd2d82b (`/tmp/m676/ox0`, md5 35c27787; command in
 `/tmp/m676/cns/probe.env`, outputs `/tmp/m676/cns/<model>.txt`). The
 wall given is the last probe line naming one. No code was changed.
 
-| wall                              | models |
-| --------------------------------- | -----: |
-| state-select weighs an empty set  |     19 |
-| dependent-row                     |      5 |
-| supply-once                       |      3 |
-| implied-row                       |      2 |
+| wall                             | models |
+| -------------------------------- | -----: |
+| state-select weighs an empty set |     19 |
+| dependent-row                    |      5 |
+| supply-once                      |      3 |
+| implied-row                      |      2 |
 
 Empty weighing, 19: `Add`, `Buffer`, `Feedback`, `Gain`, `Nand`,
 `RealSwitch`, `AnalysatorAC`, `AnalysatorDC`,
