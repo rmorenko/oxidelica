@@ -81391,3 +81391,13 @@ steady conditions found no state of their own and lost the pairing they
 had before. That is a second reason to take the component from the
 equation's origin rather than from its spelling, and the probe stays in
 the park.
+A third version reads the variable inside `der(...)` before it takes
+the component. On the same 135 refusers (`/tmp/m680/rr3_on.txt`) it gains
+`NonCircularPipes` and leaves every other text as it was. On the 843
+models that run (`/tmp/m680/ra3_off.txt` and `ra3_on.txt`), all 843 still
+run, and both work counters are equal byte for byte. Across the 978
+models that flatten, the probe gains one model and moves nothing else.
+The small model `NP2`, two dynamic pipes on one boundary with a fixed
+initial state, is red without the probe and runs with it. It is in the
+park as `m680_pair_coarse_probe_v3.patch`, still reading the component
+from a spelling.
