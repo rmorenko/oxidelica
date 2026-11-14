@@ -80990,5 +80990,5 @@ the fluid level, preventing outflow" (`Vessels.mo`, `ports[i].m_flow =
 flows. The branch that applies depends on the levels at run time, so
 this is an if equation whose chosen branch makes the set singular
 structurally. It is the one example in the group that looks like work,
-and the next probe should be on how the branches are picked before
-matching. `Engine1a` stays with the MultiBody chains of m540 to m543.
+but it and `BatchPlant_StandardWater` stand under Roman's standing
+word of 7 November (queue item 100), so no repair was built for them. `Engine1a` stays with the MultiBody chains of m540 to m543.
