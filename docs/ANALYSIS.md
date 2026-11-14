@@ -80896,3 +80896,10 @@ And it is the only one. A text scan of each of the 65 class bodies for
 `experiment(` (`/tmp/m676/run_exp.txt`) finds 64 with an experiment
 annotation and `FilterOrder` alone without. The run half owes the loop
 64 examples that state how they want to be run.
+
+The three examples that left the flat half are named by the diff
+against `/tmp/m668/all_flat.txt`: `SMPM_ResistiveBraking` (now in the
+run half, above), `IncompressibleFluidNetwork` (now running, merged in
+fd2d82b) and `ModelicaTest.Math.TestBooleanFunctions` (now running,
+merged in 09431fe). Every move is a won model, and no example entered
+the flat half.
