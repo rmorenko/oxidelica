@@ -2709,8 +2709,19 @@ UNREAD_CEILING=0
 # this ceiling; only its second run, 1.914, would have been caught. The
 # ceiling is a stopgap, and the cure is a delta over one fixed set of
 # models rather than a band on one print.
-RATIO_LOW="${RATIO_LOW:-0.70}"
-RATIO_HIGH="${RATIO_HIGH:-1.67}"
+#
+# On 2026-11-14 both edges were moved by a factor, Roman's word (variant
+# A), with the cache of property answers per body: it moves no model and
+# makes the run half 0.353 to 0.375 of what it was (census run half 4410
+# s to 1652 s, desk preflight 1995 s to 703 s, /tmp/m676). The judge's
+# green prints 1.383 to 1.447 times that factor give an expected row of
+# 0.49 to 0.54, and the old room round it gives 0.70 x 0.353 = 0.25 at
+# the bottom, kept nearer at 0.41, and 1.67 x 0.375 = 0.63 at the top.
+# Said outright: this band stands on arithmetic and not on a print of
+# the runner; the first judge print after this commit is its first real
+# point and the band is worked again from it.
+RATIO_LOW="${RATIO_LOW:-0.41}"
+RATIO_HIGH="${RATIO_HIGH:-0.63}"
 
 # The band itself, as a function, so that it can be seen red without a
 # library pass: `library_floor.sh --ratio-check <flatten ms> <run ms>`

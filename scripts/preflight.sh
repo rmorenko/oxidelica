@@ -123,8 +123,18 @@ examples_all_simulate() {
 # instrument noise of 0.53% and an evening drift near 1% a print.
 # 0.96 comes back when a delta over one fixed set of models replaces
 # this band, as library_floor.sh:2680-2686 already asks.
-DESK_RATIO_LOW=0.86
-DESK_RATIO_HIGH=1.44
+#
+# Since 2026-11-14 the edges are 0.28 and 0.40, Roman's word (variant
+# A), moved with the cache of property answers per body that makes the
+# run half about three times cheaper and moves no model (census m674
+# against m676 equal row for row, 176 refusals equal by name). The desk
+# printed 0.342 under it (/tmp/m676/preflight_props.txt, the run half
+# 1995 s to 703 s), and the edges are worked by the old trick of the
+# carvings of 2026-10-06, the edges by the measured factor and the room
+# kept: 0.342 / 1.22 = 0.28 and 0.342 x 1.17 = 0.40. One print, so the
+# edges stand on one point and are worked again by the next desk prints.
+DESK_RATIO_LOW=0.28
+DESK_RATIO_HIGH=0.40
 
 library_floor() {
   if [ ! -d "$library" ]; then
@@ -306,32 +316,25 @@ partition_judges() {
 # only other place it runs, and there it is green whenever the pass
 # is, so without this nobody would see it red until it mattered.
 time_band_judges() {
-  # The runner's band: under its floor, past its top, and the median
-  # of the 46 jobs it was first set over inside.
-  ./scripts/library_floor.sh --ratio-check 1000 500 > /dev/null && return 1
-  ./scripts/library_floor.sh --ratio-check 1000 2000 > /dev/null && return 1
-  ./scripts/library_floor.sh --ratio-check 1000 1045 || return 1
-  # And the desk's band, at the two ends of what the desk has measured
-  # and past either end of it.
-  # Inside: the lowest and the highest quiet desk points the edges of
-  # 2026-10-16 stand on, 0.768 and 0.786, and one between, 0.775.
-  # Outside: 0.600 under the floor, and 0.953, the quiet point of the
-  # old compiler - should the ratio go back to that shape, the band has
-  # to go red.
-  # Inside since 2026-11-03: the lowest and highest desk prints the
-  # edges stand on, 1.143 and 1.248, and one between, 1.164. Outside:
-  # 0.786, the quiet point of the compiler before, and 1.500.
-  # Inside since 2026-11-09, when the floor went to 0.88: the quiet
-  # prints of the settling fix, 0.923 and 0.940. 0.786 stays outside,
-  # now 10.7% under the floor rather than 18%.
+  # The runner's band: under its floor, past its top, and inside. Since
+  # 2026-11-14 the edges are 0.41 and 0.63, so the old median of 1.045
+  # is now past the top and 0.520, the middle of the expected row 0.49
+  # to 0.54, stands inside.
+  ./scripts/library_floor.sh --ratio-check 1000 300 > /dev/null && return 1
+  ./scripts/library_floor.sh --ratio-check 1000 1045 > /dev/null && return 1
+  ./scripts/library_floor.sh --ratio-check 1000 520 || return 1
+  # And the desk's band, at what the desk has measured and past either
+  # end of it. Since 2026-11-14, with the cache of property answers:
+  # inside, the two desk prints 0.342 (/tmp/m676/preflight_props.txt)
+  # and 0.351 (/tmp/m677/preflight.txt) and one between. Outside, 0.200
+  # under the floor and 0.923, the quiet print of the compiler before -
+  # should the ratio go back to that shape, the band has to go red.
   local desk="env RATIO_LOW=$DESK_RATIO_LOW RATIO_HIGH=$DESK_RATIO_HIGH ./scripts/library_floor.sh --ratio-check"
-  $desk 1000 1143 > /dev/null || return 1
-  $desk 1000 1248 > /dev/null || return 1
-  $desk 1000 1164 > /dev/null || return 1
-  $desk 1000 923 > /dev/null || return 1
-  $desk 1000 940 > /dev/null || return 1
-  $desk 1000 786 > /dev/null && return 1
-  $desk 1000 1500 > /dev/null && return 1
+  $desk 1000 342 > /dev/null || return 1
+  $desk 1000 351 > /dev/null || return 1
+  $desk 1000 346 > /dev/null || return 1
+  $desk 1000 200 > /dev/null && return 1
+  $desk 1000 923 > /dev/null && return 1
   return 0
 }
 

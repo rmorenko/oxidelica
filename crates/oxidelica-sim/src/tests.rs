@@ -1011,6 +1011,40 @@ fn a_body_asked_twice_at_one_point_is_walked_once() {
     assert_eq!(walks(), 3, "a moved time is another point");
 }
 
+/// A body several components ask in turn answers each from memory:
+/// eleven pipes asking one medium's `T_ph` alternately left the asking
+/// just before always another pipe's, and every asking was walked.
+#[test]
+fn a_body_asked_in_turn_by_several_callers_is_walked_once_each() {
+    let model = parse_model(
+        "model M function count input Real x; output Real y; \
+         algorithm y := 0; while y < x loop y := y + 1; end while; end count; \
+         Real y; equation y = count(time); end M;",
+    )
+    .unwrap();
+    let walked = Walked::new(
+        model
+            .functions
+            .iter()
+            .map(|class| (class.name.clone(), class.clone()))
+            .collect(),
+    );
+    let name = model.functions[0].name.clone();
+    for _ in 0..3 {
+        for x in [1.5, 2.5, 3.5, 4.5] {
+            assert_eq!(
+                walked.answer(&name, &[x], &[vec![]], 0.0).unwrap(),
+                vec![x + 0.5]
+            );
+        }
+    }
+    assert_eq!(
+        walked.walks.load(std::sync::atomic::Ordering::Relaxed),
+        4,
+        "an asking that came round again was walked again"
+    );
+}
+
 #[test]
 fn a_call_on_a_still_value_with_its_own_rule_does_not_move() {
     // `HeatingSystem` starts a tank at `h_ph(p, h_pT(p, T)[5])[7]`

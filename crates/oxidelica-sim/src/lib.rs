@@ -939,7 +939,7 @@ pub(crate) struct Walked {
     pub(crate) trouble: std::sync::Mutex<Option<SimError>>,
     /// The last answer of each body, beside the exact bits of what it
     /// was handed. See [`Walked::answer`].
-    pub(crate) last: std::sync::Mutex<HashMap<String, LastWalk>>,
+    pub(crate) last: std::sync::Mutex<HashMap<String, Vec<LastWalk>>>,
     /// How many times a body was walked rather than remembered.
     pub(crate) walks: std::sync::atomic::AtomicUsize,
 }
@@ -959,6 +959,26 @@ pub(crate) struct LastWalk {
 /// asking, as before, so that one binary gives both numbers.
 fn props_once() -> bool {
     !crate::walk::switch_set("OXIDELICA_NO_PROPS_ONCE")
+}
+
+/// How many recent askings of one body are remembered. One was enough
+/// for a body asked again and again about the same point of one
+/// component, and not for a body several components share:
+/// `IncompressibleFluidNetwork` has eleven pipes asking the one
+/// `T_ph` of Glycol47 in turn, so the asking just before was always
+/// another pipe's, and 896171 walks spent 199 of the run's 237 seconds
+/// answering 20783 different questions. The questions come round in a
+/// longer cycle than the pipes alone - the stages of a step ask each
+/// pipe again - so sixteen took the run only from 236 s to 179 s, 64
+/// to 26 s and 256 to 22 s. Sixty-four is the knee, and it still
+/// bounds the memory by the number of bodies.
+/// `OXIDELICA_NO_PROPS_MANY=1` keeps one, as before.
+fn props_kept() -> usize {
+    if crate::walk::switch_set("OXIDELICA_NO_PROPS_MANY") {
+        1
+    } else {
+        64
+    }
 }
 
 impl Walked {
@@ -1012,7 +1032,10 @@ impl Walked {
                 && had.lengths == lengths
         };
         if let Ok(last) = self.last.lock() {
-            if let Some(had) = last.get(name).filter(|had| same(had)) {
+            if let Some(had) = last
+                .get(name)
+                .and_then(|kept| kept.iter().find(|had| same(had)))
+            {
                 return Ok(had.answer.clone());
             }
         }
@@ -1020,15 +1043,16 @@ impl Walked {
             .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         let answer = crate::walk::walk(&self.programs, name, given, lengths, time, 0)?;
         if let Ok(mut last) = self.last.lock() {
-            last.insert(
-                name.to_string(),
-                LastWalk {
-                    time: time.to_bits(),
-                    given: given.iter().map(|v| v.to_bits()).collect(),
-                    lengths: lengths.to_vec(),
-                    answer: answer.clone(),
-                },
-            );
+            let kept = last.entry(name.to_string()).or_default();
+            if kept.len() >= props_kept() {
+                kept.remove(0);
+            }
+            kept.push(LastWalk {
+                time: time.to_bits(),
+                given: given.iter().map(|v| v.to_bits()).collect(),
+                lengths: lengths.to_vec(),
+                answer: answer.clone(),
+            });
         }
         Ok(answer)
     }
