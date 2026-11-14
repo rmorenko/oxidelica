@@ -81137,3 +81137,12 @@ the guard doing its work. m541 shrank `SMPM_NoLoad` to the same machine and box 
 `/tmp/m541/shrink`); what this adds is the two controls. That proves
 the mechanism and wins nothing. The question a repair would face is a second wall behind it, the
 underflow of `P6`, and it was not walked.
+
+The wall behind it, walked one step on `P6` (star point grounded) with
+`OXIDELICA_NEWTON_TRAIL=1`: the refused block has seven rows at
+t = 0, and its row 2, `airGap.i_ss[2] = RotationMatrix[2,1]*i_sr[1] +
+RotationMatrix[2,2]*i_sr[2]`, has a Jacobian row of exactly zero over
+the block's unknowns. That is the dead row the solver refuses by its
+written rule (`solvers/mod.rs`, "a dead column is a statement about the
+block"), so behind the open star stands the air gap's rotation block,
+the second wall m541 already named for `S6`/`S7`. Nothing was built.
