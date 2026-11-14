@@ -80733,3 +80733,12 @@ example, it weighs at 208 reductions, and it is refused at reduction 96
 on the orientation of `bearing.frame_b.R.T[2,2]`, after the probe has
 walked through `connectingRod.v_0` and the piston's frame. It belongs
 with the MultiBody chains of m540 to m543, which wait for Roman.
+
+Corrected the same shift: an earlier chapter (the count by examples of
+the two top rows) lists `MNmos` and `MPmos` among the thirteen examples
+of "constrains no state". Run alone, both print `runnable examples
+(experiment or Example icon): 0` (`/tmp/m676/cns/*MNmos.txt`,
+`*MPmos.txt`), while `Engine1a` prints 1. The row holds eleven examples
+by that test, not thirteen, and the two transistors belong with the
+parts closed by a zero flow, as the list of seventeen above it already
+had them.
