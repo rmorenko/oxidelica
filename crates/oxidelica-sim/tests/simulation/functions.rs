@@ -5435,3 +5435,33 @@ fn an_iterator_shadows_an_array_of_its_name() {
          annotation(experiment(StopTime = 1)); end K;");
     assert!((last_of(&result, "b.y") - 2f64.cos()).abs() < 1e-12);
 }
+
+/// An alias a base declares is redeclared by the `extends` clause that
+/// names the base, and the extending class's own body reads the alias
+/// as the clause set it. Read from the base's default, `Medium.g` was a
+/// function nothing declared.
+#[test]
+fn an_extends_clause_redeclares_the_alias_its_own_body_reads() {
+    let result = run("package I function f input Real x; output Real y; algorithm y := x; end f; end I; \
+         package W extends I; function g input Real x; output Real y; algorithm y := 7 * x; end g; end W; \
+         partial model B replaceable package Medium = I; end B; \
+         model M extends B(redeclare package Medium = W); Real v = Medium.g(2); \
+         annotation(experiment(StopTime = 0.01, Interval = 0.01)); end M;");
+    assert_eq!(result.rows[0][1], 14.0);
+}
+
+/// When the site and the `extends` clause both redeclare the alias, the
+/// site's medium answers: what comes from outside outranks the clause.
+#[test]
+fn the_site_outranks_the_extends_clause_on_an_alias() {
+    let result = run(
+        "package I function g input Real x; output Real y; algorithm y := x; end g; end I; \
+         package W extends I; redeclare function extends g algorithm y := 7 * x; end g; end W; \
+         package S extends I; redeclare function extends g algorithm y := 5 * x; end g; end S; \
+         partial model B replaceable package Medium = I; end B; \
+         model C extends B(redeclare replaceable package Medium = W); Real v = Medium.g(2); end C; \
+         model M C c(redeclare package Medium = S); \
+         annotation(experiment(StopTime = 0.01, Interval = 0.01)); end M;",
+    );
+    assert_eq!(result.rows[0][1], 10.0);
+}

@@ -36,6 +36,30 @@ pub(super) fn effective_imports(
     if depth <= MAX_DEPTH {
         for extend in &class.extends {
             if let Some(base) = lookup(registry, &extend.base, class.name.as_str(), &imports) {
+                // What the `extends` itself redeclares is what the
+                // base's aliases mean here: `extends B(redeclare package
+                // Medium = StandardWater)` and then `Medium.density_pT`
+                // in this class's own body. Handed after the site's,
+                // since the reader takes the first of a name and the
+                // site outranks the clause, as `instantiate` orders the
+                // same two lists. `OXIDELICA_NO_EXTENDS_ALIAS` keeps the
+                // old reading, for measuring one binary against itself.
+                let mut handed = redeclares.to_vec();
+                if std::env::var_os("OXIDELICA_NO_EXTENDS_ALIAS").is_none() {
+                    for own in &extend.redeclares {
+                        if let Ok(q) = super::inheritance::qualify_redeclare(
+                            own,
+                            registry,
+                            class,
+                            prefix,
+                            outers,
+                            &[],
+                        ) {
+                            handed.push(q);
+                        }
+                    }
+                }
+                let redeclares = handed.as_slice();
                 for held in
                     effective_imports(registry, base, scope, redeclares, prefix, outers, depth + 1)?
                 {

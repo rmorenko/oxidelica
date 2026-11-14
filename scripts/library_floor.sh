@@ -596,7 +596,10 @@ FILES_FLOOR=2671
 # And 977 = 976 + IncompressibleFluidNetwork, won by declaring an inner
 # parameter's modifier in order; its preflight (/tmp/m676/preflight.txt)
 # printed 977 flatten, no victims against the pair /tmp/m673, /tmp/m674.
-FLATTEN_FLOOR=977
+# And 978 = 977 + EquilibriumDrumBoiler, won by reading the alias an
+# extends clause redeclares; the pair /tmp/m681/eon.txt printed 978
+# flatten against 977 off, no victims.
+FLATTEN_FLOOR=978
 # The two run floors came down by one, and the one is named: giving a
 # record constructor called with no arguments the values its `extends`
 # stated took `Modelica.Thermal.FluidHeatFlow.Examples.WaterPump` out
@@ -3740,7 +3743,15 @@ fi
 # 8578570 names: the preflight /tmp/m675/preflight.txt printed
 # 1717443649, equal to the digit to the on half /tmp/m674/raw.txt,
 # against 1709225112 off (/tmp/m673). The band is not moved.
-WORK_NAMES=1717443649
+# Moved to 1722724050 on 2026-11-14 for the extends clause's redeclared
+# alias, which media test models now read through the extends clause and
+# so look up more names (LinearWater_pT alone about 2.28M of them). One
+# binary with the recursion cache counting its hits printed 1717485997
+# off and 1722724050 on (/tmp/m681/eoff.txt, eon.txt), 3050 per million
+# up, under Roman's standing rule that a clean pair moves a centre by
+# less than 5%. The lists differ by EquilibriumDrumBoiler flattened
+# alone. The band is not moved.
+WORK_NAMES=1722724050
 WORK_NAMES_PPM=2000
 
 # The band, as a function, so that it can be seen red without a library
