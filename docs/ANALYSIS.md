@@ -81133,6 +81133,7 @@ resistor (`P4`) refuses the same way. The running sibling
 `SMPM_Braking` connects `terminalBox.starpoint`. The guard's own
 comment already names this machine (`S1` of m541, "the open-star
 permanent magnet machine"), so the shape is known and the refusal is
-the guard doing its work. That proves the mechanism and wins nothing.
-The question a repair would face is a second wall behind it, the
+the guard doing its work. m541 shrank `SMPM_NoLoad` to the same machine and box (`S1`,
+`/tmp/m541/shrink`); what this adds is the two controls. That proves
+the mechanism and wins nothing. The question a repair would face is a second wall behind it, the
 underflow of `P6`, and it was not walked.
