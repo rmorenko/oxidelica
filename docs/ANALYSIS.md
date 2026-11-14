@@ -80680,3 +80680,45 @@ the dearest of the five, `TestValveCoefficients`, flattened in 7964,
 7823, 7869 and 8009 ms alone, off, on, on and off. The doublings belong
 to the desk, not the change. The ratio is what the review has to decide
 on, since a run half this much cheaper leaves the band by construction.
+
+## m676: the 29 "constrains no state" models, wall by wall again
+
+The top row of the run half still counts 29 models, as it did when m544
+mapped 27 of them. Each was run alone from the root on 14 November,
+`OXIDELICA_VICTIM_PROBE=1 library check .msl --only <model>`, with the
+binary of fd2d82b (`/tmp/m676/ox0`, md5 35c27787; command in
+`/tmp/m676/cns/probe.env`, outputs `/tmp/m676/cns/<model>.txt`). The
+wall given is the last probe line naming one. No code was changed.
+
+| wall                              | models |
+| --------------------------------- | -----: |
+| state-select weighs an empty set  |     19 |
+| dependent-row                     |      5 |
+| supply-once                       |      3 |
+| implied-row                       |      2 |
+
+Empty weighing, 19: `Add`, `Buffer`, `Feedback`, `Gain`, `Nand`,
+`RealSwitch`, `AnalysatorAC`, `AnalysatorDC`,
+`BatchPlant_StandardWater`, `TanksWithOverflow`,
+`Transformer1PhaseWithHysteresis`, `Transformer3PhaseYyWithHysteresis`,
+`PermeanceActuator`, `SimpleSolenoid`, both
+`SpringDamperNoRelativeStates`, `Engine1a`, `MNmos`, `MPmos`.
+
+Dependent-row, 5: `FullRobot`, `OneAxis`, `PrismaticConstraint`,
+`SMPM_ResistiveBraking`, `SphericalConstraint`. Supply-once, 3:
+`ActuatorWithNoise`, `IMC_DOL_CommonLeakage`, `RollingWheel`.
+Implied-row, 2: `Cylinder`, `PointGravityWithPointMasses2`. Together
+19 + 5 + 3 + 2 = 29.
+
+The row's total hides how much it changed. Five of m544's names have
+left it (`PlanarFourbar`, `RevoluteConstraint`, `UniversalConstraint`,
+`SMPM_CurrentSource`, `TestBearingConversion`) and seven have arrived
+(`Engine1a`, `MNmos`, `MPmos`, `OneAxis`, `SMPM_ResistiveBraking`,
+`RollingWheel`, `PointGravityWithPointMasses2`), so the count of 29
+reflects models moving between walls, not a row that stood still. The
+empty weighing has grown from sixteen to nineteen and is still the one
+shape to attack first: the gate does not open because there is nothing
+to weigh. Some models have also changed walls since m544
+(`SphericalConstraint` from supply-once to dependent-row,
+`ActuatorWithNoise` and `IMC_DOL_CommonLeakage` the other way), so the
+walls between equations are not settled either.
