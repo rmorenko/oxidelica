@@ -81077,3 +81077,14 @@ value could then pin it, which is the start-filling policy that
 start where the model wrote none is a guess, and guessing is worse than
 refusing. So nothing was built; the question belongs with Roman's word
 on start filling, not with a shift.
+
+### m678: the first runner print of the new ratio band
+
+The judge of run 43588104318, the first after the property cache
+(154f060), printed `ratio: run/flatten is 0.555, inside 0.41..0.63`,
+with 977 flatten and 843 run, runnable 859 and 794, the same counts as
+the preflight of that tree. The arithmetic of the merge expected 0.49 to
+0.54. The point falls 0.005 above that range and inside the band, so
+the edges stand on one runner print now instead of on arithmetic. They
+were not moved. The same run's linters job was red only on the second
+copy of the band's self-check, fixed in b0bdca3.
