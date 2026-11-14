@@ -81353,3 +81353,23 @@ each. These are media test models that now read the medium their
 default. The run counters and the lists did not move. The three heavy
 models checked one at a time (`/tmp/m680/hv_*.txt`) give identical
 answers and run work, with names +24, +1393 and +6.
+
+### The run half's rows, mapped to the floor
+
+Every row of the run half in `/tmp/m676/raw.txt` already has a map in
+this document, and the shift added three by probe. `GearType1` is a
+utility with free flanges. With any one condition left out, it stops at
+a dead column of the friction loop `bearingFriction.sa`, which is a
+ceiling the solver states. The 24 models refused with `parameter X has
+no value` are all `Utilities` or `BaseClasses` templates whose
+parameter has no default (`why` answers `bound to: nothing`), so those
+refusals are honest. `NonCircularPipes` is two conditions over, one per
+pipe, and all eight of its written conditions reach no state through the
+walk that stops at blocks. The pairing then hands out orphan states by
+position, both of the annulus pipe's pressure conditions are left over,
+and the solve loses that pipe's pressure. A probe that pairs each
+condition with an orphan it reads through `states_behind_algebraics`,
+as the demoted starts are already paired, lets the model run. It gives
+outlet pressures of 7.3247 and 9.2531 bar against the documented
+7.324 and 9.231, and four neighbours do not move. It is in the park as
+`m680_pair_coarse_probe.*`, not merged and not measured on the corpus.
