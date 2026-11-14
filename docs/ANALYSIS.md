@@ -81401,3 +81401,49 @@ The small model `NP2`, two dynamic pipes on one boundary with a fixed
 initial state, is red without the probe and runs with it. It is in the
 park as `m680_pair_coarse_probe_v3.patch`, still reading the component
 from a spelling.
+
+## m681: the recursion answer remembered, with its names counted
+
+### What Roman settled
+
+The m679 cache made HeatingSystem's flattening cheap and took 30.75% off the
+`names` counter, because a remembered answer asked for no names. Roman's
+answer on 14 November was that a hit counts as a lookup: the centre
+`WORK_NAMES=1717443649` and its 2000 ppm band stay where they are, the cache
+goes in switched on, and every hit adds to the counter the lookups that the
+remembered answer cost. The counter keeps measuring how many names the
+compiler asked for. The test he set was that names land within 2000 ppm of
+the centre, every other counter is equal to the digit, the counts stay at
+977/843 and 859/794, and the flattening time stays low.
+
+### How a hit is charged
+
+When `recursive` walks the call graph, it reads the `names` counter before
+and after the walk and keeps the difference beside the answer. A hit hands
+that difference back to the counter. The difference already holds whatever
+hits the walk itself was handed, so a deep recursion is charged in full. A
+unit test asks the walk, the first asking and a hit for the price in names
+of one function: all three are equal, and with the charge removed the hit
+costs nothing and the test goes red.
+
+### The measurements
+
+One function at a time with one binary (`/tmp/m681/oxk2`), off being
+`OXIDELICA_NO_RECURSIVE_CACHE=1`: HeatingSystem flattens in 63 s against
+145 s, with names 255353024 against 255327044 (102 ppm); LinearWater_pT
+takes 17 s against 41 s. BranchingPipes17, MeasuringTemperature and
+ReferenceMoistAir are unchanged in time, and every outcome text is the same.
+
+The corpus pair (`/tmp/m681/off.txt` and `on.txt`, one binary, `--slow 60`
+on both halves): 977 flatten and 843 run in both, runnable 859 and 794 in
+both, and the lists of what ran and every refusal are equal line for line.
+Every work counter is equal to the digit except names, 1717443649 off and
+1717485997 on, which is 25 ppm. Flattening took 4336 s off and 3894 s on, a
+saving of 442 s. Running took 1640 s off and 1667 s on, 1.6%, with equal
+running work, so that is drift. The cache buys no models and the floors do
+not move.
+
+On the heavy models, one at a time with the same binary: DynamicPipesAndFittings,
+R134a1 and SeriesPipes12 give the same outcome text both ways, with names
+81403648 against 81404230, 193723 against 193723, and 19862267 against
+19862435 (`/tmp/m681/hv_*`). Each lies within 8 ppm.
