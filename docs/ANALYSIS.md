@@ -80861,3 +80861,10 @@ holds 24 parts and no example on the head. The census agrees by fault:
 the 24 and the six of "cannot evaluate parameters" are 27 service
 classes and 3 models of their own, and the three are the `e_ia` loop
 examples, not a member of this row.
+
+The flat half re-counted on the head the same way: its 42 refusals
+(`/tmp/m676/raw.txt`) were run alone with the binary of fd2d82b
+(`/tmp/m676/flat_runnable.txt`, command and md5 in `fl.env`). 31 print
+one runnable example and 11 print none. Against the 34 examples and 11
+parts of 45 counted above, three examples have left the flat half and
+no part has. The parts are the same eleven.
