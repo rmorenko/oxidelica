@@ -80875,3 +80875,11 @@ runnable example and 69 print none. The m668 split of 133 was 65
 examples and 68 parts, so the examples the run half owes the loop are
 the same number on the head, and one part has arrived in it. Over both
 halves the loop owes 31 + 65 = 96 examples.
+
+By name against `/tmp/m668/all_run.txt`, the equal count of 65 hides
+four moves. `SMPM_ResistiveBraking` arrived in the run half as an
+example, from the flat half. `MNmos` and `MPmos`, which m668 counted as
+examples, print no runnable example on the head and are parts.
+`ComponentsMixingUnit.FilterOrder`, which m668 counted as a part,
+prints one runnable example. So 65 = 65 - 2 + 1 + 1, and the agreement
+of the totals was a coincidence of the parts, not a confirmation.
