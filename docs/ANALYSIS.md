@@ -80868,3 +80868,10 @@ The flat half re-counted on the head the same way: its 42 refusals
 one runnable example and 11 print none. Against the 34 examples and 11
 parts of 45 counted above, three examples have left the flat half and
 no part has. The parts are the same eleven.
+
+The run half re-counted the same way (`/tmp/m676/run_runnable.txt`,
+command and md5 in `rn.env`): of its 134 refusals, 65 print one
+runnable example and 69 print none. The m668 split of 133 was 65
+examples and 68 parts, so the examples the run half owes the loop are
+the same number on the head, and one part has arrived in it. Over both
+halves the loop owes 31 + 65 = 96 examples.
