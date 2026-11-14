@@ -81201,8 +81201,12 @@ The four flattening counters for classes, expansions and bodies are equal
 too. Names fell from 1717443649 to 1189388945, which is the work the cache
 removes. Flattening went from 5177 s to 4554 s (-12.0%), and running from
 1738 s to 1741 s (+0.2%, inside the drift). This change wins no models: in
-the measure it is zero, and the gain is in seconds of flattening. The
-heavy models were not measured.
+the measure it would be zero, and the gain is in seconds of flattening.
+Three of the 24 heavy models were run one at a time, off then on
+(`/tmp/m679/hv_*.txt`), and gave equal answers. Flattening went from
+119.2 s to 111.2 s for DynamicPipesAndFittings, 8.9 s to 9.0 s for R134a1
+and 27.7 s to 25.7 s for SeriesPipes12, and running did not move. The
+other 21 were not measured.
 
 ### Why it is parked
 
