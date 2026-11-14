@@ -80808,3 +80808,33 @@ names `der(X9.Q4.vbe)`, the same transistor one level down. So three
 of the row's seven are one breed of a closed ceiling, and the row's
 real owners are the machines and the two rectifiers named above.
 Nothing was built.
+
+### The supply-once wall with the ledger taken back
+
+The switch `OXIDELICA_SUPPLY_ONCE` already selects the rule: unset is
+`=5`, the ledger with the dependence check, `=4` keeps only the
+dependence check, `=0` takes both back. The three supply-once models
+were run alone under `=4` and `=0` with the binary of fd2d82b
+(`/tmp/m676/so{4,0}_<model>.txt`, each with its `.env`). Nothing was
+built.
+
+- `RollingWheel` gets through index reduction under both, after 7
+  weighings instead of 5, and is refused in the run as a singular
+  Jacobian in the block of `wheel1.body.a_0`, `rollingWheel.delta_0`,
+  the contact velocities and the wheel forces. So the ledger was the
+  only wall in reduction, and a second one stands behind it in the
+  solver.
+- `IMC_DOL_CommonLeakage` under `=4` stops at the same reduction 16,
+  now as dependent-row on the derivatives of the converter fluxes
+  `Phi.im`. Under `=0` it walks 162 weighings and stops at reduction 50
+  on `aimcH.phiMechanical`, an implied row.
+- `ActuatorWithNoise` under `=4` stops at reduction 18 as dependent-row
+  on `lssigma.v_[1]/L[1] + der(spacePhasor.i_[1])`. Under `=0` it stops
+  after 50 weighings with the same refused equation.
+
+The guard is honest for the two machines: taking it away moves the
+refusal to the next rule, which says the repeated row adds nothing.
+For the wheel it is the last wall of reduction, which makes
+`RollingWheel` the one model in which the ledger alone is the wall.
+Whether its run block is singular at the point or in structure is the
+next probe.
