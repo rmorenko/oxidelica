@@ -446,6 +446,15 @@ pub fn counts() -> (u64, u64) {
     COUNTED.with(Cell::get)
 }
 
+/// Count names asked for by a walk whose answer was remembered rather
+/// than walked again, so that the count stays one of names asked.
+pub(super) fn charge(asked: u64, walked: u64) {
+    COUNTED.with(|counted| {
+        let (a, w) = counted.get();
+        counted.set((a + asked, w + walked));
+    });
+}
+
 fn lookup_at<'a>(
     registry: &HashMap<&'a str, &'a ClassDef>,
     name: &str,
@@ -641,6 +650,7 @@ impl StandingNames {
         super::arrays::MISREAD.with(|held| held.borrow_mut().clear());
         super::arrays::READS_MEDIUM.with(|held| held.borrow_mut().clear());
         super::operators::FUNCTION_RECORDS.with(|held| held.borrow_mut().clear());
+        super::algorithms::RECURSIVE.with(|held| held.borrow_mut().clear());
         super::inlining::LOCAL_RECORDS.with(|held| held.borrow_mut().clear());
         super::inheritance::STARTS_WRITTEN.with(|held| *held.borrow_mut() = None);
         super::inheritance::PACKAGE_STARTS.with(|held| held.borrow_mut().clear());
@@ -659,6 +669,7 @@ impl Drop for StandingNames {
         super::arrays::MISREAD.with(|held| held.borrow_mut().clear());
         super::arrays::READS_MEDIUM.with(|held| held.borrow_mut().clear());
         super::operators::FUNCTION_RECORDS.with(|held| held.borrow_mut().clear());
+        super::algorithms::RECURSIVE.with(|held| held.borrow_mut().clear());
         super::inlining::LOCAL_RECORDS.with(|held| held.borrow_mut().clear());
         super::inheritance::STARTS_WRITTEN.with(|held| *held.borrow_mut() = None);
         super::inheritance::PACKAGE_STARTS.with(|held| held.borrow_mut().clear());

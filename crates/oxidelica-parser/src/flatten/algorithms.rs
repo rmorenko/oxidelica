@@ -143,6 +143,56 @@ pub(super) fn holds_unbounded_call(expr: &Expr, registry: &HashMap<&str, &ClassD
 /// Whether a function's calls lead back to itself, directly or through
 /// others. Such a call has no bottom to inline to.
 pub(super) fn recursive(class: &ClassDef, registry: &HashMap<&str, &ClassDef>) -> bool {
+    // The answer depends on the class's body and the registry alone,
+    // and the registry stands still for a whole flattening, so it is
+    // worked out once per class while it stands. Only the registry's
+    // own entry is remembered: a copy carrying the same name and a
+    // body of its own is asked the long way.
+    let own = registry
+        .get(class.name.as_str())
+        .is_some_and(|entry| std::ptr::eq(*entry, class));
+    if !own
+        || !recursive_cache_open()
+        || !super::lookup::REGISTRY_STANDS.with(|stands| stands.get())
+    {
+        return recursive_walk(class, registry);
+    }
+    // A remembered answer still counts the names its walk asked for:
+    // the count says how many names the compiler asked, not how many it
+    // had to look up afresh, so a hit hands back the walk's own price,
+    // which already holds whatever hits that walk itself was handed.
+    if let Some((told, asked, walked)) =
+        RECURSIVE.with(|held| held.borrow().get(&class.name).copied())
+    {
+        super::lookup::charge(asked, walked);
+        return told;
+    }
+    let before = super::lookup::counts();
+    let found = recursive_walk(class, registry);
+    let after = super::lookup::counts();
+    let price = (found, after.0 - before.0, after.1 - before.1);
+    RECURSIVE.with(|held| held.borrow_mut().insert(class.name.clone(), price));
+    found
+}
+
+thread_local! {
+    /// Whether a function leads back to itself, by its full name, for
+    /// as long as one registry stands - the answers that it does not
+    /// as well, since nearly every function asked about does not.
+    /// Keyed by a class of the registry, so bounded by it; cleared by
+    /// `StandingNames` on both sides.
+    pub(super) static RECURSIVE: std::cell::RefCell<HashMap<String, (bool, u64, u64)>> =
+        std::cell::RefCell::new(HashMap::new());
+}
+
+/// Whether the answers of [`recursive`] are remembered.
+/// `OXIDELICA_NO_RECURSIVE_CACHE` walks the call graph afresh on every
+/// asking, as before, so that one binary gives both numbers.
+fn recursive_cache_open() -> bool {
+    std::env::var_os("OXIDELICA_NO_RECURSIVE_CACHE").is_none()
+}
+
+fn recursive_walk(class: &ClassDef, registry: &HashMap<&str, &ClassDef>) -> bool {
     let mut seen: Vec<String> = Vec::new();
     let mut wanted: Vec<String> = Vec::new();
     carried::gather_calls_in_statements(
@@ -406,4 +456,76 @@ pub(super) fn read_later(statements: &[Statement], name: &str, depth: usize) -> 
         Statement::Call(_, args) => args.iter().any(in_expr),
         Statement::Break | Statement::Return => false,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn registry_of(classes: &[ClassDef]) -> HashMap<&str, &ClassDef> {
+        classes.iter().map(|c| (c.name.as_str(), c)).collect()
+    }
+
+    /// The remembered answer is the answer: asked twice under one
+    /// standing registry, both askings agree with the walk, and a second
+    /// registry with the same names but other bodies is not handed the
+    /// first one's answers.
+    #[test]
+    fn whether_a_function_leads_back_is_remembered_per_registry() {
+        let looping = crate::parser::parse_file(
+            "package L \
+               function f input Real x; output Real y; algorithm y := g(x); end f; \
+               function g input Real x; output Real y; algorithm y := f(x); end g; \
+             end L;",
+        )
+        .unwrap();
+        let plain = crate::parser::parse_file(
+            "package L \
+               function f input Real x; output Real y; algorithm y := g(x); end f; \
+               function g input Real x; output Real y; algorithm y := x; end g; \
+             end L;",
+        )
+        .unwrap();
+        {
+            let registry = registry_of(&looping);
+            let _standing = super::super::lookup::StandingNames::open();
+            let walked = recursive_walk(registry["L.f"], &registry);
+            assert!(walked);
+            assert_eq!(recursive(registry["L.f"], &registry), walked);
+            assert_eq!(recursive(registry["L.f"], &registry), walked);
+            assert!(RECURSIVE.with(|held| held.borrow().contains_key("L.f")));
+        }
+        let registry = registry_of(&plain);
+        let _standing = super::super::lookup::StandingNames::open();
+        assert!(!recursive(registry["L.f"], &registry));
+        assert!(!recursive(registry["L.f"], &registry));
+    }
+
+    /// The names a remembered answer saves are still counted as asked:
+    /// a hit moves the count of names exactly as the walk it stands for.
+    #[test]
+    fn a_remembered_answer_counts_the_names_its_walk_asked() {
+        let looping = crate::parser::parse_file(
+            "package L \
+               function f input Real x; output Real y; algorithm y := g(x); end f; \
+               function g input Real x; output Real y; algorithm y := h(x) + f(x); end g; \
+               function h input Real x; output Real y; algorithm y := x; end h; \
+             end L;",
+        )
+        .unwrap();
+        let registry = registry_of(&looping);
+        let _standing = super::super::lookup::StandingNames::open();
+        let price = |ask: &dyn Fn() -> bool| {
+            let before = super::super::lookup::counts();
+            let told = ask();
+            let after = super::super::lookup::counts();
+            (told, after.0 - before.0, after.1 - before.1)
+        };
+        let walked = price(&|| recursive_walk(registry["L.f"], &registry));
+        assert!(walked.1 > 0, "the walk asks for names");
+        let first = price(&|| recursive(registry["L.f"], &registry));
+        let hit = price(&|| recursive(registry["L.f"], &registry));
+        assert_eq!(first, walked);
+        assert_eq!(hit, walked);
+    }
 }
