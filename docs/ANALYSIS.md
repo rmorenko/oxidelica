@@ -80742,3 +80742,17 @@ of "constrains no state". Run alone, both print `runnable examples
 by that test, not thirteen, and the two transistors belong with the
 parts closed by a zero flow, as the list of seventeen above it already
 had them.
+
+`RollingWheel` was read further from the same probe
+(`/tmp/m676/cns/Modelica.Mechanics.MultiBody.Examples.Elementary.RollingWheel.txt`).
+Reductions 1 to 4 go through: the contact constraint first, then the
+three positions `wheel1.rollingWheel.frame_a.r_0` aliased to the body's.
+Reduction 5 asks to differentiate equation 74 a second time, for
+`delta_0[3]`. Reduction 6 asks the same 31 times, 26 for equation 59
+(`e_axis_0[1]`, `frame_a.R.T[2,1]`) and 5 for equation 74. The
+supply-once guard refuses every one. So the wall is the wheel's
+orientation, needed one storey higher than the contact equation it was
+taken from, not the velocity row the register names. That row is only
+where the refusal is printed. Whether a second differentiation of the
+same equation may be allowed is a question for index reduction as a
+whole, and nothing was built.
