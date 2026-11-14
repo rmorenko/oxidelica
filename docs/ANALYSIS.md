@@ -81104,3 +81104,14 @@ for is over by the copies. Core 3 has `HFixed` true and `MagRelFixed`
 false, which leaves its hysteresis state to the dependency. The
 refusal names a surplus that is in the library as written. Nothing was
 built; treating `[1]` as what the author meant would be a guess.
+
+The flat half was checked the same way against
+`/tmp/m669/walls_by_model.txt`: 31 of its 42 refusals carry an m669
+wall, and the eleven that do not are all parts by the head's count
+(`/tmp/m676/flat_runnable.txt`): two Clocked throttle utilities with a
+Clock whose interval a parent gives, five Media test parts on a
+partial medium function or `BaseProperties` (a medium the parent
+redeclares), `TankWithTopPorts` the same, and the DrumBoiler's
+`EquilibriumDrumBoiler` on `dewEnthalpy(sat)`. Each was mapped before
+by name (the Clock at line 54111, the partial media near 65621, the
+drum at 68431). So both halves now name a wall for every refusal.
