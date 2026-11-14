@@ -1603,6 +1603,14 @@ fn pair_lost_enabled() -> bool {
     std::env::var_os("OXIDELICA_NO_PAIR_LOST").is_none()
 }
 
+/// Whether a lost written condition takes the orphan it reads through
+/// the blocks inside its own instance, rather than the next orphan in
+/// line. `OXIDELICA_NO_PAIR_WRITTEN_COARSE=1` gives the next in line,
+/// as before.
+fn pair_written_coarse_enabled() -> bool {
+    std::env::var_os("OXIDELICA_NO_PAIR_WRITTEN_COARSE").is_none()
+}
+
 /// Match every equation to an unknown, reducing the index where that
 /// cannot be done.
 ///
@@ -6560,7 +6568,7 @@ pub(crate) fn compile_at(
             Ok(EquationItem {
                 lhs: rewrite.expr(&equation.lhs)?,
                 rhs: rewrite.expr(&equation.rhs)?,
-                origin: String::new(),
+                origin: equation.origin.clone(),
             })
         })
         .collect::<Result<Vec<_>, SimError>>()?;
@@ -9091,6 +9099,7 @@ impl CompiledModel {
                 .collect();
             orphan_states.retain(|state| !fixed.get(*state).copied().unwrap_or(false));
             let mut orphans = orphan_states.into_iter();
+            let mut written_coarse = None;
             for condition in 0..initial_equations.len() {
                 if state_taken.contains(&Some(condition)) {
                     continue;
@@ -9112,8 +9121,51 @@ impl CompiledModel {
                 {
                     continue;
                 }
-                let Some(state) = orphans.next() else { break };
-                state_taken[state] = Some(condition);
+                if !pair_written_coarse_enabled() {
+                    let Some(state) = orphans.next() else { break };
+                    state_taken[state] = Some(condition);
+                    continue;
+                }
+                // Which orphan, though, is not a matter of position: a
+                // condition written about what a block solves for is
+                // paired with an orphan it reads through the blocks, and
+                // only one inside the instance that wrote it - the coarse
+                // walk sees through a block to states of a neighbour that
+                // only the coupling connects (a transformer's three
+                // cores), and the instance is what the equation records
+                // of where it came from, not what its left side spells.
+                // A condition the model itself wrote has no instance to
+                // be held to, so any orphan it reads will do.
+                let coarse = written_coarse.get_or_insert_with(|| {
+                    states_behind_algebraics(&self.states, &self.algebraics, plan)
+                });
+                let mut reads = vec![false; self.states.len()];
+                for name in &named {
+                    if let Some(index) = self.states.iter().position(|s| s == name) {
+                        reads[index] = true;
+                    }
+                    if let Some(index) = self.algebraics.iter().position(|a| a == name) {
+                        if let Some(Some(row)) = coarse.get(index) {
+                            for (state, r) in row.iter().enumerate() {
+                                reads[state] |= *r;
+                            }
+                        }
+                    }
+                }
+                let own = initial_equations[condition].origin.as_str();
+                let mut pool: Vec<usize> = orphans.by_ref().collect();
+                let at = pool.iter().position(|state| {
+                    let instance = self.states[*state].rsplit_once('.').map_or("", |(p, _)| p);
+                    reads[*state]
+                        && (own.is_empty()
+                            || instance == own
+                            || instance.starts_with(&format!("{own}."))
+                            || own.starts_with(&format!("{instance}.")))
+                });
+                if let Some(at) = at {
+                    state_taken[pool.remove(at)] = Some(condition);
+                }
+                orphans = pool.into_iter();
             }
             // A demoted `fixed = true` loses its state to the same
             // coarseness: `coil.i` is what the coil's block solves for,

@@ -419,6 +419,33 @@ fn a_demoted_fixed_start_behind_a_block_moves_its_state() {
     );
 }
 
+/// A written initial equation about what a block solves for is paired
+/// with the state of its own instance that it reads through the block,
+/// not with whichever unclaimed state stands first. Paired by position,
+/// `c1.i = 2` took `a.v`, a state of a neighbour it never mentions, and
+/// the initialisation was refused as singular along `a.v`; this is the
+/// shape of two `DynamicPipe`s under `FixedInitial`.
+#[test]
+fn a_lost_written_condition_takes_a_state_of_its_own_instance() {
+    let result = run("model M \
+           model C Real u(start = 1); Real i; Real j; \
+             initial equation i = 2; \
+             equation der(u) = -u; i + j^3 = u; j - i + 0.1*j^3 = 0; end C; \
+           model D Real v(start = 3); equation der(v) = -v; end D; \
+           D a; C c1; \
+         annotation(experiment(StopTime = 1, Interval = 0.5, Tolerance = 1e-10)); end M;");
+    let first = result.rows.first().unwrap();
+    let at = |name: &str| first[result.columns.iter().position(|c| c == name).unwrap()];
+    assert!((at("c1.i") - 2.0).abs() < 1e-6, "c1.i(0) = {}", at("c1.i"));
+    assert!((at("a.v") - 3.0).abs() < 1e-9, "a.v(0) = {}", at("a.v"));
+    let j = at("c1.j");
+    assert!(
+        (at("c1.u") - 2.0 - j.powi(3)).abs() < 1e-6,
+        "c1.u(0) = {}",
+        at("c1.u")
+    );
+}
+
 /// A parameter written `fixed = false` takes its value from the
 /// initialisation rather than from its declaration.
 #[test]

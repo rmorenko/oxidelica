@@ -1422,7 +1422,7 @@ pub(super) fn flatten_equations(
             acc.initial_equations.push(EquationItem {
                 lhs,
                 rhs,
-                origin: String::new(),
+                origin: acc.origin.clone(),
             });
         }
     }

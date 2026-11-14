@@ -2024,7 +2024,10 @@ FLATTEN_FLOOR=977
 # IncompressibleFluidNetwork: the preflight /tmp/m676/preflight.txt
 # printed 843 run, so 843 - 3 (SpringWithMass, SMPM_VoltageSource of
 # FundamentalWave, TestJunctionIdeal) = 840.
-RUN_FLOOR=840
+# NonCircularPipes, won by pairing a lost written initial condition with
+# a state of its own instance: the pair /tmp/m681/p2on.txt printed 844
+# run against 843 off, no victims, so 844 - 3 = 841.
+RUN_FLOOR=841
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -2604,7 +2607,9 @@ RUNNABLE_FLATTEN_FLOOR=859
 # so 793 - 3 = 790.
 # IncompressibleFluidNetwork: the preflight /tmp/m676/preflight.txt
 # printed 859 / 794, so 794 - 3 = 791.
-RUNNABLE_RUN_FLOOR=791
+# NonCircularPipes: the pair /tmp/m681/p2on.txt printed 859 / 795, so
+# 795 - 3 = 792.
+RUNNABLE_RUN_FLOOR=792
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
