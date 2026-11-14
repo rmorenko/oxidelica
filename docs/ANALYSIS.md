@@ -81338,3 +81338,18 @@ aliases. `HeatingSystem` alone accounts for +9035. The pair prints no
 work per model, so the spread is not attributed. Merging would mean
 moving the `WORK_NAMES` centre, which the order reserves for Roman. The
 patch and its numbers are in the park as `m680_extends_alias.*`.
+
+### Where the extra names come from
+
+A probe binary printed the names of each model (an uncommitted line
+beside `OXIDELICA_WORK_EACH`). Run over the 202 Fluid and Media models
+with the switch off and on (`/tmp/m680/nm_off.txt`, `nm_on.txt`), it
+accounts for +5225580 of the pair's +5237897 names, which is 99.8%,
+spread over 87 models. `LinearFluid.LinearWater_pT` alone takes
++2276671. Three `WaterIF97` and two `SimpleNaturalGas` test models take
+about +0.29 million each, and six more media tests about +0.15 million
+each. These are media test models that now read the medium their
+`extends` clause redeclares, where before they read the partial
+default. The run counters and the lists did not move. The three heavy
+models checked one at a time (`/tmp/m680/hv_*.txt`) give identical
+answers and run work, with names +24, +1393 and +6.
