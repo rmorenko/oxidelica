@@ -201,6 +201,14 @@ than 6% goes to him whatever it wins. The rule is about the run half.
 A flattening half that moves visibly is a finding of its own, carried
 as a question rather than hidden under the six percent.
 
+A centre of a work counter has a standing answer of its own, given by
+Roman on 14 November. When a pair is clean (lists equal apart from what it
+wins, no victims) and moves a centre by less than 5%, the centre follows
+the pair's print in the same commit. The band stays as it is, and the
+comment above the centre names both files and both numbers. At 5% or
+more, the question goes to him. A hit of a cache counts as the lookups it
+saves, so a cache does not move the names centre at all.
+
 The six percent is counted in minutes of the run half, not in the
 counters of work. The counters are the better instrument for lists and
 for victims, where they are exact and the two halves of a pair agree on
