@@ -81115,3 +81115,24 @@ redeclares), `TankWithTopPorts` the same, and the DrumBoiler's
 `EquilibriumDrumBoiler` on `dewEnthalpy(sat)`. Each was mapped before
 by name (the Clock at line 54111, the partial media near 65621, the
 drum at 68431). So both halves now name a wall for every refusal.
+
+### m678: a small witness for `SMPM_ResistiveBraking`
+
+`/tmp/m678/P1.mo` keeps only the permanent magnet machine with its
+example's modifiers, a `TerminalBox` in star, a three-phase resistor,
+a star and a ground. It refuses the way the example does, at reduction
+11 with the dependent row `3*smpm.lszero.v/smpm.lszero.L = 0` and the
+refusal on `3*smpm.lszero.i = 0`. The trail goes through
+`terminalBox.starpoint.i = 0` at reduction 10: the box's star point is
+left open, so the zero-sequence current is zero, and its derivative
+written through `lszero` repeats a row the system holds. Four
+variations (`P2` to `P6`) separate the causes. In delta (`P2`) or with
+the star point grounded (`P6`) the structural wall goes away and the
+model stops at `step size underflow at t = 0`. A source in place of the
+resistor (`P4`) refuses the same way. The running sibling
+`SMPM_Braking` connects `terminalBox.starpoint`. The guard's own
+comment already names this machine (`S1` of m541, "the open-star
+permanent magnet machine"), so the shape is known and the refusal is
+the guard doing its work. That proves the mechanism and wins nothing.
+The question a repair would face is a second wall behind it, the
+underflow of `P6`, and it was not walked.
