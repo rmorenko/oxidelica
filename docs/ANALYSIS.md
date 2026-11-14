@@ -80756,3 +80756,16 @@ taken from, not the velocity row the register names. That row is only
 where the refusal is printed. Whether a second differentiation of the
 same equation may be allowed is a question for index reduction as a
 whole, and nothing was built.
+
+The two electrical models of the supply-once wall stop the same way,
+on a second differentiation, and not on the flow balance the register
+prints. `ActuatorWithNoise` reaches reduction 18 and asks four times,
+for equations 100, 101 (twice) and 612, all space-phasor currents of
+the permanent-magnet motor, `motor.smpm.spacePhasorS.spacePhasor.i_`,
+its zero sequence and `statorCore.spacePhasor.i_[2]`.
+`IMC_DOL_CommonLeakage` reaches reduction 16 and asks three times, for
+equations 2140, 2148 and 2149, the magnetic fluxes `port_n.Phi` of the
+stator's single-phase converters. So the three models of supply-once
+(the wheel above, these two) are one wall. Index reduction wants an
+equation it has already differentiated once, and the guard says no.
+They differ only in the domain the equation comes from.
