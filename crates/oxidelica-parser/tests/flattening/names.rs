@@ -131,6 +131,27 @@ fn outer_components_reach_the_inner_instance() {
 }
 
 #[test]
+fn an_inner_written_last_reads_a_parameter_of_its_holder() {
+    // The shape of IncompressibleFluidNetwork: the `inner` comes after
+    // the component that reaches it, and its modifier names a parameter
+    // of the model holding it. The `if` without an `else` must be
+    // decided from that parameter, whichever order the two are in.
+    let m = parse_model(
+        "model Sys parameter Integer mode = 1; end Sys; \
+         model Vol outer Sys sys; Real m; Real x; \
+         equation if sys.mode == 3 then der(m) = 0; end if; \
+           m = 1; x = time; end Vol; \
+         model Top parameter Integer chosen = 3; Vol v; \
+           inner Sys sys(mode = chosen); end Top;",
+    )
+    .unwrap();
+    assert!(
+        format!("{:?}", m.equations).contains("der"),
+        "the branch the holder's parameter chose is in the model"
+    );
+}
+
+#[test]
 fn outer_without_inner_gets_one_at_the_top() {
     // An `outer` with nothing above it to answer for it is not an
     // error: the language says to declare the missing `inner` at the

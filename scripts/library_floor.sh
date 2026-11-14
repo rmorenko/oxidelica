@@ -593,7 +593,10 @@ FILES_FLOOR=2671
 # And 976 = 974 + TestBooleanFunctions and SMPM_ResistiveBraking, won by
 # the array-input repairs of m671; the pair /tmp/m672/p_on.raw printed
 # 976 flatten, no victims.
-FLATTEN_FLOOR=976
+# And 977 = 976 + IncompressibleFluidNetwork, won by declaring an inner
+# parameter's modifier in order; its preflight (/tmp/m676/preflight.txt)
+# printed 977 flatten, no victims against the pair /tmp/m673, /tmp/m674.
+FLATTEN_FLOOR=977
 # The two run floors came down by one, and the one is named: giving a
 # record constructor called with no arguments the values its `extends`
 # stated took `Modelica.Thermal.FluidHeatFlow.Examples.WaterPump` out
@@ -2018,7 +2021,10 @@ FLATTEN_FLOOR=976
 # 841 run, so 841 - 3 = 838.
 # The array-input repairs won ModelicaTest.Math.TestBooleanFunctions:
 # the pair /tmp/m672/p_on.raw printed 842 run, so 842 - 3 = 839.
-RUN_FLOOR=839
+# IncompressibleFluidNetwork: the preflight /tmp/m676/preflight.txt
+# printed 843 run, so 843 - 3 (SpringWithMass, SMPM_VoltageSource of
+# FundamentalWave, TestJunctionIdeal) = 840.
+RUN_FLOOR=840
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -2291,7 +2297,8 @@ RUN_FLOOR=839
 # see `FLATTEN_FLOOR`.
 # And 858 = 856 + TestBooleanFunctions and SMPM_ResistiveBraking; see
 # `FLATTEN_FLOOR`.
-RUNNABLE_FLATTEN_FLOOR=858
+# And 859 = 858 + IncompressibleFluidNetwork; see `FLATTEN_FLOOR`.
+RUNNABLE_FLATTEN_FLOOR=859
 # And runnable run 674 = 671 + the three batteries, all runnable
 # examples, by the same runner job as `RUN_FLOOR` (d58700e, job
 # 112530851204).
@@ -2595,7 +2602,9 @@ RUNNABLE_FLATTEN_FLOOR=858
 # printed 856 / 792, so 792 - 3 = 789.
 # TestBooleanFunctions: the pair /tmp/m672/p_on.raw printed 858 / 793,
 # so 793 - 3 = 790.
-RUNNABLE_RUN_FLOOR=790
+# IncompressibleFluidNetwork: the preflight /tmp/m676/preflight.txt
+# printed 859 / 794, so 794 - 3 = 791.
+RUNNABLE_RUN_FLOOR=791
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
@@ -3710,7 +3719,12 @@ fi
 # pushes after it touched prose only, so the centre was left behind. Two
 # later prints of the same tree agree to the digit: the soft-tolerance
 # half (/tmp/m651/soft.txt) and the preflight (/tmp/m651/preflight.txt).
-WORK_NAMES=1709225508
+# Moved to 1717443649 on 2026-11-14 for IncompressibleFluidNetwork,
+# which arrives with the inner-parameter repair and alone looks up
+# 8578570 names: the preflight /tmp/m675/preflight.txt printed
+# 1717443649, equal to the digit to the on half /tmp/m674/raw.txt,
+# against 1709225112 off (/tmp/m673). The band is not moved.
+WORK_NAMES=1717443649
 WORK_NAMES_PPM=2000
 
 # The band, as a function, so that it can be seen red without a library

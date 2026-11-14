@@ -80,6 +80,20 @@ pub(super) fn instantiate(
         registry, class, prefix, env, acc, &imports, &shadow, &outers,
     );
 
+    // A modifier on the `inner` declaration may name a parameter of the
+    // class that declares it - `inner System system(massDynamics =
+    // systemMassDynamics)` - and that parameter is only worth something
+    // once the round above has settled it. Read before, the shared
+    // instance kept no value, and a component written above the `inner`
+    // met an `if` on it it could not decide. So the instances are read
+    // once more, now that this class's own parameters hold. Kept for
+    // measuring: OXIDELICA_NO_INNER_PARAM_MOD=1 skips the second reading.
+    if class.components.iter().any(|c| c.scope == Scope::Inner)
+        && !std::env::var("OXIDELICA_NO_INNER_PARAM_MOD").is_ok_and(|value| value == "1")
+    {
+        settle_the_inner_instances(registry, &inners, acc, &imports, &shadow, env.overrides);
+    }
+
     instantiate_bases(
         registry,
         class,
