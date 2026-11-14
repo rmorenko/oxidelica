@@ -80936,3 +80936,59 @@ first real point, and the band should be worked again from it. The
 band's own self-test in `preflight.sh` was the only red step of the
 preflight, because it still asserted the old points. It now checks the
 new ones: 1.045 and 0.923 are outside, and the desk's prints are inside.
+
+## m678: the nineteen empty weighings, equation by equation
+
+Read from the probes of m676 alone (`/tmp/m676/cns/<model>.txt`, binary
+md5 35c27787), no new runs of the corpus. For each model the equations
+the probe tried at the refusing reduction were listed, and the weigher
+printed `weighs []` for every one of them.
+
+| form                                     | models | reduction |
+| ---------------------------------------- | -----: | --------- |
+| outer connector closed by a zero flow    |     17 | 1 to 7    |
+| tank port flat at zero on both pipe ends |      1 | 3         |
+| MultiBody orientation chain              |      1 | 96        |
+
+The seventeen: `Add`, `Buffer`, `Feedback`, `Gain`, `Nand`,
+`RealSwitch`, `AnalysatorAC`, `AnalysatorDC`, `MNmos`, `MPmos`,
+`Transformer1PhaseWithHysteresis`, `Transformer3PhaseYyWithHysteresis`,
+`PermeanceActuator`, `SimpleSolenoid`, both
+`SpringDamperNoRelativeStates`, and `BatchPlant_StandardWater` (whose
+`B5.SideFluidPort[1].m_flow = 0` closes the same way at reduction 8).
+Every set has one shape: a top-level connector's flow set to zero
+because nothing connects it, the inner component's own `p.i = 0` (an
+input of an op amp, a gate, a control pin, a sensor's voltage pin),
+and the sum of the connection set equal to zero. Three equations on two
+unknowns, none of them holding a state, so there is nothing to weigh.
+Sixteen of these print `runnable examples: 0` when run alone: they are
+parts, checked as if they were models, and an unconnected part over
+determines itself. Only `BatchPlant_StandardWater` is an example.
+
+The smallest model that refuses the same way is twelve lines: a
+connector with `flow Real i`, a component whose pin sets `p.i = 0`, and
+the pin connected to an outer connector of the model, nothing else
+(`/tmp/m678/Z2.mo`). It refuses with `equation Ref("n.i") =
+Number(0.0) constrains no state` after `weighs []` three times. Giving
+the outer connector's potential (`/tmp/m678/Z.mo`) does not change the
+count of flows and it runs, so the refusal belongs to the top-level
+zero flow, not to the potential. That proves the mechanism and wins
+nothing.
+
+The ceiling is already written down: the parts were described by m544
+and m676 as "not work for the reducer". The refusal is honest. A model
+with a zero-flow pin left open at the top is overdetermined in the
+language. The only repair would be to stop adding the zero-flow
+equation for a top-level connector whose set already holds one, and
+that would change what the compiler accepts for parts that no runnable
+example is. For that reason it was not built.
+
+`TanksWithOverflow` is different. At reduction 3 both ends of the
+`overflow` static pipe are set flat at zero by the tanks' branch "above
+the fluid level, preventing outflow" (`Vessels.mo`, `ports[i].m_flow =
+0`), and the pipe's own balance adds a third equation over the same two
+flows. The branch that applies depends on the levels at run time, so
+this is an if equation whose chosen branch makes the set singular
+structurally. It is the one example in the group that looks like work,
+and the next probe should be on how the branches are picked before
+matching. `Engine1a` stays with the MultiBody chains of m540 to m543.
