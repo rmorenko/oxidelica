@@ -80789,3 +80789,22 @@ past what it fixes (2). The implied-row pair is the third shape again:
 `PointGravityWithPointMasses2` at reduction 63 on `der(freeMotion.frame_b.R.T)`
 against `fixedTranslation`, and `Loops.Utilities.Cylinder`, which is a
 part (`runnable examples: 0`), at reduction 28.
+
+## m676: the Spice3 adder parts stand on the one-name loop of RtlInverter
+
+The underdetermined row holds two parts of the four-bit adder,
+`Spice3BenchmarkFourBitBinaryAdder.NAND` and `ONEBIT`, last named in
+the chapters of shift 505. Probed with `OXIDELICA_NEWTON_TRAIL=1` on
+the binary of fd2d82b (`/tmp/m676/nand.txt`, command and md5 in
+`nand.env`), `NAND` refuses on a loop of one name, `der(Q4.vbe)`, and
+`oxidelica why` on `Q4.icapbe` shows the equation
+`Q4.icapbe = if Q4.m_bInit then 0 else Q4.cc.capbe * der(Q4.vbe)`.
+`Q4.cc.capbe` comes out of `bjtNoBypassCode` with start 0. This is the
+same equation, on the base-emitter junction instead of `vbx`, as the
+one-name loop of `Spice3BenchmarkRtlInverter`. At the start the
+coefficient of the derivative is zero, so the block has a dead column,
+and `solvers/mod.rs:1117-1125` refuses that by decision. `ONEBIT`
+names `der(X9.Q4.vbe)`, the same transistor one level down. So three
+of the row's seven are one breed of a closed ceiling, and the row's
+real owners are the machines and the two rectifiers named above.
+Nothing was built.
