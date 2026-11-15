@@ -81946,8 +81946,10 @@ rule that decides this road, so the decision is not this shift's.
 TestMixingVolumesPressureStates is not singular when its rows are scaled. One row carries only the
 compressibility of water, 4.5e-7, and unscaled elimination drops the last column on a pivot of
 2.9e-15, under the flat 1e-14. Dividing the rows as well as the columns lets the block factor
-(condition about 1e9), and the model then stops at the next link, a damped Newton walk that crawls.
-That patch is parked as well, since it wins nothing.
+(condition about 1e9), and the model then stops at the next link. That link is not a slow approach
+to a root. After 168 Newton steps `der(mixingVolume1.medium.p)` stands at -1.15e13 and is still
+growing: the steady start of a nearly incompressible volume's pressure, which is a question of state
+choice (queue item 21) and not of the solver. That patch is parked as well, since it wins nothing.
 
 Last, a wrong-name case with no prize in the corpus. A component named `o` in a model that calls
 the IF97 water functions is refused. The functions' own local `o[3]` takes the component's name
