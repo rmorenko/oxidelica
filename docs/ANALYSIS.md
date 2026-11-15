@@ -81808,3 +81808,11 @@ the standing rule switched off on the same binary (/tmp/m686/both3.out). Narrowi
 functions without record inputs did not save it (/tmp/m686/both4.out), because the redeclared
 `ThermodynamicState` of `massFractionSaturation` is not recognised as a record there. No wins, one
 victim: not mergeable as it stands, and the map says where to look next.
+
+The victim's cause was then probed. In the reference air the standing rule is carried thousands of
+times (`Tsat` alone more than nine thousand), and its arguments keep the inner body's names:
+`Tsat_der(state.p, ...)`, `pds_pT_der(state.p, state.T, ...)`. The rule is built from the call's
+arguments before the enclosing body's record `state` is substituted, so a rule that survives into
+the flat model names a record the flat model holds only field by field. That is the standing
+invariant broken once more, that what survives flattening carries the flat model's names. The fix
+goes where the caller's bindings are substituted, not into the record-input test.
