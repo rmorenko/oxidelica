@@ -81795,3 +81795,16 @@ outcome named before the run was that 0.38 to 0.40 would leave the question unre
 does. Head itself grazes the desk's upper edge, and the chain's run half, +0.67% in the pair and
 +1.9% here, is what tips it over. That is far under the six percent the run half is judged by, but
 it lands on a band that is not this shift's to move, so the chain stays parked for the review.
+
+The steady-start chain was walked three links further by probe and then parked whole
+(park/m686_steady_start_links.patch with its map). A call left standing now keeps the derivative
+its function declares, a call is not taken for an array because one of its arguments is one, and
+the rates of an array argument are handed element by element. `BranchingDynamicPipes` moves from
+compile.rs:31 to "initialization diverged". `HeatingSystem` stands at a singular start of its whole
+closed water loop. The small court of 150 models was clean (137 / 122 both halves,
+/tmp/m686/court_*.txt), but stacked on the record-operator chain it gives a victim:
+`IncompleteMedia.ReferenceMoistAir` stops at "unknown variable `medium.state`", and runs again with
+the standing rule switched off on the same binary (/tmp/m686/both3.out). Narrowing the rule to
+functions without record inputs did not save it (/tmp/m686/both4.out), because the redeclared
+`ThermodynamicState` of `massFractionSaturation` is not recognised as a record there. No wins, one
+victim: not mergeable as it stands, and the map says where to look next.
