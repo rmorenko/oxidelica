@@ -81953,3 +81953,11 @@ Last, a wrong-name case with no prize in the corpus. A component named `o` in a 
 the IF97 water functions is refused. The functions' own local `o[3]` takes the component's name
 when the array layer cuts `o.p` at its last dot. The same model with the component named `q` runs.
 It is written up in the park and not built.
+
+The run that the backward reading let through was checked against the circuit, and it is wrong.
+ThyristorBridge2mPulse_RLV is fed at 110 V RMS, so its DC side cannot rise above the 155.6 V peak.
+The run gives 134.7 to 269.4 V over its last 20 ms and a mean of 222.8 V. The load asks for
+R·i + V_DC = 20·19.97 − 260 = 139 V. A tolerance of 1e-8 gives the same numbers. So the floor door
+refused a point nobody could vouch for, and reading the block from the other side traded that refusal
+for a wrong answer. The ceiling in `solvers/mod.rs` is right on this model, and the parked patch is
+not fit to merge in its present form.
