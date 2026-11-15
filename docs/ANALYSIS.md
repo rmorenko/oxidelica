@@ -81701,3 +81701,76 @@ whole. Held to locals, the court over 150 models came out 137 flattened and 122 
 and refusal texts equal line for line. A probe of the third link showed that the reference air's bodies are left
 for the walk by the expression-depth ceiling, not by the nesting of calls. That ceiling is written down as one
 that is not to be raised, so the chain ends where the walk would have to learn record operators.
+
+## Shift m686: the ice's Gibbs function walked with its Complex arithmetic
+
+The third wall of the reference air was the walk meeting a record's operators. A carried body
+held `a := Complex(x, 1) * Complex(2, x)`, the walk read both records as lists of two, and refused
+because `a` is held element by element. The fix is in carried.rs, before the records are laid out
+as arrays, while one can still tell from the other. An operator between operator records becomes
+a call to the function the record offers for it (`Complex.'*'.multiply`). A local array of operator
+records is laid out as a table, a row per record and a column per field (`Complex o[12]` becomes
+`Real o[12, 2]`), so `o[1] := ...` fills a row and `o[1].re` reads `o[1, 1]`. The walk learned to
+write one row of a table and to lay out a table nothing wrote at its declaration. Each part has its
+own rollback key (`OXIDELICA_NO_CARRY_RECORD_OPS`, `OXIDELICA_NO_RECORD_ARRAY_TABLES`), and the two
+links that shift m685 parked travel with it in one patch, because the chain is taken whole.
+
+A wrong number was found and removed on the way, before any court. The first build gave the small
+model 100 where the arithmetic gives 81: `Complex(x)` with its imaginary part left out had been
+sent to the record's constructor function, whose output is bound by a modifier and has no
+statements, so the walk answered with zeros and said nothing. The record is now written out whole
+instead, the missing field taking the default the constructor gives its input (`Complex(x, 0)`). A
+default that is not a constant leaves the call as it was.
+
+Numbers, in the order they were measured. The smallest witness (/tmp/m685/W15.mo) runs, z = x,
+which is right by hand. A table of Complex records (/tmp/m686/sm/W18.mo) gives o[2] = -6 + 8i,
+also right by hand. `ReferenceMoistAir.Utilities.h_pTX` at 1 bar, 200 K and 1% water runs,
+-77.5 kJ/kg. The ice's enthalpy at 1 bar and 251 K stays at -377999.86 J/kg against the -377.6 kJ/kg
+of IAPWS-06. Under `--only` both corpus models went from 0 run to 1 run (/tmp/m686/only_*.txt).
+
+The court was one binary for both halves (/tmp/m686/ox9). The off half ran with all four rollback
+keys of the chain, the on half with the defaults, `--list --slow 60`, files /tmp/m686/p_off.txt and
+p_on.txt with pair.env. The halves printed 978 flatten and 845 run against 978 and 847 (runnable
+859 / 796 against 859 / 798). The ran lists differ by exactly the two models won
+(`ReferenceAir.Inverse_sh_TX`, `IncompleteMedia.ReferenceMoistAir`), the flat lists are equal, and
+there are no victims. The census row "an array reached the evaluator" for the Gibbs `t` went from 2
+to 0. The run half took 1652 s against 1663 s, 0.67%. The series has no A/A, so this is a sign, not
+a price. The run work is equal apart from the two new models (+95 points, +45 Newton steps). Names
+rose by 5983751, 3473 per million, which moves the names centre under the standing rule. Heavy
+models: four reference-air and R134a media plus the trace-substance pipe, six by `--only`, off
+against on (/tmp/m686/hv_off.txt, hv_on.txt). Lists and refusals are equal and the run work is equal
+to the digit, so the heavy basket was measured and nothing moved. The victim witnesses
+(`scripts/victim_witness.sh`, /tmp/m686/witness.txt) are clean.
+
+Three rows of the run half's census were also taken model by model, and all three are families
+already parked. "Parameter X has no value" (24): every one is a helper with no experiment whose
+parameter is left for an instantiating model to give a value to. The counter shows nineteen kinds
+only because it quotes the parameter's name. "Unbalanced, nothing determines" (13): helpers short
+by exactly the connectors or inputs the model above them would drive. Added to the fourteen helpers
+of the singular row that m685 found, that makes 51 models on one open question, none of them a
+runnable example. "The Newton direction" (9): all nine are Fluid pipe networks led by the first
+pipe's medium pressure, the damped-step family whose stack is parked.
+
+Two further rows were taken by name: "underdetermined algebraic loop" and "singular Jacobian in
+algebraic loop", seven each, seventeen names in all by the grep (/tmp/m686/row_uj_out.txt). Eleven
+sit in families already parked: the Spice3 benches, the machines' air gap, and the MultiBody loops.
+Two have moved row since the census and now refuse on the arithmetic floor. The open remainder is
+six models in four small families: three switching rectifiers (the QuasiStatic single-phase, the
+polyphase diode bridge and the thyristor bridge), a lossy gear, and two Fluid models at start. The
+rectifiers are the best candidate for a map of their own.
+
+The first preflight went red in a debug test, a stack overflow in
+`a_body_nothing_could_inline_is_walked_by_the_run`, which head passes. The two blocks added to the
+walk had widened the frames of `walk` and `run`, which recurse into each other. Both blocks were
+moved into functions of their own, kept out of line, and the test passes again. A recursive
+function's frame is paid on every storey, so new work inside one goes out of line.
+
+The chain was then parked whole rather than merged (park/m686_record_ops_chain_full.patch with its note). The
+second preflight passed everything except the library step, and there it failed on the desk's ratio of
+run over flatten: 0.404 against the band's 0.40 (`DESK_RATIO_HIGH` in scripts/preflight.sh). The
+run half of the main pass is the same as the last preflight on this desk, 1190 s against 1192 s
+(/tmp/m676/preflight_props.txt), while flattening fell from 4224 s to 3563 s. So the ratio rose
+because the flattening half was quicker on a quiet desk, not because running got dearer. The edges
+are not this shift's to move, the pair cannot stand in for the step because the walk was edited
+after it, and a third preflight hoping for a noisier desk would be a wager rather than a measurement.
+The decision goes to the review with every number on file.
