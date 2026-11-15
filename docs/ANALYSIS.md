@@ -81971,7 +81971,11 @@ desk (`/tmp/m688/hv`). The run half does not move: MoistAir1 took 1433, 1467 and
 own two off runs. Flattening gets cheaper where the cache has repeats to save: MoistAir1 by 1.3 s
 (34.4 to 33.1 s, with the off runs 11 ms apart), SeriesPipes12 by 2.4 s (29.3 to 26.8 s, off runs
 275 ms apart). R134a1 does not change. The work is byte-equal in all nine runs except for 168 more
-names on SeriesPipes12, which is the commit counting the names a hit stands for.
+names on SeriesPipes12, which is the commit counting the names a hit stands for. Three more gave
+the same picture. MoistAir2 flattened 1.5 s faster (23.0 to 21.5 s) and BranchingPipes12 2.3 s faster
+(29.1 to 26.7 s, with 166 more names counted). R134a2 did not change, and no run half moved. So over
+six heavy models the cache costs nothing in the run and saves seconds of flattening wherever media
+functions are walked many times.
 
 The flatten half was measured again on the fresh head, all 42 models the census refused there. 41
 still refuse for the reasons mapped, and EquilibriumDrumBoiler, whose row was stale, now stops in
