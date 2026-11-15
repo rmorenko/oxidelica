@@ -81691,3 +81691,13 @@ still stand there. Fourteen of them are helper circuits with no experiment annot
 open (op-amp circuits, analysers, flux-tube components, spring-damper utilities), so they are the same question
 as the helper rows already put to Roman. The rest are MultiBody loops and constraints (6), RobotR3 (2),
 tanks (2), Spice3 MOS benches (2), machines (2) and `ActuatorWithNoise` (1).
+
+The first two links were then written as a clean change and parked with a small court rather than merged. An
+array of records held by a body is bound field by field and kept in view as records, and a record written into
+an element of a local array is taken apart into its fields. Each part has its own rollback key and a unit test
+that goes red under it. The first draft also took apart elements of an output, and cost twenty-one QuasiStatic
+models, whose `symmetricTransformationMatrix` writes its complex matrix element by element and hands it back
+whole. Held to locals, the court over 150 models came out 137 flattened and 122 run in both halves, with the lists
+and refusal texts equal line for line. A probe of the third link showed that the reference air's bodies are left
+for the walk by the expression-depth ceiling, not by the nesting of calls. That ceiling is written down as one
+that is not to be raised, so the chain ends where the walk would have to learn record operators.
