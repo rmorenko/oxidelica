@@ -81926,3 +81926,30 @@ forbid looking for a mode that makes the block determined. That search is not bu
 `MagRel` asks no question either. `oxidelica why` shows its declared start
 (`transformer.MagRelStart[3]`) is read. The transformer is refused because the start equations do not
 tell `core3.Hstat` and `core3.MagRel` apart, whatever start either one has.
+
+### What stands behind the switch-mode count, read on small models
+
+PumpingSystem joins the switch-mode family, proved on a small model and not on the corpus. Two
+probes of the library model rule out the obvious causes. Raising the pump's first-order speed to
+1200 rpm at the start gives the same refusal, and so does opening the valve fully. The Jacobian is
+of rank 14 of 15, and its null vector is the column of `pumps.s`. A model of three lines reproduces
+it word for word: an unknown `s` that starts at 0, on the kink of a check valve
+(`V = if s > 0 then ... else 0` and `head = if s > 0 then f(V) else c - s`), with `V` torn as an
+unknown of its own. The Jacobian is a forward difference, so it reads the open branch, where `head`
+does not mention `s`. So the column is dead at the point, not in the block. A backward reading of
+the same block, kept in the park behind a key, makes the small model run. On a court of 93 models it
+lost none. It moved PumpingSystem on to an honest assertion (reverse flow against the check valve)
+and let ThyristorBridge2mPulse_RLV run, which is one of the doors closed by the word of 21 October.
+The written ceiling, "a dead column is a statement about the block, not about the point", is the
+rule that decides this road, so the decision is not this shift's.
+
+TestMixingVolumesPressureStates is not singular when its rows are scaled. One row carries only the
+compressibility of water, 4.5e-7, and unscaled elimination drops the last column on a pivot of
+2.9e-15, under the flat 1e-14. Dividing the rows as well as the columns lets the block factor
+(condition about 1e9), and the model then stops at the next link, a damped Newton walk that crawls.
+That patch is parked as well, since it wins nothing.
+
+Last, a wrong-name case with no prize in the corpus. A component named `o` in a model that calls
+the IF97 water functions is refused. The functions' own local `o[3]` takes the component's name
+when the array layer cuts `o.p` at its last dot. The same model with the component named `q` runs.
+It is written up in the park and not built.
