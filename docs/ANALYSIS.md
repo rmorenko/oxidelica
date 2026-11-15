@@ -81787,3 +81787,11 @@ whose declared `derivative=` annotation the slope does not read. The probe is pa
 (park/m686_still_index_slope.*), the chain not yet walked to its end. The dddX pair (`MoistAir`,
 `FlueGasSixComponents`) is a question rather than a fix: the library types a derivative of density
 as a Density, with a minimum of zero, and the value is physically negative.
+
+The desk's ratio was then measured on head itself, the same library step on the same desk
+(/tmp/m686/headlib/judge.log). Head prints 0.399, inside the band by a thousandth, with the main
+pass's run half at 1168 s against the chain's 1190 s and flattening equal (3558 against 3563). The
+outcome named before the run was that 0.38 to 0.40 would leave the question unresolved, and it
+does. Head itself grazes the desk's upper edge, and the chain's run half, +0.67% in the pair and
++1.9% here, is what tips it over. That is far under the six percent the run half is judged by, but
+it lands on a band that is not this shift's to move, so the chain stays parked for the review.
