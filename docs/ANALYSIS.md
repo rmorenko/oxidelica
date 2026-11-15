@@ -81816,3 +81816,10 @@ arguments before the enclosing body's record `state` is substituted, so a rule t
 the flat model names a record the flat model holds only field by field. That is the standing
 invariant broken once more, that what survives flattening carries the flat model's names. The fix
 goes where the caller's bindings are substituted, not into the record-input test.
+
+The victim's mechanism was found by printing why the outer body would not inline. With the rule
+carried beside every inner standing `Tsat`, `psat` and `pds_pT`, inlining `massFractionSaturation`
+meets the expression-depth ceiling (32), so the outer body stands whole with its record argument.
+That ceiling is written down as not to be raised. The standing rule therefore must not deepen what
+is still being inlined: it could be attached only once the flat model is built, or its rule could be
+left out of the depth count. Both are recorded in the map, and neither is built.
