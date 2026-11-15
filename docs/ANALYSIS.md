@@ -81544,3 +81544,50 @@ an empty matrix reaches `dgesvd` as shape `[0]`, the decomposition refuses
 an empty matrix on purpose, and with the empty matrix removed the model
 still stops at `singularValues` answering with a `sigma` of unseen length.
 The note is `m681_two_candidates_are_chains.md` in the park.
+
+## Shift 639: the transformer's surplus is not fixed against written, and size reads a stated fill
+
+### ThreePhaseTransformerWithRectifier: the wall stands behind the pairing
+
+The probe `OXIDELICA_INIT_PROBE` was taken again on the head (`a48f4a5`,
+binary md5 in `/tmp/m683/tpt.env`, output `/tmp/m683/tpt.txt`), because the
+earlier map was made before the origin pairing went in. The distribution
+had not moved: 21 conditions and 4 pinned starts for 23 states, two over;
+`transformer.core1.derHstat = 0` took `transformer.core3.MagRel`, a
+neighbouring core's magnetisation, and the other two `derHstat` rows took
+nothing.
+
+A narrow change held a condition the model writes about one component to
+the instance all its names share. The pairing became right
+(`core3.derHstat` took `core3.MagRel`), and the start was refused one
+step further on: dropping the two unpaired rows left
+`the initialization problem is singular ... [transformer.core1.Hstat,
+transformer.core2.Hstat, pdissEddyAvg.x[1], pdissEddyAvg.x[2]]`.
+
+The question of which condition is older, a `fixed = true` start or a
+written `derHstat = 0`, was then answered by a small model rather than by
+reading: the example with `MagRelFixed = {false, false, false}`, so that
+nothing has to be demoted and the count is square without a search
+(`/tmp/m683/sm/TPTnofix.mo`), is refused with the same singular Newton
+step over the same four names. So demoting the pin cannot make the model
+run, and the change was parked with that number
+(`m683_fixed_vs_written.{patch,md}`). The next link is why the columns of
+`Hstat` and of the eddy-loss filter are empty in the start's Jacobian.
+
+The same probe over the rest of the row, from the head binary:
+`NonCircularPipes` now runs (`/tmp/m683/ncp.txt`), its two unpaired rows
+being exactly the one pressure per pipe that the boundary already sets;
+`GearType1` is unchanged (`/tmp/m683/gear.txt`).
+
+### size of a stated fill
+
+`size(fill(0.0, 0, 3), 2)` lost the width, because the call expands to no
+rows and the width lives only in the call. The size now reads the length a
+`fill`, `zeros` or `ones` states when neither the expansion nor a
+declaration gives one. It moves no model: the empty corpus pair from one
+binary each half (`/tmp/m683/p2_off.txt` against the head binary,
+`/tmp/m683/p2_on.txt`, witnesses beside them) printed 978 flatten and 844
+run, runnable 859 and 795, on both halves, the lists of what flattens and
+what runs equal line for line, and every work counter equal to the digit
+(`1722724050 names`, `35294336 newton`). The run half took 1764 s and
+1718 s, which is drift with equal work. The heavy models were not measured.
