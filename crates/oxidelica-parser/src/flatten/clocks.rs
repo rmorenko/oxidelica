@@ -935,6 +935,18 @@ pub(super) fn work_out(
     // factor has to give this clock exactly, and a ratio that only
     // rounds to a whole number gives a different clock.
     if !candidate.same(&goal) {
+        // A whole factor that still does not give the clock wanted is
+        // two base clocks ticking together, not a factor missing: the
+        // identity of clocks is structural, and saying "no whole
+        // number" while naming one sent a reader after the arithmetic.
+        if candidate.interval() == goal.interval() {
+            return Err(format!(
+                "the factor of the `{operator}` in `{target}` is left for the compiler to find, \
+                 and {rounded} gives the interval but not the clock: the two sides stand on \
+                 different base clocks, and a clock is one clock only when it is one base \
+                 sampled the same way"
+            ));
+        }
         return Err(nowhere());
     }
     clocks.settle(waiting, candidate);

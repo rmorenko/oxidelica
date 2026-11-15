@@ -802,7 +802,7 @@ fn a_column_flat_at_the_point_is_not_a_column_the_equations_lack_nor_an_answer()
              equation i * R = v; v = 1.0; der(s) = i; \
              annotation(experiment(StopTime = 1, Interval = 0.1)); end Z;"
         ),
-        "structurally singular model: equation Ref(\"v\") = Number(1.0) constrains no \
+        "structurally singular model: equation `v = 1` constrains no \
          state, so index reduction cannot help, nor did the 1 other equations of its \
          singular subset tried in its place"
     );
@@ -963,7 +963,7 @@ fn a_constraint_that_grows_past_the_ceiling_names_its_model() {
     };
     assert!(error.0.contains("grew to"), "{}", error.0);
     assert!(error.0.contains("at reduction 1"), "{}", error.0);
-    assert!(error.0.contains(r#"Ref("y") = Number(2.0)"#), "{}", error.0);
+    assert!(error.0.contains("`y = 2`"), "{}", error.0);
 }
 
 #[test]

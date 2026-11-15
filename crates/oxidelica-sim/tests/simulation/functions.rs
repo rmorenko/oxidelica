@@ -2704,7 +2704,7 @@ fn a_medium_fits_its_coefficients_from_a_table_in_matrix_brackets() {
     let result = run(TABLE_MEDIUM);
     assert_eq!(last_of(&result, "y"), 181.75);
     let why = refused_held_back(TABLE_MEDIUM);
-    assert!(why.contains("Ref(\"c\") is of shape []"), "{why}");
+    assert!(why.contains("c is of shape []"), "{why}");
 }
 
 #[test]

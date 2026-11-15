@@ -729,6 +729,15 @@ fn a_clock_or_a_factor_left_unsaid_is_worked_out_from_the_equation() {
     // the mistaken one.
     assert!(err(&inferred("Clock(1, 4)", "subSample(a)"))
         .contains("sampling every 0.1 to tick every 0.25 would take a factor of 2.5"));
+    // A whole factor between two clocks declared apart gives the
+    // interval and not the clock: `AbsoluteClocks` of the library was
+    // told "no whole number" while the same message named 2.
+    let apart = err(&inferred("Clock(1, 5)", "subSample(a)"));
+    assert!(
+        apart.contains("2 gives the interval but not the clock"),
+        "{apart}"
+    );
+    assert!(!apart.contains("no whole number"), "{apart}");
     // `Clock(0, 5)` leaves the numerator to the compiler and keeps the
     // denominator, so what turns up has to be a whole number of fifths.
     assert!(err(

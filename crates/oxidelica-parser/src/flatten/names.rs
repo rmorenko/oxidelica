@@ -1060,9 +1060,12 @@ fn inherited_inputs_open() -> bool {
 }
 
 /// A short rendering of an expression, for a message that has to say
-/// which one it means without printing a tree.
+/// which one it means without printing a tree. It is written in the
+/// model's own spelling - `2:size(table, 2)` rather than
+/// `Range(Number(2.0), None, Call("size", ...))` - because a refusal is
+/// read by whoever wrote the model, who never wrote the compiler's tree.
 pub(super) fn sketch(expr: &Expr) -> String {
-    let text = format!("{expr:?}");
+    let text = expr.describe();
     match text.char_indices().nth(70) {
         Some((cut, _)) => format!("{}...", &text[..cut]),
         None => text,

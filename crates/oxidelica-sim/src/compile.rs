@@ -2012,7 +2012,9 @@ fn reduce_index_once(
         if reductions >= MAX_INDEX_REDUCTIONS {
             let (lhs, rhs) = &algebraic_eqs[failed_eq];
             return err(format!(
-            "structurally singular model: equation {lhs:?} = {rhs:?} still cannot be matched after {MAX_INDEX_REDUCTIONS} index reductions"
+            "structurally singular model: equation `{} = {}` still cannot be matched after {MAX_INDEX_REDUCTIONS} index reductions",
+            lhs.describe(),
+            rhs.describe()
         ));
         }
         reductions += 1;
@@ -2602,8 +2604,10 @@ fn reduce_index_once(
                             if nodes > ceiling {
                                 return err(format!(
                                     "structurally singular model: differentiating the equation \
-                 {lhs:?} = {rhs:?} grew to {nodes} terms at reduction {reductions}, \
-                 past the {ceiling} this compiler will carry"
+                 `{} = {}` grew to {nodes} terms at reduction {reductions}, \
+                 past the {ceiling} this compiler will carry",
+                                    lhs.describe(),
+                                    rhs.describe()
                                 ));
                             }
                             if implied_row_refused() {
@@ -2611,8 +2615,10 @@ fn reduce_index_once(
                                 if order > MAX_REDUCED_ORDER {
                                     return err(format!(
                                     "structurally singular model: differentiating the equation \
-                 {lhs:?} = {rhs:?} at reduction {reductions} names a derivative of order \
-                 {order}, past the {MAX_REDUCED_ORDER} a reduction may reach"
+                 `{} = {}` at reduction {reductions} names a derivative of order \
+                 {order}, past the {MAX_REDUCED_ORDER} a reduction may reach",
+                                    lhs.describe(),
+                                    rhs.describe()
                                 ));
                                 }
                             }
@@ -2645,7 +2651,9 @@ fn reduce_index_once(
                             // like a kind with no cause given.
                             return err(format!(
                             "structurally singular model: {reason}, differentiating the equation \
-                 {lhs:?} = {rhs:?}"
+                 `{} = {}`",
+                            lhs.describe(),
+                            rhs.describe()
                         ));
                         }
                     };
@@ -2737,7 +2745,9 @@ fn reduce_index_once(
                                 }
                                 return err(format!(
                                 "structurally singular model: no equation determines `{name}`, \
-                 whose derivative the equation {lhs:?} = {rhs:?} needs"
+                 whose derivative the equation `{} = {}` needs",
+                                lhs.describe(),
+                                rhs.describe()
                             ));
                             };
                             if supplied.contains(&source) {
@@ -2787,7 +2797,9 @@ fn reduce_index_once(
                                 Err(reason) => {
                                     return err(format!(
                             "structurally singular model: {reason}, differentiating the equation \
-                     {sl:?} = {sr:?} that determines `{name}`"
+                     `{} = {}` that determines `{name}`",
+                            sl.describe(),
+                            sr.describe()
                         ));
                                 }
                             };
@@ -2983,7 +2995,9 @@ fn reduce_index_once(
                         if attempt == 0 && !path_mode {
                             let (lhs, rhs) = &algebraic_eqs[eq];
                             refusal = Some(SimError::from(format!(
-                            "structurally singular model: equation {lhs:?} = {rhs:?} constrains no state, so index reduction cannot help"
+                            "structurally singular model: equation `{} = {}` constrains no state, so index reduction cannot help",
+                            lhs.describe(),
+                            rhs.describe()
                         )));
                         }
                         // Whatever the attempt added is taken back, so the

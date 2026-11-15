@@ -2132,7 +2132,7 @@ fn an_outside_body_names_itself() {
     )
     .expect_err("a body written outside with no language")
     .message;
-    assert!(error.contains("twice_it(u, Number(2.0))"), "{error}");
+    assert!(error.contains("twice_it(u, 2)"), "{error}");
 
     // `external \"builtin\"` is the language's own operator given a
     // place in a library's tree, and is answered rather than refused.

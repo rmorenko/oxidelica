@@ -323,7 +323,7 @@ fn a_base_may_be_modified_with_what_another_base_settled() {
         error.contains("needs a length the compiler can see"),
         "{error}"
     );
-    assert!(error.contains("Ref(\"n\")"), "{error}");
+    assert!(error.contains("can see: n"), "{error}");
 }
 
 /// A class that replaces one it inherited by extending it, and a
