@@ -81963,3 +81963,16 @@ R·i + V_DC = 20·19.97 − 260 = 139 V. A tolerance of 1e-8 gives the same numb
 refused a point nobody could vouch for, and reading the block from the other side traded that refusal
 for a wrong answer. The ceiling in `solvers/mod.rs` is right on this model, and the parked patch is
 not fit to merge in its present form.
+
+The recursion cache of d90361b had not been measured over the heavy models. Three of them were run
+one model at a time, with the cache switched off, then on, then off again, from one binary on a quiet
+desk (`/tmp/m688/hv`). The run half does not move: MoistAir1 took 1433, 1467 and 1443 ms, R134a1
+5091, 5147 and 5225 ms, and SeriesPipes12 54652, 53901 and 53980 ms, each inside the gap between its
+own two off runs. Flattening gets cheaper where the cache has repeats to save: MoistAir1 by 1.3 s
+(34.4 to 33.1 s, with the off runs 11 ms apart), SeriesPipes12 by 2.4 s (29.3 to 26.8 s, off runs
+275 ms apart). R134a1 does not change. The work is byte-equal in all nine runs except for 168 more
+names on SeriesPipes12, which is the commit counting the names a hit stands for.
+
+The flatten half was measured again on the fresh head, all 42 models the census refused there. 41
+still refuse for the reasons mapped, and EquilibriumDrumBoiler, whose row was stale, now stops in
+the run half on a parameter its helper base class leaves without a value. No flatten family moved.
