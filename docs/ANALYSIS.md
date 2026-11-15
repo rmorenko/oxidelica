@@ -81905,7 +81905,8 @@ the two sides stand on different base clocks. Its test is red without the change
 The court of the last shift took 176 models and gave equal outcomes line for line. A small court of
 five models gave the same (4 flatten, 1 run, both halves), and only the clock refusal changed words.
 Preflight on the merged tree printed 2671 read, 978 flatten and 847 run, runnable 859 and 798, a
-desk ratio of 0.364 and a runner ratio of 0.520, no witness line, and 92.54% line coverage. Nothing
+desk ratio of 0.364 (the runner's ratio is printed only by CI, the 0.520 in the preflight log being
+the band's self-test, not a measurement), no witness line, and 92.54% line coverage. Nothing
 was won and nothing was lost, which is what a change of words should do. It was not measured on the
 heavy models, since no outcome moved.
 
