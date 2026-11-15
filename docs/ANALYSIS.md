@@ -81615,3 +81615,12 @@ all 31 rounds. What alternates at t = 0.0067798 is the clutch, between
 `startBackward` with `mode = 0` and `startForward` with `mode = 1`, round
 after round at one instant. The reading is refuted. The clutch is the
 next place to look, with its `sa` printed per round.
+
+The clutch ring was then shrunk. Two inertias sliding at 100 and 90
+rad/s, a clutch between them and a sine torque, with nothing else
+(`/tmp/m683/sm/C3.mo`), are refused with the corpus text exactly, while
+the same model started at rest runs. In the probed rounds the clutch's
+relative acceleration is linear in its torque: -80 gives 1246.65 and +80
+gives -2113.35, so the locked configuration would carry -20.6, inside
+the clutch's 80. The locked mode is consistent, and the event rounds go
+between the two sliding modes without visiting it. Nothing was built.
