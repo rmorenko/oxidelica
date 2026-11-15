@@ -81863,3 +81863,14 @@ dddX[Medium.nX]` at ModelicaTest/Media.mo:40 and :182, and the assertion is the 
   check sees `T` against `1`. Twelve lines show it (/tmp/m687/U6.mo), and the same body without the
   `if` runs (U5.mo). The fix is structural, since `Expr::Number` carries no unit. It is the best
   candidate the reading found.
+
+The hysteresis chain was then walked to its end with a probe (whole numbers claiming no unit, not
+committed). Behind the unit wall the start of `preisachEverett.x` sits on the kink of
+`abs(H) + abs(x)` at x = 0, a column dead at the point, which is the closed dead-column family. The
+unit fix alone wins nothing. Two text-only changes are parked with tests: a true refusal for a whole
+clock factor across two base clocks (park/m687_clock_factor_message.patch), and the seven index
+reduction refusals printed in model text rather than as the compiler's tree
+(park/m687_reduction_refusals_model_text.patch). Three more rows of the census turned out to be
+stale: EquilibriumDrumBoiler, Rotational.Examples.Friction and the two reference-air models.
+Essotherm650's Prandtl number of 1.95e7 was checked by hand (cp·eta/lambda at 298.15 K). The
+viscosity table holds mPa·s where the library reads Pa·s.
