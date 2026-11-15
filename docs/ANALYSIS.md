@@ -81509,3 +81509,38 @@ off half agrees to the digit with the on half of the pairing pair before
 it. `FLATTEN_FLOOR` goes to 978 and `WORK_NAMES` to 1722724050. The heavy
 models were measured in m680 without the cache (`/tmp/m680/hv_*`, answers
 equal) and were not measured again over it.
+
+## Shift 638: the desk's band, read whole, and two candidates that are chains
+
+### The preflight on the head, without a substitute
+
+The ratio band was asked about on a red print from an intermediate tree.
+The full preflight on `4975035`, with no corpus pair standing in for the
+library step, printed `ratio: run/flatten is 0.347, inside 0.28..0.40` and
+`OK: 2671 files read, 978 flatten, 844 run; runnable 859 flatten, 795 run`
+(`/tmp/m681/preflight.txt`, lines 2409 and 2452). The desk's band holds, so
+neither band was moved and Roman's word (a) is left unspent.
+
+### Hysteresis: the unit is the first of two walls
+
+`HysteresisModelComparison` is refused because `everett` writes
+`J := unitT*(...)` with `unitT` a tesla-valued constant, and the constant
+arrives as a bare whole `1`, which the unit layer reads as dimensionless. A
+probe binary that let every bare number carry no claim (`/tmp/m681/oxp1`,
+not committed) made the model flatten and then refused it at the start:
+`the initialization problem is singular ... [preisachEverett.x]`. The small
+model `/tmp/m681/sm/P3.mo` shows why: at `H = 0` the start equation
+`J = initPreisach(x, H, mat)` sees `x` only through `abs(x)` at its kink, so
+the column for `x` is zero. A unit fix alone buys one flattened model and no
+run, so it was not built.
+
+### nullSpace of an empty matrix: four walls
+
+`ModelicaTest.Math.TestMatrices3` stands behind at least four links. The
+first, `size(fill(0.0, 0, 0), 2)` losing the width the call states, is
+fixed by a parked patch (`m681_size_of_stated_fill.patch`). With it the
+small `M2` runs, which proves the mechanism and moves no number. Behind it,
+an empty matrix reaches `dgesvd` as shape `[0]`, the decomposition refuses
+an empty matrix on purpose, and with the empty matrix removed the model
+still stops at `singularValues` answering with a `sigma` of unseen length.
+The note is `m681_two_candidates_are_chains.md` in the park.
