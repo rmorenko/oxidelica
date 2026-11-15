@@ -81643,3 +81643,33 @@ The corpus pair from one binary (`/tmp/m683/p1_off.txt` and
 the one line `ran Modelica.Mechanics.Rotational.Examples.Friction`, so
 there are no victims. The flatten work is equal to the digit, and the run
 half took 1712 s against 1651 s. The merge is left to the next shift.
+
+## Shift 640: the ring of switches merged, and the reference air's walls counted again
+
+The patch parked by shift 639 is merged as 4450e07: when the rounds of
+an event come back to a set of discrete values already seen, the flags
+that moved are set down once and the point is solved again
+(`OXIDELICA_NO_RING_REST=1` undoes it). Its test is red under the key and
+green without it. The small models of the park ran as recorded: C2 and C3
+run with the change and fail without it (step size underflow at
+t = 0.006), the control C1 runs both ways, and Friction alone under
+`--only` runs (`/tmp/m684/fr.txt`). The pair was not taken again: it is
+`/tmp/m683/p1_off.txt` and `p1_on.txt`, 844 against 845 run, runnable
+795 against 796, one line of difference, no victims, the names centre
+unmoved. The preflight `/tmp/m684/preflight.txt` printed 2671 files,
+978 flatten, 845 run, runnable 859 / 796, the figure named before it
+ran, so `RUN_FLOOR` went 841 to 842 and `RUNNABLE_RUN_FLOOR` 792 to 793
+(845 and 796, less the three swinging models).
+
+`ReferenceAir.Inverse_sh_TX` and `IncompleteMedia.ReferenceMoistAir` were
+probed again on that binary (`/tmp/m684/p2_*.txt`). Both flatten and both
+refuse at t = 0 with an array reaching the evaluator: the protected
+`final Complex[2] t` of `Ice09_Utilities.Basic.Gibbs`, inside the walked
+body `ice09BaseProp_pT`. A five-line model calling
+`ReferenceMoistAir.Utilities.h_pTX` at 200 K shows the same refusal in a
+second. Beside it stands a second wall: a function that holds the Gibbs
+record, or reads a field of an element of any protected record array
+(`t[1].re`), is refused earlier as "an array of 2 written out"
+(events.rs). Plain arithmetic on the same Complex array runs. So the
+family has at least two walls left, and the map of shift 492 is not
+refuted by the merges since. It is parked with its map rather than fixed.
