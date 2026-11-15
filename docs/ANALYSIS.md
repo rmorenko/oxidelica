@@ -81891,3 +81891,7 @@ measured against the named family. None of AmplifierWithOpAmpDetailed (`opAmp.v_
 the word buys none of them by itself. NonCircularPipes runs already. Whether a start written on a
 declaration, such as `MagRel(start = 0)`, counts as the type's is left for the review
 (park/m687_start_fill_by_type.md).
+The two TwoPhaseWater property models read `p = 0` because their unconnected input
+`InputAbsolutePressure p` is an `SI.AbsolutePressure`, and that type declares no start. The medium's own
+`AbsolutePressure`, with start 1e5, is a different type that the connector does not use. By the letter
+of the word that makes 0 of 7 names.
