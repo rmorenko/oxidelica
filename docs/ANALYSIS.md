@@ -81673,3 +81673,21 @@ record, or reads a field of an element of any protected record array
 (events.rs). Plain arithmetic on the same Complex array runs. So the
 family has at least two walls left, and the map of shift 492 is not
 refuted by the merges since. It is parked with its map rather than fixed.
+
+## Shift m685: the reference air's chain walked to its end, and the singular row by name
+
+The two reference-air models (`Inverse_sh_TX`, `ReferenceMoistAir`) stand behind a chain of three walls,
+not one. Two belong to the family of an array of records in a function body and were removed by local probes
+that were not merged. First, a local `final Complex[2] t = {...}` was bound element by element as plain numbers,
+so `t[1].re` lost its record type and refused as "an array of 2 written out". Second, `o[k] := Complex(...)`
+was not taken apart into fields, because only targets without a subscript were, so `o[1].re` answered nothing.
+With both removed, the small models run with right numbers, and the ice enthalpy of Gibbs at 1 bar and 251 K
+comes out at -377999.86 J/kg. The corpus models still do not run. Their Gibbs body is reached four calls deep,
+left standing by the nesting guard and walked, and the walk does not know record operators. That third wall
+belongs to another family, so the chain was parked whole with its map, and no model changed.
+
+The 29 models of the row "equation E constrains no state" were all re-probed by name on the head. All 29
+still stand there. Fourteen of them are helper circuits with no experiment annotation, whose connectors are left
+open (op-amp circuits, analysers, flux-tube components, spring-damper utilities), so they are the same question
+as the helper rows already put to Roman. The rest are MultiBody loops and constraints (6), RobotR3 (2),
+tanks (2), Spice3 MOS benches (2), machines (2) and `ActuatorWithNoise` (1).
