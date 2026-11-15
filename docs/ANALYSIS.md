@@ -81591,3 +81591,27 @@ run, runnable 859 and 795, on both halves, the lists of what flattens and
 what runs equal line for line, and every work counter equal to the digit
 (`1722724050 names`, `35294336 newton`). The run half took 1764 s and
 1718 s, which is drift with equal work. The heavy models were not measured.
+
+### What is left after the fresh probe, and the clutch of Friction
+
+The 74 examples that flatten and do not run in the pair's on half, with
+the helpers removed by name, were probed again from the head binary
+(`/tmp/m683/left.txt`, witness beside it). None of them is one link from
+running. `AmplifierWithOpAmpDetailed` and `SimpleNaturalGas` both wait on
+a start that nothing in the model gives (`opAmp.v_in`, `volume.m`), the
+start-filling question of m595 and m678. `TwoPhaseWater.BaseProperties`
+and `ExtendedProperties` are the medium models themselves, with `p` an
+open input that the walk reads as zero, not examples.
+`DynamicPipeClosingValve` was given a start budget of 400 Newton
+iterations instead of 50 in a probe binary (not committed,
+`/tmp/m683/dpcv400.txt`): the run half went from 7 s to 55 s and the
+start still did not converge, so the wall is not the budget.
+
+`Friction` had a falsifier written in m671: if the brake's mode holds
+one value while the restarts alternate, the reading that the brake
+flips is wrong. The event trail (`OXIDELICA_EVENT_TRAIL=1`,
+`/tmp/m683/fric.txt`) shows `brake.mode = 2` and `brake.free = 1` in
+all 31 rounds. What alternates at t = 0.0067798 is the clutch, between
+`startBackward` with `mode = 0` and `startForward` with `mode = 1`, round
+after round at one instant. The reading is refuted. The clutch is the
+next place to look, with its `sa` printed per round.
