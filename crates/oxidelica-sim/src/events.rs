@@ -641,6 +641,8 @@ impl CompiledModel {
                 // all - not even itself - the definition that holds it
                 // reports a change on every pass for ever and the event
                 // never comes to rest.
+                let mut seen_states: Vec<Vec<u64>> = Vec::new();
+                let mut ring_tried = std::env::var_os("OXIDELICA_NO_RING_REST").is_some();
                 for _ in 0..=self.discrete_definitions.len() {
                     // A block refused before the initial event's clauses
                     // have fired may be refused for what they had not yet
@@ -711,6 +713,36 @@ impl CompiledModel {
                     if !again {
                         break;
                     }
+                    // A set of switches that comes back to a set it already
+                    // held is a ring between two modes, each solved point
+                    // asking for the other: a clutch at the lock goes from
+                    // sliding forward to starting backward and back, while
+                    // the mode in which no switch is raised - stuck - is
+                    // consistent and never visited. It is visited once:
+                    // the switches that moved go down, the point is solved
+                    // with them down, and the definitions decide from there.
+                    let now_state: Vec<u64> = self
+                        .discrete_definitions
+                        .iter()
+                        .map(|(slot, _)| values[*slot].to_bits())
+                        .collect();
+                    if !ring_tried && seen_states.contains(&now_state) {
+                        ring_tried = true;
+                        for &at in &moved {
+                            let (slot, _) = self.discrete_definitions[at];
+                            values[slot] = 0.0;
+                        }
+                        // What did not move is asked again with them down:
+                        // a `locked` that reads the start flags has to see
+                        // them lowered before the point is solved in it.
+                        for (at, (slot, code)) in self.discrete_definitions.iter().enumerate() {
+                            if !moved.contains(&at) {
+                                values[*slot] = code.run(values, t);
+                            }
+                        }
+                        self.eval_point(t, y, values, &mut scratch, alg_guess)?;
+                    }
+                    seen_states.push(now_state);
                 }
                 // A probe rather than a feature: what the event iteration
                 // held after each round, so that a refusal naming three

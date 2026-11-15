@@ -1680,3 +1680,36 @@ fn a_delay_of_nought_reads_the_expression_now() {
         assert!((row[y] - 2.0 * row[0]).abs() < 1e-9, "{row:?}");
     }
 }
+
+#[test]
+fn a_clutch_ringing_between_two_sliding_modes_comes_to_rest_stuck() {
+    // Two inertias sliding at 100 and 90 under a sine torque, joined by
+    // the library's Coulomb friction written out: at the lock the event
+    // rounds went from starting forward to starting backward and back,
+    // and the stuck mode, consistent all along, was never visited.
+    let result = run(
+        "model C parameter Real tau0 = 80; parameter Real ws = 1; \
+         Real w1(start = 100, fixed = true); Real w2(start = 90, fixed = true); \
+         Real tau; Real sa; Real w_rel; Real a_rel; \
+         Boolean startFor(start = false, fixed = true); Boolean startBack(start = false, fixed = true); \
+         Boolean locked(start = false, fixed = true); \
+         Integer mode(start = 2, fixed = true); \
+         equation \
+         der(w1) = 200 * sin(50 * time) - tau; 0.05 * der(w2) = tau; \
+         w_rel = w1 - w2; a_rel = der(w1) - der(w2); \
+         startFor = pre(mode) == 0 and (sa > tau0 or pre(startFor) and sa > tau0) \
+           or pre(mode) == -1 and w_rel > ws or initial() and w_rel > 0; \
+         startBack = pre(mode) == 0 and (sa < -tau0 or pre(startBack) and sa < -tau0) \
+           or pre(mode) == 1 and w_rel < -ws or initial() and w_rel < 0; \
+         locked = not (pre(mode) == 1 or startFor or pre(mode) == -1 or startBack); \
+         a_rel = if locked then 0 else if startFor then sa - tau0 else if startBack then sa + tau0 \
+           else if pre(mode) == 1 then sa - tau0 else if pre(mode) == -1 then sa + tau0 \
+           else sa - sign(w_rel) * tau0; \
+         mode = if (pre(mode) == 1 or pre(mode) == 2 or startFor) and w_rel > 0 then 1 \
+           else if (pre(mode) == -1 or pre(mode) == 2 or startBack) and w_rel < 0 then -1 else 0; \
+         tau = if locked then sa else if startFor or pre(mode) == 1 then tau0 else -tau0; \
+         annotation(experiment(StopTime = 0.1, Interval = 0.001)); end C;",
+    );
+    let last = result.rows.last().unwrap();
+    assert!((last[0] - 0.1).abs() < 1e-9, "stopped at t = {}", last[0]);
+}
