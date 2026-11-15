@@ -81883,3 +81883,11 @@ column `der(mixingVolume1.medium.h)` dependent. That is the volume's choice of s
 The refusals in model text are now one park patch, park/m687_refusals_model_text.patch. It covers the
 seven reduction refusals and the shared `sketch` behind nineteen others. The whole workspace's tests
 pass with it, and four refused models give equal outcomes before and after.
+
+Roman's word of 15 November on start filling (pin only with the start the type itself declares) was
+measured against the named family. None of AmplifierWithOpAmpDetailed (`opAmp.v_in`, a bare
+`SI.Voltage`), ThreePhaseTransformerWithRectifier (`core3.Hstat`, no start), GearType1
+(`bearingFriction.sa`) or SimpleNaturalGas (`volume.m`) has a type start for the unknown left free, so
+the word buys none of them by itself. NonCircularPipes runs already. Whether a start written on a
+declaration, such as `MagRel(start = 0)`, counts as the type's is left for the review
+(park/m687_start_fill_by_type.md).
