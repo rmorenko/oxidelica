@@ -2034,7 +2034,12 @@ FLATTEN_FLOOR=978
 # once: the pair /tmp/m683/p1_on.txt printed 845 run against 844 off,
 # no victims, and the preflight /tmp/m684/preflight.txt the same, so
 # 845 - 3 (SpringWithMass, SMPM_VoltageSource FW, TestJunctionIdeal) = 842.
-RUN_FLOOR=842
+# ReferenceAir.Inverse_sh_TX and IncompleteMedia.ReferenceMoistAir, won
+# by walking the ice's Gibbs function with its Complex arithmetic: the
+# pair /tmp/m686/p_on.txt printed 847 run against 845 off, no victims,
+# so 847 - 3 (SpringWithMass, SMPM_VoltageSource FW, TestJunctionIdeal)
+# = 844.
+RUN_FLOOR=844
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -2618,7 +2623,9 @@ RUNNABLE_FLATTEN_FLOOR=859
 # 795 - 3 = 792.
 # Friction: the pair /tmp/m683/p1_on.txt printed 859 / 796, so
 # 796 - 3 = 793.
-RUNNABLE_RUN_FLOOR=793
+# The two reference-air models: the pair /tmp/m686/p_on.txt printed
+# 859 / 798, so 798 - 3 = 795.
+RUNNABLE_RUN_FLOOR=795
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
@@ -3757,7 +3764,14 @@ fi
 # up, under Roman's standing rule that a clean pair moves a centre by
 # less than 5%. The lists differ by EquilibriumDrumBoiler flattened
 # alone. The band is not moved.
-WORK_NAMES=1722724050
+# Moved to 1728707801 on 2026-11-15 for the carried bodies that now
+# take a record's operators and lay an array of records out as a table,
+# which the reference air's ice reads through. One binary printed
+# 1722724050 off and 1728707801 on (/tmp/m686/p_off.txt, p_on.txt),
+# 3473 per million up, under Roman's standing rule that a clean pair
+# moves a centre by less than 5%. The lists differ by the two models
+# won. The band is not moved.
+WORK_NAMES=1728707801
 WORK_NAMES_PPM=2000
 
 # The band, as a function, so that it can be seen red without a library

@@ -277,6 +277,14 @@ pub(crate) fn walk(
             frame.shapes.insert(component.name.clone(), shape);
             continue;
         }
+        // A table written nothing at its declaration - an array of
+        // records laid out a row per record, `Real o[12, 2]` - is laid
+        // out at the value an unwritten local holds, the same as a
+        // scalar one below, so that a row written to it has somewhere
+        // to land.
+        if lay_out_unwritten_table(component, &mut frame) {
+            continue;
+        }
         let silent = if component.causality == Causality::Output && !unassigned_is_zero() {
             f64::from_bits(UNASSIGNED)
         } else {
@@ -1574,6 +1582,14 @@ fn run(
                         continue;
                     }
                 }
+                // `o[i, :] := c` fills one row of a table from a list:
+                // how a carried body writes one record of an array of
+                // records, a row per record and a column per field.
+                if let [row, Expr::ColonSubscript] = subscripts.as_slice() {
+                    if write_row(target, row, value, frame, programs, time, depth)? {
+                        continue;
+                    }
+                }
                 // `q[i] := ...` lands on the element's own name, which
                 // is how an array is held here.
                 let mut named = target.clone();
@@ -2040,4 +2056,106 @@ fn constructor_numbers(
         }
     }
     Ok(Some(numbers))
+}
+
+/// The shape of a local table the body declares with numbers for its
+/// lengths and writes nothing at: `Real o[12, 2]`, an array of records
+/// laid out a row per record. Zero, as every unwritten local of a walk
+/// stands at, is what its elements hold until a row is written; an
+/// output or a written table goes by its own road.
+/// `OXIDELICA_NO_RECORD_ARRAY_TABLES` leaves such a local as it was.
+fn unwritten_table(component: &Component) -> Option<Vec<usize>> {
+    if component.dimensions.len() != 2
+        || component.causality != Causality::None
+        || component.binding.is_some()
+        || component.start.is_some()
+        || switch_set("OXIDELICA_NO_RECORD_ARRAY_TABLES")
+    {
+        return None;
+    }
+    component
+        .dimensions
+        .iter()
+        .map(|dimension| match dimension {
+            Expr::Number(length) if *length >= 1.0 && length.fract() == 0.0 => {
+                Some(*length as usize)
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+/// `o[i, :] := c`: one row of a table the frame holds, filled from a
+/// list. Kept out of `run`, which recurses, so that its locals do not
+/// widen every storey of a deep walk. `false` where `target` is no table.
+#[inline(never)]
+fn write_row(
+    target: &str,
+    row: &Expr,
+    value: &Expr,
+    frame: &mut Frame,
+    programs: &HashMap<String, ClassDef>,
+    time: f64,
+    depth: usize,
+) -> Result<bool, SimError> {
+    let Some(shape) = frame.shapes.get(target).filter(|s| s.len() == 2).cloned() else {
+        return Ok(false);
+    };
+    let row = index_of(row, frame, programs, time, depth)?;
+    if row as usize > shape[0] {
+        return err(format!(
+            "`{target}` has {} rows and was given row {row}",
+            shape[0]
+        ));
+    }
+    let items = elements_of(value, frame, programs, time, depth)?.ok_or_else(|| {
+        SimError::from(format!(
+            "`{target}[{row}, :]` is given something that is not a list: {}",
+            value.describe()
+        ))
+    })?;
+    if items.len() != shape[1] {
+        return err(format!(
+            "a row of `{target}` is {} long and was given {}",
+            shape[1],
+            items.len()
+        ));
+    }
+    let mut worths = Vec::new();
+    for item in &items {
+        worths.push(number_of(item, frame, programs, time, depth)?);
+    }
+    for (column, worth) in worths.into_iter().enumerate() {
+        frame
+            .numbers
+            .insert(format!("{target}[{row},{}]", column + 1), worth);
+    }
+    Ok(true)
+}
+
+/// Lay a table out at zero where `unwritten_table` says it is one.
+/// Kept out of `walk`, which recurses, for the size of its frame.
+#[inline(never)]
+fn lay_out_unwritten_table(component: &Component, frame: &mut Frame) -> bool {
+    let Some(shape) = unwritten_table(component) else {
+        return false;
+    };
+    let total: usize = shape.iter().product();
+    let mut at = vec![1usize; shape.len()];
+    for _ in 0..total {
+        let subscripts: Vec<String> = at.iter().map(|index| index.to_string()).collect();
+        frame
+            .numbers
+            .insert(format!("{}[{}]", component.name, subscripts.join(",")), 0.0);
+        for axis in (0..shape.len()).rev() {
+            at[axis] += 1;
+            if at[axis] <= shape[axis] {
+                break;
+            }
+            at[axis] = 1;
+        }
+    }
+    frame.lengths.insert(component.name.clone(), shape[0]);
+    frame.shapes.insert(component.name.clone(), shape);
+    true
 }

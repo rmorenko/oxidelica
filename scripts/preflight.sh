@@ -133,8 +133,17 @@ examples_all_simulate() {
 # carvings of 2026-10-06, the edges by the measured factor and the room
 # kept: 0.342 / 1.22 = 0.28 and 0.342 x 1.17 = 0.40. One print, so the
 # edges stand on one point and are worked again by the next desk prints.
+#
+# Since 2026-11-15 the ceiling is 0.47, Roman's word (a) of that day:
+# centre the band on the fresh prints and keep its relative width. The
+# desk prints with true counts are 0.342 (/tmp/m676/preflight_props.txt,
+# 14.11), 0.399 (head, /tmp/m686/headlib/judge.log, 15.11) and 0.404
+# (the record operators chain, /tmp/m686/preflight2.txt, 15.11), so by
+# the precedent of 2026-10-14 the edges keep the room over all points:
+# 0.342 / 1.22 = 0.28 stands, and 0.404 x 1.17 = 0.4727, written 0.47.
+# The width before was 0.28..0.40; the runner's band is not moved.
 DESK_RATIO_LOW=0.28
-DESK_RATIO_HIGH=0.40
+DESK_RATIO_HIGH=0.47
 
 library_floor() {
   if [ ! -d "$library" ]; then
@@ -326,13 +335,15 @@ time_band_judges() {
   # And the desk's band, at what the desk has measured and past either
   # end of it. Since 2026-11-14, with the cache of property answers:
   # inside, the two desk prints 0.342 (/tmp/m676/preflight_props.txt)
-  # and 0.351 (/tmp/m677/preflight.txt) and one between. Outside, 0.200
+  # and 0.351 (/tmp/m677/preflight.txt) and one between, and since
+  # 2026-11-15 (ceiling 0.47) 0.404 (/tmp/m686/preflight2.txt). Outside, 0.200
   # under the floor and 0.923, the quiet print of the compiler before -
   # should the ratio go back to that shape, the band has to go red.
   local desk="env RATIO_LOW=$DESK_RATIO_LOW RATIO_HIGH=$DESK_RATIO_HIGH ./scripts/library_floor.sh --ratio-check"
   $desk 1000 342 > /dev/null || return 1
   $desk 1000 351 > /dev/null || return 1
   $desk 1000 346 > /dev/null || return 1
+  $desk 1000 404 > /dev/null || return 1
   $desk 1000 200 > /dev/null && return 1
   $desk 1000 923 > /dev/null && return 1
   return 0

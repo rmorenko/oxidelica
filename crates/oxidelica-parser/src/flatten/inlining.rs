@@ -1982,6 +1982,43 @@ fn worked_body(
                     (false, Ok(value)) => substitute_refs(&value.into_expr(), &bindings),
                     _ => bound,
                 };
+                // An array of records written out - `final Complex[2] t =
+                // {Complex(..), Complex(..)}` of the ice's Gibbs function -
+                // arrives as a list of lists, one per element, each in the
+                // order the record declares its fields. Bound element by
+                // element as plain numbers, `t[1].re` lost its record and
+                // was refused as an array of two written out. Each
+                // element's fields are bound under their own names instead.
+                // `OXIDELICA_NO_RECORD_ARRAY_LOCALS` leaves the old binding.
+                if !component.dimensions.is_empty() && record_array_locals_open() {
+                    if let (Some(of), Expr::Array(items)) = (
+                        lookup(registry, &component.type_name, &class.name, &class.imports)
+                            .filter(|of| of.kind == ClassKind::Record),
+                        &bound,
+                    ) {
+                        let fields = super::operators::record_fields_of(registry, of, 0);
+                        let mut all = true;
+                        let mut out = HashMap::new();
+                        for (i, item) in items.iter().enumerate() {
+                            match item {
+                                Expr::Array(vals) if vals.len() == fields.len() => {
+                                    for (f, v) in fields.iter().zip(vals) {
+                                        out.insert(
+                                            format!("{}[{}].{f}", component.name, i + 1),
+                                            v.clone(),
+                                        );
+                                    }
+                                }
+                                _ => all = false,
+                            }
+                        }
+                        if all {
+                            handed.extend(out.clone());
+                            bindings.extend(out);
+                            continue;
+                        }
+                    }
+                }
                 if let Expr::Array(_) = &bound {
                     let mut elements = HashMap::new();
                     by_element(&component.name, &bound, &mut Vec::new(), &mut elements);
@@ -3145,8 +3182,11 @@ fn body_records_in_view(
         // A built-in type says no before a lookup is paid for: this is
         // asked of every local of every body worked out, and nearly all
         // of them are numbers.
+        // An array of records is in view as well, under its own name:
+        // `t[1] - Complex(x)` asks the table whether `t[1]` is a record,
+        // and the answer comes from the declaration of `t`.
         if local.causality != Causality::None
-            || !local.dimensions.is_empty()
+            || (!local.dimensions.is_empty() && !record_array_locals_open())
             || matches!(
                 local.type_name.as_str(),
                 "Real" | "Integer" | "Boolean" | "String"
@@ -3217,6 +3257,13 @@ fn local_record_remembered(
 /// takes its length from the `nc` the same record settled. A local
 /// that has a value of its own, a field that is not a number, and a
 /// name already bound are all left as they were.
+/// Whether a local array of records is bound field by field and kept in
+/// the view of records. `OXIDELICA_NO_RECORD_ARRAY_LOCALS` leaves it as
+/// plain numbers, so that one binary gives both numbers.
+fn record_array_locals_open() -> bool {
+    std::env::var_os("OXIDELICA_NO_RECORD_ARRAY_LOCALS").is_none()
+}
+
 fn record_locals_as_declared(
     class: &ClassDef,
     registry: &HashMap<&str, &ClassDef>,

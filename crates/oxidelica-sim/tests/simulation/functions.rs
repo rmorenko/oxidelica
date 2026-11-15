@@ -4804,6 +4804,24 @@ fn a_walked_body_reads_the_records_its_medium_writes_out() {
 /// `OXIDELICA_NO_WHOLE_ARRAY_GUARD=1`, on a silent zero.
 #[test]
 fn a_walked_record_given_one_number_is_refused_and_not_left_at_zero() {
+    // A record that declares no operator: `a * b` of two of them is
+    // nothing the language defines, and the walk still says so rather
+    // than leave `c` at zero.
+    let source = "model V8 record C Real re; Real im; end C; \
+         function f input Real x; output Real y; \
+         protected C a = C(1, 2); C b = C(3, 4); C c; Integer k = 0; \
+         algorithm y := 0; while k < integer(x) + 1 loop k := k + 1; c := a * b; \
+         y := y + c.re; end while; end f; \
+         Real y = f(1 + time); end V8;";
+    let error = run_err(source);
+    assert!(error.contains("`c` is held element by element"), "{error}");
+}
+
+/// The same product of two records that do declare `'*'` is that
+/// operator's answer: (1 + 2i)(3 + 4i) = -5 + 10i, added up twice at
+/// the start, where `x` is one.
+#[test]
+fn a_walked_product_of_operator_records_is_their_operator() {
     let source = "model V8 operator record C Real re; Real im; \
          encapsulated operator function '*' input C a; input C b; output C c; \
          algorithm c := C(a.re * b.re - a.im * b.im, a.re * b.im + a.im * b.re); end '*'; \
@@ -4812,9 +4830,15 @@ fn a_walked_record_given_one_number_is_refused_and_not_left_at_zero() {
          protected C a = C(1, 2); C b = C(3, 4); C c; Integer k = 0; \
          algorithm y := 0; while k < integer(x) + 1 loop k := k + 1; c := a * b; \
          y := y + c.re; end while; end f; \
-         Real y = f(1 + time); end V8;";
-    let error = run_err(source);
-    assert!(error.contains("`c` is held element by element"), "{error}");
+         Real y = f(1 + time); \
+         annotation(experiment(StopTime = 1, Interval = 0.5)); end V8;";
+    let result = run(source);
+    let at = result.columns.iter().position(|c| c == "y").unwrap();
+    assert!(
+        (result.rows[0][at] + 10.0).abs() < 1e-12,
+        "{}",
+        result.rows[0][at]
+    );
 }
 
 /// A record field whose value is a call the run walks takes that call
@@ -5464,4 +5488,97 @@ fn the_site_outranks_the_extends_clause_on_an_alias() {
          annotation(experiment(StopTime = 0.01, Interval = 0.01)); end M;",
     );
     assert_eq!(result.rows[0][1], 10.0);
+}
+
+#[test]
+fn a_local_array_of_records_is_read_field_by_field() {
+    // The ice's Gibbs function declares `final Complex[2] t = {...}` and
+    // reads `t[1].re`. The list arrived as a list of lists and was bound
+    // element by element as plain numbers, so `t[1].re` lost its record
+    // and was refused as an array of two written out.
+    let result = run("model M record C Real re; Real im; end C; \
+         function f input Real x; output Real y; \
+         protected final C[2] t = {C(0.1, 0.2), C(0.3, 0.4)}; \
+         algorithm y := t[1].re * x + t[2].im; end f; \
+         Real z; equation z = f(time); \
+         annotation(experiment(StopTime = 1, Interval = 0.5)); end M;");
+    let last = result.rows.last().unwrap();
+    let z = last[result.columns.iter().position(|c| c == "z").unwrap()];
+    assert!((z - 0.5).abs() < 1e-12, "{z}");
+}
+
+#[test]
+fn a_record_written_into_an_element_of_an_array_is_read_field_by_field() {
+    // `o[1] := Complex(...)` of the ice's Gibbs function, read as
+    // `o[1].re`: only a whole name was taken apart into its fields, so
+    // the element answered nothing and the run met an unknown name.
+    let result = run("model M record C Real re; Real im; end C; \
+         function f input Real x; output Real y; \
+         protected C o[2]; \
+         algorithm o[1] := C(x, 1); o[2] := C(2 * x, 3); y := o[1].re + o[2].im; end f; \
+         Real z; equation z = f(time + 1); \
+         annotation(experiment(StopTime = 1, Interval = 0.5)); end M;");
+    let last = result.rows.last().unwrap();
+    let z = last[result.columns.iter().position(|c| c == "z").unwrap()];
+    assert!((z - 5.0).abs() < 1e-12, "{z}");
+}
+
+/// An operator record of its own, the way the library writes `Complex`:
+/// a constructor with a default imaginary part, and the operators as
+/// functions of the record.
+const OWN_COMPLEX: &str = "operator record C Real re; Real im; \
+     encapsulated operator 'constructor' function fromReal import C; \
+     input Real re; input Real im = 0; output C result(re = re, im = im); \
+     algorithm annotation(Inline = true); end fromReal; end 'constructor'; \
+     encapsulated operator '-' function subtract import C; input C a; input C b; \
+     output C c; algorithm c := C(a.re - b.re, a.im - b.im); end subtract; end '-'; \
+     encapsulated operator function '*' import C; input C a; input C b; output C c; \
+     algorithm c := C(a.re * b.re - a.im * b.im, a.re * b.im + a.im * b.re); end '*'; \
+     end C;";
+
+#[test]
+fn an_operator_between_records_in_a_walked_body_is_the_records_function() {
+    // A body the loop sends to the walk, with `a := C(x, 1) * C(2, x)`:
+    // the walk read the two records as lists and was refused for
+    // holding `a` element by element. The product's real part is
+    // 2x - x = x.
+    let result = run(&format!(
+        "model M {OWN_COMPLEX} \
+         function f input Real x; output Real y; protected C a; Integer k; \
+         algorithm k := 0; while k < x loop k := k + 1; end while; \
+         a := C(x, 1) * C(2, x); y := a.re + 10 * a.im; end f; \
+         Real z; equation z = f(time + 1); \
+         annotation(experiment(StopTime = 1, Interval = 0.5)); end M;"
+    ));
+    // x = 2: (2 + i)(2 + 2i) = 2 + 6i.
+    assert!(
+        (last_of(&result, "z") - 62.0).abs() < 1e-12,
+        "{}",
+        last_of(&result, "z")
+    );
+}
+
+#[test]
+fn a_walked_array_of_operator_records_is_a_row_per_record() {
+    // The ice's Gibbs function holds `Complex o[12]` and writes
+    // `o[1] := (t[1] - Complex(theta)) * ...`. Laid out as twelve
+    // numbers, a record had nowhere to land; and `C(x)` with its
+    // imaginary part left out has to take the constructor's zero, not
+    // the walk's silence. (1 + 2i)(3 - x + 4i) at x = 2 is -7 + 6i.
+    let result = run(&format!(
+        "model M {OWN_COMPLEX} \
+         function f input Real x; output Real y; \
+         protected C t[2] = {{C(1, 2), C(3, 4)}}; C o[2]; Integer k; \
+         algorithm k := 0; while k < x loop k := k + 1; end while; \
+         o[1] := t[1] * C(x); o[2] := (t[2] - C(x)) * t[1]; \
+         y := o[1].re + 10 * o[2].im + 100 * o[2].re; end f; \
+         Real z; equation z = f(time + 1); \
+         annotation(experiment(StopTime = 1, Interval = 0.5)); end M;"
+    ));
+    // o[1] = 2 + 4i, o[2] = (1 + 4i)(1 + 2i) = -7 + 6i.
+    assert!(
+        (last_of(&result, "z") - (2.0 + 60.0 - 700.0)).abs() < 1e-12,
+        "{}",
+        last_of(&result, "z")
+    );
 }

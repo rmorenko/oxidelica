@@ -1104,8 +1104,18 @@ fn one_assignment(
     // nothing when a later statement asks for `qm.qm_capgd`, and the
     // model was refused for an unknown variable. So it is taken apart
     // here, into the field names the rest of the body reads.
-    if subscripts.is_empty() {
-        if let Some(fields) = record_fields_named(&target, registry, scope, imports) {
+    let base_name = target.split('[').next().unwrap_or(&target).to_string();
+    // The same for one element of an array of records: `o[1] :=
+    // Complex(...)` of the ice's Gibbs function, read afterwards as
+    // `o[1].re`. `OXIDELICA_NO_RECORD_ELEMENT_WRITES` leaves it whole.
+    let element_probe =
+        !subscripts.is_empty() && std::env::var_os("OXIDELICA_NO_RECORD_ELEMENT_WRITES").is_none();
+    if subscripts.is_empty() || element_probe {
+        let fields = match element_probe {
+            true => record_fields_named_any(&base_name, registry, scope, imports),
+            false => record_fields_named(&target, registry, scope, imports),
+        };
+        if let Some(fields) = fields {
             if let Expr::Array(items) = &value {
                 if items.len() == fields.len() {
                     bindings.remove(&target);
@@ -1244,6 +1254,28 @@ pub(super) fn where_the_names_landed() -> String {
 /// The fields a name's declaration holds, where that declaration is a
 /// record of the class being worked out. `None` for anything else: a
 /// number, an array, a name from somewhere other than this body.
+fn record_fields_named_any(
+    name: &str,
+    registry: &HashMap<&str, &ClassDef>,
+    scope: &str,
+    imports: &[(String, String)],
+) -> Option<Vec<String>> {
+    let class = registry.get(scope)?;
+    let declared = class.components.iter().find(|c| c.name == name)?;
+    // Only a local: an output array of records is read back whole by
+    // whoever called, so its elements stay whole
+    // (`symmetricTransformationMatrix` writes `tM[i, j] := fromPolar(...)`).
+    if declared.causality != Causality::None {
+        return None;
+    }
+    let held = lookup(registry, &declared.type_name, scope, imports)?;
+    if held.kind != ClassKind::Record {
+        return None;
+    }
+    let fields = record_fields_of(registry, held, 0);
+    (!fields.is_empty()).then_some(fields)
+}
+
 fn record_fields_named(
     name: &str,
     registry: &HashMap<&str, &ClassDef>,

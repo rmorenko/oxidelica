@@ -208,6 +208,7 @@ pub(super) fn programs_used(
             }
         }
         records_by_their_fields(&mut carried, class, registry);
+        let tables = record_arrays_as_tables(&mut carried, registry);
         let renamed = records_as_arrays(&mut carried, registry);
         // A local's binding reads a record input the way a statement
         // does, and has to be spelled the way the walk's frame holds it.
@@ -264,6 +265,32 @@ pub(super) fn programs_used(
             &writer.name,
             &writer.imports,
         );
+        // An operator written between two records is a call to the
+        // function the record offers for it. Inlined, the operator
+        // layer says so; carried, the walk would read the two records
+        // as lists and multiply lists. So it is said here, before the
+        // records are laid out as arrays and the walk can no longer
+        // tell one from the other.
+        let algorithm = if carry_record_ops_open() {
+            let locals = operator_record_locals(class, registry);
+            if locals.is_empty() {
+                algorithm
+            } else {
+                record_ops_in_statements(
+                    &algorithm,
+                    &locals,
+                    registry,
+                    &writer.name,
+                    &writer.imports,
+                )
+            }
+        } else {
+            algorithm
+        };
+        let algorithm = match tables.is_empty() {
+            true => algorithm,
+            false => record_members_as_columns(&algorithm, &tables),
+        };
         carried.algorithm = qualified_calls(
             &algorithm,
             registry,
@@ -1890,4 +1917,339 @@ pub(super) fn walkable(
         }
     }
     Ok(())
+}
+
+/// Whether an operator between two records in a carried body is made
+/// a call to the record's own function for it.
+/// `OXIDELICA_NO_CARRY_RECORD_OPS` leaves it as written, so that one
+/// binary gives both numbers.
+fn carry_record_ops_open() -> bool {
+    std::env::var_os("OXIDELICA_NO_CARRY_RECORD_OPS").is_none()
+}
+
+/// The body's own names that hold one record declaring operators -
+/// an input, an output or a local, never an array of them - and the
+/// record each one is.
+fn operator_record_locals(
+    class: &ClassDef,
+    registry: &HashMap<&str, &ClassDef>,
+) -> HashMap<String, String> {
+    let mut out = HashMap::new();
+    for held in with_inherited_components(class, registry) {
+        // An array of them is filed with brackets after its name, so
+        // that one of its elements, `t[1]`, is known for one record
+        // while `t` itself is not taken for one.
+        let key = match held.dimensions.len() {
+            0 => held.name.clone(),
+            1 => format!("{}[]", held.name),
+            _ => continue,
+        };
+        let Some(of) = lookup(registry, &held.type_name, &class.name, &class.imports) else {
+            continue;
+        };
+        if of.kind == ClassKind::Record && super::operators::declares_operators(registry, &of.name)
+        {
+            out.insert(key, of.name.clone());
+        }
+    }
+    out
+}
+
+/// The operator record an expression of a carried body comes to, when
+/// it is read whole as one: a name holding one, the record's own
+/// constructor, or a function that answers with one.
+fn carried_record_of(
+    expr: &Expr,
+    locals: &HashMap<String, String>,
+    registry: &HashMap<&str, &ClassDef>,
+    scope: &str,
+    imports: &[(String, String)],
+) -> Option<String> {
+    let operator_record = |name: &str, from: &ClassDef| {
+        lookup(registry, name, &from.name, &from.imports)
+            .filter(|of| of.kind == ClassKind::Record)
+            .filter(|of| super::operators::declares_operators(registry, &of.name))
+            .map(|of| of.name.clone())
+    };
+    match expr {
+        Expr::Ref(name) => locals.get(name).cloned(),
+        Expr::Index(of, subscripts) => match (of.as_ref(), subscripts.as_slice()) {
+            (Expr::Ref(name), [one]) if !matches!(one, Expr::Range(..) | Expr::ColonSubscript) => {
+                locals.get(&format!("{name}[]")).cloned()
+            }
+            _ => None,
+        },
+        Expr::Call(name, _) => {
+            let called = lookup(registry, name, scope, imports)?;
+            match called.kind {
+                ClassKind::Record => operator_record(&called.name, called)
+                    .filter(|_| super::operators::declares_operators(registry, &called.name)),
+                ClassKind::Function => {
+                    let outputs: Vec<Component> = function_components(registry, called, 0)
+                        .into_iter()
+                        .filter(|c| c.causality == Causality::Output)
+                        .collect();
+                    match outputs.as_slice() {
+                        [only] if only.dimensions.is_empty() => {
+                            operator_record(&only.type_name, called)
+                        }
+                        _ => None,
+                    }
+                }
+                _ => None,
+            }
+        }
+        _ => None,
+    }
+}
+
+/// An expression with every operator between operator records made a
+/// call to the function the record offers for it, and a plain number
+/// standing beside one built into that record by its constructor.
+fn record_ops_in(
+    expr: &Expr,
+    locals: &HashMap<String, String>,
+    registry: &HashMap<&str, &ClassDef>,
+    scope: &str,
+    imports: &[(String, String)],
+) -> Expr {
+    let lowered = expr.map_children(&mut |e| record_ops_in(e, locals, registry, scope, imports));
+    let of = |e: &Expr| carried_record_of(e, locals, registry, scope, imports);
+    match &lowered {
+        Expr::Bin(op, a, b) => {
+            let record = match (of(a), of(b)) {
+                (Some(left), _) => left,
+                (None, Some(right)) => right,
+                (None, None) => return lowered,
+            };
+            let symbol = super::operators::operator_symbol(*op);
+            let Some(function) = super::operators::operator_function(registry, &record, symbol, 2)
+            else {
+                return lowered;
+            };
+            let built = |e: &Expr| match of(e) {
+                Some(_) => e.clone(),
+                None => whole_record_call(&record, std::slice::from_ref(e), registry)
+                    .unwrap_or_else(|| Expr::Call(record.clone(), vec![e.clone()])),
+            };
+            // A power takes its exponent as a number, not a record.
+            let exponent = |e: &Expr| match op {
+                BinOp::Pow => e.clone(),
+                _ => built(e),
+            };
+            Expr::Call(function.name.clone(), vec![built(a), exponent(b)])
+        }
+        Expr::Neg(inner) => match of(inner) {
+            Some(record) => match super::operators::operator_function(registry, &record, "-", 1) {
+                Some(function) => Expr::Call(function.name.clone(), vec![(**inner).clone()]),
+                None => lowered,
+            },
+            None => lowered,
+        },
+        // `Complex(x)` with its imaginary part left out is the
+        // record's own constructor function, which knows the default;
+        // the walk builds a record from a call only when every field
+        // is given.
+        Expr::Call(name, args) if !args.iter().any(|a| matches!(a, Expr::NamedArg(..))) => {
+            let Some(called) = lookup(registry, name, scope, imports)
+                .filter(|c| c.kind == ClassKind::Record)
+                .filter(|c| super::operators::declares_operators(registry, &c.name))
+            else {
+                return lowered;
+            };
+            whole_record_call(&called.name, args, registry).unwrap_or(lowered)
+        }
+        _ => lowered,
+    }
+}
+
+/// A record built from fewer numbers than it has fields, written out
+/// whole: `Complex(x)` is `Complex(x, 0)`, the field left out taking
+/// the default the record's constructor function gives its input.
+/// Called instead, that function answered with nothing in the walk -
+/// its output is bound by a modifier and it has no statements - and
+/// the record came out as zeros with no word said. `None` where a
+/// field left out has no default to take, or the call is already whole.
+fn whole_record_call(
+    record: &str,
+    args: &[Expr],
+    registry: &HashMap<&str, &ClassDef>,
+) -> Option<Expr> {
+    let class = registry.get(record)?;
+    let fields = record_fields::record_components(registry, class, 0).len();
+    if args.len() >= fields {
+        return None;
+    }
+    let function =
+        super::operators::operator_function(registry, record, "constructor", args.len())?;
+    let inputs: Vec<Component> = function_components(registry, function, 0)
+        .into_iter()
+        .filter(|c| c.causality == Causality::Input)
+        .collect();
+    if inputs.len() != fields {
+        return None;
+    }
+    let mut whole = args.to_vec();
+    for input in &inputs[args.len()..] {
+        let default = input.binding.as_ref()?;
+        const_eval(default, &HashMap::new())?;
+        whole.push(default.clone());
+    }
+    Some(Expr::Call(record.to_string(), whole))
+}
+
+/// The same over a body's statements.
+fn record_ops_in_statements(
+    body: &[Statement],
+    locals: &HashMap<String, String>,
+    registry: &HashMap<&str, &ClassDef>,
+    scope: &str,
+    imports: &[(String, String)],
+) -> Vec<Statement> {
+    let expr = |e: &Expr| record_ops_in(e, locals, registry, scope, imports);
+    let inner = |b: &[Statement]| record_ops_in_statements(b, locals, registry, scope, imports);
+    body.iter()
+        .map(|statement| match statement {
+            Statement::Assign(name, subscripts, value) => {
+                Statement::Assign(name.clone(), subscripts.clone(), expr(value))
+            }
+            Statement::TupleAssign(targets, value) => {
+                Statement::TupleAssign(targets.clone(), expr(value))
+            }
+            Statement::Assert(condition, message) => {
+                Statement::Assert(expr(condition), message.clone())
+            }
+            Statement::Call(name, args) => {
+                Statement::Call(name.clone(), args.iter().map(&expr).collect())
+            }
+            Statement::If(branches) => Statement::If(rebranch(branches, &expr, &inner)),
+            Statement::When(branches) => Statement::When(rebranch(branches, &expr, &inner)),
+            Statement::For(variable, range, body) => {
+                Statement::For(variable.clone(), range.as_ref().map(expr), inner(body))
+            }
+            Statement::While(condition, body) => Statement::While(expr(condition), inner(body)),
+            Statement::Break => Statement::Break,
+            Statement::Return => Statement::Return,
+        })
+        .collect()
+}
+
+/// Whether a local array of records is laid out as a table, one row per
+/// record. `OXIDELICA_NO_RECORD_ARRAY_TABLES` leaves it as it was.
+fn record_array_tables_open() -> bool {
+    std::env::var_os("OXIDELICA_NO_RECORD_ARRAY_TABLES").is_none()
+}
+
+/// Every local array of operator records written as a table: `Complex
+/// o[12]` becomes `Real o[12, 2]`, a row per record, a column per
+/// field in the order the record declares them. Laid out by its first
+/// axis alone, as a record is, the array was twelve numbers where
+/// twenty-four were meant, and `o[1] := ...` of a whole record had
+/// nowhere to land. Answers each table's field names.
+fn record_arrays_as_tables(
+    class: &mut ClassDef,
+    registry: &HashMap<&str, &ClassDef>,
+) -> HashMap<String, Vec<String>> {
+    let mut out = HashMap::new();
+    if !record_array_tables_open() || !carry_record_ops_open() {
+        return out;
+    }
+    let (scope, imports) = (class.name.clone(), class.imports.clone());
+    for component in &mut class.components {
+        if component.causality != Causality::None {
+            continue;
+        }
+        let [Expr::Number(length)] = component.dimensions.as_slice() else {
+            continue;
+        };
+        let length = *length;
+        let Some(of) = lookup(registry, &component.type_name, &scope, &imports)
+            .filter(|of| of.kind == ClassKind::Record)
+            .filter(|of| super::operators::declares_operators(registry, &of.name))
+        else {
+            continue;
+        };
+        let fields = record_fields::record_components(registry, of, 0);
+        if fields.is_empty()
+            || fields.iter().any(|f| {
+                !f.dimensions.is_empty()
+                    || !reduces_to_primitive(registry, &f.type_name, &of.name, &of.imports)
+            })
+        {
+            continue;
+        }
+        let names: Vec<String> = fields.iter().map(|f| f.name.clone()).collect();
+        component.type_name = "Real".to_string();
+        component.dimensions = vec![Expr::Number(length), Expr::Number(names.len() as f64)];
+        out.insert(component.name.clone(), names);
+    }
+    out
+}
+
+/// `o[k].re` of a record array laid out as a table is `o[k, 1]`.
+fn record_members_as_columns(
+    body: &[Statement],
+    tables: &HashMap<String, Vec<String>>,
+) -> Vec<Statement> {
+    fn column(expr: &Expr, tables: &HashMap<String, Vec<String>>) -> Expr {
+        if let Expr::Member(base, field) = expr {
+            if let Expr::Index(of, subscripts) = base.as_ref() {
+                if let (Expr::Ref(name), [_]) = (of.as_ref(), subscripts.as_slice()) {
+                    if let Some(at) = tables
+                        .get(name)
+                        .and_then(|fields| fields.iter().position(|f| f == field))
+                    {
+                        let mut subscripts: Vec<Expr> =
+                            subscripts.iter().map(|s| column(s, tables)).collect();
+                        subscripts.push(Expr::Number((at + 1) as f64));
+                        return Expr::Index(of.clone(), subscripts);
+                    }
+                }
+            }
+        }
+        // A whole record of the array, `t[1]`, is its row.
+        if let Expr::Index(of, subscripts) = expr {
+            if let (Expr::Ref(name), [one]) = (of.as_ref(), subscripts.as_slice()) {
+                if tables.contains_key(name) {
+                    return Expr::Index(
+                        of.clone(),
+                        vec![column(one, tables), Expr::ColonSubscript],
+                    );
+                }
+            }
+        }
+        expr.map_children(&mut |child| column(child, tables))
+    }
+    let expr = |e: &Expr| column(e, tables);
+    let inner = |b: &[Statement]| record_members_as_columns(b, tables);
+    body.iter()
+        .map(|statement| match statement {
+            Statement::Assign(name, subscripts, value) => {
+                let mut subscripts: Vec<Expr> = subscripts.iter().map(expr).collect();
+                // And a whole record written to one, `o[1] := ...`,
+                // fills its row.
+                if tables.contains_key(name) && subscripts.len() == 1 {
+                    subscripts.push(Expr::ColonSubscript);
+                }
+                Statement::Assign(name.clone(), subscripts, expr(value))
+            }
+            Statement::TupleAssign(targets, value) => {
+                Statement::TupleAssign(targets.clone(), expr(value))
+            }
+            Statement::Assert(condition, message) => {
+                Statement::Assert(expr(condition), message.clone())
+            }
+            Statement::Call(name, args) => {
+                Statement::Call(name.clone(), args.iter().map(expr).collect())
+            }
+            Statement::If(branches) => Statement::If(rebranch(branches, &expr, &inner)),
+            Statement::When(branches) => Statement::When(rebranch(branches, &expr, &inner)),
+            Statement::For(variable, range, body) => {
+                Statement::For(variable.clone(), range.as_ref().map(expr), inner(body))
+            }
+            Statement::While(condition, body) => Statement::While(expr(condition), inner(body)),
+            Statement::Break => Statement::Break,
+            Statement::Return => Statement::Return,
+        })
+        .collect()
 }
