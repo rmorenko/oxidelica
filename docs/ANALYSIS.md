@@ -81956,13 +81956,17 @@ the IF97 water functions is refused. The functions' own local `o[3]` takes the c
 when the array layer cuts `o.p` at its last dot. The same model with the component named `q` runs.
 It is written up in the park and not built.
 
-The run that the backward reading let through was checked against the circuit, and it is wrong.
-ThyristorBridge2mPulse_RLV is fed at 110 V RMS, so its DC side cannot rise above the 155.6 V peak.
-The run gives 134.7 to 269.4 V over its last 20 ms and a mean of 222.8 V. The load asks for
-R·i + V_DC = 20·19.97 − 260 = 139 V. A tolerance of 1e-8 gives the same numbers. So the floor door
-refused a point nobody could vouch for, and reading the block from the other side traded that refusal
-for a wrong answer. The ceiling in `solvers/mod.rs` is right on this model, and the parked patch is
-not fit to merge in its present form.
+The run that the backward reading let through was checked against the circuit, and it is right. An
+earlier version of this paragraph called it wrong, and that check was mine and mistaken: it took the
+bridge as single-phase. ThyristorBridge2mPulse_RLV has three phases (`m = 3`), so its DC side is
+bounded by the line-to-line peak, sqrt(3)·sqrt(2)·110 = 269.44 V, which is exactly the run's maximum.
+A six-pulse bridge fired at 30° has an analytic mean of 3·sqrt(6)/π·110·cos 30° = 222.83 V, and the
+run gives 222.828 V. The load balance has to include the inductor, because the current is still
+rising (19.06 to 20.72 A over the last 20 ms through 1 H, so 83.1 V): 20·19.97 + 83.1 − 260 = 222.6 V.
+The thyristor equations hold at all 3540 points, with a worst branch residual of 9.2e-11. No
+conducting thyristor has `s < 0`, and no fired, blocking one has `s > 0`. So the backward reading found
+a legitimate point, and the patch wins one model on the court, behind the closed door of 21 October,
+with no victim among 93. It stays parked. Its price is that one model and Roman's word.
 
 The recursion cache of d90361b had not been measured over the heavy models. Three of them were run
 one model at a time, with the cache switched off, then on, then off again, from one binary on a quiet
