@@ -81774,3 +81774,16 @@ because the flattening half was quicker on a quiet desk, not because running got
 are not this shift's to move, the pair cannot stand in for the step because the walk was edited
 after it, and a third preflight hoping for a noisier desk would be a wager rather than a measurement.
 The decision goes to the review with every number on file.
+
+The best open pair the census tables left, `HeatingSystem` and `BranchingDynamicPipes`, refuses at one
+address (compile.rs:31) for one line of the library: the initial `der(medium.T) = 0` that
+Fluid/Interfaces.mo writes under `SteadyStateInitial` for a medium whose states are p and T. A
+one-tank model shows it in ten seconds (/tmp/m686/sm/S4.mo). The probe of initial derivatives names
+the first link: a torn block's slope in T meets a medium constant left as a call with a subscript
+on it, and the differentiator has no rule for a subscript. Given the same "names nothing, no slope"
+answer the call arm already gives, `HeatingSystem` moves on to a singular start loop around the
+pump. `BranchingDynamicPipes` stops at the second link instead: the slope meets `MoistAir.h_pTX`,
+whose declared `derivative=` annotation the slope does not read. The probe is parked with its map
+(park/m686_still_index_slope.*), the chain not yet walked to its end. The dddX pair (`MoistAir`,
+`FlueGasSixComponents`) is a question rather than a fix: the library types a derivative of density
+as a Density, with a minimum of zero, and the value is physically negative.
