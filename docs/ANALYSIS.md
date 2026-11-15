@@ -81895,3 +81895,33 @@ The two TwoPhaseWater property models read `p = 0` because their unconnected inp
 `InputAbsolutePressure p` is an `SI.AbsolutePressure`, and that type declares no start. The medium's own
 `AbsolutePressure`, with start 1e5, is a different type that the connector does not use. By the letter
 of the word that makes 0 of 7 names.
+
+### The refusals in model text, merged, and the switch-mode family counted
+
+The two text-only patches of the last shift are merged in b11abde. Index reduction's twenty-six
+refusals and the shared sketch now quote the model's own text instead of the compiler's tree. The
+whole-factor refusal of `AbsoluteClocks` says that 5 gives the interval but not the clock, because
+the two sides stand on different base clocks. Its test is red without the change and green with it.
+The court of the last shift took 176 models and gave equal outcomes line for line. A small court of
+five models gave the same (4 flatten, 1 run, both halves), and only the clock refusal changed words.
+Preflight on the merged tree printed 2671 read, 978 flatten and 847 run, runnable 859 and 798, a
+desk ratio of 0.364 and a runner ratio of 0.520, no witness line, and 92.54% line coverage. Nothing
+was won and nothing was lost, which is what a change of words should do. It was not measured on the
+heavy models, since no outcome moved.
+
+The switch-mode family was then counted. The candidates were the eleven models of the census's run
+half refused for a singular Jacobian or an undetermined floor block, each probed with the Newton
+trail. Two have identical Jacobian rows in a fixed mode: LossyGearDemo2 (rows 2 and 3, gear and
+bearing friction both locked on one inertia) and the quasi-static single-phase rectifier (rows 3 and
+7, all four diodes off). A twelve-line model with two bearing frictions on one inertia shows the same
+thing, rows 0 and 1 equal at `[0, 1, 0]`. That is statically indeterminate friction, not a fault in
+the numbers. PolyphaseRectifier and ThyristorBridge2mPulse_RLV are the closed doors of the floor.
+SMPM_CurrentSource and UniversalConstraint also have identical rows, but these come from index
+reduction differentiating one constraint twice, not from a mode. The other five lose rank in other
+ways. So a search over modes could reach two open models, or four if the word of 21 October were
+lifted. The written ceiling in `solvers/mod.rs` forbids accepting an undetermined point. It does not
+forbid looking for a mode that makes the block determined. That search is not built.
+
+`MagRel` asks no question either. `oxidelica why` shows its declared start
+(`transformer.MagRelStart[3]`) is read. The transformer is refused because the start equations do not
+tell `core3.Hstat` and `core3.MagRel` apart, whatever start either one has.
