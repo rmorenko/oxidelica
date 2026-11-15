@@ -81823,3 +81823,43 @@ meets the expression-depth ceiling (32), so the outer body stands whole with its
 That ceiling is written down as not to be raised. The standing rule therefore must not deepen what
 is still being inlined: it could be attached only once the flat model is built, or its rule could be
 left out of the depth count. Both are recorded in the map, and neither is built.
+
+## Shift m687: the record operators merged, and the run half's last walls read
+
+The record-operator chain parked by m686 is merged (758be55). The pair it was judged by is m686's,
+one binary, /tmp/m686/p_off.txt and p_on.txt: 845 run off, 847 on, the lists differing by exactly
+`ReferenceAir.Inverse_sh_TX` and `IncompleteMedia.ReferenceMoistAir`, no victims. On the fresh
+head the patch applied cleanly and the checks gave the same numbers: the small W18 gives 81 at
+x = 1 as by hand, the ice gives h(1e5 Pa, 251 K) = -377999.86 J/kg, both corpus models run, and the
+five unit tests go red under the four rollback keys. The preflight on the final tree printed 978
+flatten and 847 run, runnable 859 / 798, desk ratio 0.405 (1681 / 4152 ms), no witness failures,
+coverage 92.55% (/tmp/m687/preflight.txt).
+
+Roman's word (a) of 15 November is spent here. The desk's ceiling goes from 0.40 to 0.47,
+worked from the three desk prints with true counts (0.342, 0.399, 0.404) with the band's old
+relative room: 0.404 x 1.17 = 0.4727. The floor 0.28 stands. The self-check gains the inside point
+0.404, and the runner's band is untouched. The steady-start chain stays parked, with its one victim
+behind the expression-depth ceiling.
+
+The open walls were then read one by one, a note each in the park (m687_*.md):
+
+- The dddX pair (FlueGasSixComponents, TestAllProperties.MoistAir). The `min` is not on a function
+  output, as the last map said: a function returning a negative `SI.Density` runs
+  (/tmp/m687/D1.mo). The bound is the test model's own declaration, `Medium.Density
+dddX[Medium.nX]` at ModelicaTest/Media.mo:40 and :182, and the assertion is the Modelica rule.
+  Closed.
+- LossyGearDemo2: a singular loop over the Boolean quadrants of LossyGear.mo. Open, near the
+  written refusal of switch-state families.
+- Four flatten rows are unit errors in the library itself, so the refusals are true:
+  SimpleIdealGasMedium.setState_psX adds R_gas*log(p/p0) to s/cp_const (package.mo:6280),
+  R134a_pTX_phX_all declares the rate `dT` as PerUnit, the thyristor's 10000*(iGK - ...)*vAK
+  carries an unwritten 1/A (Thyristor.mo:53, two models), and Spice3 types its temperature
+  coefficients as Ohm/K where they are used as 1/K (Spice3.mo:9024, Graetz). These five models are
+  one question of policy, not a fix.
+- EquilibriumDrumBoiler's census row is stale. It flattens now and stops at the helper's missing
+  `m_D`.
+- HysteresisModelComparison is ours. A function body with an `if` is inlined into an expression,
+  and its protected `constant SI.MagneticFluxDensity unitT = 1` arrives as a bare 1, so the unit
+  check sees `T` against `1`. Twelve lines show it (/tmp/m687/U6.mo), and the same body without the
+  `if` runs (U5.mo). The fix is structural, since `Expr::Number` carries no unit. It is the best
+  candidate the reading found.
