@@ -81874,3 +81874,12 @@ reduction refusals printed in model text rather than as the compiler's tree
 stale: EquilibriumDrumBoiler, Rotational.Examples.Friction and the two reference-air models.
 Essotherm650's Prandtl number of 1.95e7 was checked by hand (cp·eta/lambda at 298.15 K). The
 viscosity table holds mPa·s where the library reads Pa·s.
+
+Three more walls were read with the Newton trail. In LossyGearDemo2 and the quasi-static single-phase
+rectifier, two rows of the start Jacobian are identical: two friction elements on one axis in the same
+mode, and four ideal diodes all off. That is the switch-state family, where what is missing is a search
+over modes, not a fix. In TestMixingVolumesPressureStates the start block has rank 23 of 24, with the
+column `der(mixingVolume1.medium.h)` dependent. That is the volume's choice of states, queue item 21.
+The refusals in model text are now one park patch, park/m687_refusals_model_text.patch. It covers the
+seven reduction refusals and the shared `sketch` behind nineteen others. The whole workspace's tests
+pass with it, and four refused models give equal outcomes before and after.
