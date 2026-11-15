@@ -81624,3 +81624,22 @@ relative acceleration is linear in its torque: -80 gives 1246.65 and +80
 gives -2113.35, so the locked configuration would carry -20.6, inside
 the clutch's 80. The locked mode is consistent, and the event rounds go
 between the two sliding modes without visiting it. Nothing was built.
+
+### A ring of switches set down once: Friction runs, parked
+
+A change was built and parked rather than merged
+(`m683_ring_rest.patch` and `.md` in the park, key
+`OXIDELICA_NO_RING_REST`). When the discrete definitions of one event
+pass come back to a set of values they already held, the ones that moved
+are set down once, the rest are asked again with them down, and the point
+is solved in that mode. A unit test with the Coulomb friction written out
+is red under the key and green without it. `C3` and `C2` run, the control
+`C1` runs both ways, and `Friction` runs with physical output: the clutch
+locks at 0.245 s and the brake holds `inertia1` from 0.5 s.
+
+The corpus pair from one binary (`/tmp/m683/p1_off.txt` and
+`p1_on.txt`, witnesses beside them) printed 978 flatten on both halves,
+844 run against 845, runnable 795 against 796. The run lists differ by
+the one line `ran Modelica.Mechanics.Rotational.Examples.Friction`, so
+there are no victims. The flatten work is equal to the digit, and the run
+half took 1712 s against 1651 s. The merge is left to the next shift.
