@@ -81975,9 +81975,12 @@ names on SeriesPipes12, which is the commit counting the names a hit stands for.
 the same picture. MoistAir2 flattened 1.5 s faster (23.0 to 21.5 s) and BranchingPipes12 2.3 s faster
 (29.1 to 26.7 s, with 166 more names counted). R134a2 did not change, and no run half moved. A third
 three agree: SeriesPipes13 flattened 2.2 s faster, BranchingPipes18 2.7 s faster and
-DynamicPipeInitialization 2.9 s faster (15.3 to 12.4 s), and again no run half moved. So over nine
-of the twenty-four heavy models the cache costs nothing in the run and saves seconds of flattening
-wherever media functions are walked many times.
+DynamicPipeInitialization 2.9 s faster (15.3 to 12.4 s), and again no run half moved. A fourth batch
+adds MoistAir (1.0 s faster) and DynamicPipesAndFittings (125.7 to 116.8 s, 8.7 s faster), while the
+two MultiBody models, Fourbar2 and LineForceWithTwoMasses, do not move in either half, having no media
+functions to walk. So over thirteen of the twenty-four heavy models the cache costs nothing in the run
+and saves seconds of flattening wherever media functions are walked many times. The four giants and
+seven others were not measured.
 
 The flatten half was measured again on the fresh head, all 42 models the census refused there. 41
 still refuse for the reasons mapped, and EquilibriumDrumBoiler, whose row was stale, now stops in
