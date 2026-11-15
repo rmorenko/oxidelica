@@ -1277,9 +1277,18 @@ pub(super) fn expand_call(
                 }
                 _ => None,
             };
+            // A `fill`, `zeros` or `ones` written in place says its
+            // lengths outright, the empty ones included: `fill(0.0, 0,
+            // 0)` expands to no rows, and its width lives only in the
+            // call. Read from the call, not guessed from the expansion.
+            let stated = (dimension >= 1)
+                .then(|| super::constants::array_length(&args[0], (dimension - 1) as usize))
+                .flatten()
+                .map(|length| length as usize);
             let length = shape
                 .get((dimension - 1).max(0) as usize)
                 .or(declared.as_ref())
+                .or(stated.as_ref())
                 .ok_or_else(|| {
                     if std::env::var("OXSZ").is_ok() {
                         let mut named: Vec<&String> = shapes.sizes.keys().collect();

@@ -1337,3 +1337,21 @@ fn a_size_is_measured_against_the_redeclared_package() {
         .and_then(|b| super::const_eval(&b, &std::collections::HashMap::new()));
     assert_eq!(s, Some(6.0));
 }
+
+#[test]
+fn size_reads_the_width_an_empty_fill_states() {
+    // `fill(0.0, 0, 3)` expands to no rows, so its width lives only in
+    // the call: asked for it, `size` reads the call rather than refusing.
+    let m = parse_model(
+        "model M final parameter Integer w = size(fill(0.0, 0, 3), 2); \
+         Real v[w]; equation v = fill(1.0, w); end M;",
+    )
+    .unwrap();
+    assert_eq!(
+        m.components
+            .iter()
+            .filter(|c| c.name.starts_with("v["))
+            .count(),
+        3
+    );
+}
