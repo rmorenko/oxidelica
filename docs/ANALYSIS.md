@@ -82169,3 +82169,12 @@ what the convergence test accepts, at a step already too small to
 cut. Whether the residual of 2.1e-7 is the arithmetic floor of a block
 mixing pressures of about 1e5 with derivatives is the next question,
 and it is a question for the floor test, not for the swap.
+
+The trail answers it (`/tmp/m690/out/bp3t.txt`, `OXIDELICA_NEWTON_TRAIL`):
+the residual is not on the arithmetic floor. Row 11 stands at 1.7e-9
+against a loudness of 1.0, and rows 13 and 14 stand at 1.3e-5 and
+1.4e-5 against 84388, about 1.5e-10 relative. Both are some 1e6 times
+the rounding of a double. Its pair, rows 18 to 21, sits at about 1e-13
+relative. So the floor test is right to refuse, and the block really
+has no descent there. The next probe is the conditioning of rows 11,
+13 and 14, which are the rows that carry the minted `$sw` derivatives.
