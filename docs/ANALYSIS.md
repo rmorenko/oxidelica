@@ -82327,3 +82327,13 @@ With it they count 63, all in the five models that now run:
 thirteen that still refuse count none. So 63 of the 64 are the winners'
 own work rather than waste from the retry, and the centre has to move
 with them rather than be fitted under its band.
+
+A fourth print of the same tree (`/tmp/m692/preflight5.txt`) gave
+0.583, with the same counts and the same run list. The four points run
+from 0.557 to 0.583, a spread of 4.6% around a median of 0.5705, and
+all of them are below 0.67. The parked note now also writes out the
+floors the merge would carry (run 844 to 849 and runnable run 795 to
+800, each the print less the three swinging models) and the probe
+points of the band in `time_band_judges` and in the CI step. The desk's
+points survive a ceiling of 0.67 unchanged. The runner's 1045 point
+would have to move in both files if the runner's ceiling reached 1.045.
