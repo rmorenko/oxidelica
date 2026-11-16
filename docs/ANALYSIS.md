@@ -82446,3 +82446,54 @@ variant (ii) allowed. It printed run/flatten 0.822 against the band
 its centre 797. The 1045 probe point stands, because 0.96 is below
 1.045. The desk estimate on the head's median was 0.87, so the print came
 out above the estimate's range.
+
+## Shift m694: the floor of the machine rows, and a heavy name the swap now burns
+
+Nothing is bought, by design: the shift was a probe of the rows the last
+re-rank left unprobed. CI for 0454051 was green (run 43926497301).
+
+### A heavy model the swap reaches
+
+Three heavy Fluid models were checked one at a time on the head
+(binary md5 in `/tmp/m694/*.env`, `--only ... --with-heavy`, a 30
+minute cap). The brief assumed all three ran. They do not, and did
+not before either: in m679 all three were 0 run as well. So the
+question is time, not models. `SeriesPipes12` took 26 + 53 s and
+`R134a1` 9 + 5 s, the same as m679. `DynamicPipesAndFittings` was
+stopped by its own 30 minute cap, against 111 + 2 s in m679. A sample
+puts the burn in the run half, in `ten_steps` under
+`solve_implicit_block`. In m679 that model refused with a singular
+Jacobian in a loop over `pipe2.mediums[1].p`, which is exactly the
+signature that opens the swap's retry (f974da9). Read against the last
+scheduled run before the swap (43894408770, artifacts heavy-a and
+heavy-b), four heavy names carry the signature:
+`DynamicPipesAndFittings`, `BranchingPipes12`, `R134a1` and `R134a2`.
+This is a cost on the heavy passes, not a lost model. The counted
+ceilings sit inside the 60-iteration Newton loop, so work outside it
+is not counted. Three cures are named and none is built: keep the
+retry off the heavy list, a lower stall ceiling for it, or counting
+the work outside that loop.
+
+### The two machine rows and IF97
+
+`ActuatorWithNoise` refuses on a sensor current that leads into the
+Y terminal box of `motor.smpm`, and `why motor.smpm.lszero.i` reads
+"an algebraic variable of the run". That is the zero-sequence wall of
+`SMPM_ResistiveBraking`. `IMC_DOL_CommonLeakage` refuses on the
+magnetic converter, with `aimc0.stator.zeroInductor.i0` under a
+derivative, and its two siblings in the same package stop at the
+`airGap`. Both rows are index reduction on a machine state, a
+forbidden family, so they are marked and not coded. The IF97 pair
+(`TwoPhaseWater.BaseProperties` and `ExtendedProperties`) are helpers
+with no experiment of their own. Their pressure is set only by
+`TestTwoPhaseStates`, so they belong to the example filter question.
+`DynamicPipeClosingValve` refuses at initialization (50 Newton
+iterations). It is outside the swap's gate, and forcing the swap
+through a probe key that never reached the tree changes nothing. The
+trail shows every loop solving in one or two steps, so the wall is the
+initial solve itself, and past it lies the parked damped stack.
+
+The start-fill question was also counted. Of row 71, the two
+init-singular models leave `opAmp.v_in` (`SI.Voltage`) and `volume.m`
+(`SI.Mass`) free, and neither type carries a `nominal`. Reading
+`nominal` as a start would buy 0 of them.
