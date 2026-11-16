@@ -82192,3 +82192,65 @@ progress, for instance by the simulated time won per Newton iteration.
 The two measured options stand as they were: five models with no
 victims and a toll of about 673 s, or six models and a toll near
 2625 s.
+
+## Shift m691: a clean print of the narrow swap, and a band it cannot enter
+
+The narrow form of the state swap as a retry (the signature restricted
+to loops naming a volume's `medium.p` or `mediums[`, and a ceiling of
+5000 Newton iterations on the second attempt) was applied on 4a9dd11
+and the whole preflight was run with nothing else on the desk. The
+patch stayed out of the tree afterwards; nothing here is merged.
+
+Before the long run, two single models checked the door:
+`BranchingPipes1` runs with the retry (102 s of run), and
+`ThreeSprings` refuses without meeting it, because its loop names no
+medium pressure.
+
+### The print
+
+From `/tmp/m691/preflight.txt`, lines 2430 to 2464:
+
+- ratio run over flatten 0.626, against the desk band 0.28..0.47: red.
+  The forecast was 0.55 to 0.64, and it held.
+- counts 978 flatten and 852 run, runnable 859 and 803: exactly the
+  base plus the five bought, so the narrow door took no victim.
+- Newton work is not reported outside its band: 35331476 in all, or
+  950004 without `Dimmer_RL` against a centre of 911704 (x1.042).
+- Jacobians 650 against 586 (x1.109): outside.
+- flattening 4462 ms per model, running 2731 s over 978.
+
+The earlier print of 0.962 was taken beside other runs. This one was
+not, and it is still red.
+
+### The budget, as a number
+
+The desk band's top edge at this print's flattening time allows
+0.47 x 4.462 s x 978 = 2051 s of run half. The reference run half
+without the retry is 1785 s, and the five bought models bring 393 s of
+their own. That sum, 2178 s, is a ratio of 0.499 before the refusers
+pay anything. So no gate, however exact, brings this form inside the
+desk band: the models it wins cost more than the band leaves. The toll
+measured by this print is 2731 - 2178 = 553 s.
+
+### Telling a crawl from progress
+
+With `OXIDELICA_NEWTON_TRAIL` on the earlier binary of the same form,
+all nine fluid models with the signature were traced. The five bought
+all reach t = 0.01. The longest they ever stand at one time and then
+move on is 2171 Newton iterations (`BranchingPipes1`), down to 1084
+(`BranchingPipes13`). The four refusers stop at t = 8e-4 (or 2e-4 for
+`TestTemperature1`). From there they stand still for 3294 to 5015
+iterations until the end, and none of them ever recovered from a
+stall longer than 142.
+
+So a gate of the form "no advance of time in N iterations" separates
+these nine for any N from 2172 to 3294. At N = 2500 it would stop each
+refuser at about half its present cost, roughly 270 s of the toll. Two
+cautions. The trace prints both attempts, so the windows belong to the
+whole run and not to the retry alone. And nine models are a sample,
+not a law. Even at a toll of zero, the ratio stays at 0.499.
+
+The heavy basket's last cron (15 November) reads 23 flatten and 2 run,
+and its log carries no refusal texts. So how many heavy models carry
+the signature cannot be counted from it. That needs an `--only-from`
+run, which was not made.
