@@ -82149,3 +82149,23 @@ the no-retry base falls from about 2625 s to about 673 s, a factor of
 models bought, failing at the ceiling. A narrower door cannot remove
 them, and only a cheaper second attempt would. A desk ratio worked out
 from these parts comes to about 0.58, an estimate and not a print.
+
+### Where BranchingPipes3 stops under the swap
+
+Under the swap, `BranchingPipes3` keeps `pipeN.mediums[1].p` and
+`.h` as its six states, and it refuses with a step size underflow at
+t = 0 even after re-selection. A probe on the stage failures of the
+explicit step (`/tmp/m690/out/bp3e.txt`, not committed) shows three of
+them. The first two come at the opening step of 1e-3: the water
+properties of `pipe3` evaluate to NaN in a stage that moved the states
+too far (`pipe3.mediums[1].d`, `der(pipe3.Us[1])`, the viscosities of
+the flow model). The step falls, and at t = 3.1e-6 with h = 1.1e-7
+the third is the algebraic loop that holds the `$sw` names. It stops
+at |f| = 2.1e-7 after three steps that do not descend. The test of
+convergence asks for 1e-10 relative, and the arithmetic floor did not
+excuse it. So the wall is not a singularity of the state choice. It
+is a loop over the minted derivatives that ends a few orders above
+what the convergence test accepts, at a step already too small to
+cut. Whether the residual of 2.1e-7 is the arithmetic floor of a block
+mixing pressures of about 1e5 with derivatives is the next question,
+and it is a question for the floor test, not for the swap.
