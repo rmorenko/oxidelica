@@ -82410,3 +82410,29 @@ every step except heavy, which is not run there. The five numbers:
 The heavy models were not measured with this change. The runner's number
 is for the judge to print. On the head's median the estimate puts the
 runner's ceiling below 1.045, but the estimate is not a print.
+
+### The standing 71 re-ranked on the merged head
+
+I made one pass over m683's list on the merged binary (`/tmp/m693/left.txt`,
+md5 74246a88), with the three models that already ran left in, 74 in
+all. Seven run: Friction, Inverse_sh_TX, ReferenceMoistAir and four of
+the five the swap won (BranchingPipes1, 13 and 14 and SeriesPipes2).
+The fifth winner, TestMixingVolumesPressureStates, is not on the list.
+The pass gave the refusal text of all 67 other models, so no extra
+`--only` run was needed. 66 of them refuse in the same layer as on
+15 November. Only the spelling of the expressions differs.
+
+By cause: 18 are structurally singular, with an equation that
+constrains no state; 11 are loops that diverge or are singular; 4 are
+the rest of the Newton direction row (BranchingPipes2 to 4 and
+SeriesPipes1, which the swap did not reach); 3 are singular starts; 19
+are in families already forbidden; and the rest are honest media
+assertions or one-off refusals. The largest row is not one family.
+
+Two probes ruled out the obvious leads. HeatingSystem's
+`der(tank.medium.T)` refusal comes from the initial equation
+`der(tank.medium.T) = 0`, which is a steady start. The `G.i = 0` of
+MNmos and MPmos comes from a lone transistor with its pins left open,
+which makes it a helper. Both families are forbidden, so this pass
+found no one-link candidate outside them. The map is in the park as
+`m693_rerank_71.md`.
