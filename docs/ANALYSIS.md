@@ -82337,3 +82337,13 @@ floors the merge would carry (run 844 to 849 and runnable run 795 to
 points of the band in `time_band_judges` and in the CI step. The desk's
 points survive a ceiling of 0.67 unchanged. The runner's 1045 point
 would have to move in both files if the runner's ceiling reached 1.045.
+
+A fifth print with the swap gave 0.580. The head without the swap was
+printed on the same empty desk (`/tmp/m692/head1.txt`): run 1719 s
+against flattening 4983 s, a ratio of 0.345, with 978/847 and 859/798
+and every step green. The earlier figure of 0.364 for the head was
+taken on another day. Against today's head, the swap multiplies the
+ratio by 0.572 / 0.345 = 1.658, not 1.563. Scaled by that, the
+runner's 0.590 becomes about 0.98, which is an estimate and not a
+print. A ceiling worked out from that estimate would be above 1.045,
+which is the point that has to stay outside the runner's band.
