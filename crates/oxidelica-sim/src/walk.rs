@@ -111,6 +111,15 @@ pub(crate) fn walk(
     time: f64,
     depth: usize,
 ) -> Result<Vec<f64>, SimError> {
+    // The table is asked at the head of the walk and filled at its
+    // tail, each in a small frame of its own: a frame put between a
+    // body and the body it calls costs every level of a recursion its
+    // size again.
+    if switch_set("OXIDELICA_WALK_CACHE") {
+        if let Some(answer) = looked_up(programs, name, args, shapes, time) {
+            return Ok(answer);
+        }
+    }
     if depth > MAX_WALK {
         return err(format!(
             "`{name}` called itself {MAX_WALK} deep without reaching an end"
@@ -355,7 +364,110 @@ pub(crate) fn walk(
                 .join(", ")
         ));
     }
+    if switch_set("OXIDELICA_WALK_CACHE") {
+        filed(programs, name, args, shapes, time, &answer);
+    }
     Ok(answer)
+}
+
+/// What this thread's table holds for the asking. The key is built
+/// here and again in [`filed`] rather than held across the walk, so
+/// that the walk's own frame carries nothing for the table.
+#[inline(never)]
+fn looked_up(
+    programs: &HashMap<String, ClassDef>,
+    name: &str,
+    args: &[f64],
+    shapes: &[Vec<usize>],
+    time: f64,
+) -> Option<Vec<f64>> {
+    remembered(programs, name, args, shapes, time).ok()
+}
+
+/// File a walked answer under the key of its asking.
+#[inline(never)]
+fn filed(
+    programs: &HashMap<String, ClassDef>,
+    name: &str,
+    args: &[f64],
+    shapes: &[Vec<usize>],
+    time: f64,
+    answer: &[f64],
+) {
+    if let Err(key) = remembered(programs, name, args, shapes, time) {
+        remember(key, answer);
+    }
+}
+
+/// What this thread's table holds for the asking, or the key to file
+/// the answer under once it has been walked.
+#[inline(never)]
+fn remembered(
+    programs: &HashMap<String, ClassDef>,
+    name: &str,
+    args: &[f64],
+    shapes: &[Vec<usize>],
+    time: f64,
+) -> Result<Vec<f64>, Box<WalkKey>> {
+    let key = Box::new(WalkKey {
+        bodies: programs as *const _ as usize,
+        name: name.to_string(),
+        time: time.to_bits(),
+        args: args.iter().map(|value| value.to_bits()).collect(),
+        shapes: shapes.to_vec(),
+    });
+    let epoch = WALK_EPOCH.load(std::sync::atomic::Ordering::Relaxed);
+    WALK_CACHE
+        .with(|cache| {
+            let mut cache = cache.borrow_mut();
+            if cache.0 != epoch {
+                cache.0 = epoch;
+                cache.1.clear();
+            }
+            cache.1.get(&*key).cloned()
+        })
+        .ok_or(key)
+}
+
+/// File a walked answer under its key.
+#[inline(never)]
+fn remember(key: Box<WalkKey>, answer: &[f64]) {
+    WALK_CACHE.with(|cache| {
+        let mut cache = cache.borrow_mut();
+        if cache.1.len() >= WALK_CACHE_KEPT {
+            cache.1.clear();
+        }
+        cache.1.insert(*key, answer.to_vec());
+    });
+}
+
+/// What one walk was handed, down to the bits: the set of bodies it
+/// was walked among, the body, the time, every number and the shapes
+/// they came in. A body is a function of these alone - the impure
+/// draws are written into the model as equations at flattening and
+/// never reach a walk - so the same key is the same answer.
+#[derive(PartialEq, Eq, Hash)]
+struct WalkKey {
+    bodies: usize,
+    name: String,
+    time: u64,
+    args: Vec<u64>,
+    shapes: Vec<Vec<usize>>,
+}
+
+/// How many answers one thread keeps before it forgets them all.
+const WALK_CACHE_KEPT: usize = 1 << 20;
+
+/// Moved on whenever a set of bodies is dropped, so that a table keyed
+/// by the address of one set never answers for a later set built at
+/// the same address.
+pub(crate) static WALK_EPOCH: std::sync::atomic::AtomicUsize =
+    std::sync::atomic::AtomicUsize::new(0);
+
+thread_local! {
+    #[allow(clippy::type_complexity)]
+    static WALK_CACHE: std::cell::RefCell<(usize, HashMap<WalkKey, Vec<f64>>)> =
+        std::cell::RefCell::new((0, HashMap::new()));
 }
 
 /// What a body written outside Modelica answers, where it is one of

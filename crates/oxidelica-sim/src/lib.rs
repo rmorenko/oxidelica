@@ -997,6 +997,12 @@ fn props_kept() -> usize {
     }
 }
 
+impl Drop for Walked {
+    fn drop(&mut self) {
+        crate::walk::WALK_EPOCH.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    }
+}
+
 impl Walked {
     /// A body for no model: nothing to walk, nothing remembered.
     #[cfg(test)]

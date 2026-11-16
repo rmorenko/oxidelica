@@ -1195,3 +1195,31 @@ fn rates_of_the_worked_pair() {
         );
     }
 }
+
+/// The table of walked answers gives back what the body says, and a
+/// moved argument or a moved time is another asking.
+#[test]
+fn a_remembered_walk_answers_as_the_body_does() {
+    let model = parse_model(
+        "model M function count input Real x; output Real y; \
+         algorithm y := time * 0; while y < x loop y := y + 1; end while; end count; \
+         Real y; equation y = count(time); end M;",
+    )
+    .unwrap();
+    let programs: HashMap<String, ClassDef> = model
+        .functions
+        .iter()
+        .map(|class| (class.name.clone(), class.clone()))
+        .collect();
+    let name = model.functions[0].name.clone();
+    // SAFETY of the test's reading: the switch is read once per thread.
+    std::env::set_var("OXIDELICA_WALK_CACHE", "1");
+    let ask = |x: f64| crate::walk::walk(&programs, &name, &[x], &[vec![]], 0.0, 0);
+    assert_eq!(ask(2.5).unwrap(), vec![3.0]);
+    assert_eq!(ask(2.5).unwrap(), vec![3.0]);
+    assert_eq!(
+        ask(3.5).unwrap(),
+        vec![4.0],
+        "another argument answered from the table"
+    );
+}
