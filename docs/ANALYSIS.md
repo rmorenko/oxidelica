@@ -82436,3 +82436,13 @@ MNmos and MPmos comes from a lone transistor with its pins left open,
 which makes it a helper. Both families are forbidden, so this pass
 found no one-link candidate outside them. The map is in the park as
 `m693_rerank_71.md`.
+
+### The runner's print of the swap
+
+The judge of 4c5f2da (run 43917571028, job 133504130605) failed, as
+variant (ii) allowed. It printed run/flatten 0.822 against the band
+0.41..0.63 and 797 Jacobians against the centre of 683, with counts of
+978/852 and 859/803. The runner's ceiling is now 0.822 x 1.17 = 0.96 and
+its centre 797. The 1045 probe point stands, because 0.96 is below
+1.045. The desk estimate on the head's median was 0.87, so the print came
+out above the estimate's range.
