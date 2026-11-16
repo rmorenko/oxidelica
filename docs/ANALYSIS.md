@@ -82093,8 +82093,13 @@ witness beside it under `/tmp/m690/out/`:
   iteration costs about 30 ms.
 - The retry runs inside the run half, so every such refusal pays it in
   every pass. The census of m676 has eighteen models with the
-  signature: the six bought, the four above, and eight outside Fluid
-  that were not priced one by one.
+  signature: the six bought, the four above, and eight outside Fluid.
+  The eight run no better under the form and pay double
+  (`eight_off.txt` against `eight.txt`): 135 s of run half became
+  276 s, with Newton iterations 2952 to 5904 and damped trials 5917 to
+  11834, exactly twice, because the retry repeats the refusal. The
+  twelve that are not bought add about 2625 s to the run half between
+  them.
 
 ### The preflight print
 
