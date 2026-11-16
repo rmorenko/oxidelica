@@ -82178,3 +82178,17 @@ the rounding of a double. Its pair, rows 18 to 21, sits at about 1e-13
 relative. So the floor test is right to refuse, and the block really
 has no descent there. The next probe is the conditioning of rows 11,
 13 and 14, which are the rows that carry the minted `$sw` derivatives.
+
+### A third lever that did not move
+
+The four Fluid refusers might have been told from the five winners by
+whether the second attempt ever takes a step. A probe cut the retry
+after 500 Newton iterations without an accepted step
+(`/tmp/m690/out/f500.txt`). The same five ran, and the four refusers
+cost 532 s against 535 s without the cut. They do take steps:
+`BranchingPipes3` reaches t = 3.1e-6 before its loop stalls. The gate
+that separates them is not the first step. It has to tell a crawl from
+progress, for instance by the simulated time won per Newton iteration.
+The two measured options stand as they were: five models with no
+victims and a toll of about 673 s, or six models and a toll near
+2625 s.
