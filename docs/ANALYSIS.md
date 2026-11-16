@@ -82277,3 +82277,11 @@ because the prize alone is 0.499. The patch and its numbers are parked
 with a note giving the band arithmetic for both prints (0.513..0.732
 from 0.626, 0.466..0.665 from 0.569) and the four places that hold the
 band.
+
+By the precedent written in `scripts/preflight.sh` (lines 137 to 144,
+15 November), the desk band's low edge was kept and only its ceiling
+moved. Applied to 0.569, that would make the desk band 0.28..0.67. The
+runner's band of 0.41..0.63 (`scripts/library_floor.sh`, lines 2744 and 2745) is not measured here. Scaled by the desk's rise (0.364 to 0.569,
+x1.563), the runner's head print of 0.590 would become about 0.92. That
+is an estimate, not a print. The runner prints its own ratio only in
+CI, which means after a merge.
