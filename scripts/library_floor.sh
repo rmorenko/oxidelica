@@ -2750,8 +2750,16 @@ UNREAD_CEILING=0
 # Said outright: this band stands on arithmetic and not on a print of
 # the runner; the first judge print after this commit is its first real
 # point and the band is worked again from it.
+#
+# On 2026-11-16 the ceiling went 0.63 -> 0.96, Roman's word on question
+# 112 (variant ii: the merge is the measurement, the printed number goes
+# in a second commit). The judge of 4c5f2da, which carries the narrow
+# state swap (f974da9), printed `CEILING: run/flatten ratio is 0.822`
+# (run 43917571028, job 133504130605), and 0.822 x 1.17 = 0.962,
+# written 0.96. The floor 0.41 stays: only the ceiling moves. The 1045
+# probe point stays outside, since 0.96 < 1.045.
 RATIO_LOW="${RATIO_LOW:-0.41}"
-RATIO_HIGH="${RATIO_HIGH:-0.63}"
+RATIO_HIGH="${RATIO_HIGH:-0.96}"
 
 # The band itself, as a function, so that it can be seen red without a
 # library pass: `library_floor.sh --ratio-check <flatten ms> <run ms>`
@@ -3451,7 +3459,14 @@ WORK_DEAREST=12
 # families), and when the chatter is cured another way this centre
 # comes down by the judge's print in a commit of its own, by
 # arithmetic on these two names rather than by digging.
-WORK_JACOBIANS=683
+# Wound 683 -> 797 on 2026-11-16 by the judge of 4c5f2da, which carries
+# the narrow state swap (f974da9): "jacobians is 797 against 683 written
+# here (1.166911x)" (run 43917571028, job 133504130605), outside the 10%
+# band, moved by the pahan's word under Roman's variant (ii). The desk
+# saw the same growth for a named cause: +64 on 586, of which 63 are the
+# five winners' own work and 1 the head's drift (/tmp/m692/jac2_on.txt).
+# The runner's +114 is not split by name here.
+WORK_JACOBIANS=797
 WORK_JACOBIANS_PPM=100000
 # One model whose Jacobians are held on a line of their own, with a
 # centre of its own: the name and the count. IMC_InverterDrive throws

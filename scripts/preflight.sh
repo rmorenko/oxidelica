@@ -335,6 +335,8 @@ time_band_judges() {
   # 2026-11-14 the edges are 0.41 and 0.63, so the old median of 1.045
   # is now past the top and 0.520, the middle of the expected row 0.49
   # to 0.54, stands inside.
+  # Since 2026-11-16 the top is 0.96 (the judge's 0.822 x 1.17), and
+  # 1.045 is still past it.
   ./scripts/library_floor.sh --ratio-check 1000 300 > /dev/null && return 1
   ./scripts/library_floor.sh --ratio-check 1000 1045 > /dev/null && return 1
   ./scripts/library_floor.sh --ratio-check 1000 520 || return 1

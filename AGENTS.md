@@ -722,7 +722,7 @@ longer the giant the note above made it - the wheel sets and the
 engines are, and MultiBody owns almost the whole list either way.
 
 `scripts/library_floor.sh` holds the time per model by the ratio of
-the two halves, running over flattening, to a band of 0.41 to 0.63
+the two halves, running over flattening, to a band of 0.41 to 0.96
 (`RATIO_LOW` and `RATIO_HIGH` in `scripts/library_floor.sh`), moved
 there when the cache of property answers made the run half cheaper,
 and first printed by the runner at 0.555. Both halves are timed in one pass under one
