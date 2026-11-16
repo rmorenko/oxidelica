@@ -82366,3 +82366,9 @@ every reading lies above it is withdrawn. The last Jacobian is named
 too. The head prints 598, which is 587 after the 11 held apart, one more
 than the written centre of 586. So the 64 are one of drift in the head
 and 63 of the five winners' own work.
+
+A third head print gave 0.391, so the head points are 0.359, 0.388 and
+0.391 with a median of 0.388. On that median the multiplier is 1.474,
+the runner estimate 0.87 and the ceiling derived from it 1.02. That is
+below the 1045 probe point, which would then stand. Only the lowest
+head print would put the ceiling above it.
