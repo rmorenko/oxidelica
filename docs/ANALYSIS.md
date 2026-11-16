@@ -82317,3 +82317,13 @@ and 38.2 s, and `ThreeSprings` 11.3 s. The files cannot divide this
 between rebuilding the swapped block and the Newton and damped trials,
 because no counter covers the rebuild and the Jacobian count is the
 same.
+
+Whose the extra Jacobians are was then counted model by model on the
+eighteen carriers (`/tmp/m692/jac2_oxh.txt` against `jac2_on.txt`,
+`OXIDELICA_WORK_EACH=1`). Without the swap all eighteen count none.
+With it they count 63, all in the five models that now run:
+`SeriesPipes2` 34, `BranchingPipes1` 11, `BranchingPipes14` 10,
+`BranchingPipes13` 6 and `TestMixingVolumesPressureStates` 2. The
+thirteen that still refuse count none. So 63 of the 64 are the winners'
+own work rather than waste from the retry, and the centre has to move
+with them rather than be fitted under its band.
