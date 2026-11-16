@@ -82501,3 +82501,78 @@ The start-fill question was also counted. Of row 71, the two
 init-singular models leave `opAmp.v_in` (`SI.Voltage`) and `volume.m`
 (`SI.Mass`) free, and neither type carries a `nominal`. Reading
 `nominal` as a start would buy 0 of them.
+
+## Shift m697: the walk cache merged behind a key, and its price named by phase
+
+### What the walk cache is and why it pays
+
+A walked body is a function of the set of bodies it is walked among,
+its name, the time, the bits of its arguments and their shapes. Impure
+draws are written into the model as equations at flattening and never
+reach a walk, and external bodies reach it only through the pure
+functions written here. So the same key is the same answer, and on
+`DynamicPipesAndFittings` 99.3% of the calls to `walk` were exact
+repeats, the IF97 property functions of the water medium carrying
+nearly all of them. The cache is a table per thread, keyed by those
+five things. It is emptied whenever a set of bodies is dropped (an
+epoch moved by `Drop for Walked`) and at 2^20 answers. Errors are not
+filed.
+
+It is merged behind `OXIDELICA_WALK_CACHE`, unset by default, so it
+buys no models and moves no floor. With the key unset the walk takes
+one branch more and is otherwise the old path.
+
+### What it bought where it was judged
+
+Measured with one binary, off against on (`/tmp/m696`, every run with
+its `.env`):
+
+- the five dearest Fluid walkers (`BranchingPipes1`, `13`, `14`,
+  `SeriesPipes2`, `TestMixingVolumesPressureStates`): run half 325 s
+  to 27 s, all five run on both sides, work equal to the digit;
+- the 157 Fluid and Media models that run: run half 754 s to 118 s,
+  157 of 157 on both sides, every work counter equal to the digit;
+- `DynamicPipesAndFittings` in the heavy set: at least 30 minutes
+  (taken by its cap) to 111 + 137 s, the same refusal on both sides.
+
+A full preflight under the key printed the same counts as the head
+(978 flatten, 852 run, runnable 859 and 803), the run list equal line
+for line. It printed a desk ratio of 0.295 against the band 0.28 to
+0.67, where the head prints 0.569 to 0.575.
+
+### What it costs
+
+The flatten half of the 157 set is dearer under the key: 2851 to 3242 s
+in one pair and 2858 to 3246 s in a second taken in the reverse order,
+with the flatten counters equal to the digit both times. Two pairs that
+agree to 0.2% in opposite orders make this a price, not drift. Spread
+over the set, 51 models pay more than 2 s, and single `--only` runs
+show none of it, so it appears only when many models share one
+process. The cause is not named. One guess was killed by a prediction
+written before the number: a cleared table that keeps its capacity
+(v4, a fresh table of 2^16, flattened in 3241 s). Peak resident memory
+rises from 6.2 to 9.2 GB, since a thread keeps up to 2^20 answers.
+
+### Whose stack it is
+
+The first shape of the kit turned the debug test
+`a_body_nothing_could_inline_is_walked_by_the_run` red even with the
+key unset. A probe of the address of a local at each walk showed why.
+That test walks one body down to `MAX_WALK = 64` (65 levels), about
+32 KB a level, and its deepest frame stands 2095376 B below the test,
+against 2097152 B given. So the head has a margin of 14 KB, and any
+growth of g bytes in the walk's frame costs 65g. Measured need by
+shape, with a bisection on `RUST_MIN_STACK` in 4 KB steps:
+
+| shape                               | need, B | key  |
+| ----------------------------------- | ------- | ---- |
+| head                                | 2082812 | -    |
+| v1, a wrapper frame                 | 2099609 | off  |
+| v3, folded into the walk            | 2097187 | off  |
+| v5, wrapper `inline(always)`        | 2097500 | off  |
+| v6, v3 with the frame boxed         | 2099218 | off  |
+| v7, key built twice in small frames | 2081875 | both |
+
+v7 is the shape merged. It never holds the key across the body: the
+key is built in one small `#[inline(never)]` frame to look up, and
+again in another to file the answer.
