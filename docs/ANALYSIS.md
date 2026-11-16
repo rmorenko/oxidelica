@@ -81986,6 +81986,20 @@ functions to walk. So over thirteen of the twenty-four heavy models the cache co
 and saves seconds of flattening wherever media functions are walked many times. The four giants and
 seven others were not measured.
 
+Four of those seven were measured the next night with the same binary and the same order of off,
+on, off (`/tmp/m689/hv`). In all twelve runs the work and the refusal came out the same in each
+half, apart from the names a cache hit stands for (45 more on DynamicPipesWithTraceSubstances, 309
+more on HeatExchangerSimulation). Oscillator runs in 30.6, 31.9 and 31.9 s, with 255284 points and
+744726 Newton steps in every run. Engine1b is refused as structurally singular after 86.6, 91.5 and
+90.9 s. DynamicPipesWithTraceSubstances is refused on its loop of pipe temperatures, and flattens in
+152, 155 and 161 s. HeatExchangerSimulation is refused on its start block of 162 unknowns after 8.8 s
+of running in all three runs, and flattens in 22.8, 20.5 and 22.7 s. Only Engine1b's run half sits
+outside the gap between its own two off runs, by 0.6 s over a gap of 4.3 s, with the refusal and
+every counter unchanged, so it is read as drift. That closes the measurement at seventeen of the twenty-four heavy
+models. The seven left are not measured, and each has a reason: FOURBIT, the four-bit adder, TWOBIT,
+EngineV6, IMC_YDarc and DynamicPipeEnergyConservationCheck2 are giants that cost hours at no risk,
+and DynamicPipeWithNominalLaminarFlow is benched.
+
 The flatten half was measured again on the fresh head, all 42 models the census refused there. 41
 still refuse for the reasons mapped, and EquilibriumDrumBoiler, whose row was stale, now stops in
 the run half on a parameter its helper base class leaves without a value. No flatten family moved.
