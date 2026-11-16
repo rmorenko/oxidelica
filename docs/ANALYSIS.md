@@ -82254,3 +82254,26 @@ The heavy basket's last cron (15 November) reads 23 flatten and 2 run,
 and its log carries no refusal texts. So how many heavy models carry
 the signature cannot be counted from it. That needs an `--only-from`
 run, which was not made.
+
+### A stall gate on the second attempt, printed
+
+The window was then built as a gate on the retry: the second attempt
+is refused after 2500 Newton iterations without getting past the
+latest time it has reached. The count carries across re-selections,
+the same way the whole-run count does. On the eighteen signature
+carriers, run one after the other on a quiet desk, the gate took the
+run half from 1323 s to 1020 s. The same five models ran, and the run
+lists were equal line for line. Most of the 303 s came from the
+refusers: `SeriesPipes1` went from 179 to 93 s, `BranchingPipes2` as a
+refuser from 140 to 74 s.
+
+A second clean preflight with the gate (`/tmp/m691/preflight2.txt`)
+printed a ratio of 0.569 against 0.28..0.47. The estimate from parts
+was 0.557. The counts are again 978/852 and 859/803, and the run list
+is the first print's to the line. Coverage is 92.55% with the patch,
+and every other step of the preflight passed. So the gate cuts the
+toll roughly in half, and the form is still red on the desk band,
+because the prize alone is 0.499. The patch and its numbers are parked
+with a note giving the band arithmetic for both prints (0.513..0.732
+from 0.626, 0.466..0.665 from 0.569) and the four places that hold the
+band.
