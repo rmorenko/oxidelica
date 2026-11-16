@@ -82041,15 +82041,21 @@ The price was asked of BranchingPipes1, which completes under the switch. Off, i
 after 64 points and 140 Newton steps in 9.4 s. On, it runs to the end in 104 s with 1300 points,
 3996 Newton steps and 11 Jacobians. Per unit of work the switch is cheaper, 80 ms a point against
 147 and 26 ms a Newton step against 67. The cost is that the model now runs its whole horizon on
-IF97, not that the swap adds work to each step. Two runs with the media property cache turned
-off, `OXIDELICA_NO_PROPS_MANY=1` and `OXIDELICA_NO_PROPS_ONCE=1`, were each past five and a half
-minutes of processor time when this was written, against 134 s with it. So the swap does use the
-cache.
+IF97, not that the swap adds work to each step. With the cache of many property answers turned
+off, `OXIDELICA_NO_PROPS_MANY=1`, the same run did exactly the same work (1300 points, 3996 Newton
+steps, 11 Jacobians) and took 1109 s of running against 104 s with it
+(`/tmp/m689/price/BP1_on_nomany.txt`). So the swap does use the cache, which saves a factor of
+10.7 here, and what is left is the number of steps on IF97.
 
 So the switch as it stands is not a candidate for the tree at any band: 17 victims among 150 running
 models, and three family members that do not finish in half an hour. The prize is real and has six
-names. What the series needs is a narrow form that swaps only where the medium reads pressure back
-out of an incompressible density, which spares the gases and the pumps. Before it comes in, the two
-holes it exposes need closing: differentiating a call or subscript, and the start of a new state
-outside its table. The patch, the note with every name and the victims list are parked as
-`m689_state_swap.patch` and `m689_volume_state_census.md`.
+names. The first candidate for buying the six without giving up the seventeen is to make the swap a
+fallback on refusal. A model that runs under the present choice never enters the swap's path, and
+the swap is tried only after a refusal signed by a singular loop over `medium.p` or `der(p)`. Its
+falsifier is named before it is built: there have to be no victims, by construction, since all 17
+run before the swap could be reached. A victim under that form would be a finding about something
+the swap's path shares with every model. The second candidate is a narrow form that swaps only
+where the medium reads pressure back out of an incompressible density, which spares the gases and
+the pumps. Before either comes in, the two holes the swap exposes need closing: differentiating a
+call or subscript, and the start of a new state outside its table. The patch, the note with every
+name and the victims list are parked as `m689_state_swap.patch` and `m689_volume_state_census.md`.
