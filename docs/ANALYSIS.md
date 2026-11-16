@@ -82354,3 +82354,15 @@ counts. Today the head without the swap varies more (0.345 and 0.372,
 7.5%) than the swap's five prints do (4.5%). Over the two head points
 the multiplier is 1.54 to 1.66, and the runner estimate is 0.91 to 0.98.
 A ceiling at 1.17 times any of those estimates is above 1.045.
+
+A correction to the two head ratios above. They were divided from the
+whole-pass `time:` line. The library step's own judgement of the ratio
+reads 0.359 and 0.388 for the two head prints. Those are the numbers
+comparable with the swap's prints, which give 0.557 to 0.583 at the same
+place. With them the multiplier is 1.47 to 1.59 and the runner estimate
+0.87 to 0.94. A ceiling of 1.17 times that is 1.02 to 1.10, which falls
+on both sides of the 1045 probe point, so the earlier sentence that
+every reading lies above it is withdrawn. The last Jacobian is named
+too. The head prints 598, which is 587 after the 11 held apart, one more
+than the written centre of 586. So the 64 are one of drift in the head
+and 63 of the five winners' own work.
