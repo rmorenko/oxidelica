@@ -142,8 +142,14 @@ examples_all_simulate() {
 # the precedent of 2026-10-14 the edges keep the room over all points:
 # 0.342 / 1.22 = 0.28 stands, and 0.404 x 1.17 = 0.4727, written 0.47.
 # The width before was 0.28..0.40; the runner's band is not moved.
+#
+# Since 2026-11-16 the ceiling is 0.67, Roman's word on question 112:
+# the narrow state swap moves the desk ratio, measured in five full
+# prints of one tree (0.557, 0.569, 0.572, 0.580, 0.583; /tmp/m691 and
+# /tmp/m692 preflight*.txt), median 0.572 x 1.17 = 0.669, written 0.67.
+# The floor stays 0.28 by the precedent of 15.11: only the ceiling moves.
 DESK_RATIO_LOW=0.28
-DESK_RATIO_HIGH=0.47
+DESK_RATIO_HIGH=0.67
 
 library_floor() {
   if [ ! -d "$library" ]; then
@@ -344,6 +350,8 @@ time_band_judges() {
   $desk 1000 351 > /dev/null || return 1
   $desk 1000 346 > /dev/null || return 1
   $desk 1000 404 > /dev/null || return 1
+  # Since 2026-11-16 (ceiling 0.67) 0.569 (/tmp/m691/preflight2.txt).
+  $desk 1000 569 > /dev/null || return 1
   $desk 1000 200 > /dev/null && return 1
   $desk 1000 923 > /dev/null && return 1
   return 0
