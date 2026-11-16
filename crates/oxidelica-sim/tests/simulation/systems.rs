@@ -2,7 +2,7 @@
 
 use super::shared::*;
 use oxidelica_parser::parse_model;
-use oxidelica_sim::{compile, lower_the_ceiling_here, SolverMethod};
+use oxidelica_sim::{compile, compile_with_state_swap, lower_the_ceiling_here, SolverMethod};
 
 #[test]
 fn algebraic_chain_is_ordered() {
@@ -2075,4 +2075,67 @@ fn a_walk_complaint_keeps_the_fault_the_block_found_first() {
         refused.contains("`m`") || refused.contains("m`, which is zero"),
         "{refused}"
     );
+}
+
+#[test]
+fn a_preferred_state_named_under_no_der_becomes_a_candidate_under_the_swap() {
+    // `p` is preferred and nothing names `der(p)`, so without the swap
+    // it is no candidate for a state at all. With it, `p$sw = der(p)`
+    // stands among the equations and index reduction weighs `p` against
+    // `m`. Whichever it keeps, the answer is m = 2*exp(-t), p half of it,
+    // and the minted name carries der(p) = -p.
+    let source = "model SW Real m(start = 2, fixed = true); \
+         Real p(stateSelect = StateSelect.prefer); \
+         equation der(m) = -m; m = 2 * p; \
+         annotation(experiment(StopTime = 1.0, Interval = 0.5)); end SW;";
+    let model = parse_model(source).unwrap();
+    let off = compile(&model).unwrap().simulate().unwrap();
+    assert!(!off.columns.iter().any(|c| c == "p$sw"));
+    let on = compile_with_state_swap(&model).unwrap().simulate().unwrap();
+    let value = |name: &str| {
+        let index = on.columns.iter().position(|c| c == name).unwrap();
+        on.rows.last().unwrap()[index]
+    };
+    let e = (-1.0f64).exp();
+    assert!((value("p") - e).abs() < 1e-5, "p = {}", value("p"));
+    assert!((value("p$sw") + e).abs() < 1e-5, "p$sw = {}", value("p$sw"));
+}
+
+#[test]
+fn a_run_past_its_newton_count_is_refused_and_says_so() {
+    // The count of the whole run, not of one interval: a loop that
+    // needs Newton at every point runs out of a ceiling of three.
+    let model = parse_model(
+        "model N Real x; equation x^3 + x = time + 1; \
+         annotation(experiment(StopTime = 1.0, Interval = 0.1)); end N;",
+    )
+    .unwrap();
+    let mut compiled = compile(&model).unwrap();
+    compiled.max_newton_total = 3;
+    let refused = compiled.simulate().unwrap_err().to_string();
+    assert!(
+        refused.contains("Newton iterations in the whole run"),
+        "{refused}"
+    );
+    // Unbounded by default, the same model runs.
+    assert!(compile(&model).unwrap().simulate().is_ok());
+}
+
+#[test]
+fn a_run_that_stands_still_past_its_stall_count_is_refused_and_says_so() {
+    // Newton takes more than one iteration at a time it has not yet
+    // got past, so a stall count of zero refuses at the first point;
+    // a generous one lets the same run reach its end.
+    let model = parse_model(
+        "model N Real x; equation x^3 + x = time + 1; \
+         annotation(experiment(StopTime = 1.0, Interval = 0.1)); end N;",
+    )
+    .unwrap();
+    let mut compiled = compile(&model).unwrap();
+    compiled.max_newton_stalled = 0;
+    let refused = compiled.simulate().unwrap_err().to_string();
+    assert!(refused.contains("without getting past t ="), "{refused}");
+    let mut compiled = compile(&model).unwrap();
+    compiled.max_newton_stalled = 1000;
+    assert!(compiled.simulate().is_ok());
 }

@@ -51,7 +51,8 @@ pub(crate) fn arithmetic_chain_enabled() -> bool {
 }
 
 pub use compile::{
-    compile, lower_the_ceiling_here, refuse_when_still_here, CeilingGuard, WhenStillGuard,
+    compile, compile_with_state_swap, lower_the_ceiling_here, refuse_when_still_here, CeilingGuard,
+    WhenStillGuard,
 };
 
 use code::*;
@@ -568,6 +569,21 @@ pub struct CompiledModel {
     /// how many iterations it has held so far. Only the run touches
     /// it, and a run has the model to itself.
     newton_window: std::cell::Cell<(f64, usize)>,
+    /// How many Newton iterations the whole run may take before it is
+    /// refused. Unbounded unless a caller sets it: a second attempt at
+    /// a refused model is given a count rather than seconds, so that
+    /// the desk and the build machine stop it at the same place.
+    pub max_newton_total: usize,
+    /// Newton iterations taken so far against `max_newton_total`.
+    newton_total: std::cell::Cell<usize>,
+    /// How many Newton iterations the run may take without reaching a
+    /// time later than any it reached before. Unbounded unless a caller
+    /// sets it, as the second attempt of `library check` does: a run
+    /// that stands still for that long is crawling, not converging.
+    pub max_newton_stalled: usize,
+    /// The latest time any Newton iteration has been asked at, and how
+    /// many iterations have been taken since it was first reached.
+    newton_stall: std::cell::Cell<(f64, usize)>,
     /// The most Newton iterations any one output interval has held in
     /// this segment, for the instrument that chooses the ceiling.
     newton_peak: std::cell::Cell<(usize, f64)>,

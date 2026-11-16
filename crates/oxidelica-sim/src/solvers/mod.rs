@@ -2949,8 +2949,13 @@ impl CompiledModel {
                             time: stall.time,
                             values: &stall.values,
                         }),
+                        false,
                     )?;
                     next.method = self.method;
+                    next.max_newton_total = self.max_newton_total;
+                    next.newton_total.set(self.newton_total.get());
+                    next.max_newton_stalled = self.max_newton_stalled;
+                    next.newton_stall.set(self.newton_stall.get());
                     // Where the run stops and how often it reports are
                     // the caller's to say, not the model's: `simulate
                     // --stop` and the ten steps of `library check` are
@@ -3002,6 +3007,27 @@ impl CompiledModel {
         }
         held += 1;
         self.newton_window.set((start, held));
+        let total = self.newton_total.get() + 1;
+        self.newton_total.set(total);
+        if total > self.max_newton_total {
+            return err(format!(
+                "`{}` spent more than {} Newton iterations in the whole run",
+                self.name, self.max_newton_total
+            ));
+        }
+        let (latest, since) = self.newton_stall.get();
+        let (latest, since) = if t > latest {
+            (t, 0)
+        } else {
+            (latest, since + 1)
+        };
+        self.newton_stall.set((latest, since));
+        if since > self.max_newton_stalled {
+            return err(format!(
+                "`{}` spent more than {} Newton iterations without getting past t = {latest}",
+                self.name, self.max_newton_stalled
+            ));
+        }
         if held > self.newton_peak.get().0 {
             self.newton_peak.set((held, start));
         }

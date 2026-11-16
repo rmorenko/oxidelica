@@ -1388,11 +1388,163 @@ struct Spent {
 /// would say more and cost minutes apiece; what is asked here is the
 /// cheap half of the question.
 fn run_a_little(model: &oxidelica_parser::Model) -> Result<(), String> {
-    let mut compiled = compile(model).map_err(|e| e.to_string())?;
+    let first = compile(model)
+        .map_err(|e| e.to_string())
+        .and_then(ten_steps);
+    let refused = match first {
+        Ok(()) => return Ok(()),
+        Err(refused) => refused,
+    };
+    if !swap_may_help(&refused) {
+        return Err(refused);
+    }
+    // A volume whose preferred states nothing differentiates keeps the
+    // balances' states and solves its pressure in a loop that can stall.
+    // The swap is tried only here, on a model whose start or run already
+    // refused that way, so a model that runs never meets it; and
+    // whatever the second attempt says, the model answers with its
+    // first refusal.
+    let Ok(mut second) = oxidelica_sim::compile_with_state_swap(model) else {
+        return Err(refused);
+    };
+    second.max_newton_total = SWAP_NEWTON_CEILING;
+    second.max_newton_stalled = swap_stall_ceiling();
+    ten_steps(second).map_err(|_| refused)
+}
+
+/// The cheap half of a run: ten of the model's steps.
+fn ten_steps(mut compiled: oxidelica_sim::CompiledModel) -> Result<(), String> {
     // Ten steps of whatever the model calls a step, and never past
     // where the model itself stops: a model asking for a long run is
     // not made to do one, and one asking for a short run is not made
     // to overrun it.
     compiled.stop_time = (compiled.step * 10.0).min(compiled.stop_time);
     compiled.simulate().map(|_| ()).map_err(|e| e.to_string())
+}
+
+/// Newton iterations the second attempt may take over its ten steps.
+/// Counted, not timed, so the desk and the build machine stop it at the
+/// same place. The six models it was built for took at most 15891
+/// (`BranchingPipes2`), so twice that keeps them with room and caps
+/// what a refusal that the swap does not help can cost.
+const SWAP_NEWTON_CEILING: usize = 5_000;
+
+/// Newton iterations the second attempt may take without getting past
+/// the latest time it has reached. Traced on the nine fluid models
+/// with the swap's signature: the five it rescues stand still for at
+/// most 2171 (`BranchingPipes1`) before moving on, and the four it
+/// does not stand still from about t = 8e-4 to the end, 3294 and more.
+/// `OXIDELICA_SWAP_STALL` sets it for a measurement; 0 turns it off.
+const SWAP_STALL_CEILING: usize = 2_500;
+
+fn swap_stall_ceiling() -> usize {
+    stall_ceiling_from(std::env::var("OXIDELICA_SWAP_STALL").ok().as_deref())
+}
+
+fn stall_ceiling_from(setting: Option<&str>) -> usize {
+    match setting.and_then(|v| v.parse().ok()) {
+        Some(0) => usize::MAX,
+        Some(n) => n,
+        None => SWAP_STALL_CEILING,
+    }
+}
+
+/// Whether a refusal is the kind the state swap answers: an algebraic
+/// loop that would not converge, which is where a volume solving its
+/// pressure from (m, U) stalls.
+fn swap_may_help(refused: &str) -> bool {
+    (refused.contains("the Newton direction of algebraic loop")
+        || refused.contains("singular Jacobian in algebraic loop"))
+        && (refused.contains("medium.p\"") || refused.contains("mediums["))
+}
+
+#[cfg(test)]
+mod swap_tests {
+    use super::*;
+
+    fn flat(source: &str) -> oxidelica_parser::Model {
+        oxidelica_parser::parse_model(source).unwrap()
+    }
+
+    #[test]
+    fn the_stall_ceiling_is_read_with_zero_for_none() {
+        assert_eq!(stall_ceiling_from(None), SWAP_STALL_CEILING);
+        assert_eq!(stall_ceiling_from(Some("0")), usize::MAX);
+        assert_eq!(stall_ceiling_from(Some("700")), 700);
+        assert_eq!(stall_ceiling_from(Some("many")), SWAP_STALL_CEILING);
+    }
+
+    #[test]
+    fn only_a_loop_that_would_not_converge_is_given_the_swap() {
+        assert!(swap_may_help(
+            "the Newton direction of algebraic loop [\"v.medium.p\"] does not reduce the residual"
+        ));
+        assert!(swap_may_help(
+            "singular Jacobian in algebraic loop [\"pipe.mediums[1].p\"]"
+        ));
+        assert!(!swap_may_help(
+            "singular Jacobian in algebraic loop [\"body.w\"]"
+        ));
+        assert!(!swap_may_help("step size underflow at t = 0.000000"));
+    }
+
+    #[test]
+    fn a_model_that_runs_is_answered_without_a_second_attempt() {
+        let model = flat(
+            "model R Real x(start = 1, fixed = true); equation der(x) = -x; \
+             annotation(experiment(StopTime = 1.0, Interval = 0.1)); end R;",
+        );
+        assert!(run_a_little(&model).is_ok());
+    }
+
+    #[test]
+    fn a_refusal_the_swap_cannot_help_comes_back_as_it_was() {
+        // No algebraic loop here: the first refusal stands, unretried.
+        let model = flat(
+            "model U Real x(start = 1, fixed = true); equation der(x) = 1 / (1 - time * 20); \
+             annotation(experiment(StopTime = 1.0, Interval = 0.1)); end U;",
+        );
+        let first = compile(&model).map(|mut c| {
+            c.stop_time = (c.step * 10.0).min(c.stop_time);
+            c.simulate().map(|_| ()).map_err(|e| e.to_string())
+        });
+        if let Ok(Err(first)) = first {
+            assert_eq!(run_a_little(&model).unwrap_err(), first);
+        }
+    }
+
+    #[test]
+    fn a_second_attempt_that_also_fails_answers_with_the_first_refusal() {
+        // A loop that stalls at t = 0.2, so the swap is tried; nothing
+        // here is preferred, the second attempt stalls the same way, and
+        // what comes back is the refusal of the first.
+        let model = flat(
+            "model A model B Real p(start = 1); end B; B medium; Real y; \
+             equation medium.p^2 + y = 1 - time * 10; y = medium.p^2; \
+             annotation(experiment(StopTime = 1.0, Interval = 0.1)); end A;",
+        );
+        let refused = compile(&model)
+            .map_err(|e| e.to_string())
+            .and_then(ten_steps)
+            .unwrap_err();
+        assert!(swap_may_help(&refused), "{refused}");
+        assert_eq!(run_a_little(&model).unwrap_err(), refused);
+    }
+
+    #[test]
+    fn a_stalled_loop_over_a_preferred_state_runs_under_the_swap() {
+        let model = flat(
+            "model S model B Real p(start = -1.5, fixed = true, \
+             stateSelect = StateSelect.prefer); end B; \
+             Real m(start = 2.2); B medium; \
+             equation der(m) = -1; m = medium.p^3 - 3*medium.p; \
+             annotation(experiment(StopTime = 1.0, Interval = 0.1)); end S;",
+        );
+        let refused = compile(&model)
+            .map_err(|e| e.to_string())
+            .and_then(ten_steps)
+            .unwrap_err();
+        assert!(swap_may_help(&refused), "{refused}");
+        assert!(run_a_little(&model).is_ok());
+    }
 }

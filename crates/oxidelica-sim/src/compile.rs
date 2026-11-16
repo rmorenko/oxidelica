@@ -227,7 +227,16 @@ pub(crate) fn jacobian_structure(
 
 /// Compile a parsed flat model into an executable form.
 pub fn compile(model: &Model) -> Result<CompiledModel, SimError> {
-    compile_at(model, None)
+    compile_at(model, None, false)
+}
+
+/// Compile with the state swap on: a variable the model prefers as a
+/// state and whose derivative no equation names is made a candidate by
+/// an equation `x$sw = der(x)` of its own. Asked for only as a second
+/// attempt at a model whose run refused, so a model that runs as it is
+/// never meets it.
+pub fn compile_with_state_swap(model: &Model) -> Result<CompiledModel, SimError> {
+    compile_at(model, None, true)
 }
 
 /// What the block's names hold when its first residual is evaluated.
@@ -6255,6 +6264,7 @@ fn distribute_der(expr: &Expr, params: &HashMap<String, f64>) -> Expr {
 pub(crate) fn compile_at(
     model: &Model,
     resume: Option<ResumePoint>,
+    state_swap: bool,
 ) -> Result<CompiledModel, SimError> {
     // 0. `spatialDistribution` becomes two ordinary equations: the two
     // ends of the profile, each of them either what is entering there
@@ -6389,6 +6399,76 @@ pub(crate) fn compile_at(
         }
         distributed = out;
         &distributed
+    } else {
+        model
+    };
+
+    // A variable the model prefers as a state and whose derivative
+    // nothing names is no candidate at all. Naming `der(x)` in an
+    // equation of its own makes it one, and the reduction then decides
+    // between it and what the balances name: a volume of water then
+    // keeps (p, h) and demotes (m, U). Asked for by the caller, never
+    // by default: see `compile_with_state_swap`. A continuation compiles
+    // the already swapped model, where every such name is now named.
+    let swapped;
+    let model = if state_swap {
+        let context = EvalCtx {
+            vars: &params,
+            time: 0.0,
+            programs: Some(&programs),
+            depth: 0,
+        };
+        let mut named: std::collections::HashSet<String> = Default::default();
+        for equation in &model.equations {
+            for side in [&equation.lhs, &equation.rhs] {
+                side.for_each(&mut |inner| {
+                    if let Expr::Call(name, args) = inner {
+                        if name == "der" {
+                            if let Some(Expr::Ref(arg)) = args.first() {
+                                named.insert(arg.clone());
+                            }
+                        }
+                    }
+                });
+            }
+        }
+        let mut copy = model.clone();
+        for c in &model.components {
+            if c.variability != Variability::Continuous || named.contains(&c.name) {
+                continue;
+            }
+            let Some(said) = c.state_select.as_ref() else {
+                continue;
+            };
+            if !matches!(eval(said, &context), Ok(level) if level == 4.0) {
+                continue;
+            }
+            if std::env::var_os("OXIDELICA_VICTIM_PROBE").is_some() {
+                eprintln!(
+                    "state-swap: `{}` is preferred and named under no der",
+                    c.name
+                );
+            }
+            let mut minted = c.clone();
+            minted.name = format!("{}$sw", c.name);
+            minted.state_select = None;
+            minted.start = None;
+            minted.fixed = None;
+            minted.fixed_expr = None;
+            minted.binding = None;
+            minted.min = None;
+            minted.max = None;
+            minted.nominal = None;
+            minted.unit = None;
+            copy.components.push(minted);
+            copy.equations.push(EquationItem {
+                lhs: Expr::Ref(format!("{}$sw", c.name)),
+                rhs: Expr::Call("der".to_string(), vec![Expr::Ref(c.name.clone())]),
+                origin: String::new(),
+            });
+        }
+        swapped = copy;
+        &swapped
     } else {
         model
     };
@@ -8631,6 +8711,10 @@ pub(crate) fn compile_at(
             MAX_NEWTON_ONE_INTERVAL,
         ),
         newton_window: std::cell::Cell::new((f64::NAN, 0)),
+        max_newton_total: usize::MAX,
+        newton_total: std::cell::Cell::new(0),
+        max_newton_stalled: usize::MAX,
+        newton_stall: std::cell::Cell::new((f64::NEG_INFINITY, 0)),
         newton_peak: std::cell::Cell::new((0, f64::NAN)),
         start_stall: std::cell::RefCell::new(None),
         events_changed: std::cell::Cell::new(0),

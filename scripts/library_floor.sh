@@ -2039,7 +2039,14 @@ FLATTEN_FLOOR=978
 # pair /tmp/m686/p_on.txt printed 847 run against 845 off, no victims,
 # so 847 - 3 (SpringWithMass, SMPM_VoltageSource FW, TestJunctionIdeal)
 # = 844.
-RUN_FLOOR=844
+# BranchingPipes1, BranchingPipes13, BranchingPipes14, SeriesPipes2 and
+# TestMixingVolumesPressureStates, won by the narrow state swap with the
+# stall gate: the full desk prints /tmp/m691/preflight2.txt and
+# /tmp/m692/preflight{3,4,5,6}.txt all printed 852 run against the
+# head's 847 (/tmp/m692/head1.txt), no victims, so 852 - 3
+# (SpringWithMass, SMPM_VoltageSource FW, TestJunctionIdeal) = 849,
+# Roman's word of 2026-11-16.
+RUN_FLOOR=849
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -2625,7 +2632,9 @@ RUNNABLE_FLATTEN_FLOOR=859
 # 796 - 3 = 793.
 # The two reference-air models: the pair /tmp/m686/p_on.txt printed
 # 859 / 798, so 798 - 3 = 795.
-RUNNABLE_RUN_FLOOR=795
+# The narrow state swap: the desk prints /tmp/m692/preflight{3..6}.txt
+# printed 859 / 803, so 803 - 3 = 800.
+RUNNABLE_RUN_FLOOR=800
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
@@ -3563,7 +3572,15 @@ WORK_NEWTON_DESK=911704
 # jacobians, the same as with the key on (/tmp/m596/jac_off.txt against
 # /tmp/m595/pre.txt:1471), so the growth came from elsewhere and is
 # left unnamed here rather than guessed.
-WORK_JACOBIANS_DESK=586
+#
+# Wound 586 -> 650 on 2026-11-16 with the narrow state swap, Roman's
+# word (a move over 5% goes to him): 586 + 1 (the head's own drift, 598
+# counted less 11 = 587, /tmp/m692/head1.txt) + 63 (the five winners'
+# own work by OXIDELICA_WORK_EACH=1: SeriesPipes2 34, BranchingPipes1
+# 11, BranchingPipes14 10, BranchingPipes13 6,
+# TestMixingVolumesPressureStates 2; /tmp/m692/jac2_on.txt against
+# jac2_oxh.txt) = 650, as the swap's prints count (661 less 11).
+WORK_JACOBIANS_DESK=650
 WORK_JACOBIANS_OWN_DESK="Modelica.Electrical.Machines.Examples.InductionMachines.IMC_InverterDrive 11"
 if [ "${FLOOR_DESK:-}" = 1 ]; then
   echo "centres: the desk's (FLOOR_DESK=1)"
