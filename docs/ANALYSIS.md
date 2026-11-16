@@ -82372,3 +82372,41 @@ A third head print gave 0.391, so the head points are 0.359, 0.388 and
 the runner estimate 0.87 and the ceiling derived from it 1.02. That is
 below the 1045 probe point, which would then stand. Only the lowest
 head print would put the ceiling above it.
+
+## The narrow state swap merged, and the runner's band left to the judge
+
+Roman's word on question 112 of 16 November: raise the desk's ceiling on
+the run/flatten ratio from 0.47 to 0.67 and leave the floor at 0.28.
+Leave the runner's band 0.41..0.63 alone, because this merge is what
+measures it. One red run of the judge is allowed, and the number it
+prints goes in as a second commit. The 1045 probe point moves in
+`preflight.sh` and `ci.yml` only if that printed number is 1.045 or more.
+
+The band went in first as its own commit (6b83c2d), with 0.569 from
+`/tmp/m691/preflight2.txt` added as an inside point of the desk check.
+The swap went in next (f974da9), built from the parked patch, binary
+md5 74246a8813a38392e9ea8421057c5015, the same as the five earlier
+prints. The same commit raised the floors to run 849 and runnable run
+800, which are 852 and 803 less the three swings SpringWithMass,
+SMPM_VoltageSource FW and TestJunctionIdeal. All three are in the ran
+list of this print. The desk's Jacobian centre went from 586 to 650.
+
+Signature before the long run, one `--only` each (`/tmp/m693/sig_bp1b.txt`
+and `sig_tsb.txt`): BranchingPipes1 ran in 101 s with 11 Jacobians.
+ThreeSprings refused in 6 s at its usual loop and was given no retry.
+
+The full preflight on an empty desk (`/tmp/m693/preflight.txt`) passed
+every step except heavy, which is not run there. The five numbers:
+
+- the library step printed `ratio: run/flatten is 0.575`, inside 0.28..0.67,
+  the sixth point of the form after 0.557 to 0.583;
+- 35321124 Newton steps, inside their band;
+- 661 Jacobians, which is 650 after the 11 held apart, against the new
+  centre of 650;
+- counts of 978/852 and 859/803;
+- line coverage of 92.55% against a floor of 92.5%, the same margin as
+  the four earlier prints.
+
+The heavy models were not measured with this change. The runner's number
+is for the judge to print. On the head's median the estimate puts the
+runner's ceiling below 1.045, but the estimate is not a print.
