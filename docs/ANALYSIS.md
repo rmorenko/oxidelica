@@ -82116,3 +82116,19 @@ before the run left out the price of the retries that fail, and they
 are most of it. The form needs a bound that is both deterministic and
 cheap before its price question can go anywhere. The heavy basket was
 not measured.
+
+### Why the small volume was dearer than the corpus model
+
+Shift m689 left a contradiction: the small `V1` (one closed volume of
+water, one litre, a source and an orifice) showed no point in 53
+minutes under the swap, while `BranchingPipes1` ran in 104 s. Under the
+form, counted by `library check --only` (`/tmp/m690/out/v1n_form.txt`),
+the small model is not silent at all: 15510 points and 32056 Newton
+iterations in 353 s before the ceiling stopped it, short of its ten
+steps. `simulate` prints only at the end, which is what made the crawl
+look like nothing. The swap keeps `volume1.medium.p` and
+`volume1.medium.h` as its states, and a litre of liquid water fed one
+kilogram a second has a pressure that moves on a time scale far below
+the output step, so the step control creeps. The corpus pipes carry
+larger volumes and finish. This is a reading from one probe, not yet a
+measured time constant.
