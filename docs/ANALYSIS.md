@@ -82132,3 +82132,20 @@ kilogram a second has a pressure that moves on a time scale far below
 the output step, so the step control creeps. The corpus pipes carry
 larger volumes and finish. This is a reading from one probe, not yet a
 measured time constant.
+
+### Two levers on the toll
+
+Both measured over the eighteen carriers in one run each
+(`/tmp/m690/out/c5000.txt` and `n5000.txt`, patches in the park).
+A ceiling of 5000 Newton iterations keeps five of the six (it cuts
+`BranchingPipes2`, which needs 15891) and brings the four Fluid
+refusers from 2506 s to 539 s. It does nothing for the eight outside
+Fluid, which never reach either ceiling: their price is the second
+compilation. Narrowing the signature to loops that name a medium's
+pressure (`medium.p` or `mediums[`) removes seven of the eight from
+the retry and leaves the same five running. Together the toll over
+the no-retry base falls from about 2625 s to about 673 s, a factor of
+3.9. What remains is the four Fluid refusers, the same family as the
+models bought, failing at the ceiling. A narrower door cannot remove
+them, and only a cheaper second attempt would. A desk ratio worked out
+from these parts comes to about 0.58, an estimate and not a print.
