@@ -82472,7 +82472,11 @@ This is a cost on the heavy passes, not a lost model. The counted
 ceilings sit inside the 60-iteration Newton loop, so work outside it
 is not counted. Three cures are named and none is built: keep the
 retry off the heavy list, a lower stall ceiling for it, or counting
-the work outside that loop.
+the work outside that loop. A five minute trail settles which of the
+three can reach it. It shows 449 counted Newton iterations in 300 s,
+about 0.67 s each, so the ceilings of 5000 and 2500 would bite only
+after roughly 55 and 28 minutes (`/tmp/m694/dp_trail.txt`). The price
+is per evaluation, not per iteration.
 
 ### The two machine rows and IF97
 
