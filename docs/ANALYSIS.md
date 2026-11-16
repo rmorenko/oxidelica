@@ -82285,3 +82285,35 @@ runner's band of 0.41..0.63 (`scripts/library_floor.sh`, lines 2744 and 2745) is
 x1.563), the runner's head print of 0.590 would become about 0.92. That
 is an estimate, not a print. The runner prints its own ratio only in
 CI, which means after a merge.
+
+### Two more clean prints of the stall-gated swap
+
+The same tree (1c043c2 with the parked stall-gated swap, binary md5
+74246a88) was printed twice more by the full preflight on an empty
+desk: `/tmp/m692/preflight3.txt` gave a ratio of 0.572 (run 2565 s,
+flattening 4670 s) and `/tmp/m692/preflight4.txt` gave 0.557 (run
+2443 s, flattening 4573 s). With the earlier 0.569 the three points are
+0.557, 0.569 and 0.572, a spread of 0.015, which is 2.7% of the
+median. All three lie below 0.67, the ceiling the precedent would give.
+Each print counted 978/852 and 859/803, and the run list matched the
+earlier print line for line both times. The library step was the only
+red step, on the band and on one more line: `WORK: jacobians is 650
+against 586`.
+
+That centre is not in `scripts/preflight.sh`. It is
+`WORK_JACOBIANS_DESK` in `scripts/library_floor.sh`. The 650 is 661
+counted less the 11 of `IMC_InverterDrive`, which is held apart. A
+move of 10.9% is above the 5% a centre may follow without a word, so
+it belongs to the same decision as the band. No copy of it exists in
+the CI workflow. The runner's centre (683) is a separate number. By the
+two centres' ratio it would count about 758, which is an estimate and
+not a print.
+
+The toll by name, from the existing eighteen-model files (stall gate
+against no stall gate, equal flattening work): the run half differs by
+157 s, and the four models that do not run carry all of it.
+`UniversalConstraint` adds 69.4 s, the two rolling wheel sets 38.5 s
+and 38.2 s, and `ThreeSprings` 11.3 s. The files cannot divide this
+between rebuilding the swapped block and the Newton and damped trials,
+because no counter covers the rebuild and the Jacobian count is the
+same.
