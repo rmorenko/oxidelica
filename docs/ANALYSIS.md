@@ -82059,3 +82059,55 @@ where the medium reads pressure back out of an incompressible density, which spa
 the pumps. Before either comes in, the two holes the swap exposes need closing: differentiating a
 call or subscript, and the start of a new state outside its table. The patch, the note with every
 name and the victims list are parked as `m689_state_swap.patch` and `m689_volume_state_census.md`.
+
+## Shift m690: the state swap as a retry on refusal, and its price
+
+The swap of shift m689 lost seventeen models because it changed the
+state choice of every model. The narrow form asks for it only as a
+second attempt: `library check` compiles a model as before, and only
+when the start or the ten steps refuse with an algebraic loop that
+would not converge (`the Newton direction of algebraic loop` or
+`singular Jacobian in algebraic loop`) does it compile again with the
+swap, under a ceiling of 32000 Newton iterations over the whole run. A
+retry that fails answers with the first refusal. The form is parked as
+`park/m690_swap_on_refusal.patch` and is not merged.
+
+### What the form bought and what it cost
+
+One binary (md5 22e1c1b0d30a0007aa23ef40444fab05), each run with its
+witness beside it under `/tmp/m690/out/`:
+
+- The six models of m689 all run under the form (`six.txt`), 15123
+  points and 31473 Newton iterations against 14854 and 30924 for the
+  swap alone: the failed first attempt costs 549 iterations, 1.8%.
+- No victims: the 150 models that ran without the swap all run under
+  the form (`victims.txt`, the lists equal), the seventeen victims of
+  m689 among them. Victims are zero by construction, and the
+  measurement agreed.
+- Four other models carry the signature and are not bought:
+  `SeriesPipes1`, `TestTemperature1`, `BranchingPipes4` and
+  `BranchingPipes3` (`four.txt`). None runs, and their run half went
+  from about 22 s to 2506 s, each stopped at the ceiling with about
+  32100 Newton iterations. A count ceiling holds the outcome equal on
+  both machines but does not bound the seconds: on these blocks an
+  iteration costs about 30 ms.
+- The retry runs inside the run half, so every such refusal pays it in
+  every pass. The census of m676 has eighteen models with the
+  signature: the six bought, the four above, and eight outside Fluid
+  that were not priced one by one.
+
+### The preflight print
+
+The full preflight with the form applied (`/tmp/m690/preflight.txt`)
+printed counts 978 flatten and 853 run, runnable 859 and 804, nine
+models above the floors. It also printed a run over flatten ratio of
+0.962 against the desk band of 0.28 to 0.47, and Newton iterations
+1.146 times their centre. The print is contaminated: the four refusers
+were measured beside it until its library step was nearly done. Load
+does not account for a doubling, though. The run half grew by about
+3270 s over the 1785 s reference, close to the 2506 s of the four
+refusers plus the 701 s of the six bought. The estimate of 0.50 made
+before the run left out the price of the retries that fail, and they
+are most of it. The form needs a bound that is both deterministic and
+cheap before its price question can go anywhere. The heavy basket was
+not measured.
