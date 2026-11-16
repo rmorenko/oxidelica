@@ -82347,3 +82347,10 @@ ratio by 0.572 / 0.345 = 1.658, not 1.563. Scaled by that, the
 runner's 0.590 becomes about 0.98, which is an estimate and not a
 print. A ceiling worked out from that estimate would be above 1.045,
 which is the point that has to stay outside the runner's band.
+
+A second print of the head (`/tmp/m692/head2.txt`) gave run 1855 s
+against the same 4983 s of flattening, a ratio of 0.372, with the same
+counts. Today the head without the swap varies more (0.345 and 0.372,
+7.5%) than the swap's five prints do (4.5%). Over the two head points
+the multiplier is 1.54 to 1.66, and the runner estimate is 0.91 to 0.98.
+A ceiling at 1.17 times any of those estimates is above 1.045.
