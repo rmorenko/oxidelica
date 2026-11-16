@@ -82003,3 +82003,53 @@ and DynamicPipeWithNominalLaminarFlow is benched.
 The flatten half was measured again on the fresh head, all 42 models the census refused there. 41
 still refuse for the reasons mapped, and EquilibriumDrumBoiler, whose row was stale, now stops in
 the run half on a parameter its helper base class leaves without a value. No flatten family moved.
+
+## Shift m689: the volume's state choice counted on the fresh head
+
+Queue item 21, series 2, is the family where a volume of water keeps its mass and energy as states
+while the medium asks for pressure and enthalpy, so the pressure is read back out of a nearly
+incompressible density and a Newton step drives it negative. The probe of 13 October gives every
+variable the model prefers as a state, and whose derivative nothing names, an equation `x$sw =
+der(x)` of its own, and index reduction then decides between it and the balances. Neither of the old
+patches applied to the head, so the block was carried over by hand, unchanged, behind an off-by-default
+switch. A model of three lines shows the mechanism alive: with the switch, `p$sw` stands among the
+equations and carries `der(p) = -p` to the end. That model is the unit test of the parked patch, and
+it fails without it.
+
+Each family member of the census m676 was run alone under the switch, from one binary
+(`/tmp/m689/ox`). Of ten, six run: BranchingPipes1, BranchingPipes2, BranchingPipes13,
+BranchingPipes14, SeriesPipes2 and TestMixingVolumesPressureStates. The last one had a second link
+behind it in m688, the pivot threshold, and the switch carried it past both. BranchingPipes3 moved to
+a new wall, a step size underflow at t = 0. BranchingPipes4 and TestTemperature1 were stopped by a
+thirty-minute ceiling, and SeriesPipes1 by a twenty-minute one. BranchingPipes1 without the switch,
+from the same binary, refuses as before. A second handful with weaker signs did not move: all eight
+stand on walls of their own, and NonCircularPipes, whose census row was stale, runs without the
+switch anyway. The small water volume of 13 October, V1, ran for 53 minutes towards t = 1 and 15
+towards t = 2e-3 without printing a point. That is a price, not a refutation, since BranchingPipes1
+and SeriesPipes2 both pass the wall at t = 1e-3 that V1 was built for.
+
+The victims were judged by name. Two hundred Fluid and Media models outside the heavy list ran off
+(`/tmp/m689/ctl/off.txt`, 189 flatten, 150 run), and the 150 that ran were run again under the
+switch (`on_ran.txt`, 133 run). That is 17 victims and no win in this set, which held no family
+member that ran off. A full on half over the 200 stalled at 140 because the family members burn
+without a ceiling, and it was stopped. Six victims are the gas media of `TestsWithFluid`, refused at
+t = 0 on `u_min` and `u_max`. Seven cannot differentiate a call or a subscript, two have a singular
+initialization, one a start block of 67 unknowns and one an unknown `$seed2`. Nine of the 17 were on
+the victim list of the October pair as well, so this is an old family of victims and not a new one.
+
+The price was asked of BranchingPipes1, which completes under the switch. Off, it refuses at t = 8e-4
+after 64 points and 140 Newton steps in 9.4 s. On, it runs to the end in 104 s with 1300 points,
+3996 Newton steps and 11 Jacobians. Per unit of work the switch is cheaper, 80 ms a point against
+147 and 26 ms a Newton step against 67. The cost is that the model now runs its whole horizon on
+IF97, not that the swap adds work to each step. Two runs with the media property cache turned
+off, `OXIDELICA_NO_PROPS_MANY=1` and `OXIDELICA_NO_PROPS_ONCE=1`, were each past five and a half
+minutes of processor time when this was written, against 134 s with it. So the swap does use the
+cache.
+
+So the switch as it stands is not a candidate for the tree at any band: 17 victims among 150 running
+models, and three family members that do not finish in half an hour. The prize is real and has six
+names. What the series needs is a narrow form that swaps only where the medium reads pressure back
+out of an incompressible density, which spares the gases and the pumps. Before it comes in, the two
+holes it exposes need closing: differentiating a call or subscript, and the start of a new state
+outside its table. The patch, the note with every name and the victims list are parked as
+`m689_state_swap.patch` and `m689_volume_state_census.md`.
