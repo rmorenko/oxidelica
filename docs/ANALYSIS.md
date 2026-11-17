@@ -82614,3 +82614,39 @@ prints in m692), so neither is a precise figure. A part of the fall is
 the crowding above rather than the run's own saving. The 0.520 a
 preflight prints for the main pass is the self-check probe in the same
 words, not the runner's measure, which only CI prints.
+
+## Shift m698: the top of the run census by family and by owner
+
+The four top rows of the run half of the census taken on 492fc24
+(`/tmp/m697/census.txt`, names from `/tmp/m697/raw.txt`) hold 55
+models: 29 structurally singular, 13 unbalanced with nothing
+determining a name, 7 underdetermined loops and 6 singular Jacobians.
+Each name was read one by one and the families added by hand, row
+against row; the rows and the families agree to the model. The column
+"what the answer gives" says whether an owner's answer would add
+models that run or only clean the count.
+
+| Row                   | Family (models)                                                                                                                                                                                                                                                                 | Owner                                 | What the answer gives  |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- | ---------------------- |
+| structurally singular | helpers by position, a connector left open at the top (17): four `OpAmpCircuits`, `Nand`, `RealSwitch`, `AnalysatorAC/DC`, `MNmos`, `MPmos`, two hysteresis transformers, `PermeanceActuator`, `SimpleSolenoid`, `Loops.Utilities.Cylinder`, two `SpringDamperNoRelativeStates` | question 66                           | a cleaner count        |
+| structurally singular | both ends closed (2): `TanksWithOverflow`, `BatchPlant_StandardWater`                                                                                                                                                                                                           | Roman's word of 12 November           | none, refusal stays    |
+| structurally singular | exhausted choice of states (2): `ActuatorWithNoise`, `IMC_DOL_CommonLeakage`                                                                                                                                                                                                    | question 108                          | models                 |
+| structurally singular | MultiBody loops and constraints (5): `PrismaticConstraint`, `SphericalConstraint`, `PointGravityWithPointMasses2`, `RollingWheel`, `Engine1a`                                                                                                                                   | items 56 and 108                      | models                 |
+| structurally singular | RobotR3 friction start (2): `FullRobot`, `OneAxis`                                                                                                                                                                                                                              | earlier maps, covered                 | models                 |
+| structurally singular | single: `SMPM_ResistiveBraking`, `3 * smpm.lszero.i = 0` with no other equation of a subset to try                                                                                                                                                                              | nobody                                | one model at most      |
+| unbalanced            | helpers by position (13): `DirectCapacitor`, `DirectInductor`, four AST controller utilities, `InnerTank`, `ConstantActuator`, `AxisType1/2`, `Controller`, `Motor`, `StateGraph...valve`                                                                                       | question 66                           | a cleaner count        |
+| underdetermined loop  | an exactly zero capacitance column (3): Spice3 `NAND`, `ONEBIT`, `RtlInverter`                                                                                                                                                                                                  | item 105, a dead column stays refused | none                   |
+| underdetermined loop  | pivot edge (4): `IMC_DOL_Polyphase`, `IMS_Start_Polyphase`, `SMEE_DOL`, `SMEE_Rectifier`                                                                                                                                                                                        | question 62, park m661                | models (4 under key)   |
+| singular Jacobian     | singles with old maps (6): QS `Rectifier`, `PumpingSystem`, `SMPM_CurrentSource`, `UniversalConstraint`, `RollingWheelSetDriving`, `LossyGearDemo2`                                                                                                                             | maps of earlier shifts                | one model each at most |
+
+The aim of the hunt was a family of two models or more that nobody
+owns and that has a small model to probe. There is none in these four
+rows. Thirty of the 55 are helpers by their place in the tree and wait
+on question 66, whose answer cleans the count and buys nothing; eleven
+wait on questions 62 and 108 and item 56; five are refused by a word
+or a rule already given; eight are singles or a pair with maps of their
+own (30 + 11 + 5 + 8 + 1 = 55). The only unowned name, `SMPM_ResistiveBraking`, is a
+single: `library check .msl --only` on it (`/tmp/m698/smpm.txt`, with
+its witness `smpm.env`) refuses after 120 points and 382 Newton steps on
+the same equation. So the top of the census stands behind words, and a
+model gained here is a model gained by an answer, not by a shift.
