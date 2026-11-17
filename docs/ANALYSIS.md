@@ -82741,3 +82741,47 @@ declaration of `dT` and the equation two lines below it).
 J/(kg.K): the factor should be `R_gas/cp_const`, as the isentropic
 enthalpy of the same package writes it. Neither is a family to work
 on: a compiler that ran them would be accepting the library's error.
+
+### Literals without units in the flattening census
+
+Four models of the flattening census refuse on units around a number
+that carries none, and each was read at its source (`/tmp/m697/raw.txt`
+lines 14, 15, 17 and 19).
+
+| Model                       | Source                                                                                   | Verdict                                                                                  |
+| --------------------------- | ---------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `SimpleTriacCircuit`        | `Semiconductors/Thyristor.mo`: `10000*(iGK-0.95*IGT)*vAK` beside `10*vAK`                | the factor 10000 is per ampere and says nothing; our reading is stricter than the writer |
+| `ThyristorBehaviourTest`    | the same line                                                                            | the same                                                                                 |
+| `HysteresisModelComparison` | `FluxTubes/Utilities/everett.mo`: `J := unitT*(...)` with `constant ... unitT=1` (tesla) | the constant reaches us as a bare `1`, so the tesla is lost on the way: ours             |
+| `Spice3.Examples.Graetz`    | `Spice3.mo`: `m_dTC1` declared `Ohm/K`, used as `1 + TC1*dT`                             | the library's own error, as `R134a_pTX_phX_all` and `SimpleAir`: the refusal is right    |
+
+A key, `OXIDELICA_LITERAL_FACTOR`, let a product with a whole literal
+above one as a factor claim no unit. Its pair, one binary
+(`/tmp/m699/off.txt` and `on.txt`, witnesses beside them): flatten 978
+to 981, run 852 and 852, the run lists equal line for line, no victims,
+the run half 2373 s to 2388 s. The three that flatten are the thyristor
+pair and `HysteresisModelComparison`, and none runs: the triac spends
+its evaluation budget at t = 1e-6, the thyristor test meets a Newton
+direction it cannot take, and the hysteresis start is singular. A wider
+form of the key, taking any whole literal, also flattened `Graetz` and
+was struck, because the literal it bent was the `1` of `1/R` and what
+it hid was the library's error. The narrow form is in the park
+(`m699_literal_factor.patch` and its note), not merged: it wins nothing
+that runs and lets `y = 2*x` pass with metres on one side and volts on
+the other. The lost tesla of `unitT` is the one fault here that is
+plainly ours, and it is a question of carrying a constant's unit into
+an inlined body, not of literals.
+
+The rest of the flattening census, by family: the C and FORTRAN
+externals (ten rows), with the two flexible sizes of `Test25_usertab`
+and `Test66_usertab`, which are the same usertab tables read from C;
+the partial media (`IncompleteMedia` four, `PartialMediumFunctions`,
+the three `Media.Examples.Utilities` helpers built on
+`PartialMedium.BaseProperties` and `TankWithTopPorts`), which are
+incomplete by design; the expression depth, where the four FFT
+examples are one family under the ceiling these notes forbid raising;
+two clocks without an interval and one implicit clocked method; and
+singles: a String from a function (`TestStreams`), a file read at
+compile time (`TestFiles`), a matrix shape for LAPACK (`TestMatrices3`)
+and the two singles above already shown to be the library's own. No
+second family without an owner was found.
