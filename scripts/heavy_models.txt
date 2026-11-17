@@ -159,6 +159,7 @@ Modelica.Media.Examples.R134a.R134a2
 # 47.1s / 151.0s, 2026-10-06, refused
 # 86.9s / 113.2s, 2026-10-19, run / flatten, 36e3dd1, pass a
 # 2279.8s / 110.8s, 2026-11-17, run / flatten, 5befe72, pass a, dearer by the swap's retry of f974da9 (m694, m695)
+# 242.3s / 110.1s, 2026-11-17, run / flatten, e653212, pass a, cheaper by the stall window of 3e86796
 ModelicaTest.Fluid.TestComponents.Pipes.DynamicPipesAndFittings
 # 114.7s / 79.3s, 2026-10-06, refused
 # 30.9s / 9.6s, 2026-10-19, run / flatten, 36e3dd1, pass b
