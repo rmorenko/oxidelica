@@ -83266,3 +83266,9 @@ Main corpus, peak walks standing still under the probe
 The five refused carriers are stopped by the Newton window of 2500
 before they walk eight million. Heavy basket of the cron run: not
 measured as a whole; the two names it could touch are measured above.
+
+The preflight of this shift ran while walk probes were still on the
+desk. Crowding can only make a print slower and a ratio worse, so the
+green it gave is honest with room to spare. The heavy basket as a whole
+has not been run under the window; its first print under it is the
+cron run of 17 November.
