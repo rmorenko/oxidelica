@@ -82647,8 +82647,10 @@ wait on questions 62 and 108 and item 56; five are refused by a word
 or a rule already given; eight are singles or a pair with maps of their
 own (30 + 11 + 5 + 8 + 1 = 55). The only unowned name, `SMPM_ResistiveBraking`, is a
 single: `library check .msl --only` on it (`/tmp/m698/smpm.txt`, with
-its witness `smpm.env`) refuses after 120 points and 382 Newton steps on
-the same equation. So the top of the census stands behind words, and a
+its witness `smpm.env`) refuses on the same equation in index reduction
+(`compile.rs:3039` under `OXIDELICA_WHERE=1`); the 120 points and 382
+Newton steps its work line prints belong to the start, not to a run
+that went and stopped. So the top of the census stands behind words, and a
 model gained here is a model gained by an answer, not by a shift.
 
 ## Shift m698: the stack of a walk, two thirds of a storey taken off
@@ -82696,3 +82698,20 @@ m592 and question 93, which waits on Roman. "the Newton direction"
 holds five Fluid models (`TestTemperature1`, `BranchingPipes2/3/4`,
 `SeriesPipes1`), the (p,h) pipe family whose key was judged in earlier
 shifts and stands in the queue. Neither row holds an unowned family.
+
+The one unowned name was probed after the table above. Shrunk to a
+machine with a star terminal box, an isolated star and a resistor
+(`/tmp/m698/s/X2.mo`), it refuses as the example does when the start
+speed is 6 rad/s or more and runs at 4 or less. The victim probe shows
+reductions 1 to 9 equal at both speeds; at reduction 10, on
+`terminalBox.starpoint.i = 0`, the start weights hold `lszero.i` at 0
+and, at the higher speed only, `lssigma.i_[1]` at 9.86, which is taken
+as the victim, and the hidden constraint `3 * smpm.lszero.i = 0` is
+then left with no state (`/tmp/m698/v4.txt` and `v6.txt`). So the
+single belongs to the choice of states by start weight, the family of
+question 108, and a fix changes which states reduction keeps. A map is
+in the park (`m698_smpm_braking_map.md`), no patch.
+
+The preflight of the stack change printed a desk ratio of 0.548, below
+the 0.557 to 0.583 of the head's unkeyed prints by 0.009: the run half
+cheaper, not dearer, and within the drift these notes record.
