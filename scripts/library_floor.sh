@@ -2981,9 +2981,21 @@ fi
 #   classes     283693 - 3896       = 279797
 #   expansions  95751333 - 6952878  = 88798455
 #   bodies      1422042 - 91959     = 1330083
+#
+# Expansions and bodies moved on 2026-11-17, on Roman's word, for the
+# seven cheap names taken back out of the carved-out set and into this
+# pass. The measured population changed, and a centre answers for a
+# population: 88798455 -> 95302141 and 1330083 -> 1403973, both read
+# from the desk's preflight with the move in place
+# (/tmp/m712/preflight.txt), both good for the judge as well because
+# the two machines print flattening work to the digit on one code - see
+# the note at WORK_NAMES for the four measurements that say so. Classes
+# stands: the desk prints 286530 against this centre, 24 per thousand
+# over, which its band holds, and the carve-out arithmetic above would
+# have to be redone to move it honestly. The bands are not moved.
 WORK_CLASSES=279797
-WORK_EXPANSIONS=88798455
-WORK_BODIES=1330083
+WORK_EXPANSIONS=95302141
+WORK_BODIES=1403973
 #
 # Refreshed from /tmp/m328/new.txt, the warm start restored on a
 # rejected step; its off side, /tmp/m328/old.txt
@@ -3201,9 +3213,39 @@ WORK_BODIES=1330083
 #
 #   points  30760813 - 29755670 = 1005143
 #   newton  44507575 - 42710370 = 1797205
-WORK_POINTS=1005143
+#
+# Both moved on 2026-11-17, on Roman's word, for the seven cheap names
+# taken back into this pass. Two things move them at once, and the
+# second is why the old numbers look so far away. The tree had already
+# drifted below them: the judge's print on 9ec2218 (run 44154196440,
+# and the same line to the digit from the run on a880aca) is `running
+# 30750144 points, 44355146 newton` less `work apart: Dimmer_RL
+# 29755670 points, 42710370 newton`, so the pass stood at 994474 and
+# 1644776 - the newton centre was 85 per cent of the way to its lower
+# edge before anybody touched the baskets. And the seven add their own
+# work on top of that.
+#
+# Unlike the flattening centres above, these cannot be taken from the
+# desk: the two machines disagree on run counters, and they disagree
+# per model rather than by a factor. Measured on one code, the desk
+# against the judge: Rectifier, ComparisonPullInStroke,
+# ControlledSwitchWithArc, NandGate, PreLoad and
+# LightningSegmentedTransmissionLine agree to the digit, Dimmer_RL runs
+# 1.26 times dearer on the judge, ActuatorWithNoise 1.89 times, and
+# Oscillator - which carries almost the whole of this move - runs
+# CHEAPER there, at 0.71. So the judge's own print of the one model was
+# asked for by hand (run 44180493689, job 134383223396, the branch
+# merged as 8d9a386): 183902 points and 528215 newton, against the
+# desk's 255284 and 744726 for the same model and the same code
+# (/tmp/m714/osc_desk2.txt). The remaining six are 91 points and 188
+# newton on the desk, and are carried over unscaled - an estimate, and
+# the only one in these two numbers.
+#
+#   points  994474 + 183902 + 91  = 1178467
+#   newton  1644776 + 528215 + 188 = 2173179
+WORK_POINTS=1178467
 WORK_POINTS_PPM=100000
-WORK_NEWTON=1797205
+WORK_NEWTON=2173179
 WORK_NEWTON_PPM=100000
 # And Dimmer_RL, whichever way it falls, centred between the desk's run
 # under the series and the machine's printed refusal:
@@ -3568,7 +3610,12 @@ WORK_PERCENT=5
 # now prints 450379 and 1102467, so the desk's numbers move here. The
 # judge's two lines above were then set from the judge's own print of
 # run 41692484782, as written there.
-WORK_POINTS_DESK=450379
+#
+# Moved 450379 -> 694013 on 2026-11-17, on Roman's word, for the seven
+# cheap names taken back into this pass. Read from the desk's preflight
+# with the move in place, the line `points evaluated is 694013`
+# (/tmp/m712/preflight.txt). The band is unchanged.
+WORK_POINTS_DESK=694013
 #
 # Newton moved 1102467 -> 911704 on 2026-11-13 when the unknown-divisor
 # rule went on by default: a derivative is no longer isolated by
@@ -3576,7 +3623,14 @@ WORK_POINTS_DESK=450379
 # from the desk's preflight print (/tmp/m662/pf.txt, the line
 # `newton iterations is 911704`), binary /tmp/m662/ox1 md5 735b46af.
 # The band is unchanged; only the centre moves.
-WORK_NEWTON_DESK=911704
+#
+# Moved 911704 -> 1684566 on 2026-11-17, on Roman's word, for the seven
+# cheap names taken back into this pass. Read from the desk's preflight
+# with the move in place, the line `newton iterations is 1684566`
+# (/tmp/m712/preflight.txt). Oscillator carries 744726 of the 772862 -
+# 96 per cent of it - which is why the growth is this large for seven
+# cheap names. The band is unchanged.
+WORK_NEWTON_DESK=1684566
 #
 # Jacobians wound 530 -> 586 on 2026-11-06 from the desk's preflight
 # print (/tmp/m595/pre.txt:2386, 597 counted less IMC_InverterDrive 11).
@@ -3803,7 +3857,21 @@ fi
 # 3473 per million up, under Roman's standing rule that a clean pair
 # moves a centre by less than 5%. The lists differ by the two models
 # won. The band is not moved.
-WORK_NAMES=1728707801
+#
+# Moved to 1821624878 on 2026-11-17 for the seven cheap names taken
+# back out of the carved-out set and into this pass, on Roman's word:
+# the population the centre is taken over is a different population,
+# and a centre is tied to its population rather than to the compiler
+# alone. 1728707801 before the move (the judge's own print, run
+# 44154196440) against 1821624878 after it (the desk's preflight with
+# the move, /tmp/m712/preflight.txt), a growth of 53749 per million on
+# a band of 2000. The number is the same on both machines: the desk and
+# the judge print flattening work to the digit on one code, measured
+# four times over - two whole passes (/tmp/m712/desk.txt:978 against
+# /tmp/m712/judge_a880aca.log, and /tmp/m667/raw.txt against run
+# 43420587616) and one model on each side (/tmp/m714/osc_desk2.txt
+# against run 44180493689). The band is not moved.
+WORK_NAMES=1821624878
 WORK_NAMES_PPM=2000
 
 # The band, as a function, so that it can be seen red without a library

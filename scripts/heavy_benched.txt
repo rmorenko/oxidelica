@@ -22,7 +22,6 @@
 # Each name must also stand in `scripts/heavy_models.txt` and must not
 # stand in `scripts/heavy_second.txt`; the judge refuses either.
 
-# Benched 2026-11-08: the dimension chain of 8a669d9 took it from 147s
-# to at least 109 minutes of wall on the runner (the scheduled run of
-# 2026-11-07 cut pass b at 240 minutes with it unread).
-ModelicaTest.Fluid.TestComponents.Pipes.DynamicPipeWithNominalLaminarFlow
+# Empty since 2026-11-17: DynamicPipeWithNominalLaminarFlow came back to
+# the heavy list at 31s + 1623s on the desk (/tmp/m709/bench.txt), the
+# stall window having taken its cost.

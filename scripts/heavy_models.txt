@@ -71,6 +71,14 @@
 # below add up to. The newest line beside each name is that print. A
 # reason is written beside it only where a chapter of docs/ANALYSIS.md
 # measured one; elsewhere the date stands alone.
+#
+# On 2026-11-17 seven of those names went back to the main check,
+# because at 16.2s to 38.8s each a carve-out was no longer bought by
+# their price: R134a1, R134a2, MoistAir, MoistAir1, MoistAir2,
+# Oscillator and HeatExchangerSimulation. Two of them run, Oscillator
+# and MoistAir, so the main check gains them and this list loses them.
+# The same day DynamicPipeWithNominalLaminarFlow came back off the
+# bench, at 31s + 1623s under the stall window (/tmp/m709/bench.txt).
 
 # 1643s to run, 2026-09-14
 # 1546.2s / 79.9s, 2026-10-12, run / flatten, both halves
@@ -98,12 +106,13 @@ Modelica.Mechanics.MultiBody.Examples.Loops.EngineV6
 # 293s to run, 2026-09-22
 # 66.1s / 57.2s, 2026-10-12, run / flatten, both halves
 # 106.5s / 46.4s, 2026-10-19, run / flatten, 36e3dd1, pass b
-# Benched 2026-11-08 (scripts/heavy_benched.txt), read by no pass:
+# Benched 2026-11-08 (scripts/heavy_benched.txt), read by no pass then:
 # 147s before the dimension chain of 8a669d9, at least 160 minutes on
 # the desk under it (/tmp/m609/dyn.txt, cut at that ceiling) and at least
 # 109 minutes of wall on the runner. Returns when the chain grows
 # cheaper here or an addressed guard takes its cost; until then it is
 # measured by hand through the heavy job's `inputs.model`.
+# 1623s / 31s, 2026-11-17, run / flatten, back off the bench, pass a
 ModelicaTest.Fluid.TestComponents.Pipes.DynamicPipeWithNominalLaminarFlow
 # 67s to flatten, 2026-09-22
 # 0.6s / 136.5s, 2026-10-12, run / flatten, both halves
@@ -111,31 +120,7 @@ ModelicaTest.Fluid.TestComponents.Pipes.DynamicPipeWithNominalLaminarFlow
 # 84.0s / 153.8s, 2026-11-17, run / flatten, 5befe72, pass a, cheaper with the head (m702)
 ModelicaTest.Fluid.TestComponents.Pipes.DynamicPipeEnergyConservationCheck2
 
-# 377.7s to flatten, 2026-09-24
-# 2.9s / 14.7s, 2026-10-12, run / flatten, both halves
-# 1.8s / 18.7s, 2026-10-19, run / flatten, 36e3dd1, pass b
-# 2.1s / 33.0s, 2026-11-17, run / flatten, 5befe72, pass b
-Modelica.Media.Examples.ReferenceAir.MoistAir2
-# 372.1s to flatten, 2026-09-24
-# 2.4s / 21.0s, 2026-10-12, run / flatten, both halves
-# 1.6s / 34.9s, 2026-10-19, run / flatten, 36e3dd1, pass b
-# 1.4s / 33.0s, 2026-11-17, run / flatten, 5befe72, pass b
-Modelica.Media.Examples.ReferenceAir.MoistAir1
-# 369.4s to flatten, 2026-09-24
-# 0.4s / 7.1s, 2026-10-12, run / flatten, both halves
-# 0.1s / 26.7s, 2026-10-19, run / flatten, 36e3dd1, pass a
-# 0.6s / 33.6s, 2026-11-17, run / flatten, 5befe72, pass a
-Modelica.Media.Examples.ReferenceAir.MoistAir
 
-# 233s to run, 2026-09-29, 456922 Newton steps: a Spice3 oscillator
-# that runs since the zero-parameter quench, and a solver benchmark of
-# the same class as the adders above. Spread over the runner's run
-# half it would add about 242ms to every model, against a ceiling the
-# weather already reaches.
-# 317.9s / 0.9s, 2026-10-12, run / flatten, both halves
-# 37.4s / 0.6s, 2026-10-19, run / flatten, 36e3dd1, pass a
-# 37.1s / 0.9s, 2026-11-17, run / flatten, 5befe72, pass a
-Modelica.Electrical.Spice3.Examples.Oscillator
 
 # Five refused models carved out on 2026-10-06, the dearest of the
 # library job by the quiet desk's `--slow 50` (/tmp/m364/slow.txt).
@@ -152,19 +137,11 @@ ModelicaTest.Fluid.TestComponents.Pipes.DynamicPipesWithTraceSubstances
 # 201.4s / 31.2s, 2026-10-19, run / flatten, 36e3dd1, pass b
 # 136.2s / 37.7s, 2026-11-17, run / flatten, 5befe72, pass b
 ModelicaTest.Fluid.TestPipesAndValves.BranchingPipes12
-# 193.0s / 91.7s, 2026-10-06, refused
-# 46.4s / 12.3s, 2026-10-19, run / flatten, 36e3dd1, pass b
-# 5.9s / 14.6s, 2026-11-17, run / flatten, 5befe72, pass b
-Modelica.Media.Examples.R134a.R134a2
 # 47.1s / 151.0s, 2026-10-06, refused
 # 86.9s / 113.2s, 2026-10-19, run / flatten, 36e3dd1, pass a
 # 2279.8s / 110.8s, 2026-11-17, run / flatten, 5befe72, pass a, dearer by the swap's retry of f974da9 (m694, m695)
 # 242.3s / 110.1s, 2026-11-17, run / flatten, e653212, pass a, cheaper by the stall window of 3e86796
 ModelicaTest.Fluid.TestComponents.Pipes.DynamicPipesAndFittings
-# 114.7s / 79.3s, 2026-10-06, refused
-# 30.9s / 9.6s, 2026-10-19, run / flatten, 36e3dd1, pass b
-# 5.8s / 10.4s, 2026-11-17, run / flatten, 5befe72, pass b
-Modelica.Media.Examples.R134a.R134a1
 
 # Eight refused models carved out on 2026-10-12 on Roman's word, the
 # refused eight of the ten dearest to run by the quiet desk's
@@ -210,16 +187,3 @@ ModelicaTest.Fluid.TestPipesAndValves.SeriesPipes12
 # 1.7s / 49.8s, 2026-11-17, run / flatten, 5befe72, pass b
 ModelicaTest.Fluid.TestPipesAndValves.BranchingPipes18
 
-# Carved out on 2026-11-05 on Roman's word (variant (g) of m579), in
-# the commit after the start's implicit blocks became the default.
-# Not dear by nature: under that default its start block of 162
-# unknowns is re-entered 25 times at t = 0 and refused by name as
-# stalled, and the main check has no use for paying that refusal.
-# Two pairs price it: 3907s -> 4537s with it (/tmp/m579x/off24.txt,
-# on24.txt) against 3869s -> 3918s without it (/tmp/m577x/c_*), so
-# about 581s of the 630s the default costs is this one refusal. It
-# flattened and did not run, so it leaves the flatten floor and not
-# the run floor. If its start is ever mended it comes back.
-# ~581s / -, 2026-11-05, run / flatten, by difference of two pairs
-# 9.2s / 29.6s, 2026-11-17, run / flatten, 5befe72, pass a
-Modelica.Fluid.Examples.HeatExchanger.HeatExchangerSimulation

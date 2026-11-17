@@ -12,15 +12,24 @@
 # pass b 5631.1s, a skew of 0.2%. A name added to the heavy list goes
 # to whichever basket is cheaper by the prices beside it, and a split
 # that drifts past ten percent is dealt again from fresh prices.
+#
+# Dealt again on 2026-11-17, when the seven cheap names went back to
+# the main check and DynamicPipeWithNominalLaminarFlow came back off
+# the bench. Prices are the desk print of /tmp/m701/h_off.txt (5befe72,
+# flatten + run), with DynamicPipesAndFittings at 115s + 239s under the
+# stall window and the returning pipe at 31s + 1623s
+# (/tmp/m709/bench.txt). Dealt the same way, dearest first to the
+# cheaper basket: pass a 2868.5s over 8 names, pass b 2838.7s over 9,
+# a skew of 1.0%. These are desk seconds; the runner's wall swings by
+# about forty percent between two runs of one head, so they balance
+# the baskets and do not predict their minutes.
 
-Modelica.Electrical.Spice3.Examples.Spice3BenchmarkFourBitBinaryAdder.FOURBIT
 Modelica.Electrical.Spice3.Examples.Spice3BenchmarkFourBitBinaryAdder
-Modelica.Electrical.Spice3.Examples.Spice3BenchmarkFourBitBinaryAdder.TWOBIT
+Modelica.Electrical.Spice3.Examples.Spice3BenchmarkFourBitBinaryAdder.FOURBIT
+Modelica.Mechanics.MultiBody.Examples.Loops.EngineV6
+Modelica.Electrical.Machines.Examples.InductionMachines.IMC_YDarc
+Modelica.Mechanics.MultiBody.Examples.Elementary.LineForceWithTwoMasses
 ModelicaTest.Fluid.TestComponents.Pipes.DynamicPipesWithTraceSubstances
-ModelicaTest.Fluid.TestPipesAndValves.BranchingPipes12
+Modelica.Mechanics.MultiBody.Examples.Loops.Fourbar2
+ModelicaTest.Fluid.TestPipesAndValves.SeriesPipes13
 ModelicaTest.Fluid.TestPipesAndValves.SeriesPipes12
-ModelicaTest.Fluid.TestPipesAndValves.BranchingPipes18
-Modelica.Media.Examples.R134a.R134a2
-Modelica.Media.Examples.R134a.R134a1
-Modelica.Media.Examples.ReferenceAir.MoistAir1
-Modelica.Media.Examples.ReferenceAir.MoistAir2

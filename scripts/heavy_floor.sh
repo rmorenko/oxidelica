@@ -130,10 +130,24 @@ set -euo pipefail
 #   runnable run      2 =  2 - 0
 #
 # The count of names is now held over the list less the bench.
-FLATTEN_FLOOR=23
-RUN_FLOOR=2
-RUNNABLE_FLATTEN_FLOOR=21
-RUNNABLE_RUN_FLOOR=2
+#
+# On 2026-11-17 seven names went back to the main check and the pipe
+# came back off the bench. The judge of the scheduled run 44086428131
+# printed 23 / 3 and runnable 21 / 3; the three that ran on the desk
+# were Oscillator, MoistAir and BranchingPipes12 (/tmp/m701/h_on.txt).
+# `--only-from` the seven with `--with-heavy`, one binary built from
+# 2769aaf (/tmp/m712/seven.out), printed 7 / 2 and runnable 7 / 2: all
+# flatten, Oscillator and MoistAir run. The pipe flattens and has never
+# run on the runner, so it is laid in no run floor:
+#
+#   flatten          17 = 23 - 7 + 1
+#   run               1 =  3 - 2 + 0   (BranchingPipes12)
+#   runnable flatten 15 = 21 - 7 + 1
+#   runnable run      1 =  3 - 2 + 0
+FLATTEN_FLOOR=17
+RUN_FLOOR=1
+RUNNABLE_FLATTEN_FLOOR=15
+RUNNABLE_RUN_FLOOR=1
 
 # A path given before the `cd` below, made absolute so it still names
 # the same file after it.
@@ -167,11 +181,16 @@ benched="${HEAVY_BENCHED:-scripts/heavy_benched.txt}"
 # The names of a list file, one to a line, comments and blanks dropped.
 names_in() { grep -v '^\s*#' "$1" | sed '/^[[:space:]]*$/d' | sort -u; }
 
+# The check refuses a list that names nobody, and the bench may be
+# empty, so the bench is passed to it only while it names someone.
+bench_flag=""
+[ -z "$(names_in "$benched")" ] || bench_flag="--without $benched"
+
 # What each pass passes to the check, in one place, so that the pass
 # and the judge's question about its set cannot drift apart.
 pass_flags() {
   case "$1" in
-    a) echo "--only-from $heavy --without $second --without $benched" ;;
+    a) echo "--only-from $heavy --without $second $bench_flag" ;;
     b) echo "--only-from $second" ;;
     *)
       echo "usage: the heavy passes are a and b, not '$1'" >&2
@@ -228,7 +247,8 @@ if [ "$mode" = judge ]; then
       sed -n 's/^  model  //p'
   }
   # The set the passes must cover is the list less the bench.
-  names_of --only-from "$heavy" --without "$benched" > "$sets/all"
+  # shellcheck disable=SC2086
+  names_of --only-from "$heavy" $bench_flag > "$sets/all"
   # shellcheck disable=SC2046
   names_of $(pass_flags a) > "$sets/a"
   # shellcheck disable=SC2046
@@ -279,7 +299,8 @@ if [ "$mode" = judge ]; then
       printf "time: flattening %.0fs over %d models; running %.0fs over %d, the two passes added\n", fl_s, fl_n, ru_s, ru_n
     }' "$a_report" "$b_report")"
 else
-  report="$(./target/release/oxidelica library check --only-from "$heavy" --without "$benched" "$directory")"
+  # shellcheck disable=SC2086
+  report="$(./target/release/oxidelica library check --only-from "$heavy" $bench_flag "$directory")"
 fi
 printf '%s\n' "$report"
 
