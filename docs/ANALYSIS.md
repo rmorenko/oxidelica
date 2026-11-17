@@ -82715,3 +82715,16 @@ in the park (`m698_smpm_braking_map.md`), no patch.
 The preflight of the stack change printed a desk ratio of 0.548, below
 the 0.557 to 0.583 of the head's unkeyed prints by 0.009: the run half
 cheaper, not dearer, and within the drift these notes record.
+
+The flattening census holds three models refused by the C string
+scanners of the standard library: `TestExamplesCalculator` and
+`TestStrings` at `ModelicaStrings_scanReal`, and
+`readRealParameterModel` at `scanDelimiter`, whose branch that finds
+no delimiter leaves its output to an assert. A patch answering
+`scanReal`, `scanString` and `scanIdentifier` the way `scanInteger` is
+already answered, with a unit test of the C's cases, is in the park
+(`m698_c_scanners.patch` and its note). Under it the two test models
+move one link on, to a String that has no value an equation can hold,
+and the third does not move: the chain has at least five links, so it
+wins nothing yet and its map goes to a second reader before more is
+built.
