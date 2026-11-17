@@ -2956,6 +2956,8 @@ impl CompiledModel {
                     next.newton_total.set(self.newton_total.get());
                     next.max_newton_stalled = self.max_newton_stalled;
                     next.newton_stall.set(self.newton_stall.get());
+                    next.max_walks_stalled = self.max_walks_stalled;
+                    next.walk_stall.set(self.walk_stall.get());
                     // Where the run stops and how often it reports are
                     // the caller's to say, not the model's: `simulate
                     // --stop` and the ten steps of `library check` are
@@ -3016,12 +3018,21 @@ impl CompiledModel {
             ));
         }
         let (latest, since) = self.newton_stall.get();
+        let walks = crate::walk::walks_so_far();
         let (latest, since) = if t > latest {
+            self.walk_stall.set(walks);
             (t, 0)
         } else {
             (latest, since + 1)
         };
         self.newton_stall.set((latest, since));
+        let walked = walks.saturating_sub(self.walk_stall.get());
+        if walked > self.max_walks_stalled {
+            return err(format!(
+                "`{}` walked more than {} bodies without getting past t = {latest}",
+                self.name, self.max_walks_stalled
+            ));
+        }
         if since > self.max_newton_stalled {
             return err(format!(
                 "`{}` spent more than {} Newton iterations without getting past t = {latest}",

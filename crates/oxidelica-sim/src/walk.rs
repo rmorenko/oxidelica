@@ -115,6 +115,7 @@ pub(crate) fn walk(
     // tail, each in a small frame of its own: a frame put between a
     // body and the body it calls costs every level of a recursion its
     // size again.
+    WALKS.with(|walks| walks.set(walks.get() + 1));
     if switch_set("OXIDELICA_WALK_CACHE") {
         if let Some(answer) = looked_up(programs, name, args, shapes, time) {
             return Ok(answer);
@@ -463,6 +464,19 @@ const WALK_CACHE_KEPT: usize = 1 << 20;
 /// the same address.
 pub(crate) static WALK_EPOCH: std::sync::atomic::AtomicUsize =
     std::sync::atomic::AtomicUsize::new(0);
+
+thread_local! {
+    /// Bodies walked on this thread so far, a hit of the table counted
+    /// as a walk: the unit in which a residual's own price is told,
+    /// where a Newton iteration says nothing of what one evaluation
+    /// cost. Read by the stall window of a run.
+    static WALKS: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+}
+
+/// Bodies walked on this thread so far. See `WALKS`.
+pub(crate) fn walks_so_far() -> u64 {
+    WALKS.with(std::cell::Cell::get)
+}
 
 thread_local! {
     #[allow(clippy::type_complexity)]

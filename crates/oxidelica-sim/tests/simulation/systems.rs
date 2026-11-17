@@ -2139,3 +2139,26 @@ fn a_run_that_stands_still_past_its_stall_count_is_refused_and_says_so() {
     compiled.max_newton_stalled = 1000;
     assert!(compiled.simulate().is_ok());
 }
+
+#[test]
+fn a_run_that_walks_too_many_bodies_standing_still_is_refused_and_says_so() {
+    // The residual calls a body the run walks, so every Newton iteration
+    // is a walk or more; a walk window of zero refuses at the first point
+    // the loop is solved at, and the same model runs unbounded.
+    let model = parse_model(
+        "model W \
+           function f input Real x; output Real y; \
+             protected Real k; \
+             algorithm y := x^3 + x; k := 0; \
+               while k < abs(x) loop k := k + 1; end while; \
+           end f; \
+           Real x; equation f(x) = time + 1; \
+           annotation(experiment(StopTime = 1.0, Interval = 0.1)); end W;",
+    )
+    .unwrap();
+    let mut compiled = compile(&model).unwrap();
+    compiled.max_walks_stalled = 0;
+    let refused = compiled.simulate().unwrap_err().to_string();
+    assert!(refused.contains("walked more than 0 bodies"), "{refused}");
+    assert!(compile(&model).unwrap().simulate().is_ok());
+}

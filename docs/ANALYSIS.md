@@ -83197,3 +83197,72 @@ the walk cache. They are not: 4cdc0dc is not under the cache key. It is
 an unconditional change to the walk's frame, judged by work equal to
 the digit. The attribution of `DynamicPipesAndFittings` stands on the
 key in one tree (the probe binary of m695), not on a count of commits.
+
+## Shift m705: the stall window judged by the corpus pair, and laid in at eight million
+
+### The corpus pair of the walk window
+
+One binary for both halves, `/tmp/m704/ox` (md5 2551322c, the parked
+patch with a window of six million), off half under
+`OXIDELICA_SWAP_WALK_STALL=0`, on half with the key unset. Prints
+`/tmp/m705/c_off.txt` and `/tmp/m705/c_on.txt`, witnesses beside them.
+
+| half | flatten / run | runnable  | flatten time | run time |
+| ---- | ------------- | --------- | ------------ | -------- |
+| off  | 978 / 852     | 859 / 803 | 5077 s       | 2392 s   |
+| on   | 978 / 852     | 859 / 803 | 4491 s       | 2340 s   |
+
+The work line is equal to the digit in both phases (284915 classes,
+92522488 expansions, 1297330 bodies, 1728707801 names; 24138994 points,
+35321124 newton, 661 jacobians, 143 apart, 1403235 damped). The `flat`
+and `ran` lists, sorted, are equal name for name. Victims 0, wins 0.
+With the work equal, the time difference is drift: -52 s running and
+-586 s flattening, the flattening half carrying no conclusion. The on
+half's ratio is 0.521, inside the desk band 0.28..0.67.
+
+### The window moved from six million to eight
+
+Three runs of `BranchingPipes1` under the probe binary (`/tmp/m705/p2_bp1_{1,2,3}.txt`)
+gave a peak of 2098089 walks standing still, to the digit, all three.
+The count is deterministic, so the spread is zero. The "2.10 to 3.0
+million" of m704 was the coarseness of the probe's print, not noise.
+The window was raised to eight million: more than two and a half times
+the print's upper bound for the dearest model the retry buys, and still
+under two thirds of the 13.2 million `DynamicPipesAndFittings` was seen
+walking. Under the eight-million binary (`/tmp/m705/ox8`, md5 8a9d1f18):
+`DynamicPipesAndFittings` 115 s + 239.4 s, 0 run, the same first
+refusal (singular Jacobian on `pipe2.mediums[1].p`), against 2279.8 s
+running in `/tmp/m701/h_off.txt`; `BranchingPipes12` runs, work
+1467 / 4616 / 16 as the reference. The pair was taken at six million;
+a higher window cuts later, so it can only keep what six million kept.
+
+### Who carries the swap's signature
+
+Heavy basket (from `/tmp/m701/h_off.txt`): only `DynamicPipesAndFittings`,
+`R134a1` and `R134a2` refuse with a loop that does not converge on a
+medium's pressure, the refusals that start the retry. The other loop
+refusals of the basket (`SeriesPipes12`, `SeriesPipes13`,
+`DynamicPipeInitialization`, `DynamicPipesWithTraceSubstances`) are
+worded otherwise and never reach the retry. Of the three heavy models
+that run, `BranchingPipes12` is judged above; `Oscillator` and
+`MoistAir` run on their first attempt. Risk to the heavy basket closed
+by enumeration: no new carrier that runs after the retry.
+
+Main corpus, peak walks standing still under the probe
+(`/tmp/m705/p2_*.txt`):
+
+| model                    | peak walks | at newton | outcome |
+| ------------------------ | ---------- | --------- | ------- |
+| `BranchingPipes2`        | 2.10e6     | 2389      | refused |
+| `BranchingPipes3`        | 3.00e6     | 2189      | refused |
+| `BranchingPipes4`        | 2.10e6     | 2291      | refused |
+| `SeriesPipes1`           | 3.00e6     | 2350      | refused |
+| `TestTemperature1`       | 2.10e6     | 2494      | refused |
+| `BranchingPipes15`, `16` | 0.26e6     | 807       | runs    |
+| `BranchingPipes17`       | 0.26e6     | 1239      | runs    |
+| `PumpingSystem`          | 1.6e3      | 1         | refused |
+| `TestMixingVolumes`      | no print   |           | runs    |
+
+The five refused carriers are stopped by the Newton window of 2500
+before they walk eight million. Heavy basket of the cron run: not
+measured as a whole; the two names it could touch are measured above.

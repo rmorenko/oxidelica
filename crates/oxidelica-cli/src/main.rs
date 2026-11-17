@@ -1409,6 +1409,7 @@ fn run_a_little(model: &oxidelica_parser::Model) -> Result<(), String> {
     };
     second.max_newton_total = SWAP_NEWTON_CEILING;
     second.max_newton_stalled = swap_stall_ceiling();
+    second.max_walks_stalled = swap_walk_stall_ceiling();
     ten_steps(second).map_err(|_| refused)
 }
 
@@ -1449,6 +1450,38 @@ fn stall_ceiling_from(setting: Option<&str>) -> usize {
     }
 }
 
+/// Bodies the second attempt may walk without getting past the latest
+/// time it has reached. The Newton window above does not see what one
+/// iteration costs, and where a residual walks the IF97 properties one
+/// iteration is a thousand walks or more: `DynamicPipesAndFittings`
+/// stood still 192 iterations, well under 2500, while walking more than
+/// 13.2 million bodies, and its retry burned 2279.8 s of the heavy run.
+/// Counted on 17 November (`/tmp/m704/p2_*.txt`), the six models the
+/// retry buys stand still for at most: `BranchingPipes1` 2098089,
+/// `BranchingPipes12`, `13`, `14` and
+/// `TestMixingVolumesPressureStates` about 1.05 million,
+/// `SeriesPipes2` 0.53 million. The count is deterministic: three runs
+/// of `BranchingPipes1` gave 2098089 to the digit
+/// (`/tmp/m705/p2_bp1_*.txt`), so there is no spread to keep a margin
+/// over, only the coarseness of the probe's print, which put the peak
+/// below 3.0 million. Eight million is more than two and a half times
+/// that bound and still under two thirds of what
+/// `DynamicPipesAndFittings` was seen walking.
+/// `OXIDELICA_SWAP_WALK_STALL` sets it; 0 turns it off.
+const SWAP_WALK_STALL_CEILING: u64 = 8_000_000;
+
+fn swap_walk_stall_ceiling() -> u64 {
+    walk_stall_ceiling_from(std::env::var("OXIDELICA_SWAP_WALK_STALL").ok().as_deref())
+}
+
+fn walk_stall_ceiling_from(setting: Option<&str>) -> u64 {
+    match setting.and_then(|v| v.parse().ok()) {
+        Some(0) => u64::MAX,
+        Some(n) => n,
+        None => SWAP_WALK_STALL_CEILING,
+    }
+}
+
 /// Whether a refusal is the kind the state swap answers: an algebraic
 /// loop that would not converge, which is where a volume solving its
 /// pressure from (m, U) stalls.
@@ -1472,6 +1505,9 @@ mod swap_tests {
         assert_eq!(stall_ceiling_from(Some("0")), usize::MAX);
         assert_eq!(stall_ceiling_from(Some("700")), 700);
         assert_eq!(stall_ceiling_from(Some("many")), SWAP_STALL_CEILING);
+        assert_eq!(walk_stall_ceiling_from(None), SWAP_WALK_STALL_CEILING);
+        assert_eq!(walk_stall_ceiling_from(Some("0")), u64::MAX);
+        assert_eq!(walk_stall_ceiling_from(Some("700")), 700);
     }
 
     #[test]

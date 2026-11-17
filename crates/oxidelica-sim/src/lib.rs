@@ -50,6 +50,11 @@ pub(crate) fn arithmetic_chain_enabled() -> bool {
     std::env::var_os("OXIDELICA_NO_ARITHMETIC_CHAIN").is_none()
 }
 
+/// Bodies walked on this thread so far.
+pub fn walks_so_far() -> u64 {
+    walk::walks_so_far()
+}
+
 pub use compile::{
     compile, compile_with_state_swap, lower_the_ceiling_here, refuse_when_still_here, CeilingGuard,
     WhenStillGuard,
@@ -584,6 +589,14 @@ pub struct CompiledModel {
     /// The latest time any Newton iteration has been asked at, and how
     /// many iterations have been taken since it was first reached.
     newton_stall: std::cell::Cell<(f64, usize)>,
+    /// How many bodies the run may walk without reaching a time later
+    /// than any it reached before. Unbounded unless a caller sets it.
+    /// Where a residual walks property functions, one Newton iteration
+    /// can cost a thousand walks, and a window in iterations would not
+    /// see the price of what it lets through.
+    pub max_walks_stalled: u64,
+    /// The walk count of this thread when the latest time was reached.
+    walk_stall: std::cell::Cell<u64>,
     /// The most Newton iterations any one output interval has held in
     /// this segment, for the instrument that chooses the ceiling.
     newton_peak: std::cell::Cell<(usize, f64)>,

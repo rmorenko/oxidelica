@@ -8715,6 +8715,8 @@ pub(crate) fn compile_at(
         newton_total: std::cell::Cell::new(0),
         max_newton_stalled: usize::MAX,
         newton_stall: std::cell::Cell::new((f64::NEG_INFINITY, 0)),
+        max_walks_stalled: u64::MAX,
+        walk_stall: std::cell::Cell::new(0),
         newton_peak: std::cell::Cell::new((0, f64::NAN)),
         start_stall: std::cell::RefCell::new(None),
         events_changed: std::cell::Cell::new(0),
