@@ -82604,8 +82604,13 @@ A full preflight with the key set, on the merged tree, is the material
 for the question of switching it on (`/tmp/m697/pf_on7.txt`). It
 prints the head's counts (978 flatten, 852 run, runnable 859 and 803),
 every work counter equal to the run with the key unset, coverage
-92.56, and Tests green. Its desk ratio is 0.288 against the floor 0.28
-(5017 ms flattening and 1445 ms running per model), where the same
-tree with the key unset prints 0.557 (`/tmp/m697/pf_off.txt`, 4509 and
-2511 ms). The margin is 0.008, and a part of the fall is the crowding
-above rather than the run's own saving.
+92.56, and Tests green. Its desk ratio is about 0.29 by two prints, 0.288 here
+(5017 ms flattening and 1445 ms running per model) and 0.295 in the
+m696 preflight, against the floor 0.28, where the same tree with the
+key unset prints 0.557 (`/tmp/m697/pf_off.txt`, 4509 and 2511 ms). The
+margin over the floor is 0.008 to 0.015, and the gap between the two
+prints lies inside the noise of the form (a spread of 4.5% over five
+prints in m692), so neither is a precise figure. A part of the fall is
+the crowding above rather than the run's own saving. The 0.520 a
+preflight prints for the main pass is the self-check probe in the same
+words, not the runner's measure, which only CI prints.
