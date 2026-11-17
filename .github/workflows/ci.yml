@@ -480,11 +480,17 @@ jobs:
       # that script's floors and its check on the length of the list are
       # counted over the whole list, and a single model would put every
       # one of them on the floor. An instrument, not a ratchet.
+      #
+      # `--with-heavy` is not optional here. The check carves the heavy
+      # names out of itself by default, and those names are the only
+      # ones this input exists for, so without the key the step refuses
+      # every model it was built to read and says so instead of
+      # measuring.
       - name: Read the one model asked for
         if: github.event.inputs.model != ''
         run: |
           cargo build --release -p oxidelica-cli
-          time ./target/release/oxidelica library check .msl --only '${{ github.event.inputs.model }}'
+          time ./target/release/oxidelica library check .msl --with-heavy --only '${{ github.event.inputs.model }}'
 
   # Coverage and the linters for everything that is not Rust run once,
   # where the tooling is cheapest to install.
