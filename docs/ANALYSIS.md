@@ -82967,3 +82967,65 @@ reference command and the cache are all in it. The clean answer is the
 pair of one binary above. What the cache would do to the scheduled
 job is a decision for review and is not taken here: no key was merged,
 no list, floor or ceiling touched.
+
+## Shift m702: the tails of the walk cache on the heavy basket
+
+Three tails of the pair of m701, all measured with the same binary
+(`/tmp/m701/ox`, md5 8e16ced4ab946dfe042295577bb3c0b6, head of code
+5befe72), each run with its command written beside it before it started
+(`/tmp/m702/*.env`).
+
+### Oscillator alone, plain, cache, plain
+
+`Modelica.Electrical.Spice3.Examples.Oscillator` under `--only`, one
+after another on a quiet desk, the wrapper ending with code 0 each time:
+
+| half  | run     | file                     |
+| ----- | ------- | ------------------------ |
+| plain | 29.530s | `/tmp/m702/osc_off1.txt` |
+| cache | 34.150s | `/tmp/m702/osc_on.txt`   |
+| plain | 30.174s | `/tmp/m702/osc_off2.txt` |
+
+The floor is the distance of the two plain halves, 0.644s; the price is
+the cache half less their mean, +4.30s, 14.4% and 6.7 floors. It is a
+price and not drift: the forecasts written before the number, both of
+them, said drift, and both are refuted. The work counters agree to the
+digit in all three - 255284 points, 744726 Newton steps, 46 Jacobians,
+0 damped, flattening 90 classes and 131365 names - and they are not
+zeros, so the counters cover the phase and the work is the same. That
+is the third kind of price: the same work made dearer per step, paid by
+a model the cache saves nothing for. The cache half also peaked at
+1.0 GB against 0.2 GB. Where in the step the cost sits is not measured
+here; it is named, not fixed.
+
+### The dirty ratio taken apart
+
+Against the reference of 13 November the run half read 9481s to 2392s,
+3.96. It factors as 2.05 for the cache, from the pair of one binary
+(plain 4905s, cache 2392s), times 1.93 for the head, 13 November to
+17 November with no key (9481s to 4905s). Two heads, with caveats: the
+reference command of m664 carried the divisor key, inert on the basket
+by the counters (85bb6bb); the day and the desk differ; and run went
+from 2 to 3 by the swap of f974da9. The head share is visible where the
+cache plays no part: the Spice3 row got cheaper by the head alone,
+`FOURBIT` 870s to 528s and `IMC_YDarc` 643s to 313s.
+
+The pair of m701 ran the cache half first, so whatever the page cache
+gave went to the plain half - an order that argues against the key, not
+for it.
+
+### What the key would buy each cron pass
+
+Sums of desk run seconds per model from `/tmp/m701/cmp.tsv`, split by
+`scripts/heavy_second.txt` (table `/tmp/m702/arms.tsv`). Desk times, a
+forecast of proportion and not a promise of runner seconds:
+
+| pass | names | plain   | cache   | ratio |
+| ---- | ----- | ------- | ------- | ----- |
+| a    | 12    | 3526.5s | 1221.1s | 2.89  |
+| b    | 11    | 1378.9s | 1171.0s | 1.18  |
+
+Pass a carries `DynamicPipesAndFittings`, which is most of the saving;
+pass b carries the Spice3 benchmarks, which the cache does not touch.
+With the key the two baskets would no longer be balanced. A patch that
+puts the key into both heavy jobs is parked and not merged.
