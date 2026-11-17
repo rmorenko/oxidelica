@@ -83392,3 +83392,35 @@ centres can only follow the runner.
 The heavy-b artifacts of 43866577641 (0 run) and 44086428131 (1 run)
 differ by one refusal row, first on BranchingPipes12, which is gone in
 the later one. That is the name of the third heavy model that runs.
+
+### What the two machines do with one model
+
+The run centres of the main check could not be read from the desk, and
+the reason is sharper than a factor between the machines. Asked for
+the same code, model by model, they agree to the digit on Rectifier,
+ComparisonPullInStroke, ControlledSwitchWithArc, NandGate, PreLoad and
+LightningSegmentedTransmissionLine; Dimmer_RL costs 1.26 times more
+Newton steps on the judge, SMEE_LoadDump under FundamentalWave 1.50,
+ActuatorWithNoise 1.89. An average over that is not a conversion.
+
+So the judge was asked for Oscillator on its own (run 44180493689, job 134383223396) against the same model on the desk
+(/tmp/m714/osc_desk2.txt, one binary from 8d9a386). It prints 183902
+points and 528215 Newton steps against the desk's 255284 and 744726:
+the judge needs twenty-nine per cent FEWER steps for this model, the
+first measured here that is cheaper there. Flattening is identical to
+the digit - 90 classes, 15586 expansions, 204 bodies, 131365 names -
+which is the fourth measurement to say that symbolic work does not
+depend on the machine.
+
+Two things follow for anybody setting a centre. A ratio taken over the
+whole library is useless for one model: it was 1.26 by that route and
+0.71 by measurement, and the centres built the first way would have
+turned the judge red by twenty-one and ten per cent. And time is not
+the counter's witness: the same model takes 39 seconds on the judge
+against 30 on the desk while needing fewer steps, so the clock and the
+counters point in opposite directions here.
+
+A third thing is about reading a job at all. A job's log can be
+fetched through the API as soon as that job is done, while the rest of
+the run is still going; the run-level log cannot, and waiting for the
+whole run cost an hour before this was tried.
