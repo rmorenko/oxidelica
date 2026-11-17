@@ -83272,3 +83272,83 @@ desk. Crowding can only make a print slower and a ratio worse, so the
 green it gave is honest with room to spare. The heavy basket as a whole
 has not been run under the window; its first print under it is the
 cron run of 17 November.
+
+## Shift m711: what the path-length link is, by structure
+
+### The four links of the pipe chain, read without their names
+
+Shift m710 found that the 1621 s of the run half of
+`DynamicPipeWithNominalLaminarFlow` are switched on by two links of
+the arithmetic chain, `pathLengths` and `flowModel.pathLengths`, and
+that the narrowing it could build was a test on the spelling. This
+shift printed, for each of the 160 names the chain takes, the equation
+that took it, how many algebraic equations name it, how many of those
+call anything, and which name of the frontier it was reached from
+(probe `/tmp/m711/probe2.diff` on a880aca, binary `/tmp/m711/ox13`,
+md5 9cd497db, output `/tmp/m711/struct2.txt`, witness
+`struct2.env`). Per pipe and per cell:
+
+| link                    | taking equation                       | equations naming it | with a call | reached from            |
+| ----------------------- | ------------------------------------- | ------------------- | ----------- | ----------------------- |
+| `flowModel.pathLengths` | `Is = m_flows * pathLengths`          | 2                   | 0           | `flowModel.Is`          |
+| `pathLengths`           | `flowModel.pathLengths = pathLengths` | 2                   | 0           | `flowModel.pathLengths` |
+| `fluidVolumes`          | `ms = fluidVolumes * d`               | 2                   | 0           | `ms`                    |
+| `mediums.u`             | `Us = ms * u`                         | 2                   | 0           | `Us`, `ms`              |
+
+Both predictions written before the print were refuted. The one in
+the order (path lengths enter only as a factor of an unknown, the
+others as quantities of their own) fails because all three first
+links are factors of a product with an unknown. Mine (the path length
+equations call a medium) fails because no equation of any link calls
+anything. Both `pathLengths` and `fluidVolumes` end in parameters
+(`lengths`, `crossAreas * lengths * nParallel`).
+
+What does differ without the name is the state the link hangs from.
+`pathLengths` is reached only from the momentum state `flowModel.Is`,
+whose equation is `der(Is) = Ib_flows - Fs_p - Fs_fg`. `fluidVolumes`
+and `mediums.u` are reached from the mass and energy states `ms` and
+`Us`. So the dear part of the chain is the part that gives a start to
+the momentum of the flow model, and a structural form of m710's
+narrowing would read "a chain from a state that only
+`momentumDynamics` makes a state". That is a reading from one model.
+It is not a fix yet, and nothing was built on it.
+
+### A small model that carries the price
+
+`/tmp/m711/small/OnePipe.mo` keeps only `pipeN10` of the example, with
+its two sources and the same `system` (all three dynamics
+`SteadyStateInitial`), measured with `/tmp/m708/ox9` (md5 17a947cb):
+
+- default (`small_def.txt`, witness `small_def.env`): about 330 s of
+  CPU, then refused at t = 0 by an IF97 region error at p = 1.0e7 Pa,
+  h = 4.6e6 J/kg;
+- `OXIDELICA_NO_ARITHMETIC_CHAIN=1` (`small_nochain.txt`): about 40 s,
+  refused as singular, the start not pinning down `pipeN10.Us[1..10]`.
+
+The prediction (the default above 100 s, refuted below 20 s) held. The
+price lives on one pipe without `nParallel`, so a change to the link
+can be judged in minutes on this model. Its refusal under the default
+is not the full model's (there it is the density of
+`pipeN10nParallel10.mediums[8]`), so the small model is a judge of the
+cost and not of the outcome.
+
+### DynamicPipeClosingValve
+
+Re-probed with `OXIDELICA_INIT_PROBE` and `OXIDELICA_NEWTON_TRAIL` on
+ox9 (`/tmp/m711/dpcv_trail.txt`). The steady rows `der(mediums[1].p) =
+0` and `der(mediums[1].h) = 0` take `ms[1]` and `Us[1]`. The inner
+two-unknown block converges in one or two steps every time. Across the
+outer iterations its second unknown creeps from 12.609881 to 12.609623,
+by about 1e-6 per step, and the outer Newton runs out of its 50 with
+599 inner steps in all. This is the m427 map (one condition said twice,
+the rows a factor 998 apart). No change of forty lines or fewer
+presents itself, and nothing went to the park.
+
+### Singles of the run half
+
+`TestJunctionTraceSubstances` (`/tmp/m711/tjts.txt`): rows 16 to 18 of
+the junction loop are NaN at every start the retry ladder tries for the
+three free unknowns (0, 1e-6, 1e-3, 1, 1000), which is the bracket of
+`T_phX` in the m668 map, unchanged. `Essotherm650`, `FlueGasSixComponents`
+and `TestAllProperties.MoistAir` stand closed as true refusals in the
+table of shift m690 and were not reopened.
