@@ -83029,3 +83029,70 @@ Pass a carries `DynamicPipesAndFittings`, which is most of the saving;
 pass b carries the Spice3 benchmarks, which the cache does not touch.
 With the key the two baskets would no longer be balanced. A patch that
 puts the key into both heavy jobs is parked and not merged.
+
+## Shift m703: the heavy prices of 17 November, and the step price of the walk cache
+
+Nothing is bought, by design. The prices beside the heavy names were
+a month old, and the deal of the two heavy passes rested on them.
+
+### Prices
+
+All 23 heavy names were priced again from the off half of the m701 pair
+(`/tmp/m701/h_off.txt`, binary md5 8e16ced4, code head 5befe72,
+`--only-from --with-heavy --slow 60`, witness `h_off.env`). The 23
+`dearest` lines add up to 1401.6 s and the 23 `slowest run` lines to
+4905.4 s, against 1402 s and 4905 s on the `time:` line. Only comment
+lines of `scripts/heavy_models.txt` changed. The non-comment lines hash
+to ad8abd5a before and after. Of the 23 prices of 19 October, 15 differ
+from today's by a factor of two or more (`/tmp/m702/pricecheck.tsv`). A
+reason stands beside a name only where a chapter measured one.
+
+Cheapest today, by both halves added: `R134a1` 16.2 s, `R134a2` 20.5 s,
+the three `MoistAir` models about 34 s each, `Oscillator` 38.0 s and
+`HeatExchangerSimulation` 38.8 s. These are candidates for a return to
+the main check, not a decision: a return moves the floors of both
+households.
+
+### The price of `DynamicPipesAndFittings`, checked on paper
+
+The rise from 86.9 s to 2279.8 s had been put down to the swap's retry
+in words. The prints agree. Before the swap (f974da9, 16 November) the
+model ran 99.0 s in `/tmp/m664/h_off.txt` (13 November) and 125.0 s in
+`/tmp/m672/h_off.txt`. After it, the same tree with only the retry
+switched off (`OXIDELICA_NO_SWAP_RETRY=1`, `/tmp/m695/dp_on.txt`, md5
+06f2a8de) gave 2.3 s, and on the head it was 2279.8 s. Two code commits
+lie between f974da9 and 5befe72, and both are the walk cache, which is
+off by default. So the retry is the carrier of this cost, about 36
+minutes of desk time in pass a. No new run was made.
+
+### A re-deal, projected and not made
+
+By the rule in `scripts/heavy_second.txt` (dearest first, each to the
+cheaper basket, both halves added), the current deal is skewed 73.7%
+under off prices (pass a 4316 s, pass b 1991 s of desk time) and
+11.8% under on prices. A fresh deal would give 0.1% (12 names moved,
+1961 s) or 0.4% (10 names moved, 1944 s). The two deals differ, so
+there can be one re-deal only, after the decision about the cache key.
+The tables are in `park/m703_deal_projection.md`. These are desk
+seconds, not runner minutes.
+
+### Why the cache makes `Oscillator` dearer per step
+
+This uses the phase probe of m697 (`/tmp/m697/phase_probe_forget.diff`),
+in a binary built in a separate tree (md5 f8077276). It ran off and then
+on, with `--only` on `Oscillator`, witnesses in `/tmp/m703/q_*.env`.
+Prediction written before the print: the run half is dominated by
+misses, with hits under 20%.
+
+- off: 30.0 s run, 7138533 walks, peak RSS 0.2 GB.
+- on: 34.6 s run, 5223035 misses and 1915214 hits (26.8%), peak RSS 0.8
+  GB.
+
+Misses dominate, so the direction stood. But the hit share is outside
+the band, so the size did not. A hit replaces a whole walk with all its
+nested calls, which is why 7.14 million walks fall to 7.14 million
+lookups. Three walks in four still pay the full walk. On top of that
+they pay for building and hashing the key and for filing the answer in
+a table that grows to 0.8 GB. The price per step is that table work on
+misses, and it is not paid back by 27% of hits. Nothing is mended here.
+This is material for the case against question 114.
