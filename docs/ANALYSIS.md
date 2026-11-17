@@ -83096,3 +83096,104 @@ they pay for building and hashing the key and for filing the answer in
 a table that grows to 0.8 GB. The price per step is that table work on
 misses, and it is not paid back by 27% of hits. Nothing is mended here.
 This is material for the case against question 114.
+
+## Shift m704: a stall window counted in walks, for the swapped retry
+
+Models bought: none, as said in advance. What this shift buys is time on
+the heavy basket, and the code that buys it is parked, not merged
+(`park/m704_stall_units.patch` and `.md`).
+
+### Where the retry's price was invisible
+
+The second attempt of `library check` on the swapped states is held by
+two counts of Newton iterations: 5000 in the whole run and 2500 without
+getting past the latest time reached (`SWAP_STALL_CEILING` in
+`crates/oxidelica-cli/src/main.rs`). Neither sees what one iteration
+costs. Where a residual walks the IF97 bodies, one iteration is a
+thousand walks or more, and `DynamicPipesAndFittings` spent 2279.8 s of
+the heavy run (`/tmp/m701/h_off.txt`) while staying well inside both
+counts.
+
+### The separation, counted before any fix
+
+A probe binary counted walks on the thread since the latest time was
+first reached (`/tmp/m704/p2_*.txt`, each with a `.env` witness, binary
+md5 f1e723e0). The peaks while standing still, with the Newton count at
+that peak:
+
+| model                             | walks while still         | Newton |
+| --------------------------------- | ------------------------- | ------ |
+| `BranchingPipes1`                 | 2.10 to 3.0 million       | 1870   |
+| `BranchingPipes12`                | 1.05 million              | 927    |
+| `BranchingPipes13`                | 1.05 million              | 878    |
+| `BranchingPipes14`                | 1.05 million              | 1050   |
+| `TestMixingVolumesPressureStates` | 1.05 million              | 1116   |
+| `SeriesPipes2`                    | 0.53 million              | 788    |
+| `DynamicPipesAndFittings`         | over 13.2 million, rising | 192    |
+
+The probe prints each crossing of a power of two or of a whole million,
+so the true peak of `BranchingPipes1` lies between the two numbers
+given. The forecast written before the print was that `BranchingPipes12`
+would stay under 0.1 million walks, refuted at 1 million or more. It was
+refuted: the bought models walk the same bodies about a thousand times
+per iteration as well. They still separate, because the bought models
+stand still for at most 1870 iterations and the refusal for far more
+walks per iteration.
+
+### The fix and its small court
+
+A thread counter of walks in `walk::walk`, a hit of the walk table
+counted as a walk, and beside the Newton stall a second window: more
+than `max_walks_stalled` walks without getting past the latest time
+refuses, naming the count. It is unbounded by default and set only on
+the swapped second attempt, at 6 million, twice the dearest bought
+model and under half of what `DynamicPipesAndFittings` was seen to
+reach. `OXIDELICA_SWAP_WALK_STALL=0` turns it off. The count is of
+walks, not seconds, so the desk and the build machine stop it at the
+same place. A unit test refuses a walked loop at a window of zero and
+was seen red with the check disabled.
+
+One binary (`/tmp/m704/ox`, md5 2551322c), key unset, `on_*.txt`:
+
+- `DynamicPipesAndFittings`, heavy: 129 s flattening and 204.2 s
+  running against 2279.8 s, refused with the same first refusal as
+  before.
+- `BranchingPipes12`, heavy: runs, 30 + 132 s, work 1467 points, 4616
+  Newton, 16 Jacobians, equal to `/tmp/m696/bp12_off.txt`.
+- The five bought on the main pass all run, with points, Newton
+  iterations and Jacobians equal to `/tmp/m695/off_*.txt` to the digit.
+- `R134a1` and `R134a2`: 0 run, about 6 s running, as before.
+
+Victims: none of the six. The rest of the heavy basket was not measured,
+and no corpus pair was run.
+
+### The seven heavy names that became cheap, against the ratio band
+
+The ratio the floor holds is run milliseconds per model over flatten
+milliseconds per model (`ratio_verdict`, `scripts/library_floor.sh`,
+`x = r / f`). On the last desk corpus print (`/tmp/m699/on.txt`: 4381 s
+over 1019 flattening, 2388 s over 981 running) it is 0.566. Adding the
+seven names at their `/tmp/m701/h_off.txt` prices (154.5 s flattening,
+62.1 s running) gives 0.561 by arithmetic, inside the desk band
+0.28..0.67. This is a sum over printed numbers, not a run. No list or
+floor was touched.
+
+### The five singles of the flattening half
+
+| model                                        | refusal                                      | owner                                 |
+| -------------------------------------------- | -------------------------------------------- | ------------------------------------- |
+| `ClockedWithDiscretizedContinuousController` | `ImplicitEuler` makes every tick an equation | named as a ceiling, chapter m666      |
+| `WriteRealMatrixToFile`                      | `ModelicaIO_writeRealMatrix` is C code       | outside code, chapter m666            |
+| `TestInternal`                               | `ModelicaInternal_getenv` is C code          | outside code, chapter m666            |
+| `FixedAmbient`                               | `PartialMedium.BaseProperties` is partial    | templates, the refusal is owed (m455) |
+| `PortVolume`                                 | `PartialMedium.BaseProperties` is partial    | templates, the refusal is owed (m455) |
+
+No family of two or more without an owner.
+
+### A correction to m703
+
+Chapter m703 says the two commits between f974da9 and 5befe72 are both
+the walk cache. They are not: 4cdc0dc is not under the cache key. It is
+an unconditional change to the walk's frame, judged by work equal to
+the digit. The attribution of `DynamicPipesAndFittings` stands on the
+key in one tree (the probe binary of m695), not on a count of commits.
