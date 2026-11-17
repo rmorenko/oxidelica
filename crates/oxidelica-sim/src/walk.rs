@@ -983,6 +983,33 @@ fn elements_of(
     time: f64,
     depth: usize,
 ) -> Result<Option<Vec<Expr>>, SimError> {
+    // A body the model wrote is the arm a recursion goes through, so
+    // it is asked first and in a frame of its own, and the locals of
+    // every other arm stay off the storeys of the recursion.
+    if let Expr::Call(name, args) = expr {
+        // The names the arms before it in `other_elements_of` claim are
+        // left to them, so the order of the arms is what it was.
+        if programs.contains_key(name)
+            && !matches!(
+                name.as_str(),
+                "array" | "linspace" | "ones" | "zeros" | "fill"
+            )
+        {
+            return called_list(name, args, frame, programs, time, depth);
+        }
+    }
+    other_elements_of(expr, frame, programs, time, depth)
+}
+
+/// Every list `elements_of` reads that is not a call of a body.
+#[inline(never)]
+fn other_elements_of(
+    expr: &Expr,
+    frame: &Frame,
+    programs: &HashMap<String, ClassDef>,
+    time: f64,
+    depth: usize,
+) -> Result<Option<Vec<Expr>>, SimError> {
     Ok(match expr {
         Expr::Ref(name) => frame.lengths.get(name).map(|length| {
             (1..=*length)
@@ -1194,88 +1221,10 @@ fn elements_of(
         // as a written-out array. An argument that is itself a record or
         // an array is sent as its elements, under the shape the callee
         // reads it by.
+        // A body named like one of the lists above that those arms did
+        // not take; every other body was asked for in `elements_of`.
         Expr::Call(name, args) if programs.contains_key(name) => {
-            // `erf(u)` of an array `u`, where `erf` takes one number:
-            // the language calls it once per element and the answer is
-            // the list of those. Sent whole, the callee's scalar `u`
-            // was laid out as `u[1]`, `u[2]`, ... and its first read of
-            // `u` named nothing. Only where every argument at a scalar
-            // input that holds a list holds one of the same length.
-            if walked_linspace_open() && args.iter().any(|arg| holds_a_list(arg, frame)) {
-                if let Some(items) = vectorised(name, args, frame, programs, time, depth)? {
-                    return Ok(Some(items));
-                }
-            }
-            let mut given = Vec::new();
-            let mut shapes = Vec::new();
-            for arg in args {
-                // A record written as its constructor - `data[i]` of a
-                // medium whose `data` reached the body as a list of
-                // `DataRecord(name = "N2", MM = ..., ...)` - goes over as
-                // its numbers in declared order, the gas's name left
-                // behind as on the compiled road.
-                if walked_list_records_open() {
-                    if let Some(numbers) = constructor_numbers(arg, frame, programs, time, depth)? {
-                        shapes.push(vec![numbers.len()]);
-                        given.extend(numbers);
-                        continue;
-                    }
-                }
-                match arg {
-                    // A table the body holds goes on as a table: its
-                    // elements row by row under the shape it has, so
-                    // the callee finds `c2[1,1]` where it looks. Sent
-                    // by its first axis alone, the callee's `c2[:, 2]`
-                    // got `c2[1]` and `c2[2]`, which name nothing in a
-                    // table and nothing in the frame.
-                    Expr::Ref(inner) if table_of(inner, frame).is_some() => {
-                        let (names, shape) = table_of(inner, frame).expect("asked just above");
-                        for name in names {
-                            given.push(number_of(&name, frame, programs, time, depth)?);
-                        }
-                        shapes.push(shape);
-                    }
-                    Expr::Ref(inner) if frame.lengths.contains_key(inner) => {
-                        let length = frame.lengths[inner];
-                        for index in 1..=length {
-                            given.push(number_of(
-                                &Expr::Ref(format!("{inner}[{index}]")),
-                                frame,
-                                programs,
-                                time,
-                                depth,
-                            )?);
-                        }
-                        shapes.push(vec![length]);
-                    }
-                    // An argument that is itself a call answering with
-                    // a record goes over as that record's fields, the
-                    // same as a named one. The water tables are written
-                    // this way throughout - `hvl_p(p, boilingcurve_p(p))`
-                    // hands the boiling curve's whole property record
-                    // straight to the reader - and taken as one number
-                    // the callee's `bpro[1]` names nothing at all.
-                    _ => match elements_of(arg, frame, programs, time, depth)? {
-                        Some(items) => {
-                            for item in &items {
-                                given.push(number_of(item, frame, programs, time, depth)?);
-                            }
-                            shapes.push(vec![items.len()]);
-                        }
-                        None => {
-                            given.push(number_of(arg, frame, programs, time, depth)?);
-                            shapes.push(Vec::new());
-                        }
-                    },
-                }
-            }
-            let answer = walk(programs, name, &given, &shapes, time, depth + 1)?;
-            // A body that answers with one number is a scalar call, and
-            // it stays one here: turning it into a one-element array
-            // would upset a scalar product or an elementwise operation
-            // that asked this of it. Only a genuine list - a record's
-            // fields, an array output - is spread.
-            (answer.len() > 1).then(|| answer.into_iter().map(Expr::Number).collect())
+            called_list(name, args, frame, programs, time, depth)?
         }
         // `v .* i` and its like: one operation per element. One side
         // may be a single number, which then goes with every element.
@@ -1491,6 +1440,101 @@ fn holds_a_list(expr: &Expr, frame: &Frame) -> bool {
 /// the shape - a body taking an array or a record, one answering with
 /// more than one number, a named argument, lists of two lengths, or no
 /// list at all - and the call is then read as it always was.
+/// The list a body the model wrote answers with. Kept apart from
+/// `elements_of` so that its locals are not paid for on every storey of
+/// a recursion that goes through some other arm of that function.
+#[inline(never)]
+fn called_list(
+    name: &str,
+    args: &[Expr],
+    frame: &Frame,
+    programs: &HashMap<String, ClassDef>,
+    time: f64,
+    depth: usize,
+) -> Result<Option<Vec<Expr>>, SimError> {
+    // `erf(u)` of an array `u`, where `erf` takes one number:
+    // the language calls it once per element and the answer is
+    // the list of those. Sent whole, the callee's scalar `u`
+    // was laid out as `u[1]`, `u[2]`, ... and its first read of
+    // `u` named nothing. Only where every argument at a scalar
+    // input that holds a list holds one of the same length.
+    if walked_linspace_open() && args.iter().any(|arg| holds_a_list(arg, frame)) {
+        if let Some(items) = vectorised(name, args, frame, programs, time, depth)? {
+            return Ok(Some(items));
+        }
+    }
+    let mut given = Vec::new();
+    let mut shapes = Vec::new();
+    for arg in args {
+        // A record written as its constructor - `data[i]` of a
+        // medium whose `data` reached the body as a list of
+        // `DataRecord(name = "N2", MM = ..., ...)` - goes over as
+        // its numbers in declared order, the gas's name left
+        // behind as on the compiled road.
+        if walked_list_records_open() {
+            if let Some(numbers) = constructor_numbers(arg, frame, programs, time, depth)? {
+                shapes.push(vec![numbers.len()]);
+                given.extend(numbers);
+                continue;
+            }
+        }
+        match arg {
+            // A table the body holds goes on as a table: its
+            // elements row by row under the shape it has, so
+            // the callee finds `c2[1,1]` where it looks. Sent
+            // by its first axis alone, the callee's `c2[:, 2]`
+            // got `c2[1]` and `c2[2]`, which name nothing in a
+            // table and nothing in the frame.
+            Expr::Ref(inner) if table_of(inner, frame).is_some() => {
+                let (names, shape) = table_of(inner, frame).expect("asked just above");
+                for name in names {
+                    given.push(number_of(&name, frame, programs, time, depth)?);
+                }
+                shapes.push(shape);
+            }
+            Expr::Ref(inner) if frame.lengths.contains_key(inner) => {
+                let length = frame.lengths[inner];
+                for index in 1..=length {
+                    given.push(number_of(
+                        &Expr::Ref(format!("{inner}[{index}]")),
+                        frame,
+                        programs,
+                        time,
+                        depth,
+                    )?);
+                }
+                shapes.push(vec![length]);
+            }
+            // An argument that is itself a call answering with
+            // a record goes over as that record's fields, the
+            // same as a named one. The water tables are written
+            // this way throughout - `hvl_p(p, boilingcurve_p(p))`
+            // hands the boiling curve's whole property record
+            // straight to the reader - and taken as one number
+            // the callee's `bpro[1]` names nothing at all.
+            _ => match elements_of(arg, frame, programs, time, depth)? {
+                Some(items) => {
+                    for item in &items {
+                        given.push(number_of(item, frame, programs, time, depth)?);
+                    }
+                    shapes.push(vec![items.len()]);
+                }
+                None => {
+                    given.push(number_of(arg, frame, programs, time, depth)?);
+                    shapes.push(Vec::new());
+                }
+            },
+        }
+    }
+    let answer = walk(programs, name, &given, &shapes, time, depth + 1)?;
+    // A body that answers with one number is a scalar call, and
+    // it stays one here: turning it into a one-element array
+    // would upset a scalar product or an elementwise operation
+    // that asked this of it. Only a genuine list - a record's
+    // fields, an array output - is spread.
+    Ok((answer.len() > 1).then(|| answer.into_iter().map(Expr::Number).collect()))
+}
+
 fn vectorised(
     name: &str,
     args: &[Expr],

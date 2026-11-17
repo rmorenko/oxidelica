@@ -82650,3 +82650,49 @@ single: `library check .msl --only` on it (`/tmp/m698/smpm.txt`, with
 its witness `smpm.env`) refuses after 120 points and 382 Newton steps on
 the same equation. So the top of the census stands behind words, and a
 model gained here is a model gained by an answer, not by a shift.
+
+## Shift m698: the stack of a walk, two thirds of a storey taken off
+
+A recursion that goes through a body the model wrote pays, on every
+storey, for four frames: `run`, `elements_of`, `number_of` and `walk`.
+The probe of m697 (`/tmp/m697/stk_levels.txt`) measured them at 10448,
+15104, 2192 and 3920 bytes in the debug build, so the largest frame of
+a storey was `elements_of`, not `walk`: one match over every list the
+walk reads, whose arms' locals are all laid out in the one frame. The
+storey goes through only one of its arms, the call of a body.
+
+The change gives that arm a frame of its own, `called_list`, and puts a
+thin `elements_of` in front that sends a call of a body straight to it
+and everything else to `other_elements_of`, which holds the old match.
+A body named `array`, `linspace`, `ones`, `zeros` or `fill` still goes
+through the old match, so the order of the arms is what it was.
+
+Two shapes were tried. The arm split into a function but left inside
+the match measured 31760 bytes a storey against 31568 at the head, no
+gain, because the frame of the match is laid out whatever arm runs.
+The thin dispatcher measured 19664 bytes a storey, 11904 fewer. The
+need of the debug test `a_body_nothing_could_inline_is_walked_by_the_run`,
+found by bisecting `RUST_MIN_STACK` in 4 KB steps
+(`/tmp/m698/need.sh`), fell from 2081054 to 1328125 bytes against the
+2097152 given: the margin rose from 16 KB to 751 KB. No prediction of
+the bytes was written before the number.
+
+The pair: 20 models (`/tmp/m697/sub20.txt`), one thread, the head
+binary against the change, one after the other
+(`/tmp/m698/w_off.txt` and `w_on.txt`, witnesses beside them). Lists
+equal, 20 of 20 flatten and run in both, every work counter equal to
+the digit. Flattening 123 s and 120 s, which is drift since the
+flattening is untouched. Running 129 s and 121 s, of which 7.3 s is
+`BranchingPipes1` (108.5 s and 101.2 s), a candidate a single
+`--only` would have to confirm before it is called a saving. There is
+no price either way. The heavy models were not measured.
+
+The two rows under the top four were read the same way, from the same
+census. "cannot evaluate parameters" holds six names, every one a
+MultiBody loop refused on `jointRRP.e_ia` or `jointRRR1.e_ia`
+(`Engine1b_analytic`, `EngineV6_analytic` twice, `PlanarLoops_analytic`,
+`CylinderBase`, `Cylinder_analytic_CAD`): one family, the e_ia of park
+m592 and question 93, which waits on Roman. "the Newton direction"
+holds five Fluid models (`TestTemperature1`, `BranchingPipes2/3/4`,
+`SeriesPipes1`), the (p,h) pipe family whose key was judged in earlier
+shifts and stands in the queue. Neither row holds an unowned family.
