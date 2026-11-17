@@ -82785,3 +82785,29 @@ singles: a String from a function (`TestStreams`), a file read at
 compile time (`TestFiles`), a matrix shape for LAPACK (`TestMatrices3`)
 and the two singles above already shown to be the library's own. No
 second family without an owner was found.
+
+The quotes behind the four verdicts, for the next reader to check:
+`vContot = vConmain + smooth(0, if iGK < 0.95 * IGT then 0 else if iGK < 0.95*IGT + 1e-3 then 10000*(iGK-0.95*IGT)*vAK else 10* vAK);`
+in `Semiconductors/Thyristor.mo`; `constant SI.MagneticFluxDensity unitT=1;`
+and `J:= unitT*(` in `FluxTubes/Utilities/everett.mo`, which arrives
+in the flat equation as `1 * (...)`; and in `Spice3.mo`
+`SI.LinearTemperatureCoefficientResistance m_dTC1` (whose type is
+`unit="Ohm/K"` in `Units.mo`) against
+`factor := 1.0 + tc1 * difference + tc2 * difference * difference;`
+in `resDepTemp`.
+
+By the measure of models that run, the key wins nothing: flatten 978
+to 981 and run 852 unchanged is half a step. It also cannot move a
+model that already flattened, because the unit check only accepts or
+refuses and never rewrites an equation; the work of the flattening
+half differs by 3495 names, which are the three models now
+flattened, and the run half's points (24.1 to 44.1 million) and Newton
+steps are what those three spend before they refuse, the triac alone
+43.2 s. The ratio of the pair is 0.543 off and 0.545 on, beside the
+0.548 of the last preflight.
+
+What the struck wide key taught is about the instrument. It moved one
+model into the run list, and the name was what showed the price: a key
+that lets a wrong model run is worse than the refusal, because it
+buys the model with the checker's sight. The winners of a change are
+read by name, the same as its victims.
