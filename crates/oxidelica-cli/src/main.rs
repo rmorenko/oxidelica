@@ -1111,6 +1111,7 @@ fn library_check(args: &[String]) -> Result<(), String> {
             for (name, seconds) in by_run.iter().take(many) {
                 println!("  slowest run {seconds:8.1}s  {name}");
             }
+            println!("  {}", swap_refusals_line());
         }
     }
     let answers: Vec<(usize, Answer)> = answers
@@ -1410,7 +1411,35 @@ fn run_a_little(model: &oxidelica_parser::Model) -> Result<(), String> {
     second.max_newton_total = SWAP_NEWTON_CEILING;
     second.max_newton_stalled = swap_stall_ceiling();
     second.max_walks_stalled = swap_walk_stall_ceiling();
-    ten_steps(second).map_err(|_| refused)
+    ten_steps(second).map_err(|again| {
+        count_swap_refusal(&again);
+        refused
+    })
+}
+
+/// Second attempts the walk window stopped, and second attempts that
+/// refused any other way. The model still answers with its first
+/// refusal, so without these nobody can tell from a print whether the
+/// window cut a retry; they are printed under `--slow` and change no
+/// refusal.
+static SWAP_WINDOW_CUTS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+static SWAP_OTHER_REFUSALS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+fn count_swap_refusal(again: &str) {
+    let counter = if again.contains(" bodies without getting past t = ") {
+        &SWAP_WINDOW_CUTS
+    } else {
+        &SWAP_OTHER_REFUSALS
+    };
+    counter.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+}
+
+fn swap_refusals_line() -> String {
+    format!(
+        "swap retries refused: {} by the walk window, {} otherwise",
+        SWAP_WINDOW_CUTS.load(std::sync::atomic::Ordering::Relaxed),
+        SWAP_OTHER_REFUSALS.load(std::sync::atomic::Ordering::Relaxed)
+    )
 }
 
 /// The cheap half of a run: ten of the model's steps.
@@ -1565,6 +1594,18 @@ mod swap_tests {
             .unwrap_err();
         assert!(swap_may_help(&refused), "{refused}");
         assert_eq!(run_a_little(&model).unwrap_err(), refused);
+    }
+
+    #[test]
+    fn a_swap_refusal_is_counted_by_whether_the_walk_window_cut_it() {
+        let before = swap_refusals_line();
+        count_swap_refusal("`A` walked more than 8 bodies without getting past t = 0.2");
+        count_swap_refusal("`A` spent more than 9 Newton iterations in the whole run");
+        let after = swap_refusals_line();
+        assert_ne!(before, after);
+        assert!(after.starts_with("swap retries refused: "), "{after}");
+        assert!(SWAP_WINDOW_CUTS.load(std::sync::atomic::Ordering::Relaxed) >= 1);
+        assert!(SWAP_OTHER_REFUSALS.load(std::sync::atomic::Ordering::Relaxed) >= 1);
     }
 
     #[test]
