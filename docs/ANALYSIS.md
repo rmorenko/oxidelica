@@ -82842,3 +82842,63 @@ The singles of the flattening census were probed one at a time
 - The lost tesla of `everett` does not show in a small model that keeps
   the function as a call; it appears only where the body is inlined,
   and the one model behind it does not run under the key either.
+
+## Shift m700: the C scanners read a second time, and the run half by owner
+
+### The scanner chain has its end in a written ceiling
+
+The map of m698 (`park/m698_c_scanners.md`) was read a second time
+against its own binary, `/tmp/m698/ox5`, with every refusal printed
+under `OXIDELICA_WHERE=1` (`/tmp/m700/j_*.txt`, witnesses beside them).
+The texts agree with the map word for word: `TestExamplesCalculator`
+refuses on `2+3*(4-1)`, `TestStrings` on `string text`, `TestStreams`
+on `this is line 1`, all three "a String has no value an equation can
+hold", raised at `flatten/strings.rs:441`; `readRealParameterModel`
+refuses on `scanDelimiter` never assigning `delimiter`. The small model
+`T.mo` refuses at `sim/code.rs:259`.
+
+Two places of the map stood on reading, and both hold, with one
+correction. Link 5 is true: the no-match branch of `scanDelimiter`
+(`Modelica/Utilities/Strings.mo`) ends in `syntaxError`, whose body
+ends in `Streams.error`, so the output is left unassigned only on a
+path that raises. Link 4 is not one layer but two: the flattener
+refuses a String it cannot fold (`strings.rs:441`) and the run refuses
+any String that reaches it (`code.rs:259` and `:973`). The second has
+its reason written beside it, "strings are settled before the run":
+the run carries numbers and nothing else. So what the four models need
+is a flatten-time interpreter of function bodies whose locals are
+Strings (the calculator's recursive descent, the `Strings()` test
+suite, the streams test reading a file); the folding in
+`instantiate.rs` settles a call through `const_eval` and
+`strings::fold`, which take expressions and not algorithms with String
+state. That is a new layer, not a link. The chain ends here, behind a
+written ceiling, and no probe was spent past it: the patch stays in the
+park, and the four models win nothing by it.
+
+### The run half, every model by its owner
+
+The run half of the census on 492fc24 (`/tmp/m697/raw.txt`) holds 126
+models. All 126 were set against these notes (`/tmp/m700/mapped.tsv`):
+each one is named in an earlier map, none is new. The top six rows (86
+models) are the families of m698 and m673. The other 40, by family:
+
+| Family (models)                                                                                                                                     | Owner                                                  |
+| --------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| Fluid Newton direction and pipe loops (6): `TestTemperature1`, `BranchingPipes2/3/4`, `SeriesPipes1`, `MeasuringTemperature`                        | state choice of the volume, queue item 21              |
+| `der` of a non-state medium temperature (2): `BranchingDynamicPipes`, `HeatingSystem`                                                               | same, item 21                                          |
+| switch modes and the arithmetic floor (3): `PolyphaseRectifier`, `ThyristorBridge2mPulse_RLV`, `GearType2`                                          | word of 21 October, written dead-column ceiling        |
+| Newton loops that diverge (5): two `SMPM_CurrentSource`, Spice3 `Nand`, `RollingWheelSetPulling`, `ThreeSprings`                                    | earlier trails, machine and MultiBody rows             |
+| MultiBody loops (3): `RevoluteConstraint`, `PlanarFourbar`, `Fourbar1`                                                                              | items 56 and 108, Roman's word on `Fourbar1`           |
+| StateGraph composite helpers (4): `CompositeStep`, `CompositeStep1/2`, `MakeProduct`                                                                | question 66, helpers by position                       |
+| assertions the library earns (3): `Essotherm650`, `FlueGasSixComponents`, `TestAllProperties.MoistAir`                                              | closed, true refusals                                  |
+| unconnected pressure input at 0 (2): `TwoPhaseWater.BaseProperties`, `ExtendedProperties`                                                           | start filling, word of 15 November                     |
+| singular start (4): `AmplifierWithOpAmpDetailed`, `SimpleNaturalGas`, `ThreePhaseTransformerWithRectifier`, `GearType1`                             | start filling, park m687                               |
+| clocks (3): `SpeedControl`, `ControlledMixingUnit`, `FilterOrder`                                                                                   | clocks layer, maps m676 and m679                       |
+| singles (5): `TestSuddenExpansion`, `TestJunctionTraceSubstances`, `DynamicPipeClosingValve`, `Spice3BenchmarkDifferentialPair`, `AdvancedSolenoid` | maps of their own; `abs` and the dead column are rules |
+
+The sum is 6 + 2 + 3 + 5 + 3 + 4 + 3 + 2 + 4 + 3 + 5 = 40, and with
+the 86 of the top rows, 126. A family of two or more that nobody owns
+was looked for and is not there: every family of the run half waits on
+a question, a word or a rule already written, as m698 found for its
+top. The nearest to unowned is the pair of medium temperatures, which
+is item 21 seen from another side.
