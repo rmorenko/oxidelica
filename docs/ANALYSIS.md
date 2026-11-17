@@ -82576,3 +82576,36 @@ shape, with a bisection on `RUST_MIN_STACK` in 4 KB steps:
 v7 is the shape merged. It never holds the key across the body: the
 key is built in one small `#[inline(never)]` frame to look up, and
 again in another to file the answer.
+
+### The flatten price is crowding, not the cache
+
+Three readings of the 12.7% were put to an instrument, each with a
+prediction written down before the number. A counter of lookups split
+by phase found 0 walks during flattening (2994485 misses and 4169348
+hits in the run half), which is as it must be: flattening lives in
+`oxidelica-parser`, which does not depend on the crate that walks. So
+a table of misses filled by flattening cannot be the cause. Giving the
+table back when its bodies are dropped left the flatten half at
+3211 s, so a table carried into the next model's flattening is not the
+cause either.
+
+What stood is crowding. The flatten half is a sum of per-model wall
+times, and the cache makes the run half six times cheaper, so more
+threads are flattening at any one moment and share the memory. With
+one thread the 157 Fluid and Media models flatten in 1210 s with the
+key off and 1216 s with it on (+0.5%), the run half going 638 to 95 s,
+every work counter equal (`/tmp/m697/s1_off.txt`, `s1_on.txt`). On
+the default threads the same work flattens in 2858 s. Nothing more is
+done under the key: the clock of each model only runs slower beside
+its neighbours. It follows that the desk ratio falls under the key by
+more than the run's own saving, because the denominator rises as well.
+
+A full preflight with the key set, on the merged tree, is the material
+for the question of switching it on (`/tmp/m697/pf_on7.txt`). It
+prints the head's counts (978 flatten, 852 run, runnable 859 and 803),
+every work counter equal to the run with the key unset, coverage
+92.56, and Tests green. Its desk ratio is 0.288 against the floor 0.28
+(5017 ms flattening and 1445 ms running per model), where the same
+tree with the key unset prints 0.557 (`/tmp/m697/pf_off.txt`, 4509 and
+2511 ms). The margin is 0.008, and a part of the fall is the crowding
+above rather than the run's own saving.
