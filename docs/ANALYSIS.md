@@ -82811,3 +82811,34 @@ model into the run list, and the name was what showed the price: a key
 that lets a wrong model run is worse than the refusal, because it
 buys the model with the checker's sight. The winners of a change are
 read by name, the same as its victims.
+
+### Probes of the flattening singles
+
+The singles of the flattening census were probed one at a time
+(`/tmp/m699`), and none is a family without an owner.
+
+- `Modelica.Electrical.Digital.Examples.RAM` refuses at the depth
+  ceiling on `time`, raised by the name resolver in
+  `Digital.Sources.Table`: the table `addr_1` has 81 entries, and the
+  loop of `if time >= t[i]` becomes a chain 81 deep against a ceiling
+  of 32. The sketch names the leaf, not the chain.
+- `Modelica.Math.Random.Examples.GenerateRandomNumbers` and
+  `ModelicaTest.Fluid.TestComponents.Fittings.TestWallFriction` print
+  a leaf as well, `{localSeed, globalSeed}` and `pipe4.data.zeta2_at_a`;
+  the depth was spent by the callers (the state of `Xorshift1024star`
+  filled by a loop over 33, and the data function of the fittings).
+  With the four FFT examples these are one family, the ceiling these
+  notes forbid raising.
+- The two clocks, `CylinderAirCharge` and `InductionToPowerDelay`, are
+  blocks with a `ClockInput` that nothing feeds when they stand alone:
+  the refusal is right.
+- `ModelicaTest.Math.TestMatrices3` hands `nullSpace` the empty matrix
+  `fill(0, 0, 0)`; the shape reaches `dgesvd` as `[0]` rather than
+  `[0, 0]`, and behind that the decomposition refuses a matrix with
+  nothing in it. A chain of two links for one model, left unbuilt.
+- `ModelicaTest.Utilities.TestFiles` reads a directory at compile time
+  and `TestStreams` holds a String a function returns, both walls of
+  their own.
+- The lost tesla of `everett` does not show in a small model that keeps
+  the function as a call; it appears only where the body is inlined,
+  and the one model behind it does not run under the key either.
