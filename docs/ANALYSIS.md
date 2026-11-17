@@ -83352,3 +83352,43 @@ three free unknowns (0, 1e-6, 1e-3, 1, 1000), which is the bracket of
 `T_phX` in the m668 map, unchanged. `Essotherm650`, `FlueGasSixComponents`
 and `TestAllProperties.MoistAir` stand closed as true refusals in the
 table of shift m690 and were not reopened.
+
+## Shift m712: the baskets dealt again, held back by the counters of work
+
+The seven cheap names of the heavy list (R134a1, R134a2, MoistAir,
+MoistAir1, MoistAir2, Oscillator, HeatExchangerSimulation) were taken
+back into the main check, DynamicPipeWithNominalLaminarFlow came off
+the bench, and the two baskets were dealt again from desk prices: pass
+a 2868.5s over 8 names, pass b 2838.7s over 9, the partition 8 + 9 = 17
+checked by the binary. `--only-from` the seven (/tmp/m712/seven.out)
+printed 7 flatten and 2 run, Oscillator and MoistAir, so the heavy run
+floors would have fallen from 2 to 1 and the main check gained two.
+
+### What the preflight said about the move
+
+Under the move the main check printed 985 / 854 and runnable 866 / 805,
+above every floor, ratio 0.468 inside 0.28..0.67
+(/tmp/m712/preflight.txt). It was red on five counters of work alone:
+expansions 1.073x, bodies 1.056x, names 1.054x, points 1.541x and
+Newton 1.848x their centres. The run half's excess is one model:
+Oscillator carries 744726 Newton steps and 255284 points of it. Nothing
+broke; the measured population changed, and a centre is not moved to
+let a change through. The move is parked whole, with an empty bench
+handled by passing `--without` only while the bench names someone, and
+waits on a word about the centres.
+
+### Desk and runner count flattening alike
+
+On the code of a880aca the desk (/tmp/m712/desk.txt) and the runner's
+judge of run 44066174442 printed the same flattening work to the digit:
+284915 classes, 92522488 expansions, 1297330 bodies, 1728707801 names.
+The run half differs: 24138994 against 30750144 points, 35321124
+against 44355146 Newton steps, 661 against 802 jacobians. So the three
+flattening centres can be set from a desk print, while the run
+centres can only follow the runner.
+
+### The one heavy model that began to run
+
+The heavy-b artifacts of 43866577641 (0 run) and 44086428131 (1 run)
+differ by one refusal row, first on BranchingPipes12, which is gone in
+the later one. That is the name of the third heavy model that runs.
