@@ -82728,3 +82728,16 @@ move one link on, to a String that has no value an equation can hold,
 and the third does not move: the chain has at least five links, so it
 wins nothing yet and its map goes to a second reader before more is
 built.
+
+Two more singles of the flattening census were read at their source
+and both refusals are right. `ModelicaTest.Media.TestOnly.R134a_pTX_phX_all`
+declares `dT` a `PerUnit` and writes `der(T) = dT`, so the units of the
+equation disagree in the library itself (`ModelicaTest/Media.mo`, the
+declaration of `dT` and the equation two lines below it).
+`ModelicaTest.Media.TestAllProperties.SimpleAir` reaches
+`setState_psX` of the simple ideal gas, which writes
+`exp(s/cp_const + log(reference_T) + R_gas*log(p/reference_p))`
+(`Modelica/Media/package.mo`), adding a number to a quantity in
+J/(kg.K): the factor should be `R_gas/cp_const`, as the isentropic
+enthalpy of the same package writes it. Neither is a family to work
+on: a compiler that ran them would be accepting the library's error.
