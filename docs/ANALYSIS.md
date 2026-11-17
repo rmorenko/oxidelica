@@ -82902,3 +82902,68 @@ was looked for and is not there: every family of the run half waits on
 a question, a word or a rule already written, as m698 found for its
 top. The nearest to unowned is the pair of medium temperatures, which
 is item 21 seen from another side.
+
+## Shift m701: the heavy basket under the walk cache, one binary both halves
+
+The question was what the walk cache (`OXIDELICA_WALK_CACHE=1`) costs
+or saves on the 23 heavy models that no corpus pair sees. One binary
+built from 5befe72 (`/tmp/m701/ox`, md5 `8e16ced4ab946dfe042295577bb3c0b6`)
+ran both halves one after the other on a quiet desk, the list rebuilt
+from `scripts/heavy_models.txt` minus `scripts/heavy_benched.txt` (23
+names, `/tmp/m701/heavy23.txt`), under `cap.sh` with 24 GB, 300
+minutes and a 120 minute stall ceiling. The cache half ran first, the
+plain half second, so any page cache advantage lies with the plain
+half and against the key. Witnesses: `/tmp/m701/h_on.env` and
+`/tmp/m701/h_off.env`.
+
+| half             | flatten | run   | models run | peak RSS | wall    |
+| ---------------- | ------- | ----- | ---------- | -------- | ------- |
+| cache (h_on)     | 1400s   | 2392s | 3 of 23    | 9.7 GB   | ~15 min |
+| plain (h_off)    | 1402s   | 4905s | 3 of 23    | 9.4 GB   | ~52 min |
+| reference (m664) | 2245s   | 9481s | 2 of 23    | 7.9 GB   | -       |
+
+Both wrapper tails report exit code 0, so both are full measurements.
+The work line is equal to the digit in both halves (35759 classes,
+25724276 expansions, 394683 bodies, 463500335 names; 597776 points,
+3179906 Newton steps, 10089 Jacobians, 16325880 damped), and the run
+lists are equal line for line: `Oscillator`, `MoistAir` and
+`BranchingPipes12`. The cache buys no model on the heavy basket. The
+third model against m664 is `BranchingPipes12`, which runs in the
+plain half too: it is the prize of the narrow swap of volume states
+(f974da9), measured running without any key on 16 November
+(`/tmp/m696/bp12_off.txt`), and nothing to do with the cache.
+
+The flatten half moved by 2s of 1400, which is the flat noise of a
+quiet desk. The run half fell by 2513s, 51%, and the `--slow 60`
+print names where (`/tmp/m701/cmp.tsv`, every name of the basket):
+
+| model                       | plain   | cache   | difference |
+| --------------------------- | ------- | ------- | ---------- |
+| `DynamicPipesAndFittings`   | 2279.8s | 140.3s  | -2139.5s   |
+| `BranchingPipes12`          | 136.2s  | 14.2s   | -122.0s    |
+| `SeriesPipes13`             | 71.2s   | 3.7s    | -67.5s     |
+| `DynamicPipeInitialization` | 72.2s   | 11.3s   | -60.9s     |
+| `SeriesPipes12`             | 60.5s   | 3.1s    | -57.4s     |
+| the other 18, between them  | 2284.9s | 2218.9s | -66.0s     |
+
+The 18 others are the Spice3 row, the MultiBody loops, `IMC_YDarc`,
+the media and the remaining pipes, each within a few percent of its
+plain half; the dearest, `Spice3BenchmarkFourBitBinaryAdder` and
+`FOURBIT`, moved by 6.8s and 5.1s of about 540s. `Oscillator` is the
+one that grew, by 5.8s of 37s, which is a single model inside one pass
+and a candidate at most, to be confirmed by `--only` off, on, off
+before anyone calls it a price.
+
+The forecast written before the number held a run half 3 to 8% cheaper,
+the pipes 5 to 20% and the Spice3 row within 3%. The Spice3 part
+held; the whole was refuted. One pipe model, `DynamicPipesAndFittings`,
+spends sixteen times less with the cache and carries 85% of the saving
+alone, which no forecast built from the BP12 row measured earlier could
+have seen. The forecast of a zero gain in models held.
+
+Against the reference of 13 November the run half reads 9481s to 2392s,
+but that compares two heads: the swap, the divisor key in the
+reference command and the cache are all in it. The clean answer is the
+pair of one binary above. What the cache would do to the scheduled
+job is a decision for review and is not taken here: no key was merged,
+no list, floor or ceiling touched.
