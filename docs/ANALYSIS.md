@@ -87048,3 +87048,18 @@ reading of a variable defined inside a branch while the modes are
 settled, before the branch's equations have given it a value, and the
 small model is a test for it. Not followed into `settle_modes`, which
 is behaviour.
+
+### The Newton rows from the inside
+
+`5 Newton direction`, seven members (`/tmp/m714/rows.tsv`): five are
+the fluid pipes and sensors whose Newton step leaves the medium
+(`TestTemperature1`, `BranchingPipes2`, `3`, `4`, `SeriesPipes1`) and
+two the MultiBody models on a zero length at the start
+(`ThreeSprings`, `RollingWheelSetPulling`), both traced above. So the
+row is two causes, and it is the NaN row seen from the refusal's side.
+`5 loop no converge`, three members, is the machines' air gap in both
+`SMPM_CurrentSource` (Electrical and QuasiStatic) and Spice3 `Nand`'s
+MOS capacitances, so at least two. `0 new`, five members, is the media
+row: `R134a1` and `R134a2` on `volume.medium.p`, the two `ReferenceAir`
+moist-air models singular at initialization, and the 162-unknown start
+block of `HeatExchangerSimulation`, so three.
