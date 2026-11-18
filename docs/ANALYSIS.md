@@ -85338,3 +85338,25 @@ different points of the free body, which is the case where the body's
 rotational inertia comes from its geometry rather than from one
 element. The pair to work from is `Pg12` (runs) against `Pg9`
 (refuses).
+
+Four more probes close the reading (witnesses `/tmp/m720/small/Pg13.env`
+to `Pg16.env`):
+
+| model  | after `freeMotion.frame_b`                           | outcome |
+| ------ | ---------------------------------------------------- | ------- |
+| `Pg12` | two `Body`s directly                                 | runs    |
+| `Pg13` | two `Body`s directly, one with `r_CM = {1, 0, 0}`    | runs    |
+| `Pg14` | one arm with a `Body`, one `Body` directly           | runs    |
+| `Pg15` | one arm, two `Body`s at its end                      | runs    |
+| `Pg16` | two arms, a `Body` on each, orthogonal               | refuses |
+| `Pg11` | one arm, a second arm from its end, a `Body` on each | refuses |
+
+The rule the eleven probes agree on: the free body refuses when it
+holds two `FixedTranslation`s each carrying a mass, in parallel or in
+series, and runs with at most one. Geometry, inertia and forks do not
+decide it. A `FixedTranslation` adds the cross product `r x f` to its
+torque balance, so two of them carrying a load put two such terms into
+`freeMotion.frame_b.t`. That points at how the free joint's rotational
+balance is assembled when it sums more than one lever, and it is the
+link at which this chain is handed on, with `Pg14` against `Pg16` as the
+closest pair.
