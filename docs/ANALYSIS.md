@@ -86549,3 +86549,13 @@ orders of magnitude. `LossyGearDemo2` is rank 4 of 5, its duplicate
 row. All six members of the row are therefore exactly one or two short
 of full rank at their point, none a mere small pivot; the raw rank of a
 badly scaled block is not a count of its defects.
+
+Three members of `13 unbalanced/determines` from different packages
+were asked with `why` on `.msl` (`/tmp/m722/q13_*.txt`). Each named
+unknown is bound to nothing and fed only through an interface:
+`DirectCapacitor` declares `RealInput iDrive` and `RealInput i` that no
+connection reaches, `valve` passes `outflow1.Fo = inflow1.Fi` from an
+open inflow, and `Controller` writes `axisControlBus.current_ref = PI.y`
+onto a bus nothing reads from outside. Three of three are the open
+interface of a helper, so the row's one-cause reading stands probed and
+not only read.
