@@ -84802,3 +84802,17 @@ that the zero-sequence constraint reaches no state it may still demote.
 named reduction and a named reach; why the differentiated constraint
 reaches the leakage current at weight 0 rather than through it is the
 question for whoever takes index reduction next.
+
+### Eight more queue names
+
+Same binary, witnesses `/tmp/m720/r_<name>.env`. Four are helpers
+refusing on a parameter the library leaves unbound (`TankController` on
+`maxLevel`, `BasicHX` on `length`, the op-amp `FirstOrder` on `T`,
+`EquilibriumDrumBoiler` on `m_D`); runnable 0. Three are helpers that
+meet a compiler gap rather than a modifier: `SpeedControl` refuses on an
+unknown function `previous`, the clocked operator, so any clocked model
+that reads `previous` will meet the same wall; `ExtendedProperties` calls
+the IF97 `tsat` with a pressure out of its range at t = 0;
+`AdvancedSolenoid` cannot differentiate a function in index reduction.
+The one runnable name is `ControlledMixingUnit`, which refuses because
+the discrete `inverseBlockConstraints.y2` is never assigned.
