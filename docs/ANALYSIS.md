@@ -86055,3 +86055,39 @@ gear, `PlanarFourbar` on a loop that does not mention its unknowns, and
 the head of 18 November. None moved, and the two new readings of the
 shift are the two-cause split of the underdetermined row and the pivot
 weight of the Newton rows.
+
+## The second stage of the singular Jacobian row (shift of 18 November, evening)
+
+Four models of the `singular Jacobian` row stood out of the pivot
+print's reach. Each was traced once with `/tmp/m721/ox26` (md5
+340b3f9cd0f635a3cc965ff76cfa0a91, the same binary as the `sj_*`
+witnesses) under `OXIDELICA_NEWTON_TRAIL=1 OXIDELICA_UNDERDET_DETAIL=1`,
+files `/tmp/m722/st2_*.txt` beside their `.env`. The last Jacobian each
+printed was read for zero rows, rows proportional to another, and rank
+(`/tmp/m722/cls.py`).
+
+| model                                        | n   | rank | zero rows | proportional rows      |
+| -------------------------------------------- | --- | ---- | --------- | ---------------------- |
+| `Fluid.Examples.PumpingSystem`               | 11  | 10   | 1 (head)  | 1 pair (reservoir m/U) |
+| `QuasiStatic.SinglePhase.Examples.Rectifier` | 12  | 11   | none      | 1 pair (diode, load)   |
+| `MultiBody...UniversalConstraint`            | 44  | 40   | 1         | 2 pairs                |
+| `FundamentalWave...SMPM_CurrentSource`       | 20  | 18   | 2         | none                   |
+
+None of the four is a small pivot. Every one is exactly rank deficient
+at the point the iteration stood on: a row of zeros, or a row that is a
+multiple of another, which is the `LossyGearDemo2` shape in all four
+and not a third kind. The zero rows are rows whose every derivative
+vanishes at that point - the pump's `head` through a branch on
+`pumps.s > 0`, the machine's two transformation rows - and the
+proportional pairs are two equations that read the same unknowns in
+the same ratio there (the rectifier's ideal diode and `load2.i = load2.G_actual * load2.v`).
+
+Why the pivot print never reached them, read from the code after the
+trace said where: the refusal is born in `solvers/mod.rs` under
+`let Some(dv) = step else`, when no column is dead (`dead.is_empty()`)
+and no secant split is found. That branch prints only under
+`newton_trail()` and returns `Refusal::Singular` directly; the
+`underdet_detail()` print sits on the underdetermined and unconverged
+paths, never on this one. So the five are one branch, not another
+stage: the linear solve failed on a structurally full block whose
+rows are dependent at the point. Moving code there is not proposed.
