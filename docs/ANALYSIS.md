@@ -86821,3 +86821,16 @@ could not be walked, the refusal naming the `u_min` and `u_max`
 arguments of that call. So the ten split three MultiBody models on a
 zero length, six fluid models on an undamped step out of the medium,
 and one function that could not be walked.
+
+### The weight of the mode chosen on unsolved variables
+
+The 19 of the queue that compile and are refused later
+(`/tmp/m722/sv/class.txt`, lines `compiles`) were run once each under
+the Newton trail on the head (`/tmp/m723/modes/*.txt`, `run.env`), and
+the `mode` lines read for an `if` equation settled at t = 0 on one
+branch and at a later point on another. Two of the 19 change branch:
+`OneAxis` and `FullRobot`, both 9 of 9 at the start and 6 of 9 at the
+first step, the `KinematicPTP2` shape above. `ActuatorWithNoise`,
+`LossyGearDemo2` and `TestTemperature1` print modes but stay on one
+branch, and the other 14 print no mode at all. So this second defect,
+if it is one, carries two models of the queue.
