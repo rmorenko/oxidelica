@@ -86688,3 +86688,33 @@ switch's value before the event at t = 0 fires (its `pre`, false), and
 the run after it sees true. That is a hypothesis about the order of the
 initial event, not yet probed, and the line "startTime=0 counts as open
 at the start" is withdrawn in its favour.
+
+The hypothesis is now probed, on a model of eight lines
+(`/tmp/m722/small/InitRel.mo`):
+
+```modelica
+model InitRel
+  Boolean y = time >= 0;
+  Real a;
+  Real b;
+equation
+  a + b = 1;
+  (if y then 1 else 0) * a = (if y then 1 else 0) * 0.25;
+end InitRel;
+```
+
+It is refused as underdetermined on `a`, and the detail print
+(`OXIDELICA_UNDERDET_DETAIL=1`) puts the refusal at `t=0` with the row
+of `a` empty: the start block took `y` as false. Written `time >= -1`
+or `y = true` the same model runs and gives `a = 0.25`. The
+`BooleanStep(startTime=0)` version is refused the same and runs with
+`startTime=-1`. So a relation that is true at the start time is read as
+false while the start is solved. The specification evaluates relations
+at initialization with `time` equal to the start time, and `time >= 0`
+is then true, so this is a defect rather than a reading. It is the cause
+the `SMEE_DOL` shrink points at. A switch commanded closed at
+`startTime=0` is taken as open, which leaves a machine with no stator
+current and an undetermined air gap. Fixing it changes behaviour and is
+outside this shift, so it is recorded here with its reproduction. How
+many of the row's machines it carries is unmeasured: the open-at-start
+switch is in 3 of the 4.
