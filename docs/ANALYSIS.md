@@ -83619,3 +83619,83 @@ prints on 93e9178 (`/tmp/m714/audit.txt`). Two labels are wrong.
 "init singular". `RollingWheelSetPulling` and `ThreeSprings` print "did
 not converge in 60 Newton iterations", which is the "loop no converge"
 row and not "Newton direction". Every other label matches its text.
+
+## Shift m715: the new start-block row, SimpleNaturalGas, and the four newcomers
+
+All probes use one binary, `/tmp/m715/ox16` built from 8d7f5e5, with a
+witness `.env` beside every output in `/tmp/m715`.
+
+### HeatExchangerSimulation belongs to the steady start
+
+The trail (`HeatExchangerSimulation.txt`) shows the 162-unknown start
+block converging to |f| = 4.05e-6 and then re-entered 25 times without
+bettering it, so the stall guard refuses it. The largest residuals,
+about 1e-6, sit on `HEX.pipe_1.heatTransfer.Nus_2[i]`. Two keys say
+what stands behind the guard. With `OXIDELICA_NO_INIT_BLOCK_SYS=1`
+(`hex_OXIDELICA_NO_INIT_BLOCK_SYS.txt`) the model refuses with
+`der(HEX.pipe_1.mediums[1].T)` not being a state of the model. That is
+the text `HeatingSystem` and `BranchingDynamicPipes` print in
+`/tmp/m714/raw.txt`, and `HeatingSystem` prints it again here
+(`HeatingSystem.txt`). The example sets
+`system(energyDynamics = SteadyStateInitial)`. With
+`OXIDELICA_START_STALL_ENTRIES=400` the block is let through and the
+next wall is a Newton direction refusal on a `HEX.pipe_1.mediums` loop,
+after 76 s of running. Verdict: the old steady-start family of m686
+(parked behind `MAX_DEPTH`), attributed by name. No small model was
+needed, because the family already has one.
+
+### SimpleNaturalGas: only the full steady start fails
+
+`/tmp/m714/SNG5.mo` is not a probe: `substanceDynamics` is final in
+`PartialLumpedVolume`, and the compiler refuses the modifier, which is
+right. Two new small models split the steady start instead.
+`SNG6.mo` (energy `SteadyStateInitial`, mass `FixedInitial`) runs, and
+so does `SNG7.mo` (energy `FixedInitial`, mass `SteadyStateInitial`).
+`SNG7` already writes `der(medium.p) = 0` and six
+`der(medium.Xi) = 0`, so m714's reading that the `Xi` rows alone take
+the rank that would pin `m` is refuted. The refusal needs the energy
+row `der(medium.T) = 0` as well. With p, T and Xi all held only by
+derivative rows, the start has to come from the flow balance, and that
+is a choice of states rather than a surplus the test writes. Unlike
+the transformer, no count of written conditions exceeds the states.
+Verdict (b): our wall of state choice, attributed to the No.21 family
+by name. No question goes to Roman.
+
+### The four newcomers by instrument
+
+- `R134a1` and `R134a2`: the loop has one unknown per volume,
+  `volume.medium.p`. At t = 0 the first step takes it from 3e5 to
+  1.0e6 and the second to -2.5e6 Pa, where the residual stands at
+  0.971828 for any step. The nine Fluid models of
+  `park/m686_row_newton_direction.md` go uphill at t = 0.0008 or
+  0.0002 on a pipe pressure. These leave the physical range at the
+  start. Not the same family: a finding, not built (LM is forbidden).
+- `ReferenceAir.MoistAir1` and `MoistAir2`: the free unknown is
+  `volume.U`, an `SI.Energy`. `why` (`why_ma1.txt`) gives it
+  `volume.U = volume.m * volume.medium.u` and `der(volume.U) =
+volume.port.H_flow`, and the trail reaches |f| = 1e-9. The m711 pair
+  (`opAmp.v_in`, `volume.m`) have no equation that determines them at
+  the start. This one has one, so the rank is lost in the matrix and
+  not in the model text. Not the same family: a finding.
+
+### The queue reference
+
+From this shift the census queue is counted from `/tmp/m714/rows.tsv`,
+whose labels the m714 audit checked. `/tmp/m709` is history, and its
+labels are not inherited.
+
+### Desk ratio prints and desk A/A pairs
+
+`/tmp/m715/desk_ms.tsv` lists every desk preflight print found in
+`/tmp/m676` to `/tmp/m716`, keyed by the md5 of its `work:` line. All
+are on 1019 models up to m712's desk run and on 1026 after that. The
+prints run from 0.347 (m681) to 0.583 (m692). The m690 and m691 prints
+are 0.962 and 0.626 under other work. `/tmp/m715/aa_pairs.txt` takes
+neighbours with equal work as A/A pairs. Sixteen pairs, leaving out
+m676's two halves (different cache settings), give a median ratio
+spread of 0.013 and a worst of 0.082 (m693 against m705). The four
+judge logs carry no `work:` line in the same form. Their counters
+agree inside each pair (a880aca with 4cdc0dc, and 93e9178 with
+cbb6403), so the runner has two A/A pairs, with spreads of 0.035 and
+0.035. These are numbers for Roman's decision on the anchor. Nothing
+was moved.
