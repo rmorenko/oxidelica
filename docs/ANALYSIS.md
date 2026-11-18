@@ -85587,3 +85587,22 @@ the instruments on hand. A print of the torn residual's expression is
 the missing instrument, and it is a print behind a switch, the same
 kind as this shift's `OXIDELICA_UNDERDET_DETAIL`. It is not built in
 the minutes left.
+
+The answer also said the dead component is `[3]` by the order of names,
+not by an axis. Two probes test it (`/tmp/m720/small/own/pg/Pg20` and
+`Pg21`, witnesses beside them):
+
+| model  | lever `a` | lever `b` | dead column  |
+| ------ | --------- | --------- | ------------ |
+| `Pg16` | x         | y         | `a_rel_a[3]` |
+| `Pg18` | x         | 2x        | `a_rel_a[3]` |
+| `Pg20` | x         | z         | `a_rel_a[3]` |
+| `Pg21` | z         | y         | `a_rel_a[2]` |
+
+`Pg21` moves the dead column to `[2]` by changing geometry alone, so the
+component is decided by where the levers point, and the name-order
+reading is refuted. Read against the table, it is not the axis left free
+by both levers either (`Pg20` frees y and still kills `[3]`). The three
+rows with `a` on x all kill `[3]`, and the one with `a` on z kills `[2]`,
+so the first lever's axis bears on it. Four rows make that a lead, not
+yet a rule.
