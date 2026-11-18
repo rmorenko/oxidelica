@@ -86150,3 +86150,33 @@ the way to its refusal.
 `TwoPhaseWater.ExtendedProperties` was checked fresh on the same
 binary (`/tmp/m722/tpw.txt`): it still refuses at t = 0 with IF97 `tsat`
 called at a pressure of 0 Pa, unchanged from its row.
+
+### Inside the row of 29 structurally singular models
+
+The row was split by the equation each refusal names (column 3 of
+`/tmp/m714/rows.tsv`, read on the head of 18 November), and it is at
+least three causes, not one:
+
+- 15 name a pin current set to zero, `n2.i = 0`, `G.i = 0`,
+  `starPoint1.i = 0` and the like. All 15 are classes under
+  `Utilities`, `Components` or `OpAmpCircuits` (the op-amp circuits,
+  `RealSwitch`, `Nand`, the two Spice3 `MNmos`/`MPmos`, the FluxTubes
+  components, `AnalysatorAC`/`DC`, `SMPM_ResistiveBraking`'s
+  `lszero`). The zero is the one an unconnected top-level flow takes,
+  which is question 66 and the example filter, not this row's own wall.
+- 2 name a flange force or torque set to zero, the two
+  `SpringDamperNoRelativeStates` utilities: the same unconnected-flow
+  zero on the mechanical side.
+- 12 name something else, and these are the real examples:
+  orientation-matrix rows in MultiBody (`Engine1a`, `Cylinder`,
+  `PrismaticConstraint`, `SphericalConstraint`,
+  `PointGravityWithPointMasses2`, `FullRobot`, `OneAxis`,
+  `RollingWheel`), two Fluid port flows set to zero
+  (`TanksWithOverflow` `lowerTank.ports[2].m_flow`, `BatchPlant`
+  `B5.InnerTankSide[1].port.m_flow`), and two machine sums
+  (`ActuatorWithNoise`, `IMC_DOL_CommonLeakage`).
+
+So 17 of 29 stand on the unconnected-flow zero of a class that is not
+an example in its own right, and the row's weight for the library is
+the 12. This is read from the refusal text; probing one of each of the
+three kinds is the next step.
