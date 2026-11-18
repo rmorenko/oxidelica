@@ -84816,3 +84816,14 @@ the IF97 `tsat` with a pressure out of its range at t = 0;
 `AdvancedSolenoid` cannot differentiate a function in index reduction.
 The one runnable name is `ControlledMixingUnit`, which refuses because
 the discrete `inverseBlockConstraints.y2` is never assigned.
+
+#### The `previous` gap reproduced small
+
+`SpeedControl` writes `when Clock() then x_d = previous(x_d) + k_I*interval()*...`.
+Two twelve-line models in `/tmp/m720/small/` separate it: `Prev`, with
+`when Clock(0.1)` and `previous(x)`, runs (10 events); `Prev2`, the same
+with an inferred `Clock()` and `interval()`, refuses with "unknown
+function `previous`" from `code.rs`. So `previous` is known to the
+flattener and is left standing only where the clock is inferred: the
+partition pass does not rewrite it when no interval is written, and the
+call reaches the run. `Prev2` is the test for whoever takes it.
