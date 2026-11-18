@@ -85989,3 +85989,26 @@ there. The class is a helper (runnable 0), so no measured model waits on
 it, but it is the one refusal of this batch that names the compiler and
 not the model. It is noted for the review, not acted on: a derivative of
 `abs` is the rule the notes warn about being right except at zero.
+
+### The weight of the class: pivot near one against pivot below the floor
+
+All 16 models of the three Newton rows of `/tmp/m714/rows.tsv` (Newton
+direction, loop no converge, singular Jacobian), probed with the parked
+print build `/tmp/m721/ox26` (`/tmp/m721/w/`, witness per model; the two
+non-quasi-static `SMPM_CurrentSource` as `SMPM_1.*` and `SMPM_2.*`). Each
+is counted by the scaled smallest pivot of its last print:
+
+- pivot 1: 5 (`BranchingPipes2`, `BranchingPipes4`, `SeriesPipes1`,
+  `TestTemperature1`, Spice3 `Nand`);
+- pivot between 2e-4 and 0.7, still regular: 4 (`BranchingPipes3`
+  2.3e-4, `ThreeSprings` 9.8e-3, two `SMPM_CurrentSource` 0.17 and 0.70);
+- pivot below the floor: 2 (`RollingWheelSetDriving` 1.2e-10,
+  `RollingWheelSetPulling` 9.0e-11);
+- not reached, refused at the singular-Jacobian site the print does not
+  cover: 5 (`LossyGearDemo2`, `PumpingSystem`, the quasi-static
+  `Rectifier`, `UniversalConstraint`, one `SMPM_CurrentSource`).
+
+So the two numbers asked for are 9 regular against 2 singular, with 5 not
+measured by this instrument. The stuck Newton loops of the queue are
+mostly a step that will not descend on a well-conditioned block, not a
+near-singular one.
