@@ -85497,3 +85497,13 @@ hand above found for three earlier runs. So the table of k stays at ten
 models. The desk half waits, as before, for a dispatched job that
 prints a count per model for a chosen list, which is a change to CI
 and not this shift's.
+
+And the silent modifier on a built-in attribute
+(`/tmp/m720/small/own/Nx3.mo`, witness `Nx3.env`). `Real x(start = 1,
+fixd = true)`, `fixed` misspelt, is accepted and runs, ending at
+`x(1) = 0.36787951`, which is `exp(-1)` to seven places. Here the answer
+is right only because a state's start is used whether or not `fixed`
+is read. A misspelt `fixed = false` on a state, or a misspelt `min` on a
+bound, would change nothing and say nothing. That makes three places
+where a modifier naming nothing is accepted: on `extends`, on a
+component, and on an attribute of a predefined type.
