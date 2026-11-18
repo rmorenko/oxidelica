@@ -85633,3 +85633,14 @@ alphabetical order together with the geometry. A sorted order of names
 is what the consultation pointed to (`vars.sort_unstable()`,
 `compile.rs:1959`), though at the level of components and not of the
 three entries of one vector.
+
+The decisive probe (`/tmp/m720/small/own/pg/Pg26.mo`, witness `Pg26.env`;
+`Pg25` was a bad rename and is not used). `Pg26` is `Pg16` with lever
+`a` renamed `z` and nothing else changed. It runs, and at t = 0.5 gives
+`freeMotion.r_rel_a = {0, -1.22583125, 0}`, exactly `-g_n t^2 / 2`, and
+`w_rel_b = {0, 0, 0}`. That is the right answer. So `Pg16`'s refusal
+depends on nothing but a component's name: a correct model is refused or
+run according to the alphabet. That settles the layer. It is a tie-break
+among equal candidates in the matching, the consultation's mechanism,
+and not geometry, inertia or the floor. `Pg16` against `Pg26` is the
+red-green pair for whoever builds the retry behind the refusal.
