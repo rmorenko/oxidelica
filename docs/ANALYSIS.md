@@ -85724,3 +85724,30 @@ not carry to the corpus model, which fits a tie-break among many equal
 candidates better than a fault tied to one name. A deliberate retry
 behind the refusal, rather than a lucky order, is what the corpus model
 needs.
+
+### The price of the order dependence, by renaming
+
+Asked on the census's orientation rows, by the cheapest test: rename
+one component so it sorts last, and see whether the refusal moves
+(standalone copies in `/tmp/m720/small/own/pg/`, witnesses `Sp.env`,
+`Pr.env` and those above, binary md5 `cf32ecf3...`):
+
+| model                           | renamed                       | refusal moves   | rescued    |
+| ------------------------------- | ----------------------------- | --------------- | ---------- |
+| small free bodies `Pg16`, `Pg9` | `a` to `z`                    | -               | yes, exact |
+| `PointGravityWithPointMasses2`  | levers (`PgB`), joint (`PgD`) | yes / sign only | no         |
+| `SphericalConstraint`           | `bodyOfConstraint`            | yes             | no         |
+| `PrismaticConstraint`           | `bodyOfConstraint`            | yes             | no         |
+
+So the order dependence is a kind and not a single case: on all three
+corpus models the refusal's equation changes with a name. No corpus
+model is rescued by a rename, so no number is shown to be at stake from
+the order alone. Each refuses at some equation under every order tried.
+The price, as far as one rename per model can measure it: three corpus
+names sensitive, zero rescued. It is a lower bound on the sensitive set
+and says nothing yet about rescue under the retry, which could find
+orders a rename does not.
+
+A change to the matching is Roman's question, not this shift's. It
+decides which models flatten and run, so unlike a print it can move the
+measure in either direction, and it is not begun here.
