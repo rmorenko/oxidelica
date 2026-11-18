@@ -86781,3 +86781,22 @@ too, at 2.7e-4 s, with Newton converging (6e-11) before the refusal.
 last Newton points converge (1e-13 and 3e-8) at 1.0e-3 and 4.6e-3 s, so
 their stall recompile is not met through a mode, and what drives it is
 not in these trails.
+
+### Where four of the NaN row leave their domain
+
+Four of the ten, traced on the head binary after the change above
+(`/tmp/m723/ox30`, `OXIDELICA_NEWTON_TRAIL=1`, `/tmp/m723/nan/run.env`
+and `*.txt`). `ThreeSprings`: the start of the loop is refused on
+`spring2.lineForce.e_rel_0[1] = r_rel_0[1] / s`, which is `-inf` at
+t = 0 because the line length `s` starts at zero. `RollingWheelSetPulling`:
+the start is refused on `rolling1.e_long_0[1] = aux[1] / sqrt(aux[1]^2 +
+aux[2]^2)`, NaN at t = 0 with both `aux` at zero. Both are a unit
+vector divided by a length that starts at zero. `TestTemperature1`:
+the first Newton step from a residual of 7e-3 sends `Tmix1.T` to about
+7994 K and `volume1.ports_H_flow[2]` to -76451, outside the water
+medium, and every residual of the next point is NaN. `BranchingPipes2`
+runs to t = 0.0008 s and there a Newton step from a residual of 182
+gives NaN residuals in two rows. So the four are two shapes: a direction
+normalised by a zero length at the start (the two MultiBody models), and
+an undamped Newton step that leaves the medium's range (the two pipes).
+The other six were not traced.
