@@ -84781,3 +84781,11 @@ zero-sequence current that the machine's zero inductor is written to
 carry as a state. Whether the example as the library writes it should
 then pick the inductor's current as the dummy, rather than refuse, is
 the chain's end and a question for index reduction, not taken here.
+
+Correction to link 8: `P2` has the same isolated Y star and the same
+zero inductor and simulates, so the topology alone cannot be the cause,
+and the sentence calling the refusal "the topology's" is withdrawn. What
+the chain holds is narrower: the isolated star plus the machine's air
+gap refuses (`S3`), the isolated star without it runs (`P2`), and
+opening the star (`S11`) trades the refusal for a start the run cannot
+leave. The chain stays open between `P2` and `S3`.
