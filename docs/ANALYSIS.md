@@ -86488,3 +86488,17 @@ The time of the refusing recompile for the five, from the probe trail
 after the run had moved. Two shapes again: the two robot models cannot
 take a first step on the states the start chose, and the other three
 lose their states somewhere in the first milliseconds.
+
+### Question 66's seven, recounted on the corpus
+
+The seven helpers that run on a zeroed input (`IntakeManifold`,
+`MixingUnit`, `CriticalDamping`, `ThrottleBody` on `Theta`,
+`TorqueGeneration` on `m_a`, StateGraph's `TankController`,
+`PathToAxisControlBus`) were asked again with `why` pointed at `.msl`
+(`MODELICAPATH=$PWD/.msl`) and without it, against the fetched snapshot
+(`/tmp/m722/q66/msl_*.txt` and `snap_*.txt`, `run.env`). In seven of
+seven the equations naming the input are the same set in both, and the
+`why` readings of question 66 stand on the corpus's own equations
+(`PathToAxisControlBus` asked by its element `q[2]`, since `why` takes
+the vector name as nothing). The snapshot trap is real for `why`
+without a path, but it did not touch this question.
