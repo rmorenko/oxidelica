@@ -85380,3 +85380,14 @@ same command. The `OXIDELICA_TRACE` key was also tried on both. It
 prints only the command line's own trace, nothing about matching, so it
 is not the instrument for the next link. The chain ends this shift at
 the block's assembly, with `Pg14` against `Pg16` as its pair.
+
+The census rows that name an orientation entry `R.T[..]` in their
+refusal, read from `/tmp/m714/run_texts.tsv` (5 lines, so 5 models):
+`PrismaticConstraint`, `SphericalConstraint`,
+`PointGravityWithPointMasses2`, `Engine1a` and `Loops.Utilities.Cylinder`
+(the last a helper). All five are `structurally singular` in reduction,
+not the run-time `a_rel_a[3]` of the small models, so the small family
+`Pg9` to `Pg16` is not shown to be any of them. It is a correct model
+refused by the compiler and is worth a test of its own whichever wall
+the five turn out to share. That makes it a candidate for the next
+shift's first red test, `Pg9` being the twelve-line version.
