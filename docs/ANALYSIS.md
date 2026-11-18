@@ -83906,3 +83906,31 @@ the last place abstain (`m716_long_step_all_v2.patch`) wins the same
 single model, with no victims among twelve neighbours
 (`/tmp/m716/court2_summary.txt`), and still leaves `MoistAir2` refused.
 The first form is the smaller change and stays the candidate.
+
+## Shift m717: the anchor verdict recounted on the main-pass noise
+
+### The drift of the runner's ratio, judged by 0.060
+
+The verdict above ("The rest of the fall from 0.845, -0.062, is under
+two of those spreads") was taken on a runner noise of 0.035 and a
+threshold of 0.070. The main-pass logs (`/tmp/m716/judge/*.txt`, ratio
+of the `running` to the `flattening` ms per model on line 1, grouped by
+the md5 of line 2) give three groups. The group of nine runs from 0.809
+to 0.854 with a median of 0.832, and the median distance from that
+median is 0.011. The group of two at c7690ef8 spreads by 0.060, which
+is the worst case. The group at b0553f6e spreads by 0.010. Two spreads
+of the worst case make a threshold of 0.120. The residual of -0.062,
+after the seven's -0.024 is taken off, is about one spread. So the
+verdict "not a finding" holds, and it now holds by a factor of two
+instead of by a margin of 0.008. One side note: a880aca's main pass
+reads 0.810 here, while 0.845 came from its judge log. Those are two
+prints of one commit, not one print read twice.
+
+### Verdicts that stood on 0.035 or 0.070
+
+A grep of this file for `0.035` and `0.070` finds five lines. One of
+them (BranchingPipes12, a tolerance of 0.070) has nothing to do with
+the ratio. Two give the numbers of the A/A pairs and draw no
+conclusion. Two are the correction of m716 itself. Only one verdict was
+ever drawn from the old threshold, the drift verdict above, and it
+holds against 0.120. None turns over.
