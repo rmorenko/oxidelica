@@ -85968,3 +85968,15 @@ square, 2 against 2 and 21 against 4), `SimpleNaturalGas` (singular
 initialization) and `TestSuddenExpansion` (a loop solved on both sides).
 Each refuses with the text the chapter already carries for it, so none
 of them moved between m714 and this head.
+
+### Helper classes of FluxTubes and the constraints, on the head
+
+Probed with `/tmp/m721/ox24` (`/tmp/m721/t6_*`). Six are helper classes
+with runnable 0, refusing on an open pin or flange exactly as question 66
+counts them: `PermeanceActuator` (`p.i = 0`), `SimpleSolenoid`
+(`n.i = 0`), `Transformer1PhaseWithHysteresis`, `Cylinder`,
+`SpringDamperNoRelativeStates` (`flange_b.tau = 0`) and
+`AdvancedSolenoid`, which refuses earlier on a function it cannot
+differentiate. The two runnable ones stand where the chapter has them:
+`PrismaticConstraint` structurally singular on an orientation entry,
+`RevoluteConstraint` on a block that does not mention `R_rel.T[1,3]`.
