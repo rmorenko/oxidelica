@@ -85124,3 +85124,15 @@ mechanism with its address. The cure would be the event iteration's own
 re-ask of discrete definitions, applied in this check too, which is a
 change to the solver's start and is left to the review: it is not built
 here, the solver being frozen for this shift.
+
+Narrowed at once, on reading the four sources. The template mechanism
+can only be the cause where a switch's command changes at t = 0 itself.
+That is `SMEE_DOL` alone (`BooleanStep(startTime=0)`). `IMC_DOL_Polyphase`
+and `IMS_Start_Polyphase` close their switches at `tOn = 0.1`, so at the
+check's instant the switches are open by the model's own intention, and
+the template agrees with the event pass there. `SMEE_Rectifier` has ideal
+diodes and no commanded switch. For those three the refusal stands on
+the open state as the model means it, a machine left hanging on `Goff`.
+The paragraph above therefore speaks for one census name, not four, and
+the "machine family" of this chapter is two mechanisms. The smallest
+open-switch reproduction is still to be written.
