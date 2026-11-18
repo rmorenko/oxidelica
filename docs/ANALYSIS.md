@@ -85136,3 +85136,18 @@ the open state as the model means it, a machine left hanging on `Goff`.
 The paragraph above therefore speaks for one census name, not four, and
 the "machine family" of this chapter is two mechanisms. The smallest
 open-switch reproduction is still to be written.
+
+The smallest open-switch reproduction, written and run (witnesses
+`/tmp/m720/small/Fm3_b.env` and `Fm5.env`, binary md5 `cf32ecf3...`):
+`Fm5` is `Fm3` with the switches' step moved to 0.05, so at t = 0 they
+are open by the model's intention and no template is involved. It
+refuses with the same words, `underdetermined algebraic loop
+["closer.idealClosingSwitch[1...`, as `Fm3`, while `Fm4`, closed from
+before the start, runs. So the one mechanism under all four names is the
+machine standing behind open ideal switches, judged on `Goff`
+coefficients against the pivot floor. The template paragraph above does
+not name a second cause. It names why `SMEE_DOL`, whose switches close
+at zero, is still judged open at that instant. The cure, if any, lies
+with the floor's treatment of a block whose only coupling is a
+conductance of 1e-5, which is frozen ground and goes to the review with
+`Fm5` as its test.
