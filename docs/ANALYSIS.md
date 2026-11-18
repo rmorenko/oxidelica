@@ -86449,3 +86449,12 @@ compilation at the start and `library check` refuses on a later one,
 and for `Engine1a`, `OneAxis` and the rest of the five the wall is
 met mid-run, not at the start. The class set was never the suspect it
 was named as, and the snapshot finding above is unaffected.
+
+The continuation is the stall recompile in `solvers/mod.rs` ("Compile
+again at the point reached: the pivot now sees the sensitivities of
+this instant"), taken when the step size stalls. For `OneAxis` the
+probe trail places the fourteenth reduction after a Newton step at
+t = 7.2e-14, so the run stalls almost at once and the recompile at that
+point is what refuses. The row's `OneAxis` is therefore a stall that the
+state re-selection could not mend, reported in the words of index
+reduction.
