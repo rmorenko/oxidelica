@@ -86030,3 +86030,24 @@ The three runnable ones stand on their mapped walls: `FilterOrder` on
 `der(mixingUnit.c) = ((-0) - 0) + mixingUnit.wa1`, `HeatingSystem` on
 `der(tank.medium.T)` of a non-state, `SMPM_ResistiveBraking` on the
 zero-sequence `3 * smpm.lszero.i = 0`. Nothing moved since m714.
+
+### The rest of the queue, so that every row has been read on this head
+
+The last 29 unread rows of `/tmp/m714/rows.tsv` (the hand-counted
+"param no value" rows and the tsat partner aside), batch `/tmp/m721/r2/`
+(`ox24`). Twenty-two are helpers with runnable 0: the BatchPlant
+controller utilities and `InnerTank`, the StateGraph composite steps,
+`MakeProduct` and `valve`, RobotR3's `AxisType1`, `AxisType2`,
+`Controller`, `Motor` and `GearType2`, `DirectCapacitor` and
+`DirectInductor`, `ConstantActuator`, `OpAmpCircuits.Buffer` and
+`Feedback`, and the three `e_ia` helpers `CylinderBase`,
+`Cylinder_analytic_CAD` and `Utilities.EngineV6_analytic`. They are
+unbalanced or open as question 66 counts them. The seven runnable ones
+stand on walls the chapter has: `IMC_DOL_CommonLeakage` and
+`SphericalConstraint` structurally singular, `FullRobot` on the RobotR3
+gear, `PlanarFourbar` on a loop that does not mention its unknowns, and
+`EngineV6_analytic` and `PlanarLoops_analytic` in the `e_ia` family
+(question 93). With this batch every row of the queue has been read on
+the head of 18 November. None moved, and the two new readings of the
+shift are the two-cause split of the underdetermined row and the pivot
+weight of the Newton rows.
