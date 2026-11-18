@@ -83734,3 +83734,11 @@ those calls" is withdrawn. What stands is the count: three written
 starts for the states `m`, `mXi[1]` and `U`, every one paired, and
 still a singular matrix in `U`. The open question is whether the
 pairing through blocks gives `U` a start that its row really moves.
+
+Two small models move the start written for MoistAir1 and change
+nothing. `/tmp/m715/MA3.mo` (`volume(use_T_start = false)`, a start in
+`h`) and `MA4.mo` (`use_p_start = false`, a start in `d`) both refuse,
+still not pinning down `volume.U`. So which starting quantity the test
+picks does not matter. The sibling `ReferenceAir.MoistAir`, a property
+test with no volume, runs (`/tmp/m712/seven.out`). The wall sits in
+`PortVolume` with this medium, and it stays open.
