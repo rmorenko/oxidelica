@@ -86012,3 +86012,9 @@ So the two numbers asked for are 9 regular against 2 singular, with 5 not
 measured by this instrument. The stuck Newton loops of the queue are
 mostly a step that will not descend on a well-conditioned block, not a
 near-singular one.
+
+`Fourbar1` (`/tmp/m721/fb1.*`, `ox24`) still refuses as unbalanced, 1999
+equations for 1990 unknowns, on the head. The surplus rows are the
+connection identities `b1.frame_a.r_0[i] = b1.body.frame_a.r_0[i]` that
+nothing is left to solve. It stands where m470 and m471 mapped it, under
+Roman's word, and was not probed further.
