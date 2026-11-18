@@ -84551,3 +84551,16 @@ sixty climb down unevenly to 1.4e3 without coming back. It is the
 overshoot kind seen in RollingWheelSetPulling, not the stagnation of
 ThreeSprings: the start was close and the step left it. Print in
 `/tmp/m720/q_Nand.txt`, 930 trail lines.
+
+### Queue rows "param no value": three utilities are right to refuse
+
+Probed with the same binary (`/tmp/m720/q_IdealDcDc.env`,
+`q_NonlinearResistor.env`, `q_TankWith3InletOutletArraysWithEvaporatorCondensor.env`):
+`IdealDcDc` refuses on `Td` and `NonlinearResistor` on `Ga`, and in the
+library source both are declared with no binding at all
+(`parameter SI.Time Td "Dead time";`, `parameter SI.Conductance Ga ...;`).
+The tank refuses on `crossArea`, a parameter the batch plant gives it
+from outside. None of the three is runnable (each run prints runnable 0):
+they are building blocks that expect a modifier, so the refusal is the
+correct answer and these rows belong to question 66, helper classes
+counted as examples, rather than to any compiler fault.
