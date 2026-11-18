@@ -85391,3 +85391,11 @@ not the run-time `a_rel_a[3]` of the small models, so the small family
 refused by the compiler and is worth a test of its own whichever wall
 the five turn out to share. That makes it a candidate for the next
 shift's first red test, `Pg9` being the twelve-line version.
+
+Two of the orientation rows probed under `OXIDELICA_WHERE=1` (witnesses
+`/tmp/m720/t_sph.env`, `t_pri.env`). `SphericalConstraint` and
+`PrismaticConstraint` are both refused at `compile.rs:3040`, the
+structural-singularity refusal of reduction. The free-body pair is
+refused at `solvers/mod.rs:1753`, a run-time rank test. So these are two
+different raising sites, which settles what the census reading above
+left open: the small family is not these rows.
