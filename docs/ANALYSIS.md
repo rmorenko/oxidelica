@@ -84871,3 +84871,18 @@ parked by word. The two runnable names keep their earlier maps:
 `FilterOrder` stands at `der(mixingUnit.c) = ((-0) - 0) + mixingUnit.wa1`,
 the open `c_ref` of the clocked mixing unit; `DynamicPipeClosingValve`
 does not converge its start in 50 Newton steps.
+
+### The rest of the queue, re-counted in one pass
+
+The 61 queue names of `/tmp/m714/rows.tsv` not probed above and not in
+the dear list were run in one pass, `--only-from /tmp/m720/recensus.txt
+--list` on `/tmp/m720/ox22` (witness `/tmp/m720/recensus.env`, output
+`/tmp/m720/recensus_out.txt`, peak 6.7 GB under a cap of 24). It prints
+61 flatten and 0 run, and its refusal lines add up to 61 models in 52
+rows. Every one of the 52 models the print names first refuses with the
+same words, to 45 characters, as its row in `rows.tsv`: no queue name
+has moved since the census of m714, neither forward nor back. The
+census holds as written, and today's probes above are its per-name
+reading. The dear five of the queue (`BatchPlant_StandardWater`,
+`HeatingSystem`, `PointGravityWithPointMasses2`, `Engine1a`,
+`PlanarFourbar`) were not re-run.
