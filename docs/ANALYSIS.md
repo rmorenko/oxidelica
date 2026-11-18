@@ -86625,3 +86625,18 @@ converged, 4 stuck on a plateau - `R134a1` (0.97), `R134a2` (1.37),
 `GearType1` (0.4) and the quasi-static `Rectifier` (5.7e3). The "five"
 of the paragraph above is wrong by one; four is the number, one of
 them below a physical bound.
+
+### The machine half of the underdetermined row
+
+The four machines of `7 underdetermined loop` were taken with
+`library check .msl --only <Class> --refused` (`/tmp/m722/ud_*.txt`) for
+the whole list of unknowns in the refused block. Three of four carry
+ideal closing switches' `s` in the block, `IMC_DOL_Polyphase` 8,
+`SMEE_DOL` 3, `IMS_Start_Polyphase` 24, beside the air gap and a star
+point or zero inductor, so at t = 0 the open switch leaves the stator
+star floating. `SMEE_Rectifier` has no switch in its block, only the
+star point and zero inductor (2), and is fed through a rectifier
+instead. So the half is one shape in three and a cousin in the fourth:
+a machine winding whose star potential nothing fixes at the start,
+reached through an open switch or through a diode bridge. A reading
+from the block's names, not yet a probe of the star potential itself.
