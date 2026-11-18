@@ -85263,3 +85263,23 @@ lone point mass on a free joint leaves three rotational freedoms with no
 inertia. The library's text warns about exactly this. `Pg1` is therefore
 a wrong reduction and is not offered as a reproduction. The real
 model's wall stays named as above, with no small model.
+
+Shrunk from the real model rather than grown (witnesses
+`/tmp/m720/small/Pg2.env` to `Pg5.env`, outputs beside them):
+
+| model | contents                                           | outcome                                          |
+| ----- | -------------------------------------------------- | ------------------------------------------------ |
+| `Pg5` | point-gravity world and `SystemWithStandardBodies` | runs                                             |
+| `Pg3` | world, `FreeMotion`, six point masses on arms      | refuses, underdetermined `freeMotion.a_rel_a[3]` |
+| `Pg4` | `Pg3` under the example's point gravity            | the same                                         |
+| `Pg2` | four masses in a plane                             | the same                                         |
+
+So the refusing half is the free cluster of point masses, and gravity's
+kind plays no part. Every one of these clusters has inertia about all
+three axes (two masses off each axis), so each is a well-posed rigid
+body and the refusal is the compiler's. The wording is not the corpus
+model's: it names `a_rel_a[3]` underdetermined at run time where the
+whole example is refused in reduction on `R.T[1,1]`. The cluster is
+therefore a refusing reproduction of the same subsystem, not yet shown
+to be the same wall. It is offered as the next shift's starting point,
+`Pg2` being the smallest, at four seconds.
