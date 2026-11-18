@@ -86949,3 +86949,10 @@ different set: they run, so only one of them, StateGraph's
 `TankController`, is in the queue at all. The two sets meet in one
 model. A row is homogeneous or mixed independently of its size: 25 and
 13 members with one cause each, six members with at least four.
+
+Against the earlier split of `29 singular` by position (17 helpers and
+12 real), the annotation gives 15 without `experiment` and 14 with it.
+The two that move are `InvertersExtendedModel.MNmos` and `MPmos`,
+counted as helpers by where they sit and carrying an `experiment` of
+their own. So the two counts differ by those two names, and the count
+by annotation is the one the filter would use.
