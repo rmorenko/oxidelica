@@ -87063,3 +87063,13 @@ MOS capacitances, so at least two. `0 new`, five members, is the media
 row: `R134a1` and `R134a2` on `volume.medium.p`, the two `ReferenceAir`
 moist-air models singular at initialization, and the 162-unknown start
 block of `HeatExchangerSimulation`, so three.
+
+`TestJunctionTraceSubstances`'s walked function is
+`Modelica.Math.Nonlinear.solveOneNonlinearEquation`, whose `error`
+fires when `f(u_min)` and `f(u_max)` have the same sign
+(`.msl/Modelica/Math/Nonlinear.mo`, the check opening "Check that
+f(u_min) and f(u_max) have different sign"). The callers in the media
+are `Media/package.mo`, `Air/MoistAir.mo` and `Air/ReferenceMoistAir.mo`.
+So the junction's NaN is a medium inversion whose bracket does not hold
+the root at the start values; the bracket values were not in the
+refusal text and were not read.
