@@ -86516,3 +86516,13 @@ count says the loop is closed without that break being made. This is a
 reading from the numbers and the source, not yet a probe of the
 connection graph, and it is the one member of `5 unbalanced/left` that
 is an example rather than a helper.
+
+A caution on that reading, from the same refusal: the equations it
+names as left over are position identities (`b1.frame_a.r_0[1] =
+b1.body.frame_a.r_0[1]` and the like), not rotation rows. That does not
+refute it, because the list is whatever the matching in `compile.rs`
+(the branch "Too many: name the equations with nothing left to solve
+for") happened to leave unmatched, and any member of a redundant set
+can be the one left. But it means the refusal does not confirm the
+orientation reading either: only the count of nine fits it. It stays a
+hypothesis until the loop's connection graph is probed.
