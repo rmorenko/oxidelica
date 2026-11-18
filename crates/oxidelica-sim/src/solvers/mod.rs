@@ -186,10 +186,40 @@ fn underdet_detail() -> bool {
 }
 
 /// The print `OXIDELICA_UNDERDET_DETAIL` asks for, to stderr.
-fn print_underdetermined(names: &[&str], v: &[f64], raw: &[Vec<f64>], scaled: &[Vec<f64>], t: f64) {
+fn print_underdetermined(
+    names: &[&str],
+    v: &[f64],
+    raw: &[Vec<f64>],
+    scaled: &[Vec<f64>],
+    t: f64,
+    sources: (&[String], &[String]),
+) {
     for line in underdetermined_lines(names, v, raw, scaled, t) {
         eprintln!("{line}");
     }
+    for line in underdetermined_sources(sources.0, sources.1) {
+        eprintln!("{line}");
+    }
+}
+
+/// What each row of a refused block was built from, as the flat model
+/// spells it: the residual of row `i`, and each inner assignment the
+/// residuals read through. The numbers above say a row does not move
+/// along a column; these say which equation the row is, so that why it
+/// does not move can be read off the equation rather than guessed.
+fn underdetermined_sources(residuals: &[String], inner: &[String]) -> Vec<String> {
+    let mut lines: Vec<String> = residuals
+        .iter()
+        .enumerate()
+        .map(|(i, source)| format!("UNDERDET   eq {i} {source}"))
+        .collect();
+    lines.extend(
+        inner
+            .iter()
+            .enumerate()
+            .map(|(k, source)| format!("UNDERDET   inner {k} {source}")),
+    );
+    lines
 }
 
 /// The lines of that print: the smallest pivot of the raw and of the
@@ -1747,7 +1777,14 @@ impl CompiledModel {
                     crate::linear::reads_underdetermined(&raw, columns_first(), one_order_only());
             }
             if singular && underdet_detail() {
-                print_underdetermined(&block_names(), v, &raw, &jac, t);
+                print_underdetermined(
+                    &block_names(),
+                    v,
+                    &raw,
+                    &jac,
+                    t,
+                    (residual_sources, inner_sources),
+                );
             }
             if singular {
                 return err(format!(
@@ -3224,7 +3261,18 @@ impl CompiledModel {
 
 #[cfg(test)]
 mod underdetermined_print_tests {
-    use super::underdetermined_lines;
+    use super::{underdetermined_lines, underdetermined_sources};
+
+    // Each row is named by the equation it was built from, and each
+    // inner assignment after them, in their order.
+    #[test]
+    fn each_row_names_its_equation() {
+        let lines = underdetermined_sources(&["a = b".to_string()], &["c * 2".to_string()]);
+        assert_eq!(
+            lines,
+            vec!["UNDERDET   eq 0 a = b", "UNDERDET   inner 0 c * 2"]
+        );
+    }
 
     // A block whose second unknown appears in no equation: the print
     // has to name that column as the dead one and give the pivot as

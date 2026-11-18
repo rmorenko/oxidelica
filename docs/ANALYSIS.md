@@ -85751,3 +85751,17 @@ orders a rename does not.
 A change to the matching is Roman's question, not this shift's. It
 decides which models flatten and run, so unlike a print it can move the
 measure in either direction, and it is not begun here.
+
+### What the dead row of `Pg16` is made of
+
+The underdetermined print now names each row of a refused block by the
+equation it was built from (`OXIDELICA_UNDERDET_DETAIL`, still off by
+default; binary `/tmp/m721/ox24`, md5 `3cc3439bd8ffd5612120d072becd7a00`,
+outputs and witnesses `/tmp/m721/Pg16.*` and `Pg9.*`). In both `Pg16` and
+`Pg9` the one-unknown block on `freeMotion.a_rel_a[3]` is the residual
+`(freeMotion.frame_a.R.T[3,3] * freeMotion.a_rel_a[3]) - (freeMotion.frame_a.R.T[3,3] * freeMotion.a_rel_a[3]) = 0`:
+the same product on both sides, so the row is identically zero and no
+value of the column can move it. The matching handed the block an
+equation that had already cancelled to a tautology, which is the
+concrete form of candidate question 118. With the switch off the output
+of `ox24` on `Pg9` is byte for byte that of `ox23`.
