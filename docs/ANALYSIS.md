@@ -87000,3 +87000,14 @@ three shapes: a mode chosen on unsolved variables (`OneAxis`,
 `FullRobot`), a mode change mid-run (`ActuatorWithNoise`), and a state
 re-selection the pivot asks for that index reduction cannot give
 (`Engine1a`, `SMPM_ResistiveBraking`).
+
+Correction to the line above, the same shift, from the same probe on
+the other three (`/tmp/m723/stall/ActuatorWithNoise.txt`, `OneAxis.txt`).
+`OneAxis` stalls at `dopri.rs` on the mode branch with
+`mode_change=true` at t = 7.2e-14, as mapped. `ActuatorWithNoise` does
+not stall on its mode: it stalls in `bdf.rs` on the same
+`selection_sound` branch, `mode_change=false`, at t = 2.7e-4, and the
+mode lines in its trail stay on one branch. So the five are two shapes,
+not three: a mode chosen on unsolved variables (`OneAxis`, `FullRobot`)
+and a state re-selection index reduction cannot give (`ActuatorWithNoise`,
+`Engine1a`, `SMPM_ResistiveBraking`).
