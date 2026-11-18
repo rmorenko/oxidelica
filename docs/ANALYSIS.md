@@ -85370,3 +85370,13 @@ was given does not depend on its own unknown at all, which means the
 matching handed this block an equation that reaches `a_rel_a[3]` only
 through something already fixed. The fault is upstream of the solver,
 in how the block was assembled, and the frozen floor has no part in it.
+
+A number for the running half of the pair, so that "runs" is not taken
+for "right" (witness `/tmp/m720/small/Pg_sim.env`, output `Pg14.csv`).
+`Pg14` simulated to 0.5 s gives `freeMotion.r_rel_a[2] = -1.22583125`,
+which is exactly `-g_n t^2 / 2` with the library's `g_n = 9.80665`. The
+free body falls as it should with no rotation. `Pg16` refuses on the
+same command. The `OXIDELICA_TRACE` key was also tried on both. It
+prints only the command line's own trace, nothing about matching, so it
+is not the instrument for the next link. The chain ends this shift at
+the block's assembly, with `Pg14` against `Pg16` as its pair.
