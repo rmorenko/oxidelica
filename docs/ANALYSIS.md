@@ -84277,3 +84277,15 @@ by the medium's own range check below the triple point. Whether a zero
 standing for the environment is a value or the absence of one is a
 question for Roman, not a change this shift can make while code is
 frozen.
+
+### How often the corpus leans on that zero
+
+A probe binary (`/tmp/m718/ox20z`, md5 d208b20d, head d71479e plus one
+`eprintln` at the zero default, never committed) printed every unjoined
+single-value input connector that takes zero for want of a start, over
+the whole corpus (`/tmp/m718/zero.txt`, witness `zero.env`). It fired
+36 times, all top-level inputs of a class run on its own: `u`, `p`,
+`h`, tank levels, robot `q`, `qd`, `qdd` vectors, `Theta`, `Pm`. The
+print names the input and not the model, so which of these models run
+on the zero is the next probe, and the price list for Roman's word is a
+few dozen helper classes rather than the library.
