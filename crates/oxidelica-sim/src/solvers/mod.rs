@@ -202,6 +202,36 @@ fn print_underdetermined(
     }
 }
 
+/// The same print for a loop refused as stuck rather than as
+/// underdetermined: the Jacobian it last stood on, scaled as the
+/// underdetermined test scales it, and the rows by their equations.
+fn print_stuck(
+    names: &[&str],
+    v: &[f64],
+    raw: &[Vec<f64>],
+    t: f64,
+    sources: (&[String], &[String]),
+) {
+    for line in stuck_lines(names, v, raw, t, sources) {
+        eprintln!("{line}");
+    }
+}
+
+/// The lines of that print.
+fn stuck_lines(
+    names: &[&str],
+    v: &[f64],
+    raw: &[Vec<f64>],
+    t: f64,
+    sources: (&[String], &[String]),
+) -> Vec<String> {
+    let mut scaled = raw.to_vec();
+    crate::linear::equilibrate_both(&mut scaled, columns_first());
+    let mut lines = underdetermined_lines(names, v, raw, &scaled, t);
+    lines.extend(underdetermined_sources(sources.0, sources.1));
+    lines
+}
+
 /// What each row of a refused block was built from, as the flat model
 /// spells it: the residual of row `i`, and each inner assignment the
 /// residuals read through. The numbers above say a row does not move
@@ -2968,13 +2998,10 @@ impl CompiledModel {
                         // nothing: a near-singular Jacobian is one
                         // reason a Newton step points nowhere useful.
                         if underdet_detail() {
-                            let mut scaled = jac.clone();
-                            crate::linear::equilibrate_both(&mut scaled, columns_first());
-                            print_underdetermined(
+                            print_stuck(
                                 &block_names(),
                                 &v,
                                 &jac,
-                                &scaled,
                                 t,
                                 (residual_sources, inner_sources),
                             );
@@ -3026,13 +3053,10 @@ impl CompiledModel {
         // and that direction say whether it is. Print only.
         if underdet_detail() {
             if let Some(raw) = last_jac.as_deref() {
-                let mut scaled = raw.to_vec();
-                crate::linear::equilibrate_both(&mut scaled, columns_first());
-                print_underdetermined(
+                print_stuck(
                     &block_names(),
                     &v,
                     raw,
-                    &scaled,
                     t,
                     (residual_sources, inner_sources),
                 );
@@ -3294,7 +3318,23 @@ impl CompiledModel {
 
 #[cfg(test)]
 mod underdetermined_print_tests {
-    use super::{underdetermined_lines, underdetermined_sources};
+    use super::{stuck_lines, underdetermined_lines, underdetermined_sources};
+
+    // A stuck loop's print scales its Jacobian and names its rows: a
+    // regular block reads a scaled pivot of one whatever its units.
+    #[test]
+    fn a_stuck_regular_block_reads_a_pivot_of_one() {
+        let raw = vec![vec![1e6, 0.0], vec![0.0, 1e-6]];
+        let lines = stuck_lines(
+            &["p", "q"],
+            &[0.0, 0.0],
+            &raw,
+            0.0,
+            (&["p = 1".to_string()], &[]),
+        );
+        assert!(lines[0].contains("scaled=1e0"), "{}", lines[0]);
+        assert!(lines.iter().any(|l| l == "UNDERDET   eq 0 p = 1"));
+    }
 
     // Each row is named by the equation it was built from, and each
     // inner assignment after them, in their order.
