@@ -84262,7 +84262,18 @@ model is the medium's own `BaseProperties` redeclared as an example, its
 pressure is an input with no binding, and `why` lists an equation
 `p = 0` among those naming it. That zero is not a general default for an
 undriven input: the small model `input Real u; Real y; y = 1/u;`
-(`/tmp/m718/small/In0.mo`) is refused as unbalanced, naming `y`. Where
-this `p = 0` is written is not yet found. The medium then refuses
-below the triple point, which is the right answer for a property record
-run with nothing driving it. Which writer produced it is the open question.
+(`/tmp/m718/small/In0.mo`) is refused as unbalanced, naming `y`.
+
+The writer is the connector, not the input: a single-value causal
+connector (`connector RealInput = input Real`) that nothing is joined
+to takes its declared start, or zero without one, in
+`crates/oxidelica-parser/src/flatten/mod.rs` (grep "A causal connector
+nothing else is joined to"). The comment gives the reason, a model
+waiting on its environment is not a model short of an equation, and the
+small `/tmp/m718/small/In1.mo` shows the cost: with `y = 1/u` it runs
+and prints `y = inf` at every step, where `In0.mo` with a plain `input`
+is refused. The TwoPhaseWater pair is the same writer, caught this time
+by the medium's own range check below the triple point. Whether a zero
+standing for the environment is a value or the absence of one is a
+question for Roman, not a change this shift can make while code is
+frozen.
