@@ -86268,3 +86268,18 @@ initialization step whose equations do not pin down the start
 (`MoistAir1`, `MoistAir2`), and a start block of 162 unknowns in
 `HeatExchangerSimulation`. Three causes in five models, each pair from
 one package, so the row is three small families and not one.
+
+Two more real members probed the same way (`/tmp/m722/why_batch.txt`,
+`why_oneaxis.txt`). `BatchPlant_StandardWater` is the tank shape again:
+the refused `B5.InnerTankSide[1].port.m_flow = 0` is written by no
+class, the flow being bound only by the connection
+`B5.InnerTankSide[1].port.m_flow + (-B5.SideFluidPort[1].m_flow) = 0`.
+That makes two of two Fluid members one cause, a zero form reduced
+from a connection whose other side is otherwise free. `OneAxis` names
+the motor inertia's speed `axis.motor.Jmotor.w`, a state of a
+derivative chain (`w = der(phi)`, `a = der(w)`) equated to a bearing
+speed: a mechanical constraint between two inertias, the MultiBody and
+drive-train kind. The twelve real members thus read as at least three
+causes: the Fluid connection zero (2), mechanical constraints between
+states (8 MultiBody), and the machine sums (2), which were not probed
+further because `why` names them only by a sum it cannot take apart.
