@@ -83993,3 +83993,29 @@ nine spreads by 0.045 over nine runs, the desk's widest by 0.089 over
 eight prints), which fits the desk sharing its machine with other
 work. The m693 against m705 pair is not dug further, as the earlier
 note decided.
+
+### The fifty-seven at risk, by family
+
+`/tmp/m716/risk.txt` names the models that leave a declared bound
+during the m716 bounds probe. Each of the 57 has a `ran` line in the
+same print (`/tmp/m717/nb.txt` is that print without the probe's
+lines). So all 57 run today, and a clamp of the bounds would be
+judged on them first. By the first three parts of the name, and by
+whether any of the model's exits carries a NaN:
+
+| family                                | models | with NaN |
+| ------------------------------------- | -----: | -------: |
+| ModelicaTest.Fluid.TestComponents     |     14 |        9 |
+| Modelica.Fluid.Examples               |     11 |        1 |
+| ModelicaTest.Media.TestsWithFluid     |     10 |        5 |
+| ModelicaTest.Media.TestAllProperties  |      7 |        0 |
+| ModelicaTest.Fluid.TestPipesAndValves |      6 |        5 |
+| Modelica.Thermal.FluidHeatFlow        |      4 |        0 |
+| Modelica.Electrical.Analog            |      3 |        0 |
+| ModelicaTest.Fluid.Dissipation        |      1 |        0 |
+| Modelica.Electrical.Spice3            |      1 |        1 |
+
+Twenty-one of the 57 pass through a NaN and still run, so a NaN in a
+trial point is not by itself a sign of a refusal. Fluid and Media own
+50 of the 57. This is a price list for Roman's decision on a clamp,
+not a verdict, and no code was built.
