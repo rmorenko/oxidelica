@@ -85477,3 +85477,23 @@ sample. The two layers disagree on one call. A grep of `.msl` finds no
 two-argument clocked `sample` in the library, so no corpus model is
 behind it and no number moves. It is named with `Inv2` as its test, and
 not built this shift.
+
+### The judge's print of b9c631c, and why k still stays at ten
+
+The library verdict of the shift's code commit came in run 44339538560
+(head b9c631c). Its main pass prints `example models: 1012, of which 971
+flatten and 846 run`. With the dear pass's 14 / 14 / 8 that makes 1026 /
+985 / 854, and the floors hold with no victims. The run's red verdict
+comes from one job: `test on macos-latest` was cancelled after 15
+minutes with no steps recorded, under `fail-fast: false`. That is a lost
+runner, and it is recorded here as the machine's and not as a victim.
+
+That print was expected to supply the runner half of k for the 37
+models of `/tmp/m718/k_desk_half.tsv`. It does not. The main pass's log
+(`/tmp/m720/b9c_main.log`, 665 lines, job 134925567723) holds no
+`work apart:` line, and none of the 37 names appears in it at all. The
+judge prints totals over a pass, exactly as the section on the logs on
+hand above found for three earlier runs. So the table of k stays at ten
+models. The desk half waits, as before, for a dispatched job that
+prints a count per model for a chosen list, which is a change to CI
+and not this shift's.
