@@ -86283,3 +86283,28 @@ drive-train kind. The twelve real members thus read as at least three
 causes: the Fluid connection zero (2), mechanical constraints between
 states (8 MultiBody), and the machine sums (2), which were not probed
 further because `why` names them only by a sum it cannot take apart.
+
+### The two- and three-member rows, read from their texts
+
+- `2 init singular` (3 members): two causes. A singular initialization
+  Newton step (`AmplifierWithOpAmpDetailed`, `SimpleNaturalGas`) and a
+  non-square initialization, 21 equations and 4 fixed starts for 23
+  unknowns (`ThreePhaseTransformerWithRectifier`).
+- `5 loop no converge` (3): two causes by the traces above, a steady
+  crawl (`Nand`) and an oscillation (both `SMPM_CurrentSource`).
+- `2 der not state` (2): one cause, `der()` of a medium temperature that
+  is not a state (`BranchingDynamicPipes`, `HeatingSystem`).
+- `2 below min` (2): one cause, `dddX[1]` below its declared min of 0
+  at t = 0 (`FlueGasSixComponents`, `MoistAir`), the test's own
+  declaration as read last shift.
+- `2 algebraic loop other` (2): two causes, a long Fluid loop
+  (`MeasuringTemperature`) and a root on either side of
+  `suddenExpansion1.m_flow` (`TestSuddenExpansion`).
+- `2 tsat` (2): one cause, IF97 `tsat` at 0 Pa.
+
+So of the rows with more than one member, the one-cause rows are
+`25 param`, `13 determines`, `6 cannot`, `2 der not state`,
+`2 below min` and `2 tsat`, and the rows holding two or more causes are
+`29 singular`, `7 underdetermined`, `7 Newton`, `6 singular Jacobian`,
+`5 left`, `4 equations of loop`, `0 new`, `3 loop no converge`,
+`3 init singular` and `2 algebraic loop other`.
