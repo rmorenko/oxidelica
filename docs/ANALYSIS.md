@@ -86800,3 +86800,17 @@ gives NaN residuals in two rows. So the four are two shapes: a direction
 normalised by a zero length at the start (the two MultiBody models), and
 an undamped Newton step that leaves the medium's range (the two pipes).
 The other six were not traced.
+
+The other six, the same binary with `simulate` on one-line wrappers
+(`/tmp/m723/nan/N1.mo` to `N6.mo` and `N*.txt`). `BranchingPipes3`,
+`BranchingPipes4` and `SeriesPipes1` are the pipe shape: a Newton step
+gives NaN residuals at t = 0 or t = 0.0008 s. `RollingWheelSetDriving`
+is refused at the start on the same `rolling1.e_long_0[1]` with both
+`aux` at zero as `RollingWheelSetPulling`. `MeasuringTemperature` is
+the pipe shape too: one Newton step at t = 0 sends its unknowns to the
+order of -5e9 and -2e13. `TestJunctionTraceSubstances` is a third shape:
+its loop is NaN before any Newton step, because a function it calls
+could not be walked, the refusal naming the `u_min` and `u_max`
+arguments of that call. So the ten split three MultiBody models on a
+zero length, six fluid models on an undamped step out of the medium,
+and one function that could not be walked.
