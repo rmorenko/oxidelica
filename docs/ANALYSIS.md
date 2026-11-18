@@ -86607,3 +86607,15 @@ printed into. All on `.msl` with `/tmp/m722/ox27` unless named.
 | 10 trails through a NaN                                | the same 50                                         | `/tmp/m722/tr/*.txt`                    |
 | 7 of 7 same equations on both snapshots                | question 66's seven runnable helpers                | `/tmp/m722/q66/`                        |
 | 6 of 6 one or two short of full rank, none small pivot | the singular Jacobian row                           | `st2_*.txt`, `cls.py`, `lg_trail.txt`   |
+
+A correction to the "12 flat" of the bound count and of the table
+above. The test in `/tmp/m722/tr/b2.py` called a trail flat when its
+last three residual norms agreed, and that also catches a solve that
+had converged: of the 13 it marked (`bound2.tsv`; twelve plus
+`R134a1`), eight end at a norm of 4e-6 or less, down to exactly zero,
+and are refused for something after the solve (an assertion, a
+non-square initialization, the stall recompile). Flat at a residual
+that is not small: five, `R134a1` (0.97), `R134a2` (1.37), the
+quasi-static `Rectifier` (5.7e3), `GearType1` (0.4) and none else. So
+the honest count is five stuck on a plateau, two of them the R134a
+pair, and one of the five below a physical bound.
