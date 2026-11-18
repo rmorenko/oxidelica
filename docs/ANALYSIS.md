@@ -85190,3 +85190,21 @@ with the switch's wrong name `idealCloser`, measured nothing for that
 reason. Its result is not used above. The specification makes such a
 modifier an error. Refusing it is a flattening change whose price only
 a corpus pair can show, so it is named here and not built.
+
+All four census names at `Goff = 1e-2`, the rest of each model untouched
+(witnesses `/tmp/m720/small/Ext4.env` to `Ext7.env`): `IMC_DOL_Polyphase`,
+`IMS_Start_Polyphase`, `SMEE_DOL` and `SMEE_Rectifier` (its two ideal
+diode sets) all run. Each one refused before, so the change of outcome
+also shows that each modifier reached its component. That check is
+needed since `Nx1` showed a misnamed modifier is accepted silently. The
+four names are one mechanism, an open ideal element's conductance
+against the pivot floor, and they move together at one knob. The table,
+for the review that owns the floor:
+
+| model               | 1e-5 (library) | 1e-4    | 1e-2 |
+| ------------------- | -------------- | ------- | ---- |
+| `Fm5` (small)       | refuses        | runs    | runs |
+| `IMC_DOL_Polyphase` | refuses        | refuses | runs |
+| `SMEE_DOL`          | refuses        | refuses | runs |
+| `IMS_Start_Poly.`   | refuses        | -       | runs |
+| `SMEE_Rectifier`    | refuses        | -       | runs |
