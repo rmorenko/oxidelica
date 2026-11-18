@@ -226,7 +226,52 @@ fn underdetermined_lines(
             .collect();
         lines.push(format!("UNDERDET   row {i} [{}]", entries.join(", ")));
     }
+    if let Some(null) = near_null_direction(scaled) {
+        let mut order: Vec<usize> = (0..null.len()).collect();
+        order.sort_by(|&a, &b| null[b].abs().total_cmp(&null[a].abs()));
+        let named: Vec<String> = order
+            .iter()
+            .take(8)
+            .filter(|&&j| null[j].abs() > 1e-3)
+            .map(|&j| format!("{}:{:.3}", names[j], null[j]))
+            .collect();
+        lines.push(format!("UNDERDET   null [{}]", named.join(", ")));
+    }
     lines
+}
+
+/// The direction the scaled block barely moves along: the right
+/// singular vector of its smallest singular value, by inverse iteration
+/// on `A^T A` shifted by a hair so that a singular block still solves.
+/// Works on copies only; `None` where even the shifted system will not
+/// solve.
+fn near_null_direction(a: &[Vec<f64>]) -> Option<Vec<f64>> {
+    let n = a.len();
+    if n == 0 {
+        return None;
+    }
+    let mut ata = vec![vec![0.0f64; n]; n];
+    for row in a {
+        for i in 0..n {
+            for j in 0..n {
+                ata[i][j] += row[i] * row[j];
+            }
+        }
+    }
+    let largest = (0..n).map(|i| ata[i][i]).fold(0.0f64, f64::max).max(1e-300);
+    for (i, row) in ata.iter_mut().enumerate() {
+        row[i] += 1e-12 * largest;
+    }
+    let mut x: Vec<f64> = (0..n).map(|i| 1.0 + (i as f64 * 0.618).fract()).collect();
+    for _ in 0..8 {
+        let next = crate::linear::solve_linear(&mut ata.clone(), &x)?;
+        let norm = next.iter().map(|v| v * v).sum::<f64>().sqrt();
+        if !(norm.is_finite() && norm > 0.0) {
+            return None;
+        }
+        x = next.iter().map(|v| v / norm).collect();
+    }
+    Some(x)
 }
 
 /// Whether a re-selection compiles the run afresh with the stop time
@@ -3193,6 +3238,12 @@ mod underdetermined_print_tests {
         assert!(lines[1].contains("x = 1.5e0") && lines[1].contains("|raw col| = 4e0"));
         assert!(lines[2].contains("c = 0e0") && lines[2].contains("|raw col| = 0e0"));
         assert_eq!(lines[3], "UNDERDET   row 0 [x:2e0]");
+        // The direction the block cannot pin is the dead column.
+        let null = lines
+            .iter()
+            .find(|l| l.contains("null"))
+            .expect("a null line");
+        assert!(null.starts_with("UNDERDET   null [c:"), "{null}");
     }
 }
 

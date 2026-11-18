@@ -84893,3 +84893,113 @@ modelcard, `CBD = 0` and `CBS = 0`, and four open pins. They refuse on
 `G.i = 0`, the gate current of an open pin, and are helpers by the
 library's own description ("inherited by the model
 InverterExtendedModel"). Question 66 again; nothing for the compiler.
+
+### The null direction of the machine blocks: two families
+
+The underdetermined print now also gives the direction the scaled
+block barely moves along (the right singular vector of its smallest
+singular value, by inverse iteration on a copy), naming its largest
+entries. Binary `/tmp/m720/ox23`, md5 cf32ecf3e837cca5dca59874b3f9767a,
+witnesses `/tmp/m720/v_<name>.env`.
+
+- `SMEE_DOL` and `SMEE_Rectifier`: the null direction is
+  `der(smee.airGap.V_mss.im)` (0.69) with the derivative of one phase
+  current of the stator's converter (0.61) and a smaller share of
+  `V_mss.re` and `port_p.V_m.re`. The air gap's magnetic potential and
+  a winding current move together unpinned: a magnetic family.
+- `IMC_DOL_Polyphase` and `IMS_Start_Polyphase`: the null direction is
+  the switch variables `idealCloserM.idealClosingSwitch[k].s` (0.15 to
+  0.65) together with `terminalBoxM.star.pin_n.v` (-0.46, -0.38). The
+  open ideal closers and the floating star point move together: an
+  electrical family, the potential of a star that the open switches cut
+  off from everything.
+
+So the seven names of the underdetermined row are three shapes, not
+two: the Spice3 pivot floor (NAND, ONEBIT), the dead column
+(RtlInverter), and these two machine families. The second is the one a
+floating node explains; whether the compiler should pin a star that
+only ideal switches reach is a question for the solver, not taken here.
+
+A small model of the second family's reading, `/tmp/m720/small/Fs.mo`
+(three ideal closers, open until t = 0.05, feeding an inductive load on
+an isolated star), simulates to the end with one event. So a star cut
+off by open ideal closers is not refused by itself; the machine blocks
+need something more, and the reading stays a reading.
+
+The wall reproduced small, `/tmp/m720/small/Fm.mo`: a three-phase
+`IM_SquirrelCage` behind a Y terminal box, fed through ideal closers
+that are open until t = 0.05, refuses at t = 0 as underdetermined, a
+block of 24 with pivot 1.1e-8 scaled and the null direction
+`der(aimc.airGap.V_mss.im)` against `der(...port_p.V_m.im)` (0.64 each)
+and a phase current. `Fm2`, the same machine wired straight to the
+source without closers, simulates. So both machine families meet one
+cause: a machine whose stator is cut off at the start by open ideal
+switches, where the open switch's tiny conductance leaves the air gap's
+magnetic potential and the winding currents free to move together. The
+null vectors of SMEE and of IMC/IMS differ only in which side of that
+cut the print happens to weigh. `Fm` is the small model for whoever
+takes it; the cure, if any, is in the solver's handling of an open
+ideal switch and is not taken here.
+
+Correction, read from the source after the paragraph above: in
+`SMEE_DOL` the closer's `BooleanStep` has `startTime = 0`, so its
+switches close at the start rather than stand open, and its initial
+equations fix `smee.is[1:2]` and `smee.ie`. The "one cause for both
+families" sentence is withdrawn: `Fm` reproduces the IMC/IMS family
+(closers open until `tOn`), and the SMEE family stays its own, as its
+null vector already said.
+
+The SMEE family shrunk, `/tmp/m720/small/E1` to `E6`, binary ox23. The
+example copied whole (`E1`) and without its initial equations (`E2`)
+refuse with the same null vector. With the ideal switch removed and the
+source wired straight on (`E4`) it simulates. With the switch kept and
+its `BooleanStep` moved: `startTime = 0.01`, open at the start (`E5`),
+refuses; `startTime = -1` (`E6`) simulates. And the step at
+`startTime = 0` reads true already at t = 0 in a run of its own
+(`Bs.mo`, the output's first row is `0,1,1`). So with the step written
+as the library writes it, the switch is closed at t = 0 in the output,
+yet the model refuses exactly as when it is open: the block that
+refuses at the start sees the switch open. That joins the SMEE family
+to the IMC/IMS family after all, by a different road: both are a
+machine behind an ideal switch that the start system takes as open.
+The withdrawn sentence above stands withdrawn as a claim about the
+source; this is the measured version of it. Which value of the
+control the start system reads at t = 0 is the next probe.
+
+The next probe, small: `/tmp/m720/small/Sw0.mo`, one ideal closer whose
+`BooleanStep` has `startTime = 0`, in front of an inductor. It runs, and
+its first output row reads `sw.control = 1`, `sw.off = 0`: closed at
+t = 0, as the specification says. So a step at zero is read as closed
+by the start in the plain case, and the reading of the paragraph above
+("the start takes the switch as open") is not what a single closer
+shows. What differs in `E2` against `E6` is still the step at zero
+against a step before it; which part of the machine makes that
+difference matter is where this shrinking stops for now.
+
+And the two families do share a block. With `OXIDELICA_WHERE=1` both
+`E2` and `Fm` refuse from the same line of the solver's rank test, and
+the underdetermined print of each holds the switch variables
+`switch.idealClosingSwitch[k].s` (SMEE) or `closer.idealClosingSwitch[k].s`
+(`Fm`) as unknowns of the refused block, each at about 1e-27, with a
+column as large as any. The ideal switch's `s` sits at its own zero,
+the point where an ideal switch's two branches meet, and the block is
+refused there. So the machine row is one family after all, measured
+this time: a machine behind an ideal switch whose `s` stands at zero at
+the start, closed or open. The cure is the solver's to decide.
+
+The small machine answers the same way as the SMEE copy: `Fm3`, the
+closers' step at `startTime = 0`, refuses with the switch `s` in the
+block; `Fm4`, the step at -1, simulates. A plain closer in front of two
+series inductors (`Sw1`, step at 0) runs. So the pair `Fm3` / `Fm4` is
+the smallest witness of the machine family: a machine behind ideal
+closers whose control turns true exactly at t = 0 refuses, and the same
+machine whose closers were already closed runs. Both small models are
+in `/tmp/m720/small/`, ready as the test for whoever takes the cure.
+
+The trail of `Fm3` closes the question of how it fails: the block at
+t = 0 converges, four Newton steps from |f| = 9.5e4 to 1.8e-11, and is
+only then refused by the rank test that asks whether a converged block
+is determined. `Fm4` walks the same first steps and is not refused. So
+the family is not a solve that fails; it is a solved point judged
+underdetermined, with the ideal switches' `s` at about 1e-27 among its
+unknowns, the kink where an ideal switch's two branches meet.
