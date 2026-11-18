@@ -86847,3 +86847,23 @@ only physical unknown driven below zero is again `R134a1`'s
 the rest of the 41 need the trail to print its names. That print is
 one line per Newton point beside the existing one and needs its own
 test to keep coverage on its floor, which this shift did not build.
+
+### Three rows from the inside, by file and refusal
+
+From `/tmp/m714/rows.tsv` and the library's own files, no new run.
+`25 param no value`: 12 of the 25 have a file of their own and none of
+the 12 carries an `experiment` annotation; the other 13 live inside a
+package file, 33 of the 38 names of this row and the next sit under
+`Utilities`, `BaseClasses` or `Components`. Each names a parameter
+declared without a default (`Der.f`, `PI.T`, `GasForce2.L`,
+`NonlinearResistor.Ga`, `FieldWeakeningController.VNominal`,
+`BasicHX.length`), which is what a helper meant to be instantiated
+looks like, so the row is one cause, the example filter of question 66.
+`13 unbalanced/determines`: 7 have their own file, none with an
+`experiment`; each leaves an input or a connector unconnected
+(`currentToVoltage.y1`, `axisControlBus`, `outflow1.Fo`), the same
+cause. `6 cannot evaluate`: all six are MultiBody `_analytic` loops on
+`jointRRP.e_ia` / `jointRRR.e_ia` through `jointUSP.e2_ia`, one cause.
+`6 singular Jacobian` holds at least four: a quasi-static rectifier, a
+pump, a machine air gap, and three MultiBody constraint or wheel loops,
+plus `LossyGearDemo2`'s friction quadrants.
