@@ -85053,3 +85053,13 @@ pass can close them. Whether a block refused as underdetermined on the
 pre-event pass should be held over to the post-event pass is a question
 for the start's event handling, and for Roman; the pair `Fm3` / `Fm4`
 is its test.
+
+Read after the probe, for the ceiling: the event iteration already
+holds the cure in its own words (`events.rs`, the re-ask under
+`OXIDELICA_NO_REFUSED_REASK`): "a block refused in the mode the switches
+hold may be refused for the mode", and the definitions are asked again
+at the point the refusal left. `Fm3` refuses anyway, so its refusal is
+raised where that re-ask does not reach, on the start's own first pass
+rather than inside the event iteration. Which call path that is, is the
+next probe (`OXIDELICA_WHERE=1` names the solver line, not the caller).
+No change is made: the solver is frozen for this shift.
