@@ -86956,3 +86956,19 @@ The two that move are `InvertersExtendedModel.MNmos` and `MPmos`,
 counted as helpers by where they sit and carrying an `experiment` of
 their own. So the two counts differ by those two names, and the count
 by annotation is the one the filter would use.
+
+### The machines behind a switch that is really open
+
+`IMC_DOL_Polyphase` closes its switches at `tOn = 0.1`, so the start
+sees them open. Wrapped with one modifier (`/tmp/m723/small/IMC_*.mo`,
+`simulate --stop 0.01` on `ox30`): as written, and with each switch's
+`Goff` at 1e-4 or 1e-5, it is refused underdetermined; with `Goff` at
+1e-3 it simulates to 0.01 s. The detail print as written
+(`OXIDELICA_UNDERDET_DETAIL=1`) gives a block of 59 at t = 0 whose
+smallest scaled pivot is 3.7e-9, with the five switch currents `s` at
+1e-14 and the air gap's `V_mss` at zero. So the open machine is not
+structurally underdetermined: it is determined through the switches'
+off conductance, weakly, and the pivot test refuses a block whose
+smallest pivot is of the order of that conductance. Whether the test's
+threshold should see an off conductance as a determination is the
+question; it is not changed here.
