@@ -84186,3 +84186,14 @@ The other 15 are seven MultiBody orientation or velocity equations
 (kind B), `TanksWithOverflow` and `BatchPlant_StandardWater` on a vessel
 port (kind E), and polyphase or machine sums (kinds C and D). The row
 was 39 at m312 and is 29 now; kind A went from 13 to 14 and is no work.
+
+### The desk half of k, waiting for the judge
+
+For the 37 models the clamp touches (the 16 of `/tmp/m716/cand.txt` and
+the 21 that run through a NaN) the desk count is now on file, one
+`--only` each at head d71479e with binary `/tmp/m718/ox19` (md5
+da7ebb26), a witness `.env` beside every print:
+`/tmp/m718/k_desk_half.tsv` holds name, flatten and run seconds,
+points, Newton steps, and whether it ran (22 run, 15 do not). This half
+waits for the first print of the judge after the freeze lifts; with it
+the table of k grows from 10 models to 47 without another desk run.
