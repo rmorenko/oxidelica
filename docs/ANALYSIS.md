@@ -85063,3 +85063,26 @@ raised where that re-ask does not reach, on the start's own first pass
 rather than inside the event iteration. Which call path that is, is the
 next probe (`OXIDELICA_WHERE=1` names the solver line, not the caller).
 No change is made: the solver is frozen for this shift.
+
+The two existing switches of that region do not touch it: under
+`OXIDELICA_NO_REFUSED_REASK=1` the plain `Sw3` still runs (1 event), so
+it never needed the re-ask, and under `OXIDELICA_NO_INITIAL_ORDER=1`
+`Fm3` refuses exactly as by default. Both refusals and both successes
+are therefore decided before the event iteration's re-ask is reached.
+
+### Shift m720 in one table
+
+| what                          | names | verdict                                                           |
+| ----------------------------- | ----- | ----------------------------------------------------------------- |
+| helpers refusing correctly    | 41    | unbound parameter, open pin or flange, bare adapter (question 66) |
+| StateGraph surplus of two     | 3     | library's own equations, counted correctly, helpers               |
+| Spice3 underdetermined        | 3     | pivot floor of one (2), dead column (1)                           |
+| Spice3 equations of loop      | 1     | `m_bInit` branch hides `der(Q2.vbx)` at t = 0                     |
+| machine underdetermined       | 4     | one family: refused on the start's pre-event pass, `Fm3`/`Fm4`    |
+| SMPM_ResistiveBraking         | 1     | tenth reduction, empty reach, chain open between `P2` and `S3`    |
+| inferred clock and `previous` | 1     | refusal worded by the run; the bare clock left out on purpose     |
+| rest of the queue re-counted  | 61    | no name moved since m714                                          |
+
+Counts are models, over the queue of `/tmp/m714/rows.tsv`; the first
+row is the sum of the batches above (3 + 8 + 3 + 15 minus the three
+StateGraph names + 4 + 8 + 2 MOS), each with its witness in `/tmp/m720/`.
