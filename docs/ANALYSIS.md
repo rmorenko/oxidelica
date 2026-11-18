@@ -83710,3 +83710,16 @@ medium sum to one by value, `der(m)` and the six `der(mXi)` are
 dependent at the point, and no row is left whose value moves `m`. This
 is the matching of steady rows to mass states, which keeps the
 verdict at (b).
+
+The same probe on `ReferenceAir.MoistAir1`
+(`/tmp/m715/probe_MoistAir1.txt`) shows where the rank goes. The
+written start `volume.medium.Xi[1] = X_start[1]` reaches `volume.m`
+and `volume.mXi[1]`. But `volume.medium.p = p_start` and
+`volume.medium.T = T_start` both reach the empty list, and are then
+assigned `volume.U` and `volume.mXi[1]` anyway. The model ties `p` and
+`T` to the states through `volume.medium.u` and `volume.medium.d`,
+whose equations call `airBaseProp_pT` and `xws_pT` under an
+`if volume.medium.Xi[1] == 0` branch (`why_ma1_pu.txt`). So the empty
+reach is ours: the walk does not see through those calls to the
+states. That is a candidate defect in the start matcher, not a family
+of m711. It is mapped here and not built.
