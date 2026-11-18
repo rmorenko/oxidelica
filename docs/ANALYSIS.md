@@ -85229,3 +85229,15 @@ refusal is correct, the same verdict as the 42 helpers of question 66.
 The rest of the row's packages are mostly `Utilities` and `Components`,
 which suggests the same, but they were not read one by one. That count
 is left open rather than claimed.
+
+Read one by one after all, with a correction to the method. A first
+pass by `awk` over each class's span printed no `experiment` for all
+twenty, true examples included, so it measured nothing and is not used.
+Read by file instead, at least four of the twenty are true examples:
+`TanksWithOverflow`, `BatchPlant_StandardWater`,
+`PointGravityWithPointMasses2` and `SMPM_ResistiveBraking` (the last
+already mapped as the chain above). Of the other sixteen, eleven sit in
+`Utilities` or `Components` packages or are the four op-amp blocks, and
+those are helpers by place. `MPmos`, `MNmos` and `Nand` were not read.
+The row is mostly helpers but carries at least four real refusals, so it
+is not a helper row.
