@@ -86091,3 +86091,20 @@ and no secant split is found. That branch prints only under
 paths, never on this one. So the five are one branch, not another
 stage: the linear solve failed on a structurally full block whose
 rows are dependent at the point. Moving code there is not proposed.
+
+### The pivot-one five, traced on the merged print
+
+The five models whose scaled pivot read exactly one were traced with
+`/tmp/m722/ox27` (built from d50a816, which has the stuck print), files
+`/tmp/m722/a_*.txt` beside their `.env`. The four pipes refuse on
+`Newton direction` at t = 0.0008 (`TestTemperature1` at 0.0002), with
+scaled pivot 1 and raw pivots 4e-7 to 3e-5: a well conditioned block
+once its units are taken out, as the earlier reading said. `Nand` is a
+different case. It is refused as `did not converge in 60 Newton
+iterations` at t = 3.75e-8 with a raw pivot of one, and its last four
+iterations read a residual norm of 1.28e9, 1.04e4, 3.83e3 and 1.41e3:
+falling by a steady factor of about 2.7 per step, two rows of equal and
+opposite size. That is a linear crawl cut off by the budget, not a
+direction that buys nothing, so `Nand` does not belong with the pipes.
+It is recorded here and not acted on, because the Newton budget is not
+this shift's to move.
