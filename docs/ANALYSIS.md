@@ -84729,3 +84729,19 @@ supplies with the class's defaults at the top, and a surplus of exactly
 two looks like that supplied root writing its own equations beside the
 ones the step already has. That is a reading, not a measurement: the
 next probe is `oxidelica why` on the root's variables in `MakeProduct`.
+
+#### The surplus of two, located
+
+`oxidelica why` on `MakeProduct`'s `stateGraphRoot.suspend` prints two
+equations for one Boolean: the modifier `PartialCompositeStep` writes on
+its `inner outer stateGraphRoot` (`suspend = anyTrue(suspend.reset) or
+outerState.subgraphStatePort.suspend`), and the equation the class
+`CompositeStepState` carries itself (`suspend = subgraphStatePort.suspend`).
+The same holds for `resume` by the same text, which makes exactly the
+two surplus equations of all three helpers. So the surplus is not the
+supplied root's defaults but the `inner outer` element keeping both its
+modifier and its class's own equation. Whether the specification has
+the modifier replace that equation, or the library relies on the element
+being only ever used as an `outer` from an example that supplies the
+`inner`, is the open question; the three are helpers either way (runnable
+0), so it is a correctness question about `inner outer`, not a count.
