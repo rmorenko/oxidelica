@@ -599,7 +599,12 @@ FILES_FLOOR=2671
 # And 978 = 977 + EquilibriumDrumBoiler, won by reading the alias an
 # extends clause redeclares; the pair /tmp/m681/eon.txt printed 978
 # flatten against 977 off, no victims.
-FLATTEN_FLOOR=978
+# And 985 = 978 + the seven cheap names taken back out of the carved-out
+# set on 2026-11-18, on Roman's word. The judge printed it: run
+# 44197305414 on 93e9178, `OK: 2671 files read, 985 flatten, 854 run;
+# runnable 866 flatten, 805 run`, the same census the desk had printed
+# (/tmp/m715/preflight.txt) to the model.
+FLATTEN_FLOOR=985
 # The two run floors came down by one, and the one is named: giving a
 # record constructor called with no arguments the values its `extends`
 # stated took `Modelica.Thermal.FluidHeatFlow.Examples.WaterPump` out
@@ -2046,7 +2051,12 @@ FLATTEN_FLOOR=978
 # head's 847 (/tmp/m692/head1.txt), no victims, so 852 - 3
 # (SpringWithMass, SMPM_VoltageSource FW, TestJunctionIdeal) = 849,
 # Roman's word of 2026-11-16.
-RUN_FLOOR=849
+# And 851 = 854 - 3 on 2026-11-18, the judge's print of run 44197305414
+# on 93e9178 less the same three swinging models, after the seven cheap
+# names came back into this pass. Two of the three that ran in the
+# carved-out set are among those seven, which is why the heavy run floor
+# fell in the same move while this one rose.
+RUN_FLOOR=851
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -2320,7 +2330,9 @@ RUN_FLOOR=849
 # And 858 = 856 + TestBooleanFunctions and SMPM_ResistiveBraking; see
 # `FLATTEN_FLOOR`.
 # And 859 = 858 + IncompressibleFluidNetwork; see `FLATTEN_FLOOR`.
-RUNNABLE_FLATTEN_FLOOR=859
+# And 866 = 859 + the seven, all of them runnable examples; the judge's
+# print of run 44197305414 on 93e9178.
+RUNNABLE_FLATTEN_FLOOR=866
 # And runnable run 674 = 671 + the three batteries, all runnable
 # examples, by the same runner job as `RUN_FLOOR` (d58700e, job
 # 112530851204).
@@ -2634,7 +2646,9 @@ RUNNABLE_FLATTEN_FLOOR=859
 # 859 / 798, so 798 - 3 = 795.
 # The narrow state swap: the desk prints /tmp/m692/preflight{3..6}.txt
 # printed 859 / 803, so 803 - 3 = 800.
-RUNNABLE_RUN_FLOOR=800
+# The seven cheap names back in the main check: the judge of run
+# 44197305414 printed 866 / 805, so 805 - 3 = 802.
+RUNNABLE_RUN_FLOOR=802
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
