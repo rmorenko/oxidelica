@@ -85623,3 +85623,13 @@ show is that the component is not fixed and depends on how the model is
 written. That fits a choice among equal candidates, which is the
 consultation's mechanism, though not its "always the last of three".
 The six rows go with the map.
+
+And one to separate declaration order from naming (`Pg24`, same place):
+`Pg22` with the two `FixedTranslation` declarations written in the other
+order, names and vectors kept, still kills `[2]`. Declaration order does
+not decide it. What changed between `Pg16` and `Pg22` is which vector is
+called `a` and which `b`, so the dead component follows the names'
+alphabetical order together with the geometry. A sorted order of names
+is what the consultation pointed to (`vars.sort_unstable()`,
+`compile.rs:1959`), though at the level of components and not of the
+three entries of one vector.
