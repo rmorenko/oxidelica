@@ -86718,3 +86718,66 @@ current and an undetermined air gap. Fixing it changes behaviour and is
 outside this shift, so it is recorded here with its reproduction. How
 many of the row's machines it carries is unmeasured: the open-at-start
 switch is in 3 of the 4.
+
+### How far the initial relation defect reaches
+
+The three other machines of the row were each wrapped with one modifier
+(`/tmp/m723/small/*.mo`, `simulate --stop 0.01` on `ox27`, witness
+`/tmp/m723/p1.env`). `IMC_DOL_Polyphase` and `IMS_Start_Polyphase` close
+their switches at `tOn = 0.1`, so their switches are genuinely open at
+the start and the defect is not theirs: as written both are refused
+underdetermined, and with `tOn = -1` both simulate to 0.01 s. Their
+refusal is a machine behind a switch that is really open, a different
+question. `SMEE_Rectifier` names no relation on `time` in its supply at
+all and is refused the same as written. So of the 131 of the queue, one
+model stands on this defect: `SMEE_DOL`.
+
+### Where the start reads `time >= 0` as false
+
+`OXIDELICA_NO_TIME_CONDITION_EVENTS`, `OXIDELICA_NO_INITIAL_ORDER` and
+`OXIDELICA_DISCRETE_START_AS_DECLARED` each leave `InitRel` refused, so
+neither the clocks on `time` nor the order of the initial event is the
+place. Reading found it in the start block of `compile.rs`, in the loop
+that reads defined discrete variables, under the comment opening "A
+relation that stands exactly on its knee does not say which side the
+variable is on". Every relation of the definition is evaluated at
+`time = 0`, and one worth exactly zero keeps the declared start. That is
+right for a diode's `s < 0` and wrong for `time >= 0`, whose `time - 0`
+is zero at the start by construction and whose value is decided. No
+comment nearby forbids the change. A relation that names `time` and
+otherwise only parameters is now never a knee.
+
+### The pair, and what it cost
+
+One binary (`/tmp/m723/ox29`, the change behind a switch, witness
+`/tmp/m723/pair.env`), main pass, `--slow 60`, off then on
+(`/tmp/m723/off.txt`, `on.txt`). Flatten 985 = 985. Run 854 -> 855,
+runnable 805 -> 806. The run lists agree line for line apart from one
+win, FundamentalWave `SMEE_DOL`, and there are no victims. The
+flattening work counters agree to the digit. The running work moves by
+two models only: FundamentalWave `SMEE_DOL` (10 -> 126 points) and
+Electrical `SMEE_DOL` (128 -> 166 points), which already ran and
+still runs, now starting with its switch closed. The run half went
+2431 s -> 2528 s (+4.0%), under the six percent, and the flattening
+half 5251 s -> 5438 s on identical work, so the desk drifted by
+3.6% between the halves and most of the run half's difference is that
+drift. The change went in as behaviour with
+`a_relation_of_time_alone_is_decided_at_the_start`, red without the
+change and green with it. The heavy models were not measured.
+
+### The stall five, mapped
+
+From the trails of the last shift (`/tmp/m722/r29/stall_*.txt`).
+`OneAxis` and `FullRobot`: Newton is not what stalls (the last residual
+6e-19). The path planner's `if` equation in `KinematicPTP2` chooses on
+`Ta2s`, `Tvs` and `Tes`, which are variables, and the modes at t = 0
+are settled with them at their start of zero, which gives the `else`
+branch (`s = s3`). At the first step they read 0.3, 0.70 and 1.0, the
+mode becomes branch 6 (`time < Ta2s`), and the model is compiled again
+at that point and refused there. So the two robots are a mode chosen
+on unsolved variables at the start. `ActuatorWithNoise` changes modes
+too, at 2.7e-4 s, with Newton converging (6e-11) before the refusal.
+`Engine1a` and `SMPM_ResistiveBraking` print no mode change; their
+last Newton points converge (1e-13 and 3e-8) at 1.0e-3 and 4.6e-3 s, so
+their stall recompile is not met through a mode, and what drives it is
+not in these trails.
