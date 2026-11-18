@@ -84107,3 +84107,28 @@ inside a trial point that is then rejected. For a clamp this means 14
 runners would be touched before their NaN appears, and 7 meet the NaN
 where no bound has been crossed yet, which a clamp on bounds cannot
 reach.
+
+### Why the main pass of 44187712506 died at its eighty-fifth minute
+
+One head, 8d9a386, two main passes. The green one (run 44180493689,
+job 134383410525, dispatched) took 47 minutes: 1005 models, 964 flatten,
+844 run, flattening 4386 s and running 3543 s. The dead one (run
+44187712506, job 134408774326, push) ran from 22:12:50Z to 23:37:51Z,
+85 minutes, and its step "Read it" never recorded an end.
+
+Its log cannot be read: the jobs API answers `BlobNotFound`, HTTP 404,
+and `gh run view --log` answers that the log is not found. So the model
+it stopped on and its pace cannot be named, and this is written as not
+measurable rather than guessed. What the job does carry is its
+annotation, at failure level: the hosted runner lost communication with
+the server, the message GitHub gives when the runner process is
+terminated or starved of CPU or memory.
+
+Over the thirteen main passes since 16 November that ran
+(`/tmp/m718/mainpass.txt`), this is the only failure; the others took 36
+to 67 minutes on heads from 12c1288 to cbb6403, and the two heads after
+8d9a386 passed. Verdict: the machine, not a model. A model that stalled
+would have let the runner keep talking until the step ceiling; a lost
+runner with no log is a death of the host. What to measure next, if it
+returns: the peak resident size of the pass on the runner, since memory
+starvation is the one cause on GitHub's list this compiler can produce.
