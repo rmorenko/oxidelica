@@ -85307,3 +85307,23 @@ and nothing was left to answer for `a_rel_a[3]`. Why the force balance
 reaches the first two components and not the third is the open question
 of this chain. It is one link down from where it started and is handed
 on at that link.
+
+The free cluster narrowed to its trigger (witnesses
+`/tmp/m720/small/Pg6.env` to `Pg10.env`, all binary md5 `cf32ecf3...`):
+
+| model  | after `FreeMotion`                                       | outcome               |
+| ------ | -------------------------------------------------------- | --------------------- |
+| `Pg7`  | one `Body`                                               | runs                  |
+| `Pg8`  | one `FixedTranslation`, then one `Body`                  | runs                  |
+| `Pg9`  | two `FixedTranslation`s from one frame, a `Body` on each | refuses, `a_rel_a[3]` |
+| `Pg10` | `Pg9` with the second arm at `{-2, 0.5, 0}`, no symmetry | refuses, `a_rel_a[3]` |
+| `Pg6`  | four arms, `Body` with inertia on each                   | refuses, `a_rel_a[3]` |
+
+So neither point masses nor symmetry nor missing inertia is the trigger.
+A free joint's `frame_b` feeding two branches is. `Pg9` is the smallest
+reproduction: twelve lines, seven seconds, a well-posed rigid body the
+compiler refuses. The trigger being a fork in the connection graph
+right after the free joint, the next question is what reduction does
+differently when `frame_b`'s force balance sums two branches rather
+than one. It is handed on at that link, with `Pg8` against `Pg9` as the
+pair.
