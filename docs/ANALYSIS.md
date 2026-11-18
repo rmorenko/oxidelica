@@ -84197,3 +84197,29 @@ da7ebb26), a witness `.env` beside every print:
 points, Newton steps, and whether it ran (22 run, 15 do not). This half
 waits for the first print of the judge after the freeze lifts; with it
 the table of k grows from 10 models to 47 without another desk run.
+
+### The unbalanced row of the queue is helpers
+
+All 13 models of the queue row "unbalanced, nothing determines"
+(`/tmp/m714/rows.tsv`) live under `Utilities`, `BaseClasses` or
+`Components`: two current-to-voltage adapters, five AST batch-plant
+controller blocks, four RobotR3 axis parts and a StateGraph `valve`. In
+each, what nothing determines is an input of the class's own connector
+or bus (`axisControlBus.current_ref`, `actuators.P1`, the outflow of `valve`),
+which a containing model would drive. Refusing them on their own is the
+right answer, and the row is no work for the compiler.
+
+### Three more queue rows by what they name
+
+The "cannot evaluate" row (6) is one family: every refusal quotes
+`jointRRP.e_ia[1] = jointRRP.jointUSP.e2_ia` or its `jointRRR`
+sibling, the analytic loop joints of MultiBody (`Engine1b_analytic`,
+`EngineV6_analytic`, `PlanarLoops_analytic` and three helpers), the
+`e_ia` chain parked earlier. The "underdetermined loop" row (7) splits
+in two: three Spice3 bipolar benchmarks on a `der(Q.vbe)` loop, and
+four FundamentalWave machines on `airGap.V_mss` or a closing switch.
+The "Newton direction" row (5) is the pipe family named above
+(BranchingPipes2, 3, 4, SeriesPipes1 on `pipe1.mediums[1].p`) plus
+`TestTemperature1` on `volume1.medium.p`, all five clamp candidates; the
+two MultiBody loops listed beside them (`RollingWheelSetPulling`,
+`ThreeSprings`) refuse on Newton convergence and belong to another row.
