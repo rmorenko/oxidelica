@@ -83759,3 +83759,108 @@ unanswered, all for the same reason: `volume.medium.p` and
 `volume.medium.T` determine each other, a cycle of 2 through the
 `ReferenceMoistAir` property calls. That cycle is where to look next
 for the lost rank in `U`.
+
+## m716: a zero column of the start Jacobian, step bounds across the corpus, start-block peaks
+
+Code in main stays frozen for the heavy cron. Nothing here is in the
+tree. Probes and candidates are in the park.
+
+### MoistAir1: the pairing is honest, the column is a difference step
+
+A temporary probe printed the start Jacobian at the singular refusal
+(`/tmp/m716/jac_probe.patch`, binary `ox17j`, output
+`/tmp/m716/p1_jac.txt`). The three written starts are paired with
+`m`, `mXi[1]` and `U`, and in all three rows the column of
+`volume.U` is exactly 0, while `m` and `mXi[1]` read 1e-1 to 1e7. The
+step is `1e-7 * (1 + |U|)`. Scaled by 1e3 or 1e5 through a probe
+switch (`OXIDELICA_JAC_H`, binary `ox17k`), `MoistAir1` runs
+(`/tmp/m716/p1_jac_h3.txt`, `p1_jac_h5.txt`), starting at p = 101325
+Pa and T = 293.15 K, which are the written starts. `MoistAir2` also
+runs at 1e3 (`p1_ma2_h3.txt`). So the verdict is neither of the two
+offered. The pairing through blocks does give `U` a row that moves it.
+The finite difference is finer than the medium's inner blocks are
+solved to, so the slope reads 0. This is the m350 case
+(`TestWaterPumpStorage`). The cure written for it, a longer step up
+to 1e-3 kept only if twice the distance gives the same slope, is
+gated on `any_swapped`, and MoistAir writes p and T starts with no
+steady row swapped, so the cure never runs.
+
+Parked, not merged: `~/oxideflow/park/m716_long_step_all.patch` lets
+that cure run behind `OXIDELICA_LONG_STEP_ALL=1` (binary `ox17L`,
+md5 c6f3a296b9a3385bcf8d3dd506a7415d). A small court with `--only`,
+off then on (`/tmp/m716/court_summary.txt`): `MoistAir1` comes alive.
+`SimpleLiquidWater`, `EmptyTanks`, `IdealGasH2O` and `DrumBoiler` run
+on both halves. `MoistAir2`, `R134a1`, `HeatingSystem` and
+`PumpingSystem` refuse on both halves. `MoistAir2` stays refused because the
+column of its second volume is not exactly zero under the 1e-7 step.
+Its rows read 6.6e-4 against 1e6 (`/tmp/m716/p1_ma2_jac.txt`), so the
+equality test that opens the longer step never fires. No unit test,
+corpus pair, witness run or heavy-basket figure has been made, so this
+was not measured on heavy.
+
+### Where a Newton trial point leaves a declared bound
+
+The probe `OXIDELICA_STEP_BOUNDS_PROBE` (parked as
+`m716_step_bounds_probe.patch`, binary `/tmp/m716/ox17p`, witness
+`bounds.env`) prints, once per model and bound, a `min` or `max` that
+a trial point of an implicit block breaks. It only reads values and
+does not branch. `R134a1` refuses the same way with and without it
+(`r134_on.txt`, `r134_off.txt`). The corpus with the probe on gives
+985 flatten and 854 run (`/tmp/m716/bounds.txt`), the same as the
+preflight on this head. It prints 2406 lines over 73 models, 1073 of
+them at t = 0.
+
+Sixteen refused models left a bound (`/tmp/m716/cand.txt`). These are
+the candidates a step clamp could win: `MeasuringTemperature`,
+`PumpingSystem`, `ThreeSprings`, `R134a1`, `R134a2`, `MoistAir2`,
+`TestJunctionTraceSubstances`, `TestSuddenExpansion`,
+`TestTemperature1`, `BranchingPipes2`, `BranchingPipes3`,
+`BranchingPipes4`, `SeriesPipes1`, `FlueGasSixComponents`,
+`Essotherm650` and `TestAllProperties.MoistAir`. In
+`TestJunctionTraceSubstances` and in most lines of the BranchingPipes
+and SeriesPipes models the value is NaN. Those bounds break because the
+point is not a number, not because the step went past them, so they
+are no evidence for a clamp. The models with finite breaks only are
+`R134a1`/`R134a2` (pressure and enthalpy flow), `MoistAir2` (`Xi`
+above 1), `ThreeSprings` (`length` below 0) and the three
+`TestAllProperties` models (`Pr` below 0.001).
+
+Fifty-seven running models left a bound and came back
+(`/tmp/m716/risk.txt`). A clamp would touch these. They are
+mostly Fluid and Media tests (BranchingPipes1/13/14/17,
+TestMixingVolumesPressureStates, the TestWaterPump family, the
+MediaTestModels). A few are outside Fluid: three Analog examples,
+Spice3 `Oscillator` (NaN only) and four FluidHeatFlow examples. The
+time of this run is not judged. It shared the desk with the other
+items.
+
+### Start-block size and the stall peak
+
+`OXIDELICA_START_STALL_PEAK=1` with clean `ox17` (md5
+17a947cb5a6c7795c4b22066c90379be), `--only`, files
+`/tmp/m716/p3_*.txt`:
+
+| model                      | block | peak | entries | outcome                                        |
+| -------------------------- | ----: | ---: | ------: | ---------------------------------------------- |
+| CCCV_Stack                 |     8 |   18 |      19 | runs                                           |
+| SMR_CurrentSource          |    17 |   19 |      55 | runs                                           |
+| HeatExchangerSimulation    |   162 |   25 |      26 | refused, start block of 162 unknowns           |
+| PolyphaseRectifier         |     - |    - |       - | refused, block accepted on the floor, no print |
+| ThyristorBridge2mPulse_RLV |     - |    - |       - | refused, block accepted on the floor, no print |
+
+Two of the five print no peak, and their refusal is a different wall.
+The peak does not grow with block size, which is 18 at 8 unknowns and
+25 at 162, so no threshold on size follows from this. As m715 showed,
+hex at `STALL_ENTRIES=400` gets past the start and dies on Newton
+direction after 76 s, so a threshold alone does not win hex. No
+threshold was built.
+
+### Provenance of two preflight prints
+
+`/tmp/m715/preflight.txt` (written 00:10 on 18 November) and
+`/tmp/m716/preflight.txt` (01:57, with its own `nohup.log`) were not
+made by the m715 or m716 shifts. They are night runs of about two hours
+on the merged tree, found in those directories. The numbers in the
+desk table are still good, since each is keyed by the md5 of its `work:`
+line. They should be cited as "found in m715/m716, not made by a
+shift".
