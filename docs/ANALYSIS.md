@@ -86422,3 +86422,17 @@ for two MultiBody models. Where the two paths part (how each builds the
 model before `compile`) is not yet probed, and until it is, a `why`
 answer about a MultiBody example is not evidence about what `library
 check` refused.
+
+Where the two part was traced with the probe binary's subset print on
+`OneAxis` (`OXIDELICA_PROBE_SUBSET=1 /tmp/m722/ox28`, `why` under
+`MODELICAPATH=$PWD/.msl` against `library check .msl --only`). The
+first thirteen reductions are identical in their subset sizes (2, 3,
+5, 14, 2, 2, 16, 6, 14, 2, 2, 2, 1). `why` stops there with a compiled
+model, while `library check` goes on for fourteen more reductions and
+refuses on a subset of one. Both call `flatten_named` and then
+`compile`, so the difference is in what reaches `compile` after the
+thirteenth reduction: the same flat model would give the same sequence
+to the end. The first suspect is the class set, which `library check`
+builds from `library_files_in(.msl)` and `why` from
+`library_directories`, and the next probe is to count and diff the
+classes each path parses.
