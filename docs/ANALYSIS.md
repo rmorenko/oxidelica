@@ -86108,3 +86108,23 @@ opposite size. That is a linear crawl cut off by the budget, not a
 direction that buys nothing, so `Nand` does not belong with the pipes.
 It is recorded here and not acted on, because the Newton budget is not
 this shift's to move.
+
+### The Newton rows' remaining tails, on the same binary
+
+Five more were traced the same way (`/tmp/m722/b_*.txt` with `.env`).
+`BranchingPipes3` joins its siblings: `Newton direction` at t = 0.0008,
+scaled pivot 1. The two `SMPM_CurrentSource` models (Machines and
+QuasiStatic FundamentalWave) refuse at t = 0 after 60 iterations with
+regular blocks (scaled pivots 0.17 and 0.81) and a residual norm that
+wanders between about 2e2 and 4e3 over the last four steps without
+falling: an oscillation, neither the pipes' useless step nor the crawl
+of `Nand`. `RollingWheelSetPulling` is the near-singular family read
+before (scaled pivot 7.2e-5, raw 2.6e-12), and here its residual is seen
+growing from 3.5e21 to 1.0e22 over the last four steps, so the step it
+takes diverges. `DynamicPipeClosingValve` refuses in the initialization
+Newton, which the stuck print does not sit on; its trail has residuals
+near 1e-8 at t = 0 before the refusal, so the print says nothing about
+it yet. Across the Newton rows that gives four shapes by measurement:
+a useless step on a regular block (five pipes), a steady crawl (`Nand`),
+an oscillation (two SMPM), and divergence on a near-singular block (the
+wheel set).
