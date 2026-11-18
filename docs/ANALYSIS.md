@@ -83893,3 +83893,16 @@ Item (A) of the standing list, the worst desk pair m693 against m705
 and no other file under `/tmp/m6*` or `/tmp/m7*` was written in either
 window. Flattening moved by +14% and the run by -2.1%. The cause is not
 in any file this desk keeps.
+
+### MoistAir2 and the steadiness test of the longer step
+
+Under the parked switch, both `U` columns of `MoistAir2` are
+lengthened to h = 1e-5 and then thrown back by the test that twice the
+distance gives the same slope (`/tmp/m716/p1_ma2_veto.txt`). The rows
+that veto are the other volume's two rows, which move by about 1.5e-11
+against a residual of 314. That is round-off, about 50 units in the
+last place, not a slope. A second form that lets rows within 4 units in
+the last place abstain (`m716_long_step_all_v2.patch`) wins the same
+single model, with no victims among twelve neighbours
+(`/tmp/m716/court2_summary.txt`), and still leaves `MoistAir2` refused.
+The first form is the smaller change and stays the candidate.
