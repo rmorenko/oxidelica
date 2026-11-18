@@ -86619,3 +86619,9 @@ that is not small: five, `R134a1` (0.97), `R134a2` (1.37), the
 quasi-static `Rectifier` (5.7e3), `GearType1` (0.4) and none else. So
 the honest count is five stuck on a plateau, two of them the R134a
 pair, and one of the five below a physical bound.
+
+Recounted exactly (threshold 1e-3 on the last norm): 13 marked, 9
+converged, 4 stuck on a plateau - `R134a1` (0.97), `R134a2` (1.37),
+`GearType1` (0.4) and the quasi-static `Rectifier` (5.7e3). The "five"
+of the paragraph above is wrong by one; four is the number, one of
+them below a physical bound.
