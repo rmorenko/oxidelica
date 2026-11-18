@@ -86349,3 +86349,29 @@ substitutes 2. The cap's nine are `PrismaticConstraint`,
 `why` compiles these five without refusing while `library check`
 refuses them is itself a finding: the two reach index reduction by
 different roads, and it is recorded here for the next reader of `why`.
+
+### Correction: `why` reads a different library from `.msl`
+
+The parting of `why` and `library check` on five models, recorded just
+above, is not two roads into index reduction. `why` takes a class name
+through `load_named` in `crates/oxidelica-cli/src/main.rs`, which reads
+`oxidelica_parser::library_files(None)`, the fetched libraries under
+`~/.local/share/oxidelica`. The directory argument `.msl` given to it
+is not read at all. That fetched tree is another snapshot of the
+standard library: `diff -rq` against `.msl/Modelica` reports 132
+differing entries, among them files `.msl` lacks
+(`OpAmps/MeasureRiseTime.mo`, `Ideal/OpAmpLimited.mo`). So every `why`
+answer in this shift's sections (`/tmp/m722/why_*.txt`,
+`/tmp/m722/w29/<model>.txt`) describes that snapshot, not the corpus
+the floors count. The search-depth split of the structurally singular
+row is affected only in the 24 counts taken from `why`; they agree with
+`library check --refused` on the one model taken both ways that
+refused under both (`Engine1a` refused only under `check`), so they are
+kept as an indication and not as a measurement of `.msl`. The five
+were the honest sign: a refusal that vanishes under another instrument
+is a different input before it is a different road.
+
+This is the same trap the notes already name for `--only` against a
+subtree, from the other side, and it is cheap to close: `why` could
+take the directory argument it is already given. That is a change of
+behaviour and not this shift's to make; it goes to the review.
