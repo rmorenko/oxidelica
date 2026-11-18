@@ -86128,3 +86128,25 @@ it yet. Across the Newton rows that gives four shapes by measurement:
 a useless step on a regular block (five pipes), a steady crawl (`Nand`),
 an oscillation (two SMPM), and divergence on a near-singular block (the
 wheel set).
+
+### The weight of the regular-block class, counted
+
+Every Newton, `did not converge` and arithmetic-floor row of
+`/tmp/m714/rows.tsv` (13 models) plus `RollingWheelSetDriving` was
+traced with `/tmp/m722/ox27`, and each is counted by the scaled pivot
+of the last Jacobian the print showed before the refusal (files
+`/tmp/m722/{a,b,c}_*.txt`). Regular, scaled pivot 0.17 to 1: seven
+(`BranchingPipes2`, `BranchingPipes4`, `SeriesPipes1`,
+`TestTemperature1`, `Nand`, both `SMPM_CurrentSource`). Below 1e-3:
+five (`BranchingPipes3` at 2.3e-4, the two wheel sets at 9e-11 and
+1.2e-10, `PolyphaseRectifier` and `ThyristorBridge2mPulse_RLV` at an
+exact zero). Between: one (`ThreeSprings`, 9.8e-3). Unreached: one
+(`DynamicPipeClosingValve`, refused in the initialization Newton the
+print does not sit on). So seven against five. The count is by the last
+print, and it matters: `BranchingPipes3` read one on its first print
+and 2.3e-4 on its last, so a model can cross between the classes on
+the way to its refusal.
+
+`TwoPhaseWater.ExtendedProperties` was checked fresh on the same
+binary (`/tmp/m722/tpw.txt`): it still refuses at t = 0 with IF97 `tsat`
+called at a pressure of 0 Pa, unchanged from its row.
