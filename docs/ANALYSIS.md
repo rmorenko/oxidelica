@@ -84682,3 +84682,29 @@ written: it now refuses earlier, as an initialization that is not square
 the hysteresis transformer's own start equations meeting the circuit.
 `SimpleNaturalGas` spends 32 s flattening and 0.16 s refusing, which is
 where its cost lies. No new family; the three keep their old maps.
+
+#### Why the print cannot move a solve, and what the floor costs
+
+The print is not only promised to be inert, it is built so. The
+elimination that finds the smallest pivot takes its matrix mutably,
+and the print hands it `raw.to_vec()` and `scaled.to_vec()`: copies.
+The Jacobians the solver goes on to read enter the print only by shared
+reference. So with the switch on or off, nothing the solver decides on
+can be written by it.
+
+The price of the absolute floor in `reads_singular`, the `scale.max(1.0)`
+under the pivot test, named before any change to it and without making
+one. On this binary (`/tmp/m720/u_*.env`):
+
+| model               | block | smallest pivot | largest entry | refused without the floor of one |
+| ------------------- | ----- | -------------- | ------------- | -------------------------------- |
+| NAND                | 1     | 1e-12 raw      | 1e-12         | no, the pivot is the whole scale |
+| ONEBIT              | 1     | 1e-12 raw      | 1e-12         | no, the same                     |
+| RtlInverter         | 1     | 0 (empty row)  | 0             | yes, the column is dead          |
+| SMEE_DOL            | 26    | 3.2e-9 scaled  | 1 scaled      | yes, the floor plays no part     |
+| IMS_Start_Polyphase | 80    | 3.7e-9 scaled  | 1 scaled      | yes, the same                    |
+
+So at most two of the seven underdetermined names turn on the floor,
+and only as far as this one test: the second order of scaling in
+`reads_underdetermined` also has to pass before either would go on. The
+floor is Roman's to decide; this is its price, not a proposal.
