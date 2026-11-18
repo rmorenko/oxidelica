@@ -85241,3 +85241,15 @@ already mapped as the chain above). Of the other sixteen, eleven sit in
 those are helpers by place. `MPmos`, `MNmos` and `Nand` were not read.
 The row is mostly helpers but carries at least four real refusals, so it
 is not a helper row.
+
+`PointGravityWithPointMasses2`, a true example of the no-state row,
+probed whole (witness `/tmp/m720/t_pg2r.env`): `-der(freeMotion.frame_a.R.T[1,1])
+= 0` constrains no state, nor did the 31 other equations of its subset.
+`freeMotion.frame_a` is connected to `world.frame_b`, so its orientation
+is the world's constant. The equation is the derivative of a rotation
+matrix fixed by the root, differentiated by index reduction although it
+has nothing to move. The graph-before-graph repair of an earlier shift
+let this model through the connection layer, and this is the wall
+behind it. It is a different layer from the helpers and from
+`TanksWithOverflow` (layer E of m311). That leaves the row with at
+least three separate real causes. Not followed further this shift.
