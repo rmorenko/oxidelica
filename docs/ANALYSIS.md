@@ -84668,3 +84668,17 @@ and could only change which trial point is thrown away; for the slip
 over the bounds that comes first in 14 of the 21, the clamp would be the
 first thing to move the trajectory, which is the risk to measure before
 it is taken.
+
+### The "init singular" row, three names re-probed
+
+Same binary `/tmp/m720/ox22`, witnesses `/tmp/m720/i_<name>.env`.
+`AmplifierWithOpAmpDetailed` and `SimpleNaturalGas` refuse with the
+initialization problem singular at the first Newton step; the
+underdetermined print stays silent for both, so neither reaches the
+rank test of an algebraic block, and the wall is the start system as a
+whole. `ThreePhaseTransformerWithRectifier` has moved since the row was
+written: it now refuses earlier, as an initialization that is not square
+(21 initial equations against a smaller count of unknowns), which is
+the hysteresis transformer's own start equations meeting the circuit.
+`SimpleNaturalGas` spends 32 s flattening and 0.16 s refusing, which is
+where its cost lies. No new family; the three keep their old maps.
