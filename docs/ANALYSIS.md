@@ -85790,13 +85790,16 @@ outputs and witnesses in `/tmp/m721/`.
   `fb_ONEBIT.txt`), read with the new print, is one shape in three
   models. The block is `der(Qn.vbx)` or `der(Qn.vbe)` alone, and its
   equation is `Qn.icapbx = if Qn.m_bInit then 0 else capbx * der(vbx)`.
-  At the start `m_bInit` takes the zero branch, so nothing in the block
-  can determine the derivative, and the column reads dead (pivot 0, or
-  1e-12 where the guard is evaluated beside it).
+  In the library `m_bInit` is `constant Boolean m_bInit = false`
+  (`Spice3.mo` line 4916), so the branch taken is `capbx * der(vbx)`, and
+  a dead column means the junction capacitance `capbx` is zero at the
+  point (`Types.Capacitance capbx(start=0.0)`, line 9325). It is a zero
+  capacitance at the start, not the guard. The pivot is 0, or 1e-12
+  where a capacitance near zero stands in.
 - `Spice3BenchmarkDifferentialPair` (`only4_Spice3BenchmarkDifferentialPair.txt`)
   refuses in the other wording of the same shape: the block on
-  `der(Q2.vbx)` does not mention its unknown at t = 0, which is what the
-  `m_bInit` zero branch leaves. So the shape counts four models across
+  `der(Q2.vbx)` does not mention its unknown at t = 0, which is what a
+  zero `capbx` leaves. So the shape counts four models across
   two census rows.
 - `BranchingDynamicPipes`, `MeasuringTemperature` and `TanksWithOverflow`
   refuse with their texts from the census, unchanged.
@@ -85810,7 +85813,8 @@ outputs and witnesses in `/tmp/m721/`.
   `zeroInductor.m * (v0 / Lzero) - (der(i[1]) + der(i[2]) + der(i[3])) = 0`.
   The null directions match the two families already named under "The
   null direction of the machine blocks". The `underdetermined loop` row
-  is two causes, then: the `m_bInit` branch (Spice3, three models) and
+  is two causes, then: a junction capacitance that is zero at the start
+  (Spice3, three models) and
   index reduction on the air gap (machines, four).
 
 ### Pivot and null direction on ThreeSprings and RollingWheelSetPulling
