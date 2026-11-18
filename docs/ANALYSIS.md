@@ -86375,3 +86375,16 @@ This is the same trap the notes already name for `--only` against a
 subtree, from the other side, and it is cheap to close: `why` could
 take the directory argument it is already given. That is a change of
 behaviour and not this shift's to make; it goes to the review.
+
+The split was then taken again on `.msl` itself, with
+`library check .msl --only <Class> --refused` for each of the 29
+(`/tmp/m722/r29/*.txt`, `attempts.txt`, `run.env`). It reads exhausted
+18, at the cap 9, no substitutes 2, the same three numbers and the
+same names in each group as the mixed reading above. The 24 counts
+`why` gave agree with it model for model, which fits the trees: the
+Fluid examples are identical between the two snapshots and MultiBody
+differs in one entry. So the split stands as a measurement of the
+corpus now, and the `why` probes of the tank and batch-plant flows are
+of identical source. The correction above stays: it is the instrument
+that was wrong, and agreement on this row is luck of where the two
+snapshots coincide.
