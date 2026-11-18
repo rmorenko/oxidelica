@@ -84582,3 +84582,14 @@ So with the three above, eleven queue names checked today are building
 blocks waiting for a modifier or a connection. They are not compiler
 work; they are the evidence for question 66, which asks whether such
 classes should be counted as examples at all.
+
+### Three FluxTubes components from the queue
+
+Same binary, witnesses `/tmp/m720/q_<name>.env`, each run printing
+runnable 0. `Transformer1PhaseWithHysteresis` and
+`Transformer3PhaseYyWithHysteresis` refuse as structurally singular on a
+winding's current balance, and `ConstantActuator` as unbalanced with 75
+equations for 76 unknowns. All three live in a `Components` package and
+are used with their electrical pins connected from an enclosing example;
+left open, a winding's current has nothing to fix it. They join the
+eleven helper classes above under question 66.
