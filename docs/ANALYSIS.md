@@ -84048,3 +84048,12 @@ mentions somewhere and 85 name one it never mentions
 are helper classes under `Utilities`, `Components` or `BaseClasses`.
 The first traceless are the noise densities `NormalDensity`,
 `UniformDensity` and `WeibullDensity`, then `ControlledMixingUnit`.
+
+### The first four traceless rows, probed
+
+`NormalDensity`, `UniformDensity` and `WeibullDensity` refuse on `mu`,
+`u_min` and `lambda`: `oxidelica why` shows each declared as a parameter
+bound to nothing. These are helper blocks run as examples, and a refusal
+is the honest answer there, not a defect. `ControlledMixingUnit` refuses
+because the discrete `inverseBlockConstraints.y2` is never assigned, a
+clocked-library wall of its own.
