@@ -85980,3 +85980,12 @@ counts them: `PermeanceActuator` (`p.i = 0`), `SimpleSolenoid`
 differentiate. The two runnable ones stand where the chapter has them:
 `PrismaticConstraint` structurally singular on an orientation entry,
 `RevoluteConstraint` on a block that does not mention `R_rel.T[1,3]`.
+
+`AdvancedSolenoid`'s refusal in full (`/tmp/m721/adv_sim.txt`, the census
+cuts it at sixty characters): "cannot differentiate function `abs`",
+met while differentiating `g_mFeArm.V_m = port_p.V_m - port_n.V_m`. The
+built-in `abs` is reached by index reduction and has no derivative rule
+there. The class is a helper (runnable 0), so no measured model waits on
+it, but it is the one refusal of this batch that names the compiler and
+not the model. It is noted for the review, not acted on: a derivative of
+`abs` is the rule the notes warn about being right except at zero.
