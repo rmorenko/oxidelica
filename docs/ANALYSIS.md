@@ -85606,3 +85606,20 @@ by both levers either (`Pg20` frees y and still kills `[3]`). The three
 rows with `a` on x all kill `[3]`, and the one with `a` on z kills `[2]`,
 so the first lever's axis bears on it. Four rows make that a lead, not
 yet a rule.
+
+Two more rows, and the lead does not hold (`Pg22`, `Pg23`, same place):
+
+| model  | lever `a` | lever `b` | dead column  |
+| ------ | --------- | --------- | ------------ |
+| `Pg22` | y         | x         | `a_rel_a[2]` |
+| `Pg23` | z         | 2z        | `a_rel_a[2]` |
+
+`Pg16` (x, y) kills `[3]` and `Pg22` (y, x), the same geometry with the
+levers' names swapped, kills `[2]`. So the dead component changes with
+which component is called `a`, not only with where the levers point. The
+claim just above, that geometry alone decides, is withdrawn as worded:
+`Pg21` changed the geometry and the order together. What the six rows
+show is that the component is not fixed and depends on how the model is
+written. That fits a choice among equal candidates, which is the
+consultation's mechanism, though not its "always the last of three".
+The six rows go with the map.
