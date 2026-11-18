@@ -84856,3 +84856,18 @@ above is a known trade: the refusal is right and its words are the
 run's. Changing them means taking the bare clock in and letting the
 `Waiting` arm speak, a wording change with no model to win; it is left
 as a candidate for the park, not built.
+
+### Eleven more queue names
+
+Same binary, witnesses `/tmp/m720/t_<name>.env`. Eight are helpers
+refusing as such, each printing runnable 0: open pins or flanges in
+`AnalysatorAC` (`plug_nv.pin[1].i = 0`), `RealSwitch` (`control.i = 0`),
+the op-amp `Gain` (`n2.i = 0`) and `SpringDamperNoRelativeStates`
+(`flange_b.tau = 0`); short by their open ends in `AxisType1` (289 for
+291), `DirectCapacitor` (30 for 31) and the batch plant's `InnerTank`
+(6 for 11); an unbound `f` in the op-amp `Integrator`. `Cylinder_analytic_CAD`
+refuses on the `jointRRP.e_ia` parameters, the e_ia family that stays
+parked by word. The two runnable names keep their earlier maps:
+`FilterOrder` stands at `der(mixingUnit.c) = ((-0) - 0) + mixingUnit.wa1`,
+the open `c_ref` of the clocked mixing unit; `DynamicPipeClosingValve`
+does not converge its start in 50 Newton steps.
