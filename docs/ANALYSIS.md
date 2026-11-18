@@ -85086,3 +85086,15 @@ are therefore decided before the event iteration's re-ask is reached.
 Counts are models, over the queue of `/tmp/m714/rows.tsv`; the first
 row is the sum of the batches above (3 + 8 + 3 + 15 minus the three
 StateGraph names + 4 + 8 + 2 MOS), each with its witness in `/tmp/m720/`.
+
+Correction to the table's first row, counted from the files rather than
+summed by hand: of the 56 single-model probes this shift wrote
+(`/tmp/m720/{q,h,r,t}_*.txt`), 50 print runnable 0 and 6 print runnable
+1 (`DiffPair`, `Nand`, `SMPM_ResistiveBraking`, `ControlledMixingUnit`,
+`DynamicPipeClosingValve`, `FilterOrder`). The 50 non-runnable include
+the three StateGraph helpers and five that meet a compiler wall rather
+than a missing modifier (`GearType2`, `SpeedControl`, `ExtendedProperties`,
+`AdvancedSolenoid`, `Cylinder_analytic_CAD`), so helpers refusing for
+want of a modifier or a connection are 50 - 3 - 5 = 42, not 41. The two
+Spice3 transistors were read from the census pass, not probed alone, and
+are outside this count.
