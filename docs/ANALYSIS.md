@@ -83752,3 +83752,10 @@ pressure. The step is not held to the declared `min` of the unknown it
 moves. That is the specific wall here, and it is not the pipe uphill
 of m686. A bound-respecting step is a solver change and is parked with
 the damped-step family as a question, not built.
+
+`OXIDELICA_INIT_DER_PROBE=1` on MoistAir1
+(`/tmp/m715/dead_MoistAir1.txt`) leaves seven start derivatives
+unanswered, all for the same reason: `volume.medium.p` and
+`volume.medium.T` determine each other, a cycle of 2 through the
+`ReferenceMoistAir` property calls. That cycle is where to look next
+for the lost rank in `U`.
