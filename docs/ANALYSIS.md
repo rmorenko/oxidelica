@@ -84758,3 +84758,12 @@ question asked above has its answer: the class is only balanced as an
 `outer` reaching an `inner` higher up, which a composite step used alone
 does not have. The three StateGraph helpers refuse rightly and join the
 others under question 66.
+
+Link 7. Neither the `StateSelect.prefer` on `i_0_s` (`S9`, set to
+`default`) nor the size of the zero inductor (`S10`, `Lszero = 0.01`)
+moves the refusal of `S3`. The equation it names is `SpacePhasor`'s own
+`-m*zero.i = sum(i)` with `sum(i) = 0` from the Y box: the zero-sequence
+current is pinned algebraically while the inductor between `zero` and
+`ground` would differentiate it. `P2` holds the same pair and runs, so
+what `S3` adds is a second claim on the states of that loop, which is
+the air gap's currents.
