@@ -86867,3 +86867,19 @@ cause. `6 cannot evaluate`: all six are MultiBody `_analytic` loops on
 `6 singular Jacobian` holds at least four: a quasi-static rectifier, a
 pump, a machine air gap, and three MultiBody constraint or wheel loops,
 plus `LossyGearDemo2`'s friction quadrants.
+
+### `Fourbar1`'s nine, counted from the connection rule
+
+Reading, not a run. `Frames.Orientation` carries `T[3,3]` and `w[3]`,
+twelve values, and its `equalityConstraint` returns `residue[3]`
+(`.msl/Modelica/Mechanics/MultiBody/Frames/Orientation.mo`). The
+flattener's `constraint_is_empty` (`flatten/connections.rs`, the
+comment opening "A connection closing a loop owes") keeps the plain
+equalities wherever the residue is not empty, since the three residue
+equations are not yet written. `Fourbar1` has one kinematic loop, so
+the connection closing it writes twelve equalities where three are
+owed: 12 - 3 = 9, the refusal's excess exactly. `Fourbar_analytic`,
+which runs, closes its loop through an analytic joint and has no such
+connection. So the hypothesis now has a mechanism and a count that fit,
+but the count of nine is still all that ties `Fourbar1` to it; a probe
+of which connection closes the loop would make it a measurement.
