@@ -85360,3 +85360,13 @@ torque balance, so two of them carrying a load put two such terms into
 balance is assembled when it sums more than one lever, and it is the
 link at which this chain is handed on, with `Pg14` against `Pg16` as the
 closest pair.
+
+Where `Pg16` is refused (witnesses `/tmp/m720/small/Pg16_w.env`,
+`Pg16_d.env`): `OXIDELICA_WHERE=1` names `solvers/mod.rs:1753`, the rank
+test of an implicit block, and the print shows the same block as `Pg2`,
+one unknown `freeMotion.a_rel_a[3]` with a column of exactly zero. So all
+the refusing members of the table meet one wall. The residual the block
+was given does not depend on its own unknown at all, which means the
+matching handed this block an equation that reaches `a_rel_a[3]` only
+through something already fixed. The fault is upstream of the solver,
+in how the block was assembled, and the frozen floor has no part in it.
