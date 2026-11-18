@@ -86559,3 +86559,18 @@ open inflow, and `Controller` writes `axisControlBus.current_ref = PI.y`
 onto a bus nothing reads from outside. Three of three are the open
 interface of a helper, so the row's one-cause reading stands probed and
 not only read.
+
+### Two more small rows, from the queue's trails
+
+From the trails of `/tmp/m722/tr` (`ox27`, NEWTON_TRAIL): the
+`4 equations of loop` row's two MultiBody members, `RevoluteConstraint`
+and `PlanarFourbar`, are refused at t = 0 after a single Newton
+evaluation (residual 26.6 and 1.8e4), on blocks whose equations do not
+mention some of their unknowns; `GearType2` is the one-unknown case on
+`bearingFriction.sa` at residual 21.8. So the row's two causes stand
+probed: a several-unknown MultiBody loop and a one-unknown friction or
+junction block. `MeasuringTemperature` of `2 algebraic loop other`
+reaches NaN by its nineteenth iteration at t = 0, a third shape of
+Newton failure (a value leaving the domain of an equation, not a
+crawl, an oscillation or a dependent row) that the Newton rows did not
+contain.
