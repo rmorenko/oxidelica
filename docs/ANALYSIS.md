@@ -85938,3 +85938,21 @@ down to 9.5e-7 of the length. The block has left the domain of its medium,
 and on the far side the residual is flat. This is a clamp candidate by
 direct observation and not only by name, the `min` of a pressure being
 zero.
+
+### Why `dddX[1]` goes below its min in two media tests
+
+`FlueGasSixComponents` and the `TestAllProperties` `MoistAir` refuse at
+t = 0 on `dddX[1]` below its min of 0 (`/tmp/m721/tl_*`, binary `ox24`,
+values -1.214 and -0.711). The source explains it
+(`ModelicaTest/Media.mo` lines 40 and 182):
+`Medium.Density dddX[Medium.nX] = Medium.density_derX(state)`. A
+derivative of density by mass fraction is declared with the type
+`Density`, so it inherits `min = 0`, and a negative value is physical:
+a heavier component replaced by a lighter one lowers the density. The
+compiler enforces the declared bound as the language says, so the refusal
+is correct for the model as written. The flaw is in the test's
+declaration and not in the compiler. This takes both models out of the
+clamp candidates, since they are not a step leaving a bound but a bound
+the library got wrong. `Essotherm650` (`Pr` = 1.95e7 above its max of
+1e5) and `DynamicPipeClosingValve` (initialization unconverged in 50)
+were probed in the same batch and stand as the census has them.
