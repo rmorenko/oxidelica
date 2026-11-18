@@ -85644,3 +85644,17 @@ run according to the alphabet. That settles the layer. It is a tie-break
 among equal candidates in the matching, the consultation's mechanism,
 and not geometry, inertia or the floor. `Pg16` against `Pg26` is the
 red-green pair for whoever builds the retry behind the refusal.
+
+The rename on `Pg9` and on the corpus model itself (all under
+`/tmp/m720/small/own/pg/`, witnesses beside each). `Pg27`, `Pg9` with
+`a` renamed `z`, runs and falls exactly (`r_rel_a(0.5) = {0, -1.22583125,
+0}`), so the rescue is not peculiar to `Pg16`. `PgO`, a standalone copy
+of `PointGravityWithPointMasses2`, refuses with the corpus's own words,
+`-der(freeMotion.frame_a.R.T[1,1]) = 0` in reduction. `PgB`, the same
+copy with every `fixedTranslation` renamed `zzTranslation`, refuses on a
+different equation, inside `referenceSystem`:
+`referenceSystem.zzTranslation.frame_b.R.T[2,1] = referenceSystem.pointMass1.frame_a.R.T[2,1]`.
+So the corpus wall is name-sensitive as well, but it is not rescued by a
+rename, and it sits in reduction where the small family's sits in the
+run's block. The two share a sensitivity to the alphabet. They are not
+shown to be one defect.
