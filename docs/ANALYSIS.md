@@ -85465,3 +85465,15 @@ was read as a `when`. `Inv1` therefore reproduces the message and not
 the defect. The defect is that a clocked partition is held to the
 `when` rule, and its test needs the `Clocked` library's own operators,
 which is the next shift's to write.
+
+A side finding while writing the clocked reproduction (`/tmp/m720/small/own/Inv2.mo`,
+witness `Inv2.env`). `u1 = sample(r, Clock(0.1))` is refused at the
+type check with `Real against Boolean`. `check.rs` gives the one-argument
+`sample(u)` the type of what it reads, and every other arity the Boolean
+of the event `sample(start, interval)`. So the synchronous `sample(u, c)`
+of section 16.5.1, with its clock named, is typed as an event, although
+`flatten/clocks.rs` already reads the same two-argument form as a clocked
+sample. The two layers disagree on one call. A grep of `.msl` finds no
+two-argument clocked `sample` in the library, so no corpus model is
+behind it and no number moves. It is named with `Inv2` as its test, and
+not built this shift.
