@@ -86526,3 +86526,12 @@ for") happened to leave unmatched, and any member of a redundant set
 can be the one left. But it means the refusal does not confirm the
 orientation reading either: only the count of nine fits it. It stays a
 hypothesis until the loop's connection graph is probed.
+
+Two controls from the same package (`/tmp/m722/fb_*.txt`):
+`Fourbar_analytic`, the same mechanism closed through an analytic
+joint that solves the loop itself, flattens and runs. `Fourbar2`, which
+closes it with a `UniversalSpherical` rod, is in the carved-out heavy
+set and was not run, as the notes ask. So the one control taken is
+consistent with the loop closure being what `Fourbar1` lacks, and the
+hypothesis stays a hypothesis: it is weakened by nothing and proven by
+nothing yet.
