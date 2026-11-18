@@ -85908,3 +85908,13 @@ counted twice. That is the same rank defect as `RollingWheelSetPulling`
 cause at two orders of derivative. `LossyGearDemo2`, `SMPM_CurrentSource`
 and `UniversalConstraint` refuse at a different site of the
 singular-Jacobian text, which this print does not reach.
+
+`LossyGearDemo2` read with the existing Newton trail (`/tmp/m721/lg_trail.*`,
+binary `ox26`): the singular block has five unknowns, and its rows 2 and 3
+are the same row of the Jacobian, `[0, 0, -2.667, 0, 2.667]`. Row 2 is the
+gear's `a_a = ... gear.sa - tauLoss/unitTorque` and row 3 the bearing
+friction's `a_relfric = ... bearingFriction.sa ...`. Neither row reads
+`bearingFriction.sa` (column 3), which only row 4 touches. So the gear and its
+bearing both tie the same shared acceleration to the same torque, and the
+bearing's own `sa` is left to a single row. Two friction elements on one
+flange, each with its own mode variable, count one degree of freedom twice.
