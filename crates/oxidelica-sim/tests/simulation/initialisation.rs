@@ -2314,3 +2314,27 @@ fn a_silent_state_is_not_read_through_a_chain_by_default() {
         state("m")
     );
 }
+
+/// `time >= 0` at a start of zero is true, not a relation standing on
+/// its knee: read as undecided, the flag kept its start `false`, the
+/// block it guards became `0 * a = 0` and the start was refused as
+/// underdetermined - the shape of `SMEE_DOL`, whose supply switch
+/// closes at `startTime = 0`.
+#[test]
+fn a_relation_of_time_alone_is_decided_at_the_start() {
+    let model = parse_model(
+        "model InitRel Boolean y = time >= 0; Real a; Real b; \
+         equation a + b = 1; \
+         (if y then 1 else 0) * a = (if y then 1 else 0) * 0.25; \
+         annotation(experiment(StopTime = 0.01)); end InitRel;",
+    )
+    .unwrap();
+    let result = compile(&model).unwrap().simulate().unwrap();
+    let column = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+    let first = &result.rows[0];
+    assert!(
+        (first[column("a")] - 0.25).abs() < 1e-12,
+        "a = {}",
+        first[column("a")]
+    );
+}

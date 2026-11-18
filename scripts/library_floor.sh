@@ -2056,7 +2056,11 @@ FLATTEN_FLOOR=985
 # names came back into this pass. Two of the three that ran in the
 # carved-out set are among those seven, which is why the heavy run floor
 # fell in the same move while this one rose.
-RUN_FLOOR=851
+# FundamentalWave SMEE_DOL, won by reading time >= 0 as decided at the
+# start: the pair /tmp/m723/on.txt and the preflight
+# /tmp/m723/pf/preflight.txt printed 855 run, no victims, so
+# 855 - 3 (the same three swinging models) = 852.
+RUN_FLOOR=852
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -2648,7 +2652,9 @@ RUNNABLE_FLATTEN_FLOOR=866
 # printed 859 / 803, so 803 - 3 = 800.
 # The seven cheap names back in the main check: the judge of run
 # 44197305414 printed 866 / 805, so 805 - 3 = 802.
-RUNNABLE_RUN_FLOOR=802
+# SMEE_DOL: the pair /tmp/m723/on.txt and the preflight
+# /tmp/m723/pf/preflight.txt printed 866 / 806, so 806 - 3 = 803.
+RUNNABLE_RUN_FLOOR=803
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and

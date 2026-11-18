@@ -7898,7 +7898,18 @@ pub(crate) fn compile_at(
                     // definition is undecided.
                     let mut relations = Vec::new();
                     collect_relations(definition, &mut relations);
+                    // A relation of `time` against parameters alone is no
+                    // guess about a state: `time >= 0` at the start is
+                    // simply true, and the knee rule above, which reads
+                    // its zero as undecided, left `y` at its start and the
+                    // block it guards empty (`InitRel`), so a machine fed
+                    // through a switch closing at `startTime = 0` began
+                    // with no stator current and an undetermined air gap
+                    // (`SMEE_DOL`).
                     let on_a_knee = relations.iter().any(|relation| {
+                        if names_time(relation) && !mentions_unknown(relation, &params) {
+                            return false;
+                        }
                         let at = eval(
                             relation,
                             &EvalCtx {
