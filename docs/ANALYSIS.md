@@ -85208,3 +85208,14 @@ for the review that owns the floor:
 | `SMEE_DOL`          | refuses        | refuses | runs |
 | `IMS_Start_Poly.`   | refuses        | -       | runs |
 | `SMEE_Rectifier`    | refuses        | -       | runs |
+
+The silent modifier is not limited to `extends`. A component's own
+modifier naming nothing, `A a(nosuch = 3)`, is accepted the same way and
+the model runs (`/tmp/m720/small/lib/Nx2.mo`, witness `Nx2.env`). No
+refusal in the compiler's source names a missing modifier target, and
+the parser's only wording of the kind is about syntax. So every probe
+this project writes through a modifier has stood on the assumption that
+the modifier bound. Above it was checked by a changed outcome. A probe
+whose outcome does not change cannot tell a dead knob from a misspelt
+one. This is the more general finding of the two and goes to the review
+first.
