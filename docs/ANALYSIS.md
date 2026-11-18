@@ -84837,3 +84837,12 @@ what is wrong is the wording, which blames an unknown function instead
 of an inferred clock nothing defines. In `SpeedControl` the clock is
 meant to come from the samplers of the enclosing example, and the class
 alone has none: the same wall, and a helper (runnable 0).
+
+The compiler already owns the right words for `Prev3`: the partition
+pass refuses a clock still `Waiting` with "nothing in this model says
+how often ... ticks" (`partitions.rs`, the `Root::Waiting` arm). `Prev3`
+never reaches them and dies on "unknown function `previous`" in the run
+instead, so the equation under the unresolved clock is not handed to the
+partition pass at all and travels on as continuous. That is the defect
+the small model pins: a refusal that names the wrong thing, which by the
+rule on refusals is owed a fix. `Prev3` is the test, red today.
