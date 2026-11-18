@@ -84767,3 +84767,17 @@ current is pinned algebraically while the inductor between `zero` and
 `ground` would differentiate it. `P2` holds the same pair and runs, so
 what `S3` adds is a second claim on the states of that loop, which is
 the air gap's currents.
+
+Link 8, `S11`: `S3` with the terminal box's star point also tied to
+ground. Now `smpm.lszero.i` is chosen as a state, the structural wall is
+gone, and the model fails at the first step with a step size underflow,
+the same failure the delta box gave in `S4`. Its start block of five
+unknowns converges in two Newton steps to a value of -79408 on the third
+unknown, which with a stator of default parameters and a speed of 100
+is a current of tens of kiloamperes at t = 0. So once the zero-sequence
+path is open the next wall is a start the machine cannot leave, and the
+original refusal is the topology's: an isolated Y star forbids a
+zero-sequence current that the machine's zero inductor is written to
+carry as a state. Whether the example as the library writes it should
+then pick the inductor's current as the dummy, rather than refuse, is
+the chain's end and a question for index reduction, not taken here.
