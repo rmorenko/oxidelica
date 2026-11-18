@@ -84132,3 +84132,21 @@ would have let the runner keep talking until the step ceiling; a lost
 runner with no log is a death of the host. What to measure next, if it
 returns: the peak resident size of the pass on the runner, since memory
 starvation is the one cause on GitHub's list this compiler can produce.
+
+### Why the table of k cannot grow from the logs on hand
+
+The task was to take every model that has a count both on the desk and
+on the judge at one head. Searched: the judge logs of 44004705573,
+44197305414 and 44212245855 (`/tmp/m714/`), the green main pass of
+44180493689 (`/tmp/m718/green.log`), and every `work apart:` line under
+`/tmp/m6*` and `/tmp/m7*`. The runner prints a count per model for
+exactly one model, the one set apart (`Dimmer_RL`, the same line in all
+five files that carry it); every other count it prints is a total over
+a pass. The ten models of the earlier table came from single-model
+dispatched jobs and that one line, and no further pair exists on disk.
+So the sample stays at ten, and whether k follows the library or
+whether a model runs is not answerable from what is kept: of the ten,
+the six at 1.00 and the four away from it all run, so running cannot
+separate them, and four libraries among four outliers is no pattern.
+The way to grow it is a dispatched job printing `work apart` for a
+chosen list, which is a change to CI and not this shift's to make.
