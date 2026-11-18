@@ -84020,3 +84020,31 @@ trial point is not by itself a sign of a refusal. Fluid and Media own
 49 of the 57 (Fluid 32 = 11 + 14 + 6 + 1, Media 17 = 7 + 10;
 `FluidHeatFlow` is Thermal and is not counted). This is a price list for Roman's decision on a clamp,
 not a verdict, and no code was built.
+
+### The five unnamed refusals of the sixteen, probed one by one
+
+Each of the five rows marked "not named in this print" above was run
+alone with the same probe binary (`/tmp/m716/ox17p`, md5 0258a794),
+`OXIDELICA_STEP_BOUNDS_PROBE=1`, one witness file each in `/tmp/m718/`.
+All five left a declared bound before they refused, so each is still a
+candidate of the clamp:
+
+| model           | first exit                                     | refusal                                       |
+| --------------- | ---------------------------------------------- | --------------------------------------------- |
+| MoistAir2       | t=0, `ambient.port.Xi[1]` above max 1 (343655) | initialization problem is singular            |
+| BranchingPipes3 | t=0, `pipe2.port_a.m_flow` NaN past its limit  | Newton direction of loop `pipe1.mediums[1].p` |
+| BranchingPipes4 | t=0.0008, `pipe1.port_b.p` below 611.657       | Newton direction of loop `pipe1.mediums[1].p` |
+| SeriesPipes1    | t=0.0008, `valve.port_a.p` below 611.657       | Newton direction of loop `pipe1.mediums[1].p` |
+| TAP MoistAir    | t=0, `Pr` below min 0.001 (value 0)            | assertion: `dddX[1]` below its min            |
+
+The three pipes share one refusal, so they are one family to the clamp.
+
+### The queue against the chapter
+
+Of the 131 rows of `/tmp/m714/rows.tsv`, 46 name a model this document
+mentions somewhere and 85 name one it never mentions
+(`/tmp/m718/queue_map.tsv`). A mention is a trace, not a verdict. Of the
+85, 23 are "parameter has no value", 11 unbalanced, 10 singular, and 42
+are helper classes under `Utilities`, `Components` or `BaseClasses`.
+The first traceless are the noise densities `NormalDensity`,
+`UniformDensity` and `WeibullDensity`, then `ControlledMixingUnit`.
