@@ -85800,3 +85800,15 @@ outputs and witnesses in `/tmp/m721/`.
   two census rows.
 - `BranchingDynamicPipes`, `MeasuringTemperature` and `TanksWithOverflow`
   refuse with their texts from the census, unchanged.
+- The four machine models of the same row (`ud_IMC_DOL_Polyphase.txt`,
+  `ud_IMS_Start_Polyphase.txt`, `ud_SMEE_DOL.txt`, `ud_SMEE_Rectifier.txt`)
+  are a different shape, and the row print shows it as well. Their blocks
+  (26 to 80 rows) are not one dead row. They hold the air-gap rotations
+  and their differentiated copies,
+  `der(airGap.V_msr.re) - (der(V_mss.re) * rotator.re + ...) = 0`, beside
+  the zero-sequence row
+  `zeroInductor.m * (v0 / Lzero) - (der(i[1]) + der(i[2]) + der(i[3])) = 0`.
+  The null directions match the two families already named under "The
+  null direction of the machine blocks". The `underdetermined loop` row
+  is two causes, then: the `m_bInit` branch (Spice3, three models) and
+  index reduction on the air gap (machines, four).
