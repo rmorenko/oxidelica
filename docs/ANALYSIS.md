@@ -85151,3 +85151,15 @@ at zero, is still judged open at that instant. The cure, if any, lies
 with the floor's treatment of a block whose only coupling is a
 conductance of 1e-5, which is frozen ground and goes to the review with
 `Fm5` as its test.
+
+And its print under `OXIDELICA_UNDERDET_DETAIL=1` (witness
+`/tmp/m720/small/Fm5_d.env`, output `Fm5_d.txt` beside it): at t = 0, a
+block of 24, smallest pivot 1.97e-8 raw and 1.14e-8 scaled. The near-null
+direction lies almost entirely in the machine: the derivatives of
+`airGap.V_mss` (0.640 and 0.096), of the stator converter's magnetic
+potential (-0.640) and of two phase currents (0.402, -0.096). The
+switch's own `s[3]` carries only -0.001. So the freedom the rank test
+sees is that of a magnetic circuit with no current path. With the
+switches open, the machine's currents are fixed only through `Goff` and
+the star point, and the block cannot settle how flux and current divide.
+The switch is the context here, not the culprit.
