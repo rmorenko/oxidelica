@@ -85451,3 +85451,17 @@ needs: `y2` is solved from `u1 = u2`, not assigned. So the refusal comes
 from reading an equation of the clocked partition as an assignment by
 its left side. It is the `when` layer's question and not the solver's,
 and it stays one name.
+
+A small model in the same words, with a limit on what it shows
+(`/tmp/m720/small/own/Inv1.mo`, witness `Inv1.env`). Four discrete
+variables inside `when sample(0, 0.1)`, written `u1 = r; u2 = 2*y2;
+u1 = u2; y1 = y2;`, are refused with the same message from the same line.
+But inside a `when` the specification holds each equation to the form
+`v = expr`, one assignment per name (section 8.3.5), so `Inv1`'s refusal
+is the correct one. `ControlledMixingUnit` is different: its block sits
+in a clocked partition, where equations are ordinary equations solved
+together, and the message's own `when sample(0, 1)` shows the partition
+was read as a `when`. `Inv1` therefore reproduces the message and not
+the defect. The defect is that a clocked partition is held to the
+`when` rule, and its test needs the `Clocked` library's own operators,
+which is the next shift's to write.
