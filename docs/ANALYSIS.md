@@ -85508,3 +85508,13 @@ is read. A misspelt `fixed = false` on a state, or a misspelt `min` on a
 bound, would change nothing and say nothing. That makes three places
 where a modifier naming nothing is accepted: on `extends`, on a
 component, and on an attribute of a predefined type.
+
+The claim that a misspelt `min` says nothing, measured rather than
+supposed (`/tmp/m720/small/own/Nx4.mo` and `Nx5.mo`, witnesses beside
+them). `Nx5`, `Real x(start = 1, fixed = true, min = 0.5)` with
+`der(x) = -x`, is stopped at t = 0.694 with "`x` went below its min of
+0.5 [`x` = 0.49957]", as it should be, since `exp(-t)` crosses 0.5 at
+`ln 2 = 0.693`. `Nx4`, the same with `mim`, runs to t = 1 and ends at
+0.36787951 without a word. One letter turns a refusal the model asked
+for into a number past its own bound. That is the clearest test of the
+three, and the one to write first when the modifier check is built.
