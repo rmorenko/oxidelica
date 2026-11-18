@@ -87011,3 +87011,23 @@ mode lines in its trail stay on one branch. So the five are two shapes,
 not three: a mode chosen on unsolved variables (`OneAxis`, `FullRobot`)
 and a state re-selection index reduction cannot give (`ActuatorWithNoise`,
 `Engine1a`, `SMPM_ResistiveBraking`).
+
+### Where the 19 that are refused later stall
+
+The same probe over all 19 (`/tmp/m723/stall/s19_*.txt`, `cap19.txt`,
+binary `/tmp/m723/ox31`). Ten stall and nine refuse without a stall.
+By the branch that raised the stall: the pivot's state re-selection
+(`selection_sound`) 3 (`ActuatorWithNoise` in `bdf.rs`, `Engine1a`,
+`SMPM_ResistiveBraking` in `dopri.rs`); a mode change 2 (`OneAxis`,
+`FullRobot`); an evaluation that failed inside the event search
+(`or_stall` in the bisection of a crossing) 3 (`BranchingPipes2`,
+`BranchingPipes3`, `SeriesPipes1`); a step that collapsed below the
+stall floor 3 (`BranchingPipes3` again, `BranchingPipes4`,
+`TestTemperature1`). The nine without a stall (`BaseProperties`,
+`ExtendedProperties`, `Essotherm650`, `FlueGasSixComponents`, `MoistAir`,
+`LossyGearDemo2`, `Nand`, `PolyphaseRectifier`,
+`ThyristorBridge2mPulse_RLV`) are refused in the first steps by an
+assertion, a medium function or a block on the arithmetic floor, which
+their rows already name. So the pipes are a third stall shape: the
+medium leaves its range during a crossing search or the step collapses,
+the same out-of-range Newton step the NaN row showed.
