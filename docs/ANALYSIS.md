@@ -85546,3 +85546,31 @@ parameters of block classes the pattern caught by prefix, such as
 misspelt attribute on the predefined types in `.msl/Modelica` on either
 form. Component modifiers, where `Nx1` and `Nx2` live, cannot be counted
 by grep, since telling a misspelling from a real name needs the class.
+
+### The consultation's predictions, measured
+
+The map went to a second reader (`QUESTION_FOR_FABLE.md`, answer m720).
+The answer says the matching hands the block a row whose coefficient on
+`a_rel_a[3]` is an entry of the joint's rotation matrix, exactly zero at
+the identity start, and that the count that matters is distinct rows of
+that matrix, not loaded levers. It named three zero-cost probes with
+predictions (witnesses and outputs in `/tmp/m720/small/own/pg/`, binary
+md5 `cf32ecf3...`):
+
+| probe                                   | predicted             | measured                                                |
+| --------------------------------------- | --------------------- | ------------------------------------------------------- |
+| `Pg17`, `angles_start = {0.3,0.2,0.1}`  | runs                  | refuses, same `a_rel_a[3]`                              |
+| `Pg19`, the same with `angles_fixed`    | -                     | refuses earlier: initialization not square, 3 against 9 |
+| `Pg18`, both levers on the x axis       | runs (one matrix row) | refuses, same `a_rel_a[3]`                              |
+| `Pg16` under `OXIDELICA_NO_MATCH_ORDER` | changes face          | unchanged                                               |
+| `Pg14` under `OXIDELICA_NO_MATCH_ORDER` | -                     | runs                                                    |
+
+So two predictions fail. `Pg18` refuses, which keeps the count of loaded
+levers as the rule and withdraws the count of matrix rows. `Pg17` is
+weaker evidence than it looks: with `angles_fixed = false` the angles
+are a guess, so whether the start actually left the identity is not
+shown, and `Pg19`, which would show it, meets a different wall first.
+The matching-order switch moves nothing. The answer's address for a cure,
+a retry of the matching behind the present refusal, is not refuted by
+any of this, but its mechanism is not confirmed either. The chain stays
+open at the block's assembly, now with these five rows as its evidence.
