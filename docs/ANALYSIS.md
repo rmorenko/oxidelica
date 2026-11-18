@@ -86574,3 +86574,16 @@ reaches NaN by its nineteenth iteration at t = 0, a third shape of
 Newton failure (a value leaving the domain of an equation, not a
 crawl, an oscillation or a dependent row) that the Newton rows did not
 contain.
+
+Counted over the 50 trails of `/tmp/m722/tr`: ten print a residual
+norm of NaN at least once on the way to their refusal (from 4 to 40
+lines): `MeasuringTemperature`, the five pipes (`BranchingPipes2`, `3`,
+`4`, `SeriesPipes1`, `TestTemperature1`), `TestJunctionTraceSubstances`,
+both wheel sets and `ThreeSprings`. So the NaN is not a shape of one
+model: it sits inside eight of the refusals already classed above as a
+useless step or a near-singular block. A step that lands where an
+equation is not defined and is then rejected is part of how those
+blocks fail, and only `MeasuringTemperature` is refused by its
+residual staying NaN. This bears on question R134a1 as well: leaving
+the physical range need not show as a negative pressure; it may show
+as a NaN, which the bound count above did not look for.
