@@ -86308,3 +86308,28 @@ So of the rows with more than one member, the one-cause rows are
 `29 singular`, `7 underdetermined`, `7 Newton`, `6 singular Jacobian`,
 `5 left`, `4 equations of loop`, `0 new`, `3 loop no converge`,
 `3 init singular` and `2 algebraic loop other`.
+
+### The structurally singular row by how far its search got
+
+`why <model> time` on `/tmp/m722/ox27` for each of the 29 members
+(`/tmp/m722/w29/*.txt`, `attempts.txt`) gives the whole refusal, which
+names how many other equations of the singular subset were tried in
+the refused one's place. The search is capped at `MAX_SINGULAR_ATTEMPTS
+= 32` in `compile.rs`, so 31 others means the cap, and fewer means the
+subset ran out. Of 29: 17 ran out of their subset after 2 to 16 tries,
+7 stopped at the cap, and 5 (`ActuatorWithNoise`,
+`SMPM_ResistiveBraking`, `Engine1a`, `FullRobot`, `OneAxis`) were not
+refused under `why` at all, which compiled them without the refusal
+and leaves their count for a probe that reaches the same stage.
+
+The two halves part along the line drawn above. Every one of the 17
+exhausted subsets is a helper with an unconnected pin, or a Fluid
+connection zero (`TanksWithOverflow` 4, `BatchPlant` 2), so there the
+refusal is a full statement: nothing in the subset can stand in. The 7
+at the cap are five MultiBody models (`PrismaticConstraint`,
+`SphericalConstraint`, `PointGravityWithPointMasses2`, `RollingWheel`,
+`Cylinder`), the machine `IMC_DOL_CommonLeakage` and the FluxTubes
+`SimpleSolenoid`. For those the refusal says only that 32 tries found
+no substitute, not that none exists. That is the row's open question
+for the compiler, and it belongs to the ceiling, which this shift does
+not move.
