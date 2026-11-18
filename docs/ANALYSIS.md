@@ -86587,3 +86587,23 @@ blocks fail, and only `MeasuringTemperature` is refused by its
 residual staying NaN. This bears on question R134a1 as well: leaving
 the physical range need not show as a negative pressure; it may show
 as a NaN, which the bound count above did not look for.
+
+### The shift's numbers in one place
+
+Each line is a count, the set it was taken over, and the file it was
+printed into. All on `.msl` with `/tmp/m722/ox27` unless named.
+
+| count                                                  | over                                                | witness                                 |
+| ------------------------------------------------------ | --------------------------------------------------- | --------------------------------------- |
+| 112 refused by the first compile, 19 later             | the 131 models of `/tmp/m714/rows.tsv`              | `/tmp/m722/sv/class.txt`, `run.env`     |
+| 24 by the first compile, 5 by the stall recompile      | the 29 of the structurally singular row             | `/tmp/m722/r29/start_vs_run.txt`        |
+| 17 helpers on an open flow, 12 real (three causes)     | the same 29                                         | `/tmp/m714/rows.tsv` column 3, `why_*`  |
+| 18 exhausted, 9 at the cap of 32, 2 no substitute      | the same 29                                         | `/tmp/m722/r29/attempts.txt`            |
+| 7 of 9 exhaust under 200, 1 moves a wall, 0 run        | the 9 at the cap                                    | `/tmp/m722/cap/*.txt` (`ox28`, a probe) |
+| 6 rows one cause, 10 rows two or more                  | the 16 queue rows with two members or up            | the row sections above                  |
+| 7 regular, 5 below 1e-3, 1 between, 1 unreached        | 14 Newton, floor and no-converge models, last print | `/tmp/m722/{a,b,c}_*.txt`               |
+| 9 regular, 4 below 1e-3, 0 between, 1 unreached        | the same 14, first print                            | the same files                          |
+| 50 trails, 9 named, 1 below a physical bound, 12 flat  | the 131, a lower bound                              | `/tmp/m722/tr/bound2.tsv`               |
+| 10 trails through a NaN                                | the same 50                                         | `/tmp/m722/tr/*.txt`                    |
+| 7 of 7 same equations on both snapshots                | question 66's seven runnable helpers                | `/tmp/m722/q66/`                        |
+| 6 of 6 one or two short of full rank, none small pivot | the singular Jacobian row                           | `st2_*.txt`, `cls.py`, `lg_trail.txt`   |
