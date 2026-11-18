@@ -85003,3 +85003,16 @@ is determined. `Fm4` walks the same first steps and is not refused. So
 the family is not a solve that fails; it is a solved point judged
 underdetermined, with the ideal switches' `s` at about 1e-27 among its
 unknowns, the kink where an ideal switch's two branches meet.
+
+A correction on the word "kink" above, from the switch's own equations
+(`Analog/Interfaces/IdealSwitch.mo`): `v = s*unitCurrent*(if off then 1
+else Ron)` and `i = s*unitVoltage*(if off then Goff else 1)`. `s` near
+zero is simply the zero current of a machine at rest, not the meeting
+of two branches. What the pairs do say is narrower: open at the start
+(`Fm`, `E5`) refuses, closed before the start (`Fm4`, `E6`) runs, and a
+step at exactly zero (`Fm3`, `E2`) refuses like the open case. That fits
+a start block solved with `off` still true, where the machine's stator
+hangs on `Goff` alone, and `Sw0` does not contradict it, since its
+inductor current is fixed and an open switch leaves it determined. It
+remains a reading until the value of `off` inside that block is
+printed.
