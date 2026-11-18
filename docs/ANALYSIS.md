@@ -86984,3 +86984,19 @@ of the two raised it. So for these two the cause of the recompile is
 not in any print the compiler has; naming it needs a line at the stall
 saying which condition fired, which is a print with its own test and
 was not built in this shift.
+
+A probe answered it in one run each. A print at the stall naming its
+caller (`#[track_caller]` on `stall_at_last_row` in `continuation.rs`,
+behind `OXIDELICA_PROBE_STALL`, built as `/tmp/m723/ox31` and not kept
+in the tree; `/tmp/m723/stall/run.env`, `Engine1a.txt`, `SMPM.txt`)
+puts both stalls at `solvers/dopri.rs`, the branch after the comment
+"The pivot that chose the states would choose otherwise here", with
+`mode_change=false`: `Engine1a` at t = 0.001 and `SMPM_ResistiveBraking`
+at t = 0.004. So neither is a failing step: the run takes its step and
+then hands itself back because `selection_sound` says the pivot that
+chose the states would now choose differently, and the re-selection at
+that point is what index reduction refuses. The five are therefore
+three shapes: a mode chosen on unsolved variables (`OneAxis`,
+`FullRobot`), a mode change mid-run (`ActuatorWithNoise`), and a state
+re-selection the pivot asks for that index reduction cannot give
+(`Engine1a`, `SMPM_ResistiveBraking`).
