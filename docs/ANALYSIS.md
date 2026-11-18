@@ -83934,3 +83934,41 @@ the ratio. Two give the numbers of the A/A pairs and draw no
 conclusion. Two are the correction of m716 itself. Only one verdict was
 ever drawn from the old threshold, the drift verdict above, and it
 holds against 0.120. None turns over.
+
+### The sixteen boundary candidates sorted by name
+
+Taken from the bounds probe of m716 (`/tmp/m716/bounds.txt`, binary
+md5 0258a794, `OXIDELICA_STEP_BOUNDS_PROBE=1`) against
+`/tmp/m716/cand.txt`. "Exits" counts the probe's lines for the model,
+"NaN" how many of them carry a NaN value, and "first NaN" is the
+position of the first such line among that model's exits. The refusal
+is the census row whose "first on" names the model. Where the model is
+not first of its row, the print does not name its refusal.
+
+| model                       | exits | NaN | first NaN | refusal                        |
+| --------------------------- | ----: | --: | --------: | ------------------------------ |
+| MeasuringTemperature        |    12 |   5 |         3 | algebraic loop (T_onePort.T)   |
+| PumpingSystem               |     3 |   0 |         - | singular Jacobian              |
+| ThreeSprings                |     4 |   0 |         - | loop no converge in 60 Newton  |
+| R134a1                      |    20 |   0 |         - | Newton direction               |
+| R134a2                      |    33 |   0 |         - | Newton direction               |
+| MoistAir2                   |     4 |   0 |         - | not named in this print        |
+| TestJunctionTraceSubstances |    44 |  26 |        10 | equation on mbXi_flow          |
+| TestSuddenExpansion         |    30 |   0 |         - | loop solution on a bound       |
+| TestTemperature1            |   132 |  84 |         2 | Newton direction               |
+| BranchingPipes2             |   105 |  84 |         2 | Newton direction (row of 4)    |
+| BranchingPipes3             |   160 | 130 |         2 | not named in this print        |
+| BranchingPipes4             |    79 |  61 |         2 | not named in this print        |
+| SeriesPipes1                |   106 |  86 |         2 | not named in this print        |
+| FlueGasSixComponents        |    13 |   0 |         - | assertion, `dddX[1]` below min |
+| Essotherm650                |     4 |   0 |         - | assertion, `Pr` above max      |
+| MoistAir                    |     3 |   0 |         - | not named in this print        |
+
+So "many have NaN" means seven of sixteen. In six of the seven (all but
+TestJunctionTraceSubstances) the NaN arrives by the second exit, so the
+trajectory goes to NaN almost at once and does not leave a bound first.
+Nine never print a NaN and leave the bound with a finite value. Two of
+those nine (FlueGasSixComponents and Essotherm650) are refused by the
+bound itself, through an assertion. These nine are the ones that a
+clamp of the bounds could reach, and the seven are not. No probe was
+run and no code was built. The table is read from the print of m716.
