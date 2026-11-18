@@ -85295,3 +85295,15 @@ missing is the equation that ties the third relative acceleration into
 the block chosen for it. The next probe is `why Pg2
 freeMotion.a_rel_a[3]`, and it is left for the next shift so as not to
 start a chain at the end of this one.
+
+The probe, run after all (witness `/tmp/m720/small/Pg2_why.env`, output
+`Pg2_why3.txt`). `freeMotion.a_rel_a[3]` is named by exactly one
+equation of the flat model, `der(freeMotion.v_rel_a[3]) =
+freeMotion.a_rel_a[3]`, and by nothing else. Its other two components
+are tied to the masses through the joint's force balance and its third
+is not. With a block column of exactly zero, the one equation that
+names it was spent on another unknown, `der(v_rel_a[3])` by its shape,
+and nothing was left to answer for `a_rel_a[3]`. Why the force balance
+reaches the first two components and not the third is the open question
+of this chain. It is one link down from where it started and is handed
+on at that link.
