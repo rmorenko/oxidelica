@@ -85765,3 +85765,38 @@ value of the column can move it. The matching handed the block an
 equation that had already cancelled to a tautology, which is the
 concrete form of candidate question 118. With the switch off the output
 of `ox24` on `Pg9` is byte for byte that of `ox23`.
+
+### The census rows read again on the head (m721)
+
+Each probe is `--only` from the root `.msl` with `/tmp/m721/ox24`,
+outputs and witnesses in `/tmp/m721/`.
+
+- `ActuatorWithNoise` (`only_ActuatorWithNoise.txt`) and `OneAxis`
+  (`only_OneAxis.txt`) still refuse on the walls the chapter already
+  names: the sensor current `VoltageSensor1.plug_p.pin[3].i` into the Y
+  terminal box, and the RobotR3 gear `-bearingFriction.w + Jmotor.w = 0`.
+- `BatchPlant_StandardWater` (`only_BatchPlant_StandardWater.txt`,
+  `why_batch.txt`): `B5` has `n_SidePorts=1` and nothing in the example
+  connects `B5.SideFluidPort[1]`, so the unconnected port writes
+  `m_flow = 0` and that row is the singular one. The old partial-medium
+  wall is gone, and what stands now is an open port. Whether it is a
+  defect depends on question 66, so it is parked there.
+- The tsat pair was not probed again, because question 66 counts it.
+- `OpAmpCircuits.Add` and `Gain`, `AmplifierWithOpAmpDetailed`,
+  `ControlledMixingUnit`, `PolyphaseRectifier`,
+  `ThyristorBridge2mPulse_RLV`, the quasi-static `Rectifier` and
+  `PumpingSystem` refuse with the texts the chapter already holds.
+- The `underdetermined loop` row (`rtl.txt`, `fb_NAND.txt`,
+  `fb_ONEBIT.txt`), read with the new print, is one shape in three
+  models. The block is `der(Qn.vbx)` or `der(Qn.vbe)` alone, and its
+  equation is `Qn.icapbx = if Qn.m_bInit then 0 else capbx * der(vbx)`.
+  At the start `m_bInit` takes the zero branch, so nothing in the block
+  can determine the derivative, and the column reads dead (pivot 0, or
+  1e-12 where the guard is evaluated beside it).
+- `Spice3BenchmarkDifferentialPair` (`only4_Spice3BenchmarkDifferentialPair.txt`)
+  refuses in the other wording of the same shape: the block on
+  `der(Q2.vbx)` does not mention its unknown at t = 0, which is what the
+  `m_bInit` zero branch leaves. So the shape counts four models across
+  two census rows.
+- `BranchingDynamicPipes`, `MeasuringTemperature` and `TanksWithOverflow`
+  refuse with their texts from the census, unchanged.
