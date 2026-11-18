@@ -83575,3 +83575,16 @@ open.
 lines) leaves two cards unmarked. Both are in the
 "13 unbalanced/determines" row, and that row belongs to No.66. Outside
 the No.66 families, no row of the run half is unmapped.
+
+### The transformer's second wall
+
+With the surplus fixings removed (`/tmp/m714/T1.mo`), a temporary print
+of the outer initialization Newton (not committed; the command and the
+binary's md5 are in `/tmp/m714/t1outer.env`, and the print is in
+`t1outer.txt`) shows the plain road's first step taking the residual
+from 0.92 to 1.4e9, with unknowns as large as 1.4e7. From there it
+falls linearly, by a factor of about 0.78 a step, always on row 5, and
+reaches 5.3e3 at the fiftieth step. The scaled road gives up at its
+second step. The linear rate points at a Jacobian that is singular at
+the root, and the undamped first step throws the point far away. This
+is a map, not a verdict. No fix was built.
