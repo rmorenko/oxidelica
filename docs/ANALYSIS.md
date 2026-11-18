@@ -86018,3 +86018,15 @@ equations for 1990 unknowns, on the head. The surplus rows are the
 connection identities `b1.frame_a.r_0[i] = b1.body.frame_a.r_0[i]` that
 nothing is left to solve. It stands where m470 and m471 mapped it, under
 Roman's word, and was not probed further.
+
+### Thirteen more queue rows on the head
+
+Batch `/tmp/m721/r/` (`ox24`, witness per model). Ten are helpers with
+runnable 0, refusing on an open pin, flange or star point as question 66
+counts them (`MNmos`, `MPmos`, `AnalysatorAC`, `AnalysatorDC`, `Nand`,
+`RealSwitch`, `Cylinder`, `SpringDamperNoRelativeStates`,
+`Transformer3PhaseYyWithHysteresis`), or on `previous` (`SpeedControl`).
+The three runnable ones stand on their mapped walls: `FilterOrder` on
+`der(mixingUnit.c) = ((-0) - 0) + mixingUnit.wa1`, `HeatingSystem` on
+`der(tank.medium.T)` of a non-state, `SMPM_ResistiveBraking` on the
+zero-sequence `3 * smpm.lszero.i = 0`. Nothing moved since m714.
