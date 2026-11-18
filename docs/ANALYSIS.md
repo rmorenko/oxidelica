@@ -84173,3 +84173,16 @@ runner-minutes and two commits whose library verdict came from a later
 run, roughly two a week. As an argument for splitting the main pass
 this is a number, not yet a proof; another two losses on the main pass
 and none elsewhere would bring the odds under 0.02.
+
+### The singular row of the queue, against the m312 kinds
+
+The queue's largest row, 29 models refused as structurally singular
+(`/tmp/m714/rows.tsv`), was sorted by the equation each refusal names.
+14 name a flow of the class's own top-level connector set to zero
+(`n2.i = 0` in `OpAmpCircuits.Gain`, `flange_b.tau = 0` in
+`SpringDamperNoRelativeStates`, `G.i = 0` in `MNmos`): kind A of the
+m312 map, helper classes run on their own, where the refusal is right.
+The other 15 are seven MultiBody orientation or velocity equations
+(kind B), `TanksWithOverflow` and `BatchPlant_StandardWater` on a vessel
+port (kind E), and polyphase or machine sums (kinds C and D). The row
+was 39 at m312 and is 29 now; kind A went from 13 to 14 and is no work.
