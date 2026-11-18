@@ -85815,9 +85815,11 @@ outputs and witnesses in `/tmp/m721/`.
 
 ### Pivot and null direction on ThreeSprings and RollingWheelSetPulling
 
-The underdetermined print now also fires on the refusal "did not
+A probe build extends the underdetermined print to the refusal "did not
 converge in N Newton iterations", on the last Jacobian the iteration
-stood on (binary `/tmp/m721/ox25`, outputs and witnesses
+stood on. It is parked, not merged, because it held coverage at 92.48%
+against the floor of 92.5% (`~/oxideflow/park/m721_stuck_print.*`;
+binary `/tmp/m721/ox25`, outputs and witnesses
 `/tmp/m721/nd_*`). The work counters equal those of m719 to the digit
 (574 Newton and 1046 damped, 1230 and 2396), so the print does not
 change the outcome. The two models separate cleanly:
@@ -85885,8 +85887,8 @@ not reach. They stay unread by pivot.
 
 ### The pipes at the direction wall are regular blocks
 
-The pivot print now fires on the refusal "the Newton direction does not
-reduce the residual" as well (binary `/tmp/m721/ox26`, outputs and
+The same parked probe build also prints on the refusal "the Newton
+direction does not reduce the residual" (binary `/tmp/m721/ox26`, outputs and
 witnesses `/tmp/m721/nd2_*`). The work counters equal those of `ox25`
 (`/tmp/m721/nw_*`) to the digit. `BranchingPipes2` (n = 17, t = 8e-4),
 `SeriesPipes1` (n = 6, t = 8e-4) and `TestTemperature1` (n = 13,
