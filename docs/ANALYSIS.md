@@ -84564,3 +84564,21 @@ from outside. None of the three is runnable (each run prints runnable 0):
 they are building blocks that expect a modifier, so the refusal is the
 correct answer and these rows belong to question 66, helper classes
 counted as examples, rather than to any compiler fault.
+
+### Eight more helper classes from the queue, all refusing correctly
+
+Probed in one batch with the same binary, one witness each in
+`/tmp/m720/q_<name>.env`, every run printing runnable 0. Seven refuse on
+a parameter the library declares with no binding at all: `UniformDensity`
+on `u_min`, `SwitchingDcDc` on `fS`, `NormalOperation` on `maxLevel`,
+`WallConstProps` on `s`, `SpacePhasorLimiter` on `yMax`, `GasForce2` on
+`L`, and the media `ShortPipe` on `m_flow_nominal` (declared with only a
+`min`). The eighth, `AST_BatchPlant`'s `Adapter_Inference`, is a class
+holding a single connector `Port_IdleTanks idleTanks` and no equations,
+and refuses as unbalanced with 0 equations for 2 unknowns, which is
+what an adapter meant to be connected from outside is on its own.
+
+So with the three above, eleven queue names checked today are building
+blocks waiting for a modifier or a connection. They are not compiler
+work; they are the evidence for question 66, which asks whether such
+classes should be counted as examples at all.
