@@ -84150,3 +84150,26 @@ the six at 1.00 and the four away from it all run, so running cannot
 separate them, and four libraries among four outliers is no pattern.
 The way to grow it is a dispatched job printing `work apart` for a
 chosen list, which is a change to CI and not this shift's to make.
+
+### How often the runner is lost, and on which jobs
+
+The last 200 runs (`/tmp/m718/runs200.txt`, 13 to 18 November) end 191
+success, 8 failure, 1 still running. Of the failed and cancelled jobs
+(`/tmp/m718/badjobs.tsv`), two carry the annotation that the hosted
+runner lost communication: the main pass of 44187712506 (85 minutes)
+and the main pass of 43627646399 (head 21be40b, 82 minutes). So 2 runs
+of 200, 1%. The other failures are a step exiting 1 (four), and two
+macOS test jobs that no runner acquired.
+
+Both losses sit on the main pass, the longest job. Counting the jobs
+that actually ran (`/tmp/m718/alljobs.tsv`): the main pass ran 24 times
+for 1296 runner-minutes, 2 lost, 8% of its runs; every other job
+together ran for about 2128 minutes, the heavy passes 262 of them, and
+none was lost. That leans towards long jobs, but weakly: if a loss
+struck evenly per minute, both would fall on the main pass with odds
+of about (1296 / 3424)^2 = 0.14, which two events cannot rule out.
+What it costs the loop: two lost main passes in six days, about 167
+runner-minutes and two commits whose library verdict came from a later
+run, roughly two a week. As an argument for splitting the main pass
+this is a number, not yet a proof; another two losses on the main pass
+and none elsewhere would bring the odds under 0.02.
