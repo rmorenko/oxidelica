@@ -84305,3 +84305,35 @@ parts (`IntakeManifold`, `ThrottleBody`, `TorqueGeneration`,
 seven would refuse and the other nine would refuse naming the input rather than something further
 on, as the TwoPhaseWater pair now refuses inside `tsat`. Which of the
 two is right is Roman's choice, asked here and not made.
+
+### Why the seven run on a zero, and what a refusal would cost
+
+Asked with `oxidelica why` about the zeroed input, each of the seven
+uses it in a real equation, so none runs because the input is unused:
+`IntakeManifold` integrates `der(P_m) = RTVmRatio * (m_ai_der -
+m_ao_der)`, `MixingUnit` has `wb * T_c` in `der(T)`, `CriticalDamping`
+follows `der(x[1]) = (u - x[1]) * w`, `ThrottleBody` and
+`TorqueGeneration` evaluate polynomials in `Theta` and `m_a`,
+StateGraph's `TankController` tests `level2 < 0.001` in two transition
+conditions, and `PathToAxisControlBus` passes `q`, `qd`, `qdd` through
+to a bus. Zero happens to be a value each equation can take, so the
+seven run, on an answer to a question nobody asked: a manifold with no
+inflow, a tank controller that sees an empty tank. That is the quiet
+kind of wrong the notes warn about, and it is confined to classes the
+library never meant to run alone.
+
+The price of the honest answer is exact. Were an unjoined input a
+refusal, all 16 would refuse: flattened 985 to 969 and running 854 to
+847, both below the floors of 985 and 851, so the gates would turn red.
+So the question for Roman is not zero or error but zero, or error plus
+a filter that stops running such classes as examples. And the filter
+cannot be a name: 14 of the 16 sit under `Utilities`, `Components` or
+`ExampleUtilities`, but the TwoPhaseWater pair sits directly in
+`Examples`, so a filter by package would miss exactly the two that
+started this. It would have to be a property of the class, such as a
+top-level input nothing drives.
+
+Of the queue, these 16 account for 9 rows of `/tmp/m714/rows.tsv`: six
+in "parameter has no value" (the refusal there comes first and hides
+the zero), both of "tsat", and `MakeProduct` in "unbalanced, nothing is
+left"; none of the 81 traceless rows probed earlier.
