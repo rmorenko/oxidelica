@@ -83699,3 +83699,14 @@ agree inside each pair (a880aca with 4cdc0dc, and 93e9178 with
 cbb6403), so the runner has two A/A pairs, with spreads of 0.035 and
 0.035. These are numbers for Roman's decision on the anchor. Nothing
 was moved.
+
+`OXIDELICA_INIT_PROBE=1` on SimpleNaturalGas
+(`/tmp/m715/probe_SimpleNaturalGas.txt`) shows how the steady rows are
+matched. `der(medium.T)` is solved as `der(volume.U) = 0`,
+`der(medium.p)` as `der(volume.mXi[6]) = 0`, `der(medium.Xi[1..5])` as
+`der(volume.mXi[1..5]) = 0`, and `der(medium.Xi[6])` as
+`der(volume.m) = 0`. Since the six fractions of this `reducedX = false`
+medium sum to one by value, `der(m)` and the six `der(mXi)` are
+dependent at the point, and no row is left whose value moves `m`. This
+is the matching of steady rows to mass states, which keeps the
+verdict at (b).
