@@ -85693,3 +85693,25 @@ now a short list: the `PointMass` short-class modification with its
 `sphereColor`, the world's `gravitySphereDiameter`, and the exact
 connection order. That is the next shift's first bisection, and each
 step is a twenty-second run.
+
+The bisection, four steps (all under `/tmp/m720/small/own/pg/`, witness
+beside each, binary md5 `cf32ecf3...`):
+
+| model | change from the corpus copy `PgE`                          | outcome                      |
+| ----- | ---------------------------------------------------------- | ---------------------------- |
+| `PgF` | no `sphereColor` on the `PointMass` short class            | reduction wall, `R.T[1,1]`   |
+| `PgG` | no `gravitySphereDiameter` on the world                    | reduction wall, `R.T[1,1]`   |
+| `PgH` | `PgF` with the masses' fixed `r_0` and `v_0` starts struck | run-time block, `a_rel_a[3]` |
+| `PgK` | the small `Pg4` with fixed starts on one mass              | run-time block, `a_rel_a[3]` |
+
+`PgH` joins the two walls. Without the point masses' fixed starts, the
+corpus model refuses exactly as the small family does, so the corpus
+model carries the run-time defect underneath. Its fixed starts are what
+bring it up against the reduction wall first, which is consistent with
+the earlier reading: starts fixed on the masses' positions ask
+reduction to keep them as states, and `freeMotion`'s rotation, pinned
+by the world, is differentiated with nothing to move. `PgK` shows that
+one fixed mass is not enough to make the switch. So
+`PointGravityWithPointMasses2` stands on two walls in sequence: the
+reduction wall from its starts, and behind it the name-sensitive
+matching of the free body. A cure for the second alone moves no number.
