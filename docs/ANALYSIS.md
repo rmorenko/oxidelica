@@ -87073,3 +87073,13 @@ are `Media/package.mo`, `Air/MoistAir.mo` and `Air/ReferenceMoistAir.mo`.
 So the junction's NaN is a medium inversion whose bracket does not hold
 the root at the start values; the bracket values were not in the
 refusal text and were not read.
+
+`ThreeSprings`' zero length, read with `why` on `.msl`: the library
+writes `spring2.lineForce.s = if length > s_small then length else
+s_small`, so by its own equation `s` is never below `s_small` and the
+division `r_rel_0[1] / s` is never by zero. The `-inf` comes from the
+start of the loop, where `s` has no `start` and enters the block at
+zero before that equation has been solved. So the MultiBody shape is
+a loop started from a guess the model's own clamp forbids, not a model
+that divides by zero, and the same holds for the wheel sets' `aux`
+under the square root if their guard reads the same way (not read).
