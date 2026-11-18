@@ -83588,3 +83588,34 @@ reaches 5.3e3 at the fiftieth step. The scaled road gives up at its
 second step. The linear rate points at a Jacobian that is singular at
 the root, and the undamped first step throws the point far away. This
 is a map, not a verdict. No fix was built.
+
+### Why the judge's ratio stands where it does
+
+The hint said the ratio had crept up from 0.548. The judge's own prints
+say otherwise. Before the basket change, a880aca printed 0.845
+(`/tmp/m712/judge_a880aca.log`: 7470 ms flattening and 6315 ms running
+per model, 1019 models), and 4cdc0dc printed 0.810 (job 133798358053).
+After it, 93e9178 printed 0.759 (job 134475059376) and cbb6403 printed
+0.794 (job 134521154895), both over 1026 models. The 0.548 is the desk
+ratio of a preflight (this file, the stack change of m698), a different
+instrument held to its own band of 0.28 to 0.67. Read against the
+runner, the ratio fell.
+
+The seven models flatten at 41421 ms each and run at 8646 ms, and only
+two of them run (`/tmp/m712/seven.out`, a desk print). Scaled to the
+runner by this shift's census against 93e9178's print (flattening 1.502,
+running 2.345) and taken out, they leave 0.783 against 0.759, so the
+seven pull the ratio down by about 0.024. Between 93e9178 and cbb6403
+only `scripts/library_floor.sh` changed, so that pair is an A/A of the
+runner, and it spread by 0.035. The rest of the fall from 0.845,
+-0.062, is under two of those spreads, so it is not a finding. The
+arithmetic is in `/tmp/m714/ratio.txt`.
+
+### The labels of m709 checked against the rows
+
+Every label in `/tmp/m709/rows.tsv` was set against the text each model
+prints on 93e9178 (`/tmp/m714/audit.txt`). Two labels are wrong.
+`ThreePhaseTransformerWithRectifier` is in "init not square" and not in
+"init singular". `RollingWheelSetPulling` and `ThreeSprings` print "did
+not converge in 60 Newton iterations", which is the "loop no converge"
+row and not "Newton direction". Every other label matches its text.
