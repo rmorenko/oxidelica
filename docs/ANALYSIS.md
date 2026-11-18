@@ -85871,3 +85871,14 @@ after its last NaN (0.001 against 8e-6). In the other 20 the last NaN
 is also the last bounds event. So a clamp would provably act before the
 NaN in 2 models, not 14. The 14 were a count of print order inside
 one instant.
+
+### The Newton rows under the pivot print
+
+The same binary (`/tmp/m721/ox25`, outputs and witnesses `/tmp/m721/nw_*`).
+Spice3 `Nand` refuses as unconverged at t = 3.75e-8 on a block of 10 whose
+smallest pivot is 1, raw and scaled. The block is regular, which fits the
+overshoot read from its trail: the step leaves a good start, and no
+singularity sends it away. `BranchingPipes2`, `BranchingPipes4`,
+`SeriesPipes1` and `TestTemperature1` refuse at the other wall, "the
+Newton direction does not reduce the residual", which this print does
+not reach. They stay unread by pivot.
