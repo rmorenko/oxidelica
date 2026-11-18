@@ -84337,3 +84337,97 @@ Of the queue, these 16 account for 9 rows of `/tmp/m714/rows.tsv`: six
 in "parameter has no value" (the refusal there comes first and hides
 the zero), both of "tsat", and `MakeProduct` in "unbalanced, nothing is
 left"; none of the 81 traceless rows probed earlier.
+
+A correction to the count above: the sixteen fall into three rows, not
+nine. Nine models stand in three rows of `/tmp/m714/rows.tsv` - six of
+the 25 in "parameter has no value", both of the two in "tsat", and one
+of the 18 in "unbalanced". And the nine in rows are exactly the nine
+that do not run, while none of the seven that run sits in any row: 16 =
+9 + 7, and no model is in both halves. A model either refuses for some
+other reason first, with the zero hidden behind that refusal, or runs
+on the zero.
+
+## Shift 675: probes of the Newton pair and the underdetermined row
+
+One binary for every probe, `/tmp/m719/ox21`, built from 6f29bf3, md5
+17a947cb5a6c7795c4b22066c90379be. Each output has its witness `.env`
+beside it in `/tmp/m719`, with the command and its keys written out.
+
+### The MultiBody pair under the Newton trail
+
+Both refusals are at t = 0, in the first solve, so neither model takes
+a single step.
+
+`ThreeSprings` (`/tmp/m719/ThreeSprings.txt`, 574 Newton steps, 1046
+damped, 32 starts tried): from the 1e-6 start the residual falls from
+5.8e5 to 1.2e-3 by step 5 and then stays there - steps 5, 6 and 7 print
+1.2168e-3, 1.2165e-3 and 1.2314e-3 with the iterate unchanged to nine
+digits. What remains is six components of about 6e-4 in two repeating
+triples (components 17 to 22, and again 48 to 51), the shape of a pair
+of three-vectors left over. Later starts do not settle and swing
+between two points to the end, step 56 and 58 near one iterate and 57
+and 59 near another. The trail names a stall on a small floor, not a
+divergence: the block is near a solution it cannot close.
+
+`RollingWheelSetPulling` (`/tmp/m719/RollingWheelSetPulling.txt`, 1230
+Newton steps, 2396 damped, 35 starts): the all-zero start reads NaN, and
+from the 1e-6 start the first full step takes the residual from 10.1 to
+9.6e17, with two unknowns jumping to 9.9e4 and -2.3e5. The damping then
+halves the step seven times in a row, each time quartering the residual,
+and never gets under the start. By step 59 it is 1e22. That is a first
+direction that is wrong from the outset, the shape of a Jacobian close
+to singular at the start point, not a slow approach.
+
+So the two are different families: one stalls a small distance from a
+root, the other is thrown away by its first direction. No small model
+is built: the trail names no generic pair of equations. The next print
+that would separate them is the Jacobian's smallest pivot at the start
+of each block, which the trail does not carry.
+
+### Spice3: one coefficient that is zero
+
+All three models (`/tmp/m719/u_NAND.txt`, `u_ONEBIT.txt`,
+`u_Spice3BenchmarkRtlInverter.txt`) refuse at the same site, solvers
+`mod.rs` "underdetermined algebraic loop", and every block is one name:
+the derivative of a junction voltage. `oxidelica why` gives each the
+same two equations: the voltage as a difference of two node potentials,
+and the junction current written as
+`icapbx = if m_bInit then 0 else cc.capbx * der(vbx)` (for `vbe` the
+same with `capbe`). That second equation is the only one that holds the
+derivative, so the derivative is determined only if the capacitance
+multiplying it is not zero.
+
+For `Spice3BenchmarkRtlInverter` the card says why it is zero: the card
+gives `CJC` but no `XCJC`, whose default is 1.0 ("fraction of B-C cap to
+internal base"), so the share of the B-C capacitance left on the
+external base, the one `capbx` carries, is nothing. The block is
+underdetermined in fact, not by a numerical accident, and the refusal is
+honest as far as it goes. For `NAND` and `ONEBIT`, on `vbe`, the card
+gives `CJE = 1e-12`, so the zero would have to come from the depletion
+formula at the start point. That is a guess, and the print does not
+settle it.
+
+One family, then, the same for all three: a derivative whose only
+equation multiplies it by a capacitance that is zero. The print it
+needs is the value of the coefficient of the derivative in the block at
+the point of refusal (`cc.capbe`, `cc.capbx`). How such a model should
+run is the language question of a derivative with nothing to determine
+it (the reference simulators give it no capacitor at all), and it is
+not a change to make without that answer.
+
+### FundamentalWave: two kinds in one row
+
+The four machines (`/tmp/m719/u_IMC_DOL_Polyphase.txt`,
+`u_IMS_Start_Polyphase.txt`, `u_SMEE_DOL.txt`, `u_SMEE_Rectifier.txt`)
+are each refused in about a second, at the same site as the Spice3
+three, but the blocks are of two kinds. `IMC_DOL_Polyphase` is refused
+on the switch parameters `idealCloserM.idealClosingSwitch[k].s`, whose
+two equations (`v = s*unitCurrent*(if off then 1 else Ron)` and
+`i = s*unitVoltage*(if off then Goff else 1)`) are regular for any
+nonzero `Ron` and `Goff`, so the rank goes missing elsewhere in the
+loop. The other three are refused on `airGap.V_mss` and `Phi_ss` of the
+machine. Those are two kinds by name, and one by site. The print that
+would tell them apart is the null column of the block at refusal: which
+unknown the rank test found it could not pin. The refusal leaves that
+out, it names only the whole block. That is the next instrument, not a
+reading.
