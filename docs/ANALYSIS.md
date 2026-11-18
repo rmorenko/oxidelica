@@ -85681,3 +85681,15 @@ the derivative of an orientation fixed by the world's root, as read
 earlier, and it is reached whichever way the joint is called. That is
 evidence that the corpus wall is a reduction defect of its own and not
 the run-time family's.
+
+And the corpus copy with its `referenceSystem` instance cut out (`PgE`;
+the two remaining mentions are in the documentation string). It refuses
+with the corpus's own words, `-der(freeMotion.frame_a.R.T[1,1]) = 0`. So
+the wall needs only the world, the free joint, six arms and six
+`PointMass`es under point gravity. That is `Pg3` and `Pg4` with
+`PointMass` in place of their first-tried part, and those refused in the
+run's block rather than in reduction. What separates `PgE` from `Pg4` is
+now a short list: the `PointMass` short-class modification with its
+`sphereColor`, the world's `gravitySphereDiameter`, and the exact
+connection order. That is the next shift's first bisection, and each
+step is a twenty-second run.
