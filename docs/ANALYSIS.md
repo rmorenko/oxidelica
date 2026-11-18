@@ -85670,3 +85670,14 @@ measures its price. The corpus's own `PointGravityWithPointMasses2` is
 name-sensitive too but is not shown to be the same defect, and the
 standalone copies `PgO` and `PgB` are where its next probe starts.
 `PgC` (a bad rename) and `Pg25` (likewise) are recorded as unused.
+
+One more on the corpus copy (`PgD`, witness beside it): `freeMotion`
+renamed `zfreeMotion` and nothing else. The wall stands at the same
+equation with its sign turned, `der(zfreeMotion.frame_a.R.T[1,1]) = 0`
+against `-der(freeMotion.frame_a.R.T[1,1]) = 0`. So in the corpus model
+the joint's own name moves nothing but the sign, while renaming the
+levers moved the wall into `referenceSystem` (`PgB`). The equation is
+the derivative of an orientation fixed by the world's root, as read
+earlier, and it is reached whichever way the joint is called. That is
+evidence that the corpus wall is a reduction defect of its own and not
+the run-time family's.
