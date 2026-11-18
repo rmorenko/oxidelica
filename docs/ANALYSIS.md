@@ -86257,3 +86257,14 @@ the last print and nine against four on the first, and a number for
 it has to say which print it counts. The "five pipes" of the Newton
 tails section above is by the first print; by the last it is four,
 `BranchingPipes3` having left for the near-singular class.
+
+### Inside the row of five new refusals
+
+The `0 new` row of `/tmp/m714/rows.tsv` holds three causes by its
+texts: a Newton direction that does not reduce the residual on a
+pressure block (`R134a1` on `volume.medium.p`, `R134a2` on two
+pressures, the bound-crossing case counted above), a singular
+initialization step whose equations do not pin down the start
+(`MoistAir1`, `MoistAir2`), and a start block of 162 unknowns in
+`HeatExchangerSimulation`. Three causes in five models, each pair from
+one package, so the row is three small families and not one.
