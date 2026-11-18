@@ -83723,3 +83723,14 @@ whose equations call `airBaseProp_pT` and `xws_pT` under an
 reach is ours: the walk does not see through those calls to the
 states. That is a candidate defect in the start matcher, not a family
 of m711. It is mapped here and not built.
+
+A correction to the paragraph above, made the same shift after reading
+`compile.rs` around the `OXIDELICA_INIT_PROBE` print. `reaches []` is
+the fine walk, which stops at blocks by design. The pairing that took
+`volume.U` and `volume.mXi[1]` is the coarse walk through blocks
+(`states_behind_algebraics`), written for this case. So the empty
+reach is not by itself a defect, and "the walk does not see through
+those calls" is withdrawn. What stands is the count: three written
+starts for the states `m`, `mXi[1]` and `U`, every one paired, and
+still a singular matrix in `U`. The open question is whether the
+pairing through blocks gives `U` a start that its row really moves.
