@@ -87031,3 +87031,20 @@ assertion, a medium function or a block on the arithmetic floor, which
 their rows already name. So the pipes are a third stall shape: the
 medium leaves its range during a crossing search or the step collapses,
 the same out-of-range Newton step the NaN row showed.
+
+### The mode chosen on unsolved variables, small
+
+`/tmp/m723/small/ModeVar.mo`, an `if time < Ts` with `Ts = T` written as
+an equation, settles branch 1 on `Ts = 0.3` and runs: a flat definition
+is read. `ModeNest.mo` puts the same `if` inside the `else` of an outer
+`if aux <= 1e-12`, the shape of `KinematicPTP2`. Its mode trail
+(`OXIDELICA_NEWTON_TRAIL`, `ox31`) settles the outer mode first reading
+`Ts = 0`, its start, and takes the innermost `else`; the second reading
+gives `Ts = inf` with `aux = 3.33`, where the equation `Ts = 1/aux`
+says 0.3. The model still runs, since the run re-settles at the first
+step, but both readings at the start are wrong, and in `OneAxis` the
+same misreading costs the recompile that is refused. So the place is the
+reading of a variable defined inside a branch while the modes are
+settled, before the branch's equations have given it a value, and the
+small model is a test for it. Not followed into `settle_modes`, which
+is behaviour.
