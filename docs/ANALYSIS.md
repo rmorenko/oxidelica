@@ -86180,3 +86180,15 @@ So 17 of 29 stand on the unconnected-flow zero of a class that is not
 an example in its own right, and the row's weight for the library is
 the 12. This is read from the refusal text; probing one of each of the
 three kinds is the next step.
+
+### Inside the row of 25 parameters without a value
+
+All 25 members are classes under `Utilities`, `BaseClasses`,
+`ExampleUtilities`, `ControllerUtilities` or `OpAmpCircuits`, and the
+parameter each names is declared without a binding in the library
+itself: read in the source for two from different packages,
+`OpAmpCircuits/Der.mo` (`parameter SI.Frequency f "Frequency";`) and
+`Loops/Utilities/GasForce2.mo` (`parameter SI.Length L "Length of
+cylinder";`). One cause, and it is the refusal being right: a class
+meant to be instantiated with a value, checked on its own. The row is
+the example filter's (question 66) and not a wall of the compiler's.
