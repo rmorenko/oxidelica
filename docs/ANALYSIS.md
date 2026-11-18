@@ -84289,3 +84289,19 @@ the whole corpus (`/tmp/m718/zero.txt`, witness `zero.env`). It fired
 print names the input and not the model, so which of these models run
 on the zero is the next probe, and the price list for Roman's word is a
 few dozen helper classes rather than the library.
+
+### The zero inputs counted by model
+
+The same probe binary run alone on each of 197 helper, RobotR3 and
+TwoPhaseWater classes (`/tmp/m718/zmodels.txt`, witness `zmodels.env`)
+names 16 models, and their inputs add up to the 36 of the corpus print
+exactly, so no model was missed. All 16 are helper classes run on
+their own, none an example a user would open: RobotR3's
+`PathToAxisControlBus` alone carries 15 (`q`, `qd`, `qdd` of five axes).
+Six of the 16 run on the zero: the four Clocked throttle and mixing
+parts (`IntakeManifold`, `ThrottleBody`, `TorqueGeneration`,
+`MixingUnit`), `CriticalDamping`, and StateGraph's `TankController`.
+Were an unjoined input an error instead, those six would refuse and the
+other ten would refuse naming the input rather than something further
+on, as the TwoPhaseWater pair now refuses inside `tsat`. Which of the
+two is right is Roman's choice, asked here and not made.
