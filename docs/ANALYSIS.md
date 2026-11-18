@@ -84886,3 +84886,10 @@ census holds as written, and today's probes above are its per-name
 reading. The dear five of the queue (`BatchPlant_StandardWater`,
 `HeatingSystem`, `PointGravityWithPointMasses2`, `Engine1a`,
 `PlanarFourbar`) were not re-run.
+
+The two Spice3 transistors of the singular row, `MPmos` and `MNmos`, are
+the extended inverter's building blocks: each is a single MOS with its
+modelcard, `CBD = 0` and `CBS = 0`, and four open pins. They refuse on
+`G.i = 0`, the gate current of an open pin, and are helpers by the
+library's own description ("inherited by the model
+InverterExtendedModel"). Question 66 again; nothing for the compiler.
