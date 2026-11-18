@@ -84093,3 +84093,17 @@ and 2), which must have counted a different field; the column is left
 as printed and this table is the line itself. The four pipe models
 first leave the vapour-pressure floor of 611.657 Pa on a pressure, which
 is the case a clamp on declared bounds would touch first.
+
+### Whether the NaN of the twenty-one runners comes before the bound or after
+
+The twenty-one of the 57 that run through a NaN, read line by line from
+`/tmp/m716/bounds.txt` (md5 0258a794): in 7 the first probe line already
+carries the NaN (Oscillator, TestValvesIncompressibleReverse,
+LumpedPipeInitialization, DryAirNasa, Air, Nitrogen, IdealSteam); in 14 a
+finite exit comes first and the NaN follows, at line 2 to 43 of the
+model's exits (TestJunctionVolume 43, MoistAir 15, TestMixingVolumes 11,
+the rest at 2 to 7). All 21 run, so every NaN here dies out on its own,
+inside a trial point that is then rejected. For a clamp this means 14
+runners would be touched before their NaN appears, and 7 meet the NaN
+where no bound has been crossed yet, which a clamp on bounds cannot
+reach.
