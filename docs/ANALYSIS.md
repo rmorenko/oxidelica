@@ -86535,3 +86535,17 @@ set and was not run, as the notes ask. So the one control taken is
 consistent with the loop closure being what `Fourbar1` lacks, and the
 hypothesis stays a hypothesis: it is weakened by nothing and proven by
 nothing yet.
+
+### The last two of the singular Jacobian row
+
+`RollingWheelSetDriving` (`/tmp/m722/st2_rwsd.txt`, NEWTON_TRAIL on
+`ox27`) and `LossyGearDemo2` (`/tmp/m721/lg_trail.txt`) were read with
+the same rank test. Raw, the wheel set's 32-row Jacobian reads rank 7,
+but its entries span 7.8e-11 to 1.2e20, and that rank is the scaling
+speaking: equilibrated by rows then columns it is rank 31 of 32, with
+singular values falling 3.1e-7 then 1.3e-15. So it is one dependent
+direction, the same shape as the other five, hidden under thirty
+orders of magnitude. `LossyGearDemo2` is rank 4 of 5, its duplicate
+row. All six members of the row are therefore exactly one or two short
+of full rank at their point, none a mere small pivot; the raw rank of a
+badly scaled block is not a count of its defects.
