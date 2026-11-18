@@ -86333,3 +86333,19 @@ at the cap are five MultiBody models (`PrismaticConstraint`,
 no substitute, not that none exists. That is the row's open question
 for the compiler, and it belongs to the ceiling, which this shift does
 not move.
+
+The five that `why` compiled without a refusal were taken again with
+`library check --only <Class> --refused`, which prints the whole text
+(`/tmp/m722/w29/*.refused.txt`, `eng_refused.txt`). Three stop at the
+cap of 32 (`ActuatorWithNoise`, `Engine1a`), `FullRobot` exhausts its
+subset after 13, and two name no substitutes at all, a subset of one
+(`SMPM_ResistiveBraking` on `3 * smpm.lszero.i = 0`, `OneAxis` on
+`(-axis.gear.bearingFriction.w) + axis.motor.Jmotor.w = 0`). With them
+the row is 29 of 29: exhausted 18, stopped at the cap 9, no
+substitutes 2. The cap's nine are `PrismaticConstraint`,
+`SphericalConstraint`, `PointGravityWithPointMasses2`, `RollingWheel`,
+`Cylinder`, `Engine1a`, `IMC_DOL_CommonLeakage`, `SimpleSolenoid` and
+`ActuatorWithNoise`, six of them MultiBody or a model built on it. That
+`why` compiles these five without refusing while `library check`
+refuses them is itself a finding: the two reach index reduction by
+different roads, and it is recorded here for the next reader of `why`.
