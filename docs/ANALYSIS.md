@@ -84540,3 +84540,14 @@ written by the library, not lost by the compiler: what is open is
 whether a derivative that only an `m_bInit` branch hides should be left
 to the state's own equation at the start, which is a question about the
 solver and not taken here.
+
+### Queue row "loop no converge": Spice3 Nand probed
+
+`Spice3.Examples.Nand` (`/tmp/m720/q_Nand.env`, same binary, Newton
+trail on): the blocks settle at t = 1.1e-8, 2e-8, 5.5e-8 and 9e-8, and
+the refusal comes at t = 3.75e-8. There the first iterate stands at
+|f| = 2.5e-4, the first full step throws it to 8.2e12, and the next
+sixty climb down unevenly to 1.4e3 without coming back. It is the
+overshoot kind seen in RollingWheelSetPulling, not the stagnation of
+ThreeSprings: the start was close and the step left it. Print in
+`/tmp/m720/q_Nand.txt`, 930 trail lines.
