@@ -85853,3 +85853,21 @@ at t = 0.693.
 All three forms are silent the same way, three of three. With the
 earlier three places (`extends`, component, attribute), a modifier
 naming nothing is accepted in every form probed so far.
+
+### The twenty-one NaN runners by instant, not by line
+
+The table above counts its "first event" by the first line of the
+bounds print. Read by time instead (`/tmp/m720/nan_table.tsv`, the
+`firstReal` and `firstNaN` columns, no new runs), the 14 and 7 split
+does not hold. In 2 models (`TestWaterPumpCheckValve` at 0.001861
+against 0.002208, and `TestMixingVolumesPressureStates` at 0 against
+0.0008) the step leaves its bounds at an earlier instant than any NaN.
+In 17 the first real line and the first NaN line fall at the same
+instant, which the print cannot order. In 2 (`Oscillator`,
+`TestValvesIncompressibleReverse`) there is no real line at all. On the
+question "does the NaN die out by itself": all 21 run to the end, so in
+every one it does. Only `TestJunctionVolume` prints a real bounds line
+after its last NaN (0.001 against 8e-6). In the other 20 the last NaN
+is also the last bounds event. So a clamp would provably act before the
+NaN in 2 models, not 14. The 14 were a count of print order inside
+one instant.
