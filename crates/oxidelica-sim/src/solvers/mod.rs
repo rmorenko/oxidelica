@@ -2964,6 +2964,21 @@ impl CompiledModel {
                         } else {
                             Refusal::Unconverged
                         };
+                        // The pivot print, for a direction that buys
+                        // nothing: a near-singular Jacobian is one
+                        // reason a Newton step points nowhere useful.
+                        if underdet_detail() {
+                            let mut scaled = jac.clone();
+                            crate::linear::equilibrate_both(&mut scaled, columns_first());
+                            print_underdetermined(
+                                &block_names(),
+                                &v,
+                                &jac,
+                                &scaled,
+                                t,
+                                (residual_sources, inner_sources),
+                            );
+                        }
                         return err_of(
                             kind,
                             format!(

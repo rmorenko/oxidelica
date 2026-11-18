@@ -85882,3 +85882,17 @@ singularity sends it away. `BranchingPipes2`, `BranchingPipes4`,
 `SeriesPipes1` and `TestTemperature1` refuse at the other wall, "the
 Newton direction does not reduce the residual", which this print does
 not reach. They stay unread by pivot.
+
+### The pipes at the direction wall are regular blocks
+
+The pivot print now fires on the refusal "the Newton direction does not
+reduce the residual" as well (binary `/tmp/m721/ox26`, outputs and
+witnesses `/tmp/m721/nd2_*`). The work counters equal those of `ox25`
+(`/tmp/m721/nw_*`) to the digit. `BranchingPipes2` (n = 17, t = 8e-4),
+`SeriesPipes1` (n = 6, t = 8e-4) and `TestTemperature1` (n = 13,
+t = 2e-4) all read a scaled smallest pivot of 1, with raw pivots of
+1.8e-6, 4.5e-7 and 3.0e-5. Each block is regular once its units are
+taken out. So the direction is well defined, and the refusal is about
+the residual's shape along it, not a singular Jacobian. The null
+directions lean on enthalpy flows (`H_flows`, `ports_H_flow`) and
+pressures, which suggests a flow reversal, but the print does not prove it.
