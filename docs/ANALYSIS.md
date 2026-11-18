@@ -86834,3 +86834,16 @@ first step, the `KinematicPTP2` shape above. `ActuatorWithNoise`,
 `LossyGearDemo2` and `TestTemperature1` print modes but stay on one
 branch, and the other 14 print no mode at all. So this second defect,
 if it is one, carries two models of the queue.
+
+### How many of the 41 unnamed trails can be read without a new print
+
+The 50 trails of `/tmp/m722/tr/*.txt` read again against the refusal
+each ends on: where the refusal lists the block's unknowns and the list
+is as long as the last iterate, the iterate can be named from the
+refusal without printing anything new. The refusal names a block in 12
+of the 50, and its length matches the iterate in 7. Among those 7 the
+only physical unknown driven below zero is again `R134a1`'s
+`volume.medium.p` (-2.5e6). So the reading reaches no new model, and
+the rest of the 41 need the trail to print its names. That print is
+one line per Newton point beside the existing one and needs its own
+test to keep coverage on its floor, which this shift did not build.
