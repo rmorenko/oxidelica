@@ -86918,3 +86918,14 @@ question for Roman, not a fix. In the `tsat` pair `TwoPhaseWater`'s
 `state.p` is bound by `p = state.p` with `min: 611.657`, and the start
 calls `tsat` with p = 0, so there the start never read a pressure at
 all; that is a different shape and was not followed further.
+
+The `der not state` pair, by `why` on `.msl`: `pipe1.mediums[1].T` of
+`BranchingDynamicPipes` and `tank.medium.T` of `HeatingSystem` are both
+a medium's temperature with a `start` from the component's `T_start`,
+defined through the medium's own equations and never the derivative's
+own state, so both are the same index-reduction question of a medium
+whose temperature is asked as a derivative. One cause. The four
+initialization models split three ways: `AmplifierWithOpAmpDetailed`
+and `SimpleNaturalGas` singular in the start Newton step,
+`ThreePhaseTransformerWithRectifier` 21 + 4 for 23 states, and the
+RobotR3 helper `GearType1` 2 + 2 for 3, a helper again.
