@@ -85835,3 +85835,21 @@ change the outcome. The two models separate cleanly:
 
 So the pair is two different problems. One is structural (a rank defect
 near 1e-14), the other numerical (a stall in a regular block).
+
+### The silent modifier in the nested, `SI.` and component forms
+
+The three forms the simple probe left open, each written once with `min`
+and once with the misspelling `mim` (`/tmp/m721/mod/`, binary
+`/tmp/m721/ox25`, witnesses beside each). The pattern is `x(start = 1,
+fixed = true)`, `der(x) = -x` and a bound of 0.5, which `exp(-t)` crosses
+at t = 0.693.
+
+| form                                     | `min = 0.5`          | `mim = 0.5`   |
+| ---------------------------------------- | -------------------- | ------------- |
+| nested, `B b(a(x(min = 0.5)))`           | refused at t = 0.694 | runs, no word |
+| `SI.` type, `SI.Voltage x(..., min=0.5)` | refused at t = 0.694 | runs, no word |
+| component output, `Integrator i(y(...))` | refused at t = 0.694 | runs, no word |
+
+All three forms are silent the same way, three of three. With the
+earlier three places (`extends`, component, attribute), a modifier
+naming nothing is accepted in every form probed so far.
