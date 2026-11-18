@@ -86744,8 +86744,9 @@ variable is on". Every relation of the definition is evaluated at
 `time = 0`, and one worth exactly zero keeps the declared start. That is
 right for a diode's `s < 0` and wrong for `time >= 0`, whose `time - 0`
 is zero at the start by construction and whose value is decided. No
-comment nearby forbids the change. A relation that names `time` and
-otherwise only parameters is now never a knee.
+comment nearby forbids the change. The change measured below reads a
+relation that names `time` and otherwise only parameters as never a
+knee.
 
 ### The pair, and what it cost
 
@@ -86761,9 +86762,15 @@ still runs, now starting with its switch closed. The run half went
 2431 s -> 2528 s (+4.0%), under the six percent, and the flattening
 half 5251 s -> 5438 s on identical work, so the desk drifted by
 3.6% between the halves and most of the run half's difference is that
-drift. The change went in as behaviour with
-`a_relation_of_time_alone_is_decided_at_the_start`, red without the
-change and green with it. The heavy models were not measured.
+drift. With `a_relation_of_time_alone_is_decided_at_the_start`, red
+without the change and green with it, the full preflight
+(`/tmp/m723/pf/preflight.txt`) passed with the judge at 985 / 855 and
+866 / 806 and coverage at 92.50%. It was pushed as 9bb143f with the
+run floors raised to 852 / 803, and taken back in e57d50b: a change of
+default is the owner's decision, and the heavy models were not
+measured. The patch and these numbers are parked
+(`~/oxideflow/park/m723_time_knee.patch` and `.txt`), and the tree's
+code and floors are those of f61af05.
 
 ### The stall five, mapped
 
