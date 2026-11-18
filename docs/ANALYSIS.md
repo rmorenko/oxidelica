@@ -86972,3 +86972,15 @@ off conductance, weakly, and the pivot test refuses a block whose
 smallest pivot is of the order of that conductance. Whether the test's
 threshold should see an off conductance as a determination is the
 question; it is not changed here.
+
+### What the trails cannot say about the last two of the five
+
+`Engine1a` and `SMPM_ResistiveBraking` (`/tmp/m722/r29/stall_*.txt`)
+print no `mode` line, and their last Newton solves converge (1e-13 at
+1.0e-3 s, 3e-8 at 4.6e-3 s). In `solvers/mod.rs` a stall is raised
+either by a mode that stops holding after a recorded row or by the step
+size giving out, and the trail prints neither the step size nor which
+of the two raised it. So for these two the cause of the recompile is
+not in any print the compiler has; naming it needs a line at the stall
+saying which condition fired, which is a print with its own test and
+was not built in this shift.
