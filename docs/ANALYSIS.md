@@ -86661,3 +86661,17 @@ the block underdetermined; what remains of the machine is the air
 gap's magnetic coupling and the zero-sequence inductor, and the next
 small model has to carry one of them, most cheaply by instantiating a
 machine with its terminals behind open switches.
+
+Shrinking the real model settles what the small ones could not. Four
+wrappers of `SMEE_DOL` that each `extends` it with one modifier
+(`/tmp/m722/small/SMEE_*.mo`, `simulate --stop 0.01` on `ox27`): as it
+stands, refused, underdetermined on the air gap; with the switch closing
+at 0.1 s, refused the same; with `Goff` raised a hundredfold to 1e-5,
+refused the same; with `booleanStep(startTime=-1)`, the switch closed
+before the start, it simulates to 0.01 s (10 steps, stator currents
+near 1.4 kA). So the cause is the machine with its supply switch open
+at t = 0, and in the library as written `startTime=0` counts as open at
+the start. The off conductance that let the small models run does not
+help here: what is undetermined is the air gap and the rotor cage, which
+a stator winding with no current leaves free. This is the shape of the
+three switch machines in the row, now shown on one by removing it.
