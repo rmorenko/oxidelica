@@ -86409,3 +86409,16 @@ algebraic loop` on the motor's air gap currents. No model ran. So
 raising the ceiling would win none of the nine and would buy only one
 wall moved, at the cost of differentiating up to ten times more
 members; the ceiling is not what stands between this row and a run.
+
+### The why parting is two causes, not one
+
+Pointed at the corpus with `MODELICAPATH=$PWD/.msl` (`/tmp/m722/why_eng_msl.txt`,
+`why_msl_OneAxis.txt`, `why_msl_TanksWithOverflow.txt`), `why` still
+compiles `Engine1a` and `OneAxis` without a refusal, while it refuses
+`TanksWithOverflow` exactly as `library check` does. So the snapshot
+named in the correction above is real but not the whole of it: on the
+same files, `why` and `library check --only` reach a different verdict
+for two MultiBody models. Where the two paths part (how each builds the
+model before `compile`) is not yet probed, and until it is, a `why`
+answer about a MultiBody example is not evidence about what `library
+check` refused.
