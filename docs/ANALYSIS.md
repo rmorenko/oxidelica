@@ -86224,3 +86224,21 @@ unconnected pin. In `RollingWheel` the refused row is the velocity
 identity between wheel and body, `v_0[2] = der(frame_a.r_0[2])`, which
 is the MultiBody orientation and constraint kind. So the twelve hold at
 least two causes as well.
+
+### How many steps leave the physical range: R134a1 counted against the queue
+
+All 131 models of `/tmp/m714/rows.tsv` were run once with
+`OXIDELICA_NEWTON_TRAIL=1` on `/tmp/m722/ox27` under an 8 GB cap, six
+at a time (`/tmp/m722/tr/*.txt`, each beside its `.env`; every one
+ended on its own exit, none on the cap). 50 printed a Newton trail.
+The trail names the block's unknowns only where it also prints the
+Jacobian, so the iterate can be read name by name in 9 of the 50.
+Counted by `/tmp/m722/tr/b2.py` (`bound2.tsv`): a pressure, temperature
+or density driven below zero in 1 of those 9, `R134a1`
+(`volume.medium.p`), and that one is also flat over its last three
+iterations. Flat residuals without a negative physical unknown: 12 of
+the 50. So the observation stands as one model in the queue, with the
+caveat that 41 of the 50 trails do not say which unknown is which; the
+count is a lower bound and goes to Roman as a question, not as a
+clamp. Models that run were not traced, so this says nothing about a
+step leaving the range on the way to a success.
