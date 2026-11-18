@@ -84642,3 +84642,29 @@ and `i_sr` whose equations do not mention part of its unknowns. So the
 air gap changes which wall is met first; the hand-built drive of `P3`
 is not yet the machine's own (`S3`), and the chain stays open at this
 link.
+
+#### Whether the NaN dies out by itself: five controls
+
+Five of the 21 were run alone with the Newton trail on `/tmp/m719/ox21`
+(md5 17a947cb5a6c7795c4b22066c90379be, witnesses `/tmp/m720/n_<name>.env`).
+Each prints `1 flatten and 1 run`, and in each the trail lines carrying
+NaN are a handful at the start and none after; the trail goes on to the
+stop time t = 0.01 with real numbers:
+
+| model                   | trail lines | lines with NaN | last NaN at t | trail ends at t |
+| ----------------------- | ----------- | -------------- | ------------- | --------------- |
+| Spice3 Oscillator       | 744726      | 2              | 5.16e-4       | 0.01            |
+| BranchingPipes14        | 3301        | 9              | 1.56e-5       | 0.01            |
+| SeriesPipes2            | 3633        | 9              | 2.5e-4        | 0.01            |
+| TestJunctionVolume      | 841         | 1              | 8e-6          | 0.01            |
+| TestWaterPumpCheckValve | 214         | 1              | 2.21e-3       | 0.01            |
+
+So in five of five the NaN is a rejected trial and not a value the run
+keeps: the solver throws the point away and finds a real one. That
+includes the Oscillator, which the bounds print alone made look like the
+one model carrying NaN to its end. The other 16 were not run. On these
+five a clamp has nothing to heal, since the NaN already dies by itself,
+and could only change which trial point is thrown away; for the slip
+over the bounds that comes first in 14 of the 21, the clamp would be the
+first thing to move the trajectory, which is the risk to measure before
+it is taken.
