@@ -86640,3 +86640,15 @@ instead. So the half is one shape in three and a cousin in the fourth:
 a machine winding whose star potential nothing fixes at the start,
 reached through an open switch or through a diode bridge. A reading
 from the block's names, not yet a probe of the star potential itself.
+
+A small model against that reading (`/tmp/m722/small/OpenStar.mo` and
+`OpenFloat.mo`, run with `simulate` on `ox27`): a sine source feeding an
+open `IdealClosingSwitch` in series with an inductor and resistor, and
+with two inductors in series, both closing at 0.1 s. Both simulate to
+the end. So an open ideal switch in front of an inductive path is not
+enough to leave a block underdetermined here; the switch's own off
+conductance fixes the potential. The machine refusal needs more than
+that, and the next small model has to bring the air gap's coupling of
+the windings or the star point's zero-sequence inductor. The reading
+above is therefore narrowed: the switch is present in three of four
+blocks, and its presence alone has been shown not to suffice.
