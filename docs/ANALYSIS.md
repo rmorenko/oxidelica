@@ -84827,3 +84827,13 @@ function `previous`" from `code.rs`. So `previous` is known to the
 flattener and is left standing only where the clock is inferred: the
 partition pass does not rewrite it when no interval is written, and the
 call reaches the run. `Prev2` is the test for whoever takes it.
+
+Narrowed by two more (`Prev3`, `Prev4`): `interval()` is innocent.
+`Prev3` drops it and keeps `Clock()`, and still refuses; `Prev4` keeps it
+and writes `Clock(0.1)`, and runs. So the one thing that leaves
+`previous` standing is a clock with no interval written. In `Prev3` no
+sampled input gives that clock a source, so a refusal is right there;
+what is wrong is the wording, which blames an unknown function instead
+of an inferred clock nothing defines. In `SpeedControl` the clock is
+meant to come from the samplers of the enclosing example, and the class
+alone has none: the same wall, and a helper (runnable 0).
