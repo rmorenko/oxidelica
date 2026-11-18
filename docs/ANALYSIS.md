@@ -85658,3 +85658,15 @@ So the corpus wall is name-sensitive as well, but it is not rescued by a
 rename, and it sits in reduction where the small family's sits in the
 run's block. The two share a sensitivity to the alphabet. They are not
 shown to be one defect.
+
+Where the chain is handed on. The free-body family (`Pg2` to `Pg27`) is
+a correct model that the compiler refuses or runs according to the
+alphabet of component names, with `Pg16` refused and `Pg26` running as
+the red-green pair, twelve lines and seven seconds each. The candidate
+cure is the consultation's: a retry of the matching, with the refused
+pair struck out, behind the present refusal at `compile.rs:8748-8773`.
+Only models already refused can reach it, so a pair over the corpus
+measures its price. The corpus's own `PointGravityWithPointMasses2` is
+name-sensitive too but is not shown to be the same defect, and the
+standalone copies `PgO` and `PgB` are where its next probe starts.
+`PgC` (a bad rename) and `Pg25` (likewise) are recorded as unused.
