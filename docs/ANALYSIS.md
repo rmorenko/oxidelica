@@ -84846,3 +84846,13 @@ instead, so the equation under the unresolved clock is not handed to the
 partition pass at all and travels on as continuous. That is the defect
 the small model pins: a refusal that names the wrong thing, which by the
 rule on refusals is owed a fix. `Prev3` is the test, red today.
+
+Read after the probe, the place that lets `Prev3` through is chosen,
+not missed: `clocks_of_the_model` (`partitions.rs`) returns early when
+no clock is declared and no clause writes an interval, and its comment
+says a bare `Clock()` is left out on purpose, since taking it in "would
+only move its refusal from the run to flattening". So the defect named
+above is a known trade: the refusal is right and its words are the
+run's. Changing them means taking the bare clock in and letting the
+`Waiting` arm speak, a wording change with no model to win; it is left
+as a candidate for the park, not built.
