@@ -85715,3 +85715,12 @@ one fixed mass is not enough to make the switch. So
 `PointGravityWithPointMasses2` stands on two walls in sequence: the
 reduction wall from its starts, and behind it the name-sensitive
 matching of the free body. A cure for the second alone moves no number.
+
+`PgL`, `PgH` with its first lever `fixedTranslation` renamed
+`zTranslation` (witness beside it), still refuses on `a_rel_a[3]`. With
+six levers there are many candidate orders, and moving one name does not
+find a good one. The rename rescue of `Pg26` and `Pg27` therefore does
+not carry to the corpus model, which fits a tie-break among many equal
+candidates better than a fault tied to one name. A deliberate retry
+behind the refusal, rather than a lucky order, is what the corpus model
+needs.
