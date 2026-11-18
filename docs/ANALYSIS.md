@@ -84017,5 +84017,6 @@ whether any of the model's exits carries a NaN:
 
 Twenty-one of the 57 pass through a NaN and still run, so a NaN in a
 trial point is not by itself a sign of a refusal. Fluid and Media own
-50 of the 57. This is a price list for Roman's decision on a clamp,
+49 of the 57 (Fluid 32 = 11 + 14 + 6 + 1, Media 17 = 7 + 10;
+`FluidHeatFlow` is Thermal and is not counted). This is a price list for Roman's decision on a clamp,
 not a verdict, and no code was built.
