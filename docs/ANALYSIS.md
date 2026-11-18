@@ -85439,3 +85439,15 @@ this repository was read over them. They now live in
 gone and `.msl` reads clean. Every model path in this section has been
 corrected to the new place. The `--only` results above stand, because
 each one names its own class.
+
+`ControlledMixingUnit` given its address (witness `/tmp/m720/t_cmu.env`,
+output `t_cmu.txt`): the refusal is raised at `compile.rs:5314`, the
+check that every discrete variable is assigned by some `when`. The model
+is an inverse model. `InverseBlockConstraints` writes `u1 = u2` and
+`y1 = y2` and makes no assignment, so inside the sampled partition the
+pair `u1 = u2` reads as a second assignment to `u1`, and `y2` is left
+with none. The pairing the block asks for is the one an inverse model
+needs: `y2` is solved from `u1 = u2`, not assigned. So the refusal comes
+from reading an equation of the clocked partition as an assignment by
+its left side. It is the `when` layer's question and not the solver's,
+and it stays one name.
