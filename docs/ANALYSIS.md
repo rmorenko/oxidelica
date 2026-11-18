@@ -84745,3 +84745,16 @@ the modifier replace that equation, or the library relies on the element
 being only ever used as an `outer` from an example that supplies the
 `inner`, is the open question; the three are helpers either way (runnable
 0), so it is a correctness question about `inner outer`, not a count.
+
+Correction to the paragraph above, from reading `CompositeStepState`
+whole (`StateGraph.mo`, the class `Interfaces.CompositeStepState`): its
+`suspend` and `resume` are declared with bindings (`= false`) and also
+carry the equations `suspend = subgraphStatePort.suspend` and
+`resume = subgraphStatePort.resume`. The modifier written by
+`PartialCompositeStep` replaces the binding, as a modifier does, and
+leaves the equation standing. So two equations per variable is what the
+specification gives here, the compiler counts correctly, and the
+question asked above has its answer: the class is only balanced as an
+`outer` reaching an `inner` higher up, which a composite step used alone
+does not have. The three StateGraph helpers refuse rightly and join the
+others under question 66.
