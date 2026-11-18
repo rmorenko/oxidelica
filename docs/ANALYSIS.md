@@ -85327,3 +85327,14 @@ right after the free joint, the next question is what reduction does
 differently when `frame_b`'s force balance sums two branches rather
 than one. It is handed on at that link, with `Pg8` against `Pg9` as the
 pair.
+
+Corrected by two more probes the same minute (witnesses
+`/tmp/m720/small/Pg11.env`, `Pg12.env`). `Pg12`, two `Body`s fastened
+directly to `freeMotion.frame_b`, a fork with no arms, runs. `Pg11`, one
+arm and a fork at its far end, refuses like `Pg9`. So the fork is not
+the trigger, and the table's reading above is withdrawn. What the
+refusing models share and the running ones lack is two masses at
+different points of the free body, which is the case where the body's
+rotational inertia comes from its geometry rather than from one
+element. The pair to work from is `Pg12` (runs) against `Pg9`
+(refuses).
