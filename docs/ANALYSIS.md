@@ -85173,3 +85173,20 @@ library default, and the machine family is a question of where the
 floor stands against a path of 1e-5 siemens, not of a structural
 defect. This is the strongest evidence the chapter holds for the
 floor-price question, and it is handed on as such. Nothing was changed.
+
+The same knob on the corpus models themselves, through `extends` with a
+modified `Goff` (witnesses `/tmp/m720/small/Ext1.env`, `Ext3.env`,
+`Ext4.env`). `SMEE_DOL` at `1e-4` still refuses. `IMC_DOL_Polyphase` at
+`1e-4` still refuses and at `1e-2` runs (3902 points). So on the library
+models the decade measured on `Fm5` is two to three decades. The floor
+stands further from the library default there than in the small model,
+and the strength of the evidence above is lowered accordingly.
+
+A side finding from the same probes, with its own reproduction
+(`/tmp/m720/small/lib/Nx1.mo`, witness `Nx1.env`). A modifier naming a
+component that does not exist, `extends A(nosuch(q = 3))`, is accepted
+without a word and the model runs. The first `SMEE_DOL` probe, written
+with the switch's wrong name `idealCloser`, measured nothing for that
+reason. Its result is not used above. The specification makes such a
+modifier an error. Refusing it is a flattening change whose price only
+a corpus pair can show, so it is named here and not built.
