@@ -86388,3 +86388,24 @@ corpus now, and the `why` probes of the tank and batch-plant flows are
 of identical source. The correction above stays: it is the instrument
 that was wrong, and agreement on this row is luck of where the two
 snapshots coincide.
+
+### Past the attempt ceiling: a probe, not a change
+
+The nine members that stopped at `MAX_SINGULAR_ATTEMPTS = 32` were run
+with a probe binary, `/tmp/m722/ox28` (md5
+74f5cff53bd4589f7fe2711af1f87dd5, the head with the cap read from
+`OXIDELICA_PROBE_ATTEMPTS` and the subset size printed; not committed,
+tree restored), at a cap of 200 under a 12 GB ceiling
+(`/tmp/m722/cap/*.txt` with `.env`; all ended on their own exit, none
+on the ceiling). Subset sizes: `RollingWheel` 37, `SphericalConstraint`
+54, `PrismaticConstraint` 60, `PointGravityWithPointMasses2` 110,
+`SimpleSolenoid` 117, `ActuatorWithNoise` 146, `Cylinder` 156,
+`IMC_DOL_CommonLeakage` 189, `Engine1a` 799. Seven of them exhausted
+the whole subset under 200 and were refused as before, so for them the
+refusal at 32 was a true statement reached early. `Engine1a` stopped at
+the new cap of 200 of 799 and says nothing more. `ActuatorWithNoise`
+found a substitute and moved one wall on, to `singular Jacobian in
+algebraic loop` on the motor's air gap currents. No model ran. So
+raising the ceiling would win none of the nine and would buy only one
+wall moved, at the cost of differentiating up to ten times more
+members; the ceiling is not what stands between this row and a run.
