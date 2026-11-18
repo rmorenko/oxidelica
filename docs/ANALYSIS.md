@@ -86242,3 +86242,18 @@ caveat that 41 of the 50 trails do not say which unknown is which; the
 count is a lower bound and goes to Roman as a question, not as a
 clamp. Models that run were not traced, so this says nothing about a
 step leaving the range on the way to a success.
+
+### The class is not an atom either: the count by the first print
+
+The same files (`/tmp/m722/{a,b,c}_*.txt`) read at the first pivot
+print instead of the last give a different weight. By the first print:
+regular nine (the seven above plus `BranchingPipes3` at 1.0 and
+`ThreeSprings` at 0.77), below 1e-3 four (the two wheel sets at 7.2e-5
+and 7.3e-5, the two rectifiers at zero), between none, unreached one.
+By the last print: seven, five, one, one. Two models cross on the way
+to their refusal, `BranchingPipes3` (1.0 to 2.3e-4) and `ThreeSprings`
+(0.77 to 9.8e-3). So the weight of the class is seven against five on
+the last print and nine against four on the first, and a number for
+it has to say which print it counts. The "five pipes" of the Newton
+tails section above is by the first print; by the last it is four,
+`BranchingPipes3` having left for the near-singular class.
