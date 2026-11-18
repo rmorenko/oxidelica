@@ -84259,8 +84259,10 @@ clamp candidates `R134a1`, `R134a2`, `MoistAir1`, `MoistAir2` and
 `TwoPhaseWater.BaseProperties` and `ExtendedProperties` refuse on IF97
 `tsat` called at p = 0 Pa. `oxidelica why` on `p` shows the cause: the
 model is the medium's own `BaseProperties` redeclared as an example, its
-pressure is an input with no binding, and the flattened model carries
-`p = 0` for the unconnected top-level input. The medium then refuses
+pressure is an input with no binding, and `why` lists an equation
+`p = 0` among those naming it. That zero is not a general default for an
+undriven input: the small model `input Real u; Real y; y = 1/u;`
+(`/tmp/m718/small/In0.mo`) is refused as unbalanced, naming `y`. Where
+this `p = 0` is written is not yet found. The medium then refuses
 below the triple point, which is the right answer for a property record
-run with nothing driving it. Worth a later look is only whether a
-top-level input should be a zero at all or a refusal naming it.
+run with nothing driving it. Which writer produced it is the open question.
