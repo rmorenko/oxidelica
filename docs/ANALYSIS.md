@@ -86480,3 +86480,11 @@ both `tsat`, both `below min`, `Essotherm650` (`above max`), the two
 arithmetic-floor rectifiers, `Nand` and `LossyGearDemo2`. So `why` is
 the right instrument for 112 of the queue and silent on 19, and a probe
 of one of those 19 has to be a run, not a `why`.
+
+The time of the refusing recompile for the five, from the probe trail
+(`/tmp/m722/r29/stall_*.txt`, `ox28` with the subset print): `FullRobot`
+2.6e-14 and `OneAxis` 7.2e-14, a stall at the first step; `ActuatorWithNoise`
+7.0e-4, `Engine1a` 1.0e-3 and `SMPM_ResistiveBraking` 4.6e-3, a stall
+after the run had moved. Two shapes again: the two robot models cannot
+take a first step on the states the start chose, and the other three
+lose their states somewhere in the first milliseconds.
