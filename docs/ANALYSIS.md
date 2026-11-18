@@ -85922,3 +85922,19 @@ the branch taken is not the one that reads it. Which branch that is, the
 trail does not say. What it does establish is the narrow fact: two rows of
 the block coincide to every printed digit, so the block is singular by a
 duplicate row, not by a small pivot.
+
+### R134a1 under the trail: the pressure goes negative on step two
+
+The queue's "0 new" rows, probed on the head with `/tmp/m721/ox24`
+(`/tmp/m721/nw0_*`), refuse with the texts the census holds:
+`HeatExchangerSimulation` on its start block of 162, `MoistAir1` and
+`MoistAir2` as a singular initialization, `R134a1` and `R134a2` at the
+Newton direction wall. The trail on `R134a1` (`/tmp/m721/r134_trail.*`)
+shows the mechanism in four lines. The block is `volume.medium.p` alone,
+starting at 3e5 Pa with |f| = 12.2. The first full step goes to 1.0e6
+(|f| = 13.4, worse), the second to -2.53e6 Pa, a negative pressure.
+There the residual sits at 0.971828 and does not move along any step
+down to 9.5e-7 of the length. The block has left the domain of its medium,
+and on the far side the residual is flat. This is a clamp candidate by
+direct observation and not only by name, the `min` of a pressure being
+zero.
