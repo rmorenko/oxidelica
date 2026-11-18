@@ -86436,3 +86436,16 @@ to the end. The first suspect is the class set, which `library check`
 builds from `library_files_in(.msl)` and `why` from
 `library_directories`, and the next probe is to count and diff the
 classes each path parses.
+
+Correction to the line above, the same shift. The two do not reach
+`compile` with different flat models. `why` calls `compile` and stops,
+while `library check` goes on to `ten_steps`, and a run may compile the
+model again as a continuation from mid-run, which redoes index
+reduction with the sensitivities at the current point
+(`compile.rs`, the comment opening with "A continuation matters for one
+reason"). The fourteen further reductions are that second compilation,
+and it is the one that refuses `OneAxis`. So `why` answers about the
+compilation at the start and `library check` refuses on a later one,
+and for `Engine1a`, `OneAxis` and the rest of the five the wall is
+met mid-run, not at the start. The class set was never the suspect it
+was named as, and the snapshot finding above is unaffected.
