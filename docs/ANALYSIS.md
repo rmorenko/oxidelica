@@ -85253,3 +85253,13 @@ let this model through the connection layer, and this is the wall
 behind it. It is a different layer from the helpers and from
 `TanksWithOverflow` (layer E of m311). That leaves the row with at
 least three separate real causes. Not followed further this shift.
+
+A small attempt at it, `Pg1` (world, `FreeMotion`, one `PointMass`;
+`/tmp/m720/small/lib/Pg1.mo`, witness `Pg1.env`), does not reproduce the
+wall. It refuses on `freeMotion.frame_b.t[1] + m1.frame_a.t[1] = 0`
+instead. That refusal is the model's own fault and not the compiler's.
+`PointMass` writes `frame_a.t = zeros(3)` when it is not the root, so a
+lone point mass on a free joint leaves three rotational freedoms with no
+inertia. The library's text warns about exactly this. `Pg1` is therefore
+a wrong reduction and is not offered as a reproduction. The real
+model's wall stays named as above, with no small model.
