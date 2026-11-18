@@ -84069,3 +84069,27 @@ unbalanced, 11 structurally singular, the rest single walls - an unknown
 three densities above, 23 of the 85 are a parameter bound to nothing,
 nearly all in helper classes. These are word counts, not families: no
 row was probed past its first refusal.
+
+### The first exit of the seven that reach a NaN
+
+Read from the same print (`/tmp/m716/bounds.txt`, md5 0258a794), first
+probe line per model:
+
+| model                       | t      | first exit                                            |
+| --------------------------- | ------ | ----------------------------------------------------- |
+| MeasuringTemperature        | 0      | `T_onePort.T` below min 0, value -5.18e9              |
+| TestJunctionTraceSubstances | 0      | `junction.port_1.m_flow` past its limit, value NaN    |
+| TestTemperature1            | 0      | `orifice1.port_a_T` above max 2273.15, value 2758.46  |
+| BranchingPipes2             | 0.0008 | `valveIncompressible.port_a.p` below 611.657, -2.02e6 |
+| BranchingPipes3             | 0      | `pipe2.port_a.m_flow` past its limit, value NaN       |
+| BranchingPipes4             | 0.0008 | `pipe1.port_b.p` below 611.657, value -5.28e8         |
+| SeriesPipes1                | 0.0008 | `valve.port_a.p` below 611.657, value -1.29e6         |
+
+Five of the seven leave a bound with a finite value first, and the NaN
+follows. In two, TestJunctionTraceSubstances and BranchingPipes3, the
+very first line already carries a NaN on a flow checked against its
+direction limit. That disagrees with the "first NaN" column above (10
+and 2), which must have counted a different field; the column is left
+as printed and this table is the line itself. The four pipe models
+first leave the vapour-pressure floor of 611.657 Pa on a pressure, which
+is the case a clamp on declared bounds would touch first.
