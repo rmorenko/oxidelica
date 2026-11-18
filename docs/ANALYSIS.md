@@ -84057,3 +84057,15 @@ bound to nothing. These are helper blocks run as examples, and a refusal
 is the honest answer there, not a defect. `ControlledMixingUnit` refuses
 because the discrete `inverseBlockConstraints.y2` is never assigned, a
 clocked-library wall of its own.
+
+### The remaining eighty-one traceless rows, one refusal each
+
+Each of the other 81 traceless models was run alone under `--only`
+(`/tmp/m718/traceless81.tsv`, one refusal per model, none blank). By the
+words of the refusal: 20 parameters with no value, 20 algebraic loops
+(not converging, underdetermined, or not naming their unknowns), 16
+unbalanced, 11 structurally singular, the rest single walls - an unknown
+`previous`, an arithmetic floor, initialization not square. With the
+three densities above, 23 of the 85 are a parameter bound to nothing,
+nearly all in helper classes. These are word counts, not families: no
+row was probed past its first refusal.
