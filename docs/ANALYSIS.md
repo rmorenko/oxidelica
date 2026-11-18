@@ -86883,3 +86883,22 @@ which runs, closes its loop through an analytic joint and has no such
 connection. So the hypothesis now has a mechanism and a count that fit,
 but the count of nine is still all that ties `Fourbar1` to it; a probe
 of which connection closes the loop would make it a measurement.
+
+### Three more rows from the inside
+
+Again from `/tmp/m714/rows.tsv` and the library text. `5 unbalanced/left`:
+besides `Fourbar1`, the four are StateGraph helpers (`CompositeStep`,
+`CompositeStep1`, `CompositeStep2`, `MakeProduct`), each two equations
+over, each on `inPort[1].occupied` or `inPort.occupied`, which a step
+writes for the transition that feeds it (`StateGraph.mo`, the loop
+`inPort[i].occupied = if i == 1 then localActive else ...`). Standing
+alone the composite has no outer transition reading those ports, so
+the helper shape of question 66 again: one cause in four, plus
+`Fourbar1`'s own. `4 equations of loop`: Spice3 `DifferentialPair`
+on `der(Q2.vbx)`, `RevoluteConstraint` and `PlanarFourbar` on joint
+orientation, and the RobotR3 helper `GearType2` on `bearingFriction.sa`,
+so at least three. `2 tsat`: both `TwoPhaseWater` models call `tsat`
+with p = 0 at the start, one cause. `2 below min`: both `dddX[1]`
+negative at the start, one cause. `2 der not state`: both a medium
+temperature asked as a state (`BranchingDynamicPipes`, `HeatingSystem`),
+one cause.
