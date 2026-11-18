@@ -83864,3 +83864,32 @@ on the merged tree, found in those directories. The numbers in the
 desk table are still good, since each is keyed by the md5 of its `work:`
 line. They should be cited as "found in m715/m716, not made by a
 shift".
+
+### A third runner pair, from the main pass rather than the judge
+
+The m715 pairs came from judge logs. The main-pass job logs of the last
+thirteen CI runs (`/tmp/m716/judge/*.txt`, taken from the GitHub API)
+fall into three groups whose `work:` lines are identical byte for byte.
+Within each group the ratio of run to flatten per model is:
+
+| work md5 | runs                        | ratio range   | spread |
+| -------- | --------------------------- | ------------- | -----: |
+| c7690ef8 | cbb6403, 93e9178            | 0.734 - 0.794 |  0.060 |
+| 7e8936a5 | 8d9a386 to 4c5f2da (9 runs) | 0.809 - 0.854 |  0.045 |
+| b0553f6e | 12c1288, b11abde            | 0.575 - 0.585 |  0.010 |
+
+Seen from the main pass, then, 0.035 does not hold as the spread. Two
+of the three groups go past it (0.060 and 0.045), and the second
+figure comes from nine runs. In the group of nine, flattening per model
+runs from 3695 to 5896 ms, a spread of 60%, while the ratio moves by
+5%. So the ratio is the steadier instrument, as the judge pairs said,
+but its noise on one pass is nearer 0.06 than 0.035. A threshold of
+"two spreads" would then be 0.12, not 0.070. These are numbers for the
+anchor decision and nothing was moved.
+
+Item (A) of the standing list, the worst desk pair m693 against m705
+(0.082), stays unexplained. Both prints carry the same `work:` md5
+(d4648d53), the m693 print was written at 18:00 to 18:21 and the m705 print at 09:28 to 09:50,
+and no other file under `/tmp/m6*` or `/tmp/m7*` was written in either
+window. Flattening moved by +14% and the run by -2.1%. The cause is not
+in any file this desk keeps.
