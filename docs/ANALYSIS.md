@@ -85027,3 +85027,14 @@ machine then hangs on 1e-5 siemens alone, and the rank test refuses it.
 That is the family's mechanism, with `Fm3` / `Fm4` as its test.
 Whether the start should see the step's value at t = 0 is a question
 about event handling at the initial instant, for Roman.
+
+And a plain closer at the same instant reads the other way. `Sw3`
+(`/tmp/m720/small/Sw3.mo`), a step at zero closing an ideal switch onto
+a 1 ohm resistor, reports at t = 0 `sw.off = 0` and `R.i = 9.9999`
+amperes: the closed value, `Ron` in series. So the start does see the
+step's true at t = 0 where the block is a plain resistive one. In
+`Fm3` the block that refuses carries `Goff` on the switch rows, which
+says it was assembled or entered with `off` still true; the difference
+between the two is a question of which pass of the start the machine's
+block is solved in, before or after the event at zero is taken. That is
+the narrowest statement the instruments allow today.
