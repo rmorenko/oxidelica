@@ -86192,3 +86192,35 @@ itself: read in the source for two from different packages,
 cylinder";`). One cause, and it is the refusal being right: a class
 meant to be instantiated with a value, checked on its own. The row is
 the example filter's (question 66) and not a wall of the compiler's.
+
+### The next rows, read from their refusal texts
+
+- `13 unbalanced/determines`: all 13 are helper classes (`Utilities`,
+  `BaseClasses`, `ControllerUtilities`, `Components`), each one or more
+  equations short with the undetermined names on an input or a bus
+  (`currentToVoltage.y1`, `axisControlBus...`, `actuators.P1`,
+  `outflow1.Fo`). One cause: an open input of a class checked alone,
+  the example filter's again.
+- `6 cannot evaluate`: one cause, the `e_ia` family (question 93), in
+  six classes that all carry a `jointRRP` or `jointRRR` with
+  `e_ia[i] = ...e2_ia`.
+- `5 unbalanced/left`: two causes. `Fourbar1` is an example with nine
+  equations too many (1999 for 1990); the four StateGraph utilities
+  (`CompositeStep`, `CompositeStep1`, `CompositeStep2`, `MakeProduct`)
+  are two too many each, all through an unconnected `inPort.occupied`.
+- `4 equations of loop`: two causes. A one-unknown block whose
+  equations do not mention it (`DifferentialPair` on `der(Q2.vbx)`,
+  the zero junction capacitance already mapped; `GearType2` on
+  `bearingFriction.sa`), against two MultiBody loops on joint angles
+  and orientation (`RevoluteConstraint`, `PlanarFourbar`).
+
+Two of the twelve real members of the structurally singular row were
+probed with `why` (`/tmp/m722/why_tanks.txt`, `why_rw.txt`). In
+`TanksWithOverflow` the refused `lowerTank.ports[2].m_flow = 0` is not
+written by any class: the flow is bound by
+`lowerTank.ports[2].m_flow + overflow.port_b.m_flow = 0`, so the zero
+form is the reduced connection, a different cause from the helpers'
+unconnected pin. In `RollingWheel` the refused row is the velocity
+identity between wheel and body, `v_0[2] = der(frame_a.r_0[2])`, which
+is the MultiBody orientation and constraint kind. So the twelve hold at
+least two causes as well.
