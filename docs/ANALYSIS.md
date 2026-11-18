@@ -85183,7 +85183,7 @@ stands further from the library default there than in the small model,
 and the strength of the evidence above is lowered accordingly.
 
 A side finding from the same probes, with its own reproduction
-(`/tmp/m720/small/lib/Nx1.mo`, witness `Nx1.env`). A modifier naming a
+(`/tmp/m720/small/models/Nx1.mo`, witness `Nx1.env`). A modifier naming a
 component that does not exist, `extends A(nosuch(q = 3))`, is accepted
 without a word and the model runs. The first `SMEE_DOL` probe, written
 with the switch's wrong name `idealCloser`, measured nothing for that
@@ -85211,7 +85211,7 @@ for the review that owns the floor:
 
 The silent modifier is not limited to `extends`. A component's own
 modifier naming nothing, `A a(nosuch = 3)`, is accepted the same way and
-the model runs (`/tmp/m720/small/lib/Nx2.mo`, witness `Nx2.env`). No
+the model runs (`/tmp/m720/small/models/Nx2.mo`, witness `Nx2.env`). No
 refusal in the compiler's source names a missing modifier target, and
 the parser's only wording of the kind is about syntax. So every probe
 this project writes through a modifier has stood on the assumption that
@@ -85255,7 +85255,7 @@ behind it. It is a different layer from the helpers and from
 least three separate real causes. Not followed further this shift.
 
 A small attempt at it, `Pg1` (world, `FreeMotion`, one `PointMass`;
-`/tmp/m720/small/lib/Pg1.mo`, witness `Pg1.env`), does not reproduce the
+`/tmp/m720/small/models/Pg1.mo`, witness `Pg1.env`), does not reproduce the
 wall. It refuses on `freeMotion.frame_b.t[1] + m1.frame_a.t[1] = 0`
 instead. That refusal is the model's own fault and not the compiler's.
 `PointMass` writes `frame_a.t = zeros(3)` when it is not the root, so a
@@ -85297,7 +85297,7 @@ freeMotion.a_rel_a[3]`, and it is left for the next shift so as not to
 start a chain at the end of this one.
 
 The probe, run after all (witness `/tmp/m720/small/Pg2_why.env`, output
-`Pg2_why3.txt`). `freeMotion.a_rel_a[3]` is named by exactly one
+`stray/Pg2_why3.txt`). `freeMotion.a_rel_a[3]` is named by exactly one
 equation of the flat model, `der(freeMotion.v_rel_a[3]) =
 freeMotion.a_rel_a[3]`, and by nothing else. Its other two components
 are tied to the masses through the joint's force balance and its third
@@ -85399,3 +85399,43 @@ structural-singularity refusal of reduction. The free-body pair is
 refused at `solvers/mod.rs:1753`, a run-time rank test. So these are two
 different raising sites, which settles what the census reading above
 left open: the small family is not these rows.
+
+The torque balance at the free joint, asked of both halves of the pair
+(witness `/tmp/m720/small/Pg_torque3.env`, outputs
+`stray/Pg14_torque3.txt` and `stray/Pg16_torque3.txt`). The joint writes `freeMotion.frame_b.t[3] = 0` in
+both. The connection's sum is the difference:
+
+- `Pg14` (runs): `(a.frame_a.t[3] + freeMotion.frame_b.t[3]) + m2.frame_a.t[3] = 0`
+- `Pg16` (refuses): `(a.frame_a.t[3] + b.frame_a.t[3]) + freeMotion.frame_b.t[3] = 0`
+
+In `Pg14` one term of the sum is a `Body`'s own torque, which its Euler
+equation ties to the angular acceleration. In `Pg16` both terms arrive
+through `FixedTranslation`s, each of which only passes on `t + r x f`
+from the far side. The rotational acceleration then reaches the sum only
+through two levers' forces, which is where `a_rel_a[3]` drops out of the
+block's column. That is the last link reached this shift. The question
+it leaves is whether the matching picks this connection equation for
+the angular unknown and so loses the translational one, and the pair
+reads it in one line.
+
+A limit on the reading just given, from the table's own rows. `Pg11`
+refuses with its levers in series. There the sum at `freeMotion.frame_b`
+holds one lever only, and the sum at the far end of `a` holds a `Body`
+beside the second lever, which is the shape `Pg14` runs with. So "a sum
+of levers with no body in it" does not explain `Pg11`, and it is offered
+as what the pair `Pg14`/`Pg16` shows, not as the cause. The rule that
+covers every row is still the count: two loaded levers on the free body.
+The chain is now six links from `PointGravityWithPointMasses2`. By the
+project's own rule its map goes to a second reader, and the map is this
+section from "probed whole" down.
+
+A slip in this shift's probing, recorded so that no reader is misled by
+it. The probe directory's `lib` was a symbolic link to the repository's
+`.msl`, so the 30 small models of this section (`Fm*`, `Ext*`, `Nx*`,
+`Pg*`) were written into the root of the library checkout. They were
+untracked there and no corpus pass ran while they stood, so no number in
+this repository was read over them. They now live in
+`/tmp/m720/small/models` (list in `moved.txt` beside it). The link is
+gone and `.msl` reads clean. Every model path in this section has been
+corrected to the new place. The `--only` results above stand, because
+each one names its own class.
