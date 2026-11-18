@@ -84235,3 +84235,21 @@ blocks for the OpAmp examples: `Derivative.mo` line 8 reads
 `parameter SI.Time T "Time constant";` with no value, and `Der.mo`
 line 6 the same for `f`. A refusal naming the parameter is the right
 answer for all 25, and the row is no work for the compiler.
+
+### Four more queue rows, by what they name
+
+"Unbalanced, nothing is left" (5): `Fourbar1` (1999 equations for 1990
+unknowns, the MultiBody loop already under Roman's word) and four
+StateGraph helpers (`CompositeStep`, `CompositeStep1`, `CompositeStep2`,
+`MakeProduct`), each with two equations too many on
+`initStep.inPort[1].occupied` or `inPort.occupied`, a port a containing
+graph would connect. "Singular Jacobian" (6) has no common layer: a
+quasi-static rectifier, `PumpingSystem` (a clamp candidate),
+`SMPM_CurrentSource`, two MultiBody constraint or wheel loops and
+`LossyGearDemo2` on its quadrant flags. "Equations of loop do not
+mention" (4): `Spice3BenchmarkDifferentialPair` on `der(Q2.vbx)` (the
+Spice3 bipolar family of the underdetermined row), `GearType2` on
+`bearingFriction.sa`, and the MultiBody loops `RevoluteConstraint` and
+`PlanarFourbar`, already under Roman's word. The "new" row (5) is the
+clamp candidates `R134a1`, `R134a2`, `MoistAir1`, `MoistAir2` and
+`HeatExchangerSimulation`, all heavy-basket models named above.
