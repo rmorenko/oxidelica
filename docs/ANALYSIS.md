@@ -85913,8 +85913,10 @@ singular-Jacobian text, which this print does not reach.
 binary `ox26`): the singular block has five unknowns, and its rows 2 and 3
 are the same row of the Jacobian, `[0, 0, -2.667, 0, 2.667]`. Row 2 is the
 gear's `a_a = ... gear.sa - tauLoss/unitTorque` and row 3 the bearing
-friction's `a_relfric = ... bearingFriction.sa ...`. Neither row reads
-`bearingFriction.sa` (column 3), which only row 4 touches. So the gear and its
-bearing both tie the same shared acceleration to the same torque, and the
-bearing's own `sa` is left to a single row. Two friction elements on one
-flange, each with its own mode variable, count one degree of freedom twice.
+friction's `a_relfric = ... bearingFriction.sa ...`. At this point both
+rows move only along `gear.sa` and `gear.flange_a.tau`, and row 3 has a
+zero in the column of `bearingFriction.sa` although its text names it, so
+the branch taken is not the one that reads it. Which branch that is, the
+trail does not say. What it does establish is the narrow fact: two rows of
+the block coincide to every printed digit, so the block is singular by a
+duplicate row, not by a small pivot.
