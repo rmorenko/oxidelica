@@ -83972,3 +83972,24 @@ those nine (FlueGasSixComponents and Essotherm650) are refused by the
 bound itself, through an assertion. These nine are the ones that a
 clamp of the bounds could reach, and the seven are not. No probe was
 run and no code was built. The table is read from the print of m716.
+
+### The desk's spread, counted the way the runner's was
+
+From `/tmp/m715/aa_pairs.txt`, leaving out m676's first pair (two cache
+settings, d = -0.648), there are sixteen neighbour pairs with equal
+`work:` md5. Their absolute ratio differences sorted give a median of
+0.0145 (between 0.013 and 0.016), a second worst of 0.041
+(m687/preflight2 against m688) and a worst of 0.082 (m693 against
+m705). Grouped by md5 like the runner's logs, the five groups spread
+by 0.009 (8669bc31), 0.029 (18b4f68f), 0.041 (2a036aa3), 0.046
+(a1d8661c) and 0.089 (d4648d53). The median group spread is 0.041.
+
+Two spreads of the second worst pair make a desk threshold of 0.082,
+and the worst pair sits on it exactly. So 0.082 is a lone tail: it is
+twice the next pair, and it alone makes d4648d53 the widest group
+(without m705 that group runs 0.520 to 0.583, a spread of 0.063). The
+desk is noisier than the runner pair by pair (the runner's group of
+nine spreads by 0.045 over nine runs, the desk's widest by 0.089 over
+eight prints), which fits the desk sharing its machine with other
+work. The m693 against m705 pair is not dug further, as the earlier
+note decided.
