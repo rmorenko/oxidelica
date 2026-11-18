@@ -83494,3 +83494,73 @@ mass fraction can be negative. Read this way, our number is plausible
 and the bound comes from the library's test, so the refusal is honest.
 The value itself was not checked against a reference, so this reading
 is not yet a verdict.
+
+## Census after the seven came back, shift m714
+
+### What the census printed
+
+`scripts/refusals.sh .msl both` on 93580fd (`/tmp/m714/census.txt`, raw
+half in `/tmp/m714/raw.txt`) printed 1026 example models, 985 flatten
+and 854 run. Counted between the section headers, 41 models would not
+flatten (21 rows) and 131 flattened and would not run (26 rows). The
+run half of m709 (`/tmp/m709/rows.tsv`) named 126 models. Taken model
+by model (`/tmp/m714/rows.tsv`), the 126 are all still there with the
+same text, and five are new: `HeatExchangerSimulation` (start block of
+162 unknowns), `R134a1` and `R134a2` (the Newton direction of the
+volume pressure loop), and `ReferenceAir.MoistAir1` and `MoistAir2`
+(initialization singular). These are exactly the five of the seven
+returned models that m712 measured as flattening without running
+(`/tmp/m712/seven.out`, 7 flatten and 2 run). The rows they join grew
+as follows: "the Newton direction" from 5 to 7, "do not pin down" from
+2 to 4, and "start block" is a new row of 1. No model left the list.
+
+### ThreePhaseTransformerWithRectifier: the surplus is in the model
+
+The full refusal reads 21 initial conditions and 4 pinned starts for
+23 states. The written section is 12 equations: the example's three
+`derHstat = 0` and the three Tellinen core initial equations. Nine
+starts are taken as conditions: `H` of the three cores, three primary
+and three secondary winding currents. The four pinned states are
+`core1.MagRel`, `core2.MagRel` and both capacitor voltages. The class
+`Transformer3PhaseYyWithHysteresis` fixes all three secondary currents
+with `I2Fixed[1]` (lines 180, 187 and 194 all read `fixed=I2Fixed[1]`),
+the example sets `I2Fixed={true,false,false}`, and the secondary star
+point is grounded, so the three currents are tied by one node. Fixed
+`H` and fixed currents also both pin the same magnetic circuit. The
+count is a fact about what the model writes, and the gate counts it
+correctly. With the extra fixings taken out (`/tmp/m714/T1.mo` to
+`T3.mo`), the model is square and the next wall is that the
+initialization does not converge in 50 Newton iterations. Verdict: an
+honest refusal of the model. Its address is the square gate in
+`compile.rs`, where the text is formatted.
+
+### SimpleNaturalGas: a mass state the composition already gives
+
+`why ... volume.m` gives `der(volume.m) = volume.mb_flow` as the only
+equation that would determine it at the start. This medium sets
+`reducedX = false` (`IdealGases/Common/package.mo:584`), so `nXi = 6`
+and `der(mXi[1..6])` are states beside `der(m)`. `sum(Xi) = 1` makes
+`m` the sum of the `mXi`, so one state is redundant, and nothing pins
+`volume.m`. `SimpleNaturalGasFixedComposition` runs. This is not an
+open input, so it is not part of No.66. The stage that owns it is the
+choice of states in index reduction. The census label "2 init singular"
+covered two different rows. The transformer has been in the "not
+square" row all along, and the m709 label was wrong for it.
+
+### The dddX value checked by hand
+
+`Modelica.Media.Air.MoistAir.density_derX` (`MoistAir.mo:1231`) gives
+`dddX[Water] = -p (R_steam - R_air) / (((R_steam - R_air) X_w +
+R_air)^2 T)`. At the test's state (`reference_p = 101325`, `reference_T
+= 298.15`, `reference_X = {0.01, 0.99}`), with the molar masses of
+`H2O` and `Air` from `SingleGasesData`, it comes to -0.71093. We gave
+-0.711. The value is right, and the bound `min = 0` is the test's own
+declaration, so the refusal is honest. This closes what m713 left
+open.
+
+### The queue after this shift
+
+`/tmp/m714/cards.txt` (a copy of the m709 cards with this shift's
+lines) leaves two cards unmarked. Both are in the
+"13 unbalanced/determines" row, and that row belongs to No.66. Outside
+the No.66 families, no row of the run half is unmapped.
