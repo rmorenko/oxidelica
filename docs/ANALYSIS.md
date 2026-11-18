@@ -84708,3 +84708,24 @@ So at most two of the seven underdetermined names turn on the floor,
 and only as far as this one test: the second order of scaling in
 `reads_underdetermined` also has to pass before either would go on. The
 floor is Roman's to decide; this is its price, not a proposal.
+
+### Fifteen more queue names, one batch
+
+Same binary, witnesses `/tmp/m720/h_<name>.env`, every run printing
+runnable 0. Seven refuse on a parameter with no binding in the library
+(`Block_Recipe_TBD` on `startTime`, `FieldWeakeningController` on
+`VNominal`, `WeibullDensity` on `lambda`, `DcdcInverter` on `fS`,
+`BlockMain` on `Recipe1.startTime`, `NormalDensity` on `mu`,
+`ImpureRandom` on `samplePeriod`). Three batch plant adapters and
+buffers hold connectors and no equations (0 for 25, 80 and 40
+unknowns). `AxisType2` (278 for 280) and `DirectInductor` (30 for 31)
+are short by their open flanges or pins.
+
+Three are the other way round and deserve a second look: the StateGraph
+helpers `MakeProduct` (113 equations for 111 unknowns), `CompositeStep2`
+(52 for 50) and `CompositeStep1` (191 for 189) have two equations too
+many each. All three carry an `outer stateGraphRoot` that flattening
+supplies with the class's defaults at the top, and a surplus of exactly
+two looks like that supplied root writing its own equations beside the
+ones the step already has. That is a reading, not a measurement: the
+next probe is `oxidelica why` on the root's variables in `MakeProduct`.
