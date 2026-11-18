@@ -84253,3 +84253,14 @@ Spice3 bipolar family of the underdetermined row), `GearType2` on
 `PlanarFourbar`, already under Roman's word. The "new" row (5) is the
 clamp candidates `R134a1`, `R134a2`, `MoistAir1`, `MoistAir2` and
 `HeatExchangerSimulation`, all heavy-basket models named above.
+
+### The tsat pair of the queue
+
+`TwoPhaseWater.BaseProperties` and `ExtendedProperties` refuse on IF97
+`tsat` called at p = 0 Pa. `oxidelica why` on `p` shows the cause: the
+model is the medium's own `BaseProperties` redeclared as an example, its
+pressure is an input with no binding, and the flattened model carries
+`p = 0` for the unconnected top-level input. The medium then refuses
+below the triple point, which is the right answer for a property record
+run with nothing driving it. Worth a later look is only whether a
+top-level input should be a zero at all or a refusal naming it.
