@@ -84607,3 +84607,30 @@ shape, an inductor `L * der(i) = v` with `3 * i = 0` beside it
 inductor alone is not the wall: the singularity needs the machine around
 it, and the next probe is to shrink the real model rather than grow
 this one.
+
+#### SMPM_ResistiveBraking shrunk, five links
+
+The real model was shrunk rather than a synthetic one grown, all on
+`/tmp/m720/ox22`, models in `/tmp/m720/small/`:
+
+1. `S1`, the example copied whole: refuses on `3 * smpm.lszero.i = 0`.
+2. `S2`, its initial equations and `idq_sr` removed: the same refusal,
+   so the start is not the wall.
+3. `S3`, the machine with a Y terminal box, one resistor, a star and a
+   ground, nothing else: the same refusal. With a delta box (`S4`) it
+   flattens and fails at the first step instead.
+4. `P2`, the stator alone out of library parts as
+   `PartialBasicInductionMachine` wires it (resistor, `SpacePhasor`,
+   the zero inductor between `zero` and `ground`, the leakage inductor,
+   `i_0_s` with `StateSelect.prefer`) behind the same Y box: simulates.
+   `Lz`, `Z2`, `S5` to `S8`, smaller variants of the zero inductor in an
+   isolated star, all simulate.
+5. So the wall needs what `S3` has and `P2` does not: the air gap
+   `AirGapR` with its rotor-fixed currents `idq_sr` declared
+   `StateSelect.prefer`. In `S3` the leakage current `lssigma.i_` is
+   chosen as a state while `airGap.i_sr` and `idq_sr` stay algebraic,
+   and the zero-sequence current is left with an equation that
+   constrains no state.
+
+The next link is `P2` plus `AirGapR` and the permanent magnet, which is
+where the shrinking stops today.
