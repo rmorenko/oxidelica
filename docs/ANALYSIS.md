@@ -84634,3 +84634,11 @@ The real model was shrunk rather than a synthetic one grown, all on
 
 The next link is `P2` plus `AirGapR` and the permanent magnet, which is
 where the shrinking stops today.
+
+Link 6, `P3` (`P2` plus `AirGapR`, a `PermanentMagnet` and a constant
+speed): it no longer reaches the zero-sequence equation and refuses
+earlier, on an algebraic loop over the air gap's angle, rotation matrix
+and `i_sr` whose equations do not mention part of its unknowns. So the
+air gap changes which wall is met first; the hand-built drive of `P3`
+is not yet the machine's own (`S3`), and the chain stays open at this
+link.
