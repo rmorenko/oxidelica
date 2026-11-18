@@ -83534,16 +83534,27 @@ initialization does not converge in 50 Newton iterations. Verdict: an
 honest refusal of the model. Its address is the square gate in
 `compile.rs`, where the text is formatted.
 
-### SimpleNaturalGas: a mass state the composition already gives
+### SimpleNaturalGas: the steady start of a full-composition medium
 
 `why ... volume.m` gives `der(volume.m) = volume.mb_flow` as the only
 equation that would determine it at the start. This medium sets
 `reducedX = false` (`IdealGases/Common/package.mo:584`), so `nXi = 6`
-and `der(mXi[1..6])` are states beside `der(m)`. `sum(Xi) = 1` makes
-`m` the sum of the `mXi`, so one state is redundant, and nothing pins
-`volume.m`. `SimpleNaturalGasFixedComposition` runs. This is not an
-open input, so it is not part of No.66. The stage that owns it is the
-choice of states in index reduction. The census label "2 init singular"
+and `mXi[1..6]` are states beside `m`. A first reading in this shift
+blamed a redundant mass state. Small models refuted it:
+`/tmp/m714/SNG1.mo` (the medium in a `ClosedVolume` without ports)
+runs, and `/tmp/m714/SNG3.mo`, which is the test with
+`system(energyDynamics = DynamicFreeInitial, massDynamics =
+DynamicFreeInitial)`, runs too. So the wall is the test's
+`SteadyStateInitial`. Its section (`Fluid/Interfaces.mo` after line 619)
+writes `der(medium.p) = 0`, `der(medium.T) = 0` and six
+`der(medium.Xi) = 0` for eight states. Since every port composition
+sums to one, `der(m)` equals the sum of the `der(mXi)` in value, though
+not in structure, and the Newton matrix loses the rank that would pin
+`m`. `SimpleNaturalGasFixedComposition` has no `Xi` states and runs.
+This is not an open input, so it is not part of No.66. Whether the
+refusal is honest, or whether a least-squares start should accept a
+singular matrix that is consistent, is a question for the init solver,
+and it is left open here. The census label "2 init singular"
 covered two different rows. The transformer has been in the "not
 square" row all along, and the m709 label was wrong for it.
 
