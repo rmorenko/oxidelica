@@ -85283,3 +85283,15 @@ whole example is refused in reduction on `R.T[1,1]`. The cluster is
 therefore a refusing reproduction of the same subsystem, not yet shown
 to be the same wall. It is offered as the next shift's starting point,
 `Pg2` being the smallest, at four seconds.
+
+`Pg2` under `OXIDELICA_UNDERDET_DETAIL=1` (witness
+`/tmp/m720/small/Pg2_d.env`, output `Pg2_d.txt`): a block of one unknown,
+`freeMotion.a_rel_a[3]`, raw and scaled column both exactly zero at
+t = 0, and the print names no row coupling it. It is a dead column, the
+shape found earlier for `Spice3BenchmarkRtlInverter`, not a small pivot,
+so the floor plays no part here. The planar cluster has inertia 2, 2 and
+4 about the three axes, so no physical freedom is missing. What is
+missing is the equation that ties the third relative acceleration into
+the block chosen for it. The next probe is `why Pg2
+freeMotion.a_rel_a[3]`, and it is left for the next shift so as not to
+start a chain at the end of this one.
