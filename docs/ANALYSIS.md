@@ -86652,3 +86652,12 @@ that, and the next small model has to bring the air gap's coupling of
 the windings or the star point's zero-sequence inductor. The reading
 above is therefore narrowed: the switch is present in three of four
 blocks, and its presence alone has been shown not to suffice.
+
+A third small model (`/tmp/m722/small/OpenStar3.mo`): a three-phase
+source through three open ideal switches into a star of inductors whose
+star point is grounded nowhere. It also simulates to the end. So
+neither the open switch nor a floating star of plain inductors leaves
+the block underdetermined; what remains of the machine is the air
+gap's magnetic coupling and the zero-sequence inductor, and the next
+small model has to carry one of them, most cheaply by instantiating a
+machine with its terminals behind open switches.
