@@ -84593,3 +84593,17 @@ equations for 76 unknowns. All three live in a `Components` package and
 are used with their electrical pins connected from an enclosing example;
 left open, a winding's current has nothing to fix it. They join the
 eleven helper classes above under question 66.
+
+### The singular row: five names, one of them runnable
+
+Same binary, witnesses `/tmp/m720/q_<name>.env`. `AnalysatorDC`,
+`PermeanceActuator`, `SimpleSolenoid` and the op-amp `Feedback` refuse as
+structurally singular on a pin current fixed at zero (`nv.i = 0`,
+`p.i = 0`, `n.i = 0`, `p1_2.i = 0`) and print runnable 0: open pins of
+helper classes, question 66. `SMPM_ResistiveBraking` is the one runnable
+name, already mapped in shift m698 as a single. A small model of its
+shape, an inductor `L * der(i) = v` with `3 * i = 0` beside it
+(`/tmp/m720/small/Lz.mo`), simulates to the end. So the zero-sequence
+inductor alone is not the wall: the singularity needs the machine around
+it, and the next probe is to shrink the real model rather than grow
+this one.
