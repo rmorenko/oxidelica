@@ -86458,3 +86458,12 @@ t = 7.2e-14, so the run stalls almost at once and the recompile at that
 point is what refuses. The row's `OneAxis` is therefore a stall that the
 state re-selection could not mend, reported in the words of index
 reduction.
+
+Counted over the whole row (`/tmp/m722/r29/start_vs_run.txt`: `why`
+on `.msl` for the start compile, `library check` with the Newton trail
+for the run): 24 of the 29 are refused by the first compilation, and
+five (`SMPM_ResistiveBraking`, `ActuatorWithNoise`, `OneAxis`,
+`FullRobot`, `Engine1a`) compile at the start, run Newton steps (31 to
+9856 trail lines) and are refused by the stall recompile. Those five are
+a run-time stall worded as index reduction, a family of their own
+inside the row.
