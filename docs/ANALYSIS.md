@@ -85956,3 +85956,15 @@ clamp candidates, since they are not a step leaving a bound but a bound
 the library got wrong. `Essotherm650` (`Pr` = 1.95e7 above its max of
 1e5) and `DynamicPipeClosingValve` (initialization unconverged in 50)
 were probed in the same batch and stand as the census has them.
+
+### Eight more queue rows on the head, unchanged
+
+Probed in one batch with `/tmp/m721/ox24` (`/tmp/m721/t5_*`, witness
+beside each): `Engine1a`, `PointGravityWithPointMasses2` and
+`RollingWheel` (structurally singular), `Engine1b_analytic` (parameters
+it cannot evaluate, the `e_ia` family parked under question 93),
+`GearType1` and `ThreePhaseTransformerWithRectifier` (initialization not
+square, 2 against 2 and 21 against 4), `SimpleNaturalGas` (singular
+initialization) and `TestSuddenExpansion` (a loop solved on both sides).
+Each refuses with the text the chapter already carries for it, so none
+of them moved between m714 and this head.
