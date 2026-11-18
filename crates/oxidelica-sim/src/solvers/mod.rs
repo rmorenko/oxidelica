@@ -3005,6 +3005,24 @@ impl CompiledModel {
             }
             return Ok(());
         }
+        // The same print as for an underdetermined block, on the last
+        // Jacobian the iteration stood on: a loop that will not close
+        // can be near a direction it cannot move along, and the pivot
+        // and that direction say whether it is. Print only.
+        if underdet_detail() {
+            if let Some(raw) = last_jac.as_deref() {
+                let mut scaled = raw.to_vec();
+                crate::linear::equilibrate_both(&mut scaled, columns_first());
+                print_underdetermined(
+                    &block_names(),
+                    &v,
+                    raw,
+                    &scaled,
+                    t,
+                    (residual_sources, inner_sources),
+                );
+            }
+        }
         err_of(
             Refusal::Unconverged,
             format!(

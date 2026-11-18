@@ -85812,3 +85812,26 @@ outputs and witnesses in `/tmp/m721/`.
   null direction of the machine blocks". The `underdetermined loop` row
   is two causes, then: the `m_bInit` branch (Spice3, three models) and
   index reduction on the air gap (machines, four).
+
+### Pivot and null direction on ThreeSprings and RollingWheelSetPulling
+
+The underdetermined print now also fires on the refusal "did not
+converge in N Newton iterations", on the last Jacobian the iteration
+stood on (binary `/tmp/m721/ox25`, outputs and witnesses
+`/tmp/m721/nd_*`). The work counters equal those of m719 to the digit
+(574 Newton and 1046 damped, 1230 and 2396), so the print does not
+change the outcome. The two models separate cleanly:
+
+- `RollingWheelSetPulling`: all 16 prints are a block of 32 with the
+  smallest raw pivot between 4e-15 and 4e-12. It is singular to the
+  arithmetic at every start. The null direction is
+  `revolute1.a : body1.a_0[1]` at +0.691 / -0.691, one acceleration
+  counted twice. This is the "wrong first direction" of the trail, and
+  its cause is a block the matching left rank-deficient.
+- `ThreeSprings`: six prints. Blocks of 31 have a scaled pivot of 3e-4
+  to 1e-2, which is well conditioned, with a null direction along the
+  spring geometry (`r_rel_0`, `e_rel_0`). The block determines its
+  solution, and Newton stalls on the floor without being singular.
+
+So the pair is two different problems. One is structural (a rank defect
+near 1e-14), the other numerical (a stall in a regular block).
