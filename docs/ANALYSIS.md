@@ -86675,3 +86675,16 @@ the start. The off conductance that let the small models run does not
 help here: what is undetermined is the air gap and the rotor cage, which
 a stator winding with no current leaves free. This is the shape of the
 three switch machines in the row, now shown on one by removing it.
+
+Correction to the line above, the same shift. A small model
+(`/tmp/m722/small/StepAt0.mo`: `BooleanStep(startTime=0)` driving
+`der(x)`) reads `s.y = 1` in its first output row at t = 0 and
+integrates from there, so `startTime=0` is not read as open at the
+start in the run. What the `SMEE_DOL` shrink shows stands: closed
+before the start it runs, closing at 0 or later it is refused. But the
+refusal is underdetermined in the start block, before the first row is
+written, so the likelier reading is that the initialization sees the
+switch's value before the event at t = 0 fires (its `pre`, false), and
+the run after it sees true. That is a hypothesis about the order of the
+initial event, not yet probed, and the line "startTime=0 counts as open
+at the start" is withdrawn in its favour.
