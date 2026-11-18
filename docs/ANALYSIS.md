@@ -84789,3 +84789,16 @@ the chain holds is narrower: the isolated star plus the machine's air
 gap refuses (`S3`), the isolated star without it runs (`P2`), and
 opening the star (`S11`) trades the refusal for a start the run cannot
 leave. The chain stays open between `P2` and `S3`.
+
+Link 9, the victim print on `S3` (`OXIDELICA_VICTIM_PROBE=1`, output in
+`/tmp/m720/small/S3_victims.txt`): nine reductions go through the air
+gap and the rotor (`psi_ms`, `psi_mr`, the flange angles), and the tenth
+takes the Y box's `terminalBox.starpoint.i = 0`. Its victim is
+`smpm.lszero.i`, its reach holds only `lssigma.i_[1]` and `lszero.i`,
+both weighed 0, and nothing has been spent. So the wall is the tenth
+reduction finding, after the air gap's nine have taken their states,
+that the zero-sequence constraint reaches no state it may still demote.
+`P2`, with no air gap, never builds those nine. The chain now ends at a
+named reduction and a named reach; why the differentiated constraint
+reaches the leakage current at weight 0 rather than through it is the
+question for whoever takes index reduction next.
