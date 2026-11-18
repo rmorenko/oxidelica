@@ -83742,3 +83742,13 @@ still not pinning down `volume.U`. So which starting quantity the test
 picks does not matter. The sibling `ReferenceAir.MoistAir`, a property
 test with no volume, runs (`/tmp/m712/seven.out`). The wall sits in
 `PortVolume` with this medium, and it stays open.
+
+For `R134a1`, `why volume.medium.p` (`/tmp/m715/why_r1.txt`) gives the
+loop unknown a `min = 0`. The second Newton step takes it to
+-2.53e6 Pa, which breaks that bound, and from there the residual is
+0.971828 to six figures for any step. The column is dead on that side,
+because the property functions of `R134a_ph` stop varying at negative
+pressure. The step is not held to the declared `min` of the unknown it
+moves. That is the specific wall here, and it is not the pipe uphill
+of m686. A bound-respecting step is a solver change and is parked with
+the damped-step family as a question, not built.
