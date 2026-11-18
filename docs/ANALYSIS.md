@@ -84223,3 +84223,15 @@ The "Newton direction" row (5) is the pipe family named above
 `TestTemperature1` on `volume1.medium.p`, all five clamp candidates; the
 two MultiBody loops listed beside them (`RollingWheelSetPulling`,
 `ThreeSprings`) refuse on Newton convergence and belong to another row.
+
+### The parameter row of the queue has no defect in it
+
+All 25 models of the queue row "parameter has no value"
+(`/tmp/m714/rows.tsv`) declare the named parameter with no binding in
+the library source. Twenty are under `Utilities`, `BaseClasses` or
+`ExampleUtilities`. The other five, `OpAmpCircuits.Der`, `Derivative`,
+`FirstOrder`, `Integrator` and `PI`, sit in a package of building
+blocks for the OpAmp examples: `Derivative.mo` line 8 reads
+`parameter SI.Time T "Time constant";` with no value, and `Der.mo`
+line 6 the same for `f`. A refusal naming the parameter is the right
+answer for all 25, and the row is no work for the compiler.
