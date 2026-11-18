@@ -87093,3 +87093,25 @@ among them, so `length(aux)` is zero there and `e_long_0` NaN. All
 three MultiBody members of the NaN row are a loop started at zero for
 unknowns that the model's geometry keeps away from zero: an
 orientation matrix or a length clamped at `s_small`.
+
+What the specification says about the `below min` refusal, read by the
+consultant from specification.modelica.org (version 3.6, no local copy)
+and passed on: section 4.8.1 for `Real` (and 4.8.2 for `Integer`)
+defines `min` and `max` through an equation
+`assert(min <= value and value <= max, ...)`; section 4.7, definition
+4.3, calls values outside them not legal; and `assert` defaults to
+`AssertionLevel.error`, which aborts the current evaluation. What it
+does not say is whether that applies during initialization: the
+section on initialization does not mention `assert`. Our refusal fires
+exactly there, at the start. So the refusal itself is the standard's
+behaviour, and the open question is only the stage.
+
+The library's defect is a separate matter and is not the same question.
+`Modelica/Units.mo` lines 298 to 302 give `type Density = Real(...,
+min=0.0)`, and `Media/package.mo` line 4435 declares
+`output Density[nX] dddX`, a derivative of density, with that type,
+while its sisters have types of their own (`DerDensityByPressure`,
+`DerDensityByEnthalpy`, `DerDensityByTemperature` at lines 6684 to 6690,
+`DerDensityByEntropy` at 6848). The library's error is in the type; the
+compiler's question is in the stage of the check. Nothing was changed
+in either direction.
