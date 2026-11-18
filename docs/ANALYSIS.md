@@ -86467,3 +86467,16 @@ five (`SMPM_ResistiveBraking`, `ActuatorWithNoise`, `OneAxis`,
 9856 trail lines) and are refused by the stall recompile. Those five are
 a run-time stall worded as index reduction, a family of their own
 inside the row.
+
+### The whole queue by the compilation that refuses it
+
+The same split over all 131 models of `/tmp/m714/rows.tsv`
+(`/tmp/m722/sv/*.txt`, `class.txt`, `run.env`): 112 are refused by the
+first compilation, which `why` runs, and 19 compile and are refused
+later, in the run or in the stall recompile. The 19 by row: the five of
+`29 singular` above, five pipes of `5 Newton direction`
+(`BranchingPipes2`, `3`, `4`, `SeriesPipes1`, `TestTemperature1`),
+both `tsat`, both `below min`, `Essotherm650` (`above max`), the two
+arithmetic-floor rectifiers, `Nand` and `LossyGearDemo2`. So `why` is
+the right instrument for 112 of the queue and silent on 19, and a probe
+of one of those 19 has to be a run, not a `why`.
