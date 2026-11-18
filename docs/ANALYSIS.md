@@ -86502,3 +86502,17 @@ seven the equations naming the input are the same set in both, and the
 (`PathToAxisControlBus` asked by its element `q[2]`, since `why` takes
 the vector name as nothing). The snapshot trap is real for `why`
 without a path, but it did not touch this question.
+
+### `Fourbar1`: nine too many is one orientation matrix
+
+`Fourbar1` (`/tmp/m722/fourbar1.txt`) is refused with 1999 equations
+for 1990 unknowns. The source declares six joints in one closed loop
+and no cut joint, `Connections.root` or `branch` of its own
+(`grep` on `Fourbar1.mo` finds none). Nine is exactly the size of a
+frame's orientation matrix `R.T`, which a closed kinematic loop
+over-determines once: the overdetermined-connector rules of chapter 9.4
+remove that redundant set by breaking the loop's spanning tree. The
+count says the loop is closed without that break being made. This is a
+reading from the numbers and the source, not yet a probe of the
+connection graph, and it is the one member of `5 unbalanced/left` that
+is an example rather than a helper.
