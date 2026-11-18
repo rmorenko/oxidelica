@@ -86929,3 +86929,23 @@ initialization models split three ways: `AmplifierWithOpAmpDetailed`
 and `SimpleNaturalGas` singular in the start Newton step,
 `ThreePhaseTransformerWithRectifier` 21 + 4 for 23 states, and the
 RobotR3 helper `GearType1` 2 + 2 for 3, a helper again.
+
+### How many of the queue carry no `experiment`
+
+Counted over the library text, not by name (`/tmp/m723/helpers.tsv`):
+for each of the 131 models of `/tmp/m714/rows.tsv` the class body was
+cut from its file between `model|block|class Name` and `end Name;` and
+read for `experiment(`. 63 carry an `experiment`, 1 only the
+`Icons.Example` mark, and 67 neither. By row the 67 are `25 param` 25 of
+25, `29 singular` 15, `13 unbalanced/determines` 13 of 13,
+`5 unbalanced/left` 4, `6 cannot evaluate` 3, `7 underdetermined` 2,
+and one each in `singular-diff`, `4 equations of loop`, `2 tsat`,
+`2 init not square` and `1 unknown function`. So 67 of the 131, about
+half the queue, are classes the library does not mark as runnable, and
+the example filter of question 66 would decide them.
+
+The seven helpers of question 66 that run on a zeroed input are a
+different set: they run, so only one of them, StateGraph's
+`TankController`, is in the queue at all. The two sets meet in one
+model. A row is homogeneous or mixed independently of its size: 25 and
+13 members with one cause each, six members with at least four.
