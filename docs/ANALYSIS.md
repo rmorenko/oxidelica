@@ -85525,3 +85525,14 @@ half cannot be had from the present prints: the main pass of b9c631c
 summary, holds no `work apart:` line, and names none of the 37 models.
 A per-model print on the runner needs a new job or a dispatched one,
 which is his decision. Until then k stays at ten.
+
+How many places in the library are silent the same way, asked of the
+text (a grep over `.msl/Modelica` for `Real name(...)` with a flat
+modifier list). The attribute names found are `start` 183, `unit` 104,
+`min` 93, `fixed` 29, `max` 15, `stateSelect` 2, `quantity` 2 and
+`displayUnit` 1. Every one is a predefined attribute, so on this form
+the library has no misspelling for the check to catch, and building it
+would refuse no model that runs. The count covers only one written form:
+nested modifiers, `SI.` types and component modifiers are not in it.
+The check's value is for models written outside the library, which is
+the user this compiler serves.
