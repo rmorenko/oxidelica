@@ -85038,3 +85038,18 @@ says it was assembled or entered with `off` still true; the difference
 between the two is a question of which pass of the start the machine's
 block is solved in, before or after the event at zero is taken. That is
 the narrowest statement the instruments allow today.
+
+The trails show the order. `Sw3` solves its block at t = 0 first from
+`|f| = 10` (the switch read open, `Goff`, no current yet), and then a
+second time from the answer `R.i = 9.9999` (closed): the start takes a
+first pass with the pre-event `off` and a second pass after the event
+at zero. `Fm3` refuses on the first pass, the one with `off` still
+true, before the event that would close its switches is ever taken. So
+the mechanism is now stated by the instruments: the first pass of the
+start solves under the switches' pre-event state, a resistive block
+survives that pass and a machine block behind open ideal switches does
+not, and the refusal on the first pass ends the start before the second
+pass can close them. Whether a block refused as underdetermined on the
+pre-event pass should be held over to the post-event pass is a question
+for the start's event handling, and for Roman; the pair `Fm3` / `Fm4`
+is its test.
