@@ -85098,3 +85098,13 @@ than a missing modifier (`GearType2`, `SpeedControl`, `ExtendedProperties`,
 want of a modifier or a connection are 50 - 3 - 5 = 42, not 41. The two
 Spice3 transistors were read from the census pass, not probed alone, and
 are outside this count.
+
+### The dear five of the queue
+
+Run alone on `/tmp/m720/ox23` (witnesses `/tmp/m720/d_<name>.env`, each
+capped at 10 GB): `BatchPlant_StandardWater`, `HeatingSystem`,
+`PointGravityWithPointMasses2`, `Engine1a` and `PlanarFourbar` each
+refuse with the same words, to 45 characters, as in `rows.tsv`, so with
+the 61 above the whole queue of m714 stands unmoved. Their prices alone:
+flattening 204 s, 85 s, 14 s, 39 s and 29 s; refusing 1 s, 1 s, 28 s,
+60 s and 66 s.
