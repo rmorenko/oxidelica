@@ -85896,3 +85896,15 @@ taken out. So the direction is well defined, and the refusal is about
 the residual's shape along it, not a singular Jacobian. The null
 directions lean on enthalpy flows (`H_flows`, `ports_H_flow`) and
 pressures, which suggests a flow reversal, but the print does not prove it.
+
+### The singular-Jacobian row under the same print
+
+Binary `/tmp/m721/ox26`, outputs and witnesses `/tmp/m721/sj_*`.
+`RollingWheelSetDriving` prints 18 times at t = 0, on a block of 32 with
+a raw pivot of 2.6e-12 and a scaled one of 7e-5. The null direction is
+`prismatic2.v : rolling1.vContact_0[2]` at 0.707 each, one velocity
+counted twice. That is the same rank defect as `RollingWheelSetPulling`
+(an acceleration counted twice there), so the two wheel sets are one
+cause at two orders of derivative. `LossyGearDemo2`, `SMPM_CurrentSource`
+and `UniversalConstraint` refuse at a different site of the
+singular-Jacobian text, which this print does not reach.
