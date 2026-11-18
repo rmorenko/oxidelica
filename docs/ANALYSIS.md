@@ -85219,3 +85219,13 @@ the modifier bound. Above it was checked by a changed outcome. A probe
 whose outcome does not change cannot tell a dead knob from a misspelt
 one. This is the more general finding of the two and goes to the review
 first.
+
+The queue's `constrains no state` row (20 names in
+`/tmp/m714/run_texts.tsv`) read at its largest package: `OpAmpCircuits`
+`Add`, `Buffer` and `Feedback` carry no `experiment` annotation and
+extend `PartialOpAmp`, pins open to whoever holds them. `n2.i = 0` on an
+unconnected pin is exactly what the language writes there, so the
+refusal is correct, the same verdict as the 42 helpers of question 66.
+The rest of the row's packages are mostly `Utilities` and `Components`,
+which suggests the same, but they were not read one by one. That count
+is left open rather than claimed.
