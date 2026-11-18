@@ -85574,3 +85574,16 @@ The matching-order switch moves nothing. The answer's address for a cure,
 a retry of the matching behind the present refusal, is not refuted by
 any of this, but its mechanism is not confirmed either. The chain stays
 open at the block's assembly, now with these five rows as its evidence.
+
+The block's own trail (`/tmp/m720/small/own/pg/Pg16_trail.env`, output
+`Pg16_trail.txt`): one line, `newton 0 t=0 |f|=0e0 v=[0.0] f=[0.0]`. The
+residual is already exactly zero at the start value, and the column is
+zero. The block is satisfied by any `a_rel_a[3]`, which is consistent
+with a residual that does not depend on its unknown at this point, and
+says nothing about which row it is. The trail prints no equation, so
+the answer's prediction about the row's form (an entry `T[1,3]`,
+`T[2,3]` or `m1 T[2,3] - m2 T[1,3]`) is neither confirmed nor refuted by
+the instruments on hand. A print of the torn residual's expression is
+the missing instrument, and it is a print behind a switch, the same
+kind as this shift's `OXIDELICA_UNDERDET_DETAIL`. It is not built in
+the minutes left.
