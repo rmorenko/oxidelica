@@ -85518,3 +85518,10 @@ them). `Nx5`, `Real x(start = 1, fixed = true, min = 0.5)` with
 0.36787951 without a word. One letter turns a refusal the model asked
 for into a number past its own bound. That is the clearest test of the
 three, and the one to write first when the modifier check is built.
+
+The k table closed for this shift, as a question for Roman. The runner
+half cannot be had from the present prints: the main pass of b9c631c
+(`/tmp/m720/b9c_main.log`, 665 lines, 115906 bytes) prints only its
+summary, holds no `work apart:` line, and names none of the 37 models.
+A per-model print on the runner needs a new job or a dispatched one,
+which is his decision. Until then k stays at ten.
