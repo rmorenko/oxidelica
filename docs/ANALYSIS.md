@@ -86902,3 +86902,19 @@ with p = 0 at the start, one cause. `2 below min`: both `dddX[1]`
 negative at the start, one cause. `2 der not state`: both a medium
 temperature asked as a state (`BranchingDynamicPipes`, `HeatingSystem`),
 one cause.
+
+### The two `below min` models are the library's own bound
+
+`why` on `.msl` (`ox30`): in `ModelicaTest.Media.TestAllProperties.MoistAir`
+the refused `dddX[1]` is declared with `min: 0` (a density type) and
+defined as `-(state.p * (461.53 - 287.05)) / ((...)^2 * state.T)`,
+negative for every positive pressure and temperature. So the value the
+start computes, -0.71, is the right value of that equation, and what
+refuses the model is the `min` of the declared type, which the
+definition can never satisfy. `FlueGasSixComponents` fails the same
+bound on the same name. The row is one cause and it is not a numerical
+one: whether a violated `min` should refuse a run or only warn is a
+question for Roman, not a fix. In the `tsat` pair `TwoPhaseWater`'s
+`state.p` is bound by `p = state.p` with `min: 611.657`, and the start
+calls `tsat` with p = 0, so there the start never read a pressure at
+all; that is a different shape and was not followed further.
