@@ -172,6 +172,63 @@ fn newton_trail() -> bool {
     *ON.get_or_init(|| std::env::var_os("OXIDELICA_NEWTON_TRAIL").is_some())
 }
 
+/// Whether a block refused as underdetermined prints what it was
+/// refused on: each unknown with its value, the column of the raw and
+/// of the scaled Jacobian it owns, and the smallest pivot of both.
+/// The refusal names the block and carries no numbers, and two
+/// families that end at it - a capacitance that is zero at the start
+/// and a machine whose air gap nothing pins - cannot be told apart
+/// without them. Print only: off by default, and on it reads nothing
+/// the refusal does not already hold.
+fn underdet_detail() -> bool {
+    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ON.get_or_init(|| std::env::var_os("OXIDELICA_UNDERDET_DETAIL").is_some())
+}
+
+/// The print `OXIDELICA_UNDERDET_DETAIL` asks for, to stderr.
+fn print_underdetermined(names: &[&str], v: &[f64], raw: &[Vec<f64>], scaled: &[Vec<f64>], t: f64) {
+    for line in underdetermined_lines(names, v, raw, scaled, t) {
+        eprintln!("{line}");
+    }
+}
+
+/// The lines of that print: the smallest pivot of the raw and of the
+/// scaled Jacobian, each unknown with its value and the largest entry
+/// of its column in both, and each raw row by the unknowns it names.
+fn underdetermined_lines(
+    names: &[&str],
+    v: &[f64],
+    raw: &[Vec<f64>],
+    scaled: &[Vec<f64>],
+    t: f64,
+) -> Vec<String> {
+    let pivot_raw = crate::linear::smallest_pivot(&mut raw.to_vec());
+    let pivot_scaled = crate::linear::smallest_pivot(&mut scaled.to_vec());
+    let mut lines = vec![format!(
+        "UNDERDET t={t} n={} smallest pivot raw={pivot_raw:e} scaled={pivot_scaled:e}",
+        names.len()
+    )];
+    let column = |m: &[Vec<f64>], j: usize| m.iter().map(|row| row[j].abs()).fold(0.0f64, f64::max);
+    for (j, name) in names.iter().enumerate() {
+        lines.push(format!(
+            "UNDERDET   col {j} {name} = {:e}  |raw col| = {:e}  |scaled col| = {:e}",
+            v[j],
+            column(raw, j),
+            column(scaled, j)
+        ));
+    }
+    for (i, row) in raw.iter().enumerate() {
+        let entries: Vec<String> = row
+            .iter()
+            .enumerate()
+            .filter(|(_, x)| **x != 0.0)
+            .map(|(j, x)| format!("{}:{x:e}", names[j]))
+            .collect();
+        lines.push(format!("UNDERDET   row {i} [{}]", entries.join(", ")));
+    }
+    lines
+}
+
 /// Whether a re-selection compiles the run afresh with the stop time
 /// and output step of the model's annotation, as it did before, rather
 /// than with the ones the caller set. Off by default; the switch
@@ -1644,6 +1701,9 @@ impl CompiledModel {
                 singular =
                     crate::linear::reads_underdetermined(&raw, columns_first(), one_order_only());
             }
+            if singular && underdet_detail() {
+                print_underdetermined(&block_names(), v, &raw, &jac, t);
+            }
             if singular {
                 return err(format!(
                     "underdetermined algebraic loop {:?}: the equations do not determine a unique solution",
@@ -3114,6 +3174,25 @@ impl CompiledModel {
             }
         }
         Ok(jac)
+    }
+}
+
+#[cfg(test)]
+mod underdetermined_print_tests {
+    use super::underdetermined_lines;
+
+    // A block whose second unknown appears in no equation: the print
+    // has to name that column as the dead one and give the pivot as
+    // zero, since telling a dead column from a small one is all the
+    // print is for.
+    #[test]
+    fn the_dead_column_is_named_with_its_value() {
+        let raw = vec![vec![2.0, 0.0], vec![4.0, 0.0]];
+        let lines = underdetermined_lines(&["x", "c"], &[1.5, 0.0], &raw, &raw, 0.0);
+        assert!(lines[0].contains("raw=0e0"), "{}", lines[0]);
+        assert!(lines[1].contains("x = 1.5e0") && lines[1].contains("|raw col| = 4e0"));
+        assert!(lines[2].contains("c = 0e0") && lines[2].contains("|raw col| = 0e0"));
+        assert_eq!(lines[3], "UNDERDET   row 0 [x:2e0]");
     }
 }
 

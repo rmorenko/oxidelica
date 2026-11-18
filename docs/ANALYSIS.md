@@ -84431,3 +84431,112 @@ would tell them apart is the null column of the block at refusal: which
 unknown the rank test found it could not pin. The refusal leaves that
 out, it names only the whole block. That is the next instrument, not a
 reading.
+
+## Shift m720: the NaN runners from the bounds print, and the underdetermined print
+
+### Twenty-one runners through NaN, read from the bounds print
+
+Read from `/tmp/m716/bounds.txt` (the corpus `STEP_BOUNDS` print) against
+`/tmp/m716/risk.txt` (57 runners at risk), no new runs. Models with any
+`= NaN` bounds line: 28. Of them running: 21, which agrees with the count
+of shift 672. Table in `/tmp/m720/nan_table.tsv`. "First event" is the
+model's first bounds line in the print; "NaN lines" counts lines of the
+print, not events of the run.
+
+| model                            | first event | NaN lines | last NaN t | last real t |
+| -------------------------------- | ----------- | --------- | ---------- | ----------- |
+| Spice3 Oscillator                | NaN         | 3/3       | 0.00125    | none        |
+| InverseParameterization          | real        | 31/47     | 0          | 0           |
+| TestJunctionVolume               | real        | 12/56     | 8e-6       | 0.001       |
+| TestWaterPumpCheckValve          | real        | 19/29     | 0.002208   | 0.002208    |
+| TestWaterPumpDefault             | real        | 17/25     | 0          | 0           |
+| TestWaterPumpNPSH                | real        | 17/25     | 0          | 0           |
+| TestWaterPumpPowerCharacteristic | real        | 19/27     | 0          | 0           |
+| TestWaterPumpStorage             | real        | 19/27     | 0          | 0           |
+| IdealMixing1                     | real        | 2/11      | 0          | 0           |
+| TestValvesIncompressibleReverse  | NaN         | 2/2       | 0          | none        |
+| TestMixingVolumesPressureStates  | real        | 75/128    | 0.0008     | 0.0008      |
+| BranchingPipes1                  | real        | 120/158   | 0.001      | 0.001       |
+| BranchingPipes13                 | real        | 96/120    | 0.0008     | 0.0008      |
+| BranchingPipes14                 | real        | 167/215   | 0.001      | 0.001       |
+| LumpedPipeInitialization         | NaN         | 29/49     | 0          | 0           |
+| SeriesPipes2                     | real        | 94/116    | 0.001      | 0.001       |
+| DryAirNasa                       | NaN         | 6/32      | 0          | 0           |
+| MoistAir                         | real        | 6/32      | 0          | 0           |
+| IdealGases.Air                   | NaN         | 6/32      | 0          | 0           |
+| IdealGases.Nitrogen              | NaN         | 6/32      | 0          | 0           |
+| IdealSteam                       | NaN         | 6/44      | 0          | 0           |
+
+In 14 of the 21 the first bounds event carries a real number, so the
+step left its bounds before any NaN appeared; in 7 (Oscillator, the
+reverse valves, LumpedPipeInitialization and four media tests) NaN is
+already in the first event. The print does not say whether a NaN dies
+out, since every model in it runs to the end: what it does say is that
+in 11 the last NaN line stands at t = 0 (the start), in 9 more it stands
+inside the first millisecond, and only the Oscillator carries NaN to
+0.00125 with no real line at all. So on this print a bound clamp would
+act before the NaN in 14 and could only act alongside it in 7; whether
+the 14 are healed or harmed by a clamp the print cannot tell, because
+all of them already run. That is the number for the clamp question:
+14 of 21 leave their bounds first, 7 meet NaN first, none of them is
+lost today.
+
+### The underdetermined block, printed
+
+A new print, `OXIDELICA_UNDERDET_DETAIL`, off by default, prints at the
+refusal the smallest pivot of the raw and the scaled Jacobian, each
+unknown with its value and largest column entry, and each raw row. It
+reads only what the refusal already holds and changes no branch. Binary
+`/tmp/m720/ox22`, md5 ad2e5f761f1bad15a0a5ff2de27ce929, witnesses in
+`/tmp/m720/u_*.env`.
+
+The two Spice3 adders are one block of one unknown, and its coefficient
+is not zero: `der(Q4.vbe)` in NAND and `der(X9.Q4.vbe)` in ONEBIT, each
+with a single raw entry of -1e-12 at t = 0 and a pivot of 1e-12. The
+singularity test compares the pivot with 1e-7 of the matrix's largest
+entry floored at one (`scale.max(1.0)` in `reads_singular`), so a
+one-by-one block whose only coefficient is a picofarad-sized capacitance
+reads as singular however well determined it is. The guess "zero
+capacitance at the start" is refuted: it is a small capacitance judged
+against an absolute floor. Whether the floor of one is right is a
+question about the solver, and this shift does not touch it.
+
+The machines are a different family. SMEE_DOL refuses a block of 26 at
+t = 0 with pivots 1.4e-8 raw and 3.2e-9 scaled; IMS_Start_Polyphase a
+block of 80 with 6.4e-9 and 3.7e-9. In both every scaled column has a
+largest entry of one: no column is dead, the deficiency is a combination
+of live columns. The air gap's voltages and fluxes stand at zero (or
+1e-33) at the refusal. Which combination is null this print does not
+carry; it would need the null vector, the next instrument.
+
+### Queue row "equations of loop": GearType2 probed
+
+`RobotR3.Utilities.GearType2`, probed with `/tmp/m720/ox22`
+(`/tmp/m720/q_GearType2.env`): one Newton step at t = 0 on the block
+`bearingFriction.sa` with the residual standing at 21.8 and moving not at
+all. The model is a utility component of the robot with both flanges
+left open, not an example with an experiment (the runnable count of its
+run is 0), so the residual has nothing that could turn the friction's
+free variable into a value. It belongs to the question of helper
+classes counted as examples, already open as question 66, and not to
+the solver.
+
+### Queue row "equations of loop": the Spice3 differential pair beside the adders
+
+`Spice3BenchmarkDifferentialPair` (`/tmp/m720/q_DiffPair.env`, same
+binary) refuses at t = 0 because its one-unknown block `der(Q2.vbx)` is
+not mentioned by its own equation at all. The adders above carry a
+coefficient of -1e-12 on the same kind of unknown and refuse on the
+pivot floor. So the Spice3 row is one shape at two strengths: a
+derivative of a junction voltage whose capacitance is tiny in the adders
+and exactly absent in the pair. Which capacitance is zero in the pair is
+not in this print; `oxidelica why` on `Q2.cc.capbx` is the next probe.
+
+Asked with `oxidelica why` on the same tree: the pair's only equation on
+the unknown is `Q2.icapbx = if Q2.m_bInit then 0 else Q2.cc.capbx *
+der(Q2.vbx)`. At t = 0 the initialization flag holds, the branch taken
+is the constant 0, and `der(Q2.vbx)` leaves the residual. The zero is
+written by the library, not lost by the compiler: what is open is
+whether a derivative that only an `m_bInit` branch hides should be left
+to the state's own equation at the start, which is a question about the
+solver and not taken here.
