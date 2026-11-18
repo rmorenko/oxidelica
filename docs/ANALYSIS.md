@@ -87083,3 +87083,13 @@ zero before that equation has been solved. So the MultiBody shape is
 a loop started from a guess the model's own clamp forbids, not a model
 that divides by zero, and the same holds for the wheel sets' `aux`
 under the square root if their guard reads the same way (not read).
+
+The wheel sets read the same way. `RollingConstraintVerticalWheel`
+writes `aux = cross(e_n_0, e_axis_0)` with `e_n_0 = {0,0,1}` and
+`e_axis_0` resolved from `frame_a.R`, so `aux` is zero only if the
+orientation matrix is, which no orientation is. The trail's start
+iterate has every unknown of the block at 0.0, the matrix entries
+among them, so `length(aux)` is zero there and `e_long_0` NaN. All
+three MultiBody members of the NaN row are a loop started at zero for
+unknowns that the model's geometry keeps away from zero: an
+orientation matrix or a length clamped at `s_small`.
