@@ -83424,3 +83424,73 @@ A third thing is about reading a job at all. A job's log can be
 fetched through the API as soon as that job is done, while the rest of
 the run is still going; the run-level log cannot, and waiting for the
 whole run cost an hour before this was tried.
+
+## Four small walls mapped, shift m713
+
+Item 1 of the note (the basket redeal) was carried out by the boss before
+this shift (6449b50, cbb6403), so this shift probed four refusal rows and
+changed no code. All probes were run with `/tmp/m713/ox14`, built from
+cbb6403. The small models are kept in `/tmp/m713`.
+
+### The inverse block row is two walls
+
+`InverseBlockConstraints` is not the wall. On its own it works: in
+`/tmp/m713/Inv.mo` it inverts a `FirstOrder` with `NoInit`, and the
+model runs with `y1 = y2 = 0.628` at t = 0, which is `der(sin)` over
+the inverted lag. With `SteadyState` the same model is refused for an
+honest reason: a steady start contradicts a sine input that is moving.
+
+`FilterOrder` is a helper class, not an example. `c_ref` is an open
+top-level input, and the walk reads it as 0. So the inverted plant is
+asked for `c = 0`, and `der(c) = -wa11*c - wa12*gamma + wa13` at `c = 0`
+becomes `0 = wa13`, which does not hold. The refusal is right. Driven by
+a source (`/tmp/m713/Drive2.mo`, `Drive3.mo`), the model gets further and stops
+on the algebraic loop for `mixingUnit.T`. With the source's values that
+loop has no solution near the start, so it is refused either as
+"underdetermined" or as "no step". This belongs with the helpers of
+No.66.
+
+`ControlledMixingUnit` is refused on `inverseBlockConstraints.y2`, which
+is reported as discrete and "never assigned by a when clause", and on
+`u1`, which is reported as assigned twice in one `when sample(0, 1)`.
+The input `filter.y -> inverseBlockConstraints.u1` comes from a
+continuous filter that the clock discretises
+(`PeriodicRealClock(solverMethod = "ExplicitEuler")`). So the clock
+partition pulls the inverse block into the clocked partition, and the
+inversion has to be done inside the discretised partition. That is the
+clocked-continuous wall, not the inverse block. The row is two walls,
+one model each, and it is not one family.
+
+### SpeedControl waits for clock inference
+
+`previous` works under a clock that names its period. In
+`/tmp/m713/Prev.mo`, `when Clock(0.1)` with `previous(x)` runs and ends
+at x = 2.1. Under `Clock()`, an inferred clock with no period, with
+`interval()` (`Prev2.mo`), the same body is refused as `unknown function
+previous`, and the place is `code.rs`. `SpeedControl` is written exactly
+that way. Its clock comes from its user, so the wall is clock inference.
+The message names the wrong thing: it should say "inferred clock" and not
+an unknown function.
+
+### The two tsat models are not related to m711
+
+`why Modelica.Media.Examples.TwoPhaseWater.BaseProperties p` lists `p`
+with `bound to: nothing` and the equation `p = 0`. `p` is the medium's
+`InputAbsolutePressure`, an open input. Both `BaseProperties` and
+`ExtendedProperties` are medium models and not examples, and m683 has
+already recorded them that way. The zero is the open input itself, and
+no start sends Newton anywhere. So this is a different family from the
+m711 IF97 start, and it belongs with the open-input helpers of No.66.
+
+### The two "below min" models
+
+`ModelicaTest.Media.TestAllProperties.FlueGasSixComponents` and
+`MoistAir` are refused at t = 0 because `dddX[1]` is below its min of 0
+(-1.214 and -0.711). The declaration is `Medium.Density dddX[nX] =
+density_derX(state)`, at `.msl/ModelicaTest/Media.mo:40`. The test
+declares a derivative of density with the type `Density`, which carries
+`min = 0`, and the derivative of an ideal-gas density with respect to a
+mass fraction can be negative. Read this way, our number is plausible
+and the bound comes from the library's test, so the refusal is honest.
+The value itself was not checked against a reference, so this reading
+is not yet a verdict.
