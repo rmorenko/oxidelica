@@ -85536,3 +85536,13 @@ would refuse no model that runs. The count covers only one written form:
 nested modifiers, `SI.` types and component modifiers are not in it.
 The check's value is for models written outside the library, which is
 the user this compiler serves.
+
+Widened to `SI.` types, `Integer` and `Boolean`: `start` 861, `min` 341,
+`displayUnit` 98, `fixed` 70, `stateSelect` 60, `max` 19, all predefined.
+The few other names the grep returned (`table`, `startTime`, `period`,
+`nout`, `k`, `y` and two more) were read at their lines and are
+parameters of block classes the pattern caught by prefix, such as
+`Sources.BooleanTable table(table = ...)`, not attributes. So there is no
+misspelt attribute on the predefined types in `.msl/Modelica` on either
+form. Component modifiers, where `Nx1` and `Nx2` live, cannot be counted
+by grep, since telling a misspelling from a real name needs the class.
