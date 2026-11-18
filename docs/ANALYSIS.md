@@ -85016,3 +85016,14 @@ hangs on `Goff` alone, and `Sw0` does not contradict it, since its
 inductor current is fixed and an open switch leaves it determined. It
 remains a reading until the value of `off` inside that block is
 printed.
+
+Measured, not read: in `Fm3`'s refused block the current equation of
+each closer carries `closer.idealClosingSwitch[k].s` with the raw
+coefficient -1e-5, which is `Goff` (the voltage rows carry 1 to 2, the
+`unitCurrent` side with `off` true). So the start block of `Fm3` is
+solved with the switches open, although the step's output at t = 0 is
+true: the start system reads `off` before the step has turned. The
+machine then hangs on 1e-5 siemens alone, and the rank test refuses it.
+That is the family's mechanism, with `Fm3` / `Fm4` as its test.
+Whether the start should see the step's value at t = 0 is a question
+about event handling at the initial instant, for Roman.
