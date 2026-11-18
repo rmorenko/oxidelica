@@ -85108,3 +85108,19 @@ refuse with the same words, to 45 characters, as in `rows.tsv`, so with
 the 61 above the whole queue of m714 stands unmoved. Their prices alone:
 flattening 204 s, 85 s, 14 s, 39 s and 29 s; refusing 1 s, 1 s, 28 s,
 60 s and 66 s.
+
+The call path, found by reading after the probe named the line: the
+rank test that refuses `Fm3` is asked with validation on by one caller
+only, `check_block_regularity` (`compile.rs`), which solves the whole
+plan once at t = 0 "before any event", so that "a block here reads the
+discrete values at their template". Its retry fires the `when initial()`
+assignments and asks again, but returns the first refusal unchanged
+when no such assignment writes anything, and it does not re-ask the
+discrete definitions such as an ideal switch's `off = not control`. A
+`BooleanStep` writes no `when initial()`; its output is a definition.
+So the switches stand at their template `off = true` for the whole
+check and the machine is judged hanging on `Goff`. That is the
+mechanism with its address. The cure would be the event iteration's own
+re-ask of discrete definitions, applied in this check too, which is a
+change to the solver's start and is left to the review: it is not built
+here, the solver being frozen for this shift.
