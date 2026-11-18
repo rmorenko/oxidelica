@@ -85163,3 +85163,13 @@ sees is that of a magnetic circuit with no current path. With the
 switches open, the machine's currents are fixed only through `Goff` and
 the star point, and the block cannot settle how flux and current divide.
 The switch is the context here, not the culprit.
+
+The same block's dependence on the open conductance, measured on `Fm5`
+with only `Goff` changed (witnesses `/tmp/m720/small/Fm6_1e1.env`,
+`Fm6_1e3.env`, `Fm6_1e4.env`, binary md5 `cf32ecf3...`). `Goff = 0.1`,
+`1e-3` and `1e-4` run. The library's own `1e-5` refuses with a smallest
+scaled pivot of 1.14e-8. So the refusal sits within one decade of the
+library default, and the machine family is a question of where the
+floor stands against a path of 1e-5 siemens, not of a structural
+defect. This is the strongest evidence the chapter holds for the
+floor-price question, and it is handed on as such. Nothing was changed.
