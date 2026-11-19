@@ -87706,3 +87706,16 @@ the load voltage is singular. The bridge's own `s` start values are
 the zero start the trail showed. A start of the diodes that sees the
 open load would be the fix, a choice about how ideal switches start,
 and it is left as a question.
+
+`Spice3BenchmarkRtlInverter`, refused as an underdetermined loop of
+the one unknown `der(Q1.vbx)`, is the capacitance that the device code
+has not yet given a value. `oxidelica why` shows the only equation
+naming the derivative is `Q1.icapbx = if Q1.m_bInit then 0 else
+Q1.cc.capbx * der(Q1.vbx)`, with `Q1.cc.capbx` written by the
+external-style `bjtNoBypassCode` record and starting at 0. The trail
+(`/tmp/m724/rtl.txt`, command `rtl.env`) has one iterate, at t = 0,
+`v = [0] f = [0]`: the coefficient of the unknown is zero at the start,
+so the loop is refused before the run. The same `if m_bInit` guard is
+meant to hold the capacitor current at zero during initialization;
+the block sees the `else` branch with its coefficient of zero instead.
+Not yet shrunk.
