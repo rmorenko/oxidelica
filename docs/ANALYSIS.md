@@ -92539,3 +92539,15 @@ guess that does not move with the perturbation, or `U` starts at 0 J,
 far from the 9.3e3 J the converged medium implies, on a branch of the
 moist-air enthalpy that is flat there. The next instrument is the same
 print with `U` started at its implied value.
+
+Read against the code that built that column
+(`crates/oxidelica-sim/src/compile.rs` near line 10241): the step for a
+column at zero is 1e-7 absolute, and the comment beside it records the
+same symptom on `TestWaterPumpStorage` (m350), a volume's `U` column
+exactly zero because a step of 1e-7 is finer than the inner blocks are
+solved to, cured there by lengthening the step up to 1e-3. That cure is
+taken only under `any_swapped`, when a row was swapped onto its
+balances. `MoistAir1` meets the same symptom without it. The
+construction of the Jacobian is under the ban, so this is a named
+mechanism and a question: whether the longer read should also apply
+where a column comes back exactly zero with no swapped row.
