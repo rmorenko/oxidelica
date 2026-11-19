@@ -88292,3 +88292,12 @@ the split of the current between them is not settled. It is the same
 shape as the four FundamentalWave machines placed above, there with
 the machines' converters beside the switches. Placed together, not
 shrunk.
+A three-phase bridge of ideal diodes into a resistor runs
+(`/tmp/m724/small/PB.mo`), so a loop of switches sharing current is
+not enough on its own; the two corpus rectifiers add a load or a
+measuring delta that this one lacks. A side finding of the same
+probes, outside the 91: one ideal diode feeding an inductor and
+resistor, with a second diode freewheeling across them, is refused
+for handling more than 10000 events at `t = 0.02`, the instant the
+source turns negative (`DB.mo`). That is a chattering commutation
+between two ideal diodes, worth a paragraph of its own.
