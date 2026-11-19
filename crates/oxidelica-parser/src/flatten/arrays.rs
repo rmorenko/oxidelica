@@ -687,6 +687,21 @@ pub(super) fn expand(
     answer
 }
 
+/// The `actual` argument of a `homotopy` call: the one named so, or the
+/// first argument given by position.
+fn homotopy_actual(arguments: &[Expr]) -> Option<Expr> {
+    let named = arguments.iter().find_map(|argument| match argument {
+        Expr::NamedArg(name, value) if name == "actual" => Some((**value).clone()),
+        _ => None,
+    });
+    named.or_else(|| {
+        arguments
+            .iter()
+            .find(|argument| !matches!(argument, Expr::NamedArg(..)))
+            .cloned()
+    })
+}
+
 /// Whether a matrix bracket holding a single array of three dimensions
 /// or more is read as that array rather than as rows and columns.
 ///
@@ -1802,6 +1817,23 @@ pub(super) fn expand_call(
                     .into_iter()
                     .map(Value::scalar)
                     .collect::<Result<Vec<_>, String>>()?;
+                // `homotopy(actual, simplified)` means its `actual`
+                // argument outside the homotopy method of
+                // initialization, which this compiler does not run. Left
+                // a call, the whole of it went to the scalar resolver,
+                // where a refusal met in `actual` came back as a bare
+                // `?` from a top-level equation even though the same
+                // refusal, met inside a function body, was caught and
+                // handled (`TestWallFriction`). Taking `actual` here -
+                // by name when it is named, the first positional
+                // argument otherwise - keeps the only part that carries
+                // meaning, as the scalar path would have read it. OXIDELICA_NO_HOMOTOPY_CATCH puts
+                // the old path back, for pairs and bisections.
+                if name == "homotopy" && std::env::var_os("OXIDELICA_NO_HOMOTOPY_CATCH").is_none() {
+                    if let Some(actual) = homotopy_actual(&scalars) {
+                        return Ok(Value::Scalar(actual));
+                    }
+                }
                 return resolve(
                     &Expr::Call(name.to_string(), scalars),
                     shapes.loop_vars,

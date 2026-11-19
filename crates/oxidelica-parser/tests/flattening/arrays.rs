@@ -2241,3 +2241,30 @@ fn a_length_handed_down_with_a_modifier_travels_with_it() {
         .expect("the block's output is solved for");
     assert!(format!("{y:?}").contains('3'), "{y:?}");
 }
+
+/// `homotopy` means its `actual` argument outside the homotopy method
+/// of initialization, and the flattened model carries that argument
+/// alone - taken by name when it is named, by position otherwise.
+/// Left a call, the whole of it went to the scalar resolver, and a
+/// refusal met in `actual` came back as a bare `?` from a top-level
+/// equation, where the same refusal inside a function body was caught
+/// (`TestWallFriction`).
+#[test]
+fn homotopy_flattens_to_its_actual_argument() {
+    for (written, actual) in [
+        ("homotopy(actual = x * x, simplified = x)", "x"),
+        ("homotopy(simplified = x, actual = x * x)", "x"),
+        ("homotopy(x * x, x)", "x"),
+    ] {
+        let m = parse_model(&format!(
+            "model H Real x(start = 1); Real y; \
+             equation der(x) = -x; y = {written}; end H;"
+        ))
+        .expect("a homotopy flattens");
+        let said = format!("{:?}", m.equations);
+        assert!(
+            !said.contains("homotopy") && !said.contains("simplified"),
+            "{written} kept more than its actual argument ({actual}): {said}"
+        );
+    }
+}
