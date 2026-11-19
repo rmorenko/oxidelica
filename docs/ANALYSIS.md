@@ -90334,3 +90334,16 @@ conditions) is never offered to these outflow variables. That is a
 candidate mechanism, a start drawn from `nominal`, on one model. It
 is shown by a trail and by reading, not by a small model, and nothing
 was changed.
+
+`PumpingSystem` now has a trail (`/tmp/m728/ps_trail.txt`,
+`ps_trail.env`, `ox51`). The 15 by 15 Jacobian of the refused block at
+`t = 0` has three rows that reach only the first two columns,
+`pumps.medium.p` and `pumps.medium.T`. Row 0 is the pump's
+`h = waterBaseProp_pT(...)[5]`, row 1 is its density, and row 2 is the
+head equation, `pumps.head = if pumps.s > 0 then ... else ...`. Row 2
+has no entry in the column of `pumps.s` (column 3). With `s` at its
+start of 0 and `N` at 0 through `PT1`, the head equation reads in the
+point as a function of the pressure alone. Three rows over two columns
+is a rank deficit at the point. The mechanism is the zero-speed start
+named above from the library's text, now seen in the matrix. Level:
+trail. Not changed.
