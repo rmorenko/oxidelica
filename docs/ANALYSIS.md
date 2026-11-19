@@ -90265,7 +90265,9 @@ trails (`/tmp/m727/sp1_trail.txt`, `tr_BranchingPipes2.txt`,
 At iteration 0 there is no step to shorten, because the point came
 from the integrator: in `SeriesPipes1` (line 223) the time step to
 0.0008 starts from an unknown at 6.2e9, left by the solve at 0.0003
-that converged to it. The NaN iterates later in a run are the retreat
+that converged to it. (Corrected in shift m731: that run belongs to the
+second attempt, with the state swap, whose refusal is discarded; see
+"Question 132 read in the attempt that answers".) The NaN iterates later in a run are the retreat
 itself, and in `MeasuringTemperature` it halves from iteration 17 to
 20 with every point still NaN, so it ran out of room. The rule's
 probe, built as written, would change nothing: what kills the six
@@ -90598,7 +90600,10 @@ choice. For moist air, 1e6 J/kg lies beyond the top of the
 temperature search. In the five pipe models, though, the NaN point at
 iteration 0 is the integrator's step (`SeriesPipes1` line 223: an
 unknown at 6.2e9 left by the converged solve at the step before), not
-the seed. So the seed from `nominal` is shown for one model
+the seed. (Corrected in shift m731: the NaN base points are all in the
+second attempt, whose refusal is discarded, and the first attempt of
+all five has none; see "Question 132 read in the attempt that
+answers".) So the seed from `nominal` is shown for one model
 (`TestJunctionTraceSubstances`), and the five carry a different start,
 from the previous point. They are two mechanisms and not one.
 
@@ -91180,7 +91185,8 @@ occurs once in the census of the full measure (`/tmp/m714/raw.txt`,
 
 Set beside the run half, the eight walls say what the next work is.
 In the run half one lever covers many models (question 132 covers
-eight, the matching lever eight), while the flattening half is eight
+eight, the matching lever eight; both withdrawn in shifts m730 and
+m731, see "No lever left in the run half"), while the flattening half is eight
 mechanisms for eight models and is taken one model at a time.
 
 ### The twelve structurally singular, and a friction family across texts
@@ -91937,3 +91943,81 @@ hypotheses killed, and the corpus blind to all five. The rule for
 choosing work that follows: to move the gates, take what the measure
 sees; to make the compiler right, take the small models, and do not
 write their price in models.
+
+## Shift m731: question 132 read in the attempt that answers, the twenty "constrains no state", and the empty reach
+
+### Question 132 read in the attempt that answers
+
+A model whose first run refuses in a way the state swap may help is
+compiled a second time with the swap (`crates/oxidelica-cli/src/main.rs`,
+`run_a_little`), and whatever the second attempt says, the model answers
+with its first refusal. The NaN at iteration 0 and the unknown at 6.2e9
+that question 132 was built on are in the second attempt. A probe
+printing the names of a block at its iteration 0 (binary `/tmp/m731/ox1`,
+patch `/tmp/m731/probe_names.patch`, not in the tree; the work counters
+under it equal those without it, 1515 points and 2725 Newton steps on
+`SeriesPipes1`) shows two blocks: the first attempt's six unknowns
+(`pipe1.mediums[1].p`, `valve.dp_turbulent`, ...) and the second
+attempt's eight unknowns named `...$sw`, which converge at t = 0.0003 to
+`p$sw` of -1.3e10 and `h$sw` of 6.2e9. Counted before the first `$sw`
+line in each trail (`/tmp/m731/{sp1_names,BranchingPipes2,
+BranchingPipes3,BranchingPipes4,TestTemperature1}.txt`), the first
+attempt has no NaN at iteration 0 in any of the five. Its refusal is the
+same in all five: a step from a finite, converged base point lands
+where the medium answers NaN (a pressure below zero), the step is cut
+back down to a lambda of 2e-6 to 1.5e-5, and the iteration stalls on a
+residual of 3.8e4 (1.7e3 in `TestTemperature1`), at t = 0.0008 in the
+four pipes and t = 0.0002 in `TestTemperature1`. So question 132 stays
+one kind across the five, but its mechanism is the handling of the step,
+which is not ours to change by hand. A map and a question, not a repair.
+Level: probe on five corpus models, with a control.
+
+### The twenty "constrains no state", by name
+
+The 20 rows of `/tmp/m714/rows.tsv` whose text is `constrains no state`
+were each run on today's tree with `--only ... --refused` from one
+binary `/tmp/m731/ox0`; the names, the runnable mark and the size of
+the singular subset are in `/tmp/m731/ss20.tsv`. All 20 refuse with the
+same text as on 18 November, 19 of them with the `nor did the N other
+equations` tail (N from 2 to 31) and `SMPM_ResistiveBraking` without it.
+Only 4 are runnable examples (`BatchPlant_StandardWater`,
+`PointGravityWithPointMasses2`, `SMPM_ResistiveBraking`,
+`TanksWithOverflow`). The other 16 are components out of `Utilities` or
+example packages whose connectors are open (`n2.i = 0`, `G.i = 0`,
+`flange_b.f = 0`), and for them the refusal is honest: a small model
+`/tmp/m731/C1.mo`, a resistor with both pins open, refuses with the
+same text (`p.i = 0` constrains no state, nor did the 2 others), and
+grounding a pin (`C2.mo`) or both (`C3.mo`) turns it into an
+unbalanced count instead. Those 16 are an argument in question 66, the
+filter of examples, and not a ground to take anything out of the
+measure. Level: twenty corpus models and three small ones.
+
+### The empty reach of the matching lever
+
+`init: written <medium>.T = <medium>.T_start reaches []` was read in
+shift m730 on the eight models of the matching lever. A probe printing,
+for each written condition that reaches nothing, the kind of every
+name it reads (binary `/tmp/m731/ox2`, patch
+`/tmp/m731/probe_reach.patch`, not in the tree; refusal and work equal
+with and without it) answers why: in `PumpingSystem` 4 of 4 and in
+`HeatingSystem` 10 of 10 such conditions name a variable that a
+simultaneous block solves for, and the walk follows explicit
+assignments only, by a rule written in the tree (`compile.rs`, grep
+`Only what an explicit assignment computes is followed`), which cites
+the `FreeBody` regression it prevents. In the second attempt the same
+conditions reach their own state. `TanksWithOverflow` and
+`BatchPlant_StandardWater` print no `init:` line at all: they refuse
+before initialisation, at the structural singularity above. So the
+empty reach is the deliberate coarseness of one rule, not a missing
+edge. Level: probe on four corpus models.
+
+### No lever left in the run half
+
+The run half was read as standing on levers: the matching lever
+(eight), question 132 (eight) and the twelve "constrains no state".
+All three are now withdrawn by measurement: the matching lever by
+`NO_PAIR_LOST_DEMOTED` (m730), question 132 because its symptom was the
+discarded attempt's (above), and the singular family because 16 of its
+20 rows are open components and 4 runnable. No lever is proven in the
+run half, and its 57 models are, until probed, a scatter of kinds
+rather than families.
