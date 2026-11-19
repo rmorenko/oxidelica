@@ -90616,3 +90616,24 @@ One more control for the steady-start wall: `Glycol47`
 that finds its temperature from its enthalpy by solving, runs in
 `SN7.mo`'s shape. So "a medium whose properties are solved
 internally" does not separate the refusing media either.
+
+### The matching lever, summed by stage
+
+The models whose wall lies in which unknown an equation is matched to,
+by stage, each already named in this chapter. Question 133, a block
+that holds a derivative none of its equations mention:
+`RevoluteConstraint`, `PlanarFourbar`, and
+`Spice3BenchmarkDifferentialPair`, which is outside the gap of 90 (a
+heavy model). A mode chosen on unsolved variables, refused in index
+reduction: `TanksWithOverflow`, `BatchPlant_StandardWater`. A steady
+initial equation on a medium temperature that is not kept as a state,
+refused before the swap to the balance: `HeatingSystem`,
+`BranchingDynamicPipes`. A block with three rows over two columns at
+the start point: `PumpingSystem`. In the gap of 90 that is 2 + 2 + 2 +
+1 = 7 models over four stages, plus one more outside it. These are
+four mechanisms, not one family. What they share is that a change to
+matching or selection would be the place to reach them, and that is
+Roman's word. The sum is the weight of that lever and not of any one
+mechanism. `PumpingSystem` is the weakest member, since its rank
+deficit comes from the library's zero-speed start and may stay even
+with a different matching.
