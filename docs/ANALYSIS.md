@@ -90020,3 +90020,12 @@ ends on runs that converge in one or two steps to `|f|` below 1e-8. So
 the failing iteration count is not in the last runs printed; the
 refusal belongs to an earlier start block, and this probe did not
 find which. Left as a probe, not a placement.
+
+`BatchPlant_StandardWater` was already shown small in m726 and so was
+listed text-only above by mistake. Under `OXIDELICA_WHERE=1` it refuses
+at the same place as `TanksWithOverflow` (`compile.rs:3040`) on the
+same shape: `B5.InnerTankSide[1].port.m_flow = 0`, a port flow set to
+zero that constrains no state. So the two structurally singular fluid
+models are one candidate family, a zero written for a vessel port,
+weight two, level `why` plus the shared site; not a mechanism until
+the stage that writes the zero is named.
