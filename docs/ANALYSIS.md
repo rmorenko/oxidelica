@@ -87636,3 +87636,14 @@ That is a run walking into a far point between two time steps, not a
 start outside the physical range, and the common time for four of the
 five says the same event or input drives them. Which one is the next
 thing to print.
+Read in order, the trail changes that reading. In `SeriesPipes1` the
+first stall is at line 120 of 2723: after two Newton solves at t = 0
+the very first point tried is t = 0.0008, which is a first step of
+the integrator rather than a time in the model (its inputs start at 1
+to 2 s). The stall there is refused by the damping floor, and the
+thousands of iterations that follow are the integrator retrying ever
+smaller steps down to t near 2.8e-9, where one try reads NaN. So the
+four `TestPipesAndValves` models fail on the integrator's first step
+out of a consistent start, and the 0.0008 shared by four of them is
+the length of that first step, not an event. `TestTemperature1` does
+the same at 0.0002.
