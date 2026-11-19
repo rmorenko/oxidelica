@@ -89828,3 +89828,13 @@ So the row is twelve external bodies and one candidate of our own.
 The depth row of the same half held `TestWallFriction`, which this
 shift's catcher now flattens and runs, so that row is six and the
 flattening half 30.
+
+That one is not a way in either. Behind `scanDelimiter` stands the
+file it scans: `readRealParameter` reads each line with
+`Streams.readLine`, which is `external "C" ModelicaInternal_readLine`.
+Were `scanDelimiter` read, the model would meet that external body
+next, so the row is in effect thirteen external walls, with
+`scanDelimiter`'s unassigned output only the first of two. Its output
+is unassigned on the path where `syntaxError` is called, which raises
+an assertion and never returns; the compiler does not know that, which
+is a question of its own and weighs no model.
