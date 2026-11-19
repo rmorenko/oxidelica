@@ -89255,3 +89255,15 @@ structure question and not a convergence one. And the two that
 converge in their longest run refuse in a different block, which this
 cut does not see. One caution: the longest run is taken as the one that
 refuses, and for a model with several blocks that can be wrong.
+
+The correction to `Nand` changes the diagnosis and not the price. That
+the iteration cap is not its lever stands on a different measurement,
+the budget probe above (`/tmp/m725/nand.env`): at 200 the loop
+converges on its 106th iteration, and at 1000 the model dies at the
+next point with the counts equal to the digit. So the swing seen here
+and the cap measured there agree: more iterations carry `Nand` one
+point further and no more. And the name of the group is itself loose,
+since three of the 18 take no Newton step at all. Read by how they
+move, the 18 are three honest rows and a remainder: 10 that stall, 3
+that swing, 3 that are structure, and 2 whose refusing block this cut
+did not reach.
