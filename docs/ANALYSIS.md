@@ -90164,3 +90164,17 @@ Three stages, three rows: 3, 2 and 1, not one family of six. They share
 a neighbourhood, the matching and selection layers, which is worth
 saying beside the open question on matching, and nothing in them was
 changed.
+
+### DynamicPipeClosingValve: a refusal that names the wrong cause
+
+Its trail shows no Newton run longer than three steps (329 runs,
+`/tmp/m727/tr_DPCV.txt`), yet the refusal says "initialization did not
+converge in 50 Newton iterations". Reading `compile.rs` (grep that
+text) explains it: the same words are returned in two places, after
+fifty iterations and also when the start Newton sees the same residual
+vector `stall_after` times in a row. The trail's printing sits on a
+path the start Newton does not reach, so the stall itself is unseen.
+The refusal therefore names a count that was not reached; the wall is
+a residual that stops changing at the start. The text of a refusal is
+not this shift's to change, so this is recorded as a question: the
+stall branch should say it stalled.
