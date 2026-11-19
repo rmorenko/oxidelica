@@ -88155,3 +88155,18 @@ storey per table entry. For `PO.mo` it is not: the counter stops at
 not see, and "one storey" is the wrapper's cost in the wrong
 instrument. Which counter it is stays open, and only that answer
 gives the real number.
+
+The second counter is `resolve` in `flatten/names.rs`, the other place
+that raises the same words. A second probe binary prints its deepest
+`depth` (`/tmp/m724/rdepth.env`). There `PR.mo`, `PO.mo` and `PH.mo`
+all reach 33, one past `MAX_DEPTH`, and `HS.mo` reaches 7. So the
+wrapper adds no storeys at all: the loss call goes past the ceiling
+with or without it. What `homotopy` changes is what passing the
+ceiling costs. Without the wrapper the over-deep expression is
+absorbed (the refusal is caught and the call left for the run, or
+folded to a number), and under the wrapper the same refusal comes out.
+Either way the answer to "how many storeys does `homotopy` add" is
+zero, measured, and the question becomes which catcher of
+`did not come to an end` the wrapper stands between. The candidates are
+the matches on `NO_BOTTOM` in `inlining.rs`, `arrays.rs`,
+`statements.rs` and `equations.rs`.
