@@ -90778,3 +90778,17 @@ orientations of two frames. The refusal is raised in
 `compile.rs:5827`, where pending bindings are kept for a second round
 after the initialisation, so the next step is to ask why that round
 does not settle `n_b`. Placed and reproduced, not changed.
+
+The `_analytic` refusal shrinks to a question of declaration order
+(`/tmp/m728/small/EA8.mo` against `EA10.mo`, commands in `EA.env`).
+Both declare `eRod1_ia[3] = rod1.eRod_ia` in a class that also holds
+`rod1`. Where `rod1` is declared first (`EA8`), the binding is split by
+element as `eRod1_ia[1] = rod1.eRod_ia[1]` and the model runs
+(`exp(-1) = 0.3679`). Where the binding comes first (`EA10`), as it
+does in `JointUSR`, every element is bound to the whole
+`rod1.eRod_ia` with no subscript, and the model is refused with the
+corpus words "nothing gives a value to `jointUSR.rod1.eRod_ia`". So a
+vector binding naming a component declared later in the class is not
+split, and Modelica gives declaration order no meaning. That is the
+compiler's fault and ours, and it is the wall for `PlanarLoops_analytic`,
+`Engine1b_analytic` and `EngineV6_analytic`.
