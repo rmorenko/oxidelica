@@ -92551,3 +92551,13 @@ balances. `MoistAir1` meets the same symptom without it. The
 construction of the Jacobian is under the ban, so this is a named
 mechanism and a question: whether the longer read should also apply
 where a column comes back exactly zero with no swapped row.
+
+The same print on the other three `init singular` rows of the gap
+(`/tmp/m732/ic_*.txt`, commands in `ic.env`): every one has a column
+that is exactly zero in all rows. `MoistAir2` has two, `volume.U` and
+`volume1.U`, both started at 0. `AmplifierWithOpAmpDetailed` has
+`opAmp.v_in`, started at 0, which m729 already read as an equation
+taken by `resistor2.i = 0`. `SimpleNaturalGas` has `volume.m` at
+0.0695, not at zero, so the step-at-zero reading cannot be its whole
+story. Three of the four zero columns sit on unknowns started at zero,
+the case the 1e-7 absolute step is finest for; one does not.
