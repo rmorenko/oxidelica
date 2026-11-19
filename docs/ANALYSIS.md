@@ -89070,3 +89070,19 @@ question: one, `HysteresisModelComparison`, as already narrowed.
 The three remaining numbers have no definition this shift could find
 in the chapter or the state files, and a weight given without one would
 be a number recalled rather than read, so they stay unweighed.
+
+The library side, by hand in small models (`PREF.env`). The wheel and
+the wheel set say `StateSelect.always` for their own coordinates, and
+set to `default` (`RW2.mo`, `WS2.mo`) they refuse word for word as
+before (`RW1.mo`, `WS1.mo`). The free motion of `PG4.mo` says `always`
+through `enforceStates`, and with that off (`PG6.mo`, `prefer` in its
+place) the structural refusal goes and the library's own assertion
+comes in its place: a `PointMass` connected so that nothing computes
+its orientation. So `PointGravityWithPointMasses2` leans on what the
+model says about its states on both sides, the switch and the hand,
+and what stands behind is a model the library itself warns about.
+Counted over the twelve structural refusals among the 60: two move on
+state selection (`FullRobot`, `PointGravityWithPointMasses2`), the
+others hold under the switch, and of the five shown small with a
+stated selection, three hold under the hand as well (`OA9.mo` aside,
+which is the initializer). Not a family: two of twelve.
