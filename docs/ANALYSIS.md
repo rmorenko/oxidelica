@@ -89025,3 +89025,33 @@ equations too many, which is the overdetermined planar loop that
 `RevolutePlanarLoopConstraint` exists to avoid. A witness that the
 planar constraint is the lever needs a crank that runs with something
 else in its place, and none was found this shift.
+
+### How many of the 91 sit on `stateSelect = prefer`
+
+The question asked of `OneAxis` and `FullRobot` was asked of every gap
+model that flattens, 60 of the 91 (`/tmp/m724/gapr.tsv`, the rest do
+not flatten and cannot reach reduction). The instrument is the
+compiler's own switch, `OXIDELICA_NO_STATE_SELECT=1`, which leaves a
+tie that the weights do not settle to the walk instead of to what the
+model said. That is a pair from one binary, ox44, over the same list,
+taken one half after the other (`/tmp/m726/ss/ss.env`, `ref60.txt` off,
+`ref60_nss.txt` on, kinds in `off_kind.tsv` and `on_kind.tsv`).
+
+| Half | Run  | Structurally singular | Run half, s |
+| ---- | ---- | --------------------: | ----------: |
+| off  | 0/60 |                    12 |        1104 |
+| on   | 0/60 |                    11 |        1136 |
+
+Five of the 60 change their wall and none of the 60 runs. Two leave
+the structural refusal, `FullRobot` for an initialization that is not
+square (36 conditions for 34 states) and
+`PointGravityWithPointMasses2` for a singular Jacobian. One goes the
+other way, `PlanarFourbar` from an algebraic loop into a structural
+refusal. The two wheel sets change only which loop refuses. `OneAxis`
+keeps its refusal under the switch (`o_OneAxis1.txt`), so the
+two-models-one-wall finding above holds for the structural form and
+not for the lever. Measured this way, then, `prefer` is no family:
+the switch moves one structural refusal net, out of 12, and wins
+nothing. What the switch cannot see is a `prefer` that matters
+through something other than the tie-break, which is what `OA9.mo`
+changed by hand, so the library side stays open model by model.
