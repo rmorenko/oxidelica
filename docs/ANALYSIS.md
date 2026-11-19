@@ -92155,11 +92155,34 @@ bdf` (first attempt only, `/tmp/m731/SP1b_bdf.txt`) still refuses at
 t = 5.1e-6 on a residual of 3.3e-10, so in the check it is likely the
 swap retry that passes under `bdf`; not separated here.
 
-What is not measured, and is the other half of the number: the victims
-among the 855 that run today, and the price of the run half over the
-whole measure. This series has no corpus pair, so the default method is
-not touched and the four are an upper bound of a win under a probe, not
-a win. The question for Roman is whether a pair under this key may be
+The 47 percent belongs to the sixty, not to the corpus: they are
+refusals and among the slowest models of the measure, and the figure
+does not carry over to the 855 that run. The price on the 855 is not
+measured and needs a pair made with one binary.
+
+The victims were taken with one half, under the key, over the 855 that
+run on this tree (`/tmp/m731/run855.list`, from the run list of
+`/tmp/m730/p64_off.txt`; output `/tmp/m731/bdf855_on.txt`, command in
+`bdf855.env`): 852 run, so three are lost
+(`/tmp/m731/victims855.list`). Each of the three was asked again under
+`--only` with the same binary, with the key and without it
+(`victims855_why.txt`, `victims855_ctl.txt`). All three run without it.
+Under it:
+
+- `ThyristorBridge2mPulse_RLV_Characteristic`: a block accepted on the
+  arithmetic floor after 60 iterations;
+- `RoomCO2WithControls`: an assertion on `ductOut.port_b.C_outflow` at
+  t = 0.001;
+- `HeatLosses`: step size underflow at t = 0, Newton does not converge.
+
+So the switch over the probe's whole reach wins four and loses three,
+a net of one. The price on the 855 is not measured: a time against
+`p64_off.txt` would be a time from another binary, and a pair with one
+binary is owed.
+
+What is not measured, and is the other half of the number: the price of
+the run half over the whole measure. This series has no corpus pair, so the default method is
+not touched. The question for Roman is whether a pair under this key may be
 run. Level: probe pair on sixty corpus models, one binary.
 
 Small against corpus, the sixth time in two days: `bdf` rescues the
