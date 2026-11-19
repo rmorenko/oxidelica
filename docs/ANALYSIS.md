@@ -90029,3 +90029,15 @@ zero that constrains no state. So the two structurally singular fluid
 models are one candidate family, a zero written for a vessel port,
 weight two, level `why` plus the shared site; not a mechanism until
 the stage that writes the zero is named.
+
+The zero is the library's, not the compiler's. `Fluid/Vessels.mo`
+(grep `preventing outflow`) writes, for a port above the fluid level
+and without inflow, `ports[i].m_flow = 0` beside an equation for the
+switching variable `s[i]`; the mode is chosen with `pre(...)` read as
+now at the start (`pre_as_now`, `compile.rs`). `why` lists only the
+equations of the branch taken, which is why the zero looked unowned.
+So both structurally singular fluid models start in the closed mode
+of a high port, and the singularity is that mode's equation set meeting
+the rest of the model, with index reduction asked to reach through a
+constant flow. Level: library text and the compiler's mode reading;
+which side owes the singularity is open.
