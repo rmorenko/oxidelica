@@ -92276,3 +92276,58 @@ stays, the floors are untouched (a probe pair moves no gate). A narrow
 choice inside `auto` would have to win the four without paying for
 `SeriesPipes1`'s 645 s, which by these numbers it cannot, since that
 model is itself one of the four.
+
+### The price split between the four won and the rest
+
+From the `--slow 60` lists of the same pair: the four models `bdf`
+wins account for +556 s of the +758 s (`SeriesPipes1` 96.6 s to
+741.7 s, `BranchingPipes3` 107.3 s to 26.4 s, `TestTemperature1`
+62.3 s to 54.3 s, `PolyphaseRectifier` below a second in both). That
+is the bill for a refusal turned into a run, not a regression. The
+rest is +202 s, 7.6 percent of the off half's 2664 s, so even without
+the winners the price stays above the six percent ceiling. Of the 54
+other models in both top lists, 13 got faster (-156.5 s together) and
+the rest dearer; the largest rises are `BranchingPipes2` (+119),
+`TestMultiPortTraceSubstances` (+88) and `BranchingPipes4` (+73).
+The part of the rest outside the two top lists is not attributed.
+
+### What `auto` chooses on, probed
+
+Read first: under `auto` the explicit solver hands a refused stage to
+`bdf` when the refusal is one a shorter implicit step mends, or when it
+is `Outside` and the explicit solver has already taken a step
+(`EdgeHandoff::AfterAStep`, `crates/oxidelica-sim/src/solvers/dopri.rs`
+near line 363). The comment on `EdgeHandoff` records the wide reading
+as measured in m410: 187 s to win `SeriesPipes2`, 323 s to lose
+`BranchingPipes4`, 2443 s to lose `SeriesPipes1`. That is a different
+intervention from `PROBE_BDF`, which sets `bdf` for the whole run.
+
+Probe: the seven models of the pair (four won, three lost) under
+`OXIDELICA_EDGE_HANDOFF=all`, the same binary `/tmp/m732/ox1`
+(`/tmp/m732/edge_all.txt`, command in `edge.env`). Four run:
+`BranchingPipes3` and all three that `bdf` loses. So the wide handoff
+wins one of the four and costs none of the three. `SeriesPipes1` still
+refuses, after 689.7 s, the same direction as m410's 2443 s at a
+quarter of the price; `TestTemperature1` and `PolyphaseRectifier` keep
+their default refusals. The feature, as far as these seven say: a
+refusal at the first step, before the explicit solver has moved, is
+what keeps `BranchingPipes3` from `bdf` today. It does not explain the
+other three winners, which `bdf` reaches only when it runs from the
+start. Measured on seven models, not the corpus; nothing changed.
+
+### The row that held the acceptance at 3.3e-10
+
+A print of every row failing the acceptance test at the Newton
+direction refusal (binary `/tmp/m732/ox2`, not in the tree), on
+`/tmp/m731/SP1b.mo` under `simulate --solver bdf`
+(`/tmp/m732/acc_on.txt`). Control: the refusal is the same to the last
+digit as without the print (`/tmp/m731/SP1b_bdf.txt`). One row fails,
+row 4, `simpleGenericOrifice.V_flow`: residual 2.66e-10 on a value of
+-8.5e-7, against a demand of 1.0e-10 and an arithmetic floor of
+1.7e-18 for the two sides of that row. The demand is not below the
+floor; it is missed by a factor of 2.66 while the floor is eight orders
+lower. So the wall is not an impossible acceptance: the iteration
+stalls on a row whose value is a millionth of its unit, which says the
+absolute half of the test (`1e-10 * (1 + |v|)`) is coarse for a flow of
+1e-6 m3/s rather than too strict. The test is under the ban, so this
+is a number and a question for Roman, not a change.
