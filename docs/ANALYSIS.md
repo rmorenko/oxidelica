@@ -90647,3 +90647,44 @@ rule A they stay ours. The eight that are plainly the compiler's are
 the two clock models, `RAM`, the Preisach unit, `GenerateRandomNumbers`,
 `readRealParameterModel`, the `dgesvd` shape of `TestMatrices3`, and
 the String of `TestStreams`.
+
+### Where the reachable debt lies, in one table
+
+Recounted from the file rather than from the summaries
+(`/tmp/m724/gap90.tsv`). It holds 91 lines, 31 that do not flatten and
+60 that flatten and do not run. The 92nd model, the Example icon
+`FilterOrder`, is not in it. So the run half is 60, not 61, and it
+already includes the two self-contradictory models. Taking out the
+two, the 18 not ours (17 flatten, `Essotherm650` runs),
+`TestWallFriction` (it has run since `eb0599e7`) and `FilterOrder`:
+
+| half                   | in file | not ours | self-contradictory | won | reachable |
+| ---------------------- | ------: | -------: | -----------------: | --: | --------: |
+| does not flatten       |      31 |       17 |                  0 |   1 |        13 |
+| flattens, does not run |      60 |        1 |                  2 |   0 |        57 |
+| total                  |      91 |       18 |                  2 |   1 |        70 |
+
+So the bound is at most 70 reachable under the present custom. The
+71 written above did not yet take off `TestWallFriction`. Of the 70,
+57 lie in the run half and 13 in flattening. Flattening holds most of
+what is not ours (17 of 31), and the run half is almost all ours (57 of
+60).
+
+What occupies the 57 and the 13, and whose word each part waits on:
+
+| part                                            | models | waits on                            |
+| ----------------------------------------------- | -----: | ----------------------------------- |
+| matching lever, four stages (run half)          |      7 | Roman's word on matching            |
+| question 132, base point already NaN (run half) |      5 | our work: the start a step hands on |
+| question 132, retreat exhausted (run half)      |      1 | closed negatively, no rule applies  |
+| two `R134a`, flat residual below range          |      2 | Roman: a step past a `min`          |
+| start walls shown small (SNG, water shape)      |      1 | Roman: steady-start rows            |
+| other run-half walls named, no mechanism        |     41 | our work                            |
+| flattening, plainly the compiler's              |      8 | our work                            |
+| flattening, C user tables (`usertab`)           |      5 | Roman: rule A against rule B        |
+
+The run-half rows sum to 7 + 5 + 1 + 2 + 1 + 41 = 57, and the
+flattening rows to 8 + 5 = 13. The 41 is a remainder by subtraction
+and not a census. The rule for what is not ours changes the 18, and
+with it every row of the first table except the self-contradictory
+column, and that choice is Roman's.
