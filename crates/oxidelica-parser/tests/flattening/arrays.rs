@@ -2249,6 +2249,12 @@ fn a_length_handed_down_with_a_modifier_travels_with_it() {
 /// refusal met in `actual` came back as a bare `?` from a top-level
 /// equation, where the same refusal inside a function body was caught
 /// (`TestWallFriction`).
+///
+/// Together with the malformed calls refused in
+/// `the_last_of_the_builtins_say_what_they_mean`, this is the only guard
+/// of the difference between the catcher and a greedy one that also
+/// swallows a malformed call: the corpus pair could not tell the two
+/// apart, every one of its nine work counters equal to the unit.
 #[test]
 fn homotopy_flattens_to_its_actual_argument() {
     for (written, actual) in [

@@ -89852,3 +89852,22 @@ the refusals: shares of 6.7% and 16.7% on samples this small do not
 tell a family apart, and `prefer` stays what the earlier section
 called it, not a family. This closes the second of the four shares
 listed as lacking a control.
+
+### Correction to the two sections above on the function wall
+
+Both were written from refusal texts and the library alone, and the
+compiler's own source refutes two claims in them. `ModelicaInternal_readLine`
+is answered here (`flatten/external.rs`, `flatten/strings.rs`), so it is
+no second wall behind `scanDelimiter`; the earlier probe `SD1.mo` to
+`SD3.mo` (section "Three more of the 91 shrunk") already showed the
+refusal is the path the library means to fail on. And `dgesvd` and
+`readFile` are present (`TestMatrices3` refuses on an empty matrix
+read as a vector, ours; `TestFiles` stops behind them at
+`readDirectory`, absent). Taken from the m725 table and this shift's
+reading together, the 13 are: seven naming a body absent here
+(`dgglse`, `dgees`, `dhseqr`, `scanReal` twice, `getenv`,
+`writeRealMatrix`), three at the user callback `mydummyfunc`, `TestFiles`
+behind `readDirectory`, `TestMatrices3` ours, and
+`readRealParameterModel` on `scanDelimiter`'s unassigned output, ours
+to decide. So "twelve external bodies" stood one too high and "thirteen
+external walls" stood two too high: eleven are external, two are ours.
