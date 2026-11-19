@@ -89388,3 +89388,15 @@ many as all the named questions together. And `BranchingPipes3`, the
 lowest residual among those not yet set aside, refuses at
 `t = 0.0008` in a block whose first step is NaN like the others, so
 it stays in the loop and does not join the two that refuse elsewhere.
+
+Widened past the 18 to the whole run half of 61 by the text of the
+refusals alone (`ss/ref60.txt`), the medium shows in five more, none
+of them yet shown to be a step out of its region: two refusals of a
+medium temperature that is not a state (`BranchingDynamicPipes`,
+`HeatingSystem`), a singular loop in `PumpingSystem`, a loop in
+`MeasuringTemperature`, and `TestJunctionTraceSubstances`, whose
+moist-air enthalpy inversion is refused before any Newton step because
+`solveOneNonlinearEquation` is not bracketed. So the count of models
+that leave the medium stands at seven measured, with five candidates
+that a text sieve cannot settle, and a trail of each is the next
+instrument.
