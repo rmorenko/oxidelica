@@ -90517,3 +90517,16 @@ initial equation with `SN7.mo` and not the mechanism: two families,
 not one. `BranchingDynamicPipes` runs on `Air.MoistAir`, with free
 fractions as well, so if it got past this wall it may meet the
 gas mixture's repeat next. That is a prediction, not shown.
+
+Water's wall, narrowed (`/tmp/m728/SN20.mo`, `SN21.mo`, `SN2021.txt`).
+Without the pipe (`SN20.mo`, the volume draining straight into the
+boundary) it runs. With the pipe, and with the source's temperature
+made equal to the boundary's (`SN21.mo`), it is refused in the same
+words, so a temperature difference between inflow and contents is not
+the cause. For water, then, the condition is the pipe between a
+steady-start volume and a fixed boundary, as it was for the gas, while
+the structure maps one to one. The pipe makes the volume's pressure
+the boundary's pressure plus a drop that depends on the flow, and the
+steady pressure row then adds nothing the boundary has not fixed. That
+explains a deficit in `m`, but not that `U` goes with it. A reading
+consistent with the probe, not shown.
