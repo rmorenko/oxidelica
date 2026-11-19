@@ -90821,3 +90821,109 @@ the model rather than the order in which the class was written. The
 37% of the run half stays a question of price for Roman, set against
 counters that did not move and a flattening half that fell by 31% in
 the same pair.
+
+### The price of the late-binding repair, by name
+
+The parked late-binding repair (`OXIDELICA_NO_LATE_BINDING_SPLIT`) was
+measured model by model with the pair's own binary (`/tmp/m728/ox53`,
+md5 31e2ae07), under `--only` from the root `.msl`, off and on, every run
+complete under its memory and time ceilings. The four models are the
+ones the refusal sections of `/tmp/m728/p53_off.txt` and `p53_on.txt`
+show moving; `Fourbar_analytic` runs in both halves and is not among
+them. Files are `/tmp/m729/<model>_{off,on}.txt`, with the command in
+the `.env` beside each.
+
+| Model (`MultiBody.Examples.Loops.`) | run off, s | run on, s | difference, s |
+| ----------------------------------- | ---------: | --------: | ------------: |
+| `Engine1b_analytic`                 |        0.0 |      92.6 |         +92.6 |
+| `EngineV6_analytic`                 |        0.0 |     424.9 |        +424.9 |
+| `PlanarLoops_analytic`              |        0.0 |     160.2 |        +160.2 |
+| `Utilities.EngineV6_analytic`       |        0.0 |      76.7 |         +76.7 |
+| sum                                 |            |           |        +754.4 |
+
+The flattening half agrees within 0.3 s in every pair. The mechanism of
+the price is plain from the refusals: switched off, each model is
+refused in a millisecond with "cannot evaluate parameters"; switched on,
+it reaches index reduction and spends minutes there before it is
+refused as "structurally singular". The run counters do not count index
+reduction, which is why the two halves of `p53` agreed on every counter
+and still differed by 978 s. Equal counters are a lower bound on the
+work, not the whole of it.
+
+So the 37% of the pair was price and not the load on the machine. Of
+the 978 s, 754 s are named model by model above and 224 s are not
+attributed, because the pair was run without `--slow`. Counted from the
+off half, 754 s is 29% of 2617 s, nearly five times the 6% Roman allows,
+for a win of 0. The repair is parked on that arithmetic: it fails the
+second of his three conditions outright, and the third, the models that
+made the run dearer, is the table above.
+
+### How much of the corpus the late binding reaches
+
+A probe printed, after `settle_member_slices`, how many declaration
+bindings of each model an element-wise split would change (stderr only,
+no change to control; the probe is not in the tree,
+`/tmp/m729/probe_lb.patch`, binary `ox54`). On the small witnesses it
+reads 3 for `/tmp/m728/small/EA10.mo` and 0 for `EA8.mo`. Over the 131
+models that flatten and do not run in `p53_off.txt`, and 42 models that
+run, every twentieth of the run list, it fires on 6 and on no control:
+`Engine1b_analytic` (12), `EngineV6_analytic` (72),
+`PlanarLoops_analytic` (36), `Utilities.CylinderBase` (12),
+`Utilities.Cylinder_analytic_CAD` (12) and `Utilities.EngineV6_analytic`
+(72), all in `MultiBody.Examples.Loops` (`/tmp/m729/lbhit.txt`). Under
+the probe the 42 controls still run, the same list line for line, so
+the probe did not change the outcome. The family is therefore one
+library corner: three repairs of the same first link (declared shape,
+late spread, late binding) are all locked behind the same second link,
+index reduction of the analytic loops refusing as structurally
+singular, which is not touched here.
+
+### Three Spice3 transistors, refused by a threshold on a one-by-one block
+
+`Spice3BenchmarkRtlInverter`, `Spice3BenchmarkFourBitBinaryAdder.NAND`
+and `...ONEBIT` are refused as an underdetermined algebraic loop of one
+unknown, `der(Q1.vbx)` or `der(Q4.vbe)`. The trace
+(`OXIDELICA_UNDERDET_DETAIL=1`, `/tmp/m729/ud_*.txt`) shows the one
+equation in each: `icapbe = if m_bInit then 0 else cc.capbe*der(vbe)`,
+where `m_bInit` is a constant `false` and the capacitance is near 1e-12.
+The column of `der(vbe)` reads 1e-12 or exactly 0.
+
+Small models (`/tmp/m729/small/S_*.mo`, `T.mo`) find the condition.
+`i = if b then 0 else c*der(v)` beside `i = sin(time) - v` is refused in
+the corpus's words for c at 1e-9 and below and runs for c at 1e-6 and
+above. Written without the `if`, it runs at 1e-12 with the right answer.
+The `if` around the product (`(if b then 0 else c)*der(v)`) runs. A
+literal `if false` is refused like the constant. So the `if` with a
+constant condition keeps `der(v)` out of the symbolic solve and puts it
+in a numeric block of one, and the block is judged by a threshold.
+
+The threshold is in `crates/oxidelica-sim/src/linear.rs`, in
+`reads_singular`: a pivot at or below `1e-7 * scale.max(1.0)` reads
+singular. A block of one is scaled by neither `equilibrate_rows` nor
+`equilibrate_columns`, which both return early below two rows, so the
+pivot of 1e-12 is held against 1e-7. The structure only decides that
+the block is numeric; the refusal itself is the threshold. These three
+therefore join the standing question on `scale.max(1.0)`. The threshold
+is not changed here.
+
+### The machines underdetermined at rest, and the amplifier at its start
+
+Four `FundamentalWave` machines refuse as underdetermined at t = 0:
+`SMEE_DOL` (block of 26), `SMEE_Rectifier` (27), `IMC_DOL_Polyphase`
+(59) and `IMS_Start_Polyphase` (80) (`/tmp/m729/ud_*.txt`). Their
+smallest pivots after scaling are 3.18e-9, 6.37e-9, 3.68e-9 and
+3.68e-9, all under the 1e-7 of the same `reads_singular`. The ideal
+closing switches in three of the blocks looked like the common term,
+but `SMEE_Rectifier` has none in its block, and two synthetic switch
+models (`/tmp/m729/small/SW_*.mo`, `SW2_*.mo`) run. That is four refusals
+against three controls and no class named; the threshold is a
+candidate on the evidence of the trace alone.
+
+`AmplifierWithOpAmpDetailed` is refused with "the initialization
+problem is singular ... do not pin down [opAmp.v_in]". Shrunk to the
+example's own circuit (`/tmp/m729/oa/OA5.mo`) it is refused in the same
+words, and the member is the example's initial equation
+`resistor2.i = 0`: with the four `q_f*` initial equations alone it runs,
+with `resistor2.i` alone it is refused, at 1e-3 as at 0, and
+`opAmp.v_in = 0` in its place runs. Why that row leaves `v_in` free is
+not named; the level is a small model with controls.
