@@ -91886,3 +91886,23 @@ start at zero, ends at `v = 0` where 7 is due. That one does not
 depend on the start time at all: `initial()` read inside the plan is
 false where the initial problem evaluates it. It is a separate wrong
 number. Level: small models, the second cause not traced.
+
+The `initial()` fault traced. The residual of the initial problem
+(`compile.rs`, grep `A parameter under solution is written into its
+slot`) writes the parameters under solution and evaluates the plan,
+and never sets the slot that `initial()` reads, so the plan answers
+false throughout initialisation. The regularity check beside it sets
+the slot only around its own firing of `when initial()`. A probe on
+top of the start-time patch sets the slot inside the residual
+(`~/oxideflow/park/m730_init_initial_true.patch`, binary
+`/tmp/m730/ox64`, switch `OXIDELICA_INIT_NOT_INITIAL`): `S11` gives
+`v = 7`, `S7` gives 0.5, `Q31` and `Q32` are unchanged, and the test
+`initial_is_true_inside_the_initial_problem` is green with it and red
+under the switch (`v = 0`). The library writes the form in
+`ElastoBacklash`, `ElastoBacklash2`, `GenericHysteresisTellinen` and
+`Digital`, where the initial characteristic is meant to differ from
+the running one. `Rotational.Examples.Backlash` prints the same final
+point under both, so its initial section does not lean on it. A pair
+from `ox64` was started (`/tmp/m730/pair64.env`). Level: wrong number
+on two small models, cause read and repaired in a probe, corpus weight
+pending.
