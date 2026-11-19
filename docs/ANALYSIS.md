@@ -89909,3 +89909,20 @@ in one place the 67 rests on an unreconciled split.
 Level of evidence for the nine kinds of the fifteen: bound of a type,
 library reading and arithmetic (all three); everything else, refusal
 text only.
+
+### The machines' sign flips, with their control
+
+The sieve set aside five refusing machines and a wheel set because
+their unknowns change sign, on the claim that currents and angles do
+so lawfully. The control: ten running induction machine examples
+(`/tmp/m727/ctrlmach2.txt`), trailed with every Newton iteration kept
+(`trailmach2.sh`, `trailmach2.env`) and read by the same test
+(`sievemach.py`, `sievemach.txt`). Six of the ten show a positive
+unknown going below -1e3 inside a Newton run (`IMC_DOL` 30 times,
+`IMC_InverterDrive` 100, `IMC_Transformer` 58, `IMC_YD` 20,
+`IMC_Steinmetz` 4, `IMC_DCBraking` 1), none shows a NaN, and all ten
+run. Trails were cut at 4000 lines, so the counts of the two longest
+are lower bounds. So in machines a sign flip in a Newton step is
+ordinary among models that run, and setting the five aside was right:
+the sign test carries no signal there. That is three of the four
+shares with a control; the swing cut of the 18 is the one left.
