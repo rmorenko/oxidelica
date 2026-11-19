@@ -87262,3 +87262,12 @@ nine, read by eye (Media/package.mo:2941-3178 and 3288-3608,
 Math/Nonlinear.mo:321-348), agree with the count, so the eight are the
 whole of the error and 894 carry an experiment. The zero input of question 66 now lies
 wholly in the unmarked set, 16 of 16.
+
+The heavy list was then probed for margin. Its run floor stands on one
+model, `BranchingPipes12` (`scripts/heavy_floor.sh`, run floor 1), so
+the question is that one model: through the same probe, one binary
+(`/tmp/m723/heavy_bp12.txt`, witness `heavy1.env`), it runs and passes
+the test twice, smallest margin 984, nearly three decades. It took 144 s
+wall and 358 MB at peak. So of the running models over the main, dear
+and heavy sets, the count under one decade stays 7, and the one model
+the heavy floor leans on is not near the edge.
