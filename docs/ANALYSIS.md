@@ -92599,3 +92599,9 @@ them. So this one is not the step at zero: it is a redundant state of a
 medium with `reducedX = false`, a structural question for whoever
 chooses the states, and it is ours in the sense that the library
 expects a tool to resolve that redundancy.
+
+The siblings agree with that reading: in the off half of the pair, 15
+of 16 `TestsWithFluid` media models run, `SimpleNaturalGasFixedComposition`
+among them (`/tmp/m732/bdf855_off.txt`). It is the same gas with
+`fixedX = true`, so no mass fractions are states and no redundant `m`
+arises; the one that refuses is the one whose fractions are all free.
