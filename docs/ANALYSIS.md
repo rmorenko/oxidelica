@@ -87271,3 +87271,16 @@ the test twice, smallest margin 984, nearly three decades. It took 144 s
 wall and 358 MB at peak. So of the running models over the main, dear
 and heavy sets, the count under one decade stays 7, and the one model
 the heavy floor leans on is not near the edge.
+
+The reachable measure, on its own line: at most 895 models can run under
+the standard, 805 of them run today, and 90 remain between the two.
+Nothing was taken out of the measure; this is a count.
+
+The heavy half of the `time_knee` price, one binary `ox29`, the two
+halves one after the other (`/tmp/m723/hpair.sh`, witness `hpair.env`):
+the off half read 17, 17 flatten and 1 runs, flattening 1236 s and
+running 4568 s, wall 1948 s (`/tmp/m723/h_off.txt`). The on half was
+started at 02:02 and was still running at the shift's ceiling, so its
+numbers are not here. If it keeps the off half's pace it ends near
+02:35, in `/tmp/m723/h_on.txt`. The next reader compares that file's
+`classes:` and `time:` lines and its run list against the off half.
