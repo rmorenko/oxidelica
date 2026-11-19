@@ -88667,3 +88667,15 @@ saving. Under the standing rule this goes back as a question and not
 into the tree: a catcher that takes `actual` by name or by place has
 to be measured afresh before anything is said about its price. Not
 merged, as hint 3 said.
+
+With `Graetz` moved, the unit-mismatch entry keeps one model,
+`HysteresisModelComparison`, and the fork stands at 20 not ours and
+at most 70 reachable. The 70 is an upper bound and not a count: three
+models looked at closely this shift and the one before (`R134a_pTX_phX_all`,
+`TestFiles`, `Graetz`) each moved from ours to the library, and none
+moved the other way.
+
+The work counters of the catcher pair differ (`running 24394369
+points, 36066038 newton` off against `649296 points, 1594579 newton`
+on), as the sixty victims say they must; the flattening counters move
+by one model's worth, `TestWallFriction` flattening only with the key.
