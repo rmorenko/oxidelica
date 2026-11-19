@@ -89227,3 +89227,31 @@ unstretched length (`RC2.mo`, against `s_unstretched = 0` in the
 library) leaves the refusal word for word (`RC1.mo`), so the zero
 length of the spring is not the lever, and the 18 are at least two
 mechanisms rather than one.
+
+### The 18 loops, cut by how the Newton iteration moves
+
+Each of the 18 was run alone under `OXIDELICA_NEWTON_TRAIL=1` with ox44
+(`/tmp/m726/ss/trail.env`, trails in `ss/trail/`), and the longest
+unbroken Newton run of each trail was classified by `ss/classify.py`
+(`ss/classes18.txt`). A run that jumps up a hundredfold at least twice
+swings, a geometric mean ratio of the second half below 0.9 is linear,
+and one between 0.9 and 1.1 stalls.
+
+| How the run moves                  | Models | Which                                                                                                                                      |
+| ---------------------------------- | -----: | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| stalls, the residual stays put     |     10 | `R134a1`, `R134a2`, both `SMPM_CurrentSource`, `PolyphaseRectifier`, `RollingWheelSetPulling`, `BranchingPipes2`, `3`, `4`, `SeriesPipes1` |
+| swings between far-apart residuals |      3 | `Nand`, `ThreeSprings`, `ThyristorBridge2mPulse_RLV`                                                                                       |
+| no Newton step taken at all        |      3 | `RevoluteConstraint`, `PlanarFourbar`, `Spice3BenchmarkDifferentialPair`                                                                   |
+| converges in its longest run       |      2 | `TestTemperature1`, `DynamicPipeClosingValve`                                                                                              |
+
+So the group comes apart. The largest half stalls, the Newton
+direction not reducing the residual from the first step: that is a
+direction problem, a Jacobian or a scaling, not a count of iterations.
+`Nand`, which an earlier shift read as converging linearly at a ratio
+near 0.37, swings in the run that refuses, six jumps of a hundredfold
+in sixty steps, so iterations are not its lever either. The three with
+no step are the "nothing in the block determines it" wording, a
+structure question and not a convergence one. And the two that
+converge in their longest run refuse in a different block, which this
+cut does not see. One caution: the longest run is taken as the one that
+refuses, and for a model with several blocks that can be wrong.
