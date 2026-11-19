@@ -91992,6 +91992,19 @@ unbalanced count instead. Those 16 are an argument in question 66, the
 filter of examples, and not a ground to take anything out of the
 measure. Level: twenty corpus models and three small ones.
 
+That set is not the twelve of the run half. The twelve are the
+`29 singular` rows of `/tmp/m724/gap90.tsv`, all runnable, and they
+share only 4 names with the twenty. The other 8 were run the same way
+(`/tmp/m731/s8_<model>.txt`): all 8 are runnable and still refuse with
+the same text, and 6 of them (`ActuatorWithNoise`, `Engine1a`,
+`IMC_DOL_CommonLeakage`, `PrismaticConstraint`, `RollingWheel`,
+`SphericalConstraint`) report exactly 31 other members tried, which
+with the first is the ceiling `MAX_SINGULAR_ATTEMPTS = 32` in
+`compile.rs`; `FullRobot` reports 13 and `OneAxis` none. So the twelve
+stand as they were: twelve runnable refusals at one place, of which
+half stopped at the attempt ceiling rather than at the end of their
+subset. The ceiling is in index reduction and is not touched here.
+
 ### The empty reach of the matching lever
 
 `init: written <medium>.T = <medium>.T_start reaches []` was read in
@@ -92017,7 +92030,8 @@ The run half was read as standing on levers: the matching lever
 (eight), question 132 (eight) and the twelve "constrains no state".
 All three are now withdrawn by measurement: the matching lever by
 `NO_PAIR_LOST_DEMOTED` (m730), question 132 because its symptom was the
-discarded attempt's (above), and the singular family because 16 of its
-20 rows are open components and 4 runnable. No lever is proven in the
-run half, and its 57 models are, until probed, a scatter of kinds
+discarded attempt's (above), while the twelve singular models stand
+untouched (the twenty above are another set). The singular family is
+the only one of the three still standing, and six of its twelve are cut
+by the attempt ceiling. Beyond it no lever is proven in the run half, and its 57 models are, until probed, a scatter of kinds
 rather than families.
