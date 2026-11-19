@@ -87488,3 +87488,9 @@ unconnected at height zero (`/tmp/m724/small/U1.mo`) runs. `B5` is
 the library's own `TankWith3InletOutletArraysWithEvaporatorCondensor`,
 not an `OpenTank`, so its refusal belongs to that class and stays
 unshrunk here.
+A synthetic copy of `InnerTank`'s switched port, with its outer
+connector left open (`/tmp/m724/small/IT.mo`), runs. So the zero flow
+of the side port is not refused on its own, and the layer that refuses
+`BatchPlant` lies in what the synthetic copy left out: the medium, the
+stream terms, or the two other ports. The next step is shrinking the
+real model, not growing this one.
