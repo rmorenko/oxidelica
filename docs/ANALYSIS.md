@@ -87581,3 +87581,9 @@ One more elimination: the starting residual of `RB.mo` stays
 pressure; a value of 0.028 that does not move is not a density of this
 medium at any point, which fits a positional `[4]` that lands on a
 field other than `rho` better than any reading of the medium.
+The phase expression of the flat form, evaluated alone at the start
+(`/tmp/m724/small/RH.mo`), gives phase 1, with `bubbleEnthalpy` at
+165441.9 J/kg above the given 107390, which is right: the start is
+subcooled liquid. So the phase is chosen right, `derivsOf_ph` with
+phase 1 gives 1510.7 (`RG1.mo`), and only the positional `[4]` of the
+flat form is left between them and 0.028.
