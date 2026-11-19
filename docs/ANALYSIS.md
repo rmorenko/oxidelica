@@ -89110,3 +89110,29 @@ the spring, which is why it moves under the switch and `OneAxis` does
 not. The joining of the two above was made on the refusal at
 `spring.phi_rel` and stands; their different answers to the switch
 are the wall in front, not a refutation.
+
+### The 91 by wall, both halves
+
+The weight that can be read honestly this shift is per wall rather than
+per numbered question, taken from one file per half: the flattening
+half from `/tmp/m724/gapr.tsv` (31 models), the run half from this
+shift's off half over the 60 that flatten (`/tmp/m726/ss/off_kind.tsv`).
+Rows that say the same thing in different words are added together
+before counting (`/tmp/m726/ss/walls91.txt`). The unit is models, and
+each model is counted once, at the first wall it meets.
+
+| Half    | Wall                                                   | Models |
+| ------- | ------------------------------------------------------ | -----: |
+| flatten | a body written outside Modelica, or a utility function |     13 |
+| flatten | the depth ceiling                                      |      7 |
+| flatten | the unit check                                         |      4 |
+| flatten | other, one model each                                  |      7 |
+| run     | an algebraic loop that does not converge               |     18 |
+| run     | structurally singular                                  |     12 |
+| run     | a singular or underdetermined loop                     |     11 |
+| run     | initialization                                         |      5 |
+| run     | other: assertions 3, parameters 3, rest one model each |     14 |
+
+That is 31 + 60 = 91. As the census rule says, each count is a lower
+bound on what stands behind it: emptying a row uncovers the next wall,
+and only the last wall in a model's way moves the run count.
