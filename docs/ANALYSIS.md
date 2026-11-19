@@ -91129,3 +91129,27 @@ known values is the zero test of index reduction (`compile.rs`, grep
 taken further. The plain count: of two repairs tried on the corpus, none
 opened a model; five mechanisms wait on a word from Roman; and the one
 repair of the period that opened models is question 130.
+
+### More of the run half, and eight walls of the flattening half
+
+Traced with `ox53` (`/tmp/m729/ud_PolyRect.txt`, `tr_R134a1.txt`):
+`PolyphaseRectifier` is accepted on the arithmetic floor at
+t = 4e-5 with node voltages near 1e13 and diode parameters near 3e7, so
+the point had already run away; the two empty rows of its block come
+from voltages that enter only as a difference there. `R134a1`'s second
+Newton step takes `volume.medium.p` to -2.53e6 Pa, where the residual
+stands still at 0.971828, so no step descends. Both are traces, and
+neither names a repair outside the bans.
+
+Eight of the fourteen flattening refusals counted as ours
+(`/tmp/m728/ours_flat14.txt`) stand at eight different walls, read
+under `--only --refused`: a `superSample` with no base clock and an
+`ImplicitEuler` clock in the two Clocked examples; an expression
+nested past the depth ceiling in `Digital.Examples.RAM` and
+`Random.Examples.GenerateRandomNumbers` (`MAX_DEPTH`, under the ban); a
+unit mismatch in the Preisach model of `HysteresisModelComparison`;
+`scanDelimiter` refused as never assigning `delimiter`, because only
+the branch that ends in `syntaxError` leaves it unassigned
+(`inlining.rs`, grep `never assigns its output`); a LAPACK call handed
+a matrix of shape `Some([0])`; and a String in an equation in
+`TestStreams`. One text each, one model each.
