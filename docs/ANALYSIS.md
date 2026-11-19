@@ -87349,3 +87349,28 @@ members, `Newton direction` 5 with 7, `loop no converge` 5 with 3,
 labels' staleness and not lost members. So the census of members is
 closed: 126 of the 131 sit in an already named class and 5 (`new`) do
 not, the same five the table above leaves unnamed.
+
+### What the monitor saw when it asked for a new selection
+
+A print outside the tree at the one place `selection_sound` says no
+(binary `/tmp/m724/ox34`, the print reverted at once, witnesses
+`/tmp/m724/*.env`) shows each of the three re-selection models asking
+exactly once before it is refused as structurally singular. All three
+come from weights worked through the definitions:
+
+| Model                   | t at the ask | own weight | best alternative | first reading |
+| ----------------------- | -----------: | ---------: | ---------------: | ------------: |
+| `Engine1a`              |       1.0e-3 |          0 |           5.0e-3 |  none (`NaN`) |
+| `SMPM_ResistiveBraking` |       4.6e-3 |      134.9 |           1038.5 |          5.07 |
+| `ActuatorWithNoise`     |       7.0e-4 |       3.00 |            20.82 |       54257.6 |
+
+These are three different shapes, not one. `Engine1a` asks at the very
+first check, before it has a reference: its own weight is exactly zero,
+so the selection was never sound by the monitor's reading. `SMPM` asks
+because the ratio fell from the start-up reference by about forty
+times while the own weight itself grew. `ActuatorWithNoise` has an own
+weight that fell four orders of magnitude from its first reading. In
+each case the rebuild that follows is the structurally singular
+refusal, so the wall these models stand at is the rebuild, and the
+monitor's request is where they leave a run that was going. A map, not
+a change.
