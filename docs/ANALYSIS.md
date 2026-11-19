@@ -88048,3 +88048,9 @@ parameter, runs too (`WF.mo`). So the depth is met on the
 `pressureLoss_m_flow_and_Re` and `Utilities.regSquare2`, and not in
 the record. Shown small at the switch; the storey count of that path
 is not yet measured.
+Neither of the two functions on that path reaches the depth called on
+its own with a flow that varies in time: `pressureLoss_m_flow`
+(`/tmp/m724/small/PL.mo`) and `pressureLoss_m_flow_and_Re` (`PR.mo`)
+both run. So what the pipe adds is the context, the flow as an unknown
+of the pipe's own loop or a derivative taken through the call, and the
+next cut is between those two.
