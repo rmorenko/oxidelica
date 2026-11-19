@@ -89440,3 +89440,20 @@ two of the three, and both `SMPM_CurrentSource`). A ratio near one over
 the last steps cannot tell a frozen run from one that blew up and then
 froze, which is why the second cut, at the refusing instant and by
 first step, is the one to read.
+
+The five candidates from the text sieve were trailed the same way
+(`/tmp/m726/ss/trail5/`, `trail.env`). One joins the mechanism:
+`MeasuringTemperature`'s first Newton step, from a residual of 1.6e6
+with pressures near 1 MPa and 0.1 MPa, lands where the residual is NaN,
+with a pressure at -2.2e13 and enthalpies near -5.9e5 (`ss/mt_first.txt`).
+`PumpingSystem` takes no step that moves its residual, the same value
+at every iteration of each try (3.96e4, then 9.67e4 from another
+start), which is the singular Jacobian its refusal names and not a
+step out of the medium. `TestJunctionTraceSubstances` is NaN at its
+first evaluation, before any step, which is the unbracketed inversion
+its refusal names. `BranchingDynamicPipes` and `HeatingSystem` print no
+Newton iteration at all, being refused before the run on a medium
+temperature that is not a state. So the count of models whose first
+Newton step leaves the medium is eight of the 92 measured: the five
+pipe and sensor tests, the two `R134a`, and `MeasuringTemperature`.
+That is one more than all the named questions together.
