@@ -92130,3 +92130,34 @@ handing the block a base point from which the full Newton step crosses
 the domain edge, and which refusals reach the implicit solver, which is
 the compiler's and not the model's. The five corpus models stay ours on
 that reading. Level: small model, two methods against one.
+
+### The implicit method on the sixty of the run half
+
+Since `W1` runs under `bdf`, the 60 `flat` rows of `/tmp/m724/gap90.tsv`
+(`/tmp/m731/run60.list`) were checked under it. One binary
+`/tmp/m731/ox4` carries a probe key, `PROBE_BDF`, which sets the method
+to `bdf` in `ten_steps` of `library check` (patch
+`/tmp/m731/probe_bdf.patch`, not in the tree), so it applies to the
+first attempt and to the state-swap retry alike. Both halves ran side
+by side under `cap.sh` (`/tmp/m731/bdf_off.txt`, `bdf_on.txt`,
+`bdfpair.env`), and their flattening work is equal to the digit.
+
+| half | flatten | run | running time | points | Newton | Jacobians |
+| ---- | ------: | --: | -----------: | -----: | -----: | --------: |
+| off  |      60 |   0 |       1358 s |  15096 |  32921 |        24 |
+| on   |      60 |   4 |       2002 s |  17646 |  35971 |       166 |
+
+The four that run under `bdf`: `SeriesPipes1`, `BranchingPipes3` and
+`TestTemperature1` of question 132, and `PolyphaseRectifier`. Their
+run times by `--slow`: 105.6 s to 697.7 s, 119.2 s to 29.0 s, 67.3 s to
+60.3 s, 0.1 s to 0.2 s. `SeriesPipes1` run whole by `simulate --solver
+bdf` (first attempt only, `/tmp/m731/SP1b_bdf.txt`) still refuses at
+t = 5.1e-6 on a residual of 3.3e-10, so in the check it is likely the
+swap retry that passes under `bdf`; not separated here.
+
+What is not measured, and is the other half of the number: the victims
+among the 855 that run today, and the price of the run half over the
+whole measure. This series has no corpus pair, so the default method is
+not touched and the four are an upper bound of a win under a probe, not
+a win. The question for Roman is whether a pair under this key may be
+run. Level: probe pair on sixty corpus models, one binary.
