@@ -91525,3 +91525,17 @@ fraction before the pressure was asked. So on the gas mixture the
 wrong pick is made by the matching of conditions with a reach, and the
 pairing only takes what the matching left. It is the same row the
 earlier note on the gas mixture saw repeated. Level: probe, one model.
+
+### The gear's reading, reproduced in the explicit form
+
+The two second-order pairs (`G2.mo`, `G3.mo`) both run, but the init
+probe (`ox57`, `OXIDELICA_INIT_PROBE`) shows what they reach. In `G2`,
+`a = der(w)` with `a = 0` reaches `["phi", "w"]` and takes `phi`. In
+`G3`, `der(w) = 0` written out reaches only `["w"]`, takes nothing,
+and `phi` is claimed by nothing; the model runs only because `phi`
+then stands at its start. So an equation on a derivative written by
+name stops at the name and does not reach what the derivative's
+definition reads, which is the reading of `GearType1`, where
+`a_rel = 0` reaches only `spring.w_rel`. The small pair does not turn
+red, because there the orphan's start is a consistent answer. Level:
+small pair, the reach reproduced and the refusal not.
