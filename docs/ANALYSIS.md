@@ -89165,3 +89165,20 @@ search prints the neighbouring form: `sample(u,clock)` with a `Clock`
 variable is written in five sampler classes of `Modelica.Clocked`
 (`SampleClocked`, `SampleVectorizedAndClocked` and their kin), and that
 is the form `K3.mo` shows running.
+
+The weight of two for the record derivative count was an inference,
+and measured it falls to zero (`/tmp/m726/rec.env`). Probe ox47, out
+of the tree (`/tmp/m726/ox47.patch`), counts an input whose type is a
+record class as differentiable under `OX_RECORD_DER`. Under that key
+`RD.mo`, the direct question to the R134a medium, runs where it was
+refused, so the count was the door it stood at. `DRd.mo` moves one wall
+up to `unknown variable $seed0.a`: the seed of a record input is
+handed to the body as one name and read field by field, which is the
+next layer of the same question. And `R134a1` and `R134a2` refuse under
+the key with exactly the same lines as without it (`rec_off.txt`,
+`rec_on.txt`, the refusals equal to the byte). So their Newton
+refusal does not stand on this count, and the earlier sentence that
+"presumably" it did is refuted. The question (125) weighs zero of the
+91 measured, and stands as a defect against the specification with
+`DRd.mo` and `RD.mo` as its witnesses. Nothing here goes into the
+tree.
