@@ -88974,3 +88974,15 @@ also flatten without running, so the base is the likelier place. The
 bearing with its inertia and one crank body alone runs (`EN2.mo`), so
 the base needs its piston loop for the refusal, and the equation is
 named on the bearing because index reduction reaches it from the loop.
+
+`OneAxis` and `FullRobot` are one wall in two forms (`OA.env`). With
+the flange initializer of the axis asked for nothing (`OA7.mo`) the
+refusal of `OneAxis` becomes, word for word, the refusal of
+`FullRobot`, `axis.gear.spring.phi_rel` constraining no state. Without
+friction (`OA5.mo`) or with a stiff spring (`OA6.mo`) nothing changes.
+With the spring's relative states at default selection instead of
+`prefer` (`OA9.mo`) the structural refusal is gone and what is left is
+an initialization that is not square, the expected cost of switching
+the initializer off. So the lever is the preferred relative states of
+the `GearType1` spring meeting the states the initializer pins, read
+from two small variants and not yet traced in the reduction.
