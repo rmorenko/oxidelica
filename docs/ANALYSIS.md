@@ -92345,3 +92345,15 @@ to 3.5 s, a real cost about half what the pair showed; the last two sit
 inside their own off band, so the pair's +7 s on them was the pair's
 noise. The rest's 202 s is therefore partly real and partly drift, and
 its lower bound is not measured here.
+
+### The other four Newton direction refusals under both interventions
+
+`R134a1`, `R134a2`, `BranchingPipes2` and `BranchingPipes4`, the four
+Newton direction refusals neither intervention had been tried on one by
+one, under `PROBE_BDF=1` and under `OXIDELICA_EDGE_HANDOFF=all`
+(`/tmp/m732/nd_{bdf,edge}.txt`, commands in `nd.env`): none runs under
+either. The two pipes cost 168.5 s and 123.2 s under `bdf`, 196.3 s and
+152.4 s under the wide handoff, against 69.2 s and 65.5 s in the
+corpus's off half. So of the eleven Newton direction refusals now
+probed, `bdf` takes three and the wide handoff one, and neither
+intervention is a feature of the kind as such.
