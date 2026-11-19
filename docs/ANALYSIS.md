@@ -90792,3 +90792,18 @@ vector binding naming a component declared later in the class is not
 split, and Modelica gives declaration order no meaning. That is the
 compiler's fault and ours, and it is the wall for `PlanarLoops_analytic`,
 `Engine1b_analytic` and `EngineV6_analytic`.
+
+The repair for the declaration order is parked (`/tmp/m728/late_binding.patch`,
+binary `ox53`, switch `OXIDELICA_NO_LATE_BINDING_SPLIT`, a unit test that
+is red under the switch and green without it). It splits a declaration
+binding by element in `settle_member_slices`, the same way that pass
+already splits an equation, and `EA10.mo` then runs. The three
+`_analytic` models move one storey up, to "structurally singular", and
+none of them runs. The pair from one binary (`/tmp/m728/p53_off.txt`,
+`p53_on.txt`) gives 855 runs in both halves with equal lists, so
+nothing is won and nothing lost. The run half reads 2617 s off and
+3595 s on, 37% dearer, while the flattening half fell from 6492 s to
+4481 s in the same pair. That points to the load on the machine rather
+than the change, but no model was named as the dearer one, so by the
+standing rule the question of the price is Roman's and the change is
+not in the tree.
