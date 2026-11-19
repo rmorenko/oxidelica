@@ -91398,3 +91398,17 @@ models "to more than twenty gigabytes". So the place is known and so
 is the price of the obvious repair; a repair that subscripts the right
 side of a whole-array binding, rather than reordering the build, is
 the question that goes forward.
+
+Where `J3` is decided. The pairing of lost written conditions is in
+`crates/oxidelica-sim/src/compile.rs` (grep `any orphan it reads will
+do`). Without `OXIDELICA_NO_PAIR_WRITTEN_COARSE` the orphan is the
+first in the pool that the coarse walk says the condition reads and
+that lies in the writer's instance; a condition the model itself wrote
+has no instance, so any orphan it reads is accepted. With the switch
+the first orphan in declaration order is taken outright. `J3` takes
+`x1` both ways. So either the coarse walk reports `x1` as read by
+`y = 1`, which the equations do not support, or the first branch is
+not the one taken; which of the two is not shown. The three-phase
+transformer's `core1` taking `core3.MagRel` is the same acceptance of
+any orphan, on a condition written inside the core and still matched
+outside it.
