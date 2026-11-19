@@ -92514,3 +92514,12 @@ its column dies in the start Jacobian through the medium's branches
 or through scaling. The difference between the two passing and
 failing models is the medium alone, which makes `MoistAir1` against
 `DryAir1` the pair to shrink with next.
+
+The Newton trail of the start (`/tmp/m732/ma1t.txt`, command in
+`ma1t.cmd`) shows the inner blocks converging: the first goes from
+|f| = 1.0e6 to 8.9e-10 in four iterations, and each later entry settles
+in one or two at 1e-7 to 1e-9. Then the outer initialization step is
+refused on `volume.U`. So the dead column is in the outer system, not
+in a loop that failed to converge, and the medium's blocks are solved
+at T = 347.3 K and `Xi[1]` = 0.0100. `MoistAir2` refuses with the same
+words. Not taken further this shift.
