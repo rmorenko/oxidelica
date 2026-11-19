@@ -87410,3 +87410,21 @@ members (`RAM`, `GenerateRandomNumbers`, `TestWallFriction`) have
 different sketches (`time`, `{localSeed, globalSeed}`,
 `pipe4.data.zeta2_at_a`) and are not this mechanism. Not probed
 further here.
+
+### `GenerateRandomNumbers`, shown small
+
+The copy of the model (`/tmp/m724/small/G0.mo`) refuses as the corpus
+model does, on depth. The three generators taken one at a time with
+literal seeds all run (`X64star.mo`, `X128plus.mo`, `X1024star.mo`),
+and so does the impure half alone (`Imp.mo`). The difference is the
+seeds being parameters, as the example writes them: with
+`localSeed` and `globalSeed` as parameters, `Xorshift64star` runs
+(`XP64.mo`), `Xorshift128plus` is refused on depth inside its call to
+the external `ModelicaRandom_xorshift64star` (`XP4.mo`), and
+`Xorshift1024star` is refused with "`s` is assigned by a when clause
+but never declared" (`XP.mo`), which is untrue: the vector is
+declared one line above, and the refusal names the wrong thing. That
+last one is a refusal that does not name what it refused, and it is
+the more useful of the two to follow, because a small model of
+fourteen lines shows it. The mechanism is not yet followed past this
+point.
