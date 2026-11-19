@@ -90124,3 +90124,16 @@ retreats to the edge and stalls there. The property functions of the
 medium returning NaN out of range is what separates the eight from
 the survivor; a step that only leaves the physical range but keeps a
 finite residual is survived. Level: two trails, one each side.
+
+The NaN reading holds for two of three and not for the third, so it is
+narrowed again before it is believed (`/tmp/m727/tr.env`).
+`BranchingPipes2` has two Newton runs with a NaN residual among 1438
+(`tr_BranchingPipes2.txt`). `R134a1` has none: its two runs end at a
+finite residual near 0.97 that stops falling (`tr_R134a1.txt`). The 20
+control trails of running models hold no NaN residual at all. So a NaN
+from the medium is present in two of the three refusing models read
+and in none of 20 running ones, and `R134a1` stalls at a finite
+residual instead. Question 132 is then at least two shapes, NaN and
+stall, sharing the step out of range, and the statement above that NaN
+alone separates the eight from the survivor is withdrawn to "in two of
+three".
