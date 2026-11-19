@@ -92829,3 +92829,30 @@ evaluated where branches coincide), the same family the MoistAir and
 gear notes above already meet, and it is ours: the library expects the
 tool to resolve which of the coinciding elements carries the variable.
 The other four of the six were not probed this shift.
+
+### What holds the underdetermined loop kind, on two of its five
+
+The same print with `OXIDELICA_UNDERDET_DETAIL` added
+(`/tmp/m733/tr_{Spice3BenchmarkRtlInverter,SMEE_DOL}.txt`, commands in
+`/tmp/m733/ud.cmd`).
+
+`Spice3BenchmarkRtlInverter`: a block of one unknown, `der(Q1.vbx)`, at
+t = 0, whose only equation is
+`Q1.icapbx = if Q1.m_bInit then 0 else Q1.cc.capbx * der(Q1.vbx)`. During
+initialization `m_bInit` is true, the equation takes the branch without
+the derivative, and the column is exactly zero (pivot 0, raw column 0).
+The holder is a derivative that the library's own initialization branch
+removes from its only equation. The same shape names `der(Q4.vbe)` on
+`NAND` and `der(X9.Q4.vbe)` on `ONEBIT` in the census, so this is likely
+three of the five; ours, in the matching (a derivative made an unknown of
+a block whose equation, in the branch taken at the start, does not
+contain it).
+
+`SMEE_DOL`: a block of 26 at t = 0, smallest pivot 1.4e-8 raw and 3.2e-9
+scaled, so near-singular rather than structurally empty. The null
+direction is made of derivatives only (`der(smee.airGap.V_mss.im)` 0.69,
+the stator current derivative of phase 3 0.62, three others 0.21), and
+the open switches carry their `s` into the same rows. It reads as the
+machine chain already mapped (`airGap`), a near-dependency among the
+air-gap derivatives at a start where all switches are open; ours, and
+not probed further this shift.
