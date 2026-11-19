@@ -92798,3 +92798,34 @@ V_flow near 8.5e-7 (an orifice law whose derivative changes fast near
 zero flow is one reading, not checked) is the next question. The
 Jacobian, damping and acceptance are not to be touched, so it goes as a
 question, not a change.
+
+### What holds the singular Jacobian kind, on two of its six
+
+Two representatives of the `singular Jacobian` kind (six models in the
+off half of the pair), each by `simulate` with the existing
+`OXIDELICA_NEWTON_TRAIL` print, which dumps the Jacobian of the block it
+refuses (`/tmp/m733/tr_{LossyGearDemo2,Rectifier}.txt`, commands in
+`/tmp/m733/ud.cmd`). Rank and null vectors taken from the printed rows.
+
+`LossyGearDemo2`, block of five at t = 0 (`gear.quadrant2`,
+`gear.quadrant4`, `gear.sa`, `bearingFriction.sa`, `gear.flange_a.tau`):
+rank 4, smallest singular value 6e-17. Rows 2 and 3 are equal to every
+digit, `[0, 0, -2.6667, 0, 2.6667]`: the friction law of the gear and
+of the bearing give the same row, so two rows say one thing and the
+block is short by one equation at this point.
+
+`QuasiStatic.SinglePhase.Rectifier`, block of twelve at t = 0, every
+unknown starting at 0: rank 11, smallest singular value 7e-18. Rows 3
+and 7 are again equal to every digit (the same -20.000016 on the
+columns of `idealDiode1.s`, `idealDiode4.s` and `pin_nDC.v`, 0.99999 on
+`voltageAC.p.i`), and the null direction moves `idealDiode1.s`,
+`idealDiode2.s` and `idealDiode4.s` together.
+
+In both, what holds is a pair of equal rows written by two components
+whose switching or sticking laws read the same at the start point: two
+ideal diodes conducting alike, two friction elements in the same
+quadrant. This is the mode-dependent shape (a law with several branches
+evaluated where branches coincide), the same family the MoistAir and
+gear notes above already meet, and it is ours: the library expects the
+tool to resolve which of the coinciding elements carries the variable.
+The other four of the six were not probed this shift.
