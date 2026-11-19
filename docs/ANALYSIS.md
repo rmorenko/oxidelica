@@ -90219,3 +90219,103 @@ of 8; the two `R134a` need something else, a property function that is
 flat out of range. A note on the count: a text count of `nan` missed
 `NaN` and printed zero five times; counts over text are checked for
 case before they are believed.
+
+## Shift m728: the floors wound, question 132's rule found already in the tree, the twenty by name
+
+### The floors follow the judge
+
+The judge of run 44488845654 (job 135465267523) on `b1ee56d4` printed
+`OK: 2671 files read, 986 flatten, 855 run; runnable 867 flatten, 806
+run`, the same four numbers the desk pair printed in
+`/tmp/m727/c2_on.txt`. The gates are therefore confirmed on two
+machines, the first time a moved gate has been compared that way. The
+three models subtracted from the run floors (`SpringWithMass`,
+`SMPM_VoltageSource` of FundamentalWave, `TestJunctionIdeal`) were
+checked by name in that same print, where all three ran. Floors
+985 / 851 / 866 / 802 became 986 / 852 / 867 / 803 (`dcb3e208`).
+
+### Question 132: the rule it asks for is already there
+
+The question was to be probed by treating a step whose residual is not
+a number as a step not taken: shorten it and try again. Before a probe
+was built, reading `solvers/mod.rs` (grep `has not diverged: the
+iteration was going the right way`) showed the rule is already in the
+tree. A non-finite residual after a step sends the iteration back to
+the point it left, halves the fraction of the step, and gives up only
+below a millionth. `SeriesPipes1`'s own trail
+(`/tmp/m727/sp1_trail.txt`, lines 98 to 101) shows it working: three
+NaN iterates with the jump halving each time, then a finite residual of
+4.0e4.
+
+So the six do not die for want of the rule. Counted over the six
+trails (`/tmp/m727/sp1_trail.txt`, `tr_BranchingPipes2.txt`,
+`nan5/*.txt`), a NaN residual appears where the rule cannot help:
+
+| model                  | NaN at iteration 0 | NaN later |
+| ---------------------- | -----------------: | --------: |
+| `SeriesPipes1`         |                  3 |         3 |
+| `BranchingPipes2`      |                  1 |         3 |
+| `BranchingPipes3`      |                  2 |        33 |
+| `BranchingPipes4`      |                  3 |        10 |
+| `TestTemperature1`     |                 10 |        13 |
+| `MeasuringTemperature` |                  0 |        40 |
+
+At iteration 0 there is no step to shorten, because the point came
+from the integrator: in `SeriesPipes1` (line 223) the time step to
+0.0008 starts from an unknown at 6.2e9, left by the solve at 0.0003
+that converged to it. The NaN iterates later in a run are the retreat
+itself, and in `MeasuringTemperature` it halves from iteration 17 to
+20 with every point still NaN, so it ran out of room. The rule's
+probe, built as written, would change nothing: what kills the six
+is a converged solution far outside the medium's range, accepted at
+one time and evaluated at the next, or a retreat that finds no finite
+point at all. Question 132 as phrased therefore dies before it is
+asked. Level: reading the code and six trails already on disk. No
+binary was built for it and nothing was changed.
+
+### The twenty "not ours", by name
+
+Reconstructed from this chapter and checked against the gap list
+`/tmp/m724/gap90.tsv`. All twenty names stand in that file:
+
+- four FFT models refusing ahead of `ModelicaFFT_kiss_fftr`:
+  `Rectifier6pulseFFT`, `Rectifier12pulseFFT`, `RealFFT1`, `RealFFT2`;
+- two self-contradictory: `TestAllProperties.MoistAir`,
+  `FlueGasSixComponents`;
+- two thyristor unit errors: `SimpleTriacCircuit`,
+  `ThyristorBehaviourTest`;
+- `TestAllProperties.SimpleAir`, `R134a_pTX_phX_all` (unit errors in the
+  library), `Essotherm650` (table in mPa s);
+- seven absent bodies (the m725 table): `TestMatrices`, `TestMatrices2`,
+  `TestVectors`, `TestStrings`, `TestExamplesCalculator`,
+  `TestInternal`, `WriteRealMatrixToFile`;
+- `TestFiles`, `Graetz`.
+
+That is 4 + 2 + 2 + 3 + 7 + 2 = 20, and it agrees with the split the
+hints carried. The finding: the two self-contradictory models are also
+the two taken out when the gap of 92 became the reachable gap of 90
+("The runnable models that do not run, by name"). The correction above
+caught the double count for a move from 20 to 22, but the 20 itself
+already holds them. Counted from the 90, the not-ours models are 18,
+and the reachable bound is at most 90 - 18 - 1 (`FilterOrder`) = 71,
+not 69. The three `mydummyfunc` callbacks are not among the twenty.
+Whether they belong there is the rule A against rule B question,
+which is Roman's.
+
+### TestJunctionTraceSubstances, traced
+
+Probed alone from the root (`/tmp/m728/tjts.txt`, `tjts_trail.txt`,
+`.env` beside each, binary `/tmp/m728/ox51` md5 c9e25082). Every
+Newton run is at `t = 0`, iteration 0, with a NaN residual. That is
+the start, before any step, so the retreat above has nothing to go
+back to. `why` names the source: the moist-air temperature
+`T_phX` is found by `solveOneNonlinearEquation` on [190, 647] K, and
+both ends give a negative residual (-1.09e6 and -5.88e5), so the
+start enthalpy of `junction.port_3.h_outflow` lies above the
+enthalpy of air at 647 K. The function asserts and the block
+reads NaN. The enthalpy is a mix of the two inflows weighted by
+`max(m_flow, 1e-10)`, and with every flow at its start of 0 the
+weights are equal, so what is too high is an inflow enthalpy at its
+start value. Which one was not narrowed. Level: trail plus `why`. It is
+a start-value question of the same breed as the singular Jacobian at a
+start of zeros, not question 132.
