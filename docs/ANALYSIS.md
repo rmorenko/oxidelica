@@ -92331,3 +92331,17 @@ stalls on a row whose value is a millionth of its unit, which says the
 absolute half of the test (`1e-10 * (1 + |v|)`) is coarse for a flow of
 1e-6 m3/s rather than too strict. The test is under the ban, so this
 is a number and a question for Roman, not a change.
+
+### Five MultiBody candidates of the price, off, on, off
+
+The pair's `--slow` lists put five MultiBody models 6 to 8 s dearer
+under `bdf`. Taken one after the other by `--only-from` with the same
+binary, off, on, off (`/tmp/m732/mb_{off1,on,off2}.txt`, commands in
+`mb.env`): `UniversalConstraint` 70.5 / 75.1 / 71.8 s, `Engine1a`
+61.8 / 67.8 / 64.3 s, `Surfaces` 17.4 / 19.7 / 15.8 s,
+`RollingWheelSetDriving` 41.0 / 41.8 / 41.5 s, `MovingActuatedDrive`
+34.6 / 34.7 / 32.6 s. The first three stand above both off runs by 2
+to 3.5 s, a real cost about half what the pair showed; the last two sit
+inside their own off band, so the pair's +7 s on them was the pair's
+noise. The rest's 202 s is therefore partly real and partly drift, and
+its lower bound is not measured here.
