@@ -88934,3 +88934,17 @@ differentiating the air gap's space phasor. So the rebuild that this
 model meets during the run, mapped earlier, has a first-build form in
 the small model; whether the corpus model's rebuild is the same
 equation is read and not traced.
+
+### SC7 and the refusal behind GenerateRandomNumbers are two places
+
+`SC7.mo` (`/tmp/m726/sc7.env`) refuses in flattening, at the external
+layer (`flatten/external.rs`, the message that a name "is written
+outside Modelica"), on `ModelicaStrings_scanInteger$nextIndex`. The
+refusal of `XQ.mo` behind `GenerateRandomNumbers`, that `s` "is
+assigned by a when clause but never declared", is raised in the
+compiler of the simulation, in `compile.rs`, after flattening has
+finished. One is a String parameter that never reaches the call as a
+value inside a component's algorithm; the other is a vector target that
+survives to a check that knows only scalars. Two places, two stages,
+so they are two defects and carry one model each, not one defect with
+double weight.
