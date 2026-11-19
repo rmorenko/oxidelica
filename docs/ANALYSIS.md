@@ -90756,3 +90756,25 @@ refused as underdetermined there: a switch open and a converter at
 zero current leave the magnetic voltages without a slope. That fits
 the switch-beside-converter reading placed above, now with a trail.
 Not changed.
+
+The three `_analytic` loops (`PlanarLoops_analytic`, `Engine1b_analytic`,
+`EngineV6_analytic`) now have a small reproduction from the real class
+(`/tmp/m728/small/EA5.mo`, commands in `/tmp/m728/small/EA.env`): one
+`JointRRR` between a revolute crank and a fixed translation gives the
+corpus refusal word for word, 23 parameters that cannot be evaluated
+because "nothing gives a value to" `n_b`, `rod1.eRod_ia`,
+`rod1.rodLength`, `rod1.e2_ia` and `revolute.e` of the joint. Each of
+these is a `fixed = false` parameter or a `final` binding resting on
+one, and `n_b` is settled only by the initial equation
+`n_b = Frames.resolve2(frame_b.R, Frames.resolve1(frame_a.R, n_a))`.
+Four synthetic models of the same chain run (`EA2.mo` three storeys of
+`final` vector bindings, `EA3.mo` with a `fixed = false` scalar beside
+them, `EA4.mo` an array `fixed = false` passed down as a modifier,
+`EA6.mo` the same with its initial equation on a state, which gives
+`exp(-1/sqrt(2)) = 0.4931` as it should). So the chain of bindings on
+an initial parameter is not the cause on its own. What the real joint
+adds is that the initial equation reaches the parameter through the
+orientations of two frames. The refusal is raised in
+`compile.rs:5827`, where pending bindings are kept for a second round
+after the initialisation, so the next step is to ask why that round
+does not settle `n_b`. Placed and reproduced, not changed.
