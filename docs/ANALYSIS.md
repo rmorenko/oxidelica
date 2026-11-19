@@ -87575,3 +87575,9 @@ The record field order printed for `dv` in `RG1.csv` is not the
 declaration order, which is where a positional index into a record can
 pick the wrong field. That is the candidate, shown by elimination and
 not yet by a print of what `[4]` reads.
+One more elimination: the starting residual of `RB.mo` stays
+`9.99971828e2` whether `medium.p` starts at 1e5, 3e5 or 1e6
+(`RBp_*.mo`). A density read from `derivsOf_ph` would move with the
+pressure; a value of 0.028 that does not move is not a density of this
+medium at any point, which fits a positional `[4]` that lands on a
+field other than `rho` better than any reading of the medium.
