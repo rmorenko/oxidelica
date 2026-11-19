@@ -87284,3 +87284,53 @@ started at 02:02 and was still running at the shift's ceiling, so its
 numbers are not here. If it keeps the off half's pace it ends near
 02:35, in `/tmp/m723/h_on.txt`. The next reader compares that file's
 `classes:` and `time:` lines and its run list against the off half.
+
+The on half of that pair finished at 02:16 (wall 1964 s,
+`/tmp/m723/h_on.txt`). Both halves read 17, flatten 17 and run 1
+(`BranchingPipes12`), the run lists and the refusal lists are equal,
+and all eight work counters agree to the digit (35342 classes,
+26082862 expansions, 317516 bodies, 404759437 names; 345965 points,
+2438647 newton, 10043 jacobians, 16331881 damped). So the heavy half of
+the `time_knee` price is zero work and zero victims: the key does not
+fire on the heavy set. The clock moved flattening 1236 to 1267 s and
+running 4568 to 4594 s (+0.6%), which with identical work is the
+table's drift, not a price.
+
+### The runnable models that do not run, by name
+
+From `/tmp/m723/marks1026.tsv` with the corrections of `marks_fix2.txt`,
+against `ran854.txt`, by full class path: 91 models carrying
+`experiment` and one Example icon (`ComponentsMixingUnit.FilterOrder`)
+do not run, 92 in all, which matches 897 runnable less 805 running.
+The reachable gap of 90 is these 92 less the two self-contradictory
+models; which two of the 92 they are was not resolved here, and that
+is the one place the count does not yet close by name. List and reasons
+are in `/tmp/m724/gap90.tsv`. Of the 91 `experiment` models, 31 do not
+flatten and 60 flatten and do not run.
+
+| Wall (reason taken from `m714/raw.txt` or `m723/helpers.tsv`) | Models |
+| ------------------------------------------------------------- | -----: |
+| singular system, structural                                   |     12 |
+| Newton direction fails                                        |      7 |
+| expression nested deeper than followed (flattening)           |      7 |
+| singular Jacobian                                             |      6 |
+| underdetermined algebraic loop                                |      5 |
+| not yet named (HeatExchanger, MoistAir1/2, R134a1/2)          |      5 |
+| loop does not converge / equations of loop / other loop       |      9 |
+| initialization singular, not converging, or not square        |      4 |
+| parameter cannot be evaluated                                 |      3 |
+| below min / above max (start against a bound)                 |      3 |
+| der of a non-state, discrete twice, floor N, floor three      |      5 |
+| unbalanced (left over)                                        |      1 |
+| external or utility function the compiler does not call       |     13 |
+| unit mismatch or adding unlike units                          |      4 |
+| clocks: `superSample` factor, `ImplicitEuler`                 |      2 |
+| `if` branches of different shape (thyristor, triac)           |      2 |
+| flexible size `:` without a value                             |      2 |
+| a String with no value                                        |      1 |
+| total                                                         |     91 |
+
+The run half (60) is the solver's: 33 of them fail at a singular or
+non-converging system. The flattening half (31) is dominated by
+functions the compiler does not call: the LAPACK wrappers, string
+scanning, file and environment access, and user table callbacks.
