@@ -90389,3 +90389,13 @@ into `SN7.mo`'s shape (`SN10.mo`) neither ran nor refused within 14
 minutes of CPU time, and it was stopped by hand. That is an
 inequality, at least 14 minutes, and no result. One refusal site with
 two test models is two candidates until a small model joins them.
+
+A control on that test model, from the corpus: `DryAir1` extends
+`Modelica.Media.Examples.Utilities.PartialTestModel` like `MoistAir1`
+and `R134a1` do, and it runs in `/tmp/m727/c2_on.txt`. So the media
+test model's own volume and pipe pin `volume.U` for a single-substance
+gas, and lose it for the moist one. That is the same split as
+`SimpleNaturalGas` against its fixed-composition sibling, on a
+different test model: a medium carrying mass fractions as unknowns.
+This is a shared condition, shown by two control pairs from the
+corpus, and not yet a shared mechanism.
