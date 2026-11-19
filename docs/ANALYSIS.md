@@ -86884,6 +86884,14 @@ connection. So the hypothesis now has a mechanism and a count that fit,
 but the count of nine is still all that ties `Fourbar1` to it; a probe
 of which connection closes the loop would make it a measurement.
 
+A control from the same package, with the same binary and no
+`OXIDELICA_` variables set: `PlanarFourbar` closes the same four-bar
+loop through a cut joint, `RevolutePlanarLoopConstraint`, instead of
+through a connection, and it passes the balance check and is refused
+later, in an algebraic loop on `revolute1.phi`. So the loop itself is
+not what unbalances the model. How it is closed is, which fits the
+hypothesis but is still not the probe that would prove it.
+
 ### Three more rows from the inside
 
 Again from `/tmp/m714/rows.tsv` and the library text. `5 unbalanced/left`:
