@@ -90193,3 +90193,17 @@ change a single iteration there. What is not measured: whether it wins
 any of the eight. It addresses at most the NaN shape, shown in two of
 three read, and the other five of the eight were not trailed for it;
 the 20 controls are a sample, not the corpus. Nothing was changed.
+
+The other five of the eight, trailed the same way (`/tmp/m727/nan5.sh`,
+`nan5.env`, `nan5/`). The first count printed zero for all five
+because it searched for `nan` in lower case while the trail prints
+`NaN`; counted without regard to case: `BranchingPipes3` 35 NaN
+residuals, `BranchingPipes4` 13, `TestTemperature1` 23,
+`MeasuringTemperature` 40, `R134a2` 0. The 20 controls, counted the same
+way, hold none. So the NaN shape covers six of the eight
+(`SeriesPipes1`, `BranchingPipes2`, `3`, `4`, `TestTemperature1`,
+`MeasuringTemperature`) and the flat finite residual the two `R134a`.
+The question above stands with that weight: six of eight show the
+symptom, 0 of 20 running models do. Still unmeasured is whether
+treating a non-finite residual as a step not taken makes any of the six
+run.
