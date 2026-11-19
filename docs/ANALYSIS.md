@@ -87374,3 +87374,14 @@ each case the rebuild that follows is the structurally singular
 refusal, so the wall these models stand at is the rebuild, and the
 monitor's request is where they leave a run that was going. A map, not
 a change.
+
+The five left unnamed in the table, probed one by one with
+`library check .msl --only` on `/tmp/m724/ox33` (commands in
+`/tmp/m724/new5.env`), all land in classes already named.
+`MoistAir1` and `MoistAir2` refuse with a singular initialization
+problem, `R134a1` and `R134a2` with a Newton direction that fails in
+the loop over `volume.medium.p`, and `HeatExchangerSimulation` at a
+start block of 162 unknowns. So no new class is needed among the 91:
+the table's unnamed row moves to initialization singular (+2), Newton
+direction (+2) and start block (+1), and the census of the 131 queue
+members likewise has no member outside a named class.
