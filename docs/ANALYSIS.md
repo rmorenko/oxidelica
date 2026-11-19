@@ -89286,3 +89286,17 @@ the pressure and the residual cannot move. That fits a derivative of
 the medium that is wrong or flat in that direction better than a
 count. Without the valve (`SP4.mo`) the model is not square at the
 start, which is no witness.
+
+The first steps of the same block say more than its last. From
+603 kPa with a residual of 3.81, the first Newton step lands at
+-7.79 MPa, where the medium answers NaN, and the damped steps after it
+crawl back toward small positive pressures without the residual moving.
+That step implies a slope of the residual in the pressure near
+4.5e-7 per pascal, which is about what the compressibility of liquid
+water gives a mass balance: the pressure of a liquid volume barely
+enters its own mass. So the block is ill-conditioned by its physics,
+a nearly incompressible liquid asked for its pressure through its
+density, and `ConstantPropertyLiquidWater` runs because there the
+formulation does not ask that question. This is an inference from one
+trail (`trail_SP2.txt` and the full trail rerun into the same
+command), not a trace of which equation the residual is.
