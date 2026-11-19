@@ -87193,3 +87193,11 @@ uses are commented out or typed `Real`. Of the models extending
 `LinearColdWater`, `LinearWater_pT_Ambient`, `CO2`,
 `ConstantPropertyLiquidWater`), where `dddX` is not negative, and
 `MoistAir` is refused. So the shape is still two models, not more.
+
+The 46 unmarked models that run today, by package
+(`/tmp/m723/marks1026.tsv`): `Electrical.Digital` 6, `Electrical.Analog`
+6, `Clocked.Examples` 6, `MultiBody` 5, `StateGraph.Examples` 4,
+`Translational` 4, `Rotational` 4, `Thermal.HeatTransfer` 3,
+`Blocks.Examples` 3, and single members elsewhere. They are spread
+over the library rather than one family, so an example filter would
+take models from every package that keeps helpers beside its examples.
