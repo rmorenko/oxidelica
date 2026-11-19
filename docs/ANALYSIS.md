@@ -90092,3 +90092,23 @@ equation on the derivative of a variable not chosen as a state, which
 the compiler refuses before any block is formed. Different stage,
 different shape, so 133 stays at three and `HeatingSystem` stays its
 own row.
+
+### What "not ours" means, two rules and their numbers
+
+The 13 of the function wall are 11 bodies written in C or Fortran and
+two of ours. Whether the 11 are ours is a definition, not a
+measurement. Under rule A, not ours is what the library contradicts or
+gets wrong, or what is not an example, so anything a conforming tool
+must provide is ours; `ModelicaExternalC`, `ModelicaInternal`, LAPACK
+and a model's own `external "C"` are all things a conforming tool is
+expected to build and link, and under A all 11 are ours. Under rule B,
+a body this compiler has chosen not to execute is outside its work, and
+all 11 are not ours. The current 20 not ours holds some external
+bodies and not others (the m725 table counted seven absent bodies with
+the missing names), so it follows neither rule cleanly. The reachable
+count is at most 69 under the present mixed count, and the two rules
+move it in opposite directions by as many external models as the mixed
+count classed the other way. Which external models stand inside the 20
+is the reconciliation named above as not done; until it is, the exact
+figures under A and B are not given here. The choice of rule is
+Roman's.
