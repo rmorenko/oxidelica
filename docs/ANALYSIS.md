@@ -88170,3 +88170,18 @@ zero, measured, and the question becomes which catcher of
 `did not come to an end` the wrapper stands between. The candidates are
 the matches on `NO_BOTTOM` in `inlining.rs`, `arrays.rs`,
 `statements.rs` and `equations.rs`.
+
+What the ceiling costs on the digital table, measured with a third
+probe binary outside the tree that reads the ceiling of both counters
+from the environment (`/tmp/m724/ceil.env` holds the commands and how
+the binary was made, `MAX_DEPTH` in the tree untouched). `DQ31.mo`
+refuses at 32 and runs at 33, 48 and 64, at 187 to 188 MB resident in
+every case, so the raised ceiling costs it nothing measurable. The
+corpus `RAM`, whose table has 80 entries, refuses on depth at 32, 48,
+64 and 80, between 238 and 241 MB. At 88, 96 and 128 it is past the
+depth and meets its next wall, `ModelicaStrings_scanInteger`, a C
+function of the library, in 241 MB and 1.4 s. So for `RAM` the depth
+is not the last wall, and no ceiling alone would make it run. The two
+Fluid models that went to 19 and 20 GB at 48 (the note in `AGENTS.md`)
+show that the price of a ceiling depends on which model meets it.
+Measured here, the table family pays nothing for one.
