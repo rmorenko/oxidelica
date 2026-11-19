@@ -88012,3 +88012,15 @@ at that ratio about ten more iterations would have met the tolerance.
 So the cap is where the refusal lands and not why it happens. The
 question it leaves is why Newton converges only linearly on two
 internal MOS nodes. Shown by trail.
+
+`Machines.Examples.SynchronousMachines.SMPM_CurrentSource` is a
+different shape of the same refusal (`/tmp/m724/smpm.txt`, command in
+`/tmp/m724/smpm.env`). All 420 trail lines are at `t = 0`, seven
+attempts of 60 iterations each. Every attempt starts from
+`|f| = 239.6`, and the first goes to 3.9e3 and then 2.1e9 by its fifth
+step. This is divergence from the start, not slow convergence. The
+loop holds `dqToThreePhase.rotator.angle` beside the stator currents
+and the rotor acceleration, so the angle a current source turns its
+set point by is an unknown of the same block the currents are. Its
+QuasiStatic twin refuses with the same angle in its loop. Shown by
+trail, the cause not yet named.
