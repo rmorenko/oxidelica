@@ -89215,3 +89215,12 @@ the start places the massless node so that the second spring's length
 is solved through a division that passes through zero on the way. The
 next question is why the start of a torn variable leads the iteration
 there, and a probe of the iteration on `TS4.mo` is where to ask it.
+
+`RevoluteConstraint` does not share the lever of `ThreeSprings`
+(`/tmp/m726/small/RC.env`). Its wall is another wording of the loop
+refusal: equations that do not mention `der(constraint.R_rel.T[3,3])`
+at the start, so no step determines it. Giving its springs a nonzero
+unstretched length (`RC2.mo`, against `s_unstretched = 0` in the
+library) leaves the refusal word for word (`RC1.mo`), so the zero
+length of the spring is not the lever, and the 18 are at least two
+mechanisms rather than one.
