@@ -89521,3 +89521,26 @@ question 132 weighs, five run whole once the medium is swapped
 (`BranchingPipes4`), and the two `R134a` are not swappable to a liquid
 of constant properties without changing what they test. The weight
 stays eight, and five of them have the medium shown as the only wall.
+
+What the eight are and are not. They are a lower bound on the part
+probed, not a weight over the whole: shown on 8 of the 92, with 23 of
+the 61 in the run half probed (the 18 loops and the five medium
+candidates). The swap proves the cause on the corpus, in three of the
+four pipe tests run under it directly and two more by copies. It does
+not price a repair. A swapped medium changes the model and not the
+compiler, so three models running with another medium is not three
+models won if the compiler were mended. The instrument that would
+price it is a step bounded at the physical limits of the medium, and
+that clamp is not this shift's to switch on, so the price is not
+measurable without Roman's word on it. What the measurement does give
+is a ceiling on what a perfect repair could buy: `BranchingPipes4` goes
+on to a second wall, so even then it buys three of the four, and
+carried over the eight that is near six and not eight. A wall counts
+as gone only when the model runs whole.
+
+`TestJunctionTraceSubstances` is a row of its own and not part of 132:
+its residual is NaN at the first evaluation, before any step, from the
+moist-air enthalpy inversion whose `solveOneNonlinearEquation` is not
+bracketed. That depends on neither the step nor the liquid. If the
+sieve now running finds others like it, they are a candidate for a
+question of their own.
