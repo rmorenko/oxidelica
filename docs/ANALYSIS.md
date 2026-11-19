@@ -91539,3 +91539,21 @@ definition reads, which is the reading of `GearType1`, where
 `a_rel = 0` reaches only `spring.w_rel`. The small pair does not turn
 red, because there the orphan's start is a consistent answer. Level:
 small pair, the reach reproduced and the refusal not.
+
+A repair was built for the park, not for main
+(`~/oxideflow/park/m730_subscript_whole.patch`, note beside it): a
+whole-array binding to a name with no shape is subscripted element by
+element, behind `OXIDELICA_PARK_SUBSCRIPT_WHOLE`, with a test red
+without it. On the small models it is the repair. The small court
+(`/tmp/m730/pk_off_<model>.txt` and `pk_on_<model>.txt`, binary
+`ox60`) moves four of the five a floor up and none to running:
+`Engine1b_analytic`, `EngineV6_analytic`, `PlanarLoops_analytic` and
+`Cylinder_analytic_CAD` go from `cannot evaluate` to `structurally
+singular`, at a cost of 0 s to 93, 76, 159 and 11 s of run half spent
+on the new refusal. `Utilities.EngineV6_analytic` was not reached. The
+running controls `DoublePendulum`, `Fourbar_analytic` and the Analog
+`Rectifier` run in both halves at equal times. The heavy basket was
+not measured: `Engine1b` and `EngineV6` are carved out and the check
+refused them by name. So the declaration-order defect is real and its
+repair buys no model by itself; the next wall is structural
+singularity, which is index reduction and under the ban.
