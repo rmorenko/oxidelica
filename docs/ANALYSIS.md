@@ -90489,3 +90489,18 @@ repeats, so water does not lose its row the way the gas mixture does.
 Its "do not pin down [volume.U, volume.m]" is therefore a rank deficit
 in the Newton matrix at the start point and not in the structure.
 Two mechanisms share one refusal text. The water one stays unread.
+
+`MoistAir1` under the same probe (`/tmp/m728/ma1_probe.txt`) is a
+third shape and not the gas mixture's. `ReferenceMoistAir` has
+`reducedX = true` (one free fraction), and the start is fixed, not
+steady: `medium.p = p_start`, `medium.T = T_start` and
+`medium.Xi[1] = X_start[1]`. Those three are solved for `volume.U`,
+`volume.mXi[1]` and `volume.m` respectively, so the fixed pressure is
+asked to fix the energy and the fixed temperature the water mass.
+The assignment is legal structurally. It leaves to the Newton matrix a
+dependence it does not see at the start point, and `volume.U` is what
+comes out unpinned. That the crossed pairing is the cause is a
+reading, not shown. So the three "do not pin down" refusals of the
+fifteen are three mechanisms: a structural repeat (gas mixture,
+shown), a point deficit (water, unread) and a crossed pairing (moist
+air, a reading).
