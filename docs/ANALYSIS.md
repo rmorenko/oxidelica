@@ -87758,3 +87758,14 @@ BJTs on a zero capacitance; two der-of-a-non-state on the medium's
 state choice; three `e_ia`; `GenerateRandomNumbers` on an unexpanded
 vector assignment (`XQ.mo`); the two self-contradictory models. The
 remaining 60 have a named wall and no mechanism yet.
+Of those 31, the strength of the evidence differs, and the count
+should say so. Shown with a small model that refuses the same way:
+`GZ4.mo` (1), `T2.mo` (the tank pair, 1 of the 6 placed at the first
+build), `S32.mo` with `R26.mo` (4 FFT), `XQ.mo` (1), `RB.mo` (2
+R134a). Shown by a trail of the corpus model itself: the five Fluid
+Newton models, the three re-selection models and the two Spice3 BJTs.
+Placed but not explained: five of the six that fail at the first
+build. Carried from earlier shifts: three `e_ia`, two
+self-contradictory. Explained by `why` without a small model: the two
+der-of-a-non-state. That is 9 shown small, 10 by trail, 5 placed, 5
+carried and 2 by `why`, 31 in all.
