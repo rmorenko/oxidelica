@@ -88532,3 +88532,19 @@ ten-iteration loop, and that nesting of an outside call inside an
 unrolled loop is where the depth runs out. The 1024-bit copy of the
 probe was written wrongly (its error names the probe, not the
 library) and says nothing.
+
+### MoistAir1 is the medium, not the test rig
+
+`Modelica.Media.Examples.ReferenceAir.MoistAir1` refuses with a
+singular initialization that does not pin down `volume.U`. The same
+`Media.Examples.Utilities.PartialTestModel` with four media
+(`/tmp/m725/MA_*.mo`, `MA.env`): `SimpleAir` runs and so does
+`IdealGases.MixtureGases.CombustionAir`; `ReferenceMoistAir` gives the
+corpus refusal, and `Air.MoistAir` refuses differently, a loop over
+`volume.medium.X_sat`, `p`, `T`, `x_sat`, `phi` that does not converge
+in 60 iterations. So the rig, its initial equations and its volume are
+sound, and the wall belongs to the two moist-air media: for
+`ReferenceMoistAir` the initial equations on `medium.p`, `medium.T`
+and `medium.Xi` leave `U` free, which means `medium.u` is not reached
+from the states the medium prefers. Which state choice of
+`ReferenceMoistAir.BaseProperties` breaks the chain is the next probe.
