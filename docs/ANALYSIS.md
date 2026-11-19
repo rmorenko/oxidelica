@@ -87546,3 +87546,12 @@ move it. No R134a state near 1 bar has a density that low, liquid or
 vapour, so the value is wrong before the direction is. That fits the
 derivative count above standing in front of a body that is not
 evaluated as written, and it is the next thing to shrink.
+The derivative count refuses even where nothing is differentiated:
+`density_ph(1e5, 107390)` in an initial equation of a parameter
+(`/tmp/m724/small/RV.mo`) is refused on the same count. So the count
+is checked whenever the function is inlined, not only when a
+derivative is wanted, and every direct call to an R134a two-phase
+property function stops there. The `BaseProperties` route of
+`RB.mo` goes around it and reaches the run with the density of
+0.028 kg/m3, so the two R134a examples meet two faults of the same
+medium, one in front of the other.
