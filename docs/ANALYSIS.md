@@ -92615,3 +92615,15 @@ the seven showed. Against `bdf` on the same sixty (four, m731) the wide
 handoff wins less; against the default (none) it wins one. Its price on
 the 855 that run is not measured; the m410 comment and question 2
 above stand.
+
+The same five Fluid models under the wide handoff, off, on, off
+(`/tmp/m732/fe_{off1,on,off2}.txt`, commands in `fe.env`):
+`BranchingPipes2` 62.7 / 180.4 / 64.1 s, `BranchingPipes4`
+60.0 / 134.6 / 61.0 s, `SeriesPipes2` 57.7 / 93.6 / 59.7 s,
+`TestMultiPortTraceSubstances` 47.2 / 47.8 / 47.4 s,
+`IncompressibleFluidNetwork` 34.6 / 35.6 / 35.2 s. Three pay about what
+they pay under `bdf` (+228 s together), the two that refuse at the
+start point and one that runs; the two that do not refuse at the start
+pay nothing. So the wide handoff costs where the explicit solver is
+refused at the start point, as the m410 comment says, and the
+`SeriesPipes2` win m410 recorded is now a run either way, at +36 s.
