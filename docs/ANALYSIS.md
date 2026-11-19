@@ -91839,3 +91839,14 @@ through `w = v`, starts at `v = 0` on `ox61` and at 0.5 on `ox63`, the
 same fault as `Q30` one alias away. So what the patch changes is
 confined to the initial equations and the check before the run, as
 read.
+
+The corpus pair for the parked patch, one binary `ox63`, the halves
+one after the other (`/tmp/m730/pair63.env`, `p63_off.txt` under
+`OXIDELICA_INIT_AT_ZERO`, `p63_on.txt` without): both print `of the
+986 that flatten, 855 run`, and the `flat` and `ran` lists are equal
+line for line (986 and 855 each). Time: flattening 5381 s to 5338 s,
+running 2491 s to 2546 s, which is 2.2% on the run half, at the edge
+of the measured drift between halves of equal work and with no model
+that moved to name. Wins 0, victims 0, as the ten byte-identical
+models predicted. So the patch is a correction of a wrong number with
+no weight in the corpus, and it goes to Roman as such.
