@@ -88819,3 +88819,60 @@ wall at all; it runs to t = 1 and stops on IF97 at a pressure too low,
 which is a different refusal and says the small model must keep the
 corpus medium. `BranchingDynamicPipes` was named one cause with this
 one and is not shrunk separately.
+
+### The homotopy catcher over the corpus, measured with named arguments unwrapped
+
+The probe of the last pair took the first argument of `homotopy` as it
+stood, so a call written `homotopy(actual = ..., simplified = ...)`
+handed on the name node and sixty models were lost to the probe. The
+probe is rebuilt outside the tree as `/tmp/m726/ox44`
+(`/tmp/m726/ox44.patch`, md5 `c7dff447`): under `OX_HOMOTOPY_CATCH` the
+branch of `arrays.rs` that resolves the call again takes the value of
+`actual` when it is named and the first positional argument otherwise.
+Checked before the corpus (`small.env`): `HC1.mo` runs, `PO.mo` runs
+with `dp = 0.291302` as before, and `Modelica.Blocks.Examples.PID_Controller`,
+the first of the sixty, runs under the key. None of the sixty is among
+the 91 of the gap (an empty `comm` of `victims.txt` and `gap91.txt`),
+so the gap pair of the earlier section measured a field the broken
+probe never touched, and its one winner stands.
+
+The pair is one binary, off then on, `--slow 60`, under a 24 GB cap
+(`pair.env`, `c_off.txt`, `c_on.txt`):
+
+| Half                   |                     off |                      on |
+| ---------------------- | ----------------------: | ----------------------: |
+| flatten / run          |               985 / 854 |               986 / 855 |
+| time, flattening       |                  5195 s |                  5688 s |
+| time, running          |                  2506 s |                  2546 s |
+| work, flattening names |           1 821 624 878 |           1 821 896 852 |
+| work, running          | 24 394 369 / 36 066 038 | 24 394 433 / 36 066 304 |
+
+The off half repeats the gates 985 / 854 and the work of
+`/tmp/m725/c_off.txt` to the digit, and its run and flat lists equal
+that file's line for line. The lists of the two halves differ in one
+line each: `ModelicaTest.Fluid.TestComponents.Fittings.TestWallFriction`
+flattens and runs with the key. No model is lost. The running work
+moves by 64 points and 266 Newton steps, the one model's own; the
+flattening work by 27 classes and 271 974 names, likewise one model's
+worth. The run half is 1.6% dearer. The flattening half is 9.5% dearer
+for one more model, which is not the catcher's price: the on half ran
+beside the small models of the next sections (one of them, `HS0.mo`
+with `HS1.mo`, took nine minutes of the desk), and the run half, which
+those small models also shared, moved by 1.6%. It is carried as a
+question about the desk and not as a cost. The catcher stays out of the
+tree.
+
+### The constraint-joint NaN has more than one door
+
+A second probe outside the tree (`/tmp/m726/ox46`, `ox46.patch`,
+`DOORS.env`) makes `solve_linear_known` decline any slope that names a
+variable, under `OX_NO_REF_SLOPE`. `UC1.mo` under the key is still a
+NaN at the start, now a division by `-(c.frame_b.r_0[2] - c.frame_a.r_0[2])`
+without the square and on another index (`doors_UC1.txt`). So closing
+the linear solve does not close the division: at least one more stage
+writes a denominator the constraint holds at zero, and whether the two
+are one defect or two is not separated here. The comment in the
+quotient rule that says its test "covers both doors" is not lowered by
+this: it speaks of a denominator whose form grows, keyed on `b' = 0`,
+and this counterexample is about a denominator whose value is zero, a
+different claim.
