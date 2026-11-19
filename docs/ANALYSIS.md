@@ -90377,3 +90377,15 @@ the shape of a start system in which `volume.m` is fixed only through
 the density, from a pressure the pipe makes implicit. Which equation
 drops out was not narrowed. Level: small model, with a control for
 each part. Nothing was changed.
+
+`MoistAir1` and `MoistAir2` (`ReferenceAir`) are refused at the same
+place in the code as `SimpleNaturalGas` (`compile.rs`, grep `do not pin
+down`), on `volume.U` (`/tmp/m728/ma1.txt`, `ma2_why.txt`). They are
+built on a different test model, though:
+`Modelica.Media.Examples.Utilities.PartialTestModel` uses the media
+package's own `PortVolume` and `ShortPipe`, with no `Modelica.Fluid`
+system. So `SN7.mo` is not their witness. `ReferenceMoistAir` dropped
+into `SN7.mo`'s shape (`SN10.mo`) neither ran nor refused within 14
+minutes of CPU time, and it was stopped by hand. That is an
+inequality, at least 14 minutes, and no result. One refusal site with
+two test models is two candidates until a small model joins them.
