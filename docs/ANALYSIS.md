@@ -90504,3 +90504,16 @@ reading, not shown. So the three "do not pin down" refusals of the
 fifteen are three mechanisms: a structural repeat (gas mixture,
 shown), a point deficit (water, unread) and a crossed pairing (moist
 air, a reading).
+
+`HeatingSystem` and `BranchingDynamicPipes` under the same probe
+(`/tmp/m728/hs_probe.txt`, `bdp_probe.txt`) write their steady rows
+and pair each with a balance (`der(tank.medium.T) = 0` takes
+`tank.U`, `der(pipe1.mediums[i].T) = 0` takes `pipe1.Us[i]`). In
+neither file is a row solved as a state's derivative. So
+they are refused after the pairing and before the swap that would
+write `der(T) = 0` as `der(U) = 0`. The gas mixture's swap ran and
+repeated a row. These two never reach the swap. So they share the
+initial equation with `SN7.mo` and not the mechanism: two families,
+not one. `BranchingDynamicPipes` runs on `Air.MoistAir`, with free
+fractions as well, so if it got past this wall it may meet the
+gas mixture's repeat next. That is a prediction, not shown.
