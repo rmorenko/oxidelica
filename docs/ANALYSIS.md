@@ -92441,3 +92441,20 @@ refuse either way. So at least 310 s of the rest's 202 s in the pair is
 confirmed (the pair's own figure for the rest was net of the thirteen
 models that got faster), and the cost of `bdf` on models it does not
 change the outcome of is concentrated in Fluid pipes.
+
+### `R134a1`: a one-unknown loop that steps below its own `min`
+
+The smallest Newton direction refusal of the measure, by
+`OXIDELICA_NEWTON_TRAIL` (`/tmp/m732/r134.txt`, command in `r134.cmd`)
+and `why`: the loop is `volume.medium.p` alone, declared with `min = 0`
+and started at `p_start` = 3e5 Pa. Newton goes from 3e5 to 1.0e6 with
+the residual growing (12.2 to 13.4), then to -2.53e6 Pa, where the
+residual is 0.972 and does not move again: three steps cut to a lambda
+of 9.5e-7 buy nothing, and the block refuses at t = 0. The value it
+stalls at is below the variable's declared minimum by two and a half
+million pascals, a point the medium is not defined at. So the refusal
+is the iteration leaving the variable's own range on its second step,
+not a property of R134a. Keeping an iterate inside a declared `min` is
+step handling, which is under the ban; this is a map and a question,
+with `R134a1` (one unknown, ten seconds) as the smallest model to ask
+it on.
