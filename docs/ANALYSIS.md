@@ -87812,3 +87812,13 @@ small: `setState_psX(1e5, 100, {})` alone (`/tmp/m724/small/SA.mo`)
 is refused in the same words. A unit error in the library, and the
 refusal is right; three of the 91 now stand on such errors (two
 thyristors and this one).
+
+`HysteresisModelComparison` is not a library unit error, unlike the
+three above. Its refusal pits `preisachEverett.J`, declared
+`SI.MagneticFluxDensity` (kg/(s2 A)), against an inlined right side the
+compiler reads as unitless. The library's `initPreisach` declares its
+output `B` a flux density, and each of its terms carries one
+(`everett(...)` returns a declared `SI.MagneticFluxDensity`,
+`p.K*mu_0*H` is unitless times H/m times A/m). So the unit is lost in
+the inlining of `everett`, the compiler's side, and the refusal names
+the symptom. Not yet shrunk.
