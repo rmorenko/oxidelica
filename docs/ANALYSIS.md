@@ -88592,3 +88592,31 @@ of the junction's inflows. So the wall is a first guess of an
 outflowing enthalpy far outside the medium's range rather than the
 medium function. Where the 1e6 comes from is the next probe; the
 medium itself is shown sound for a sane enthalpy.
+
+### TestFiles needs the directory walk
+
+The model's own text settles which side of the count it falls on:
+`ModelicaTest/Utilities.mo` binds
+`dirPath = loadResource("modelica://ModelicaTest/Resources/Data")`, a
+directory, and calls `Modelica.Utilities.Files.list(dirPath)`, whose
+directory branch calls `listDirectory`, which calls
+`Internal.FileSystem.readDirectory`, written in C as
+`ModelicaInternal_readDirectory` and absent here. So `TestFiles` stays
+outside: 19 not ours, 71 reachable.
+
+### What a catcher for the homotopy raise would buy
+
+A probe binary outside the tree (`/tmp/m725/ox43`, `hc.env`) answers
+`homotopy` with its already expanded first argument at the branch of
+`arrays.rs` that otherwise resolves the call once more. `PO.mo` runs
+under it with `dp = 0.291302`, the same number `PR.mo` gives without
+the wrapper. Over the 91 models of the gap (`--only-from`, both halves
+one binary, `hc_off.txt` and `hc_on.txt`), the lists differ in one
+model, `ModelicaTest.Fluid.TestComponents.Fittings.TestWallFriction`,
+which flattens and runs under the key; nothing in the 91 is lost. The
+run half was 1268 s against 1224 s, the flattening half 2371 s against
+2410 s, both inside the drift of two halves run side by side. What it
+costs over the rest of the library, where every Fluid valve and pipe
+passes through `homotopy`, needs the whole corpus; that pair was
+started in the same binary (`c_off.txt`, `c_on.txt`) and its answer
+belongs to the next section. The catcher is not in the tree.
