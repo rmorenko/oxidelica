@@ -87785,3 +87785,14 @@ and `dp = 0.5*m^2*(if m > 0 then 1 else 2)`, is refused in the same
 words at a start of zero, and runs with `m(start=1)` (`SE1.mo`). So
 the refusal is right and the cure is a start the library does not
 give.
+
+`SimpleTriacCircuit` and `ThyristorBehaviourTest` refuse on the
+library's own text, not on ours. `Analog/Semiconductors/Thyristor.mo`
+(grep `0.95*IGT + 1e-3`) writes `vContot = vConmain + smooth(0, if iGK
+< 0.95*IGT then 0 else if iGK < 0.95*IGT + 1e-3 then
+10000*(iGK-0.95*IGT)*vAK else 10*vAK)`: the middle branch is a current
+times a voltage, the last a voltage, so the branches of one `if` carry
+different units, which is what the refusal names. Two of the 91 stand
+on a unit error in the Modelica Standard Library, the same kind of
+finding as the bounds the last shift proved against the library's own
+text.
