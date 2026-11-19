@@ -87927,3 +87927,16 @@ them the difference lies elsewhere (`SMEE_DOL` switches the machine on
 through ideal switches, `SMEE_Rectifier` feeds ideal diodes). The
 next small model to try is a converter behind a switch, and not the
 switch on its own.
+
+Two of the three `equations of loop` models (`PlanarFourbar` and
+`RevoluteConstraint`) name an unknown that is the derivative of an
+entry of a rotation matrix, `der(revolute2.R_rel.T[1,1])` and
+`der(constraint.R_rel.T[3,3])`. Such an entry is a cosine of a joint
+angle, and its derivative carries `sin(phi)`, which is zero when the
+angle starts at zero, so at `t = 0` the block does not depend on it.
+The third, `Spice3BenchmarkDifferentialPair`, is the `capbx = 0` start
+already placed. A small witness of the same idea, `x = cos(phi)` with
+`der(x) = -sin(phi)` and `phi` fixed at zero (`/tmp/m724/small/CZ2.mo`),
+is refused at `t = 0` but with a different message (no root on either
+side), and the same cosine inside a dynamic equation runs (`CZ.mo`).
+So the zero sine is a reading of the message, not yet shown. Placed.
