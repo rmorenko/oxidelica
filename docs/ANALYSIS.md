@@ -88960,3 +88960,14 @@ and leave the star's potential to nobody, which is ill-posed as
 written. So `AN1.mo` is no witness, and the corpus model, whose
 current sources are driven by a controller rather than by fixed sines,
 stays placed and not shown small.
+
+`Engine1a` is placed and not shrunk (`/tmp/m726/small/EN.env`).
+Extended unchanged (`EN0.mo`) it gives the corpus refusal, and the
+equation named belongs to `bearing`, the ordinary `Revolute` of
+`Utilities.Engine1Base` that joins the crank to the world, not to the
+planar loop constraint `b2` of `Engine1a` itself: the derivative of
+`bearing.frame_b.R.T[2,2]` with the axis entry `e[2]` of a joint whose
+axis is `{1,0,0}`, so the term is a parameter times zero. The loop
+joint cannot be swapped by redeclaration (`EN1.mo`, not replaceable),
+and `Engine1b_analytic` and `EngineV6_analytic`, which share the base,
+also flatten without running, so the base is the likelier place.
