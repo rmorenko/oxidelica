@@ -87512,3 +87512,16 @@ the record input. In the full model the same function presumably meets
 a path that does not refuse but differentiates wrongly, and the Newton
 direction it builds does not reduce the residual. The second sentence
 is an inference, not yet shown; the first is shown by `RD.mo`.
+The record layer is shown without any medium: `/tmp/m724/small/DR.mo`,
+24 lines, a function `f(input S s)` of a one-field record with
+`derivative=df` and `df(s, der_s)`, is refused the same way. The count
+is in `flatten/inlining.rs` (grep "and then one derivative for each"):
+an input is handed a derivative only if `is_real` holds for it, and a
+record of Reals fails that test, so `der_s` is not counted and the
+wanted total is one. The Modelica Standard Library relies on the other
+reading throughout `R134a` (`der_sat` beside `sat`), so the fix is a
+change to which functions differentiate. That is a change of
+behaviour, and it is left as a question with its witness, not made
+here. The refusal's own text then states an arithmetic it does not
+follow, "takes 1 inputs - what `f` takes, and then one derivative for
+each", for a function of one input.
