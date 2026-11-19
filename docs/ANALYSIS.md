@@ -92642,3 +92642,63 @@ way), and the rest sit within 11 s each. So the wide handoff, measured
 on the dearest sixty, buys one model for about 900 s, four fifths of it
 on three that it does not save. Same verdict as m410, measured again on
 today's tree: not worth taking whole.
+
+### Where the wide handoff fires, read from the probe that outlived its shift
+
+The last shift built a print at the handoff (`PROBE_HANDOFF`, binary
+`/tmp/m732/ox7`, command in `/tmp/m732/ho.cmd`) and ran it on twelve
+models in two lists under `OXIDELICA_EDGE_HANDOFF=all`. Both runs
+finished after the shift was cut: `ho5.txt` read 5 of 5 and `ho7.txt` 7
+of 7, `classes: 7640` in each. Checked line by line this shift: there are
+exactly six `PROBE_HANDOFF` lines, three in each file, and all six read
+`t=0e0 t0=0e0 moved=false outside=true`. They are `TestTemperature1`,
+`SeriesPipes1` and `BranchingPipes3` in `ho7.txt`, `SeriesPipes2`,
+`BranchingPipes2` and `BranchingPipes4` in `ho5.txt`. All six carry the
+same message, that the Newton direction of an algebraic loop does not
+reduce the residual at t = 0.0.
+
+Read against the code: `EdgeHandoff::takes(moved)`
+(`crates/oxidelica-sim/src/solvers/mod.rs:447-452`) answers `false` for
+`Off`, `moved` for the default `AfterAStep` and `true` for `Always`, and
+`dopri.rs:363` passes `t > t0` as `moved`. With `moved = false` the
+default does not hand over and `all` does. So the whole difference
+between the default and `all` is one case: a handoff at the start point,
+before any step was taken, on a start-point algebraic solve that the
+explicit solver could not finish. The +893 s and the one model won on
+the dearest sixty both live in these six lines by the construction of
+the flag, and nothing else differs. What breaks is the initial
+algebraic solution, not stiffness and not the step.
+
+The same `ho7.txt` lists four runs out of seven:
+`ThyristorBridge2mPulse_RLV_Characteristic`, `RoomCO2WithControls`,
+`HeatLosses` and `BranchingPipes3`. The three models the `bdf` default
+cost all run under the narrow handoff, and `BranchingPipes3` is won,
+which is the "+1, no victims" of the pair seen by a second instrument.
+
+Two caveats. The patch that made the print was not kept, so the point of
+the print cannot be reproduced and the lines are an observation, not a
+measurement of the place. And the two runs went side by side on one
+machine, so their times (789 s of running over seven) are not used for
+anything.
+
+### The price of the first-try pair, as a sum of known times
+
+`BranchingPipes3` and `PolyphaseRectifier` are the two that the `bdf`
+half wins on the first attempt without the swapped retry that
+`SeriesPipes1` needs. From the per-model times already on disk, no new
+run: `BranchingPipes3` runs 107.3 s in the off half and 26.4 s in the
+`bdf` half (`/tmp/m732/off.slow`, `on.slow`, from the
+`bdf855_{off,on}.txt` pair), and 102.3 s against 30.2 s on the sixty
+(`t60_{off,on}.txt`). A refusal that burned a minute and a half becomes
+a run of half a minute, so winning it saves about 72 to 81 s.
+`PolyphaseRectifier` is in neither top sixty, so its time is below the
+floor of each list (7.7 s off, 7.8 s on): its change is at most 7.8 s
+either way. The two together therefore cost at most -73 s, that is,
+they make the run half cheaper.
+
+This is a sum of known times, not a measurement, and what it does not
+contain is the point: it says what the two cost once taken, not what a
+rule that takes them costs everyone else. Only `bdf` takes
+`PolyphaseRectifier` (the narrow handoff does not), and `bdf` taken whole
+cost +758 s. A rule that takes exactly these two would be priced by its
+reach into the other models, and no such rule has been measured.
