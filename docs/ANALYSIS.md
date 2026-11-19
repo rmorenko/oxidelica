@@ -90112,3 +90112,15 @@ count classed the other way. Which external models stand inside the 20
 is the reconciliation named above as not done; until it is, the exact
 figures under A and B are not given here. The choice of rule is
 Roman's.
+
+The refusing model's longest run makes the narrowed definition
+concrete. In `SeriesPipes1` (`/tmp/m727/sp1_trail.txt`) the run at
+`t = 0.0008` goes: residual 4.6e4, then NaN for three iterations, then
+4.0e4 and 3.8e4 held for six steps, and the direction is refused. The
+survivor's residual never left the finite numbers; it grew to 1.6e24
+and came back. So the step that kills is one that lands where the
+residual cannot be evaluated at all, after which the iteration
+retreats to the edge and stalls there. The property functions of the
+medium returning NaN out of range is what separates the eight from
+the survivor; a step that only leaves the physical range but keeps a
+finite residual is survived. Level: two trails, one each side.
