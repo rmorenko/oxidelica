@@ -688,8 +688,32 @@ pub(super) fn expand(
 }
 
 /// The `actual` argument of a `homotopy` call: the one named so, or the
-/// first argument given by position.
+/// first argument given by position. Only a well-formed call answers:
+/// a name the operator does not have, a name given twice, or a name for
+/// a place already filled by position is left to the ordinary path,
+/// which refuses it and says why.
 fn homotopy_actual(arguments: &[Expr]) -> Option<Expr> {
+    let by_position = arguments
+        .iter()
+        .filter(|argument| !matches!(argument, Expr::NamedArg(..)))
+        .count();
+    let mut taken = [false; 2];
+    for argument in arguments {
+        if let Expr::NamedArg(name, _) = argument {
+            let place = match name.as_str() {
+                "actual" => 0,
+                "simplified" => 1,
+                _ => return None,
+            };
+            if place < by_position || taken[place] {
+                return None;
+            }
+            taken[place] = true;
+        }
+    }
+    if by_position > 2 {
+        return None;
+    }
     let named = arguments.iter().find_map(|argument| match argument {
         Expr::NamedArg(name, value) if name == "actual" => Some((**value).clone()),
         _ => None,
