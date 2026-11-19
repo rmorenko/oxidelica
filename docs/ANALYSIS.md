@@ -92410,3 +92410,19 @@ energy are - and an initial equation on the derivative of an
 algebraic variable is refused instead of being built from the states.
 That is ours: the specification lets `der` stand on any variable whose
 value is a function of the states.
+
+### The two `der not state` models, one storey further
+
+The existing probe `OXIDELICA_INIT_DER_PROBE` names why
+`der(tank.medium.T)` has no derivative in `HeatingSystem`
+(`/tmp/m732/idp_hs.txt`): its definition holds
+`waterBaseProp_ph(101325, ...)[7]`, an element of a call whose
+arguments are all constants, and the slope of a subscript is refused
+as one that survived flattening even when nothing in it mentions the
+name. A probe key that answers such a slope with zero (patch parked in
+`~/oxideflow/park/m732_still_element_slope/`, binary `/tmp/m732/ox5`,
+`/tmp/m732/dns_{off,on}.txt`) moves `HeatingSystem` one storey up, to a
+singular Jacobian in the loop of `tank.portInDensities`, and leaves
+`BranchingDynamicPipes` where it was: there the missing derivative is
+`MoistAir.h_pTX`, a call with no derivative rule, a different family.
+No model of the measure runs under it. Parked, not proposed.
