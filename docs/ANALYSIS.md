@@ -91199,3 +91199,14 @@ residual is already below `3e-7` when the direction is refused, so the
 step there fails on the direction and not on a large residual. That is
 a solver question, and damping is under the ban. Level: trail, one
 line per model.
+
+### SN11 under a ceiling
+
+`SN11` (`/tmp/m728/SN11.mo`, binary `/tmp/m728/ox53`, md5 `31e2ae07`)
+was run under `cap.sh` with a ceiling of 40 minutes and 24 GB
+(`/tmp/m729/SN11.txt`, command in `/tmp/m729/SN11.env`). The ceiling
+took it at 40 minutes with a peak of 2.3 GB, before it printed a
+result. So the only number is a bound: the run needs at least 40
+minutes of wall time, more than twice the 17.4 minutes `SN10` takes to
+reach its stop time. Its memory stays at the size of `SN10`'s, so the
+cost is time and not memory.
