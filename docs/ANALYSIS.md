@@ -92498,3 +92498,19 @@ in `sim4.env`):
   (`Nonlinear.mo:671`): the bracket it is given does not hold a root at
   the start values. Whether the bracket or the start values are wrong
   is not separated here; unjudged.
+
+### `MoistAir1`: the shape that runs with dry air
+
+`DryAir1` extends the same `PartialTestModel` with
+`ReferenceAir.Air_pT` and runs; `MoistAir1` extends it with
+`ReferenceMoistAir` and its initialization is refused as singular on
+`volume.U` (raised at `crates/oxidelica-sim/src/compile.rs` near line
+10352). By `why`, `volume.U` has its two equations, `U = m*u` and
+`der(U) = port.H_flow`, and `volume.medium.u` and `volume.medium.h`
+are both written as one branching expression on `Xi[1] == 0` and on
+saturation, with `airBaseProp_pT(...)[3]` in the dry branch. So the
+row that should pin `U` is there; what is not yet separated is whether
+its column dies in the start Jacobian through the medium's branches
+or through scaling. The difference between the two passing and
+failing models is the medium alone, which makes `MoistAir1` against
+`DryAir1` the pair to shrink with next.
