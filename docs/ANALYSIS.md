@@ -91239,3 +91239,88 @@ result. So the only number is a bound: the run needs at least 40
 minutes of wall time, more than twice the 17.4 minutes `SN10` takes to
 reach its stop time. Its memory stays at the size of `SN10`'s, so the
 cost is time and not memory.
+
+## A repeated Jacobian row, and initial equations that reach no state
+
+Shift of 19 November, directory `/tmp/m730`. The tree holds no code
+from it: the probe below was built into `/tmp/m730/ox56` (md5 in each
+`.env`) and taken back out of the tree before anything was committed.
+
+### How the diff of the last shift is counted
+
+`git diff --stat 9a153106..70d1dd38 -- docs/ANALYSIS.md` prints
+`+389/-0`, which covers the nine commits after `9a153106`. Counted
+from the parent, `9a153106^..70d1dd38`, the same file is `+403/-0`.
+Neither range gives `+409/-17`, and no range of those ten commits can
+give deletions, since none of them removed a line. So the right rule
+is the range named with its base, and the `+409/-17` figure is not
+reproducible from the tree.
+
+### The small model of the rectifier
+
+`B2.mo` is the transient half of
+`QuasiStatic.SinglePhase.Examples.Rectifier`, cut down to its parts:
+a sine source with phase `pi/2`, a 50 mOhm resistor, the
+`GraetzRectifier` and a `VariableConductor` fed by a ramp that starts
+at zero. It is refused in the corpus's words, `singular Jacobian in
+algebraic loop` over the four diode `s`, `load.v` and three currents.
+The controls, one for each part of the reading:
+
+- `B4`, the conductance fixed at `G = 0`: refused the same way;
+- `B5`, the conductance fixed at `G = 1e-3`: runs;
+- `B3`, the ramp with `offset = 1`: runs;
+- `R1`, `R2`, `B0`, `B1`, one diode or a bridge into a fixed
+  conductor of 20 S: all run.
+
+So the wall is a load that conducts nothing at `t = 0`, not the bridge
+and not the phase. The SVD of the first Jacobian of `B2`
+(`/tmp/m730/B2_trail.txt`) has one singular value at `5.2e-16` and the
+next at `9.3e-6`, the off conductance. Its rows have no exact repeat:
+rows 0, 5 and 6 are linearly dependent without being equal. An exact
+repeated row is therefore one form of the defect, not the defect
+itself. Level: small model with four controls.
+
+### The weight of the repeat, with running controls
+
+`OXIDELICA_PROBE_DUP` printed, for every finite-difference Jacobian of
+an algebraic loop, how many rows repeat an earlier row exactly and how
+many are zero. It writes to stderr and changes no branch; each model
+was also run without it, and all nine ended the same way.
+
+| Model                    | runs | Jacobians | with a repeat | with a zero row |
+| ------------------------ | ---- | --------- | ------------- | --------------- |
+| QuasiStatic `Rectifier`  | no   | 7         | 7             | 0               |
+| `SMPM_CurrentSource`     | no   | 7         | 7             | 7               |
+| `UniversalConstraint`    | no   | 7         | 7             | 7               |
+| `LossyGearDemo2`         | no   | 5         | 1 (the last)  | 0               |
+| `RollingWheelSetDriving` | no   | 1106      | 0             | 0               |
+| `PumpingSystem`          | no   | 14        | 0             | 7               |
+| Analog `Rectifier`       | yes  | 4212      | 0             | 0               |
+| `DiodeBridge2Pulse`      | yes  | 98        | 0             | 0               |
+| `HeatingRectifier`       | yes  | 43        | 0             | 0               |
+| `LossyGearDemo1`         | yes  | 62        | 0             | 0               |
+
+Files: `/tmp/m730/dup_<model>.txt`, the QuasiStatic one as
+`dup_QSRect.txt` because the Analog `Rectifier` shares its short name.
+Four of the six refused carry an exact repeat, and none of the 4415
+Jacobians of the four running controls does. The repeat separates the
+refused from the running, but the rank defect is the wider class: by
+SVD of the last Jacobians in `/tmp/m729/last_*.txt`,
+`RollingWheelSetDriving` misses 26 of 33 ranks with one repeat, and
+`B2` misses one with none. Level: probe with running controls; the
+class is named as a rank defect at the start, of which the repeat is
+the common form, and the repair goes as a question.
+
+### Initial equations that reach no state
+
+`I1.mo` gives an initial equation on a variable that is not a state
+(`z = 3`, already fixed by `z = 3` in the equations). It is refused,
+`satisfied but not determined ... free along [x]`, and no state is
+taken in place of the equation; `I0`, the same model with `x = 1`,
+runs. The four corpus cases of the last shift therefore do not come
+from the plain form. The GearType1 reading, that reach is blind to a
+derivative, was tried as two pairs: `a = der(w)` with `a = 0` against
+`der(w) = 0` written out, both in first order (`G1`, `G0`) and in
+second order with a position (`G2`, `G3`). All four run with the same
+start values. The reading is not reproduced by a small model, and
+stays at the level of the corpus probe.
