@@ -88263,3 +88263,20 @@ derivative at the point`): a clocked tick is lowered to a list of
 assignments, and an implicit method makes each tick an equation to
 solve. The refusal names the three explicit methods it does take. A
 missing feature stated as one, placed, nothing to shrink.
+
+`ModelicaTest.Fluid.TestPipesAndValves.DynamicPipeClosingValve`
+refuses with "initialization did not converge in 50 Newton
+iterations". The Newton trail prints only the inner algebraic loops,
+and those close (`/tmp/m724/dpcv.txt`, command in `dpcv.env`): 599
+lines in 329 solves, each of two unknowns, ending at `|f|` between
+1e-15 and 1e-4. The outer initialization's own iterations are not on
+the trail, so this instrument cannot say how the 50 go. Placed, with
+the instrument's blind spot named.
+
+`ModelicaTest.Fluid.TestComponents.Fittings.TestJunctionTraceSubstances`
+refuses on a NaN at the start. Among the equations the refusal lists
+as NaN are `junction1.mb_flow`, `multiPort.port_a.m_flow` and
+`pipe1.flowModel.mus[2]`, so the flows through the junction and the
+viscosity in the pipe are NaN together. The NaN shows on the
+mass-fraction balance `junction1.mbXi_flow[1]`, whose terms are flows
+times `if m_flow > 0` choices of `Xi_outflow`. Placed, not shrunk.
