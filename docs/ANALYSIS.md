@@ -87719,3 +87719,12 @@ so the loop is refused before the run. The same `if m_bInit` guard is
 meant to hold the capacitor current at zero during initialization;
 the block sees the `else` branch with its coefficient of zero instead.
 Not yet shrunk.
+`Spice3BenchmarkDifferentialPair` is the same: its loop of one unknown
+`der(Q2.vbx)` is named only by `Q2.icapbx = if Q2.m_bInit then 0 else
+Q2.cc.capbx * der(Q2.vbx)`, and the refusal says the block does not
+move when the unknown does, which is a coefficient of zero. Two of the
+91 fold here, under two different wordings ("underdetermined" and
+"do not mention"). A first synthetic witness (`/tmp/m724/small/CB.mo`)
+is not one: with the capacitance held at zero its equations force the
+fixed start away, and it is refused for that, honestly. The witness
+has to keep the capacitance zero only at the start.
