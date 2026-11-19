@@ -92458,3 +92458,22 @@ not a property of R134a. Keeping an iterate inside a declared `min` is
 step handling, which is under the ban; this is a map and a question,
 with `R134a1` (one unknown, ten seconds) as the smallest model to ask
 it on.
+
+### Two more of the tail, read by their refusal
+
+`R134a2` follows `R134a1` to the digit: the same pressure, here carried
+twice, goes 3e5, 1.0e6, -2.53e6 Pa and stands on 0.972
+(`/tmp/m732/r134b.txt`). One mechanism for the pair.
+
+`MeasuringTemperature`, the `algebraic loop other` row left unjudged
+above (`/tmp/m732/mt.txt`, `simulate` from `.msl`): a loop over the
+tank port densities, velocities and enthalpy flows of six open tanks
+and three temperature sensors steps outside its equations at t = 0 on
+Newton iteration 20, with two rows NaN, `T_junction.T` (IF97 asked at
+a mixing enthalpy) and the port velocity of `openTankCold3`, which
+divides by `ports_penetration[1]`. The library writes that penetration
+as a `regStep` of the fluid level over the port height
+(`Vessels.mo:336`), so it is zero for a port above the level. That is
+the same family as the Fluid seven (an iterate leaving the domain of a
+medium or of a regularised function) and goes to `quality` in
+`/tmp/m732/rody.tsv`.
