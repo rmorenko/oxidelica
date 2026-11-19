@@ -88804,3 +88804,18 @@ comes later, from the quotient rule differentiating that solution (line
 835 on). So the slope's test asks whether the coefficient is zero as
 written and cannot see that another equation of the same model makes
 it zero. That is the place; it is not edited.
+
+`HeatingSystem` comes down to eight lines (`HS2.mo`, `HS.env`): one
+`OpenTank` of `LinearWater_pT_Ambient` on a `FixedBoundary` with
+`system.energyDynamics = SteadyStateInitial`, refused exactly as the
+corpus model, `der(tank.medium.T)` of a name that is not a state. With
+`FixedInitial` instead (`HS3.mo`) it runs. `Interfaces.mo` writes the
+steady start as the initial equation `der(medium.T) = 0` for a medium
+whose thermodynamic states are not `ph`, and the reduction here keeps a
+state other than `medium.T` for this medium, so the initial equation
+asks for the derivative of a name that is not differentiated. The
+same tank on `StandardWater` (`HS0.mo`, `HS1.mo`) does not reach this
+wall at all; it runs to t = 1 and stops on IF97 at a pressure too low,
+which is a different refusal and says the small model must keep the
+corpus medium. `BranchingDynamicPipes` was named one cause with this
+one and is not shrunk separately.
