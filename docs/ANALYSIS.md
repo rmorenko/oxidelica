@@ -88920,3 +88920,17 @@ peak at 1 and no static torque (`OA4.mo`) the same; with `GearType2`
 in the axis (`OA3.mo`) the same kind on the bearing friction's angle.
 So the wall is where the motor of `AxisType2` meets the gearbox
 friction, not the elasticity of `GearType1`.
+
+`SMPM_ResistiveBraking` comes down to fifteen lines (`/tmp/m726/small/SM1.mo`,
+`SM.env`): the permanent-magnet machine of the example, its terminal
+box in star, one polyphase resistor, a star and a ground, with no
+switches and no stages. It is refused as the corpus model is, `3 *
+smpm.lszero.i = 0` constraining no state. The machine's zero-sequence
+inductor `lszero` carries the current `sum(i)/m` of the space phasor,
+and a star with no return path makes that sum zero by the connection
+rules, so the inductor's current is a state that an algebraic equation
+already fixes. In delta (`SM2.mo`) it is refused on another wall, while
+differentiating the air gap's space phasor. So the rebuild that this
+model meets during the run, mapped earlier, has a first-build form in
+the small model; whether the corpus model's rebuild is the same
+equation is read and not traced.
