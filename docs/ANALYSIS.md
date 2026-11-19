@@ -88769,6 +88769,10 @@ t = 0. Started at `V_flow_single = 0.25` instead of the default zero
 singular-Jacobian row is, for the pump, the whole of its wall in the
 small model; the corpus model's refusal is a singular Jacobian rather
 than a Newton direction, so the small model shares the cause and not
-the wording. `LossyGearDemo2` needs no small model: its own
-documentation says that with both friction elements stuck "there is no
-unique solution", which is the mode question already named.
+the wording. `LossyGearDemo2` is not excused by its documentation but
+given a requirement by it: with both friction elements stuck "there is
+no unique solution", and the next sentence asks that a reliable
+simulator "should be able to handle this situation". So it stays in
+the reachable count; what it meets here is the refusal on the gear
+quadrants of the loop named above, and what the library expects is a
+choice among the solutions.
