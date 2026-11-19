@@ -87728,3 +87728,31 @@ move when the unknown does, which is a coefficient of zero. Two of the
 is not one: with the capacitance held at zero its equations force the
 fixed start away, and it is refused for that, honestly. The witness
 has to keep the capacitance zero only at the start.
+
+`HeatingSystem` and `BranchingDynamicPipes` are one cause under "is not
+a state": both carry the initial equation `der(medium.T) = 0` written
+by the library's steady-state start (`tank.medium.T`,
+`pipe1.mediums[1].T`), on a medium (`LinearWater_pT_Ambient`, water)
+whose states the compiler picks as `p, h` rather than `T`. The
+derivative of a variable that is not a state is then refused instead
+of being formed from the equations. A plain algebraic `T` under the
+same initial equation runs (`/tmp/m724/small/DS.mo`), so the refusal
+belongs to the medium's state choice, not to `der` of an algebraic
+name in general. The three `_analytic` models are the known `e_ia`
+family (question 93); a nested `final parameter` vector of the same
+shape runs on its own (`EA.mo`), as that question already says.
+
+### How far the 91 are taken
+
+Counted by name over `/tmp/m724/gap90.tsv`, after this shift: 33 of the
+91 have a shown mechanism or a fold onto one, in 12 mechanisms. The
+seven of a Newton step into negative pressure (two `R134a`, three
+`BranchingPipes`, `SeriesPipes1`, `TestTemperature1`); four FFT models
+on a 32-element `sum` in front of a C function; the six of the
+structurally singular row that fail at the first build and the three
+that fail at a rebuild of the selection, the tank pair shown in eleven
+lines (`T2.mo`); `Rectifier` as a diode bridge (`GZ4.mo`); two Spice3
+BJTs on a zero capacitance; two der-of-a-non-state on the medium's
+state choice; three `e_ia`; `GenerateRandomNumbers` on an unexpanded
+vector assignment (`XQ.mo`); the two self-contradictory models. The
+remaining 58 have a named wall and no mechanism yet.
