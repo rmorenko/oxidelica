@@ -88948,3 +88948,15 @@ value inside a component's algorithm; the other is a vector target that
 survives to a check that knows only scalars. Two places, two stages,
 so they are two defects and carry one model each, not one defect with
 double weight.
+
+`ActuatorWithNoise` is not shrunk (`/tmp/m726/small/AN.env`). Its motor
+feeds the permanent-magnet machine from current sources in star, and
+that machine on three sine current sources (`AN1.mo`) is refused on
+`terminalBox.starpoint.i = 0`. But the control without any machine,
+the same sources into three resistors (`AN2.mo`) or three inductors
+(`AN3.mo`) closed by a star of their own, is refused the same way:
+current sources in series with a floating star point fix every current
+and leave the star's potential to nobody, which is ill-posed as
+written. So `AN1.mo` is no witness, and the corpus model, whose
+current sources are driven by a controller rather than by fixed sines,
+stays placed and not shown small.
