@@ -91977,10 +91977,14 @@ Level: probe on five corpus models, with a control.
 The 20 rows of `/tmp/m714/rows.tsv` whose text is `constrains no state`
 were each run on today's tree with `--only ... --refused` from one
 binary `/tmp/m731/ox0`; the names, the runnable mark and the size of
-the singular subset are in `/tmp/m731/ss20.tsv`. All 20 refuse with the
+the singular subset are in `/tmp/m731/ss20_fixed.tsv` (20 rows, 20
+models: `SpringDamperNoRelativeStates` is two classes, one in
+`Rotational` and one in `Translational`; the first file `ss20.tsv`
+labels the second by the first one's name, because the run was
+keyed by the short name, and is kept as it was printed). All 20 refuse with the
 same text as on 18 November, 19 of them with the `nor did the N other
 equations` tail (N from 2 to 31) and `SMPM_ResistiveBraking` without it.
-Only 4 are runnable examples (`BatchPlant_StandardWater`,
+Of the 20 models, only 4 are runnable examples (`BatchPlant_StandardWater`,
 `PointGravityWithPointMasses2`, `SMPM_ResistiveBraking`,
 `TanksWithOverflow`). The other 16 are components out of `Utilities` or
 example packages whose connectors are open (`n2.i = 0`, `G.i = 0`,
