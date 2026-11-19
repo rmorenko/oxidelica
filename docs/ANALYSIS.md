@@ -92170,9 +92170,13 @@ one number at hand. A block is accepted when every row has
 `|f_i| <= 1e-10 * (1 + |v_i|)` or `|f_i| <= 1e-12 * (|lhs_i| + |rhs_i|)`
 (`solvers/mod.rs`, grep `An equation is solved when its two sides
 agree`); the first half pairs row i with unknown i, and the unknowns of
-this block are pressures near 5e5, a pressure drop near 7.7e4 and a
-volume flow near 2.4, for which the first half allows about 5e-5,
-7.7e-6 and 3.4e-10. A norm of 3.3e-10 is below all three, so the
-refusal is not obviously an unreachable demand, and which row held it
-back at that point was not printed. The acceptance test is under the
-ban; this is a question and not a finding.
+this block, as dumped under the default method at t = 0.0008
+(`/tmp/m731/sp1_stuck.txt` lines 15 to 20, not at the `bdf` point), run
+from a volume flow of 2.4 and a pressure of 6.1e2 up to pressures near
+1.6e6, for which the first half allows from about 3.4e-10 and 6.1e-8 up
+to 1.6e-4. A norm of 3.3e-10 is at or below every one of these, so the
+refusal is not shown to be an unreachable demand. The unknowns at
+t = 5.1e-6 under `bdf`, and which row held the block back there, were
+not printed. If they matched the dump, a norm this small would pass
+the test outright, so the block or its unknowns there must differ. The
+acceptance test is under the ban; this is a question and not a finding.
