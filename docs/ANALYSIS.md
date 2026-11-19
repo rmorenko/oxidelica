@@ -87180,7 +87180,8 @@ with an `experiment`. No wider text search for that shape was made.
 So from 1026, at least 123 + 2 = 125 are not meant to run or cannot
 run under the standard, the reachable ceiling is at most 901, and
 today 808 of those run (854 counted, of which 46 are unmarked
-helpers). Nothing was taken out of the measure; this is a count.
+helpers). After the recount below: 130 unmarked, ceiling at most 894,
+of which 805 run, and 49 unmarked helpers. Nothing was taken out of the measure; this is a count.
 
 The self-contradictory shape searched in the library text: `Density`
 typed outputs that are derivatives occur twice, `density_derX` in
