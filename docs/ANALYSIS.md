@@ -89578,3 +89578,39 @@ iteration, not the first. The trails kept only iterations 0 and 1, so
 widening the sieve to every iteration is a second pass and not a
 re-reading of these files. The count is therefore eight shown, with
 none added by a sieve that takes one of two known cases.
+
+So question 132 is concentrated rather than spread. Eight models show
+it, all in fluids, media and their sensors. The sieve over the other 38
+of the run half, machines, electrics and multibody, adds none, and its
+five false catches were set aside for a reason: currents and angles
+change sign lawfully. A weight of eight of 92 is then most of the
+mechanism and not the floor of a larger one, and it says where to look:
+the property functions of the medium and the Newton step around them.
+
+The sieve's own limit, as a debt and not a thing done: it tests the
+sign of a value without knowing what the value is, so it cannot tell a
+quantity that must not go negative (a pressure, a density, an absolute
+temperature) from one that may (a current, an angle). A sieve fit for
+the purpose would read the type of each unknown.
+
+### What this shift left unmeasured
+
+- Every iteration of the 12 run-half models whose first step moved
+  without a sign: the trails kept steps 0 and 1 only, and the sieve
+  misses one of two known positives on that account.
+- The two `R134a` under a medium swap, which would change what they
+  test.
+- The price of repairing question 132, which needs a step bounded at
+  the medium's limits, a clamp that is Roman's word to switch on.
+- Which equation is the residual of the stalling pipe block, beyond
+  the slope read from the step in `SP2.mo`.
+- Why `SC2.mo` stalls: the trail of its eight-unknown loop was not
+  read.
+- `RevoluteConstraint`, `PlanarFourbar`, `Spice3BenchmarkDifferentialPair`:
+  the three that take no step, a structure question not opened.
+- `Engine1a`: whether `EN3.mo`'s refusal and the library model's are
+  one defect, with no control that runs.
+- The constraint-joint NaN of question 131: whether its two doors are
+  one defect.
+- `FilterOrder`: whether the example filter should count a utility
+  block, which is Roman's question (66).
