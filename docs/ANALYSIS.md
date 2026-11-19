@@ -87954,3 +87954,17 @@ already placed. A small witness of the same idea, `x = cos(phi)` with
 is refused at `t = 0` but with a different message (no root on either
 side), and the same cosine inside a dynamic equation runs (`CZ.mo`).
 So the zero sine is a reading of the message, not yet shown. Placed.
+
+`FluxTubes.Examples.Hysteresis.ThreePhaseTransformerWithRectifier`
+refuses an initialization that is not square, 21 initial equations
+and 4 fixed starts for 23 unknowns. The example writes
+`derHstat = 0` for each of the three cores, and each Tellinen core
+adds an initial equation of its own (`B = (hystR+hystF)/2 +
+MagRel*diffHyst/2`, `BaseClasses/GenericHysteresisTellinen.mo` line
+21). The compiler pins `core1.MagRel` and `core2.MagRel` with the two
+capacitor voltages, and with the surplus dropped it is left unable to
+pin `core3.Hstat` and `core3.MagRel`. Three cores in one three-limb
+transformer share their flux, so the third core is not free once the
+other two are fixed, and the library's three `derHstat = 0` may ask
+for one condition too many. Placed, not shrunk, and whether the
+surplus is the library's or the compiler's count is open.
