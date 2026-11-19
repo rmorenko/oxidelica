@@ -88301,3 +88301,128 @@ resistor, with a second diode freewheeling across them, is refused
 for handling more than 10000 events at `t = 0.02`, the instant the
 source turns negative (`DB.mo`). That is a chattering commutation
 between two ideal diodes, worth a paragraph of its own.
+
+## Shift m725: the C and FORTRAN nine, the wall behind scanInteger, and four probes
+
+The CI verdict for `f8edb51` (run 44447863531) is success, read job by
+job: advisories, the path filter and the coverage and linters job
+passed, and the tests, the three library floor jobs and the heavy
+passes were skipped because the push touched only the document.
+
+### The nine that refuse on a body written outside Modelica
+
+Each refusal text was read from the raw half of the census
+(`/tmp/m714/raw.txt`) and the function it names was looked up by its
+quoted name in `crates/` outside the tests.
+
+| model                                               | function named               | here                                   |
+| --------------------------------------------------- | ---------------------------- | -------------------------------------- |
+| `ModelicaTest.Math.TestMatrices`                    | `dgglse`                     | absent                                 |
+| `ModelicaTest.Math.TestMatrices2`                   | `dgees`                      | absent                                 |
+| `ModelicaTest.Math.TestMatrices3`                   | `dgesvd`                     | present (`outside.rs`), shape refused  |
+| `ModelicaTest.Math.TestVectors`                     | `dhseqr`                     | absent                                 |
+| `ModelicaTest.Utilities.TestStrings`                | `ModelicaStrings_scanReal`   | absent                                 |
+| `ModelicaTest.Utilities.TestExamplesCalculator`     | `ModelicaStrings_scanReal`   | absent                                 |
+| `ModelicaTest.Utilities.TestInternal`               | `ModelicaInternal_getenv`    | absent                                 |
+| `ModelicaTest.Utilities.TestFiles`                  | `ModelicaInternal_readFile`  | present (`external.rs`), shape refused |
+| `Modelica.Utilities.Examples.WriteRealMatrixToFile` | `ModelicaIO_writeRealMatrix` | absent                                 |
+
+Seven name a function this compiler does not have. Two name one it
+has, and refuse on a shape: `dgesvd` is handed a matrix of shape
+`Some([0])`, and `size(..., 1)` of `ModelicaInternal_readFile(dirPath)`
+comes out as shape `[]`. Those two are this compiler's work. With
+`RAM` placed below as ours as well, the models that cannot run here
+for reasons outside the compiler are 11 + 7 = 18, and of the 90 the
+reachable count is 72.
+
+### Essotherm650 is given its viscosity in mPa s
+
+`Modelica.Media.Incompressible.Examples.Essotherm650` gives
+`tableViscosity = [0, 14370; 20, 1917; ...; 320, 0.94]`. Its neighbour
+`Glycol47` in the same package gives
+`tableViscosity = [-30, 0.160; ...; 100, 0.00081]`, which is Pa s.
+`TableBased.dynamicViscosity` uses the table with no scale:
+`eta := Math.exp(Polynomials.evaluate(poly_eta, 1/state.T))`, the
+polynomial fitted to `Math.log(tableViscosity[:,2])`. So the oil's
+viscosity at 0 degC comes out as 14370 Pa s, a thousand times the
+14.37 Pa s an oil of that kind has. The refusal is
+`Pr went above its max of 100000` with `Pr = 19525310.1`, and
+`Media.Interfaces.Types.PrandtlNumber` declares `max = 1e5`. Scaled by
+one thousandth, `Pr` is 19525, inside the bound. That is a defect of
+the library shown by its own text, the fifth, and the eleven firmly
+outside stand on it.
+
+### scanInteger runs here, and RAM refuses on something else
+
+Small models in `/tmp/m725` (command and binary in `si.env`):
+`scanInteger` on a literal string runs (`SI1.mo`), and so does it in a
+function loop (`SI2.mo`, answers 1), after `readLine` on the library's
+own `Memory_Matrix.txt` (`SI3.mo`), in a copy of `getMemory` filling a
+matrix (`SI5.mo`, `SI6.mo`), under `if initial()` in an algorithm
+(`SI7.mo`, `SI8.mo`, values matching the file), and into an
+enumeration as the library writes it (`SI9.mo`). It refuses only when
+the string is not readable during flattening (`SI4.mo`,
+`String(integer(time + 5))`), with the refusal raised in
+`flatten/external.rs`: the call is not one of those the compiler
+answers for. In `RAM` with the depth ceiling raised to 128
+(`/tmp/m724/ram_128.txt`, `/tmp/m725/ramw.txt`) the name in the
+refusal is `ModelicaStrings_scanInteger$nextIndex`, an output of the
+inlined body that was left standing rather than the function itself.
+So `RAM` is not a missing name: it is a call of an implemented
+function left unanswered behind the depth ceiling, and it counts as
+ours. Which step leaves the output standing was not narrowed this
+shift; the small copies all run, so the difference is in the
+`DLATRAM` context (the table sizes as parameters of a class, 19 lines
+of file) and not in the call.
+
+### Which NO_BOTTOM catcher stands between PR and PO
+
+A probe binary outside the tree (`/tmp/m725/ox38`, `catch.env`)
+prints each time one of the four catchers of `did not come to an end`
+fires. Output in `/tmp/m725/catch.txt`. In both `PR.mo` and `PO.mo`
+only the catcher in `inlining.rs` (the `|| why.contains(NO_BOTTOM)`
+arm that leaves the call standing) fires, four times each, on
+`Modelica.Fluid.Utilities.regSquare2.regSquare2_utility`. The catchers
+in `arrays.rs`, `statements.rs` and `equations.rs` fire in neither. So
+no catcher fires in `PO` that is silent in `PR`: the refusal of `PO`
+leaves by a path that none of the four catches. The `homotopy` call is
+folded to its first argument in `flatten/names.rs` (`args[0].clone()`),
+so the over-deep expression reaches the expander under that fold
+rather than under the inlining that catches it in `PR`. The catchers
+are left as they are.
+
+### Nand converges given more iterations, then meets another wall
+
+A probe binary (`/tmp/m725/ox39`, `nand.env`) reads the Newton budget
+of `solvers/mod.rs` from the environment. At 60 the refusal is the
+known one (930 Newton steps). At 200 the loop at `t = 3.75e-8`
+converges on its 106th iteration, with `|f|` falling 2.3e-4, 5.6e-5,
+4.0e-6, 1.5e-8, 2.3e-13 over the last five, quadratic at the end
+(`nand_trail200.txt`). The model then refuses at the next point,
+`t = 3.75000000525e-8`, with a Newton direction that will not descend:
+the damping falls to 7.6e-6 while `|f|` stays at 1.68e4, on one
+residual. A budget of 1000 gives the same counts to the digit
+(1191 Newton steps, 114 damped). So the Jacobian is right enough to
+converge once the cap allows, and the wall behind the cap is a
+direction that does not descend, which fits a residual that is not
+smooth (the MOS model changes region) better than a wrong Jacobian.
+The cap was not moved in the tree.
+
+### Which forms of a clock sample accepts
+
+Small models in `/tmp/m725` (`K.env`, results in `K.txt`), on the
+tree's binary:
+
+- `sample(u, Clock(0.002))`, `sample(u, Clock(dt))` with a parameter,
+  `sample(u, Clock(2, 1000))`, and `y = sample(u, Clock(0.002))` alone:
+  all refused, the inline `Clock` read as `Boolean`;
+- `sample(u, clock = Clock(0.002))`, `sample(u, clock = c)` and
+  `sample(u, clock = Clock(2, 1000))`: refused, `sample` has no
+  argument called `clock`, it takes `start` and `interval`;
+- `Clock c = Clock(0.002); ... sample(u, c)`: runs, `a = 51` at 0.1 s.
+
+So the clocked overload is chosen only when the second argument is a
+variable of type `Clock`; a `Clock(...)` written in place falls to the
+event `sample(start, interval)`, and a named `clock` argument is not
+known at all. That is the boundary of the defect in sample overloading,
+for the question. Nothing was changed.
