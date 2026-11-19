@@ -87621,3 +87621,18 @@ pressure that leaves the physical range and lands on a plateau. The
 model gives `p` a `min` of zero through its type; whether a step past a
 `min` should be cut back is a solver question with consequences
 across the library, and it is left as one.
+
+The five Fluid models refused on a Newton direction are not the R134a
+mechanism. Their trails (`/tmp/m724/trail_*.txt`, commands in
+`fl_trail.env`) run 2578 to 2769 Newton iterations of a healthy run
+first, and stall later: `BranchingPipes2`, `BranchingPipes3`,
+`BranchingPipes4` and `SeriesPipes1` all at t = 0.0008,
+`TestTemperature1` at t = 0.0002. There the step is damped to between
+1.9e-6 and 1.5e-5 of itself, the residual still falls but by parts in
+a million, and the block gives up. The residuals they stall at are
+large (3.06e6, 1576, 232, 37700 and 5.5e11) with the first unknown
+near 0.5e6 to 1.9e6, far from the 8.4e4 to 1.1e5 Pa the run stood at.
+That is a run walking into a far point between two time steps, not a
+start outside the physical range, and the common time for four of the
+five says the same event or input drives them. Which one is the next
+thing to print.
