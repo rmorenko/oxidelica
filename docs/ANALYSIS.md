@@ -92369,3 +92369,19 @@ so for those two it is the swap retry that `bdf` lets through, which
 confirms the reading the m731 chapter left open for `SeriesPipes1`.
 The first attempt of `SeriesPipes1` under `bdf` is exactly the
 3.3e-10 stall described above.
+
+### The rows that fail acceptance under the default, on seven
+
+The same print on the seven Newton direction refusals of the measure
+under the default method (`/tmp/m732/ox4`, `/tmp/m732/acc7_on.txt`;
+control without the key from the same binary, `acc7_ctl.txt`, refuses
+identically). Under the default none of the first attempts stops near
+the floor: the residuals that fail are 0.97 on `volume.medium.p` at
+t = 0 (`R134a1`, `R134a2`), 0.15 to 3.9e11 at t = 2e-4
+(`TestTemperature1`, enthalpies and temperatures of its orifices), and
+2.6 to 2.5e6 at t = 8e-4 on the pipes. The 3.3e-10 stall is particular
+to `SeriesPipes1` under `bdf`. The swap retries the print also caught
+(`...$sw` rows at t = 3.1e-6) stop at 7e-9 to 4e-7 against demands of
+1e-10 to 1.4e-9, again far above their floors near 1e-19. So nowhere
+on these seven does the acceptance demand fall below the arithmetic;
+the stalls are the iteration's.
