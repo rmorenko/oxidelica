@@ -87744,8 +87744,10 @@ shape runs on its own (`EA.mo`), as that question already says.
 
 ### How far the 91 are taken
 
-Counted by name over `/tmp/m724/gap90.tsv`, after this shift: 33 of the
-91 have a shown mechanism or a fold onto one, in 12 mechanisms. The
+Counted by name over `/tmp/m724/gap90.tsv`, after this shift: 31 of the
+91 have a shown mechanism or a fold onto one, in 10 mechanisms
+(7, 4, 6, 3, 1, 2, 2, 3, 1 and 2 models in the order below, 31 in
+all). The
 seven of a Newton step into negative pressure (two `R134a`, three
 `BranchingPipes`, `SeriesPipes1`, `TestTemperature1`); four FFT models
 on a 32-element `sum` in front of a C function; the six of the
@@ -87755,4 +87757,4 @@ lines (`T2.mo`); `Rectifier` as a diode bridge (`GZ4.mo`); two Spice3
 BJTs on a zero capacitance; two der-of-a-non-state on the medium's
 state choice; three `e_ia`; `GenerateRandomNumbers` on an unexpanded
 vector assignment (`XQ.mo`); the two self-contradictory models. The
-remaining 58 have a named wall and no mechanism yet.
+remaining 60 have a named wall and no mechanism yet.
