@@ -91669,3 +91669,26 @@ are elsewhere, as recorded. So of the eight, two show a foreign take
 by the pairing of demoted conditions, the branch that is narrower than
 the written one and still not held to an instance. Level: probe, eight
 models; whether the foreign take is what refuses the two is not shown.
+
+### Two defects, two weights, one pattern
+
+The weight of the whole-array binding needs one correction in its
+unit. The five `_analytic` models flatten with or without the repair:
+`cannot evaluate parameters` is a refusal of the run half, raised
+after flattening, and the pair shows `1 flatten, 0 run` in both
+halves for all four that were reached. So "the five models of the
+`cannot evaluate` row" is a weight in refusals, of which the repair
+moves four a floor up; in models that run it is zero. Both numbers
+stand, and the one that counts for the measure is zero.
+
+The shift therefore ends with two defects of ours proved on small
+models, each red without the change and repaired by it, and each with
+a weight of zero models on the corpus: the reach fallback of the
+pairing by its switch (0 of 5, with 4 of 4 running controls kept),
+and the array binding by its parked repair (0 of 5, four moved to
+structural singularity). Twice in a row the small model and the
+measure part. That is now a pattern and not an accident: in this part
+of the debt a small model shows that a defect exists, and only the
+corpus shows whether it is the wall a model stands at. A defect found
+small is reported with its corpus weight beside it, and a weight of
+zero is reported as zero.
