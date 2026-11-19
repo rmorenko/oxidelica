@@ -89871,3 +89871,41 @@ behind `readDirectory`, `TestMatrices3` ours, and
 `readRealParameterModel` on `scanDelimiter`'s unassigned output, ours
 to decide. So "twelve external bodies" stood one too high and "thirteen
 external walls" stood two too high: eleven are external, two are ours.
+
+### Question 132's control on running fluid models
+
+Ten running fluid models (`/tmp/m727/ctrl132.txt`), each trailed once
+with `OXIDELICA_NEWTON_TRAIL=1` under `ox50` (`trail132.sh`,
+`trail132.env`), every Newton iteration kept, and read by the same
+sign test (`sieve132.py`, `sieve132.txt`): an unknown going from
+positive to below -1e3. Nine show none and no NaN. One,
+`Explanatory.MomentumBalanceFittings`, does: at `t = 0`, iteration 12
+of a twelve-unknown block takes one unknown from 6.3e10 to -8.6e9 and
+another from 4.1e9 to -5.3e8, and iteration 14 a third from 8.1e6 to
+-1.3e8, and the model then runs. So a step far outside the physical
+region is seen in 1 of 10 running fluid models and in 8 of 8 of
+question 132. The control does not empty the question, but it shows
+that a wild step alone does not refuse: what refuses is a step from
+which the block does not come back. Which unknowns those are in
+`MomentumBalanceFittings` the trail does not name. Two shares of the
+four now have a control; the swing cut of the 18 and the machines'
+sign flips are left.
+
+### The not-ours count after this shift, as far as the chapter carries it
+
+`FlueGasSixComponents` and `TestAllProperties.MoistAir` refuse on
+`dddX` declared as a `Density` with `min = 0`, the library's type
+misuse already counted among its six defects, so they move to not
+ours: 20 to 22, at most 69 reachable to at most 67. `Essotherm650` was
+already among the 20 and is not counted again. The split of the 20
+carried in hints (four external, two self-contradictory, two
+thyristors, `SimpleAir`, `R134a_pTX`, `Essotherm650`, seven absent
+names, `TestFiles`) was not reconciled against the chapter by this
+shift: the m725 table names seven absent bodies and `TestFiles`, and
+this shift's count adds the three `mydummyfunc` callbacks, which may
+be the "four external" or may not. Until the twenty are listed by name
+in one place the 67 rests on an unreconciled split.
+
+Level of evidence for the nine kinds of the fifteen: bound of a type,
+library reading and arithmetic (all three); everything else, refusal
+text only.
