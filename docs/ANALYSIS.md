@@ -90807,3 +90807,17 @@ nothing is won and nothing lost. The run half reads 2617 s off and
 than the change, but no model was named as the dearer one, so by the
 standing rule the question of the price is Roman's and the change is
 not in the tree.
+
+The switch of the parked repair is live in `ox53`: `Engine1b_analytic`
+under `--only` is refused with "cannot evaluate parameters" under
+`OXIDELICA_NO_LATE_BINDING_SPLIT=1` and with "structurally singular"
+without it (`/tmp/m728/sw_off.txt`, `sw_on.txt`, command in
+`/tmp/m728/sw.env`). So the pair measured the change. Its outcome
+is a win of 0: the three models are moved to their true wall and none
+runs. The work counters of the two halves agree to the unit, so the
+corpus cannot tell the change apart, and its only guard is the unit
+test. The value is in the refusal, which now names what is wrong with
+the model rather than the order in which the class was written. The
+37% of the run half stays a question of price for Roman, set against
+counters that did not move and a flattening half that fell by 31% in
+the same pair.
