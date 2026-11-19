@@ -87391,3 +87391,22 @@ start block of 162 unknowns. So no new class is needed among the 91:
 the table's unnamed row moves to initialization singular (+2), Newton
 direction (+2) and start block (+1), and the census of the 131 queue
 members likewise has no member outside a named class.
+
+### The depth refusal of the FFT models, shown small
+
+Four of the seven models refused as nested deeper than the compiler
+follows (`RealFFT1`, `RealFFT2`, `Rectifier6pulseFFT`,
+`Rectifier12pulseFFT`) call `realFFT`. The smallest model that refuses
+the same way is `/tmp/m724/small/S32.mo`: a vector of 32 elements and
+`y := sum(u)/32` in an algorithm. With 31 elements it runs. As an
+equation, `y = sum(u)`, it runs at 400. Inside a walked function body
+it runs at 40 (`S40.mo`). So `sum` in a model's algorithm is unrolled
+into a chain one storey per element, and 32 elements meet `MAX_DEPTH`.
+Behind that wall stands a second one: `realFFT` called with 26 elements
+or fewer (`R26.mo`) gets past the depth and is refused on
+`ModelicaFFT_kiss_fftr`, a C function written outside Modelica. So
+lifting the depth alone would not make these four run. The other three
+members (`RAM`, `GenerateRandomNumbers`, `TestWallFriction`) have
+different sketches (`time`, `{localSeed, globalSeed}`,
+`pipe4.data.zeta2_at_a`) and are not this mechanism. Not probed
+further here.
