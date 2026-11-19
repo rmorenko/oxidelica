@@ -88679,3 +88679,54 @@ The work counters of the catcher pair differ (`running 24394369
 points, 36066038 newton` off against `649296 points, 1594579 newton`
 on), as the sixty victims say they must; the flattening counters move
 by one model's worth, `TestWallFriction` flattening only with the key.
+
+### Five first-build walls of the 91, shrunk
+
+The probe of the named-argument fix (next section) leaves time for the
+remainder of the 91. Counted by full path, 29 of them are not named in
+the chapter from "How far the 91 are taken" on (`/tmp/m726/unexplained.tsv`);
+every one of the 29 has its wall named earlier, so the count is of
+models without a small model, not of models without a reason. The
+first-build half of the structurally singular row had one of six
+shrunk (`TanksWithOverflow`). Four more of the six now are, and
+`PrismaticConstraint`, which was not probed before, all on `/tmp/m726/ox44` with no key
+(commands in `/tmp/m726/small/*.env`):
+
+- `RollingWheel` refuses the same way in four lines (`RW1.mo`: one
+  `Parts.RollingWheel` and a `World`), and in seven with the joint and
+  a `Body` (`RWA.mo`), also when the body's translational variables are
+  barred from being states (`RWC.mo`). A knife edge written by hand
+  with the same kind of velocity constraint (`KE1.mo`) runs, so the
+  wall is not a non-holonomic constraint as such but the way the
+  joint's constraints meet the body's states.
+- `PrismaticConstraint` shrinks to eight lines (`PC2.mo`: `World`,
+  `Joints.Constraints.Prismatic`, `BodyShape`), refused with
+  `-der(c.frame_a.R.T[1,1]) = 0` constraining no state.
+  `SphericalConstraint` gives the same kind with a `FixedRotation` in
+  front (`CS4.mo`), and different refusals without it (`CS3.mo`, a NaN
+  at the start) or with a `FixedTranslation` (`CS5.mo`); an ordinary
+  `Joints.Spherical` in its place runs (`CS0.mo`). The constraint
+  joints declare no `Connections.branch`, so the body is a root of its
+  own and the orientations meet through `equalityConstraint`; the
+  equation index reduction stops at is the derivative of an
+  orientation that does not move.
+- `PointGravityWithPointMasses2` shrinks to a `FreeMotion` carrying
+  three `PointMass`es on `FixedTranslation`s in three directions
+  (`PG4.mo`), refused with a singular Jacobian; the same with `Body`
+  in place of `PointMass` runs (`PG5.mo`). One point mass on one
+  translation (`PG1.mo`) is refused by the library's own assertion
+  that nothing computes `frame_a.R`, which is correct.
+- `IMC_DOL_CommonLeakage` shrinks to thirteen lines (`IM5.mo`): an
+  `IM_SquirrelCage` on a sine source runs with the default
+  `ratioCommonStatorLeakage = 1`, and is refused exactly as the corpus
+  model with `0` (`IM5c.mo`) and with `0.5` (`IM5h.mo`), at `m = 3`
+  as well (`IM3c.mo`). Below 1 the stator converter takes a stray
+  permeance per phase (`useStrayPermeance`), and that is the lever.
+  The converter alone with its stray permeance runs (`CV1.mo`); the
+  version without it (`CV0.mo`) is over-constrained by construction
+  and is no witness.
+
+So of the six first-build models, five now have a small model, and
+`PrismaticConstraint` beside them;
+`BatchPlant_StandardWater` is the one left. None of this is a fix, and
+none of it moves a count.
