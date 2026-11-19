@@ -87860,3 +87860,10 @@ equal to a pure number, which is what the refusal says ("s-1.K against
 1"). The refusal is right. Four of the 91 now stand on unit errors in
 the Modelica Standard Library (two thyristors, `SimpleAir`, this one)
 and one (`HysteresisModelComparison`) on a unit the compiler loses.
+
+`Spice3.Examples.Graetz` refuses on `rout.vp.m_dConduct = 1/(...)`
+with a conductance against a conductance squared. Its library function
+`resDepTemp` called alone with a resistance in ohm runs
+(`/tmp/m724/small/RT.mo`), so the square comes from the inlined
+resistance argument, the `if` over `m_dResist`, `m_dRsh` and the
+geometry, not from the temperature factor. Placed, not shrunk.
