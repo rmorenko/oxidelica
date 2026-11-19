@@ -87439,7 +87439,7 @@ the name left whole is in the `initial()` branch: the call
 expanded into 33 element assignments, and the whole-vector target `s`
 survives to a check that only knows scalar components. The fault is
 the unexpanded vector assignment, and the refusal names its symptom.
-The smallest witness is `/tmp/m724/small/XQ.mo`, ten lines: one
+The smallest witness is `/tmp/m724/small/XQ.mo`, 10 lines: one
 `when initial()` branch assigning
 `Xorshift1024star.initialState(localSeed, globalSeed)` to a vector of
 33, refused as above with the seeds as parameters and running with the
@@ -87469,7 +87469,7 @@ both ports at `height=0` (`T0.mo`) it runs. A port above the bottom
 makes the tank switch its port equation between flow and pressure by
 the level, and the branch that sets `m_flow = 0` is what the first
 build cannot match. So the first-build half of the row has at least
-one mechanism shown in eleven lines; the other five are not yet
+one mechanism shown in 13 lines; the other five are not yet
 shrunk.
 One raised port is not enough: with only the lower tank's port at
 `height=6` (`T1b.mo`) the pair runs. Both ports above their bottoms,
@@ -87513,7 +87513,7 @@ a path that does not refuse but differentiates wrongly, and the Newton
 direction it builds does not reduce the residual. The second sentence
 is an inference, not yet shown; the first is shown by `RD.mo`.
 The record layer is shown without any medium: `/tmp/m724/small/DR.mo`,
-24 lines, a function `f(input S s)` of a one-field record with
+25 lines, a function `f(input S s)` of a one-field record with
 `derivative=df` and `df(s, der_s)`, is refused the same way. The count
 is in `flatten/inlining.rs` (grep "and then one derivative for each"):
 an input is handed a derivative only if `is_real` holds for it, and a
@@ -87694,7 +87694,7 @@ or the polar conversion of the measured current), and the next step
 is cutting the real model down rather than growing these.
 Cutting the real model settles it. Its quasi-static half alone runs
 (`/tmp/m724/small/RQ.mo`) and its transient half alone is refused the
-same way (`RA.mo`). That half shrinks to `GZ4.mo`, eleven lines: a
+same way (`RA.mo`). That half shrinks to `GZ4.mo`, 13 lines: a
 `SineVoltage` with `phase = pi/2`, a 50 mOhm series resistor, a
 `GraetzRectifier` and a `VariableConductor` whose conductance ramps
 from zero. Without the phase (`GZ3.mo`) or without the resistor
@@ -87752,7 +87752,7 @@ seven of a Newton step into negative pressure (two `R134a`, three
 `BranchingPipes`, `SeriesPipes1`, `TestTemperature1`); four FFT models
 on a 32-element `sum` in front of a C function; the six of the
 structurally singular row that fail at the first build and the three
-that fail at a rebuild of the selection, the tank pair shown in eleven
+that fail at a rebuild of the selection, the tank pair shown in 13
 lines (`T2.mo`); `Rectifier` as a diode bridge (`GZ4.mo`); two Spice3
 BJTs on a zero capacitance; two der-of-a-non-state on the medium's
 state choice; three `e_ia`; `GenerateRandomNumbers` on an unexpanded
@@ -87794,7 +87794,7 @@ honest refusal of a genuinely two-sided equation at t = 0, and its
 answer is a start value of the flow, which the model leaves at zero,
 exactly on the fold. Not shrunk; the reading is from `why` and the
 refusal's own words.
-Shown small: `/tmp/m724/small/SE.mo`, five lines, `dp = 100 + time`
+Shown small: `/tmp/m724/small/SE.mo`, 7 lines, `dp = 100 + time`
 and `dp = 0.5*m^2*(if m > 0 then 1 else 2)`, is refused in the same
 words at a start of zero, and runs with `m(start=1)` (`SE1.mo`). So
 the refusal is right and the cure is a start the library does not
@@ -87811,7 +87811,7 @@ on a unit error in the Modelica Standard Library, the same kind of
 finding as the bounds the last shift proved against the library's own
 text.
 Shown small: one `Thyristor` with a sine source, a resistor and a gate
-current (`/tmp/m724/small/TH.mo`, nine lines) is refused in exactly
+current (`/tmp/m724/small/TH.mo`, 11 lines) is refused in exactly
 those words, branch `10000*(iGK - 0.95*IGT)*vAK` in W against `10*vAK`
 in V. The constant 10000 carries a unit of 1/A that the library does
 not declare, so the error is the library's, and the refusal is right.
@@ -88062,7 +88062,7 @@ and `WP4.mo` is the pipe itself, its medium states and the
 is made on the pipe class and not on the functions.
 
 The cut lands on `homotopy`. Wrapped in `homotopy(..., 100*m)`, the
-loss call reaches the depth on its own, seven lines with no pipe and
+loss call reaches the depth on its own, 9 lines with no pipe and
 no medium (`/tmp/m724/small/PO.mo`). The same call without the wrapper
 runs (`PR.mo`), and so does `homotopy` over a small function of its own
 (`HS.mo`). With the `if use_Re` choice inside the wrapper, the refusal
@@ -88086,7 +88086,7 @@ wall and nothing more.
 small. Two exact clocks, `Clock(10, 1000)` and `Clock(2, 1000)`, one
 partition on each, and a `superSample` without a factor carrying the
 slow one onto the fast side. That is refused in the corpus model's own
-words (`/tmp/m724/small/CK5.mo`, eleven lines). With the factor
+words (`/tmp/m724/small/CK5.mo`, 13 lines). With the factor
 written out, `superSample(a, 5)`, the refusal moves and turns on itself
 (`CK6.mo`): `c` is "written on two clocks at once, one ticking every
 0.002 and one ticking every 0.002". So the compiler takes two clocks
@@ -88185,3 +88185,8 @@ is not the last wall, and no ceiling alone would make it run. The two
 Fluid models that went to 19 and 20 GB at 48 (the note in `AGENTS.md`)
 show that the price of a ceiling depends on which model meets it.
 Measured here, the table family pays nothing for one.
+
+Every line count of a small model in this chapter is `wc -l` of the
+file, the `model` and `end` lines included. Nine counts written
+earlier on other bases were brought to that one (`XQ` 10, `T2` 13,
+`DR` 25, `GZ4` 13, `SE` 7, `TH` 11, `PO` 9, `CK5` 13, `IB` 10).
