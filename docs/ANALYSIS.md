@@ -87475,3 +87475,11 @@ One raised port is not enough: with only the lower tank's port at
 `height=6` (`T1b.mo`) the pair runs. Both ports above their bottoms,
 so that each side of the pipe can set its flow to zero, is what the
 first build cannot match.
+
+`BatchPlant_StandardWater` refuses in the same wording on
+`B5.InnerTankSide[1].port.m_flow = 0`, but it is not the raised-port
+mechanism of `T2.mo`: `B5`'s one side port stands at `side_heights`
+of zero, and `B5.SideFluidPort` is connected nowhere in the example.
+Its candidate is an unconnected tank port whose flow is set to zero
+twice, once by the tank's own branch and once as an open connector.
+Not yet shrunk.
