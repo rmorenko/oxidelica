@@ -86924,9 +86924,10 @@ connection, so the condition holds. The same variables are then fixed
 by that inner connection too (`initStep.inPort[1].occupied =
 inPort.occupied`, `outPort.available = exitStep.outPort[1].available`),
 and those are the two equations the refusal names. Two too many, as
-counted. The four are refused rightly under the standard, which
-lowers the reachable ceiling by four. This comes from reading the
-text, not from running another tool. `4 equations of loop`: Spice3 `DifferentialPair`
+counted (all four, `MakeProduct` too, extend `PartialCompositeStep`).
+The four are refused rightly under the standard. They carry no
+experiment, so they are already inside the 129 and the ceiling does
+not move. This comes from reading the text, not from running another tool. `4 equations of loop`: Spice3 `DifferentialPair`
 on `der(Q2.vbx)`, `RevoluteConstraint` and `PlanarFourbar` on joint
 orientation, and the RobotR3 helper `GearType2` on `bearingFriction.sa`,
 so at least three. `2 tsat`: both `TwoPhaseWater` models call `tsat`
