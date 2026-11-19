@@ -91828,3 +91828,14 @@ would see the start time, and the two could then disagree for a model
 whose start values depend on `time`. None of the ten corpus models
 with a nonzero start has such a value. Level: read in the code, no
 model built for it.
+
+Three neighbours, each run on `ox61` and `ox63`. `S1.mo`, a `when
+initial()` writing `d = time` at `StartTime = 0.5`, gives `d = 0.5`
+on both: the initial event of the run fires at the start time already,
+and only the regularity check's own firing reads zero. `S3.mo`, a
+`sample(0, 0.3)` begun at 0.5, ticks at 0.6 and 0.9 on both, ending
+`d = 0.9`. `S2.mo`, an initial equation `w = time` reaching the state
+through `w = v`, starts at `v = 0` on `ox61` and at 0.5 on `ox63`, the
+same fault as `Q30` one alias away. So what the patch changes is
+confined to the initial equations and the check before the run, as
+read.
