@@ -90626,14 +90626,14 @@ The models whose wall lies in which unknown an equation is matched to,
 by stage, each already named in this chapter. Question 133, a block
 that holds a derivative none of its equations mention:
 `RevoluteConstraint`, `PlanarFourbar`, and
-`Spice3BenchmarkDifferentialPair`, which is outside the gap of 90 (a
-heavy model). A mode chosen on unsolved variables, refused in index
+`Spice3BenchmarkDifferentialPair`, a run-half line of the gap file
+(`/tmp/m724/gap90.tsv`). A mode chosen on unsolved variables, refused in index
 reduction: `TanksWithOverflow`, `BatchPlant_StandardWater`. A steady
 initial equation on a medium temperature that is not kept as a state,
 refused before the swap to the balance: `HeatingSystem`,
 `BranchingDynamicPipes`. A block with three rows over two columns at
-the start point: `PumpingSystem`. In the gap of 90 that is 2 + 2 + 2 +
-1 = 7 models over four stages, plus one more outside it. These are
+the start point: `PumpingSystem`. In the gap of 90 that is 3 + 2 + 2 +
+1 = 8 models over four stages. These are
 four mechanisms, not one family. What they share is that a change to
 matching or selection would be the place to reach them, and that is
 Roman's word. The sum is the weight of that lever and not of any one
@@ -90677,17 +90677,17 @@ What occupies the 57 and the 13, and whose word each part waits on:
 
 | part                                            | models | waits on                            |
 | ----------------------------------------------- | -----: | ----------------------------------- |
-| matching lever, four stages (run half)          |      7 | Roman's word on matching            |
+| matching lever, four stages (run half)          |      8 | Roman's word on matching            |
 | question 132, base point already NaN (run half) |      5 | our work: the start a step hands on |
 | question 132, retreat exhausted (run half)      |      1 | closed negatively, no rule applies  |
 | two `R134a`, flat residual below range          |      2 | Roman: a step past a `min`          |
 | start walls shown small (SNG, water shape)      |      1 | Roman: steady-start rows            |
-| other run-half walls named, no mechanism        |     41 | our work                            |
+| other run-half walls named, no mechanism        |     40 | our work                            |
 | flattening, plainly the compiler's              |      8 | our work                            |
 | flattening, C user tables (`usertab`)           |      5 | Roman: rule A against rule B        |
 
-The run-half rows sum to 7 + 5 + 1 + 2 + 1 + 41 = 57, and the
-flattening rows to 8 + 5 = 13. The 41 is a remainder by subtraction
+The run-half rows sum to 8 + 5 + 1 + 2 + 1 + 40 = 57, and the
+flattening rows to 8 + 5 = 13. The 40 is a remainder by subtraction
 and not a census. The rule for what is not ours changes the 18, and
 with it every row of the first table except the self-contradictory
 column, and that choice is Roman's.
@@ -90704,13 +90704,9 @@ own. In `TestJunctionTraceSubstances` what kills is that seed meeting a
 medium whose temperature search is bounded below it. That is one model,
 not a rule for the five.
 
-Correction to the matching lever above. `Spice3BenchmarkDifferentialPair`
-is in the gap file (`/tmp/m724/gap90.tsv`, a run-half line). The
-paragraph called it outside the 90 because the name was searched with
-a leading dot before `DifferentialPair`, which the full name does not
-have. The lever is therefore 3 + 2 + 2 + 1 = 8 of the 90, and in the
-debt table its row is 8 and the remainder of named walls without a
-mechanism is 40, the run half still summing to 57.
+The matching lever and the debt table above were first written with 7
+and 41, because `DifferentialPair` was searched with a leading dot the
+full name does not have. Both are now corrected where they stand.
 
 `LossyGearDemo2`, traced (`/tmp/m728/lgd2.txt`, `OXIDELICA_NEWTON_TRAIL=1`
 and `OXIDELICA_WHERE=1` on `ox51`). The block of five at `t = 0`
