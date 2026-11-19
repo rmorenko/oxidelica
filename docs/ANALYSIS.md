@@ -87979,3 +87979,15 @@ two-substance `Air.MoistAir` (commands in `/tmp/m724/sng.env`). So the
 singular start goes with a free composition of more than two
 substances, where the steady-state conditions on the mass fractions
 have to close with the one on pressure. Placed, not shrunk.
+
+`Modelica.Utilities.Examples.readRealParameterModel` refuses because
+`Strings.scanDelimiter` "never assigns its output `delimiter`". The
+library's body (`Utilities/Strings.mo`, grep `function scanDelimiter`)
+assigns it on both paths that find a delimiter, `delimiter := ""` and
+`delimiter := requiredDelimiters[i]`, and ends the path that finds
+none in `syntaxError`, which raises rather than returns. So the
+wording claims more than is true: the output is assigned on every path
+that returns. Either the compiler's walk takes the not-found path at
+flattening (the file read was empty or not read), or its test of
+assignment does not count a branch inside a `while`. The message is
+the one to narrow first. Placed, not shrunk.
