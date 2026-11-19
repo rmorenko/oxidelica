@@ -91873,3 +91873,16 @@ were meant to prevent. These two are wrong numbers on the present tree
 that the parked patch does not repair; they are named here as two
 further faults rather than folded into the first. Level: small models
 only, causes not traced.
+
+The two separated by moving the start back to zero. `S13.mo`
+(`p = time + 0.25`, start 0) ends at 0.7788 as due and `S12.mo`
+(`p = time`, start 0) at 1 as due, on both binaries. So `S8` is the
+start-time fault again, by another road: a `fixed = false` parameter
+is settled at `time = 0` (`compile.rs`, `evaluate_parameters`, which
+builds its context with `time: 0.0`), a place the parked patch does
+not reach, and S8's `p` is 0 where 0.5 is due. `S11.mo`, `w = if
+initial() then 7 else 0` with `v = w` in the initial section and the
+start at zero, ends at `v = 0` where 7 is due. That one does not
+depend on the start time at all: `initial()` read inside the plan is
+false where the initial problem evaluates it. It is a separate wrong
+number. Level: small models, the second cause not traced.
