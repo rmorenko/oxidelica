@@ -88986,3 +88986,25 @@ an initialization that is not square, the expected cost of switching
 the initializer off. So the lever is the preferred relative states of
 the `GearType1` spring meeting the states the initializer pins, read
 from two small variants and not yet traced in the reduction.
+
+The gearbox with the initializer and no motor (`GF4.mo`) is not square
+at the start, five conditions for four states, because the motor's
+electrical state that takes the acceleration condition in the robot is
+missing; it is ill-posed as written and no witness.
+
+### The 29 of the morning, counted by what now stands behind each
+
+Of the 29 models of the 91 not named in the chapter's later sections
+at the start of this shift (`/tmp/m726/unexplained.tsv`), by full path:
+
+| Evidence now                            | Models | Which                                                                                                                                                                                                                                                                                           |
+| --------------------------------------- | -----: | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| shown small this shift, same refusal    |     12 | `RollingWheel`, `PrismaticConstraint`, `SphericalConstraint`, `PointGravityWithPointMasses2`, `IMC_DOL_CommonLeakage`, `BatchPlant_StandardWater`, `PumpingSystem`, `RollingWheelSetDriving` with `RollingWheelSetPulling`, `HeatingSystem`, `HeatExchangerSimulation`, `SMPM_ResistiveBraking` |
+| placed by variants, not shown small     |      7 | `UniversalConstraint`, `BranchingDynamicPipes`, `OneAxis`, `FullRobot`, `ActuatorWithNoise`, `Engine1a`, `LossyGearDemo2`                                                                                                                                                                       |
+| shown small or traced by earlier shifts |     10 | four FFT (`S32.mo`), `R134a2` (`RB.mo`), `TanksWithOverflow` (`T2.mo`), `MoistAir2` (`MR*.mo`), `FlueGasSixComponents` (self-contradictory), `BranchingPipes2` and `BranchingPipes3` (trail)                                                                                                    |
+
+That is 12 + 7 + 10 = 29. `RollingWheelSetPulling` is counted with its
+sibling because one wheel set refuses on the loop both name, and the
+pulling variant's own wording, a Newton loop that does not converge,
+is not reproduced by `WS1.mo`. No count moves: these are mechanisms,
+not fixes.
