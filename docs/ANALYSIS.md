@@ -92856,3 +92856,31 @@ the open switches carry their `s` into the same rows. It reads as the
 machine chain already mapped (`airGap`), a near-dependency among the
 air-gap derivatives at a start where all switches are open; ours, and
 not probed further this shift.
+
+### Three more kinds, one representative each
+
+Same binary and prints, `OXIDELICA_WHERE=1` added for the raising line
+(`/tmp/m733/tr_{GearType2,Spice3BenchmarkDifferentialPair,AmplifierWithOpAmpDetailed,Engine1b_analytic}.txt`).
+
+`equations of loop` (three models): `GearType2` refuses a block of one,
+`bearingFriction.sa`, whose equations do not mention it at t = 0, and
+`Spice3BenchmarkDifferentialPair` refuses `der(Q2.vbx)` the same way,
+both raised at `solvers/mod.rs:2769`. The Spice one is the `m_bInit`
+shape of the section above (the initialization branch drops the
+derivative from its only equation); the gear one is the friction law in
+a branch where the relative acceleration `sa` does not appear. So this
+kind is the underdetermined kind seen one step earlier, when the column
+is structurally absent rather than numerically zero. Ours, same family.
+
+`init singular` (four models): `AmplifierWithOpAmpDetailed` refuses at
+`compile.rs:10350` because the initial equations do not pin down
+`opAmp.v_in`. One unknown short in the initialization, named.
+
+`cannot evaluate` (three models, all `*_analytic` MultiBody loops):
+`Engine1b_analytic` lists bindings of the form
+`jointRRP.e_ia[1] = jointRRP.jointUSP.e2_ia`, element 1, 2 and 3 of a
+vector each bound to the whole vector of the joint below. A three-vector
+parameter passed down by modification has been split into elements on
+the left and left whole on the right, so no element can be evaluated.
+This is the `e_ia` family met on 6 November; ours, in how a vector
+modification is scalarized.
