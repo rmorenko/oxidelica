@@ -88970,4 +88970,7 @@ planar loop constraint `b2` of `Engine1a` itself: the derivative of
 axis is `{1,0,0}`, so the term is a parameter times zero. The loop
 joint cannot be swapped by redeclaration (`EN1.mo`, not replaceable),
 and `Engine1b_analytic` and `EngineV6_analytic`, which share the base,
-also flatten without running, so the base is the likelier place.
+also flatten without running, so the base is the likelier place. The
+bearing with its inertia and one crank body alone runs (`EN2.mo`), so
+the base needs its piston loop for the refusal, and the equation is
+named on the bearing because index reduction reaches it from the loop.
