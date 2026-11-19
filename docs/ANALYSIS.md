@@ -87796,3 +87796,8 @@ different units, which is what the refusal names. Two of the 91 stand
 on a unit error in the Modelica Standard Library, the same kind of
 finding as the bounds the last shift proved against the library's own
 text.
+Shown small: one `Thyristor` with a sine source, a resistor and a gate
+current (`/tmp/m724/small/TH.mo`, nine lines) is refused in exactly
+those words, branch `10000*(iGK - 0.95*IGT)*vAK` in W against `10*vAK`
+in V. The constant 10000 carries a unit of 1/A that the library does
+not declare, so the error is the library's, and the refusal is right.
