@@ -87115,3 +87115,21 @@ while its sisters have types of their own (`DerDensityByPressure`,
 `DerDensityByEntropy` at 6848). The library's error is in the type; the
 compiler's question is in the stage of the check. Nothing was changed
 in either direction.
+
+### Five thresholds that sit within a decade of the library's own values
+
+Gathered from this shift and the last, each measured where it is named:
+
+- `scale.max(1.0)` in the pivot test: a scale of 1e-4 runs and the
+  library's default of 1e-5 is refused (shift 678).
+- `Goff` of `IMC_DOL_Polyphase`'s switches: 1e-3 runs, 1e-4 and the
+  library's 1e-5 are refused, smallest scaled pivot 3.7e-9 (above).
+- `min = 0` of the `Density` type on `dddX`, a derivative the
+  library's own equation makes negative (above).
+- `s_small` in `ThreeSprings`' line force: the model clamps `s` from
+  below, and the loop starts at `s = 0` (above).
+- The orientation of the wheel sets: `aux` is zero only for a zero
+  matrix, and the loop starts with every entry at zero (above).
+
+In each the library sets a bound and either the compiler's threshold
+or its start lands on the wrong side of it within a decade.
