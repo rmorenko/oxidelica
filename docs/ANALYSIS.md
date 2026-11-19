@@ -92561,3 +92561,28 @@ taken by `resistor2.i = 0`. `SimpleNaturalGas` has `volume.m` at
 0.0695, not at zero, so the step-at-zero reading cannot be its whole
 story. Three of the four zero columns sit on unknowns started at zero,
 the case the 1e-7 absolute step is finest for; one does not.
+
+### Questions this shift leaves for Roman
+
+Each with its number and file, none acted on:
+
+1. `bdf` for the whole run costs 28.5 percent of the run half for one
+   model more (`/tmp/m732/bdf855_{off,on}.txt`); 7.6 percent without
+   the four it wins, at least 310 s of it confirmed on five Fluid
+   models. Is the replacement closed, as the six percent rule reads?
+2. The wide edge handoff (`OXIDELICA_EDGE_HANDOFF=all`) wins
+   `BranchingPipes3` and loses none of the three `bdf` loses on the
+   seven (`/tmp/m732/edge_all.txt`); m410 measured its price on the
+   corpus as high. Worth a corpus pair of its own?
+3. `SeriesPipes1` under `bdf` stalls on one flow row at 2.66 times its
+   absolute demand of 1e-10, eight orders above its arithmetic floor
+   (`/tmp/m732/acc_on.txt`). Is the absolute half of the acceptance
+   test meant to apply to a flow of 1e-6?
+4. `R134a1` and `R134a2` step the pressure to -2.5e6 Pa against a
+   declared `min = 0` and stall there (`/tmp/m732/r134.txt`). Should an
+   iterate be held inside a declared range?
+5. Four `init singular` models have an exactly zero start column, three
+   on unknowns started at zero, where the step is 1e-7 absolute and the
+   m350 lengthening is taken only with a swapped row
+   (`/tmp/m732/ic_*.txt`, `ma1c.txt`). Should it apply to a zero column
+   without one?
