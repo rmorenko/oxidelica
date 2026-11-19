@@ -90178,3 +90178,18 @@ The refusal therefore names a count that was not reached; the wall is
 a residual that stops changing at the start. The text of a refusal is
 not this shift's to change, so this is recorded as a question: the
 stall branch should say it stalled.
+
+### A question for Roman on question 132, with what is and is not measured
+
+Two symptoms, each with its control. A step far out of range: 1 of 10
+running fluid models shows it and survives. A NaN residual: 0 of 20
+running models (ten fluids, ten machines) show it, against 2 of the 3
+refusing models read (`SeriesPipes1`, `BranchingPipes2`); `R134a1`
+stalls on a flat finite residual instead. So the question can be put
+as: may a step whose residual is not finite be treated as a step not
+taken (shortened and retried) rather than as an iterate? On the 20
+running controls no NaN residual occurs, so such a rule would not
+change a single iteration there. What is not measured: whether it wins
+any of the eight. It addresses at most the NaN shape, shown in two of
+three read, and the other five of the eight were not trailed for it;
+the 20 controls are a sample, not the corpus. Nothing was changed.
