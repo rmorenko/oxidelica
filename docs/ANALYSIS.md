@@ -91972,6 +91972,24 @@ one kind across the five, but its mechanism is the handling of the step,
 which is not ours to change by hand. A map and a question, not a repair.
 Level: probe on five corpus models, with a control.
 
+What the stalled block of the first attempt is, by the print the tree
+already holds (`OXIDELICA_UNDERDET_DETAIL`, binary `/tmp/m731/ox0`,
+`/tmp/m731/sp1_stuck.txt` and `st_<model>.txt`; work equal to the run
+without it). In `SeriesPipes1` the block at t = 0.0008 has six
+unknowns, four of them pressures, and four of its six residuals are
+`mediums[i].d = waterBaseProp_ph(p, h, ...)[9]`: the density of water
+solved for the pressure. Each such column has a raw size of about
+4.5e-7, the compressibility of water, and the stalled point holds
+`pipe2.mediums[1].p` at 614 Pa and `pipe2.mediums[2].p` at 1.65e6 Pa
+beside a neighbour at 5.0e5. The other four carry the same rows:
+density equations 6 in a block of 17 unknowns in `BranchingPipes2`, 6
+of 32 in `BranchingPipes3`, 4 of 6 in `BranchingPipes4`, 3 of 13 in
+`TestTemperature1`, with 2 to 4 pressure columns each. So the five
+share one shape: a pressure read back out of the density of an almost
+incompressible medium, which is the shape the state swap exists for
+(`main.rs`, the comment over the second attempt), and the second
+attempt then fails in another way. Level: print, five corpus models.
+
 ### The twenty "constrains no state", by name
 
 The 20 rows of `/tmp/m714/rows.tsv` whose text is `constrains no state`
@@ -92014,12 +92032,20 @@ refusing reduction: `ActuatorWithNoise` 143, `Engine1a` 307,
 so those seven tried 32 of 37 to 307 members. The other five end inside
 their subset: `BatchPlant_StandardWater` 3, `TanksWithOverflow` 5,
 `FullRobot` 14, and `OneAxis` and `SMPM_ResistiveBraking` a subset of
+one member. So the twelve stand as they were: twelve runnable refusals
+at one place, seven of them cut by the attempt ceiling with members
+untried, five refused with their subset exhausted. The ceiling is in
+index reduction and is not touched here; whether a later member would
+reduce is not measured.
 
-1. So the twelve stand as they were: twelve runnable refusals at one
-   place, seven of them cut by the attempt ceiling with members untried,
-   five refused with their subset exhausted. The ceiling is in index
-   reduction and is not touched here; whether a later member would reduce
-   is not measured.
+`ControlledMixingUnit` was read for a parked repair and none was built.
+The clocked partition lifts each equation into an assignment to its
+left side (`crates/oxidelica-parser/src/flatten/clocks.rs`,
+`assigned_by`), and the inverse block's loop runs through
+`invMixingUnit`, a nonlinear clocked model stepped by explicit Euler, so
+each tick would need an implicit nonlinear system solved inside the
+partition. That is a capability the clocked lowering does not have, not
+a repair of an hour.
 
 ### The empty reach of the matching lever
 
