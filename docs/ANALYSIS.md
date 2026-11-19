@@ -89008,3 +89008,13 @@ sibling because one wheel set refuses on the loop both name, and the
 pulling variant's own wording, a Newton loop that does not converge,
 is not reproduced by `WS1.mo`. No count moves: these are mechanisms,
 not fixes.
+
+`Engine1a` comes nearer to small (`EN.env`). A bare slider-crank of
+three revolute joints and a prismatic one, closed by
+`RevolutePlanarLoopConstraint` as `Engine1a` closes it and carrying no
+bodies of shape (`EN3.mo`), is refused as structurally singular after
+53 s, the same kind of refusal as the library model, though the
+equation quoted is the loop constraint's own velocity row rather than
+`Engine1a`'s derivative of `bearing.frame_b.R`. The bearing alone runs
+(`EN2.mo`). So the planar loop constraint is sufficient for the kind;
+that the two quoted equations are one defect is not shown.
