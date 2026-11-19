@@ -87660,3 +87660,9 @@ takes a pressure out of the physical range, and a damped search that
 cannot find its way back from where it landed. Seven of the 91 stand
 at it (`R134a1`, `R134a2`, `BranchingPipes2`, `BranchingPipes3`,
 `BranchingPipes4`, `SeriesPipes1`, `TestTemperature1`).
+Checked on each, at the block of the first stall: the first full step
+puts unknowns below -1000 and the residual through NaN in all four
+others too (`BranchingPipes2` 2 unknowns and 3 NaN lines,
+`BranchingPipes3` 2 and 3, `BranchingPipes4` 1 and 10,
+`TestTemperature1` 6 and 3), so the fold of seven is measured, not
+inferred from one.
