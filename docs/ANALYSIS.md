@@ -89322,3 +89322,17 @@ move. What moves is the denominator of the weights: seven named
 models of 92, and of at most 70 reachable, 63 still without a number.
 The list of 91 was taken from a derived file and not from the
 instrument, which is the error to avoid next time.
+
+`FilterOrder` is a utility block and not a test rig: it sits under
+`Utilities`, carries the example icon but no experiment, and leaves its
+input `c_ref` free so that `InverseBlockConstraints` can drive the
+mixing unit backwards. Nothing gives `c_ref` a value, and the compiler
+gives it its start, zero, by the standing rule for an input nothing is
+joined to (`oxidelica why` on it shows `c_ref = 0`; the rule is
+written above `own_input` in `flatten/mod.rs`). With the reference
+held at zero the inverse asks the concentration to stand still while
+its derivative is fixed by another equation, and the refusal is honest
+about that. So the 61st model is counted by the instrument as runnable
+because of its icon, and runs on nothing a user wrote. It is a
+question for the example filter, which is not for this shift's hand,
+rather than a wall in the compiler.
