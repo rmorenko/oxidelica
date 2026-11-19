@@ -91479,3 +91479,20 @@ the pairing lacks on the amplifier is not a narrower reach but a
 reason to prefer one read state over another; the previous shift's
 finding that `opAmp.v_in = 0` in its place runs is the same fact from
 the other side. Level: plan print, one model.
+
+### The water tank and the gas mixture under the same probe
+
+`OXIDELICA_PROBE_ORPHAN` (`ox57`) on the remaining Fluid cases. On
+`SN21.mo` (`/tmp/m728`) the steady `der(medium.h) = 0` takes
+`volume.U` and `der(medium.p) = 0` takes `volume.m`, from a pool of
+exactly those two, both reported read. That is the pairing a person
+would write, and the refusal `do not pin down [volume.U, volume.m]`
+still follows, so on the water tank the pairing is not the wall and
+the pipe's structure, already recorded, is. On `SN20.mo` (no pipe)
+the pool holds `volume.m` alone and the pressure condition takes
+nothing; it runs. On `SimpleNaturalGas` the temperature condition
+takes `volume.U` and the pressure condition, with `volume.m` already
+claimed elsewhere, takes `volume.mXi[6]`, the last fraction, because
+it is all that is left in the pool. The refusal there names
+`volume.m`. So the gas mixture is a pairing case and the water tank
+is not. Level: probe, three models.
