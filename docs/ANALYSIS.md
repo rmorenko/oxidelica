@@ -87610,3 +87610,14 @@ range, not on a derivative. Whether the corpus `R134a1` (starting
 residual 0.97, not 510) fails the same way is not shown; its loop
 needs its own trail. The derivative-count refusal of `RD.mo` and
 `DR.mo` stands as a separate fault of the same medium.
+The corpus `R134a1` fails the same way (`/tmp/m724/r1_trail.txt`,
+command in `r1_trail.env`). From `p = 3e5` with residual -12.22, the
+first step goes to 1.008e6 and the residual grows to -13.42 and is
+taken anyway; the second goes to -2.53e6 Pa, where the residual is the
+flat 0.971828 (the medium's density at a negative pressure read
+against a target near one) and the damped retries cannot leave. So
+`R134a1` and the witness share one mechanism: a Newton step on the
+pressure that leaves the physical range and lands on a plateau. The
+model gives `p` a `min` of zero through its type; whether a step past a
+`min` should be cut back is a solver question with consequences
+across the library, and it is left as one.
