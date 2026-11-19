@@ -87526,14 +87526,23 @@ here. The refusal's own text then states an arithmetic it does not
 follow, "takes 1 inputs - what `f` takes, and then one derivative for
 each", for a function of one input.
 
-`StandardWater` shows the same loop with no derivative refusal in
-front of it. `/tmp/m724/small/WB.mo` (a `BaseProperties` with `h` and
-`d` given) is refused on a Newton direction for `medium.p` exactly as
-`RB.mo` is for R134a, while `density_ph(1e5, 1e5)` read directly
-(`WD.mo`) gives 997.34 kg/m3, the right value. So for water the value
-is sound and the direction is not: the slope the loop is handed for
-`p` does not point downhill. This is the likely layer for
-`TestTemperature1`, whose loop holds `volume1.medium.p` and
-`sat.Tsat` over the same medium, and plausibly for the four Fluid
-test models whose loops start at `pipe1.mediums[1].p`; neither is
-shown yet.
+`StandardWater` does not show the same loop, and an earlier reading
+here said it did. `/tmp/m724/small/WB.mo` was refused on a Newton
+direction for `medium.p`, but it asked for a density of 995 kg/m3 at
+`h = 1e5`, where liquid water stands near 997 (`density_ph(1e5, 1e5)`
+reads 997.34 in `WD.mo`, and `der(d)` follows the finite difference in
+`WG.mo`). The same model asked for 998 (`WB998.mo`) runs. So the
+water witness had no solution to find, and the refusal was honest.
+R134a stays refused across 50, 1000, 1250 and 1300 kg/m3 (`RB*.mo`),
+so its case rests on the derivative count shown above and not on
+water. `TestTemperature1` and the four Fluid test models with loops
+at `pipe1.mediums[1].p` are not placed by this.
+The R134a residual itself says more than the refusal. Across eight
+densities from 50 to 1500 kg/m3 the starting residual is the asked
+density less 0.028171 to the digit (`|f| = 1.379971828e3` at 1380,
+`9.99971828e2` at 1000), so the medium's density at the start
+`p = 1e5, h = 107390` reads 0.028 kg/m3, and the Newton step does not
+move it. No R134a state near 1 bar has a density that low, liquid or
+vapour, so the value is wrong before the direction is. That fits the
+derivative count above standing in front of a body that is not
+evaluated as written, and it is the next thing to shrink.
