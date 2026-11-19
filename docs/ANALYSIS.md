@@ -89055,3 +89055,18 @@ the switch moves one structural refusal net, out of 12, and wins
 nothing. What the switch cannot see is a `prefer` that matters
 through something other than the tie-break, which is what `OA9.mo`
 changed by hand, so the library side stays open model by model.
+
+### What each numbered question weighs among the 91
+
+Where this shift holds the evidence, a line per question, counted in
+models of the 91 by full path. The homotopy raise (130): one model
+moves under the catcher, `TestWallFriction`, and it is not among the
+91 but in the corpus at large (`/tmp/m726/c_off.txt`, `c_on.txt`), so
+its weight among the 91 is zero measured. The constraint-joint NaN
+(131): `UniversalConstraint`, one, with the second door undecided. The
+external body of `SC7` and the generator refusal of
+`GenerateRandomNumbers`: two places, one model each. The hysteresis
+question: one, `HysteresisModelComparison`, as already narrowed.
+The three remaining numbers have no definition this shift could find
+in the chapter or the state files, and a weight given without one would
+be a number recalled rather than read, so they stay unweighed.
