@@ -88253,3 +88253,13 @@ wall are `ClockedWithDiscretizedContinuousController`,
 `DynamicPipeClosingValve` and `TestJunctionTraceSubstances`. Named
 here does not mean explained. The split by strength of evidence given
 at 54 is the last one checked by name.
+
+`Clocked.Examples.SimpleControlledDrive.ClockedWithDiscretizedContinuousController`
+asks for `solverMethod="ImplicitEuler"` on a clocked partition that
+holds a continuous controller, and its documentation names that method
+as the point of the example. The compiler refuses it on purpose
+(`crates/oxidelica-parser/src/flatten/clocks.rs`, grep `asks for the
+derivative at the point`): a clocked tick is lowered to a list of
+assignments, and an implicit method makes each tick an equation to
+solve. The refusal names the three explicit methods it does take. A
+missing feature stated as one, placed, nothing to shrink.
