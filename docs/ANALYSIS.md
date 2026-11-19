@@ -90411,3 +90411,23 @@ volume's steady energy start, `der(medium.T) = 0`
 Together with variable mass fractions and a pipe, that start leaves
 `volume.m` unpinned. The trigger is one initial equation, shown small
 against a control.
+
+`DynamicPipeClosingValve`, the stall named earlier, located by
+`OXIDELICA_WHERE=1` (`/tmp/m728/dpcv.txt`, `dpcv.env`). The refusal
+comes from `compile.rs` (grep `if same_f >= most`), the branch that
+returns after the start residual has repeated `stall_after` times,
+under the fifty-iteration words. The trail has 599 Newton lines, every
+one at `t = 0` and none beyond iteration 2 (329 at 0, 221 at 1, 49 at
+2). So no start ever reached the fifty the refusal names. This is the
+same breed as the refusal that names the wrong cause, now with its
+address. The text is not this shift's to change.
+
+The fifteen after this shift, by level of evidence: shown small, the
+first row's three by arithmetic from the library, `TestSuddenExpansion`,
+`HeatExchangerSimulation` and `SimpleNaturalGas` (`SN7.mo`); by trail,
+`PumpingSystem`, `TestJunctionTraceSubstances` and
+`DynamicPipeClosingValve`; by control pair from the corpus, `MoistAir1`
+and `MoistAir2` (against `DryAir1`); by `why` and text only,
+`HeatingSystem`, `BranchingDynamicPipes`, `BatchPlant_StandardWater`
+and `TanksWithOverflow`. None of the fifteen runs, and nothing was
+changed.
