@@ -89662,3 +89662,17 @@ refuses, the 18 loop trails kept no values to count, and there is no
 control from models that run, where a start of zeros may be just as
 common. So it stays a candidate, with that control as the next
 instrument.
+
+The control was then taken, with the rule of decision fixed before
+the number (`/tmp/m726/ss/zero_ctl.txt`, `trail.env`): nine running
+models, three each from `Fluid`, `Electrical` and `MultiBody`
+(`ss/ctrl9.txt`), trailed the same way. Three print no Newton block.
+Of the six that do, five start their first block with every unknown at
+zero (`DoublePendulum`, `Pendulum`, `SpringMassSystem`, `OneTank`,
+`TankWithEmptyingPipe1`), and the sixth, `HeatingNPN_NORGate`, has
+seven of nine at zero. Five of six against 17 of 27 among the refusing
+models: the share among running models is no lower. So a start from
+zeros is the norm of these models and not a wall, and the candidate is
+closed negatively. What `SC2.mo` shows is then not that it starts from
+zeros but what its first step does from there, and that is the
+question left.
