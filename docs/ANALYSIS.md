@@ -90347,3 +90347,18 @@ point as a function of the pressure alone. Three rows over two columns
 is a rank deficit at the point. The mechanism is the zero-speed start
 named above from the library's text, now seen in the matrix. Level:
 trail. Not changed.
+
+`SimpleNaturalGas` against its own control. The refusal reads "the
+initialization problem is singular: ... do not pin down [volume.m]"
+(`compile.rs`, grep `do not pin down`; `/tmp/m728/sng_trail.txt`,
+`sng_trail.env`). Its sibling `SimpleNaturalGasFixedComposition`,
+which is the same `PartialTestModel` on the same medium declared with
+`fixedX = true` (`Media/IdealGases/MixtureGases.mo`), runs in
+`/tmp/m727/c2_on.txt`. `why` gives `volume.m = fluidVolume * medium.d`
+and `mXi[i] = m * medium.Xi[i]` for six components. So the start
+loses `volume.m` only when the composition is a set of unknowns. The
+smaller blocks of the trail converge (43 Newton lines, last residual
+5.8e-10), so the refusal is structural at the start system and not
+numerical. Level: `why` and a control pair from the corpus. The next
+step is a small model with a six-component mass balance, set beside the
+same model with fixed composition.
