@@ -87555,3 +87555,13 @@ property function stops there. The `BaseProperties` route of
 `RB.mo` goes around it and reaches the run with the density of
 0.028 kg/m3, so the two R134a examples meet two faults of the same
 medium, one in front of the other.
+Through `setState_ph` the same medium at the same point reads right:
+`density(setState_ph(1e5, 107390))` gives 1510.7 kg/m3 at 199.96 K
+(`/tmp/m724/small/RF2.mo`). The `BaseProperties` route reads its
+density as field 4 of `derivsOf_ph(...)`, the record
+`InverseDerivatives_rhoT` whose fields run `phase, p, T, rho, h`, so
+field 4 is `rho`, and the phase it is handed is chosen by comparing
+`h` with `bubbleEnthalpy({p, 0})`, a saturation record built from two
+numbers. That route, not the medium's equations, is where 0.028 kg/m3
+comes from; which of the two (the index into the record or the
+two-number saturation record) is not yet separated.
