@@ -90688,3 +90688,15 @@ flattening rows to 8 + 5 = 13. The 41 is a remainder by subtraction
 and not a census. The rule for what is not ours changes the 18, and
 with it every row of the first table except the self-contradictory
 column, and that choice is Roman's.
+
+The seed from `nominal` against a control (probe binary `/tmp/m728/ox52`,
+a print only, at the seed branch, patch `ox52.patch`, reverted in the
+tree; `seed_ref.txt` and `seed_ctl.txt` with their `.env`). On the
+seven refusing models it fires 688 times, most often as an enthalpy of
+1e6. On the 146 running fluid and media models it fires 3601 times, the
+same 1e6 enthalpies among them, and all 146 still run under the probe,
+so the print did not change the outcome. So a seed from `nominal` is
+ordinary among running models, and it does not separate them on its
+own. In `TestJunctionTraceSubstances` what kills is that seed meeting a
+medium whose temperature search is bounded below it. That is one model,
+not a rule for the five.
