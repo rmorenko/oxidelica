@@ -92477,3 +92477,24 @@ as a `regStep` of the fluid level over the port height
 the same family as the Fluid seven (an iterate leaving the domain of a
 medium or of a regularised function) and goes to `quality` in
 `/tmp/m732/rody.tsv`.
+
+### Four more of the tail, read by `simulate`
+
+Each from `.msl` with `/tmp/m732/ox1` (`/tmp/m732/sim_*.txt`, commands
+in `sim4.env`):
+
+- `DynamicPipeClosingValve`: initialization does not converge in 50
+  Newton iterations. Quality.
+- `HeatExchangerSimulation`: its start block of 162 unknowns is entered
+  25 times at t = 0 and stands at |f| = 4.05e-6 for the last 24 on the
+  arithmetic floor, not accepted. Quality, and a second instance of a
+  block that stops on the floor without passing the test.
+- `MoistAir1`: the initialization is singular because nothing pins
+  `volume.U`. Ours: the internal energy of the volume should follow
+  from its start conditions.
+- `TestJunctionTraceSubstances`: a block is NaN at t = 0 before any
+  Newton step because the library's
+  `Math.Nonlinear.solveOneNonlinearEquation` raises its own error
+  (`Nonlinear.mo:671`): the bracket it is given does not hold a root at
+  the start values. Whether the bracket or the start values are wrong
+  is not separated here; unjudged.
