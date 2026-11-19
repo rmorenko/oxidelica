@@ -92586,3 +92586,16 @@ Each with its number and file, none acted on:
    m350 lengthening is taken only with a swapped row
    (`/tmp/m732/ic_*.txt`, `ma1c.txt`). Should it apply to a zero column
    without one?
+
+`SimpleNaturalGas`, the zero column not at zero: its medium is a
+`MixtureGasNasa` with `reducedX = false` (`IdealGases/Common/package.mo`
+line 584), so all six mass fractions are independent unknowns and the
+volume carries `m` beside six `mXi` with `mXi[i] = m*Xi[i]`
+(`why`, `/tmp/m732/ic_SimpleNaturalGas.txt`). The start Jacobian has
+eight rows and eight unknowns; every `mXi` column and `U` are alive and
+`m` is dead in all eight rows. With six fractions that sum to one, `m`
+is the sum of the `mXi` and carries nothing the rows can see apart from
+them. So this one is not the step at zero: it is a redundant state of a
+medium with `reducedX = false`, a structural question for whoever
+chooses the states, and it is ours in the sense that the library
+expects a tool to resolve that redundancy.
