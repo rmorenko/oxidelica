@@ -92523,3 +92523,19 @@ refused on `volume.U`. So the dead column is in the outer system, not
 in a loop that failed to converge, and the medium's blocks are solved
 at T = 347.3 K and `Xi[1]` = 0.0100. `MoistAir2` refuses with the same
 words. Not taken further this shift.
+
+The outer start Jacobian at the refusal, printed by a probe key
+(`PROBE_INIT_COLS`, binary `/tmp/m732/ox6`, not in the tree;
+`/tmp/m732/ma1c.txt`, command in `ma1c.cmd`, refusal unchanged under
+it): three unknowns, `volume.U` at 0, `volume.m` at 0.1 and
+`volume.mXi[1]` at 1e-3, and three rows, the initial equations on
+pressure, temperature and mass fraction. The `U` column is exactly zero
+in all three rows, twice over, while the other two columns are alive
+(entries from 0.1 to 9.3e6). So at `U` = 0 a perturbation of `U` moves
+neither the start temperature nor the pressure: the temperature row
+does not reach `U` through `u = U/m`. Two readings remain and the print
+does not separate them: the inner block that gives `T` from `h` takes a
+guess that does not move with the perturbation, or `U` starts at 0 J,
+far from the 9.3e3 J the converged medium implies, on a branch of the
+moist-air enthalpy that is flat there. The next instrument is the same
+print with `U` started at its implied value.
