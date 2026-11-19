@@ -90362,3 +90362,18 @@ smaller blocks of the trail converge (43 Newton lines, last residual
 numerical. Level: `why` and a control pair from the corpus. The next
 step is a small model with a six-component mass balance, set beside the
 same model with fixed composition.
+
+Shown small (`/tmp/m728/SN1.mo` to `SN9.mo`, `SN.env`, binary `ox51`).
+`SN7.mo`, 13 lines, is a `ClosedVolume` fed by `MassFlowSource_T`,
+draining through a `StaticPipe` with `NominalLaminarFlow` into a
+`FixedBoundary`, with `system.energyDynamics = SteadyStateInitial`.
+On `SimpleNaturalGas` it refuses in the corpus model's words, "do not
+pin down [volume.m]". Take any one of three things away and it runs:
+fixed composition (`SN8.mo`), the pipe (`SN5.mo`), or the steady-state
+start (`SN9.mo`, default dynamics). So the wall needs a mass balance
+over a variable composition, a steady-state start for energy, and a
+pressure carried through a pipe to the boundary, all at once. That is
+the shape of a start system in which `volume.m` is fixed only through
+the density, from a pressure the pipe makes implicit. Which equation
+drops out was not narrowed. Level: small model, with a control for
+each part. Nothing was changed.
