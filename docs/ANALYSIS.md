@@ -88899,3 +88899,14 @@ the wall is the IF97 medium at the start, not the exchanger's
 structure; the stall of the corpus model and the NaN of the small one
 are two faces the same start shows at two sizes, which is read and not
 yet traced.
+
+`OneAxis` is placed but not shrunk below its axis (`/tmp/m726/small/OA.env`,
+`GF.env`). The robot's `GearType1` alone between two inertias runs
+(`GF3.mo`), and so does a bare chain of inertia, ideal gear and
+bearing friction (`GF1.mo`). Extended unchanged (`OA0.mo`) the model
+gives the corpus refusal, `axis.motor.Jmotor.w` equal to
+`axis.gear.bearingFriction.w` constraining no state; with the friction
+peak at 1 and no static torque (`OA4.mo`) the same; with `GearType2`
+in the axis (`OA3.mo`) the same kind on the bearing friction's angle.
+So the wall is where the motor of `AxisType2` meets the gearbox
+friction, not the elasticity of `GearType1`.
