@@ -92770,22 +92770,31 @@ step buys less, and the line search halves the step until it buys
 nothing that clears the descent test. Three such steps in a row end the
 block (`solvers/mod.rs`, the `stuck >= 3` branch).
 
-So the mechanism is this. The step is not stopped by row 4: row 4 is
-still descending. It is stopped by row 1, which stands on the
-granularity of its own large value. That row's reach is 1.08e5, so its
-arithmetic floor by reach times epsilon is about 2.4e-11, and 15 units
-in the last place is about nine times that. Row 1 is therefore not
-counted as on the floor, and while it is held off the floor, every
-Newton direction spends part of itself correcting a residual that
-rounding will not let go below 15 units. What is left of the step for
-row 4 shrinks until the descent test refuses. The demand on row 4
-(1e-10) is reachable in principle, eight orders above its own floor. It
-is missed because the block is judged as a whole, and the whole is held
-by a neighbour sitting at a few units of rounding above what the floor
-estimate allows.
+What the print settles, and a first reading corrected before it was
+pushed further. Row 1 is on its own arithmetic floor: its loudness is
+1.6e7 (the `floor?` line of the trail), so four epsilons of it is
+1.4e-8, far above its 2.2e-10. It stops moving because rounding will not
+let it move, and the floor test already forgives it. The row that holds
+the block is row 4: loudness 998 and reach 7.7 give a floor of at most
+8.9e-13, and it stands at 2.66e-10, three hundred times above. (A first
+draft of this section named row 1 as the holder by its reach alone; the
+loudness term was missed. Corrected in the same shift.)
 
-What this does not settle: why the reach estimate of row 1 is nine
-times below the rounding the row shows (a sum of terms that cancel,
-evaluated at a scale the reach does not see, is one reading). The floor
-estimate and the acceptance threshold are not to be touched, so this
-goes as a question, not a change.
+Row 4 is not stuck on rounding either. It falls 4.46, 3.90, 2.93, 2.74,
+2.66 (units of 1e-10): after the full step of iteration 1, every
+iteration takes a shorter step and buys a smaller fraction, about 3%
+at the end, while a Newton step on a row it models well would take
+nearly all of it. So the direction the Jacobian gives is wrong for row
+4 by more than the line search can make up. Three halvings in a row
+that buy less than the descent test asks end the block (`solvers/mod.rs`,
+the `stuck >= 3` branch).
+
+So the mechanism, as far as this print goes: the start of the step was a
+residual of 0.12 on row 1 that the first full step removed; from there
+row 4 converges linearly and slowly because its Jacobian row does not
+predict its change, and the descent guard ends the attempt before the
+slow convergence reaches 1e-10. Why row 4's Jacobian row is poor at
+V_flow near 8.5e-7 (an orifice law whose derivative changes fast near
+zero flow is one reading, not checked) is the next question. The
+Jacobian, damping and acceptance are not to be touched, so it goes as a
+question, not a change.
