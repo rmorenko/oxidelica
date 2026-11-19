@@ -92426,3 +92426,18 @@ singular Jacobian in the loop of `tank.portInDensities`, and leaves
 `BranchingDynamicPipes` where it was: there the missing derivative is
 `MoistAir.h_pTX`, a call with no derivative rule, a different family.
 No model of the measure runs under it. Parked, not proposed.
+
+### Five Fluid carriers of the price, off, on, off
+
+The five Fluid models the pair named as the largest costs outside the
+winners, taken one after the other with the same binary
+(`/tmp/m732/fl_{off1,on,off2}.txt`, commands in `fl.env`):
+`BranchingPipes2` 63.5 / 175.9 / 61.7 s, `TestMultiPortTraceSubstances`
+47.5 / 145.7 / 46.4 s, `BranchingPipes4` 60.3 / 128.1 / 59.0 s,
+`SeriesPipes2` 58.9 / 92.1 / 56.4 s, `IncompressibleFluidNetwork`
+34.8 / 43.8 / 33.8 s. All five are real and far outside their off
+bands: +310 s together, of which three models run either way and two
+refuse either way. So at least 310 s of the rest's 202 s in the pair is
+confirmed (the pair's own figure for the rest was net of the thirteen
+models that got faster), and the cost of `bdf` on models it does not
+change the outcome of is concentrated in Fluid pipes.
