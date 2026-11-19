@@ -87294,7 +87294,12 @@ and all eight work counters agree to the digit (35342 classes,
 the `time_knee` price is zero work and zero victims: the key does not
 fire on the heavy set. The clock moved flattening 1236 to 1267 s and
 running 4568 to 4594 s (+0.6%), which with identical work is the
-table's drift, not a price.
+table's drift, not a price. Flattening moved 1236 to 1267 s, +2.5%,
+which is above the measured drift of about two percent; with the
+flattening counters equal to the digit it is carried here as a
+question and not as a price. The full price of the patch is then: main
++1 running, 0 victims, run half +4.0%; heavy 0 victims, run half
++0.57%, flattening half +2.5%.
 
 ### The runnable models that do not run, by name
 
@@ -87303,8 +87308,9 @@ against `ran854.txt`, by full class path: 91 models carrying
 `experiment` and one Example icon (`ComponentsMixingUnit.FilterOrder`)
 do not run, 92 in all, which matches 897 runnable less 805 running.
 The reachable gap of 90 is these 92 less the two self-contradictory
-models; which two of the 92 they are was not resolved here, and that
-is the one place the count does not yet close by name. List and reasons
+models, `ModelicaTest.Media.TestAllProperties.MoistAir` and
+`FlueGasSixComponents` (both refused at a start below its `min`), as
+the paragraph on the reachable measure above already says. List and reasons
 are in `/tmp/m724/gap90.tsv`. Of the 91 `experiment` models, 31 do not
 flatten and 60 flatten and do not run.
 
