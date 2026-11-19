@@ -89467,3 +89467,8 @@ loop of four friction pressure drops that does not converge. So on two
 models of the corpus, not on shrunk copies, the wall stands wholly in
 the medium, and on a third it stands first in the medium. The medium
 itself is MSL's and is not touched; the swap is an instrument.
+
+`BranchingPipes3` under the same swap runs to the end as well
+(`MC_BranchingPipes3.mo`). So three of the four pipe tests run whole
+with the medium swapped and the fourth moves to another wall: on the
+corpus, these four stand on the medium first.
