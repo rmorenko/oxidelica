@@ -91153,3 +91153,33 @@ the branch that ends in `syntaxError` leaves it unassigned
 (`inlining.rs`, grep `never assigns its output`); a LAPACK call handed
 a matrix of shape `Some([0])`; and a String in an equation in
 `TestStreams`. One text each, one model each.
+
+### The twelve structurally singular, and a friction family across texts
+
+All twelve models of the run half refused as structurally singular are
+refused at one place, `compile.rs` (grep `constrains no state, so index
+reduction cannot help`), and their equations fall into three subjects
+(`/tmp/m729/ss12_texts.txt`): a flow or a current tied to zero or to a
+sensor (`ActuatorWithNoise`, `SMPM_ResistiveBraking`,
+`BatchPlant_StandardWater`, `TanksWithOverflow`); orientation and
+velocity in MultiBody (`PrismaticConstraint`, `SphericalConstraint`,
+`PointGravityWithPointMasses2`, `RollingWheel`, `Engine1a`); and the
+robot's drive train (`RobotR3.OneAxis`, `RobotR3.FullRobot`), with the
+machine `IMC_DOL_CommonLeakage` on its own. Index reduction is under
+the ban, so this is a map only.
+
+The bearing friction runs through five refusals under four texts:
+`GearType2` ("do not mention `bearingFriction.sa`"), `LossyGearDemo2`
+(a repeated row), `OneAxis` and `FullRobot` (structurally singular, on
+the drive train) and `GearType1` ("initialization is not square").
+`Rotational.Examples.HeatLosses` holds a `BearingFriction` too and
+runs, so the component alone is not the cause. On `GearType1` the
+initial-equation probe shows the reach once more: of its two initial
+equations, `spring.w_rel = 0` takes `spring.w_rel`, and `a_rel = 0`,
+where `a_rel = der(spring.w_rel)`, reaches only `spring.w_rel` as well
+and so takes nothing, while `bearingFriction.phi` and `w` are claimed by
+nothing. An equation on a derivative should reach the states the
+derivative's own definition reads (the spring's deflection here), and
+the walk stops at the name. Level: probe, one model, and it is the
+fourth model of the shift in which what an initial equation reaches is
+where the count goes wrong.
