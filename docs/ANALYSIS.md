@@ -87565,3 +87565,13 @@ field 4 is `rho`, and the phase it is handed is chosen by comparing
 numbers. That route, not the medium's equations, is where 0.028 kg/m3
 comes from; which of the two (the index into the record or the
 two-number saturation record) is not yet separated.
+Separated: `derivsOf_ph(1e5, 107390, phase)` bound to a record of type
+`R134a.Common.InverseDerivatives_rhoT` gives `rho` = 1510.7 kg/m3 for
+phase 1 and phase 2 alike (`RG1.mo`, `RG2.mo`), so neither the function
+nor the phase choice makes 0.028. What is left is the compiler's own
+form in the flat `BaseProperties` equation, the call subscripted by
+position, `derivsOf_ph(...)[4]`, evaluated at the same start point.
+The record field order printed for `dv` in `RG1.csv` is not the
+declaration order, which is where a positional index into a record can
+pick the wrong field. That is the candidate, shown by elimination and
+not yet by a print of what `[4]` reads.
