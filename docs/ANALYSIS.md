@@ -92004,10 +92004,22 @@ the same text, and 6 of them (`ActuatorWithNoise`, `Engine1a`,
 `IMC_DOL_CommonLeakage`, `PrismaticConstraint`, `RollingWheel`,
 `SphericalConstraint`) report exactly 31 other members tried, which
 with the first is the ceiling `MAX_SINGULAR_ATTEMPTS = 32` in
-`compile.rs`; `FullRobot` reports 13 and `OneAxis` none. So the twelve
-stand as they were: twelve runnable refusals at one place, of which
-half stopped at the attempt ceiling rather than at the end of their
-subset. The ceiling is in index reduction and is not touched here.
+`compile.rs`; `FullRobot` reports 13 and `OneAxis` none. Counted together with
+`PointGravityWithPointMasses2` from the twenty, 7 of the twelve report 31. A print of the subset before it is cut (binary `/tmp/m731/ox3`,
+patch `/tmp/m731/probe_subset.patch`, not in the tree;
+`/tmp/m731/sub_<model>.txt`) gives the size of the subset at the
+refusing reduction: `ActuatorWithNoise` 143, `Engine1a` 307,
+`IMC_DOL_CommonLeakage` 189, `PointGravityWithPointMasses2` 97,
+`PrismaticConstraint` 55, `RollingWheel` 37, `SphericalConstraint` 53,
+so those seven tried 32 of 37 to 307 members. The other five end inside
+their subset: `BatchPlant_StandardWater` 3, `TanksWithOverflow` 5,
+`FullRobot` 14, and `OneAxis` and `SMPM_ResistiveBraking` a subset of
+
+1. So the twelve stand as they were: twelve runnable refusals at one
+   place, seven of them cut by the attempt ceiling with members untried,
+   five refused with their subset exhausted. The ceiling is in index
+   reduction and is not touched here; whether a later member would reduce
+   is not measured.
 
 ### The empty reach of the matching lever
 
@@ -92036,6 +92048,6 @@ All three are now withdrawn by measurement: the matching lever by
 `NO_PAIR_LOST_DEMOTED` (m730), question 132 because its symptom was the
 discarded attempt's (above), while the twelve singular models stand
 untouched (the twenty above are another set). The singular family is
-the only one of the three still standing, and six of its twelve are cut
+the only one of the three still standing, and seven of its twelve are cut
 by the attempt ceiling. Beyond it no lever is proven in the run half, and its 57 models are, until probed, a scatter of kinds
 rather than families.
