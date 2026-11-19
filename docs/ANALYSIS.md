@@ -90431,3 +90431,23 @@ and `MoistAir2` (against `DryAir1`); by `why` and text only,
 `HeatingSystem`, `BranchingDynamicPipes`, `BatchPlant_StandardWater`
 and `TanksWithOverflow`. None of the fifteen runs, and nothing was
 changed.
+
+The same small shape on water corrects the reading above
+(`/tmp/m728/SN14.mo` to `SN17.mo`, `SN1415.env`, `SN1415.txt`,
+`SN1617.txt`). On `StandardWater` `SN14.mo` is refused at the same site
+in the code, "do not pin down [volume.U, volume.m]". With the default
+dynamics (`SN17.mo`) it runs. With only the volume's energy start fixed
+(`SN16.mo`) it moves to another wall, a loop over `volume.medium.p` and
+the source's `sat.Tsat` that does not converge in 60 iterations. On
+`ConstantPropertyLiquidWater` (`SN15.mo`), with the steady start, it
+runs. So variable composition is not the condition: water has none
+and is refused, while the fixed-composition gas runs. What the refusing
+media share is a steady energy start, `der(medium.T) = 0` on a volume
+whose density depends on pressure and temperature through a medium
+function, behind a pipe. The incompressible medium is the control
+where that dependence vanishes. Why the fixed-composition gas escapes
+is open. The same initial equation is what `HeatingSystem` and
+`BranchingDynamicPipes` are refused on, with different words ("`T` is
+not a state", `/tmp/m728/hs.txt`, `bdp.txt`). That they are one family
+is a candidate, not shown, since the words and the sites in the code
+differ.
