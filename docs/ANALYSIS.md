@@ -89926,3 +89926,19 @@ are lower bounds. So in machines a sign flip in a Newton step is
 ordinary among models that run, and setting the five aside was right:
 the sign test carries no signal there. That is three of the four
 shares with a control; the swing cut of the 18 is the one left.
+
+### The swing cut, with its control
+
+The m726 cut called a Newton run swinging when its residual jumps by
+more than a factor of 100 at least twice. The same rule applied to
+every run of the 20 running control trails above (`/tmp/m727/swingctl.py`,
+`swingctl.txt`): 6299 runs, of which one swings, in `IMC_Steinmetz`,
+and that model runs. So a swing is about one run in six thousand among
+running models and one model in twenty, against three of the 18 in the
+refusing cut. A swing is therefore rare in running models but not
+absent, and the one that swings recovers; the three are a candidate
+wall and not a shown one, since what refuses them may be the run that
+fails to recover rather than the swing. With this, all four shares the
+m726 list named have a control: zero start refuted, `prefer` not a
+family, question 132 concentrated but its wild step seen once in
+running fluids, machine sign flips ordinary, and swings rare.
