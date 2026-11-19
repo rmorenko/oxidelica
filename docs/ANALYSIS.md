@@ -92203,3 +92203,15 @@ t = 5.1e-6 under `bdf`, and which row held the block back there, were
 not printed. If they matched the dump, a norm this small would pass
 the test outright, so the block or its unknowns there must differ. The
 acceptance test is under the ban; this is a question and not a finding.
+
+The sets of the won and the lost do not overlap, so the question is
+what `auto` chooses on, not whether `bdf` should replace it. The four
+won are refusals under the default today: three `Newton direction` and
+one `floor three` (`/tmp/m724/gap90.tsv`). The three lost run under the
+default and refuse under `bdf`. One candidate for the deciding feature,
+named from reading and not tested: `EdgeHandoff` gives a refusal to
+`bdf` only when it is `Outside`, and the three Fluid winners refuse on
+a Newton direction, so a handoff on that kind too would reach them
+while leaving the models that run on the default alone. The fourth,
+`floor three`, is not covered by that reading. No change was made to
+`auto`; that is behaviour and goes to Roman.
