@@ -87164,10 +87164,10 @@ blocks met later in the run were not printed.
 Over all 1026 example models of the pair's main pass
 (`/tmp/m723/marks1026.tsv`: name, mark, state; the class body cut from
 its file and read for `experiment(` and `Icons.Example`, as for the 67).
-894 carry an `experiment` and 3 only the `Icons.Example` mark; 123 carry
-neither, and 6 more could not be located by this reader and are not
-counted here. Of the 123 unmarked, 46 run today, 67 flatten and do not
-run, and 10 do not flatten. Of the 897 marked, 808 run.
+900 carry an `experiment` and 3 only the `Icons.Example` mark; 123 carry
+neither (a first print of this line said 894 and six unlocated, a
+slip in the retelling; the file says 900, 3 and 123, all located). Of the 123 unmarked, 46 run today, 67 flatten and do not
+run, and 10 do not flatten. Of the 903 marked, 808 run.
 
 The seven helpers of question 66 that run on a zeroed input are all
 among the 123 unmarked and all seven run, so that set lies inside this
