@@ -90721,3 +90721,12 @@ acceleration of one rigid shaft twice. That is a mode the structure
 does not see: in the mode both elements are in, two path variables
 coincide. Placed beside the clutch-like refusals as a mode question,
 level trail. Not changed.
+
+`ThreeSprings`, traced (`/tmp/m728/ts3_trail.txt`): all 574 Newton
+lines are at `t = 0`. One run starts at a NaN residual, the next at
+5.8e5. In the longest run the iterate alternates between two points
+from about iteration 55 (the first unknown -127, -702, -127, -705, ...)
+while |f| creeps up from 3.16e3 to 3.46e3. That is a two-cycle of
+Newton at the start: the direction is not refused, it oscillates, and
+the budget of 60 ends it. Level: trail. Not changed: the step is not
+this shift's.
