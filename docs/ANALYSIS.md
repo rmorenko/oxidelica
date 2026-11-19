@@ -88111,3 +88111,21 @@ compiler turns them into assignments in written order and so assigns
 `u1` from both. The clocked partition is lowered to a `when`, and the
 `when` asks each equation to name what it assigns, which an inverse
 block does not do. Shown small: `IB.mo` against `IC.mo`.
+
+`ModelicaTest.Utilities.TestStreams` is shown small: a `String`
+variable given by an equation, `s = "this is line 1"`, is refused in
+the corpus model's words (`/tmp/m724/small/TS.mo`), and the same
+string as a parameter binding runs (`TS2.mo`). Specification 3.7.5
+allows String variables and equations over them, so this is a missing
+feature rather than a library error.
+
+The five `*_usertab` models all lean on `usertab.c`, a C source the
+test writes into an `Include` annotation and calls through
+`external "C"`. Three refuse on that call by name. The other two,
+`CombiTable1Dv.Test25_usertab` and `CombiTimeTable.Test66_usertab`,
+refuse earlier, on `columns` given as `2:size(table, 2)` with
+`tableOnFile = true`. The same range from a literal table runs
+(`/tmp/m724/small/TC.mo`), so their wall is a table with no size until
+the file is read, and behind it stands the same C function. All five
+need a C compiler this compiler does not call, and the refusal is the
+right answer.
