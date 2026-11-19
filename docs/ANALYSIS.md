@@ -88228,3 +88228,28 @@ anywhere below about 150 degC (at 100 degC, 26.64 * 2130 / 0.1232 =
 the refusal is right. That is the third library error of the 91, of
 the same kind as the thyristor unit. Arithmetic from the library's
 text, not shrunk.
+
+`MultiBody.Examples.Loops.Fourbar1` refuses as unbalanced: 1999
+algebraic equations for 1990 unknowns, nine too many, and the six named
+as left over are the positions `b1.frame_a.r_0` and `b2.frame_a.r_0`
+of two `BodyCylinder`s. The mechanism is a closed loop of five
+revolute joints and a prismatic one. A planar loop written with
+`Revolute` joints only fixes its plane by repetition, and the library
+expects the tool to drop the repeated constraints of the cut. Its
+twin `Fourbar_analytic` runs. Placed, not shrunk.
+
+The tally at the end of the shift, counted by a grep of each model's
+last name over this section (`/tmp/m724/unnamed.txt` lists the ones it
+does not find): 73 of the 91 are named in a paragraph and 18 are not.
+Of those 18, the two `CombiTable2Ds`/`2Dv` `Test18_usertab` are covered
+by the `*_usertab` paragraph without being named in it. Nine refuse on a
+C or FORTRAN function of the library (`TestMatrices`, `TestMatrices2`,
+`TestMatrices3`, `TestVectors`, `TestStrings`, `TestInternal`,
+`TestFiles`, `TestExamplesCalculator`, `WriteRealMatrixToFile`), and
+`Engine1b_analytic` and `EngineV6_analytic` carry the same refusal as
+`PlanarLoops_analytic`. The five left with nothing more than a named
+wall are `ClockedWithDiscretizedContinuousController`,
+`PolyphaseRectifier`, `ThyristorBridge2mPulse_RLV`,
+`DynamicPipeClosingValve` and `TestJunctionTraceSubstances`. Named
+here does not mean explained. The split by strength of evidence given
+at 54 is the last one checked by name.
