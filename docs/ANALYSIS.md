@@ -87780,3 +87780,8 @@ honest refusal of a genuinely two-sided equation at t = 0, and its
 answer is a start value of the flow, which the model leaves at zero,
 exactly on the fold. Not shrunk; the reading is from `why` and the
 refusal's own words.
+Shown small: `/tmp/m724/small/SE.mo`, five lines, `dp = 100 + time`
+and `dp = 0.5*m^2*(if m > 0 then 1 else 2)`, is refused in the same
+words at a start of zero, and runs with `m(start=1)` (`SE1.mo`). So
+the refusal is right and the cure is a start the library does not
+give.
