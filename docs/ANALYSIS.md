@@ -90067,8 +90067,7 @@ this shift's to change.
 
 ### The survivor of the wild step, read against a refusing model
 
-`MomentumBalanceFittings` runs through the same symptom as question
-132. Its longest Newton run at `t = 0` (`/tmp/m727/trail132/`) has 41
+`MomentumBalanceFittings` runs through the same symptom as question 132. Its longest Newton run at `t = 0` (`/tmp/m727/trail132/`) has 41
 iterations: the residual goes from 1e4 to 1.6e24 on the first step and
 then falls by a factor of four on every step, 1.6e24, 4e23, 1e23, ...,
 until it ends at 1.6e-11. A factor of exactly four per step is Newton
