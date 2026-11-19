@@ -89604,8 +89604,9 @@ the purpose would read the type of each unknown.
   the medium's limits, a clamp that is Roman's word to switch on.
 - Which equation is the residual of the stalling pipe block, beyond
   the slope read from the step in `SP2.mo`.
-- Why `SC2.mo` stalls: the trail of its eight-unknown loop was not
-  read.
+- Why the start of `SC2.mo` is zeros for the rotator angle and the
+  air-gap currents, when its trail (read below) shows the first step
+  thrown out from there.
 - `RevoluteConstraint`, `PlanarFourbar`, `Spice3BenchmarkDifferentialPair`:
   the three that take no step, a structure question not opened.
 - `Engine1a`: whether `EN3.mo`'s refusal and the library model's are
