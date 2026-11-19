@@ -89942,3 +89942,15 @@ fails to recover rather than the swing. With this, all four shares the
 m726 list named have a control: zero start refuted, `prefer` not a
 family, question 132 concentrated but its wild step seen once in
 running fluids, machine sign flips ordinary, and swings rare.
+
+### Correction: the not-ours count does not move
+
+The section above moved `FlueGasSixComponents` and
+`TestAllProperties.MoistAir` to not ours, 20 to 22. That is a double
+count. They are the two self-contradictory models already taken out
+when the gap of 92 became the reachable gap of 90 ("The runnable models
+that do not run, by name"), before the 20 not ours were counted from
+the 90. The count stays at 20 not ours and at most 69 reachable after
+`FilterOrder`. Of the first row of the fifteen, only `Essotherm650` was
+new to read and it too was already among the 20, so the fifteen move
+neither number.
