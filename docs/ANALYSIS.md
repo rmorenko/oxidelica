@@ -87867,3 +87867,12 @@ with a conductance against a conductance squared. Its library function
 (`/tmp/m724/small/RT.mo`), so the square comes from the inlined
 resistance argument, the `if` over `m_dResist`, `m_dRsh` and the
 geometry, not from the temperature factor. Placed, not shrunk.
+
+`AmplifierWithOpAmpDetailed` is refused at initialization because
+nothing pins `opAmp.v_in`. The example writes `resistor2.i = 0` and
+zeros for `q_fp1`, `q_fr1..3`; the op-amp adds `v_source = q_fp1` and
+`x = 0`. Seven initial equations for the seven states
+(`v_in`, `q_fr1..3`, `q_fp1`, `x`, `v_source`), so the count closes,
+and `resistor2.i = 0` is the one that has to reach `v_in` through the
+circuit (`v_in = Rdm*i_r2`). The compiler's Newton step does not see
+that path. Placed, not shrunk.
