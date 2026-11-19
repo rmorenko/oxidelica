@@ -87597,3 +87597,16 @@ gives when `p` is known. Its cause lies inside the block (the order it
 evaluates its members in, or the value it reads for `p` before the
 first iteration), and it is the next thing to print. Two eliminations
 above stand; the conclusion drawn from them did not.
+`OXIDELICA_NEWTON_TRAIL=1` on `RB.mo` (`/tmp/m724/small/RB_trail.txt`,
+command in `RB_trail.env`) shows the block. At `p = 1e5` the residual
+is -510.72, the right density 1510.7 against the asked 1000. The slope
+behind the first step is about 2.6e-6 kg/m3 per Pa, positive and of
+the right order for a nearly incompressible liquid, so the Jacobian is
+sound. The full Newton step that a linear liquid asks for is then
+-2e8 Pa, which lands at a negative pressure, where the medium reads
+0.028 kg/m3 and the residual is flat; the damped retries cannot get
+back. So the witness fails on an undamped step leaving the physical
+range, not on a derivative. Whether the corpus `R134a1` (starting
+residual 0.97, not 510) fails the same way is not shown; its loop
+needs its own trail. The derivative-count refusal of `RD.mo` and
+`DR.mo` stands as a separate fault of the same medium.
