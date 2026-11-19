@@ -87334,3 +87334,18 @@ The run half (60) is the solver's: 33 of them fail at a singular or
 non-converging system. The flattening half (31) is dominated by
 functions the compiler does not call: the LAPACK wrappers, string
 scanning, file and environment access, and user table callbacks.
+
+### The 1879 members of the rows were 131
+
+The queue in `/tmp/m714/rows.tsv` was read as 131 samples standing for
+rows that sum to 1879 refusals. It is not. The file already holds one
+line per member, each tagged with its row's size, so adding the first
+column over its lines adds every row's size once per member: the total
+is the sum of the squares of the row sizes, and it is 1879 to the unit.
+The members are the 131 lines, in 26 rows. Five rows carry a size that
+disagrees with the number of their lines (`new` labelled 0 with 5
+members, `Newton direction` 5 with 7, `loop no converge` 5 with 3,
+`init singular` 2 with 3, `init not square` 2 with 1), which is the
+labels' staleness and not lost members. So the census of members is
+closed: 126 of the 131 sit in an already named class and 5 (`new`) do
+not, the same five the table above leaves unnamed.
