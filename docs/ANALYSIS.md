@@ -89702,3 +89702,21 @@ control:
 
 Nothing is changed by this list. It marks what the chapter claims
 beyond its controls.
+
+## Shift m727: the homotopy catcher goes into the tree
+
+### The base share for question 132
+
+The claim that question 132 sits in fluids and media had no base rate.
+Counted from the files of the m726 pair, without a new run: among the
+854 models that ran in its off half (`/tmp/m726/ran_off.txt`), 145
+carry `.Fluid.` or `.Media.` in their full path, 17.0%. Among the 60
+run-half refusals (`/tmp/m726/ss/off_kind.tsv`), 23 do, 38.3%. Among
+the eight of question 132, eight do. The concentration survives the
+control, at about six times the share among running models. The
+refusing half is itself enriched in fluids and media, 2.25 times, and
+question 132 explains eight of those 23. The other 15 have no named
+mechanism yet; they are the largest marked piece of the run half left
+to probe. This closes one of the four shares listed above as lacking a
+control. The other three need trails of running models and were not
+taken while the pair ran, so that the desk stayed quiet.
