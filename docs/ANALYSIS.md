@@ -91735,3 +91735,15 @@ refused as underdetermined above, and the same block as
 `DifferentialPair`'s, whose text differs only in which of the two
 checks sees the dead column first. Level: small models, three red and
 two controls; the corpus text `do not mention` itself not reproduced.
+
+The running control in the corpus is `Spice3.Examples.Oscillator`: two
+`Q_NPNBJT` (Spice3 `package.mo`, lines 1046 and 1051) with the same
+guarded currents (`icapbe = if (m_bInit) then 0.0 else
+cc.capbe*der(vbe)`, line 4950) and it runs. Its modelcards set
+`CJE = 1e-9` and `CJC = 1e-9`, and `vbe` is fixed at the start. The
+four refused benchmarks leave the junction capacitances at the
+library defaults, under which the capacitance at `vbx = 0` is zero or
+near it. So the corpus pair agrees with the small pair: the guarded
+current is harmless where the capacitance is set away from zero, and
+refuses where it is zero at the start. Level: one running control by
+reading the source, not run apart.
