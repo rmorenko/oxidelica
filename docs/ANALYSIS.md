@@ -87471,3 +87471,7 @@ the level, and the branch that sets `m_flow = 0` is what the first
 build cannot match. So the first-build half of the row has at least
 one mechanism shown in eleven lines; the other five are not yet
 shrunk.
+One raised port is not enough: with only the lower tank's port at
+`height=6` (`T1b.mo`) the pair runs. Both ports above their bottoms,
+so that each side of the pipe can set its flow to zero, is what the
+first build cannot match.
