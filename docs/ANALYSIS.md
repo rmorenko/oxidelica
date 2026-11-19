@@ -89806,3 +89806,25 @@ range. So all three of the first row are the library's data breaking
 the library's own bound, and none is a wrong number from the compiler.
 The row weighs three models and is a question about whether a broken
 `min` or `max` refuses, not a defect to repair here.
+
+### The thirteen of the flattening half that stop at a function
+
+Read from `/tmp/m724/gapr.tsv`, the 13 models of the row "a body
+written outside Modelica, or a utility function" divide by what the
+function is. Twelve stop at a body written in C or Fortran: four at
+LAPACK wrappers (`TestMatrices`, `TestMatrices2`, `TestMatrices3`,
+`TestVectors`), two at `ModelicaStrings_scanReal` (`TestStrings`,
+`TestExamplesCalculator`), one each at `ModelicaIO_writeRealMatrix`,
+`ModelicaInternal_getenv` and `ModelicaInternal_readFile`
+(`WriteRealMatrixToFile`, `TestInternal`, `TestFiles`), and three at the
+user table callback `mydummyfunc`, an `external "C"` with an inline
+include (`CombiTable1Ds`, `CombiTable2Ds`, `CombiTable2Dv` usertab
+tests). One, `readRealParameterModel`, stops at
+`Modelica.Utilities.Strings.scanDelimiter`, which has a Modelica
+`algorithm` and is refused as never assigning its output: that one is
+a function the compiler could read, and it is the only one of the 13.
+So the row is twelve external bodies and one candidate of our own.
+
+The depth row of the same half held `TestWallFriction`, which this
+shift's catcher now flattens and runs, so that row is six and the
+flattening half 30.
