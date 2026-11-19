@@ -90451,3 +90451,13 @@ is open. The same initial equation is what `HeatingSystem` and
 not a state", `/tmp/m728/hs.txt`, `bdp.txt`). That they are one family
 is a candidate, not shown, since the words and the sites in the code
 differ.
+
+Two more media in the same shape (`/tmp/m728/SN18.mo`, `SN19.mo`, each
+with its `.txt`): the single gas `IdealGases.SingleGases.N2` runs, and
+so does `Air.SimpleAir`. So in `SN7.mo`'s shape the steady energy start
+is refused on the gas mixture with free fractions and on IF97 water, and
+runs on the same mixture with fixed fractions, on a single ideal gas, on
+simple air and on the constant-property liquid. The plain line "a
+pressure-dependent density" does not separate them, since `N2` has one.
+What the two refusing media share beyond that is not named here. Five
+controls and two refusals, all of them small.
