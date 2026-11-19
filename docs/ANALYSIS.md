@@ -88280,3 +88280,15 @@ as NaN are `junction1.mb_flow`, `multiPort.port_a.m_flow` and
 viscosity in the pipe are NaN together. The NaN shows on the
 mass-fraction balance `junction1.mbXi_flow[1]`, whose terms are flows
 times `if m_flow > 0` choices of `Xi_outflow`. Placed, not shrunk.
+
+The two rectifiers refused on the arithmetic floor,
+`Polyphase.Examples.PolyphaseRectifier` (at `t = 4e-5`) and
+`PowerConverters...ThyristorBridge2mPulse_RLV` (at `t = 2e-4`), are of
+one shape. Each refuses an underdetermined loop whose unknowns are
+nearly all the switch parameters `s` of ideal diodes or thyristors
+(eleven in the first, five in the second), beside the source current.
+That is a loop of ideal switches where several conduct at once and
+the split of the current between them is not settled. It is the same
+shape as the four FundamentalWave machines placed above, there with
+the machines' converters beside the switches. Placed together, not
+shrunk.
