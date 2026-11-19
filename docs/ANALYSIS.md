@@ -90927,3 +90927,80 @@ words, and the member is the example's initial equation
 with `resistor2.i` alone it is refused, at 1e-3 as at 0, and
 `opAmp.v_in = 0` in its place runs. Why that row leaves `v_in` free is
 not named; the level is a small model with controls.
+
+### The run half's degenerate loops, member by member
+
+The rest of the degenerate and underdetermined loops of the run half
+(`/tmp/m726/ss/off_kind.tsv`) were traced one at a time with the pair's
+binary `ox53`; files are `/tmp/m729/tr_*.txt` and `ud_*.txt`, commands
+in the `.env` beside each.
+
+`Spice3BenchmarkDifferentialPair` has the transistor's own form,
+`icapbx = if m_bInit then 0 else cc.capbx*der(vbx)`, but there the
+capacitance is exactly 0 at t = 0, so its column is dead and it is
+refused as "the equations ... do not mention `der(Q2.vbx)`"
+(`solvers/mod.rs`, grep `do not mention`). With the three refused on
+the threshold above, four Spice3 models share the guarded capacitor
+current, by two routes. Level: text and place.
+
+`GearType2` is refused in the same words for `bearingFriction.sa`. The
+bearing friction at rest leaves its relative acceleration out of every
+row the block holds at t = 0. Level: text and place.
+
+Under `OXIDELICA_NEWTON_TRAIL` the singular Jacobian of the last block
+of four members was read row by row (`/tmp/m729/last_*.txt`).
+`QuasiStatic.SinglePhase.Examples.Rectifier`: the row of the first
+ideal diode, all diodes off, and the row of `load2.i = G*v` are equal
+entry for entry, the same equation twice at the start point.
+`LossyGearDemo2`: the locked branch of `gear.a_a` and the friction
+branch of `bearingFriction.a_relfric` are equal, which is two frictions
+in series both stuck at rest writing the same tie between one
+acceleration and the other. That is a property of the model, a mixed
+problem a sticking pair poses, and not a threshold of ours.
+`SynchronousMachines.SMPM_CurrentSource`: one repeated row and two zero
+rows in a block of 20. `PumpingSystem`: no repeat and one zero row, the
+rank deficit from the library's zero-speed start already recorded.
+So an exact repeat of a row at t = 0 is shared by three of four, and the
+causes behind the repeat differ: a switch state and a load, two
+sticking frictions, a machine at rest. One text, at least three
+mechanisms, none of them a change to make here.
+
+`UniversalConstraint` holds no switch in its block, which removes the
+switch as the common member of this row as it did for the
+underdetermined machines.
+
+### Two initial equations that reach no state and still take one
+
+`OXIDELICA_INIT_PROBE` prints, for each initial equation, which states
+it reaches and which it took. On the shrunk amplifier
+(`/tmp/m729/oa/OA7.mo`) it prints that `resistor2.i = 0` reaches no
+state and took `opAmp.v_in`; the four `q_f*` equations each reach their
+own state. On `/tmp/m726/small/HS2.mo` (an open tank of `StandardWater`
+whose temperature starts steady) both initial equations reach no state
+and take `tank.U` and `tank.m`, and the model is refused as "`tank.medium.T`
+is not a state of the model". The same tank on `LinearWater` (`HS3.mo`)
+runs.
+
+The pairing that hands a state to such an equation is not the cause on
+the amplifier. With `OXIDELICA_NO_PAIR_WRITTEN_COARSE=1` it takes the
+same state by position, and with `OXIDELICA_NO_PAIR_LOST=1` it takes
+nothing and `v_in` is claimed by nothing, and the refusal is the same
+in all three (`/tmp/m729/oa/OA7_*.env`). A reading that the row is
+redundant beside `q_fr3 = 0` was killed by `OA9.mo`, which drops
+`q_fr3` and is refused as well, while `OA10.mo`, the three other `q_f*`
+without `resistor2.i`, runs. So: one member, `resistor2.i = 0`, three
+controls, the class not named. The shared mark with the tank is that
+the walk from the equation reaches no state, which is where a next
+probe would look.
+
+### ReferenceMoistAir in the shape of SN7 does finish
+
+`/tmp/m728/SN10.mo`, stopped by hand the shift before after 14 minutes
+of processor time, was run under a 30 minute ceiling
+(`/tmp/m729/SN10.txt`, `SN10.env`). It runs to the stop time in 17.4
+minutes of wall time with a peak of 2.3 GB, so the "at least 14
+minutes" was price and not a wall. Two samples of three seconds each
+(`/tmp/m729/SN10_sample*.txt`) put the time in the initialization and
+its implicit blocks, walking the medium's function bodies
+(`walk::run`, `walk::to_scalar`, `code::eval`), with allocation and
+freeing at the top of the stack.
