@@ -91585,3 +91585,15 @@ reduction duplicating a constraint, two frictions stuck together, and
 a diode bridge whose load conducts nothing. The class stays a rank
 defect at the start; it is not one mechanism, and the repairs of
 the three would be in three places, two of them under the ban.
+
+The gas mixture's shape, cut to three states (`K1.mo`, `K2.mo`): two
+fractions `X_k = a_k/m`, a loop `y = 2*u; u = m + y`, and initial
+equations on `X1`, `X2` and `y`. The probe shows the same pairings as
+`SimpleNaturalGas`, the second fraction taking `m` and the loop's
+condition taking the last fraction, in either order of the initial
+equations, and both models run with the right start, `m = -0.5`,
+`X = 0.3, 0.5`. The pairing is a choice of which state's start is
+released, and the start problem is then solved as a whole, so a pick
+that reads wrong is not by itself a wall. On `SimpleNaturalGas` the
+refusal is therefore something more than the pick; what, is not
+named. Level: small model, the pick reproduced and the refusal not.
