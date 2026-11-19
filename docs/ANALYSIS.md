@@ -87692,3 +87692,17 @@ load of the example (`QG.mo`). So the singular slope of `Rectifier`
 needs a part of the example these leave out (its transient AC half,
 or the polar conversion of the measured current), and the next step
 is cutting the real model down rather than growing these.
+Cutting the real model settles it. Its quasi-static half alone runs
+(`/tmp/m724/small/RQ.mo`) and its transient half alone is refused the
+same way (`RA.mo`). That half shrinks to `GZ4.mo`, eleven lines: a
+`SineVoltage` with `phase = pi/2`, a 50 mOhm series resistor, a
+`GraetzRectifier` and a `VariableConductor` whose conductance ramps
+from zero. Without the phase (`GZ3.mo`) or without the resistor
+(`GZ2.mo`) it runs. So the source must be at its peak at t = 0, so that
+two ideal diodes are asked to conduct, and the resistor must put their
+current into the loop, while the load conducts nothing: the diode
+current then has no path, and the loop over the four diode states and
+the load voltage is singular. The bridge's own `s` start values are
+the zero start the trail showed. A start of the diodes that sees the
+open load would be the fix, a choice about how ideal switches start,
+and it is left as a question.
