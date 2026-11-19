@@ -91130,6 +91130,13 @@ taken further. The plain count: of two repairs tried on the corpus, none
 opened a model; five mechanisms wait on a word from Roman; and the one
 repair of the period that opened models is question 130.
 
+Put in one line: opens 1 (question 130, merged, +1 to the measure);
+makes 7 truer; and all seven wait on Roman's word, not because they
+were not tried but because their repair lies behind a ban: matching,
+reduction (the zero test), the clamp, damping, the handling of the
+step, seeding, the MSL, the example filter. That is a map of what holds
+the queue, and of what each word would cost.
+
 ### More of the run half, and eight walls of the flattening half
 
 Traced with `ox53` (`/tmp/m729/ud_PolyRect.txt`, `tr_R134a1.txt`):
@@ -91141,18 +91148,40 @@ Newton step takes `volume.medium.p` to -2.53e6 Pa, where the residual
 stands still at 0.971828, so no step descends. Both are traces, and
 neither names a repair outside the bans.
 
-Eight of the fourteen flattening refusals counted as ours
-(`/tmp/m728/ours_flat14.txt`) stand at eight different walls, read
+Of the 13 flattening refusals of our own that stand today (the 14 of
+`/tmp/m728/ours_flat14.txt` less `TestWallFriction`, which runs, so
+13 + 57 = 70 with the run half), eight stand at eight different walls, read
 under `--only --refused`: a `superSample` with no base clock and an
 `ImplicitEuler` clock in the two Clocked examples; an expression
 nested past the depth ceiling in `Digital.Examples.RAM` and
 `Random.Examples.GenerateRandomNumbers` (`MAX_DEPTH`, under the ban); a
 unit mismatch in the Preisach model of `HysteresisModelComparison`;
-`scanDelimiter` refused as never assigning `delimiter`, because only
-the branch that ends in `syntaxError` leaves it unassigned
-(`inlining.rs`, grep `never assigns its output`); a LAPACK call handed
-a matrix of shape `Some([0])`; and a String in an equation in
-`TestStreams`. One text each, one model each.
+`scanDelimiter` refused as never assigning `delimiter` (`inlining.rs`,
+grep `never assigns its output`); a LAPACK call handed a matrix of
+shape `Some([0])`; and a String in an equation in `TestStreams`. One
+text each, one model each.
+
+The `scanDelimiter` wall is neither our defect nor the library's, and
+three facts say so. In `Utilities/Strings.mo` the output is assigned
+only inside the `while`, and the not-found path calls `syntaxError`,
+which ends in `Streams.error` and does not return, so an unassigned
+value never leaves the function. The specification (3.6, section
+12.4.4) makes it an error to use or return an uninitialized variable,
+and the library returns none, so the library is clean. And section
+12.2 leaves it a quality of implementation how much analysis a tool
+performs to decide that outputs are computed, so the static refusal
+here does not contradict the standard either. It is a wall of quality
+of implementation, and its repair has one shape: no refusal where
+every path that leaves the output unassigned ends in a terminating
+call (`Streams.error`, `assert(false, ...)`). That is behaviour and
+waits on Roman's word. Its reach is one model: the refusal's text
+occurs once in the census of the full measure (`/tmp/m714/raw.txt`,
+2671 files read), on `readRealParameterModel`, so no pair was spent.
+
+Set beside the run half, the eight walls say what the next work is.
+In the run half one lever covers many models (question 132 covers
+eight, the matching lever eight), while the flattening half is eight
+mechanisms for eight models and is taken one model at a time.
 
 ### The twelve structurally singular, and a friction family across texts
 
