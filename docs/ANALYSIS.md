@@ -87822,3 +87822,13 @@ output `B` a flux density, and each of its terms carries one
 `p.K*mu_0*H` is unitless times H/m times A/m). So the unit is lost in
 the inlining of `everett`, the compiler's side, and the refusal names
 the symptom. Not yet shrunk.
+Shown small and named: `/tmp/m724/small/PE.mo`, one call of
+`everett(H, -mat.Hsat, mat, false)` bound to a flux density, is
+refused the same way. The library gives the result its unit through a
+named constant, `constant SI.MagneticFluxDensity unitT=1;` and
+`J := unitT*(...)`, and the inlined body printed in the refusal begins
+`1 * (((((mat.M * mat.r) ...`: the constant was replaced by its value
+and its unit went with the name. So the compiler drops the declared
+unit of a constant it folds into a function body. This is the layer
+"anything that survives flattening carries the flat model's names"
+already warns about, for units instead of names.
