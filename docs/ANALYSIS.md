@@ -88445,3 +88445,28 @@ shows the call reaching it as `r.s` with no settled strings in both
 `SC7` and `SC8`, so that fold is not where the two part; the
 difference lies in how a component's algorithm is carried, and the
 next probe belongs there.
+
+### The fifth place behind PO, and the iteration cap is not a lever
+
+`OXIDELICA_WHERE` marks only the refusals of the run (`err_of` in
+`crates/oxidelica-sim/src/lib.rs`), so on a flattening refusal it adds
+nothing, which is why it gave no line for `PO.mo`. A probe binary with
+line tables that prints a backtrace at the two places raising
+`did not come to an end` (`/tmp/m725/ox41`, `raise.env`; output in
+`raise_PO.txt`, `raise_PR.txt`) answers where. `PR.mo` raises twice,
+both times inside a function body (through `statements.rs`), and both
+are caught by the inliner. `PO.mo` raises the same two and a third,
+`3.141592653589793 * 3.141592653589793`, which is the one that comes
+out: `names.rs` `resolve` called from the branch of `arrays.rs` that
+resolves a call with no array arguments as a whole, reached from the
+expansion of the top-level equation in `equations.rs`. No catcher
+stands on that path, because none was ever needed outside a body. So
+under `homotopy` the loss expression, already expanded, is walked
+once more as an argument of the built-in call, at the top of the
+model, and the depth runs out where nothing leaves it standing.
+
+On `Nand` the measurement above settles one more thing outright:
+raising the Newton cap from 60 to 200 lets the loop converge (106
+iterations) and the model still refuses one step later, and at 1000
+the counts are the same to the digit. The iteration cap is a link in
+the middle of the chain and not a lever; raising it wins nothing here.
