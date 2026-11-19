@@ -91467,3 +91467,15 @@ the coarse walk reaches `v_in` by another route, not named. Level: a
 mechanism proved on small models whose corpus weight is measured at
 zero; that is recorded so that a repair of the fallback is not sold as
 a repair of the four.
+
+The amplifier's route is in the same plan print (`/tmp/m730/oa_plan.txt`).
+`opAmp.m.v := opAmp.p.v - (opAmp.v_vos + opAmp.v_in)` is an explicit
+stage, and the large implicit block of 21 unknowns that solves
+`resistor2.i` also solves the currents through `opAmp.m`. So
+`resistor2.i = 0` reaches `opAmp.v_in` through the circuit itself, not
+through the fallback: the coarse report there is honest, and the pick
+of `v_in` is the first of seven states that are all really read. What
+the pairing lacks on the amplifier is not a narrower reach but a
+reason to prefer one read state over another; the previous shift's
+finding that `opAmp.v_in = 0` in its place runs is the same fact from
+the other side. Level: plan print, one model.
