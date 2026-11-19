@@ -90827,10 +90827,12 @@ the same pair.
 The parked late-binding repair (`OXIDELICA_NO_LATE_BINDING_SPLIT`) was
 measured model by model with the pair's own binary (`/tmp/m728/ox53`,
 md5 31e2ae07), under `--only` from the root `.msl`, off and on, every run
-complete under its memory and time ceilings. The four models are the
+complete under its memory and time ceilings. The six models are the
 ones the refusal sections of `/tmp/m728/p53_off.txt` and `p53_on.txt`
 show moving; `Fourbar_analytic` runs in both halves and is not among
-them. Files are `/tmp/m729/<model>_{off,on}.txt`, with the command in
+them. The last two rows were added after the probe below named them:
+they are counted under one row of two in `p53_on.txt`, first on
+`CylinderBase`, which the first reading of the diff missed. Files are `/tmp/m729/<model>_{off,on}.txt`, with the command in
 the `.env` beside each.
 
 | Model (`MultiBody.Examples.Loops.`) | run off, s | run on, s | difference, s |
@@ -90839,7 +90841,9 @@ the `.env` beside each.
 | `EngineV6_analytic`                 |        0.0 |     424.9 |        +424.9 |
 | `PlanarLoops_analytic`              |        0.0 |     160.2 |        +160.2 |
 | `Utilities.EngineV6_analytic`       |        0.0 |      76.7 |         +76.7 |
-| sum                                 |            |           |        +754.4 |
+| `Utilities.CylinderBase`            |        0.0 |      11.4 |         +11.4 |
+| `Utilities.Cylinder_analytic_CAD`   |        0.0 |      11.4 |         +11.4 |
+| sum                                 |            |           |        +777.2 |
 
 The flattening half agrees within 0.3 s in every pair. The mechanism of
 the price is plain from the refusals: switched off, each model is
@@ -90851,9 +90855,9 @@ and still differed by 978 s. Equal counters are a lower bound on the
 work, not the whole of it.
 
 So the 37% of the pair was price and not the load on the machine. Of
-the 978 s, 754 s are named model by model above and 224 s are not
+the 978 s, 777 s are named model by model above and 201 s are not
 attributed, because the pair was run without `--slow`. Counted from the
-off half, 754 s is 29% of 2617 s, nearly five times the 6% Roman allows,
+off half, 777 s is 30% of 2617 s, five times the 6% Roman allows,
 for a win of 0. The repair is parked on that arithmetic: it fails the
 second of his three conditions outright, and the third, the models that
 made the run dearer, is the table above.
@@ -90870,7 +90874,8 @@ run, every twentieth of the run list, it fires on 6 and on no control:
 `Engine1b_analytic` (12), `EngineV6_analytic` (72),
 `PlanarLoops_analytic` (36), `Utilities.CylinderBase` (12),
 `Utilities.Cylinder_analytic_CAD` (12) and `Utilities.EngineV6_analytic`
-(72), all in `MultiBody.Examples.Loops` (`/tmp/m729/lbhit.txt`). Under
+(72), all in `MultiBody.Examples.Loops` (`/tmp/m729/lbhit.txt`). These
+six are exactly the six models whose price is in the table above. Under
 the probe the 42 controls still run, the same list line for line, so
 the probe did not change the outcome. The family is therefore one
 library corner: three repairs of the same first link (declared shape,
@@ -91073,3 +91078,19 @@ in the tree. So the count is one that opens against seven that only
 make a refusal truer. That is reported as found: a refusal that names
 its real wall is what lets the next shift dig there, and the catalogue
 of walls is growing faster than the measure.
+
+### Two property tests held to bounds their quantities do not have
+
+`ModelicaTest.Media.TestAllProperties.FlueGasSixComponents` and
+`...MoistAir` are refused at t = 0 because `dddX[1]` "went below its
+min of 0" (-1.21 and -0.71). The test declares it
+`Medium.Density dddX[Medium.nX] = Medium.density_derX(state)`
+(`ModelicaTest/Media.mo`), and `Medium.Density` carries `min = 0`
+(`Modelica/Media/package.mo`, grep `type Density = SI.Density`). A
+derivative of density by a mass fraction is negative wherever the
+fraction is of a lighter substance, so the bound is the test's and not
+the medium's. `...IncompleteMedia.Essotherm650` is refused for
+`Pr = 1.95e7` above the `max = 1e5` of `Medium.PrandtlNumber`, a cold
+oil whose Prandtl number is that large. All three are defects of the
+library's declarations, and they go to Roman as a question, not as a
+change; the compiler checks the bound it was given.
