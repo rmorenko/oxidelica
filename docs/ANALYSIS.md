@@ -88098,3 +88098,16 @@ reading of chapter 16 to settle before calling it a defect. Two side
 findings from the same probes: a named clock in `sample(u, c1)` runs
 (`CK4.mo`), and an inline `sample(u, Clock(10, 1000))` is read as the
 Boolean `sample` and refused (`CK2.mo`).
+
+`Clocked.Examples.Systems.ControlledMixingUnit` is shown small. An
+`InverseBlockConstraints` whose `u1` is a sampled signal on a clock,
+with a gain closing it from `y1` to `u2`, is refused in the corpus
+model's words: `inv.y2` is never assigned and `inv.u1` is assigned
+twice in one `when sample(0, 0.1)` (`/tmp/m724/small/IB.mo`, ten
+lines). The same block on a continuous `time` runs (`IC.mo`). The
+block's two equations, `u1 = u2` and `y1 = y2`, say nothing about
+direction, and that is the point of an inverse model. On a clock the
+compiler turns them into assignments in written order and so assigns
+`u1` from both. The clocked partition is lowered to a `when`, and the
+`when` asks each equation to name what it assigns, which an inverse
+block does not do. Shown small: `IB.mo` against `IC.mo`.
