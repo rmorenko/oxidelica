@@ -90001,3 +90001,22 @@ from the controller and reaches `N` only through `PT1` after the
 start. Level: reading of the library and `why`, no trail and no small
 model; it is a candidate for not ours and is not moved there on
 reading alone.
+
+### Two more of the text-only five, probed
+
+`TanksWithOverflow` (`OXIDELICA_WHERE=1`, `compile.rs:3040`, and
+`why ... lowerTank.ports[2].m_flow`): the refused equation
+`lowerTank.ports[2].m_flow = 0` appears in no equation `why` lists for
+the name, so the compiler wrote it itself, beside the connection
+`lowerTank.ports[2].m_flow + overflow.port_b.m_flow = 0`. The second
+port sits at `height = 6` above a `level_start = 2`, which is where a
+vessel closes a port it cannot reach; the zero is then the vessel's
+port logic made a structural equation. Level: `why` and the library
+text; which stage writes the zero is not traced.
+
+`DynamicPipeClosingValve` refuses "initialization did not converge in
+50 Newton iterations", yet its trail under `OXIDELICA_NEWTON_TRAIL=1`
+ends on runs that converge in one or two steps to `|f|` below 1e-8. So
+the failing iteration count is not in the last runs printed; the
+refusal belongs to an earlier start block, and this probe did not
+find which. Left as a probe, not a placement.
