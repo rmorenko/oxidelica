@@ -87459,3 +87459,15 @@ the run: 0 points, 0 Newton steps, no request of the monitor. They are
 row is two walls under one wording: a rebuild during the run (3) and
 the first build (6), with `OneAxis`, `FullRobot` (mode, mapped by the
 last shift) and `PrismaticConstraint` not probed here.
+
+`TanksWithOverflow` shrinks to `/tmp/m724/small/T2.mo`: two
+`OpenTank`s of `LinearColdWater` joined by one `StaticPipe`, each tank
+with a single port. With both ports at `height=6` it is refused the
+same way as the corpus model ("`low.ports[1].m_flow = 0` constrains no
+state ... nor did the 4 other equations of its singular subset"); with
+both ports at `height=0` (`T0.mo`) it runs. A port above the bottom
+makes the tank switch its port equation between flow and pressure by
+the level, and the branch that sets `m_flow = 0` is what the first
+build cannot match. So the first-build half of the row has at least
+one mechanism shown in eleven lines; the other five are not yet
+shrunk.
