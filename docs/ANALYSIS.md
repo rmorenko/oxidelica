@@ -88490,7 +88490,8 @@ with the URI unresolved and asserts that the directory does not exist
 behind our wall stands a missing name, and the model belongs with the
 seven: once the URI and the shape are mended it would still refuse.
 That moves it from ours to not ours on the strength of a chain walked
-to its end, which makes the count 19 not ours and 71 reachable, the
+to its end, which made the count of that day 19 not ours and 71 reachable (the
+present count is 18 and 70, below), the
 second figure still carrying the `TF4` shape as ours elsewhere.
 
 `Modelica.Utilities.Examples.readRealParameterModel` refuses on
@@ -88602,7 +88603,8 @@ directory, and calls `Modelica.Utilities.Files.list(dirPath)`, whose
 directory branch calls `listDirectory`, which calls
 `Internal.FileSystem.readDirectory`, written in C as
 `ModelicaInternal_readDirectory` and absent here. So `TestFiles` stays
-outside: 19 not ours, 71 reachable.
+outside: 19 not ours, 71 reachable on that day's count (now 18 and
+70, below).
 
 ### What a catcher for the homotopy raise would buy
 
@@ -90297,8 +90299,9 @@ the two taken out when the gap of 92 became the reachable gap of 90
 ("The runnable models that do not run, by name"). The correction above
 caught the double count for a move from 20 to 22, but the 20 itself
 already holds them. Counted from the 90, the not-ours models are 18,
-and the reachable bound is at most 90 - 18 - 1 (`FilterOrder`) = 71,
-not 69. The three `mydummyfunc` callbacks are not among the twenty.
+and the reachable bound is at most 90 - 18 - 2 (`FilterOrder`, which
+is no wall of the compiler, and `TestWallFriction`, which runs since
+`eb0599e7`) = 70, of which 13 flatten-half and 57 run-half, not 69. The three `mydummyfunc` callbacks are not among the twenty.
 Whether they belong there is the rule A against rule B question,
 which is Roman's.
 
@@ -90604,7 +90607,7 @@ The 18 not ours by half (`/tmp/m728/split18.txt`, over
 flattens and is refused at the run. So under the present custom the
 not-ours models are almost entirely in the flattening half (17 of 31),
 and the run half's 60 hold one. With the self-contradictory pair taken
-out of the count (above), the 18 and the at most 71 reachable stand
+out of the count (above), the 18 and the at most 70 reachable stand
 under the present custom of what is not ours. Under the rule that a
 missing C body is our debt, the four `kiss_fftr` models and the seven
 absent bodies move to ours, and the two `dddX` models were already
