@@ -91183,3 +91183,19 @@ derivative's own definition reads (the spring's deflection here), and
 the walk stops at the name. Level: probe, one model, and it is the
 fourth model of the shift in which what an initial equation reaches is
 where the count goes wrong.
+
+### The seven refused for a Newton direction
+
+The last line of the Newton trail for each of the seven
+(`/tmp/m729/nd_<model>.txt`, binary `/tmp/m728/ox53`) splits them in
+two. `R134a1` and `R134a2` die at `t = 0` with the pressure stepped to
+about `-2.53e6` Pa, where the residual stays at `0.97`; this is the
+flat residual already described above, repeated once per pressure.
+The other five are Fluid models that leave initialization and die in
+the first steps of time: `TestTemperature1` at `t = 4.0e-7`,
+`SeriesPipes1` at `2.8e-9`, and `BranchingPipes2`, `3` and `4` between
+`6.6e-6` and `4.0e-5`. In `SeriesPipes1` and `BranchingPipes2` the
+residual is already below `3e-7` when the direction is refused, so the
+step there fails on the direction and not on a large residual. That is
+a solver question, and damping is under the ban. Level: trail, one
+line per model.
