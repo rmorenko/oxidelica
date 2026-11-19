@@ -89972,3 +89972,16 @@ three is library reading and arithmetic; `TestJunctionTraceSubstances`
 was traced. The lesson is the hint's own: a map by refusal text has
 to be read against what the chapter already holds before a level is
 claimed.
+
+### HeatingSystem asks for the steady start of a temperature it does not keep
+
+`oxidelica why Modelica.Fluid.Examples.HeatingSystem tank.medium.T`
+under `ox50` names the cause: the tank writes the initial equation
+`der(tank.medium.T) = 0`, and the medium is
+`CompressibleLiquids.LinearWater_pT_Ambient`, where `T` is a state the
+library prefers. The compiler did not keep it as a state and refuses
+the initial equation on its derivative. So the wall is state selection
+for this medium, with `stateSelect` behind it, and not the solver.
+Level: `why`, one corpus model, no small model; weight one. It sits
+beside `BranchingDynamicPipes` in name only, since that one was probed
+to another wall (`BD.env`).
