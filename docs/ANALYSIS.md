@@ -90319,3 +90319,18 @@ weights are equal, so what is too high is an inflow enthalpy at its
 start value. Which one was not narrowed. Level: trail plus `why`. It is
 a start-value question of the same breed as the singular Jacobian at a
 start of zeros, not question 132.
+
+Narrowed further on the same trail. The block's unknowns that stand at
+1000000.0 at iteration 0 are enthalpies such as `pipe1.port_b.h_outflow`
+and `junction.port_3.h_outflow`. `why` shows no `start` for them, and
+1e6 is the `nominal` of `Media.Interfaces.Types.SpecificEnthalpy`
+(`Modelica/Media/package.mo`, grep `nominal=1.e6`). The residuals
+beside them, 948777 and 954737, are 1e6 less an air enthalpy near
+5e4. So the start the block takes for an enthalpy without one is
+evidently its nominal, and 1e6 J/kg of moist air lies far above the
+enthalpy at 647 K, the top of the temperature search. A mixing node's
+own `h_start` (`junction1.h_start`, bound to `h_pTX` of its start
+conditions) is never offered to these outflow variables. That is a
+candidate mechanism, a start drawn from `nominal`, on one model. It
+is shown by a trail and by reading, not by a small model, and nothing
+was changed.
