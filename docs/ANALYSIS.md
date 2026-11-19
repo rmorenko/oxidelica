@@ -87208,3 +87208,18 @@ FundamentalWave one above; the rest are 4e4 or more. So over the main
 and dear sets, 7 running models have less than one decade of margin.
 `ONEBIT` passes this first test at 1e-5 and is refused later, so its
 refusal is not this test's. The heavy list was not probed.
+
+### The annotation count lowered
+
+The count of experiments above matched a class by its last name in its
+file, and a file holding two classes of one name answers for the wrong
+one. Read again by path (`/tmp/m723/marks_fix.txt`), eight rows change:
+the four `Digital.Examples.Utilities` adders and counters, Spice3's
+`InvertersExtendedModel.MPmos` and `MNmos`, and
+`TwoPhaseWater.BaseProperties` (a `redeclare model extends` with no
+experiment, read by eye) carry none, and StateGraph's `FirstExample`
+carries one. So the 900 is at most 894. Of the ones that run, four left
+the marked side and one joined it. The path reader could not place 210
+further rows, so they are not checked, and this is a lower bound on the
+error, not the whole of it. The zero input of question 66 now lies
+wholly in the unmarked set, 16 of 16.
