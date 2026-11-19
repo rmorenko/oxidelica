@@ -90064,3 +90064,31 @@ equation chosen by condition is matched, and it weighs two models
 (`TanksWithOverflow`, `BatchPlant_StandardWater`). It is a new
 numbered candidate for Roman and is not repaired here: matching is not
 this shift's to change.
+
+### The survivor of the wild step, read against a refusing model
+
+`MomentumBalanceFittings` runs through the same symptom as question
+132. Its longest Newton run at `t = 0` (`/tmp/m727/trail132/`) has 41
+iterations: the residual goes from 1e4 to 1.6e24 on the first step and
+then falls by a factor of four on every step, 1.6e24, 4e23, 1e23, ...,
+until it ends at 1.6e-11. A factor of exactly four per step is Newton
+on a residual that is quadratic in the unknown far from the root: the
+direction still reduces the residual, only slowly, and the 41 steps fit
+under the iteration ceiling. `SeriesPipes1`, one of the eight, refuses
+instead with "the Newton direction of algebraic loop ... does not
+reduce" (`/tmp/m727/sp1_trail.txt`, `sp1_trail.env`). So the definition
+of question 132 is narrowed: the wall is not a step leaving the medium
+but a step after which the Newton direction stops reducing the
+residual. A step out of range followed by a direction that keeps
+reducing it is survived. Why the direction stops reducing in the eight
+(a property function outside its valid range giving a Jacobian that
+no longer describes the residual is the obvious candidate) is the next
+trail to read, one model, the step after the wild one. No change is
+made: damping and the step are not this shift's.
+
+`HeatingSystem` against question 133: 133 is a derivative in a block
+that no equation of the block mentions; `HeatingSystem` is an initial
+equation on the derivative of a variable not chosen as a state, which
+the compiler refuses before any block is formed. Different stage,
+different shape, so 133 stays at three and `HeatingSystem` stays its
+own row.
