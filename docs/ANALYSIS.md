@@ -88190,3 +88190,26 @@ Every line count of a small model in this chapter is `wc -l` of the
 file, the `model` and `end` lines included. Nine counts written
 earlier on other bases were brought to that one (`XQ` 10, `T2` 13,
 `DR` 25, `GZ4` 13, `SE` 7, `TH` 11, `PO` 9, `CK5` 13, `IB` 10).
+
+The weight of the bound clamp, asked again because two mechanisms now
+point at it (`R134a1` stepping its pressure to -2.53e6, and the Fluid
+models failing at `t = 0.0008`). It is answered here from measurements
+already on record and not from a new run, because a new count of who
+it saves and who it loses means switching it on, and that is not this
+shift's to do. The clamp is the parked `OXIDELICA_STEP_BOUNDS`
+(`~/oxideflow/park/m643_step_bounds.md`), which shortens a Newton step
+to 0.9 of the way to a declared bound. Measured twice. On a small
+court of 8 it won nothing and lost nothing. On the live bounds tree
+(m650, binary and files named in the park note) it engaged on
+`BranchingPipes1`, `2`, `4` and `SeriesPipes1`, damping the bound share
+from 99 to 6, 89 to 22, 87 to 0 and 89 to 16, and none of the four ran.
+`BranchingPipes4` moved from "Newton direction" to a loop that does not
+converge, and three controls kept their outcome and their run work.
+m685 found the same on head 7140a42. So the weight is 0 saved and 0
+lost over every model it was measured on. Of the names in question,
+three of the five Fluid models are among them and none was saved.
+`R134a1` was never in its court (the park note names no R134a model),
+so for that model the weight is unmeasured, not zero. The derivative
+count already shown for `R134a` (`DR.mo`) stands in front of any
+clamp: a step built on a Jacobian missing `der_sat` is the wrong
+direction, and shortening it does not change where it points.
