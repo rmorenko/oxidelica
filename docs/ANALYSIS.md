@@ -91647,3 +91647,25 @@ array to a component declared below (`V1` against `V0`), the
 subscript is lost; its weight is the five models of the `cannot
 evaluate` row, and its repair, parked as `m730_subscript_whole`, moves
 four of them a floor up and none to running. Neither is merged.
+
+### What the pairing takes on the eight of the matching lever
+
+The init probe with the orphan print (`/tmp/m730/ml_<model>.txt`,
+binary `ox57`, commands in `ml_<model>.env`) on the eight. Two take a
+state from another component through the demoted branch, which
+answers to "the state has to be one the coarse walk says the
+definition reads": in `PlanarFourbar` the demoted `revolute1.phi`
+reaches nothing and takes `revolute3.w`, leaving `revolute1.w`
+claimed by nothing; in `RevoluteConstraint` the demoted
+`freeMotionScalarInit.angle_2` and `angle_d_2` take
+`bodyOfConstraint.body.w_a[2]` and `[3]`, leaving `joint.phi` and
+`joint.w` claimed by nothing. `PumpingSystem` and `HeatingSystem` pair
+each condition inside its own instance (`pumps.medium.T` takes
+`pumps.U`, `tank.medium.T` takes `tank.U`), which is right.
+`BranchingDynamicPipes` prints 40 conditions with an empty reach.
+`TanksWithOverflow`, `BatchPlant_StandardWater` and
+`Spice3BenchmarkDifferentialPair` print no pairing at all; their walls
+are elsewhere, as recorded. So of the eight, two show a foreign take
+by the pairing of demoted conditions, the branch that is narrower than
+the written one and still not held to an instance. Level: probe, eight
+models; whether the foreign take is what refuses the two is not shown.
