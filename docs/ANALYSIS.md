@@ -91804,3 +91804,14 @@ has an initial equation that reads `time`. A corpus pair from one
 binary was started to confirm it (`/tmp/m730/pair63.env`). Level: a
 wrong number shown on three small models, the cause read in the code,
 the repair parked because this shift writes no code.
+
+A second instance of the same reading, outside initialisation: the
+fixed-step solver ignores the start time altogether. `Q15.mo`
+(`der(v) = 1`, `StartTime = 0.1`, `StopTime = 1`) under `--solver
+rk4` prints its first row at `t = 0` and ends at `v = 1.0`
+(`/tmp/m730/rk.txt`), where `dopri45` and `bdf` both begin at `0.1`
+and the due end is `0.9`. `solvers/rk4.rs` records and fires the
+initial event at a literal `0.0` and steps from there. RK4 is never
+chosen by `auto`, only by name, so no corpus model goes through it;
+the parked patch does not touch it. Level: one small model, cause read
+in the code.
