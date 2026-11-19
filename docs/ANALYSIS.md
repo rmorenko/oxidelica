@@ -92737,3 +92737,55 @@ an implicit attempt started from the start point that does not finish.
 A ceiling that cut that attempt early would save up to these seconds
 less whatever it lets burn before cutting. The ceiling itself is step
 handling and is not built.
+
+### Why Newton stands at 2.66 times the demand on `SeriesPipes1`
+
+The existing `OXIDELICA_NEWTON_TRAIL` print was enough, so no patch was
+built: `/tmp/m733/ox2` (whose only addition is the clock print above,
+off unless asked) on `/tmp/m731/SP1b.mo` with `--solver bdf`, command in
+`/tmp/m733/trail.cmd`, output `/tmp/m733/trail.txt`. Control: the
+refusal under the print equals the reference `/tmp/m731/SP1b_bdf.txt`
+to the digit.
+
+The last solve, at t = 5.077e-6, six unknowns, rows 1 (`valve.dp_turbulent`,
+value about 1.08e5) and 4 (`simpleGenericOrifice.V_flow`, value about
+-8.5e-7) carrying nearly all of the residual:
+
+| iteration | step taken | row 1     | row 4     |
+| --------- | ---------- | --------- | --------- |
+| 0         | -          | 1.205e-1  | 3.5e-16   |
+| 1         | 1          | 3.347e-10 | 4.460e-10 |
+| 2         | 0.125      | 2.910e-10 | 3.903e-10 |
+| 3         | 0.25       | 2.328e-10 | 2.927e-10 |
+| 4         | 0.0625     | 2.183e-10 | 2.744e-10 |
+| 5         | 0.03125    | 2.183e-10 | 2.658e-10 |
+| 6         | 6.1e-5     | 2.183e-10 | 2.658e-10 |
+| 7         | 3.05e-5    | 2.183e-10 | 2.658e-10 |
+
+Row 1's residual is a whole number of units in the last place of a
+number near 1.08e5 (one unit there is 2^-36, 1.455e-11): 23, 20, 16 and
+then exactly 15 units from iteration 4 on. From that point row 1 does
+not move at all, whatever step is taken. Row 4 keeps falling, but each
+step buys less, and the line search halves the step until it buys
+nothing that clears the descent test. Three such steps in a row end the
+block (`solvers/mod.rs`, the `stuck >= 3` branch).
+
+So the mechanism is this. The step is not stopped by row 4: row 4 is
+still descending. It is stopped by row 1, which stands on the
+granularity of its own large value. That row's reach is 1.08e5, so its
+arithmetic floor by reach times epsilon is about 2.4e-11, and 15 units
+in the last place is about nine times that. Row 1 is therefore not
+counted as on the floor, and while it is held off the floor, every
+Newton direction spends part of itself correcting a residual that
+rounding will not let go below 15 units. What is left of the step for
+row 4 shrinks until the descent test refuses. The demand on row 4
+(1e-10) is reachable in principle, eight orders above its own floor. It
+is missed because the block is judged as a whole, and the whole is held
+by a neighbour sitting at a few units of rounding above what the floor
+estimate allows.
+
+What this does not settle: why the reach estimate of row 1 is nine
+times below the rounding the row shows (a sum of terms that cancel,
+evaluated at a scale the reach does not see, is one reading). The floor
+estimate and the acceptance threshold are not to be touched, so this
+goes as a question, not a change.
