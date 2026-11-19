@@ -89627,3 +89627,13 @@ first step that the trigonometry of the rotator cannot follow. That is
 the shape `/tmp/m724` named for the singular-Jacobian row, a start of
 zeros, here met in a loop that does not converge rather than one that
 is singular.
+
+The three that take no step share one shape in their refusal text
+(`ss/ref60.txt`): each block has an unknown that is a derivative which
+no equation of the block mentions, `der(constraint.R_rel.T[3,3])` in
+`RevoluteConstraint`, `der(revolute2.R_rel.T[1,1])` in `PlanarFourbar`
+and `der(Q2.vbx)` in `Spice3BenchmarkDifferentialPair`. Two of the
+three are the derivative of an entry of a relative rotation matrix. So
+this row is a matching question, a derivative handed to a block that
+does not contain it, and not a convergence one. Read from the text
+only; nothing was run for it.
