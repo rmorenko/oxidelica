@@ -88560,3 +88560,18 @@ holding both media, `volume.medium.p_steam_sat`, `h`, `p`, `T` with
 media together through the port's enthalpy is the first wall, and the
 singular `U` of the full rig sits beside it once the pipe and ambient
 are added. Shrunk to two components, not yet to the mechanism.
+
+### DynamicPipeClosingValve: the start Newton swings on one row
+
+`ModelicaTest.Fluid.TestPipesAndValves.DynamicPipeClosingValve` refuses
+as an initialization that does not converge in 50 iterations. A probe
+binary printing the residual of each iteration of the start Newton in
+`compile.rs` (`/tmp/m725/ox42`, `dpcv.env`, output `dpcv_init.txt`)
+shows 53 iterations, the largest residual always on row 1. It falls
+from 2.5e8 to 3.5e7, jumps to 1.2e9, and then swings between about
+5.1e8 and 6.3e8, the two sides closing slowly (5.71e8 and 5.79e8 by the
+end) without the residual ever falling below the order it started at.
+So the start Newton neither diverges nor converges: it is caught in a
+two-cycle on a single residual of the order of a pressure squared,
+the shape a full step crossing a kink gives. The probe does not name
+the row's equation; that is the next instrument.
