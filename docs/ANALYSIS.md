@@ -87769,3 +87769,14 @@ build. Carried from earlier shifts: three `e_ia`, two
 self-contradictory. Explained by `why` without a small model: the two
 der-of-a-non-state. That is 9 shown small, 10 by trail, 5 placed, 5
 carried and 2 by `why`, 31 in all.
+
+`TestSuddenExpansion` is refused as a loop of one unknown,
+`suddenExpansion1.m_flow`, with "a solution on either side": its
+pressure loss is `dp = m_flow^2/2 * (if m_flow > 0 then zeta1 ... else
+zeta2 ...)`, a loss that is even in the flow apart from the
+coefficient, so a given pressure difference is met by one positive and
+one negative flow, and the block refuses rather than pick. That is the
+honest refusal of a genuinely two-sided equation at t = 0, and its
+answer is a start value of the flow, which the model leaves at zero,
+exactly on the fold. Not shrunk; the reading is from `why` and the
+refusal's own words.
