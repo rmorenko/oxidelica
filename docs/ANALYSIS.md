@@ -88518,3 +88518,17 @@ the model writes itself cannot exist when it is read; the refusal is
 the honest answer to that order. The silent drop of `print` to a file
 in `TS2` is a separate finding: the model ran and reported success
 while the output it was asked to write went nowhere.
+
+### GenerateRandomNumbers comes down to one generator
+
+`Modelica.Math.Random.Examples.GenerateRandomNumbers` refuses on depth
+at `{localSeed, globalSeed}`. Small in `/tmp/m725` (`GR.env`):
+`Xorshift64star.initialState(localSeed, globalSeed)` under
+`when initial()` runs (`GR1.mo`, state 427651634, 603884885), and the
+same with `Xorshift128plus.initialState` refuses on depth at
+`ModelicaRandom_xorshift64star({localSeed, ...` (`GR_Xorshift128plus.mo`).
+The 128-bit generator seeds itself by calling the 64-bit one in its
+ten-iteration loop, and that nesting of an outside call inside an
+unrolled loop is where the depth runs out. The 1024-bit copy of the
+probe was written wrongly (its error names the probe, not the
+library) and says nothing.
