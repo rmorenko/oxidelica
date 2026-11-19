@@ -91412,3 +91412,23 @@ not the one taken; which of the two is not shown. The three-phase
 transformer's `core1` taking `core3.MagRel` is the same acceptance of
 any orphan, on a condition written inside the core and still matched
 outside it.
+
+A probe on the pairing settles which branch. `OXIDELICA_PROBE_ORPHAN`
+(binary `/tmp/m730/ox57`, not in the tree) prints, for each lost
+written condition, what the coarse walk says it reads, the pool of
+orphans and the one picked. On `J3` it prints `coarse_reads=["x1",
+"x2"] pool=["x1", "x2"] at=Some(0)`: the coarse walk says `y = 1`
+reads both states, so the instance test passes for both and the first
+in the pool is taken. The same holds with `der(x1) = 1` (`J7.mo`) and
+with `der(x1) = w; w = 3` (`J9.mo`), where nothing of `x1` can reach
+`y`. Without the loop (`J8.mo`, `y = 2*x2`) the fine walk reaches `x2`
+and the model runs. On the shrunk amplifier the coarse walk says
+`resistor2.i = 0` reads all seven states of the op-amp and the first,
+`opAmp.v_in`, is taken. So the extra state comes from the coarse walk,
+which reads a block as reaching everything it solves (grep
+`Everything the block reads reaches everything it solves` in
+`states_behind_algebraics`), and among the states it over-reports the
+order of declaration decides. Which block of the initialization plan
+holds `x1` beside the loop is not printed. Level: small models with
+four controls and a probe of the branch; the repair is in the pairing
+and goes as a question.
