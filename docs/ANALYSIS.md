@@ -89188,9 +89188,12 @@ tree.
 
 What the weights say together. The named questions (124 to 131) and
 the two without numbers, the empty matrix and the file read while
-flattening, weigh about eight models of the 91 between them, one
-apiece where they weigh anything, now that the record count has
-measured zero. The mass of the measure is not there. It is in the
+flattening, weigh seven models of the 91 between them, one apiece
+where they weigh anything: 124, 126, 129, 130, 131, the empty matrix
+and the file read at one each, 125, 127 and 128 at zero, the first of
+those three measured. Against at most 70 reachable, that leaves 63 on
+walls that carry no number. The mass of the measure is not in the
+named questions. It is in the
 convergence of algebraic loops: 18 models of the run half refuse on a
 loop that does not converge, the largest wall in the table above, and
 not one of them carries a number. That is the answer to what to repair
