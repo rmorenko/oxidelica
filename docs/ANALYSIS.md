@@ -87133,3 +87133,28 @@ Gathered from this shift and the last, each measured where it is named:
 
 In each the library sets a bound and either the compiler's threshold
 or its start lands on the wrong side of it within a decade.
+
+### How close the running models stand to the pivot test
+
+A print beside `reads_singular` in `solvers/mod.rs` (behind
+`OXIDELICA_PROBE_MARGIN`, built as `/tmp/m723/ox32`, not kept in the
+tree; `/tmp/m723/edge/run.env`) gives the margin, the smallest pivot
+divided by `1e-7 * scale.max(1.0)`, so 1 is the threshold. All 841
+models that ran in the main pass of the pair, less the dear and heavy
+lists, were run once each (`/tmp/m723/edge.tsv`, one row per model:
+name, ran, smallest margin, prints); all 841 ran again. 350 passed the
+test at least once. Of those: margin at or below 1 in 3, between 1 and
+10 in 3, between 10 and 100 in 14, between 100 and 1000 in 22, and 1000
+or more in 308. So 6 of the 841 have less than one decade of margin, 20
+less than two and 42 less than three.
+
+The three at or below 1 run because the test is not the last word:
+`reads_underdetermined` then asks again under row and column scaling.
+They are `ComparisonPullInStroke` (1.1e-13), Spice3 `Oscillator`
+(0.030) and Electrical `SMEE_DOL` (0.048); any change to the second
+scaling would reach them first. Under one decade above the threshold
+stand `SMPM_FieldWeakening` (QuasiStatic, 1.01), `ArmatureStroke`
+(4.1) and FundamentalWave `IMC_Transformer` (8.7). The rest of the
+first two decades is almost all machines (`IMC_*`, `IMS_Start`,
+`SoftStarter`, `SMEE_Rectifier`). The margin is the start block's only;
+blocks met later in the run were not printed.
