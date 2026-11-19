@@ -86892,6 +86892,17 @@ later, in an algebraic loop on `revolute1.phi`. So the loop itself is
 not what unbalances the model. How it is closed is, which fits the
 hypothesis but is still not the probe that would prove it.
 
+The compiler says the rest in its own words. The comment on
+`constraint_is_empty` (crates/oxidelica-parser/src/flatten/connections.rs:1123-1135)
+says a multibody `Orientation` owes `residue[3]`, "three equations
+this compiler does not yet write", so for such a record the
+loop-closing connection keeps its equalities. That is the twelve kept
+where three are owed, by design and in the tree. So `Fourbar1` is no
+longer a hypothesis. It is the known gap of an unwritten
+`equalityConstraint` with a residue, and it would take a feature, not
+a fix. The other loop models in the queue were not checked for the
+same wall.
+
 ### Three more rows from the inside
 
 Again from `/tmp/m714/rows.tsv` and the library text. `5 unbalanced/left`:
