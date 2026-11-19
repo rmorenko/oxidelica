@@ -89400,3 +89400,30 @@ moist-air enthalpy inversion is refused before any Newton step because
 that leave the medium stands at seven measured, with five candidates
 that a text sieve cannot settle, and a trail of each is the next
 instrument.
+
+### Three lists compared by full path
+
+The mechanism shown above has a cause and a signature. The cause is
+that the block asks a nearly incompressible liquid for its pressure
+through its density, a slope near the compressibility of water. The
+signature is that the first Newton step leaves the region where the
+medium is defined. Whether that is the same population as the pivot
+threshold question already put to Roman was checked by full path
+(`/tmp/m726/ss/L_*.txt`). The lists: the seven of a Newton step into
+negative pressure (`L_neg7.txt`), the six pipes and media that stall
+(`L_stall6.txt`), and the eight models under one decade of margin on
+the pivot test of `scale.max(1.0)` (`L_margin6.txt`, taken from
+`/tmp/m723/edge.tsv` with a numeric margin of 10 or less). No list of
+seven names on that threshold exists in this chapter, and the margin
+list is the instrument's own nearest. The six are all inside the seven
+(`TestTemperature1` is the seventh). Neither shares a single name with
+the margin list: zero and zero. So the medium mechanism and the pivot
+threshold are two populations, and the threshold question, whatever
+its answer, does not reach these seven. That closes the hypothesis
+that they are one, negatively. Nothing was clamped or moved.
+
+The reachable count after `FilterOrder` is at most 69 under either
+answer about the example filter: kept in the universe it is not ours
+to repair, and taken out it shrinks the universe and the ceiling by
+one. So seven named models stand against at most 69 reachable, 62
+without a number, and the bound does not wait on that decision.
