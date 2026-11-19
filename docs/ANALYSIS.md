@@ -87587,3 +87587,13 @@ The phase expression of the flat form, evaluated alone at the start
 subcooled liquid. So the phase is chosen right, `derivsOf_ph` with
 phase 1 gives 1510.7 (`RG1.mo`), and only the positional `[4]` of the
 flat form is left between them and 0.028.
+That candidate is refuted. The same `BaseProperties` with `p` and `h`
+given instead of `d` and `h` (`/tmp/m724/small/RI.mo`) runs, and its
+flat `derivsOf_ph(...)[4]` reads `medium.d` = 1510.7 kg/m3 at 199.96 K,
+the right value. So the positional index is sound, and the 0.028 is
+what the algebraic block evaluates for the density at its first point
+when `p` is the unknown it solves for, not what the flat equation
+gives when `p` is known. Its cause lies inside the block (the order it
+evaluates its members in, or the value it reads for `p` before the
+first iteration), and it is the next thing to print. Two eliminations
+above stand; the conclusion drawn from them did not.
