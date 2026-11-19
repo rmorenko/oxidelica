@@ -90481,3 +90481,11 @@ over-specified there or the compiler should have read `der(p) = 0` on
 another row is a question, not a repair, and it is not this shift's.
 IF97 water (`SN14.mo`), which has no fractions, refuses through
 another route that was not read here. Level: small model with a probe.
+
+The same probe on water (`/tmp/m728/SN14_probe.txt`): only two steady
+rows are written, `der(medium.h) = 0` and `der(medium.p) = 0`, and they
+are solved as `der(U) = 0` and `der(m) = 0`, one row for each. Nothing
+repeats, so water does not lose its row the way the gas mixture does.
+Its "do not pin down [volume.U, volume.m]" is therefore a rank deficit
+in the Newton matrix at the start point and not in the structure.
+Two mechanisms share one refusal text. The water one stays unread.
