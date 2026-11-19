@@ -89158,7 +89158,10 @@ and over the whole library (2671 files read):
   form is written anywhere in `.msl/Modelica` or `.msl/ModelicaTest`
   (a multi-line grep for each form, no hits), so both weigh zero of
   the 91. They are defects against the specification shown by the
-  `K*.mo` witnesses, and the library does not lean on them.
+  `K*.mo` witnesses, and no model of the measure leans on them. The
+  one place in `.msl` that writes the positional form is the
+  documentation package, `ModelicaReference/package.mo:6925`
+  (`sample(plant.y, Clock(3))`), which gives no model to the gates.
 
 The zero for the two clock forms is believed only because the same
 search prints the neighbouring form: `sample(u,clock)` with a `Clock`
@@ -89182,3 +89185,13 @@ refusal does not stand on this count, and the earlier sentence that
 91 measured, and stands as a defect against the specification with
 `DRd.mo` and `RD.mo` as its witnesses. Nothing here goes into the
 tree.
+
+What the weights say together. The named questions (124 to 131) and
+the two without numbers, the empty matrix and the file read while
+flattening, weigh about eight models of the 91 between them, one
+apiece where they weigh anything, now that the record count has
+measured zero. The mass of the measure is not there. It is in the
+convergence of algebraic loops: 18 models of the run half refuse on a
+loop that does not converge, the largest wall in the table above, and
+not one of them carries a number. That is the answer to what to repair
+first, and it is not the one that was expected.
