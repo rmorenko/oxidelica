@@ -88140,3 +88140,18 @@ rebuilt each step points at a Jacobian that is inaccurate: a
 difference step too coarse or too fine for the two internal MOS nodes,
 or a residual that is not smooth there. The ratio and the cap stand as
 measured.
+
+How many storeys the `homotopy` wrapper adds, measured with a probe
+binary outside the tree that prints the deepest `depth` the expression
+expander in `flatten/arrays.rs` reaches (`/tmp/m724/depth.env` holds
+the command and how the binary was made). `PR.mo` reaches 27 and
+`PO.mo` 28, so in that counter the wrapper costs one storey. `HS.mo`
+reaches 6. The digital table reaches 31 at `DQ30.mo`, which runs, and
+32 at `DQ31.mo`, which refuses, against `MAX_DEPTH = 32`
+(`flatten/mod.rs`). For `RAM` the counter is the one that refuses, a
+storey per table entry. For `PO.mo` it is not: the counter stops at
+28, under the ceiling, and the refusal still comes. So the
+`homotopy` refusal is raised by another counter that this probe does
+not see, and "one storey" is the wrapper's cost in the wrong
+instrument. Which counter it is stays open, and only that answer
+gives the real number.
