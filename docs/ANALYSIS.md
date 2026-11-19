@@ -89985,3 +89985,19 @@ for this medium, with `stateSelect` behind it, and not the solver.
 Level: `why`, one corpus model, no small model; weight one. It sits
 beside `BranchingDynamicPipes` in name only, since that one was probed
 to another wall (`BD.env`).
+
+### PumpingSystem starts its pump at zero speed
+
+`why ... pumps.s` under `ox50` shows the pump head written as
+`(N/N_nominal)^2` times a characteristic of `V_flow_single*N_nominal/N`,
+and the library's own text (`Fluid/Examples/PumpingSystem.mo`) feeds
+`N` through `PT1`, a `FirstOrder` with `initType = InitialState` and
+`y_start = 0`. So at `t = 0` the speed is zero, the head's dependence
+on the flow vanishes with it and the quotient divides by zero; a
+singular Jacobian over the loop holding `pumps.s` is what the model
+asks for. The documentation of the example says a small nonzero
+standby speed is used "to avoid singularities", but that speed comes
+from the controller and reaches `N` only through `PT1` after the
+start. Level: reading of the library and `why`, no trail and no small
+model; it is a candidate for not ours and is not moved there on
+reading alone.
