@@ -91610,3 +91610,16 @@ volume.m]`) says in its own words. With the pipe, the steady pressure
 row adds nothing the boundary has not fixed, as the earlier note on
 `SN21` read; the trail now shows the consequence as a drifting root
 rather than a singular step. Level: trail, one model.
+
+The heating tanks under the same probe (`/tmp/m726/small/HS2.mo`,
+`HS3.mo`, binary `ox57`). Both pair alike: the temperature condition
+takes `tank.U` and the level condition `tank.m`, from the same pool.
+They differ in what the temperature condition says. `HS3` writes
+`medium.T = T_start` and runs; `HS2`, a steady start, writes
+`der(tank.medium.T) = 0` and is refused with `tank.medium.T is not a
+state of the model`. So on the tank the pairing is right and the wall
+is the derivative of a medium's temperature that is not a state, the
+same index-reduction question the `der not state` pair
+(`BranchingDynamicPipes`, `HeatingSystem`) already carries. HS and BDP
+are one family with that pair, and none of the three is a pairing
+case. Level: probe, a small pair.
