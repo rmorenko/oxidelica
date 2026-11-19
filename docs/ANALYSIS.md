@@ -90530,3 +90530,20 @@ the boundary's pressure plus a drop that depends on the flow, and the
 steady pressure row then adds nothing the boundary has not fixed. That
 explains a deficit in `m`, but not that `U` goes with it. A reading
 consistent with the probe, not shown.
+
+A correction to the gas mixture's mechanism above, from the control
+that should have been probed first (`/tmp/m728/SN5_probe.txt`). In
+`SN5.mo`, with no pipe, the same seven rows of `der(Xi[i]) = 0` and
+`der(m) = 0` are formed, and it runs. There `der(medium.p) = 0` takes
+nothing, because the boundary fixes the pressure directly, so that row
+is dropped. `der(medium.T) = 0` takes `mXi[6]`, and the six fraction
+rows and the temperature row are independent. In `SN7.mo` the pipe
+leaves the pressure free, so `der(p) = 0` is kept and paired with
+`mXi[6]`, and `der(T) = 0` goes to `U`. The repeat of the six mass
+balances therefore does not refuse on its own: what refuses is
+`der(p) = 0` and the fraction rows together over a pressure the
+volume owns, eight rows where seven are independent. The earlier
+sentence that "a steady start on every one of nX unreduced fractions
+repeats the total mass balance" stands, but it is the cause only when
+the steady pressure row is also kept. This narrowing was made by the
+`SN5.mo` probe, not by reading.
