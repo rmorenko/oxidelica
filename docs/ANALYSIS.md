@@ -88222,9 +88222,9 @@ numbers are the library's. `Media.PrandtlNumber` declares `max=1e5`
 20, 1917; 40, 424 ...`, and `dynamicViscosity` returns the fitted value
 as `eta` in Pa s. Those are the numbers of a viscosity in mPa s or of a
 kinematic viscosity in mm2/s, not Pa s. With them, `eta*cp/lambda` at
-20 degC is 1917 * 1850 / 0.1288 = 2.75e7, and the bound is crossed
-anywhere below about 150 degC (at 100 degC, 26.64 * 2130 / 0.1232 =
-4.6e5). So the medium's own table breaks the medium's own bound, and
+20 degC is `1917 * 1850 / 0.1288 = 2.75e7`, and the bound is crossed
+anywhere below about 150 degC (at 100 degC,
+`26.64 * 2130 / 0.1232 = 4.6e5`). So the medium's own table breaks the medium's own bound, and
 the refusal is right. That is the third library error of the 91, of
 the same kind as the thyristor unit. Arithmetic from the library's
 text, not shrunk.
