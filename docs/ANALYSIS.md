@@ -86900,8 +86900,10 @@ loop-closing connection keeps its equalities. That is the twelve kept
 where three are owed, by design and in the tree. So `Fourbar1` is no
 longer a hypothesis. It is the known gap of an unwritten
 `equalityConstraint` with a residue, and it would take a feature, not
-a fix. The other loop models in the queue were not checked for the
-same wall.
+a fix. Over the 131 queue models (`/tmp/m714/rows.tsv`), `Fourbar1` is
+the only MultiBody model refused with too many equations. The other
+loop models of the package close their loops by cut or analytic joints
+and meet other walls, so this wall holds one model today.
 
 ### Three more rows from the inside
 
