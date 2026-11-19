@@ -88876,3 +88876,13 @@ quotient rule that says its test "covers both doors" is not lowered by
 this: it speaks of a denominator whose form grows, keyed on `b' = 0`,
 and this counterexample is about a denominator whose value is zero, a
 different claim.
+
+`BranchingDynamicPipes` does not come down with the tank of
+`HeatingSystem` (`BD.env`). A `ClosedVolume` of `MoistAir` (`BD1.mo`,
+`BD2.mo`) is refused on another wall at either start, a call of
+several arguments, `MoistAir.h_pTX`, that index reduction cannot
+differentiate. One `DynamicPipe` of `MoistAir` as the corpus writes it
+between two boundaries runs (`BD3.mo`); with its `height_ab = 50`
+(`BD4.mo`) the start is singular in `pipe1.Us[5]`. Neither is the
+corpus refusal, so the branching is part of it and the model is not
+shown small.
