@@ -91094,3 +91094,38 @@ the medium's. `...IncompleteMedia.Essotherm650` is refused for
 oil whose Prandtl number is that large. All three are defects of the
 library's declarations, and they go to Roman as a question, not as a
 change; the compiler checks the bound it was given.
+
+### The seven, split by whether a repair was tried
+
+The count above, one that opens against seven, mixes two things, and
+they say different things. Of the seven mechanisms, a repair or a
+removing switch was tried on two. The late binding of a declaration
+was built, paired and won nothing. The pairing of initial equations
+that reach no state was switched off twice
+(`OXIDELICA_NO_PAIR_WRITTEN_COARSE`, `OXIDELICA_NO_PAIR_LOST`) on the
+amplifier, the water tank `SN21.mo` and the transformer, and no model
+ran. Those two are defects that are real and are not the wall.
+
+On the other five no repair was tried, because each is held by a
+standing ban or is not ours: the threshold of `reads_singular` behind
+the three Spice3 transistors and, as a candidate, the four machines
+(`scale.max(1.0)`, a question already with Roman); the dead column and
+the friction at rest (structure and matching); the four ways of not
+converging (the iteration ceiling, damping and the step); the repeated
+row of the singular Jacobians, which on the two read closest is a
+property of the model. These say nothing about the measure. They say
+which word is not yet given.
+
+One repair was tried this shift and parked before a pair: folding an
+`if` whose condition is a constant, in `symbolic::simplify`
+(`~/oxideflow/park/m729_const_if_fold.patch`, switch
+`OXIDELICA_NO_CONST_IF_FOLD`, binary `/tmp/m729/ox55`). It folds a
+literal `false` and `/tmp/m729/small/L.mo` runs under it and is refused
+without it, but a `constant Boolean` such as `m_bInit` is still a name
+at that stage, so `S_if_1e-12.mo` is refused either way and the three
+transistors would not move. The one place that already folds a guard of
+known values is the zero test of index reduction (`compile.rs`, grep
+`guard_of_parameters`), which is under the ban, so the repair was not
+taken further. The plain count: of two repairs tried on the corpus, none
+opened a model; five mechanisms wait on a word from Roman; and the one
+repair of the period that opened models is question 130.
