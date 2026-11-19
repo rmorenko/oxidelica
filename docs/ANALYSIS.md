@@ -91359,3 +91359,32 @@ weight of four of five with running controls. Whether each of the four
 took the wrong orphan, as `J3` does, is not shown model by model. The
 repair is in the pairing, which is under the ban, so it goes as a
 question.
+
+### The analytic loops: a whole array bound to a component declared below
+
+The five `_analytic` models (`Engine1b_analytic`, `EngineV6_analytic`,
+`PlanarLoops_analytic`, `Utilities.Cylinder_analytic_CAD`,
+`Utilities.EngineV6_analytic`) are refused with `cannot evaluate
+parameters [jointRRP.e_ia[1] = jointRRP.jointUSP.e2_ia, ...]`. The
+right side has lost its subscript: element 1 of `e_ia` is bound to the
+whole of `e2_ia`. In `JointRRP.mo`, `e_ia[3] = jointUSP.e2_ia` is
+declared on line 85 and `jointUSP` further down. The small models
+(`/tmp/m730/V*.mo`, binary `ox56`):
+
+- `V1`: `final parameter Real e[3] = sub.e2;` with `In sub;` declared
+  after it - refused in the corpus's words, `e[1] = sub.e2 ... nothing
+gives a value to sub.e2`;
+- `V3`: the same without `final` - refused the same way;
+- `V0`: the same with `sub` declared first - runs, `x(1) = 1`;
+- `V4`: a scalar `e = sub.e2` with `sub` below - runs;
+- `V5`: the array written element by element,
+  `{sub.e2[1], sub.e2[2], sub.e2[3]}`, with `sub` below - runs.
+
+So a whole-array binding to an array of a component that is declared
+later is split into elements without subscripting the right side. In
+Modelica the order of declarations carries no meaning, so this is a
+plain defect of ours, not of the library. Weight: the five models of
+the `cannot evaluate` row in `/tmp/m714/rows.tsv`. Level: small model
+red in the corpus's words with four controls, one per term. Whether
+the five run once it is repaired is not shown; the repair goes as a
+question.
