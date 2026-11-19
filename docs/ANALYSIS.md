@@ -90399,3 +90399,15 @@ gas, and lose it for the moist one. That is the same split as
 different test model: a medium carrying mass fractions as unknowns.
 This is a shared condition, shown by two control pairs from the
 corpus, and not yet a shared mechanism.
+
+Narrowed once more (`/tmp/m728/SN12.mo`, `SN13.mo`, `SN1213.env`,
+`SN1213.txt`). `SN13.mo` is `SN7.mo` with the volume's own
+`energyDynamics = FixedInitial` and the system left at
+`SteadyStateInitial`, and it runs. Moving the substance dynamics
+instead (`SN12.mo`) is refused at flattening, because the volume
+declares `substanceDynamics` final. So what removes the wall is the
+volume's steady energy start, `der(medium.T) = 0`
+(`Fluid/Interfaces.mo`, grep `energyDynamics == Dynamics.SteadyStateInitial`).
+Together with variable mass fractions and a pipe, that start leaves
+`volume.m` unpinned. The trigger is one initial equation, shown small
+against a control.
