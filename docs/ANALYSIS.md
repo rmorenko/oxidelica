@@ -88575,3 +88575,20 @@ So the start Newton neither diverges nor converges: it is caught in a
 two-cycle on a single residual of the order of a pressure squared,
 the shape a full step crossing a kink gives. The probe does not name
 the row's equation; that is the next instrument.
+
+### TestJunctionTraceSubstances asks moist air for an enthalpy near 1e6
+
+`ModelicaTest.Fluid.TestComponents.Fittings.TestJunctionTraceSubstances`
+refuses on NaN, the root of it a call of `MoistAir.T_phX` whose bracket
+of 190 K to 647 K does not hold the root. Small in `/tmp/m725`
+(`TJ.env`): `temperature_phX(1e5, 0, {0.01, 0.99})` runs, 268.98 K
+(`TJ2.mo`), and a ramp of `h` from -2e5 refuses the same way the corpus
+model does (`TJ1.mo`). The residual the refusal prints says what the
+enthalpy was: `f = h(T) - h` is -1.09e6 at 190 K and -5.88e5 at 647 K,
+so the enthalpy asked for is about 1e6 J/kg, above the enthalpy of air
+at 647 K. `why junction.port_3.h_outflow` shows no binding and no
+start; the value it carries at the first point comes from the mixing
+of the junction's inflows. So the wall is a first guess of an
+outflowing enthalpy far outside the medium's range rather than the
+medium function. Where the 1e6 comes from is the next probe; the
+medium itself is shown sound for a sane enthalpy.
