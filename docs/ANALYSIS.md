@@ -88745,3 +88745,17 @@ library or the reading of an unconnected flow is at fault is a question
 and not a finding: the small model shows the mechanism, not the
 verdict. With it, all six first-build models of the row have a small
 model.
+
+`UniversalConstraint` does not come down the same way. The universal
+constraint in place of the prismatic one (`UC1.mo`) or with a
+`FixedRotation` in front (`UC2.mo`) gives the two kinds already seen,
+a NaN at the start and the derivative of an orientation that does not
+move, while the corpus model is refused on a singular Jacobian at an
+all-zero start. Closing the loop as the corpus examples do, with a
+`FreeMotionScalarInit` beside the constraint (`UC3.mo`, and `SC3.mo`
+with the spherical constraint), gives the NaN again, and the NaN can be
+read: index reduction divides by `(c.frame_b.r_0[3] - c.frame_a.r_0[3])^2`,
+a difference the constraint itself holds at zero. So the three
+constraint-joint examples share a family of small models, but the
+corpus refusal of `UniversalConstraint` stands one step further than
+any of them and is not shown small (`UC.env`).
