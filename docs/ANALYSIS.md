@@ -90708,3 +90708,16 @@ a leading dot before `DifferentialPair`, which the full name does not
 have. The lever is therefore 3 + 2 + 2 + 1 = 8 of the 90, and in the
 debt table its row is 8 and the remainder of named walls without a
 mechanism is 40, the run half still summing to 57.
+
+`LossyGearDemo2`, traced (`/tmp/m728/lgd2.txt`, `OXIDELICA_NEWTON_TRAIL=1`
+and `OXIDELICA_WHERE=1` on `ox51`). The block of five at `t = 0`
+converges twice to |f| = 1.3e-15. At the third solve, from that
+converged point, its Jacobian has two equal rows: row 2,
+`gear.a_a = ... (gear.sa - tauLoss/unitTorque)`, and row 3,
+`bearingFriction.a_relfric = ... bearingFriction.sa ...`, both
+`[0, 0, -2.6667, 0, 2.6667]`. The gear's loss and the bearing's
+friction, both in their sliding branch, then define the same
+acceleration of one rigid shaft twice. That is a mode the structure
+does not see: in the mode both elements are in, two path variables
+coincide. Placed beside the clutch-like refusals as a mode question,
+level trail. Not changed.
