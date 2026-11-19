@@ -88858,9 +88858,19 @@ worth. The run half is 1.6% dearer. The flattening half is 9.5% dearer
 for one more model, which is not the catcher's price: the on half ran
 beside the small models of the next sections (one of them, `HS0.mo`
 with `HS1.mo`, took nine minutes of the desk), and the run half, which
-those small models also shared, moved by 1.6%. It is carried as a
-question about the desk and not as a cost. The catcher stays out of the
-tree.
+those small models also shared, moved by 1.6%. The counters say the
+same from the other side: the flattening work grew by 0.0013% in
+expansions (95 302 141 to 95 303 345) against 9.5% in time, so the
+minutes are the desk and not the change, with the caveat that these
+counters cover expansion and not every stage the flattening half
+times. Of the running counters, `jacobians` (707), `jacobians apart`
+(143) and `damped` (1 405 035) are equal to the digit in both halves.
+Against the standing answer of 26 October the numbers meet all three
+conditions: the lists agree but for the winner, the run half is 1.6%
+dearer, and the model that made it dearer is named. What is not met
+is the origin of the binary, a probe outside the tree rather than one
+built from the final tree, so the catcher stays out of the tree and
+the decision is Roman's.
 
 ### The constraint-joint NaN has more than one door
 
