@@ -89060,9 +89060,10 @@ changed by hand, so the library side stays open model by model.
 
 Where this shift holds the evidence, a line per question, counted in
 models of the 91 by full path. The homotopy raise (130): one model
-moves under the catcher, `TestWallFriction`, and it is not among the
-91 but in the corpus at large (`/tmp/m726/c_off.txt`, `c_on.txt`), so
-its weight among the 91 is zero measured. The constraint-joint NaN
+moves under the catcher, `TestWallFriction`, and it is among the gap
+models, in the half that does not flatten, so it weighs one (the
+reading of zero first written here was outside what the list of 60
+covered, and is corrected further down). The constraint-joint NaN
 (131): `UniversalConstraint`, one, with the second door undecided. The
 external body of `SC7` and the generator refusal of
 `GenerateRandomNumbers`: two places, one model each. The hysteresis
@@ -89300,3 +89301,24 @@ density, and `ConstantPropertyLiquidWater` runs because there the
 formulation does not ask that question. This is an inference from one
 trail (`trail_SP2.txt` and the full trail rerun into the same
 command), not a trace of which equation the residual is.
+
+### The denominator is 92, not 91
+
+The instrument's own line settles it (`/tmp/m726/c_off.txt:248`): 897
+runnable examples, of which 866 flatten and 805 run. So 31 do not
+flatten, the same 31 as `/tmp/m724/gapr.tsv`, and 61 flatten and do not
+run, one more than the 60 this shift and the last carried. The 61st is
+`Modelica.Clocked.Examples.Systems.Utilities.ComponentsMixingUnit.FilterOrder`,
+the one of four suspects that the instrument counts as runnable (asked
+alone with `--only`, it prints 1 runnable, 1 flattens, 0 run; the other
+three print 0 runnable; `/tmp/m726/ss/four_out.txt`). Its wall is a
+balance one: `der(mixingUnit.c)` becomes `0 = wa13` with every other
+name a number, and the model is called unbalanced. That is a row of
+its own and not one of the five above, so the run half is 61, the
+"other" row is 15, and the gap is 31 + 61 = 92. Less the two models
+that contradict themselves, 90, which is exactly 895 - 805: the chain
+closes on 92 and does not close on 91. The ceiling of 895 does not
+move. What moves is the denominator of the weights: seven named
+models of 92, and of at most 70 reachable, 63 still without a number.
+The list of 91 was taken from a derived file and not from the
+instrument, which is the error to avoid next time.
