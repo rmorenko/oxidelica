@@ -87647,3 +87647,16 @@ four `TestPipesAndValves` models fail on the integrator's first step
 out of a consistent start, and the 0.0008 shared by four of them is
 the length of that first step, not an event. `TestTemperature1` does
 the same at 0.0002.
+And read at line 120 itself, the stall is the R134a mechanism after
+all, which corrects the first sentence of this account. The steps go
+t = 0.0002, 0.0003 and then 0.0008, a grown step. From the converged
+point at 0.0003 the first full Newton step at 0.0008 sends the third
+unknown, a pressure, from 5.0e5 to -2.2e6 and the residual to NaN;
+three halvings come back to finite numbers but leave the block at
+|f| = 4.0e4 against 4.6e4 at its start, and the damping then decays
+to 1.9e-6 with the residual barely moving. So the five Fluid models
+and both R134a examples share one shape: a full Newton step that
+takes a pressure out of the physical range, and a damped search that
+cannot find its way back from where it landed. Seven of the 91 stand
+at it (`R134a1`, `R134a2`, `BranchingPipes2`, `BranchingPipes3`,
+`BranchingPipes4`, `SeriesPipes1`, `TestTemperature1`).
