@@ -89195,3 +89195,23 @@ convergence of algebraic loops: 18 models of the run half refuse on a
 loop that does not converge, the largest wall in the table above, and
 not one of them carries a number. That is the answer to what to repair
 first, and it is not the one that was expected.
+
+### The loops that do not converge: ThreeSprings, shown small
+
+The first of the 18 taken from the top of the table down is
+`ThreeSprings` (`/tmp/m726/small/TS.env`). Its topology with animation
+off and nothing else changed (`TS4.mo`, 17 lines) refuses exactly as
+the library model does, the loop of 31 unknowns not converging and the
+rescues failing on `spring2.lineForce.e_rel_0[1] = r_rel_0[1] / s` at
+`s` zero. The same model with the one start the library writes on the
+massless node removed, `spring1(lineForce(r_rel_0(start = {-0.2, -0.2,
+0.2})))` (`TS6.mo`), runs to the end. Giving `spring2` a start of its
+own as well (`TS5.mo`) does not rescue it. Two springs in series with
+the node given its rotation (`TS3.mo`) run; without it (`TS1.mo`) the
+model is unbalanced, which is the library's reason for
+`fixedRotationAtFrame_b`. So the wall is a Newton that does not
+converge from the start the model writes and does converge from zero:
+the start places the massless node so that the second spring's length
+is solved through a division that passes through zero on the way. The
+next question is why the start of a torn variable leads the iteration
+there, and a probe of the iteration on `TS4.mo` is where to ask it.
