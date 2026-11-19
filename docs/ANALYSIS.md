@@ -88072,3 +88072,12 @@ The compiler lowers `homotopy` to its first argument
 `name == "homotopy"`), so the value is not what changes. The question
 left open is why the depth runs out when the same call sits under the
 wrapper. Shown small: `PO.mo` against `PR.mo`.
+
+The tally after the second half of the shift, counted by name: 54 of
+the 91. On top of the 47 above come seven: `RAM` and
+`TestWallFriction` shown small (`DQ31.mo`, `PO.mo`), `Nand` and the
+Machines `SMPM_CurrentSource` shown by trail, and
+`ThreePhaseTransformerWithRectifier`, `SimpleNaturalGas` and
+`readRealParameterModel` placed. That makes 16 shown small, 13 by
+trail or text, 18 placed, 5 carried and 2 by `why`. 37 have a named
+wall and nothing more.
