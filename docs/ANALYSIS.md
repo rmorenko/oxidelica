@@ -91767,3 +91767,40 @@ flatten, 0 run`, and the rows with the model each names first are
 equal line for line. Time: flattening 942 s to 917 s, running 837 s
 to 834 s. So nothing landed since shift 720 reached any of the 61, and
 every row of that register is the one the chapter has already read.
+
+### The initial problem is solved at zero, not at the start time
+
+While the guarded capacitor current of question 133 was being probed
+off zero, the start time turned out not to reach initialisation.
+`/tmp/m730/Q32.mo`, `Real v; initial equation v = time + 1; equation
+der(v) = 0;` with `StartTime = 0.5`, prints `v = 1` at `t = 0.5` where
+`1.5` is due. That is a wrong number with no refusal beside it.
+`Q30.mo` (`v = time`) prints 0 for 0.5, and `Q31.mo` (`v = 2*w`, `w`
+from `w^3 + w = time`) prints 0 for 0.848. The integrator itself
+starts where it is asked (`Q15.mo`, and the existing test
+`a_run_begins_where_the_model_asked`). Initialisation does not:
+`compile.rs` on `e458043e` evaluates the initial residual with
+`eval_point(0.0, ...)` and `run(values, 0.0)` (grep `A parameter under
+solution is written into its slot`), and the regularity check before
+the run solves the plan with `0.0` as well (`solve_plan_once`, and the
+initial firing beside it). The second shows as a refusal:
+`Q26.mo`, `c = time` in the guarded form at `StartTime = 0.5`, is
+refused as underdetermined at `t = 0`, where `c` is zero, although the
+run never visits zero. `Q27.mo`, `c = time - 0.5` at the same start,
+is refused at `t = 0.5`, honestly.
+
+A repair was built in a probe and parked
+(`~/oxideflow/park/m730_init_start_time.patch`, binary `/tmp/m730/ox63`,
+switch `OXIDELICA_INIT_AT_ZERO`): the five places read the start time.
+`Q30`, `Q31` and `Q32` come out at 0.5, 0.848 and 1.5, `Q26` and `Q18`
+run, `Q27` is still refused at 0.5, and the switch gives back the old
+numbers. The test it carries,
+`initial_equations_read_the_start_time`, is red without it (`v(0.5) =
+1`) and green with it. The weight in the corpus is expected to be
+nothing: the ten models of the library that start away from zero
+(`ForceStrokeBehaviour` at -4, and nine `ModelicaTest.Tables` tests)
+print byte-identical output under the switch on and off, since none
+has an initial equation that reads `time`. A corpus pair from one
+binary was started to confirm it (`/tmp/m730/pair63.env`). Level: a
+wrong number shown on three small models, the cause read in the code,
+the repair parked because this shift writes no code.
