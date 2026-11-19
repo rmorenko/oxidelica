@@ -91557,3 +91557,16 @@ not measured: `Engine1b` and `EngineV6` are carved out and the check
 refused them by name. So the declaration-order defect is real and its
 repair buys no model by itself; the next wall is structural
 singularity, which is index reduction and under the ban.
+
+### The tsat pair is a medium model with its inputs open
+
+`TwoPhaseWater.BaseProperties` and `ExtendedProperties` are the
+medium's `BaseProperties`, whose `p` is an `InputAbsolutePressure`
+(Media `package.mo`, line 4003) bound to nothing. `why` on `.msl`
+answers `bound to: nothing`, `min: 0`, so the start calls `tsat` at
+`p = 0` and the medium function refuses below the triple point. The
+example that gives the inputs values, `TestTwoPhaseStates`, runs in
+`/tmp/m727/c2_on.txt`. So the pair is two classes with open inputs
+counted as examples, which is the question of the example filter
+(No. 66), not a numerical wall. Level: `why`, one model, and the
+running sibling as control.
