@@ -87886,3 +87886,17 @@ reads as a line force with length zero dividing to its unit vector,
 the all-zero start of the singular-Jacobian family. The matching of
 residual to unknown by position is an assumption, so this stays placed
 rather than shown.
+
+The three `MultiBody.Examples.Loops.*_analytic` models refuse with
+`cannot evaluate parameters`, 69 bindings in `PlanarLoops_analytic`,
+all inside `jointRRR1..3`. The roots the list leans on are
+`jointRRR*.n_b`, a `final parameter` with `fixed=false` solved by an
+initial equation through `Frames.resolve2`, and `rod1.eRod_ia` and
+`rod1.e2_ia`, given by `normalizeWithAssert` and `normalize`. Five
+small models that each rebuild one of those shapes all run
+(`/tmp/m724/small/AC.mo` to `AC5.mo`, a command beside each in its
+`.env`): a three-storey chain of array bindings, the same through the
+library's `normalize` and `cross`, a `fixed=false` parameter solved
+from a parameter, the same solved from a state, and the same through
+`Frames.resolve2` of two orientations. So none of those five alone is
+the wall. Placed, five hypotheses refuted, not shrunk.
