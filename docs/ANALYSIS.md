@@ -92229,3 +92229,50 @@ three, a run-away on the rectifier. The same refusal text, the floor
 after 60 iterations, is also what `ThyristorBridge2mPulse_RLV_Characteristic`
 meets under `bdf`, so the wording of a refusal alone cannot be the
 feature `auto` chooses on. Both are readings, not measurements.
+
+## Shift m732: the price of `bdf` on the whole measure
+
+One binary, `/tmp/m732/ox1` (md5 f9deedac35649f4f08f5ffd829b7fdb1),
+built from the tree at 20d81ddc with `/tmp/m731/probe_bdf.patch` and the
+patch taken out again at once. The two halves ran one after the other
+on a quiet desk, each under `cap.sh` with a 24 GB ceiling, the off half
+without a key and the on half with `PROBE_BDF=1`
+(`/tmp/m732/bdf855_off.txt`, `/tmp/m732/bdf855_on.txt`, commands in
+`/tmp/m732/pair.env`).
+
+| half | flatten | run | runnable run | flattening time | running time |   Newton | Jacobians |
+| ---- | ------: | --: | -----------: | --------------: | -----------: | -------: | --------: |
+| off  |     986 | 855 |          806 |          5484 s |       2664 s | 36066304 |       707 |
+| on   |     986 | 856 |          807 |          5545 s |       3422 s | 35831319 |      2429 |
+
+Lists first. The off half equals the reference `/tmp/m727/c2_on.txt`
+line for line in both lists, and its work counters equal it to the
+digit. The on half differs from the off half by exactly the four won
+and three lost that the m731 probe named (`SeriesPipes1`,
+`BranchingPipes3`, `TestTemperature1`, `PolyphaseRectifier` won;
+`ThyristorBridge2mPulse_RLV_Characteristic`, `RoomCO2WithControls`,
+`HeatLosses` lost), and its run list equals `/tmp/m731/bdf855_on.txt`
+apart from those four. No other model moved.
+
+Work: the flattening counters are equal to the digit, so the flattening
+time difference, 61 s, is the ceiling of the desk's noise for this
+pair. The running counters moved as a change of method should: Newton
+steps down by 0.65 percent, Jacobians up from 707 to 2429.
+
+Price: the running half is 758 s dearer, 28.5 percent, twelve times the
+noise ceiling, so the price is resolved by the pair and is far above
+the six percent Roman set. By `--slow 60`, most of it sits in five
+Fluid pipes: `SeriesPipes1` 96.6 s to 741.7 s (+645, the model it
+wins), `BranchingPipes2` 69.2 s to 188.0 s (+119, still refused),
+`TestMultiPortTraceSubstances` 48.0 s to 135.9 s (+88),
+`BranchingPipes4` 65.5 s to 138.7 s (+73, still refused) and
+`SeriesPipes2` 60.0 s to 88.9 s (+29). The MultiBody models in the list
+moved by 5 to 8 s each; per the rule on `--slow` differences those are
+candidates and not costs until a single `--only` confirms them.
+
+Verdict: `bdf` everywhere is +1 model for +28.5 percent of the run half,
+two thirds of it one model. Nothing is changed in the tree, the default
+stays, the floors are untouched (a probe pair moves no gate). A narrow
+choice inside `auto` would have to win the four without paying for
+`SeriesPipes1`'s 645 s, which by these numbers it cannot, since that
+model is itself one of the four.
