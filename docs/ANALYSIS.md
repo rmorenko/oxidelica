@@ -89457,3 +89457,13 @@ temperature that is not a state. So the count of models whose first
 Newton step leaves the medium is eight of the 92 measured: the five
 pipe and sensor tests, the two `R134a`, and `MeasuringTemperature`.
 That is one more than all the named questions together.
+
+The medium swap was then made on the library models themselves, each
+extended with `redeclare package Medium =
+Modelica.Media.Water.ConstantPropertyLiquidWater` and nothing else
+(`/tmp/m726/small/MC.env`). `SeriesPipes1` and `BranchingPipes2` run to
+the end, and `BranchingPipes4` leaves the medium wall for another, a
+loop of four friction pressure drops that does not converge. So on two
+models of the corpus, not on shrunk copies, the wall stands wholly in
+the medium, and on a third it stands first in the medium. The medium
+itself is MSL's and is not touched; the swap is an instrument.
