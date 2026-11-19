@@ -88886,3 +88886,16 @@ between two boundaries runs (`BD3.mo`); with its `height_ab = 50`
 (`BD4.mo`) the start is singular in `pipe1.Us[5]`. Neither is the
 corpus refusal, so the branching is part of it and the model is not
 shown small.
+
+`HeatExchangerSimulation` shrinks by its node count and its medium
+(`/tmp/m726/small/HX.env`). Extended unchanged (`HX20.mo`) it gives
+the corpus refusal, the start block of 162 unknowns re-entered 25
+times and stalled at `|f| = 4.05e-6` on the arithmetic floor. With
+`nNodes = 2` on the same `StandardWaterOnePhase` (`HX2.mo`) the start
+leaves the domain of IF97 at the 18th Newton iteration,
+`waterBaseProp_pT` giving NaN for `HEX.pipe_2.mediums[1].h`. With
+`nNodes = 2` on `ConstantPropertyLiquidWater` (`HX2c.mo`) it runs. So
+the wall is the IF97 medium at the start, not the exchanger's
+structure; the stall of the corpus model and the NaN of the small one
+are two faces the same start shows at two sizes, which is read and not
+yet traced.
