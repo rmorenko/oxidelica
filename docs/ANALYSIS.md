@@ -90565,3 +90565,54 @@ the three `mydummyfunc` callbacks on the external side, under the
 not-ours question of rule A against rule B, and not with a compiler
 defect about flexible sizes. Level: reading and a control of six
 siblings that run. Not changed.
+
+### Question 132 split at the footing, and the seed from nominal
+
+The six NaN models split by whether a NaN residual has anywhere to
+retreat to (`/tmp/m728/split132.txt`, counted over Newton runs in the
+trails named above). In five, the last run with a NaN residual has it
+at iteration 0, where there is no footing: `SeriesPipes1`,
+`BranchingPipes2`, `BranchingPipes3`, `BranchingPipes4` and
+`TestTemperature1`. In one, `MeasuringTemperature`, the NaN comes
+after a step and stays NaN through the whole retreat down to a
+millionth. So the retreat cannot be the cure in either case: in the
+one it ran out, which the comment over it already anticipates (grep
+`Divergence is then what is left`), so that case is closed in the
+negative. In the five the NaN is in the base point, before any step.
+Five against one. The question as it was being prepared for Roman,
+"may a non-finite residual be treated as a step not taken", is
+withdrawn: the compiler already does that.
+
+What remains of question 132 is the five whose base point is already
+NaN. In `TestJunctionTraceSubstances` the base point is the seed: the
+enthalpies start at 1e6. The seed is a deliberate rule in the tree
+(`compile.rs`, grep `What a declaration says about magnitude when it
+says`): an unknown with no usable `start` begins at the `nominal` of
+its type. The comment explains why: a pressure begun at zero is
+outside every water table. The standard gives `nominal` for scaling
+and not as a first guess, so seeding from it is this compiler's
+choice. For moist air, 1e6 J/kg lies beyond the top of the
+temperature search. In the five pipe models, though, the NaN point at
+iteration 0 is the integrator's step (`SeriesPipes1` line 223: an
+unknown at 6.2e9 left by the converged solve at the step before), not
+the seed. So the seed from `nominal` is shown for one model
+(`TestJunctionTraceSubstances`), and the five carry a different start,
+from the previous point. They are two mechanisms and not one.
+
+The 18 not ours by half (`/tmp/m728/split18.txt`, over
+`/tmp/m724/gap90.tsv`): 17 do not flatten and one, `Essotherm650`,
+flattens and is refused at the run. So under the present custom the
+not-ours models are almost entirely in the flattening half (17 of 31),
+and the run half's 60 hold one. With the self-contradictory pair taken
+out of the count (above), the 18 and the at most 71 reachable stand
+under the present custom of what is not ours. Under the rule that a
+missing C body is our debt, the four `kiss_fftr` models and the seven
+absent bodies move to ours, and the two `dddX` models were already
+outside the 90. Both numbers then move again, and which rule holds is
+Roman's.
+
+One more control for the steady-start wall: `Glycol47`
+(`/tmp/m728/SN22.mo`, `SN22.txt`), a table-based incompressible medium
+that finds its temperature from its enthalpy by solving, runs in
+`SN7.mo`'s shape. So "a medium whose properties are solved
+internally" does not separate the refusing media either.
