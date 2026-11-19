@@ -87968,3 +87968,14 @@ transformer share their flux, so the third core is not free once the
 other two are fixed, and the library's three `derHstat = 0` may ask
 for one condition too many. Placed, not shrunk, and whether the
 surplus is the library's or the compiler's count is open.
+
+`MediaTestModels.IdealGases.SimpleNaturalGas` refuses a singular
+initialization that cannot pin `volume.m`. The volume starts in steady
+state, `der(volume.medium.p) = 0` among its initial equations, and
+`volume.m = fluidVolume * medium.d` with `d = p/(R_s*T)`. Its twin
+`SimpleNaturalGasFixedComposition`, the same six substances with the
+composition held fixed, is built with nothing refused, and so is the
+two-substance `Air.MoistAir` (commands in `/tmp/m724/sng.env`). So the
+singular start goes with a free composition of more than two
+substances, where the steady-state conditions on the mass fractions
+have to close with the one on pressure. Placed, not shrunk.
