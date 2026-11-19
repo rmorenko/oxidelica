@@ -89838,3 +89838,17 @@ next, so the row is in effect thirteen external walls, with
 is unassigned on the path where `syntaxError` is called, which raises
 an assertion and never returns; the compiler does not know that, which
 is a question of its own and weighs no model.
+
+### The prefer share, with its control
+
+`OXIDELICA_NO_STATE_SELECT` moved 2 of 12 structural refusals. Its
+control on running models: 15 running models, three from each of five
+packages (`/tmp/m727/ctrl_prefer.txt`), run under the key with `ox50`
+(`prefer_ctrl.txt`, witness `prefer_ctrl.env`). 14 still run; one,
+`DoublePendulumInitTip`, runs without the key and under it is refused
+as structurally singular on `der(der(revolute1.frame_a.R.T[3,3])) = 0`.
+So the switch moves running models too, 1 of 15 against 2 of 12 among
+the refusals: shares of 6.7% and 16.7% on samples this small do not
+tell a family apart, and `prefer` stays what the earlier section
+called it, not a family. This closes the second of the four shares
+listed as lacking a control.
