@@ -91623,3 +91623,27 @@ same index-reduction question the `der not state` pair
 (`BranchingDynamicPipes`, `HeatingSystem`) already carries. HS and BDP
 are one family with that pair, and none of the three is a pairing
 case. Level: probe, a small pair.
+
+### Two numbers, and two defects kept apart
+
+The fallback of `reached_by` against running controls, by
+`OXIDELICA_PROBE_FALLBACK` (`/tmp/m730/fb_<model>.txt`, command in
+`fb.env`, binary `ox59`): it fires in 5 of the 5 initialization
+refusals (8 to 736 times each) and in 6 of 7 running models (Analog
+`Rectifier` 210, `LossyGearDemo1` 49, `HeatingRectifier` 72,
+`CharacteristicIdealDiodes` 63, Rotational `First` 26, `EmptyTanks`
+40; `ChuaCircuit` 0). So it does not tell the refused from the
+running, and with the switch measured at zero models above: five
+refusals against seven controls, class not named. The patch is in the
+park as `m730_skip_own` with both controls, marked not to be revived.
+
+Two defects came out of the shift and they are two, though both are
+about order. In the pairing (`J3` against `J5`), one admissible choice
+of orphan turns a solvable system into a refusal; the specification
+gives the equations of a section no order (chapter 8), so the
+different outcomes come from our walk and not from the model. Its
+weight on the corpus is zero by the switch. In the binding of a whole
+array to a component declared below (`V1` against `V0`), the
+subscript is lost; its weight is the five models of the `cannot
+evaluate` row, and its repair, parked as `m730_subscript_whole`, moves
+four of them a floor up and none to running. Neither is merged.
