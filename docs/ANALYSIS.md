@@ -91570,3 +91570,18 @@ example that gives the inputs values, `TestTwoPhaseStates`, runs in
 counted as examples, which is the question of the example filter
 (No. 66), not a numerical wall. Level: `why`, one model, and the
 running sibling as control.
+
+What the repeated rows are, read off the last block of each trace
+(`/tmp/m729/tr_<model>.txt`, rows matched to the printed equations).
+`UniversalConstraint`: rows 34 and 43 are the same twice-differentiated
+constraint, `-(frame_a.R.T[3,1] * der(der(frame_b.r_0[1])) + ...)`,
+and row 41, its once-differentiated sibling, is all zeros at the
+start; the constraint has entered the block twice through index
+reduction. `SMPM_CurrentSource`: no equal pair in the last block, two
+zero rows, both from the `dqToThreePhase` transformation at
+`rotator.angle = 0`. `LossyGearDemo2`: the two stuck frictions already
+recorded. So the exact repeat names three different writers: index
+reduction duplicating a constraint, two frictions stuck together, and
+a diode bridge whose load conducts nothing. The class stays a rank
+defect at the start; it is not one mechanism, and the repairs of
+the three would be in three places, two of them under the ban.
