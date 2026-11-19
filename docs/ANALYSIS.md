@@ -87444,3 +87444,18 @@ The smallest witness is `/tmp/m724/small/XQ.mo`, ten lines: one
 `Xorshift1024star.initialState(localSeed, globalSeed)` to a vector of
 33, refused as above with the seeds as parameters and running with the
 same seeds written as literals (`XQl.mo`).
+
+### The structurally singular row splits in two
+
+Of the 12 runnable models refused as structurally singular, the three
+mapped above (`Engine1a`, `SMPM_ResistiveBraking`, `ActuatorWithNoise`)
+reach the run and leave it at one request of the selection monitor.
+Six more, probed with the same print (`/tmp/m724/ox34`, commands in
+`/tmp/m724/sing6.env`, outputs `/tmp/m724/sing_*.txt`), never reach
+the run: 0 points, 0 Newton steps, no request of the monitor. They are
+`TanksWithOverflow`, `BatchPlant_StandardWater`, `RollingWheel`,
+`PointGravityWithPointMasses2`, `SphericalConstraint` and
+`IMC_DOL_CommonLeakage`, refused while the system is first built. The
+row is two walls under one wording: a rebuild during the run (3) and
+the first build (6), with `OneAxis`, `FullRobot` (mode, mapped by the
+last shift) and `PrismaticConstraint` not probed here.
