@@ -88548,3 +88548,15 @@ sound, and the wall belongs to the two moist-air media: for
 and `medium.Xi` leave `U` free, which means `medium.u` is not reached
 from the states the medium prefers. Which state choice of
 `ReferenceMoistAir.BaseProperties` breaks the chain is the next probe.
+
+The moist-air wall shrinks further (`/tmp/m725/MR.env`). The volume on
+`ReferenceMoistAir` alone runs (`MR6.mo`, `PortVolume` with no flow,
+`U = -0.047095`), and so does a hand-written volume fed by a second
+medium record (`MR3.mo`). Connected to the rig's
+`FixedMassFlowRate` source (`MR4.mo`) it refuses, but not as the corpus
+model does: a Newton direction that does not descend over one loop
+holding both media, `volume.medium.p_steam_sat`, `h`, `p`, `T` with
+`src.medium.p_steam_sat`, `h`, `u`, `d`. So the loop tearing the two
+media together through the port's enthalpy is the first wall, and the
+singular `U` of the full rig sits beside it once the pipe and ambient
+are added. Shrunk to two components, not yet to the mechanism.
