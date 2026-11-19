@@ -89136,3 +89136,26 @@ each model is counted once, at the first wall it meets.
 That is 31 + 60 = 91. As the census rule says, each count is a lower
 bound on what stands behind it: emptying a row uncovers the next wall,
 and only the last wall in a model's way moves the run count.
+
+Correction to the weights above: the homotopy raise (130) weighs one
+of the 91, not zero. `TestWallFriction` is in the 91
+(`/tmp/m724/gap90.tsv`), in the half that does not flatten, refused at
+the depth ceiling; the zero came from a list of the 60 that flatten and
+was outside what that list covers, so it was unmeasured rather than
+zero.
+
+The three questions that had no definition here, weighed over all 91
+and over the whole library (2671 files read):
+
+- The derivative count that drops a record input (125): `R134a1` and
+  `R134a2`, both in the flattening 60 and refused on the Newton
+  direction that `RD.mo` traces to this count. That makes two, by
+  inference from the trace and not by a switch. `R134a_pTX_phX_all`
+  uses the same medium but is refused earlier on a unit, so this
+  count stands behind that wall and does not count here.
+- A built-in `Clock(...)` as the second positional argument of
+  `sample` (127), and `sample(u, clock = ...)` by name (128): neither
+  form is written anywhere in `.msl/Modelica` or `.msl/ModelicaTest`
+  (a multi-line grep for each form, no hits), so both weigh zero of
+  the 91. They are defects against the specification shown by the
+  `K*.mo` witnesses, and the library does not lean on them.
