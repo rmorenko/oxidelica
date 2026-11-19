@@ -90547,3 +90547,21 @@ sentence that "a steady start on every one of nX unreduced fractions
 repeats the total mass balance" stands, but it is the cause only when
 the steady pressure row is also kept. This narrowing was made by the
 `SN5.mo` probe, not by reading.
+
+### The two flexible sizes of the usertab tests, against their siblings
+
+`CombiTable1Dv.Test25_usertab` and `CombiTimeTable.Test66_usertab` are
+refused at flattening because the flexible size of `t_new.columns`
+needs a value (`/tmp/m728/t25.txt`, `OXIDELICA_WHERE=1`). The table
+declares `columns[:] = 2:size(table, 2)` (`Blocks/Tables.mo`, grep
+`parameter Integer columns[:]=2:size(table, 2)`). With
+`tableOnFile = true` the length comes from the file. Test19 to Test24
+of the same package also read their table from a file and write no
+`columns`, and all six run (`/tmp/m727/c2_on.txt`). What Test25 lacks
+is a `fileName`: its table comes from `usertab.c` through a C callback,
+`mydummyfunc`. So the size cannot be read from any file, and the
+external user table is what would supply it. That puts these two with
+the three `mydummyfunc` callbacks on the external side, under the
+not-ours question of rule A against rule B, and not with a compiler
+defect about flexible sizes. Level: reading and a control of six
+siblings that run. Not changed.
