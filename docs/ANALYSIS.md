@@ -92357,3 +92357,15 @@ either. The two pipes cost 168.5 s and 123.2 s under `bdf`, 196.3 s and
 corpus's off half. So of the eleven Newton direction refusals now
 probed, `bdf` takes three and the wide handoff one, and neither
 intervention is a feature of the kind as such.
+
+### Which attempt `bdf` wins with
+
+The four `bdf` winners again with the state-swap retry switched off by
+a probe key (`PROBE_NOSWAP`, binary `/tmp/m732/ox3`, not in the tree;
+`/tmp/m732/ns_bdf.txt`, command in `ns.env`). Two still run:
+`BranchingPipes3` and `PolyphaseRectifier`, so `bdf` wins them on the
+first attempt. `SeriesPipes1` (589.9 s) and `TestTemperature1` refuse,
+so for those two it is the swap retry that `bdf` lets through, which
+confirms the reading the m731 chapter left open for `SeriesPipes1`.
+The first attempt of `SeriesPipes1` under `bdf` is exactly the
+3.3e-10 stall described above.
