@@ -89472,3 +89472,39 @@ itself is MSL's and is not touched; the swap is an instrument.
 (`MC_BranchingPipes3.mo`). So three of the four pipe tests run whole
 with the medium swapped and the fourth moves to another wall: on the
 corpus, these four stand on the medium first.
+
+### Question 132: the Newton step leaves the medium
+
+Definition. A Newton step takes a state out of the region where the
+medium is defined, because the block solves for a quantity through a
+variable whose derivative in it is tiny: the pressure of a liquid
+through its density, a slope near 4.5e-7 per pascal, which is the
+compressibility of water. Inverting such a Jacobian multiplies the
+residual by about 2e6, and the first step lands far outside.
+
+Instrument. The swap of the medium. `SP1.mo` and `SP2.mo` refuse on
+`StandardWater` and `SP3.mo` runs on `ConstantPropertyLiquidWater`; on
+the corpus itself `SeriesPipes1`, `BranchingPipes2` and
+`BranchingPipes3` run whole under the swap and `BranchingPipes4`
+moves to another wall (`/tmp/m726/small/MC.env`).
+
+Weight. Eight of the 92, measured by the first step of each trail:
+`BranchingPipes2`, `3`, `4`, `SeriesPipes1`, `TestTemperature1`,
+`R134a1`, `R134a2` and `MeasuringTemperature`. That is one more than
+the seven of all the other named questions together. Of the five
+candidates the text sieve raised, one showed the step out of the
+medium (`MeasuringTemperature`) and four did not, for the reasons
+given above, so the weight is closed at eight and not ten.
+
+Witnesses, with numbers. `BranchingPipes4`: one pressure from 723 kPa
+to -528 MPa. `TestTemperature1`: pressures to -345 kPa and -3.5 TPa, a
+temperature to -2.6e9 K. `R134a1` and `R134a2`: `volume.medium.p` from
+300 kPa to 1.0 MPa and then -2.53 MPa. `SP2.mo`: 603 kPa to -7.79 MPa.
+`MeasuringTemperature`: a pressure to -2.2e13.
+
+Separate from the pivot threshold: no name in common with the eight
+models under a decade of pivot margin (zero of eight).
+
+It is not repaired here. Clamping, the pivot floor and the damping are
+all outside this shift's hand, so it goes to Roman as a question, and
+by weight it is the first.
