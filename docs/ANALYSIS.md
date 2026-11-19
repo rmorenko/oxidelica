@@ -89159,3 +89159,9 @@ and over the whole library (2671 files read):
   (a multi-line grep for each form, no hits), so both weigh zero of
   the 91. They are defects against the specification shown by the
   `K*.mo` witnesses, and the library does not lean on them.
+
+The zero for the two clock forms is believed only because the same
+search prints the neighbouring form: `sample(u,clock)` with a `Clock`
+variable is written in five sampler classes of `Modelica.Clocked`
+(`SampleClocked`, `SampleVectorizedAndClocked` and their kin), and that
+is the form `K3.mo` shows running.
