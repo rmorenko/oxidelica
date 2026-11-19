@@ -88642,3 +88642,28 @@ because there `tc1` and `tc2` are plain `Real`. So this is a defect
 of the library's text, of the same form as three already found: a
 quantity declared with the wrong type, here coefficients that must be
 `1/K` and `1/K2`. Not ours; MSL is not edited.
+
+### The homotopy catcher over the corpus: sixty victims, all one artifact of the probe
+
+The pair was taken with one binary, `ox43`, key off then on, `--list
+--slow 60` (`/tmp/m725/c_off.txt`, `/tmp/m725/c_on.txt`). Off: 985
+flatten, 854 run, gates 985 / 854 met; `time:` running 3465s over 985.
+On: 986 flatten, 795 run; `time:` running 3328s over 986. Won one,
+`TestWallFriction`, as the gap pair said. Lost sixty
+(`/tmp/m725/victims.txt`), every one refused alone under `--only` with
+the same words, `subscripts and arrays survive flattening only as
+scalars: ... a named argument` (`victims_kinds.txt`). `HC1.mo` shows
+the mechanism in seven lines: `homotopy(actual = x^2, simplified = x)`
+in a top-level equation. The catcher returns the call's first argument
+as it stands, and when the call is written with names that argument
+is the named-argument node itself, not the expression inside it, so it
+survives to the run and is refused there. The victims are the models
+whose `homotopy` is written with names (the limiters in the PID
+blocks, the op-amps, the controlled drives), which the gap of ninety
+never contained. So the pair does not measure the catcher, it
+measures a probe that unwraps only positional calls, and the cheaper
+run half (3328s against 3465s) is sixty models refused early, not a
+saving. Under the standing rule this goes back as a question and not
+into the tree: a catcher that takes `actual` by name or by place has
+to be measured afresh before anything is said about its price. Not
+merged, as hint 3 said.
