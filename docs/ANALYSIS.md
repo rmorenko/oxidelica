@@ -89556,3 +89556,25 @@ at `t = 0.0002` in the second, and `BranchingPipes3` reads
 `f0 = 3.74e-4` in the first and `f0 = 3.68` at `t = 0.0008` in the
 second. The two tables are not to be compared column by column. Only
 the second speaks of the block that refuses.
+
+### The sieve by symptom over the other 38
+
+The 38 run-half models not yet probed (`/tmp/m726/ss/rest38.txt`, the
+61 less the 23) were trailed once each and their first Newton step read
+by `ss/sieve38.py` (`ss/sieve38.txt`, `trail.env`): a first step landing
+where the residual is NaN, or an unknown going from positive to below
+-1e3 while the residual does not fall. The result: 21 print no Newton
+iteration at all, 12 take a first step that moves without either sign,
+5 flip a sign, and none lands on NaN. The five that flip are machines
+and a wheel set (`IMC_DOL_Polyphase`, `IMS_Start_Polyphase`,
+`SMEE_DOL`, `SMEE_Rectifier`, `RollingWheelSetDriving`), where currents
+and angles change sign lawfully and the proxy does not read names, so
+none of them is shown to leave a medium. Question 132 stays at eight.
+
+The sieve has a measured miss and the number is to be read with it. Of
+two known positives run as controls, it caught `SeriesPipes1` and
+missed `R134a1`, whose step out of the medium comes on the second
+iteration, not the first. The trails kept only iterations 0 and 1, so
+widening the sieve to every iteration is a second pass and not a
+re-reading of these files. The count is therefore eight shown, with
+none added by a sieve that takes one of two known cases.
