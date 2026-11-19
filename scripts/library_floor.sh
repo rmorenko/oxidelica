@@ -604,7 +604,12 @@ FILES_FLOOR=2671
 # 44197305414 on 93e9178, `OK: 2671 files read, 985 flatten, 854 run;
 # runnable 866 flatten, 805 run`, the same census the desk had printed
 # (/tmp/m715/preflight.txt) to the model.
-FLATTEN_FLOOR=985
+# And 986 = 985 + TestWallFriction, won by the homotopy catcher (eb0599e7):
+# the judge of run 44488845654 (job 135465267523) on b1ee56d4 printed
+# `OK: 2671 files read, 986 flatten, 855 run; runnable 867 flatten, 806 run`,
+# the same census the desk pair printed (/tmp/m727/c2_on.txt), so the
+# gates stand confirmed on two machines.
+FLATTEN_FLOOR=986
 # The two run floors came down by one, and the one is named: giving a
 # record constructor called with no arguments the values its `extends`
 # stated took `Modelica.Thermal.FluidHeatFlow.Examples.WaterPump` out
@@ -2056,7 +2061,10 @@ FLATTEN_FLOOR=985
 # names came back into this pass. Two of the three that ran in the
 # carved-out set are among those seven, which is why the heavy run floor
 # fell in the same move while this one rose.
-RUN_FLOOR=851
+# And 852 = 855 - 3 (SpringWithMass, SMPM_VoltageSource FW,
+# TestJunctionIdeal, all three seen running in that same print), the
+# judge of run 44488845654 on b1ee56d4; see `FLATTEN_FLOOR`.
+RUN_FLOOR=852
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -2332,7 +2340,9 @@ RUN_FLOOR=851
 # And 859 = 858 + IncompressibleFluidNetwork; see `FLATTEN_FLOOR`.
 # And 866 = 859 + the seven, all of them runnable examples; the judge's
 # print of run 44197305414 on 93e9178.
-RUNNABLE_FLATTEN_FLOOR=866
+# And 867 = 866 + TestWallFriction; the judge of run 44488845654 on
+# b1ee56d4, see `FLATTEN_FLOOR`.
+RUNNABLE_FLATTEN_FLOOR=867
 # And runnable run 674 = 671 + the three batteries, all runnable
 # examples, by the same runner job as `RUN_FLOOR` (d58700e, job
 # 112530851204).
@@ -2648,7 +2658,9 @@ RUNNABLE_FLATTEN_FLOOR=866
 # printed 859 / 803, so 803 - 3 = 800.
 # The seven cheap names back in the main check: the judge of run
 # 44197305414 printed 866 / 805, so 805 - 3 = 802.
-RUNNABLE_RUN_FLOOR=802
+# The homotopy catcher: the judge of run 44488845654 on b1ee56d4
+# printed 867 / 806, so 806 - 3 = 803, the same three swings.
+RUNNABLE_RUN_FLOOR=803
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
