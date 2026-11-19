@@ -89267,3 +89267,22 @@ since three of the 18 take no Newton step at all. Read by how they
 move, the 18 are three honest rows and a remainder: 10 that stall, 3
 that swing, 3 that are structure, and 2 whose refusing block this cut
 did not reach.
+
+### The stalling pipes, shown small
+
+Four of the ten that stall are pipe tests with one shape: a valve's
+`dp_turbulent` and pipe pressures, stalling at `t = 0.0008` rather
+than at the start. `SeriesPipes1` comes down to one `DynamicPipe` of
+`a_vb` structure into an incompressible valve (`/tmp/m726/small/SP.env`):
+`SP1.mo`, with the filtered opening, refuses on the same loop at the
+same instant, and `SP2.mo`, the opening unfiltered, refuses on the
+pipe pressure alone, still at `t = 0.0008`. The same model with
+`ConstantPropertyLiquidWater` in place of `StandardWater` (`SP3.mo`)
+runs. The trail of `SP2.mo` (`trail_SP2.txt`) shows the Newton walking
+`pipe1.mediums[1].p` from 78 kPa down to 613 Pa over five steps while
+the residual holds at 3.54 to the third digit. So the direction leads
+the pressure toward vapour, where the IF97 density barely answers to
+the pressure and the residual cannot move. That fits a derivative of
+the medium that is wrong or flat in that direction better than a
+count. Without the valve (`SP4.mo`) the model is not square at the
+start, which is no witness.
