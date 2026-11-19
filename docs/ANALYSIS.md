@@ -92118,10 +92118,15 @@ two cheap checks. The law is monotone in the pressure, so each tank has
 one root (bisection gives p2 = 477776 Pa at the start, the same as the
 run prints). And under `--solver bdf` `W1` runs to the end and the two
 pressures meet at 488887 Pa as conservation of mass requires, while
-`dopri45`, the default here, and `rk4` refuse in the corpus's words at
-t = 0.001 and 0.002. So the problem is well posed and solvable: the
-wall is the explicit step handing the block a base point from which the
-full Newton step crosses the domain edge, which is the compiler's (its
-choice of method and its step), not the model's. The five corpus models
-stay ours on that reading; whether they run under `bdf` was not
-measured here. Level: small model, two methods against one.
+`auto`, the default here, and `dopri45` and `rk4` refuse in the
+corpus's words at t = 0.001 and 0.002. `auto` starts explicit and hands
+over to the implicit solver on stiffness or on a refusal of the
+`Outside` kind after a first step (`solvers/mod.rs`, grep `pub(crate)
+enum EdgeHandoff`); the Newton-direction refusal is neither, so it ends
+the run. The comment there records that handing the pipes over at
+their start point cost 2443 s to lose `SeriesPipes1` (m410). So the
+problem is well posed and solvable: the wall is the explicit step
+handing the block a base point from which the full Newton step crosses
+the domain edge, and which refusals reach the implicit solver, which is
+the compiler's and not the model's. The five corpus models stay ours on
+that reading. Level: small model, two methods against one.
