@@ -89762,3 +89762,35 @@ pairs moved with opposite signs on both halves and is weather, not
 price. Three hand-picked witnesses (`HC1`, `PO`, `PID_Controller`)
 passed the greedy catcher that the test suite refused, so witnesses
 speed up a refusal and do not replace the full preflight.
+
+### The fifteen fluid and media refusals question 132 leaves
+
+The 23 run-half refusals in fluids and media less the eight of
+question 132 are 15. Read by their refusal texts (`/tmp/m726/ss/off_kind.tsv`,
+and `--only` under `ox50` for seven of them, `/tmp/m727/fm7.txt`), they
+fall into nine kinds, which add to 15:
+
+| kind                                                   | models                                                                 | n   |
+| ------------------------------------------------------ | ---------------------------------------------------------------------- | --- |
+| bound of a declared type broken at t = 0               | `FlueGasSixComponents`, `TestAllProperties.MoistAir`, `Essotherm650`   | 3   |
+| initialization singular, an unknown not pinned         | `MoistAir1`, `MoistAir2` (`volume.U`), `SimpleNaturalGas` (`volume.m`) | 3   |
+| derivative of a medium temperature that is not a state | `HeatingSystem`, `BranchingDynamicPipes`                               | 2   |
+| structurally singular                                  | `BatchPlant_StandardWater`, `TanksWithOverflow`                        | 2   |
+| singular Jacobian in a loop                            | `PumpingSystem`                                                        | 1   |
+| loop answered both ways                                | `TestSuddenExpansion`                                                  | 1   |
+| initialization does not converge                       | `DynamicPipeClosingValve`                                              | 1   |
+| start block of 162 unknowns                            | `HeatExchangerSimulation`                                              | 1   |
+| NaN at the first evaluation                            | `TestJunctionTraceSubstances`                                          | 1   |
+
+The first row has a mechanism shown by reading the library. Two of its
+three refuse on `dddX[1]`, declared `Medium.Density dddX[Medium.nX] =
+Medium.density_derX(state)` (`ModelicaTest/Media.mo:40`): a derivative
+of density by mass fraction carried in the type of a density, whose
+`min = 0` a negative derivative breaks lawfully (-1.21 and -0.71). That
+is a type misuse in the library, and the compiler enforces the bound as
+an assertion. Whether a broken `min` should refuse at all is a question
+for Roman and not this shift's. `Essotherm650` breaks `Pr`'s `max =
+1e5` with 1.95e7, which is not yet shown to be the same kind: the value
+itself may be wrong, and it needs its own probe. The other kinds are
+placed by text only, with no small model and no trail, so they are
+candidates and not mechanisms.
