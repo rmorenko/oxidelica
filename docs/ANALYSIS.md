@@ -89336,3 +89336,19 @@ about that. So the 61st model is counted by the instrument as runnable
 because of its icon, and runs on nothing a user wrote. It is a
 question for the example filter, which is not for this shift's hand,
 rather than a wall in the compiler.
+
+### The stalling machine, shown small
+
+`SMPM_CurrentSource` comes down to the permanent-magnet machine fed by
+a signal current from `DQToThreePhase`, the angle read off the shaft,
+an inertia for load, and the terminal box starpoint grounded
+(`/tmp/m726/small/SCM.env`). `SC2.mo` refuses with the loop that does
+not converge in 60 Newton iterations, of eight unknowns this time:
+the air-gap current and its derivatives, `dqToThreePhase.rotator.angle`,
+the rotor acceleration and two stator voltages. Those are the core of
+the library model's fourteen without its sensors. Without the grounded
+starpoint (`SC1.mo`) the model is structurally singular instead. So the
+loop that stalls is the current source's angle feeding back through the
+rotor's acceleration in one algebraic block, with no sensor in it, and
+a trail of `SC2.mo` is where to ask why its direction does not
+descend.
