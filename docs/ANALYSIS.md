@@ -87832,3 +87832,10 @@ and its unit went with the name. So the compiler drops the declared
 unit of a constant it folds into a function body. This is the layer
 "anything that survives flattening carries the flat model's names"
 already warns about, for units instead of names.
+That naming is too broad, and it is narrowed here on two counterexamples.
+A function giving its output a voltage through
+`constant SI.Voltage unitV = 1` runs, both as `unitV*x` (`UC.mo`) and
+inside an `if` (`UC2.mo`). So a folded unit constant is not lost in
+general. What `everett` adds is a record input (`p.M`, `p.r`, `p.q`
+with declared units "1" and "m/A") and `atan` over `p.q*H`. Which of
+those drops the unit is still open; `PE.mo` remains the witness.
