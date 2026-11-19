@@ -89720,3 +89720,32 @@ mechanism yet; they are the largest marked piece of the run half left
 to probe. This closes one of the four shares listed above as lacking a
 control. The other three need trails of running models and were not
 taken while the pair ran, so that the desk stayed quiet.
+
+### The catcher, judged by the standing answer of 26 October
+
+The catcher of question 130 is in the tree, on by default, with
+`OXIDELICA_NO_HOMOTOPY_CATCH` as its switch back. The first pair
+(`/tmp/m727/c_off.txt`, `c_on.txt`, binary `ox49`) was taken before the
+preflight showed that the catcher swallowed the refusal of a malformed
+`homotopy` call (a name the operator does not have, a name given twice).
+Repairing that changed the binary, so the pair was taken again from the
+final tree: `/tmp/m727/c2_off.txt` and `c2_on.txt`, binary `ox50` (md5
+18a104e0), halves one after the other, witness `pair2.env`.
+
+- Off half against the m726 reference: 985 flatten, 854 run, and the
+  four flattening counters and five running counters equal to the
+  digit. The pair is valid.
+- Lists: equal line for line except
+  `ModelicaTest.Fluid.TestComponents.Fittings.TestWallFriction`, which
+  flattens and runs only with the catcher. No victims.
+- Run half: 2562 s off, 2545 s on, 0.7% cheaper, inside the drift.
+  Work +64 points and +266 Newton steps, all of them the one model won.
+- Flattening half judged by counters: +27 classes, +1204 expansions,
+  +457 bodies, +271974 names, the model that now flattens.
+
+All three conditions hold, so the change goes in without a question.
+The heavy models were not measured. The catcher's unit test checks the
+flattened form but does not go red without the catcher, since the old
+path also reduced these small calls to their actual argument; no
+library-free model reaching the bare refusal was found, so the corpus
+pair is the witness, as the notes say it must be for such paths.
