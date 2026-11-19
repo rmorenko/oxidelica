@@ -91324,3 +91324,38 @@ derivative, was tried as two pairs: `a = der(w)` with `a = 0` against
 second order with a position (`G2`, `G3`). All four run with the same
 start values. The reading is not reproduced by a small model, and
 stays at the level of the corpus probe.
+
+### An orphan taken by the order of declaration
+
+The plain form is refused honestly, but a loop is not. `J2.mo` has one
+state `x`, an algebraic loop `y = 2*u; u = x + y` and the initial
+equation `y = 1`. The init probe prints `reaches [], took x`: the walk
+does not see through the loop to `x`, and the pairing of lost
+conditions takes the orphan anyway, which is right here because there
+is only one (`x = -0.5`, correct). `J3.mo` adds a second state `x1`
+that the loop does not read, declared before `x2`. The probe prints
+`took x1`, and the model is refused in the corpus's words, `does not
+pin down [x1]`. The controls:
+
+- `J5`, the same model with `x2` declared first: `took x2`, runs, `x2 = -0.5`;
+- `J3` under `OXIDELICA_NO_PAIR_LOST`: takes nothing and leaves both states orphaned;
+- `J3` under `OXIDELICA_NO_PAIR_WRITTEN_COARSE`: the same `took x1`
+  and the same refusal, so the coarse walk through blocks does not
+  rescue it either.
+
+So when reach is empty because of a loop, the state is chosen by the
+order of declaration, which in Modelica means nothing. Weight by the
+init probe (`/tmp/m730/ip_<model>.txt`, binary `ox56`): of the five
+initialization refusals in `/tmp/m714/rows.tsv`, four print a
+condition with `reaches []` that took a state -
+`AmplifierWithOpAmpDetailed` (`resistor2.i = 0` took `opAmp.v_in`),
+`DynamicPipeClosingValve` (`pipe.Us[1]`, `pipe.ms[1]`),
+`SimpleNaturalGas` (`volume.U`, `volume.mXi[6]`) and
+`ThreePhaseTransformerWithRectifier` (`core1` took `core3.MagRel`).
+`GearType1` prints none and is a different case. Three running
+controls (Analog `Rectifier`, `LossyGearDemo1`, `HeatingRectifier`)
+print no such line. Level: small model red with three controls, and a
+weight of four of five with running controls. Whether each of the four
+took the wrong orphan, as `J3` does, is not shown model by model. The
+repair is in the pairing, which is under the ban, so it goes as a
+question.
