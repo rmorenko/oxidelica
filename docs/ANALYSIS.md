@@ -87439,3 +87439,8 @@ the name left whole is in the `initial()` branch: the call
 expanded into 33 element assignments, and the whole-vector target `s`
 survives to a check that only knows scalar components. The fault is
 the unexpanded vector assignment, and the refusal names its symptom.
+The smallest witness is `/tmp/m724/small/XQ.mo`, ten lines: one
+`when initial()` branch assigning
+`Xorshift1024star.initialState(localSeed, globalSeed)` to a vector of
+33, refused as above with the seeds as parameters and running with the
+same seeds written as literals (`XQl.mo`).
