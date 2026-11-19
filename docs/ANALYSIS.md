@@ -92702,3 +92702,38 @@ rule that takes them costs everyone else. Only `bdf` takes
 `PolyphaseRectifier` (the narrow handoff does not), and `bdf` taken whole
 cost +758 s. A rule that takes exactly these two would be priced by its
 reach into the other models, and no such rule has been measured.
+
+### How long the implicit attempt burns after a start-point handoff
+
+A print of the wall clock around the handoff (patch
+`/tmp/m733/clock.patch`, binary `/tmp/m733/ox2`, outside the tree): under
+`Auto` it records the time spent in the explicit solver before it
+reports stiffness, the time spent in `run_bdf` after, and whether that
+finished. Print only, no branch changed. Each model alone with
+`--only`, one after the other on a quiet machine, under
+`OXIDELICA_EDGE_HANDOFF=all` (commands in `/tmp/m733/hc.cmd`, outputs
+`/tmp/m733/hc_{sp1,bp2,bp4}.txt`):
+
+| model             | explicit | implicit after handoff | run half | finished |
+| ----------------- | -------- | ---------------------- | -------- | -------- |
+| `SeriesPipes1`    | 4.0 s    | 582.4 s                | 660 s    | no       |
+| `BranchingPipes2` | 3.1 s    | 109.7 s                | 166 s    | no       |
+| `BranchingPipes4` | 1.9 s    | 67.6 s                 | 121 s    | no       |
+
+The three implicit attempts sum to 760 s, all of it spent on attempts
+that end refused. The check against the pair: on the sixty
+(`/tmp/m732/t60_{off,on}.txt`) these three moved by 620, 131 and 82 s,
+833 s together. The run half outside the attempt (78, 53 and 52 s) is
+of the size of the off half's whole time for the same models (94.6, 67.4
+and 64.9 s in `t60_off.txt`), so the off half is the setup plus a
+quick refusal and the price of `all` on these three is the implicit
+attempt. The difference between 760 and 833 is of the size of the drift
+between single runs and runs inside a pass of sixty, and is not read as
+anything.
+
+So the number the question to Roman lacked is now measured rather than
+subtracted: on the three carriers, 56 to 88 percent of the run half is
+an implicit attempt started from the start point that does not finish.
+A ceiling that cut that attempt early would save up to these seconds
+less whatever it lets burn before cutting. The ceiling itself is step
+handling and is not built.
