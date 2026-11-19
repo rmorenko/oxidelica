@@ -89508,3 +89508,16 @@ models under a decade of pivot margin (zero of eight).
 It is not repaired here. Clamping, the pivot floor and the damping are
 all outside this shift's hand, so it goes to Roman as a question, and
 by weight it is the first.
+
+The instrument was then carried to two more of the eight by copies
+made outside the tree, `StandardWater` replaced by
+`ConstantPropertyLiquidWater` and nothing else (`MC.env`;
+`TestTemperature1` declares its medium as a plain package, so the
+copy also writes `SI` out in full). `MC_TestTemperature1.mo` and
+`MC_MeasuringTemperature.mo` both run to the end. So of the eight that
+question 132 weighs, five run whole once the medium is swapped
+(`SeriesPipes1`, `BranchingPipes2`, `BranchingPipes3`,
+`TestTemperature1`, `MeasuringTemperature`), one moves to another wall
+(`BranchingPipes4`), and the two `R134a` are not swappable to a liquid
+of constant properties without changing what they test. The weight
+stays eight, and five of them have the medium shown as the only wall.
