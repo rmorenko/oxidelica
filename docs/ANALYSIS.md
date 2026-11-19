@@ -87666,3 +87666,20 @@ others too (`BranchingPipes2` 2 unknowns and 3 NaN lines,
 `BranchingPipes3` 2 and 3, `BranchingPipes4` 1 and 10,
 `TestTemperature1` 6 and 3), so the fold of seven is measured, not
 inferred from one.
+
+### The singular Jacobian row: a start of zeros
+
+The six runnable models refused on a singular Jacobian, trailed with
+`OXIDELICA_NEWTON_TRAIL=1` (`/tmp/m724/sj_*.txt`, commands in
+`sj_trail.env`), split three ways. `Rectifier`, `SMPM_CurrentSource`
+and `UniversalConstraint` are refused at t = 0 on the first Newton
+iterate, with every unknown of the loop at 0.0: the loop is asked for
+its slope at an all-zero start, where it is singular, and no step is
+ever taken. `PumpingSystem` is refused at t = 0 with a start that is
+not zero (600000 Pa, 293.15 K) but whose flow unknowns are, which is
+the same shape for the pump's flow. `LossyGearDemo2` converges at
+t = 0 in two iterations and is refused later, on its gear quadrants,
+a mode question. `RollingWheelSetDriving` runs 1113 iterations and
+reads NaN by line 11, the wheel-set loop of its sibling
+`RollingWheelSetPulling`. So four of the six stand at a singular slope
+at a start of zeros, a start the models leave to the default.
