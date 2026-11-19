@@ -87525,3 +87525,15 @@ behaviour, and it is left as a question with its witness, not made
 here. The refusal's own text then states an arithmetic it does not
 follow, "takes 1 inputs - what `f` takes, and then one derivative for
 each", for a function of one input.
+
+`StandardWater` shows the same loop with no derivative refusal in
+front of it. `/tmp/m724/small/WB.mo` (a `BaseProperties` with `h` and
+`d` given) is refused on a Newton direction for `medium.p` exactly as
+`RB.mo` is for R134a, while `density_ph(1e5, 1e5)` read directly
+(`WD.mo`) gives 997.34 kg/m3, the right value. So for water the value
+is sound and the direction is not: the slope the loop is handed for
+`p` does not point downhill. This is the likely layer for
+`TestTemperature1`, whose loop holds `volume1.medium.p` and
+`sat.Tsat` over the same medium, and plausibly for the four Fluid
+test models whose loops start at `pipe1.mediums[1].p`; neither is
+shown yet.
