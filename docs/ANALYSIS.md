@@ -91512,3 +91512,16 @@ Of the five initialization refusals, then, one (`SimpleNaturalGas`)
 picks a wrong orphan by pool order, two (the amplifier, the
 transformer) pick from a pool the circuit honestly reaches, and two
 (the pipe, the gear) have walls elsewhere. Level: probe, five models.
+
+`SimpleNaturalGas`, read off the init probe
+(`/tmp/m730/ip_SimpleNaturalGas.txt`). The six fraction conditions
+`der(medium.Xi[k]) = 0` each reach `volume.m` and their own
+`volume.mXi[k]`. The first five take their own fraction; the sixth
+takes `volume.m`. That leaves `volume.mXi[6]` for the pressure
+condition, whose reach is empty, and the pairing hands it over. The
+swap that would serve both, `Xi[6]` to `mXi[6]` and the pressure to
+`m`, is never tried, because the fine matching settled the sixth
+fraction before the pressure was asked. So on the gas mixture the
+wrong pick is made by the matching of conditions with a reach, and the
+pairing only takes what the matching left. It is the same row the
+earlier note on the gas mixture saw repeated. Level: probe, one model.
