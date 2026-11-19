@@ -88024,3 +88024,14 @@ and the rotor acceleration, so the angle a current source turns its
 set point by is an unknown of the same block the currents are. Its
 QuasiStatic twin refuses with the same angle in its loop. Shown by
 trail, the cause not yet named.
+
+`Electrical.Digital.Examples.RAM` is the depth refusal with no FFT
+in it, shown small. A single `Digital.Sources.Table` with 30 entries in
+`x` and `t` runs, and one with 31 is refused in the same words, naming
+`time` (`/tmp/m724/small/DQ30.mo` and `DQ31.mo`, a command beside each
+in its `.env`; `DQ4.mo` runs, `DQ40.mo` and `DQ80.mo` refuse). The
+example's table has 80 entries. So the table's step through its
+instants is built as one nested expression, a storey per entry, and
+meets `MAX_DEPTH = 32` at about the same count as the FFT models'
+`sum`. Two families now stand on the same ceiling, each reached by a
+list's length rather than by the model's own nesting.
