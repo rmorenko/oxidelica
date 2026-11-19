@@ -90637,3 +90637,13 @@ Roman's word. The sum is the weight of that lever and not of any one
 mechanism. `PumpingSystem` is the weakest member, since its rank
 deficit comes from the library's zero-speed start and may stay even
 with a different matching.
+
+The flattening half's 31 less the 17 not ours leaves 14
+(`/tmp/m728/ours_flat14.txt`). One of them, `TestWallFriction`, has run
+since the homotopy catcher went in, so 13 stand today. Five of those
+13 are the usertab tests, whose tables come from C callbacks
+(`mydummyfunc`). Under rule B they join the not-ours side, and under
+rule A they stay ours. The eight that are plainly the compiler's are
+the two clock models, `RAM`, the Preisach unit, `GenerateRandomNumbers`,
+`readRealParameterModel`, the `dgesvd` shape of `TestMatrices3`, and
+the String of `TestStreams`.
