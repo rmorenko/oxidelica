@@ -91597,3 +91597,16 @@ released, and the start problem is then solved as a whole, so a pick
 that reads wrong is not by itself a wall. On `SimpleNaturalGas` the
 refusal is therefore something more than the pick; what, is not
 named. Level: small model, the pick reproduced and the refusal not.
+
+The water tank's start, under the Newton trail
+(`/tmp/m730/sn21_trail.txt`, `ox57`). The block of two unknowns is
+solved six times from the same start (`v[0] = 1.015e5`), and each solve
+converges, but to a different point: the first unknown lands at
+`7.72e7`, `2.15e7`, `5.75e6` and `1.55e6` on successive passes, the
+residual below `1e-6` each time. A start problem that converges to a
+new point every time it is asked is one whose solution is a family,
+which is what the final refusal (`do not pin down [volume.U,
+volume.m]`) says in its own words. With the pipe, the steady pressure
+row adds nothing the boundary has not fixed, as the earlier note on
+`SN21` read; the trail now shows the consequence as a drifting root
+rather than a singular step. Level: trail, one model.
