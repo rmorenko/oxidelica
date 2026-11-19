@@ -87770,6 +87770,20 @@ self-contradictory. Explained by `why` without a small model: the two
 der-of-a-non-state. That is 9 shown small, 10 by trail, 5 placed, 5
 carried and 2 by `why`, 31 in all.
 
+Later in the shift the count rose to 47 of 91, every model added
+named in a paragraph below. Five more were shown small:
+`TestSuddenExpansion` (`SE.mo`), the two thyristor models (`TH.mo`),
+`SimpleAir` (`SA.mo`) and the Preisach model (`UK.mo` against `UN.mo`).
+One more was traced to the library's own text: `R134a_pTX_phX_all` on a
+rate declared `PerUnit`. Ten more were placed without a mechanism:
+`Graetz`, `AmplifierWithOpAmpDetailed`, `ThreeSprings`, the four
+FundamentalWave machines with underdetermined loops, `PlanarFourbar`
+and `RevoluteConstraint` on the derivative of a rotation entry, and
+`MeasuringTemperature`, whose Newton step leaves the water region at
+`t = 0` like the seven pressure models. That makes 14 shown small,
+11 by trail or text, 15 placed, 5 carried and 2 by `why`, 47 in all,
+and 44 with a named wall and nothing more.
+
 `TestSuddenExpansion` is refused as a loop of one unknown,
 `suddenExpansion1.m_flow`, with "a solution on either side": its
 pressure loss is `dp = m_flow^2/2 * (if m_flow > 0 then zeta1 ... else
