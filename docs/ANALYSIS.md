@@ -88470,3 +88470,35 @@ raising the Newton cap from 60 to 200 lets the loop converge (106
 iterations) and the model still refuses one step later, and at 1000
 the counts are the same to the digit. The iteration cap is a link in
 the middle of the chain and not a lever; raising it wins nothing here.
+
+### Three more of the 91 shrunk
+
+`ModelicaTest.Math.TestMatrices3` comes down to `SV1.mo` in `/tmp/m725`
+(`TF.env`): `Matrices.singularValues` of a `Real A[0,0]` refuses with
+`dgesvd` handed a matrix of shape `Some([0])`, while the same call on a
+2 by 2 matrix runs with the right first singular value, 3 (`SV2.mo`).
+An empty matrix reaches the body as a vector of length zero, so the
+model's own last check, "singular values with zero dimensions", is
+what refuses. Ours.
+
+`ModelicaTest.Utilities.TestFiles` comes down to `TF1.mo` to `TF4.mo`.
+`Files.list` on a `loadResource` URI inside a function reaches `stat`
+with the URI unresolved and asserts that the directory does not exist
+(`TF1`, `TF2`). Given the absolute path of a directory it stops on
+`ModelicaInternal_readDirectory`, which this compiler does not have
+(`TF3`); given a file it stops on the shape of `readFile` (`TF4`). So
+behind our wall stands a missing name, and the model belongs with the
+seven: once the URI and the shape are mended it would still refuse.
+That moves it from ours to not ours on the strength of a chain walked
+to its end, which makes the count 19 not ours and 71 reachable, the
+second figure still carrying the `TF4` shape as ours elsewhere.
+
+`Modelica.Utilities.Examples.readRealParameterModel` refuses on
+`scanDelimiter` never assigning its output `delimiter`. Small
+(`SD.env`): with an input where the delimiter is found it runs
+(`SD3.mo`, `r = 2`); where it is not found it refuses the same way
+(`SD1.mo`). On that path the library assigns nothing and calls
+`syntaxError`, an assert, so the output is truly unassigned there and
+the refusal is about a path the library means to fail on. A hand-made
+loop with the same shape and a found delimiter runs (`SD2.mo`). Which
+input of the corpus model takes the unfound path was not narrowed.
