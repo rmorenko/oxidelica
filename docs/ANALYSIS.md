@@ -89018,3 +89018,10 @@ equation quoted is the loop constraint's own velocity row rather than
 `Engine1a`'s derivative of `bearing.frame_b.R`. The bearing alone runs
 (`EN2.mo`). So the planar loop constraint is sufficient for the kind;
 that the two quoted equations are one defect is not shown.
+
+The control that suggests itself is no control: the same crank closed
+by an ordinary `Revolute` (`EN4.mo`) is refused as unbalanced, nine
+equations too many, which is the overdetermined planar loop that
+`RevolutePlanarLoopConstraint` exists to avoid. A witness that the
+planar constraint is the lever needs a crank that runs with something
+else in its place, and none was found this shift.
