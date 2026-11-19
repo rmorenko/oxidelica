@@ -88620,3 +88620,25 @@ costs over the rest of the library, where every Fluid valve and pipe
 passes through `homotopy`, needs the whole corpus; that pair was
 started in the same binary (`c_off.txt`, `c_on.txt`) and its answer
 belongs to the next section. The catcher is not in the tree.
+
+### Graetz: the temperature coefficients are declared in Ohm/K
+
+`Modelica.Electrical.Spice3.Examples.Graetz` comes down to `GZ2.mo` in
+`/tmp/m725` (`GZ.env`): one `Spice3.Semiconductors.R_Resistor` with a
+sine source refuses with the corpus words, conductance against
+conductance squared, while `Spice3.Basic.R_Resistor` runs (`GZ1.mo`).
+A local copy of `R_SEMI` keeps the refusal (`GZ9.mo`), and so does the
+copy with `resistorInitEquations` replaced by plain field assignments
+(`GZ10.mo`), so the init function is not the cause. What remains is
+`resDepTemp`: `factor := 1.0 + tc1*difference + tc2*difference^2` and
+`conduct := 1.0/(resist*factor)`. In `Rsemiconductor.ResistorModelLineParams`
+the library declares `m_dTC1` as `SI.LinearTemperatureCoefficientResistance`
+and `m_dTC2` as `SI.QuadraticTemperatureCoefficientResistance`, whose
+units are `Ohm/K` and `Ohm/K2` (`Modelica/Units.mo`). Used as the
+library uses them, beside a dimensionless 1, they make `factor` an
+ohm and `conduct` one over ohm squared, which is what the refusal
+says. Fed numbers directly, `resDepTemp` runs (`GZ4.mo`, `GZ6.mo`),
+because there `tc1` and `tc2` are plain `Real`. So this is a defect
+of the library's text, of the same form as three already found: a
+quantity declared with the wrong type, here coefficients that must be
+`1/K` and `1/K2`. Not ours; MSL is not edited.
