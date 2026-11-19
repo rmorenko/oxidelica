@@ -91906,3 +91906,11 @@ point under both, so its initial section does not lean on it. A pair
 from `ox64` was started (`/tmp/m730/pair64.env`). Level: wrong number
 on two small models, cause read and repaired in a probe, corpus weight
 pending.
+
+The pair for the `initial()` probe, one binary `ox64`, the start-time
+repair on in both halves (`/tmp/m730/pair64.env`, `p64_off.txt` under
+`OXIDELICA_INIT_NOT_INITIAL`, `p64_on.txt` without): both print `of
+the 986 that flatten, 855 run`, the `flat` and `ran` lists equal line
+for line. Running 2439 s to 2493 s, 2.2%, with no model moved to name.
+Wins 0, victims 0. Both parked repairs are corrections of wrong numbers
+with no weight in the corpus, and they go to Roman together.
