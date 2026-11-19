@@ -87900,3 +87900,17 @@ library's `normalize` and `cross`, a `fixed=false` parameter solved
 from a parameter, the same solved from a state, and the same through
 `Frames.resolve2` of two orientations. So none of those five alone is
 the wall. Placed, five hypotheses refuted, not shrunk.
+
+Five models refuse with an underdetermined algebraic loop. In
+`Spice3BenchmarkRtlInverter` the loop is the single `der(Q1.vbx)`,
+which is the `capbx = 0` start already placed above. The other four
+are FundamentalWave machines (`IMC_DOL_Polyphase`,
+`IMS_Start_Polyphase`, `SMEE_DOL`, `SMEE_Rectifier`), and every one of
+their loops holds the `s` of an ideal switch or diode beside the
+`V_m` and `i` of the machine's single-phase electromagnetic
+converters. Three small circuits with ideal closing switches feeding
+inductors all run (`/tmp/m724/small/SW1.mo` one switch, `SW2.mo` two
+in series, `SW3.mo` a three-phase switch into a star of inductors with
+no neutral return). So the switch beside an inductance is not enough;
+the magnetic converter is the part not yet put in a small model.
+Placed, three hypotheses refuted.
