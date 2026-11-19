@@ -87428,3 +87428,14 @@ last one is a refusal that does not name what it refused, and it is
 the more useful of the two to follow, because a small model of
 fourteen lines shows it. The mechanism is not yet followed past this
 point.
+
+The "never declared" refusal of `XP.mo` is raised at the check that
+every when-assigned name is a component (`compile.rs`, grep "assigned
+by a when clause but never declared"). `oxidelica why XP.mo 's[1]'`
+shows the sample branch scalarized element by element, `s[1] =
+ModelicaRandom_xorshift1024star({pre(s[1]), ..., pre(s[33])})[2]`, so
+the name left whole is in the `initial()` branch: the call
+`initialState(localSeed, globalSeed)` with parameter arguments is not
+expanded into 33 element assignments, and the whole-vector target `s`
+survives to a check that only knows scalar components. The fault is
+the unexpanded vector assignment, and the refusal names its symptom.
