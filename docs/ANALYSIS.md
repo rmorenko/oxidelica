@@ -90207,3 +90207,15 @@ The question above stands with that weight: six of eight show the
 symptom, 0 of 20 running models do. Still unmeasured is whether
 treating a non-finite residual as a step not taken makes any of the six
 run.
+
+The eight closed: `R134a2` takes the same path as `R134a1`, 300 kPa to
+1.0 MPa to -2.53 MPa, then the residual held at 0.971828 in each of its
+two components while the pressure creeps by about 90 Pa a step
+(`nan5/R134a2.txt`). So question 132 is six models with a NaN residual
+and two `R134a` with a flat residual below the medium's range, and the
+question to Roman reads: a non-finite residual taken as a step not
+taken, radius of effect 0 of 20 running models, the symptom shown in 6
+of 8; the two `R134a` need something else, a property function that is
+flat out of range. A note on the count: a text count of `nan` missed
+`NaN` and printed zero five times; counts over text are checked for
+case before they are believed.
