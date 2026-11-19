@@ -91448,3 +91448,22 @@ block's own unknowns instead of answering all states would report only
 `J5` and `J7` as its tests. Level: mechanism named on small models,
 weight four of five initialization refusals by the init probe, not yet
 shown model by model to be this fallback.
+
+The fallback was then switched off by a third probe
+(`/tmp/m730/ox59`, `OXIDELICA_PROBE_SKIP_OWN`, not in the tree), which
+leaves a name with no row out instead of answering every state. On the
+small models it is the repair: `J3` and `J7` run with `x2 = -0.5`,
+`J2` and `J5` still run. On the corpus it moves nothing
+(`/tmp/m730/sk_on_<model>.txt` against `sk_off_<model>.txt`, one
+binary): none of the five initialization refusals runs under it, and
+the four running controls (Analog `Rectifier`, `LossyGearDemo1`,
+`HeatingRectifier`, `CharacteristicIdealDiodes`) all still run. The
+shrunk amplifier still takes `opAmp.v_in`; the fallback is met there
+(`OXIDELICA_PROBE_FALLBACK` prints it for `resistor2.i`,
+`opAmp.v_out` and others), but switching it off does not change the
+pick. So the fallback is a real mechanism and the cause of the small
+models, and it is not what decides the corpus cases. On the amplifier
+the coarse walk reaches `v_in` by another route, not named. Level: a
+mechanism proved on small models whose corpus weight is measured at
+zero; that is recorded so that a repair of the fallback is not sold as
+a repair of the four.
