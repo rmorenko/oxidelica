@@ -88730,3 +88730,18 @@ So of the six first-build models, five now have a small model, and
 `PrismaticConstraint` beside them;
 `BatchPlant_StandardWater` is the one left. None of this is a fix, and
 none of it moves a count.
+
+`BatchPlant_StandardWater` comes down to three lines (`BP1.mo`,
+`BP.env`): one `AST_BatchPlant.BaseClasses.InnerTank` whose port
+nothing is connected to, with its level falling below the port. It is
+refused as the corpus model is, `t.port.m_flow = 0` constraining no
+state. With the level always above the port it runs (`BP2.mo`), always
+below it is refused (`BP3.mo`). Below the port the tank's if-equation
+sets `port.m_flow = 0`, and an unconnected port already has its flow
+set to zero by the connection rules, so the branch says one thing twice
+and leaves `port.p` to nobody. In the corpus model `B5.SideFluidPort`
+is connected by no `connect` at all, which is this case. Whether the
+library or the reading of an unconnected flow is at fault is a question
+and not a finding: the small model shows the mechanism, not the
+verdict. With it, all six first-build models of the row have a small
+model.
