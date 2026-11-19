@@ -91815,3 +91815,16 @@ initial event at a literal `0.0` and steps from there. RK4 is never
 chosen by `auto`, only by name, so no corpus model goes through it;
 the parked patch does not touch it. Level: one small model, cause read
 in the code.
+
+The same zero stands at the head of index reduction: its call
+(`compile.rs`, grep `} = reduce_index(`) passes
+`resume.as_ref().map_or(0.0, |point| point.time)` as the time at which
+starting values are weighed, so a run that is not a resume is weighed
+at zero whatever its `StartTime`. Reduction is outside what this shift
+may change, and the parked patch leaves this place alone. Named here
+so that whoever takes the patch takes the question with it: the weighing
+that picks states sees `time = 0` and initialisation, with the patch,
+would see the start time, and the two could then disagree for a model
+whose start values depend on `time`. None of the ten corpus models
+with a nonzero start has such a value. Level: read in the code, no
+model built for it.
