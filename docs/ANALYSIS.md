@@ -89954,3 +89954,21 @@ the 90. The count stays at 20 not ours and at most 69 reachable after
 `FilterOrder`. Of the first row of the fifteen, only `Essotherm650` was
 new to read and it too was already among the 20, so the fifteen move
 neither number.
+
+### Correction: the levels of evidence for the fifteen
+
+The line above said every kind but the first rests on refusal text
+only. Earlier sections of this chapter took several further, and the
+levels are: `TestSuddenExpansion` shown small (`/tmp/m724/small/SE.mo`);
+`MoistAir1` and `MoistAir2` placed by swapping the medium in the same
+rig (`/tmp/m725/MA.env`, `MR.env`), the wall belonging to the
+moist-air media; `SimpleNaturalGas` placed against its fixed-composition
+twin (`/tmp/m724/sng.env`); `BranchingDynamicPipes` probed by variants
+and not shown small (`BD.env`); `HeatExchangerSimulation` shrunk by
+node count and medium (`/tmp/m726/small/HX.env`). Text only remain
+`HeatingSystem`, `PumpingSystem`, `DynamicPipeClosingValve`,
+`BatchPlant_StandardWater` and `TanksWithOverflow`; the first row of
+three is library reading and arithmetic; `TestJunctionTraceSubstances`
+was traced. The lesson is the hint's own: a map by refusal text has
+to be read against what the chapter already holds before a level is
+claimed.
