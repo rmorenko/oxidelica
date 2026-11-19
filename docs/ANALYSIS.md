@@ -87852,3 +87852,11 @@ unitless call comes out as plain unitless, and the constant's unit in
 front is then dropped with it. `HysteresisModelComparison` is the one
 corpus model of the 91 on this, and the witness now has nothing of the
 library in it.
+
+`ModelicaTest.Media.TestOnly.R134a_pTX_phX_all` is a fourth unit error
+in the library's own text: it declares `Modelica.Units.SI.PerUnit dT`
+and writes `der(T) = dT` for a temperature `T`, so a rate in K/s is set
+equal to a pure number, which is what the refusal says ("s-1.K against
+1"). The refusal is right. Four of the 91 now stand on unit errors in
+the Modelica Standard Library (two thyristors, `SimpleAir`, this one)
+and one (`HysteresisModelComparison`) on a unit the compiler loses.
