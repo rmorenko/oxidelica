@@ -90136,3 +90136,31 @@ residual instead. Question 132 is then at least two shapes, NaN and
 stall, sharing the step out of range, and the statement above that NaN
 alone separates the eight from the survivor is withdrawn to "in two of
 three".
+
+`R134a1`'s stall has a shape of its own. Its block holds one unknown,
+`volume.medium.p`: 300 kPa, then 1.0 MPa, then -2.53 MPa, after which
+the residual is 0.971828 to every digit while the pressure moves by
+about 90 Pa a step (`tr_R134a1.txt`). A residual that does not change
+with its unknown is a property function flat outside its range, a
+clamp or a held boundary value, so the Jacobian there is near zero and
+the direction says nothing. So question 132 shows three forms after
+the same step out of range: NaN (`SeriesPipes1`, `BranchingPipes2`),
+a flat residual (`R134a1`), and the survivor's finite, falling residual
+(`MomentumBalanceFittings`).
+
+### Whether question 133, VT3 and HeatingSystem are one family
+
+All three are about which variable a block or the model can solve for,
+so they looked like one matching family weighing about six. The
+material on hand says they are refused at three different stages.
+Question 133 forms its block and takes no Newton step, because no
+equation of the block mentions the derivative it holds (a block
+question after matching). `VT3`, with `TanksWithOverflow` and
+`BatchPlant`, is refused before any block, in index reduction at
+`compile.rs:3040`, as structurally singular (matching across modes).
+`HeatingSystem` is refused before that again, an initial equation on
+the derivative of a variable not kept as a state (state selection).
+Three stages, three rows: 3, 2 and 1, not one family of six. They share
+a neighbourhood, the matching and selection layers, which is worth
+saying beside the open question on matching, and nothing in them was
+changed.
