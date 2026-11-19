@@ -90730,3 +90730,12 @@ while |f| creeps up from 3.16e3 to 3.46e3. That is a two-cycle of
 Newton at the start: the direction is not refused, it oscillates, and
 the budget of 60 ends it. Level: trail. Not changed: the step is not
 this shift's.
+
+That trail joins an old map. Shifts 140 and later placed `ThreeSprings`
+at a division by `spring2.lineForce.s` that starts at zero (grep
+`What guards a division by a vector's own length`). The NaN run at
+the head of today's trail is that division, and its start vector has
+the springs' relative positions at zero. The guard has since let the
+block get past it, so the refusal moved from a NaN before any step to
+a two-cycle at the start. The model went up a storey, not to a new
+family.
