@@ -91004,3 +91004,33 @@ minutes" was price and not a wall. Two samples of three seconds each
 its implicit blocks, walking the medium's function bodies
 (`walk::run`, `walk::to_scalar`, `code::eval`), with allocation and
 freeing at the top of the stack.
+
+### The hysteresis transformer, and a loop that fails four ways
+
+`ThreePhaseTransformerWithRectifier` is refused as "initialization is
+not square: 21 initial equation(s) and 4 fixed start(s) for 23
+unknown(s)". Under `OXIDELICA_INIT_PROBE` (`/tmp/m729/tr_3ph.txt`) the
+example's three `transformer.coreN.derHstat = 0` reach no state. The
+first takes `transformer.core3.MagRel`, a state of another core, and
+the other two take nothing, because all three `coreN.B` are already
+taken by the demoted `coreN.H`. Its sibling
+`SinglePhaseTransformerWithHysteresis1`, which runs, writes the same
+initial equation, which also reaches no state there and takes its own
+`core.B`. Neither pairing switch makes the three-phase model square
+(`tr_3ph_OXIDELICA_NO_PAIR_*.txt`). With the amplifier and the tank
+above, that is three models this shift in which an initial equation
+reaches no state, and the sibling shows that this alone does not
+refuse a model. What differs is which state is left to hand out.
+Level: probe and one control.
+
+"Algebraic loop did not converge in 60 Newton iterations" names four
+members whose trails (`/tmp/m729/nc_*.txt`, `OXIDELICA_NEWTON_TRAIL`)
+fail in three ways. `ThreeSprings` and
+`Electrical.Machines.Examples.SynchronousMachines.SMPM_CurrentSource`
+cycle with period two at t = 0 (one unknown jumps between -702 and -127,
+another between -0.0006 and -264.85), with the residual not falling.
+`RollingWheelSetPulling` runs away, its residual rising to 1e22.
+`Spice3.Examples.Nand` converges, linearly, the residual falling by
+about 2.7 per step at the end, and runs out of iterations at
+t = 3.75e-8. The ceiling of iterations, damping and the step are not
+touched here, so these are named and left.
