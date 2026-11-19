@@ -87483,3 +87483,8 @@ of zero, and `B5.SideFluidPort` is connected nowhere in the example.
 Its candidate is an unconnected tank port whose flow is set to zero
 twice, once by the tank's own branch and once as an open connector.
 Not yet shrunk.
+That candidate does not hold: an `OpenTank` with a second port left
+unconnected at height zero (`/tmp/m724/small/U1.mo`) runs. `B5` is
+the library's own `TankWith3InletOutletArraysWithEvaporatorCondensor`,
+not an `OpenTank`, so its refusal belongs to that class and stays
+unshrunk here.
