@@ -92112,3 +92112,16 @@ really has, from a start that sits exactly on it. Whether the
 compiler should take the side the start leans to (`m_flow_start`) is a
 question of the start, not a defect. Level: small model with a control
 on each term, arithmetic from the library.
+
+Whether `W1` is a badly posed model or our wall was asked of it with
+two cheap checks. The law is monotone in the pressure, so each tank has
+one root (bisection gives p2 = 477776 Pa at the start, the same as the
+run prints). And under `--solver bdf` `W1` runs to the end and the two
+pressures meet at 488887 Pa as conservation of mass requires, while
+`dopri45`, the default here, and `rk4` refuse in the corpus's words at
+t = 0.001 and 0.002. So the problem is well posed and solvable: the
+wall is the explicit step handing the block a base point from which the
+full Newton step crosses the domain edge, which is the compiler's (its
+choice of method and its step), not the model's. The five corpus models
+stay ours on that reading; whether they run under `bdf` was not
+measured here. Level: small model, two methods against one.
