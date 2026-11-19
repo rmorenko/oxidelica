@@ -91850,3 +91850,11 @@ of the measured drift between halves of equal work and with no model
 that moved to name. Wins 0, victims 0, as the ten byte-identical
 models predicted. So the patch is a correction of a wrong number with
 no weight in the corpus, and it goes to Roman as such.
+
+Three controls where `time` at zero would be dangerous, each identical
+on `ox61` and `ox63`: `S4.mo` (`w = 1/time`, start 0.5) gives `w = 2`,
+`S5.mo` (`w*w = time`, an implicit block) gives `w = 0.7071`, and
+`S6.mo` (`assert(time > 0.4)`) runs. With no initial equation the
+initial problem is not entered, and the plan of the run is evaluated
+at the start time. So the fault needs an `initial equation` or a block
+the regularity check solves, which is what the ten corpus models lack.
