@@ -87839,3 +87839,16 @@ inside an `if` (`UC2.mo`). So a folded unit constant is not lost in
 general. What `everett` adds is a record input (`p.M`, `p.r`, `p.q`
 with declared units "1" and "m/A") and `atan` over `p.q*H`. Which of
 those drops the unit is still open; `PE.mo` remains the witness.
+Bisected to fourteen lines (`/tmp/m724/small/UK.mo`): a function with
+`constant SI.MagneticFluxDensity unitT = 1` and
+`J := unitT*(k*atan(x))`, called with a parameter `k(final unit="1")`,
+is refused "kg.s-2.A-1 against 1". The same with `sin` (`UL.mo`) is
+refused too; with a literal 0.95 for `k` (`UM.mo`), with `k*x` and no
+elementary function (`UD.mo`), or written in the model's own equation
+with no function at all (`UN.mo`) it runs. So the unit is lost when an
+argument with declared unit "1" multiplies an elementary function
+inside an inlined body: the inliner's product of a unit-"1" name and a
+unitless call comes out as plain unitless, and the constant's unit in
+front is then dropped with it. `HysteresisModelComparison` is the one
+corpus model of the 91 on this, and the witness now has nothing of the
+library in it.
