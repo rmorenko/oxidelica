@@ -92627,3 +92627,18 @@ start point and one that runs; the two that do not refuse at the start
 pay nothing. So the wide handoff costs where the explicit solver is
 refused at the start point, as the m410 comment says, and the
 `SeriesPipes2` win m410 recorded is now a run either way, at +36 s.
+
+### The wide handoff on the sixty dearest runs
+
+The sixty models dearest to run in the off half of the pair
+(`/tmp/m732/top60.list`), off then on under
+`OXIDELICA_EDGE_HANDOFF=all`, one binary (`/tmp/m732/t60_{off,on}.txt`,
+commands in `t60.env`). Flattening work equal to the digit (1171 s and
+1192 s, so 21 s of drift). Running: 2270 s to 3163 s, +893 s, 39 to 40
+runs, the only change `BranchingPipes3` winning. Of the 893 s,
+`SeriesPipes1` takes 620 (still refused), `BranchingPipes2` 131 and
+`BranchingPipes4` 82 (still refused), `SeriesPipes2` 36 (runs either
+way), and the rest sit within 11 s each. So the wide handoff, measured
+on the dearest sixty, buys one model for about 900 s, four fifths of it
+on three that it does not save. Same verdict as m410, measured again on
+today's tree: not worth taking whole.
