@@ -87219,7 +87219,9 @@ the four `Digital.Examples.Utilities` adders and counters, Spice3's
 `TwoPhaseWater.BaseProperties` (a `redeclare model extends` with no
 experiment, read by eye) carry none, and StateGraph's `FirstExample`
 carries one. So the 900 is at most 894. Of the ones that run, four left
-the marked side and one joined it. The path reader could not place 210
-further rows, so they are not checked, and this is a lower bound on the
-error, not the whole of it. The zero input of question 66 now lies
+the marked side and one joined it. Taught to read short class definitions
+(`/tmp/m723/marks_fix2.txt`), the path reader places all but 9 rows
+(five `SolveOneNonlinearEquation` and `QuadratureLobatto3`, four
+`Media.Examples.Utilities`) and finds the same eight and no more. Those
+nine are unchecked. The zero input of question 66 now lies
 wholly in the unmarked set, 16 of 16.
