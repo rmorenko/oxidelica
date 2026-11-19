@@ -91496,3 +91496,19 @@ claimed elsewhere, takes `volume.mXi[6]`, the last fraction, because
 it is all that is left in the pool. The refusal there names
 `volume.m`. So the gas mixture is a pairing case and the water tank
 is not. Level: probe, three models.
+
+The transformer and the gear under the same probe. In
+`ThreePhaseTransformerWithRectifier` the three `derHstat = 0` are
+written by the example itself (lines 109 to 111), so they carry no
+instance, and the coarse walk reports each of them reading about
+twenty-five states, the whole circuit. By the time they are paired the
+pool holds one orphan, `core3.MagRel`, so `core1`'s condition takes it
+and the other two take nothing. One orphan for three conditions is a
+count the matching left, not a choice the pairing made. `GearType1`
+is not a pairing case at all: `a_rel = 0` reaches `spring.w_rel`,
+already taken by `spring.w_rel = 0`, and takes nothing, while both
+`bearingFriction.phi` and `bearingFriction.w` are claimed by nothing.
+Of the five initialization refusals, then, one (`SimpleNaturalGas`)
+picks a wrong orphan by pool order, two (the amplifier, the
+transformer) pick from a pool the circuit honestly reaches, and two
+(the pipe, the gear) have walls elsewhere. Level: probe, five models.
