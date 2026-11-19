@@ -87158,3 +87158,26 @@ stand `SMPM_FieldWeakening` (QuasiStatic, 1.01), `ArmatureStroke`
 first two decades is almost all machines (`IMC_*`, `IMS_Start`,
 `SoftStarter`, `SMEE_Rectifier`). The margin is the start block's only;
 blocks met later in the run were not printed.
+
+### The ceiling of the measure, counted by the library's text
+
+Over all 1026 example models of the pair's main pass
+(`/tmp/m723/marks1026.tsv`: name, mark, state; the class body cut from
+its file and read for `experiment(` and `Icons.Example`, as for the 67).
+894 carry an `experiment` and 3 only the `Icons.Example` mark; 123 carry
+neither, and 6 more could not be located by this reader and are not
+counted here. Of the 123 unmarked, 46 run today, 67 flatten and do not
+run, and 10 do not flatten. Of the 897 marked, 808 run.
+
+The seven helpers of question 66 that run on a zeroed input are all
+among the 123 unmarked and all seven run, so that set lies inside this
+one; the other nine of the sixteen were not rechecked here.
+
+Self-contradictory models, refused rightly by the standard: two are
+known, `MoistAir` and `FlueGasSixComponents` on `dddX`, both marked
+with an `experiment`. No wider text search for that shape was made.
+
+So from 1026, at least 123 + 2 = 125 are not meant to run or cannot
+run under the standard, the reachable ceiling is at most 901, and
+today 808 of those run (854 counted, of which 46 are unmarked
+helpers). Nothing was taken out of the measure; this is a count.
