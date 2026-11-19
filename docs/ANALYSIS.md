@@ -91702,3 +91702,22 @@ same words as without it, `the equations of algebraic loop ... do not
 mention`. So the foreign take is real and is not their wall; the wall
 is question 133, a block holding a derivative none of its equations
 mention, as recorded. Level: switch, two models.
+
+### Question 133 by small models: a capacitance that vanishes at the start
+
+Five small models (`/tmp/m730/Q*.mo`, binary `ox57`) try the shape of
+question 133, a derivative whose coefficient is zero at `t = 0`. A
+parameter coefficient of `0`, `1e-12` or `1e-3` (`Q1`, `Q2`, `Q0`),
+and a zero coefficient inside a loop (`Q3`), all run: the symbolic
+solve handles a constant coefficient before any block is formed. A
+coefficient that is a variable and zero at the start, `c = time` or
+`c = 1e-12*time` (`Q4`, `Q5`), is refused, but as `step size underflow
+at t = 0`, not as `do not mention`, and that refusal is honest: with
+`c = 0` the equation fixes `v = sin(0)` while `v` is a state started
+at 0. `Q6`, `c = 1e-12 + time`, runs. So the corpus form, a block that
+holds `der(Q2.vbx)` and none of its equations mention it, is not
+reproduced by a coefficient alone; in `DifferentialPair` the
+coefficient is a conditional (`if m_bInit then 0 else c*der(vbx)`),
+which the earlier small models of this chapter showed to decide
+whether the derivative leaves the symbolic solve. Level: five small
+models, the corpus refusal not reproduced.
