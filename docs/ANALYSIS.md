@@ -88776,3 +88776,19 @@ simulator "should be able to handle this situation". So it stays in
 the reachable count; what it meets here is the refusal on the gear
 quadrants of the loop named above, and what the library expects is a
 choice among the solutions.
+
+`RollingWheelSetDriving` comes down to four lines (`WS1.mo`, `WS.env`):
+one `Parts.RollingWheelSet` and a `World`, refused on a singular
+Jacobian over the loop of `wheelSetJoint`, the loop the corpus model
+and its sibling `RollingWheelSetPulling` both name.
+
+Where the NaN of the constraint-joint small models is made is read and
+not yet probed. The squared denominator has the shape of the quotient
+rule in `differentiate` (`symbolic.rs`, the `Expr::Bin(Div, a, b)`
+branch, which writes `(a'b - ab')/b^2` whenever `b'` is not zero), and
+the division by the difference of two positions may come from
+`solve_linear_for` taking a slope against one name. Which of the two
+is first is a question for a trace, and `OXIDELICA_WHERE` names only
+the solver that met the NaN (`solvers/mod.rs`), not the stage that
+wrote it. Its weight is the three small models (`UC1.mo`, `CS3.mo`,
+`UC3.mo` with `SC3.mo`); no corpus model is yet shown to refuse on it.
