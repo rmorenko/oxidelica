@@ -90041,3 +90041,11 @@ of a high port, and the singularity is that mode's equation set meeting
 the rest of the model, with index reduction asked to reach through a
 constant flow. Level: library text and the compiler's mode reading;
 which side owes the singularity is open.
+
+Not shown small. A tank with its second port at `height = 6` above
+`level_start = 2` (`/tmp/m727/vt/VT1.mo`, `vt.env`), fed through
+static pipes from a fixed boundary on each port, runs; so does the same
+with the high port leading to a second open tank (`VT2.mo`). The
+closed high port alone is therefore not the wall, and what
+`TanksWithOverflow` and `BatchPlant` add to it (the overflow pipe, the
+inner tank sides) is the next thing to keep while shrinking.
