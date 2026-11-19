@@ -91388,3 +91388,13 @@ the `cannot evaluate` row in `/tmp/m714/rows.tsv`. Level: small model
 red in the corpus's words with four controls, one per term. Whether
 the five run once it is repaired is not shown; the repair goes as a
 question.
+
+Reading names the ceiling. `built_in_reading_order` in
+`crates/oxidelica-parser/src/flatten/components.rs` builds a sibling
+before the declaration that reads it, and leaves a parameter reader
+where it is on purpose: its comment records that moving the rod of
+every `JointUSP` ahead of `eRod1_ia = rod1.eRod_ia` took the engine
+models "to more than twenty gigabytes". So the place is known and so
+is the price of the obvious repair; a repair that subscripts the right
+side of a whole-array binding, rather than reordering the build, is
+the question that goes forward.
