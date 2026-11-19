@@ -87181,3 +87181,15 @@ So from 1026, at least 123 + 2 = 125 are not meant to run or cannot
 run under the standard, the reachable ceiling is at most 901, and
 today 808 of those run (854 counted, of which 46 are unmarked
 helpers). Nothing was taken out of the measure; this is a count.
+
+The self-contradictory shape searched in the library text: `Density`
+typed outputs that are derivatives occur twice, `density_derX` in
+`Media/package.mo` line 4435 and `IdealGases/Common/package.mo` line
+1271. In ModelicaTest the declaration `Medium.Density dddX =
+Medium.density_derX(state)` stands in `TestAllProperties` at lines 40
+and 182 (`PartialMediumFunctions` and `FlueGasSixComponents`); the other
+uses are commented out or typed `Real`. Of the models extending
+`PartialMediumFunctions`, five single-substance media run (`DryAirNasa`,
+`LinearColdWater`, `LinearWater_pT_Ambient`, `CO2`,
+`ConstantPropertyLiquidWater`), where `dddX` is not negative, and
+`MoistAir` is refused. So the shape is still two models, not more.
