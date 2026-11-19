@@ -91914,3 +91914,26 @@ the 986 that flatten, 855 run`, the `flat` and `ran` lists equal line
 for line. Running 2439 s to 2493 s, 2.2%, with no model moved to name.
 Wins 0, victims 0. Both parked repairs are corrections of wrong numbers
 with no weight in the corpus, and they go to Roman together.
+
+### Five measurements of weight zero, read together
+
+One shift, five measurements, and every one weighed nothing on the
+corpus. Question 135, the matching taking another component's orphan:
+the probe `ox59` under `SKIP_OWN` brings the small `J3` and `J7` to
+life, revives 0 of the 5 refusals it was aimed at, and the 4 that ran
+before still run, victims none. Question 136, a whole array bound to a
+component declared below it losing its subscript: the test is red
+without the repair, and the pairs `pk` and `hv` give twelve models all
+equal between halves, four of them moved one storey up. Question 137,
+the initial problem solved at zero rather than at `StartTime`: the pair
+from `ox63` prints 986 / 855 in both halves, the lists equal line for
+line, wins 0, and the run half 2.2% dearer. `initial()` false inside
+the initial problem: the pair from `ox64`, the same 986 / 855, lists
+equal, 2.2% dearer. And the matching lever of the eight: under
+`NO_PAIR_LOST_DEMOTED` the other component's take is gone and the
+refusal is the same (`/tmp/m730/nd_PlanarFourbar.txt`), so the pairing
+is excluded by measurement. Three defects proven on small models, two
+hypotheses killed, and the corpus blind to all five. The rule for
+choosing work that follows: to move the gates, take what the measure
+sees; to make the compiler right, take the small models, and do not
+write their price in models.
