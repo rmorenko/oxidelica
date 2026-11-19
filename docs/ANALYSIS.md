@@ -92933,3 +92933,33 @@ coinciding mode laws (gear friction, diodes), a dead column or zero rows
 at a standing or stopped start (pump, machine), and an over-determined
 constraint (universal joint). All are ours in the sense of structure at
 the start point, none is the step.
+
+### Three more of the no-convergence kind
+
+`OXIDELICA_NEWTON_TRAIL` on three more models refused for not converging
+in 60 Newton iterations (`/tmp/m733/nc_{Nand,SMPM_CurrentSource,RollingWheelSetPulling}.txt`,
+under `cap.sh`, commands in `/tmp/m733/ud.cmd`). All three raise at
+`solvers/mod.rs:3065`. The residual over the last 60 iterations:
+
+- `Spice3.Examples.Nand`, a block of the four transistors' junction
+  capacitances (`cc.cBS`, `cc.cBD`) and two internal nodes: from
+  2.5e-4 the first step jumps to 8e12, then the iteration climbs back
+  down by a factor of about 2.7 per step (1e4, 3.8e3, 1.4e3, 5.2e2 ...)
+  and is thrown out again (7e12 at iteration 30). 47 line-search prints in
+  the file. An exponential junction law, where a full Newton step from
+  near the root overshoots into the exponential's far side, is what
+  this looks like. Implementation quality: the step, not the model.
+- `Machines.SMPM_CurrentSource`: the residual swings between 1.8e2 and
+  5.5e2 for all 60 iterations with no line search printed at all, a
+  cycle and not a divergence, on a block with the rotor angle and its
+  sine/cosine sensors. A periodic law in the angle, with Newton cycling
+  between two sides of it, is one reading.
+- `RollingWheelSetPulling`: the residual starts at 1e12 and stays near
+  1e22 for 60 iterations, 369 line-search prints. This is not near any
+  root. It is the same block as `RollingWheelSetDriving`, which the
+  singular section above left unclaimed with a rank-4 Jacobian, so the
+  two wheel sets share a start that is far off.
+
+These three are three different shapes under one census line. The
+census counts one refusal kind where the probe sees an overshooting
+exponential, a cycle in an angle, and a start that is nowhere near.
