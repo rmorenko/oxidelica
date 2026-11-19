@@ -87999,3 +87999,16 @@ path in `assert(false, ...)`, is evaluated for a parameter and runs
 example scans a resource file through `loadResource` and
 `readRealParameter`, so the not-found path is the one a missing or
 empty read would take.
+
+`Spice3.Examples.Nand` refuses with a loop that "did not converge in
+60 Newton iterations", and its trail says the loop was converging
+(`/tmp/m724/nand.txt`, command in `/tmp/m724/nand.env`). The failing
+solve is at `t = 3.75e-8`. Its residual falls by about the same factor
+on each of the last steps (1.04e4, 3.83e3, 1.41e3, a ratio near
+0.37), with only two of the ten unknowns, `mp2.Sinternal` and
+`mn2.Dinternal`, moving. That is linear convergence, the mark of a
+Jacobian that is wrong or stale rather than of a loop with no root, and
+at that ratio about ten more iterations would have met the tolerance.
+So the cap is where the refusal lands and not why it happens. The
+question it leaves is why Newton converges only linearly on two
+internal MOS nodes. Shown by trail.
