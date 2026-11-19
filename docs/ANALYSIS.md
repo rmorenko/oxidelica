@@ -91692,3 +91692,13 @@ of the debt a small model shows that a defect exists, and only the
 corpus shows whether it is the wall a model stands at. A defect found
 small is reported with its corpus weight beside it, and a weight of
 zero is reported as zero.
+
+Whether the foreign take carries the refusal of the two, by the
+existing switch `OXIDELICA_NO_PAIR_LOST_DEMOTED`
+(`/tmp/m730/nd_<model>.txt`, commands in `.env`): with it,
+`PlanarFourbar`'s demoted `revolute1.phi` and `RevoluteConstraint`'s
+two demoted angles take nothing, and both models are refused in the
+same words as without it, `the equations of algebraic loop ... do not
+mention`. So the foreign take is real and is not their wall; the wall
+is question 133, a block holding a derivative none of its equations
+mention, as recorded. Level: switch, two models.
