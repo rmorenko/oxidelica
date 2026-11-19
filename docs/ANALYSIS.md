@@ -89676,3 +89676,29 @@ zeros is the norm of these models and not a wall, and the candidate is
 closed negatively. What `SC2.mo` shows is then not that it starts from
 zeros but what its first step does from there, and that is the
 question left.
+
+### Shares in this shift's sections that still lack a running control
+
+The zero-start control gives a standing rule: a share of a structural
+property among refusing models means nothing without the same share
+among running ones. Read against that rule, this shift's sections hold
+five such shares (refusal texts are left out, since running models have
+none). One is controlled: the zero start, 17 of 27 refusing against 5
+of 6 running, where the share among running models is higher, so the
+candidate is refuted and not merely unconfirmed. Four still need a
+control:
+
+- `prefer` moving 2 of 12 structural refusals under
+  `OXIDELICA_NO_STATE_SELECT`: measured on the gap only, the effect of
+  the switch on running models was not taken.
+- Question 132 "concentrated in fluids and media", 8 of 8: no trail of
+  running `Fluid` models was read for a first step that leaves the
+  medium and recovers.
+- The 18 cut into stall, swing and no-step: whether running models'
+  blocks also swing before converging was not looked at, so swinging
+  is not shown to be a wall.
+- The sieve's sign flips set aside as lawful in machines: no running
+  machine was trailed to show the same flips.
+
+Nothing is changed by this list. It marks what the chapter claims
+beyond its controls.
