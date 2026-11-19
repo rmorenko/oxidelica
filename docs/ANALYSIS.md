@@ -89195,9 +89195,11 @@ and the file read at one each, 125, 127 and 128 at zero, the first of
 those three measured. Against at most 70 reachable, that leaves 63 on
 walls that carry no number. The mass of the measure is not in the
 named questions. It is in the
-convergence of algebraic loops: 18 models of the run half refuse on a
-loop that does not converge, the largest wall in the table above, and
-not one of them carries a number. That is the answer to what to repair
+algebraic loops of the run half: 18 models refuse in words that say a
+loop did not converge, the largest wall in the table above, and not
+one of them carries a number. Cut further down by how the Newton
+iteration moves, at most 13 of those 18 are a failure to converge,
+since three take no step and two refuse elsewhere. That is the answer to what to repair
 first, and it is not the one that was expected.
 
 ### The loops that do not converge: ThreeSprings, shown small
@@ -89352,3 +89354,37 @@ loop that stalls is the current source's angle feeding back through the
 rotor's acceleration in one algebraic block, with no sensor in it, and
 a trail of `SC2.mo` is where to ask why its direction does not
 descend.
+
+### The first step leaves the medium
+
+The cut by the longest run hid where each refusal happens, so the 18
+were cut again at the instant each refusal names, keyed by full path
+(`/tmp/m726/ss/classify2.py`, `ss/classes18b.txt`). Four name no
+instant (both `SMPM_CurrentSource`, `Nand`, and
+`DynamicPipeClosingValve`, which refuses in the initialization), and
+of the 14 that do:
+
+| At the refusing instant                      | Models | Which                                                                                  |
+| -------------------------------------------- | -----: | -------------------------------------------------------------------------------------- |
+| the first Newton step lands where `f` is NaN |      5 | `BranchingPipes2`, `3`, `4`, `SeriesPipes1`, `TestTemperature1`                        |
+| improves, then stalls                        |      5 | `R134a1`, `R134a2`, `PolyphaseRectifier`, `ThyristorBridge2mPulse_RLV`, `ThreeSprings` |
+| grows from the first step                    |      1 | `RollingWheelSetPulling`                                                               |
+| no step                                      |      3 | `RevoluteConstraint`, `PlanarFourbar`, `Spice3BenchmarkDifferentialPair`               |
+
+The first row is one mechanism, read in the unknowns themselves
+(`ss/bp4_first.txt`, `ss/tt1_first.txt`, `small/trail_SP2.txt`). In
+`BranchingPipes4` the first step takes one pressure from 723 kPa to
+-528 MPa. In `TestTemperature1` it takes pressures to -345 kPa and
+-3.5 TPa and a temperature to -2.6e9 K. In `SP2.mo` it takes the pipe
+pressure from 603 kPa to -7.8 MPa. The two `R134a` models sit in the
+second row only by the classifier's rule and belong with the first by
+their unknowns: the first step takes `volume.medium.p` from 300 kPa to
+1.0 MPa and the second to -2.53 MPa, where it then stands. So at least
+seven of the 18, the five and the two `R134a`, refuse because a
+Newton step leaves the region where the medium is defined, and
+`SP3.mo` running on a constant-property liquid is the control that
+puts the wall in the medium and not the topology. Seven alone is as
+many as all the named questions together. And `BranchingPipes3`, the
+lowest residual among those not yet set aside, refuses at
+`t = 0.0008` in a block whose first step is NaN like the others, so
+it stays in the loop and does not join the two that refuse elsewhere.
