@@ -88054,3 +88054,9 @@ its own with a flow that varies in time: `pressureLoss_m_flow`
 both run. So what the pipe adds is the context, the flow as an unknown
 of the pipe's own loop or a derivative taken through the call, and the
 next cut is between those two.
+Both cuts are refuted as well: the flow solved as the unknown of a
+loop through the call runs (`/tmp/m724/small/PI.mo`), and so does a
+derivative taken through it (`PD.mo`). What remains between `PD.mo`
+and `WP4.mo` is the pipe itself, its medium states and the
+`data` record bound with `final` inside a `BaseModel`, so the next cut
+is made on the pipe class and not on the functions.
