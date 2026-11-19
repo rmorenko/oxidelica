@@ -92884,3 +92884,19 @@ parameter passed down by modification has been split into elements on
 the left and left whole on the right, so no element can be evaluated.
 This is the `e_ia` family met on 6 November; ours, in how a vector
 modification is scalarized.
+
+### `loop no converge`, one representative
+
+`ThreeSprings` under `OXIDELICA_NEWTON_TRAIL` (`/tmp/m733/tr_ThreeSprings.txt`):
+the block at t = 0 holds the body accelerations, the quaternion
+derivatives and the line-force geometry of three springs. The solve is
+started 32 times from different guesses. Starting from all zeros gives
+NaN at once (a spring length of zero, divided by). The guesses 1e-6,
+1e-3 and 1 each end after a few iterations in steps that do not descend.
+The last one, from 1000, takes 60 iterations with no line search printed
+in that stretch, and the residual climbs steadily from 1.3e3 to 3.5e3 over
+the last forty of them, until the iteration ceiling stops it. So what holds
+is not a slow approach to a root. No guess the start tries lands in the
+basin, and the start at zero is the singular point of the geometry
+(zero length). Implementation quality, in how the guesses are seeded
+(seeding is not to be touched).
