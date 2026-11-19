@@ -88213,3 +88213,18 @@ so for that model the weight is unmeasured, not zero. The derivative
 count already shown for `R134a` (`DR.mo`) stands in front of any
 clamp: a step built on a Jacobian missing `der_sat` is the wrong
 direction, and shortening it does not change where it points.
+
+`ModelicaTest.Media.TestAllProperties.IncompleteMedia.Essotherm650`
+refuses at `t = 0` with `Pr` = 1.95e7 above its max of 1e5. Both
+numbers are the library's. `Media.PrandtlNumber` declares `max=1e5`
+(`Media/package.mo`, grep `type PrandtlNumber`). `Essotherm650`
+(`Media/Incompressible.mo`) gives `tableViscosity` as `0, 14370;
+20, 1917; 40, 424 ...`, and `dynamicViscosity` returns the fitted value
+as `eta` in Pa s. Those are the numbers of a viscosity in mPa s or of a
+kinematic viscosity in mm2/s, not Pa s. With them, `eta*cp/lambda` at
+20 degC is 1917 * 1850 / 0.1288 = 2.75e7, and the bound is crossed
+anywhere below about 150 degC (at 100 degC, 26.64 * 2130 / 0.1232 =
+4.6e5). So the medium's own table breaks the medium's own bound, and
+the refusal is right. That is the third library error of the 91, of
+the same kind as the thyristor unit. Arithmetic from the library's
+text, not shrunk.
