@@ -88035,3 +88035,16 @@ instants is built as one nested expression, a storey per entry, and
 meets `MAX_DEPTH = 32` at about the same count as the FFT models'
 `sum`. Two families now stand on the same ceiling, each reached by a
 list's length rather than by the model's own nesting.
+
+`ModelicaTest.Fluid.TestComponents.Fittings.TestWallFriction` is the
+third depth refusal outside the FFT models, shrunk out of the real
+model rather than grown. One `ModelicaTest.Fluid.BaseClasses.WallFriction`
+between two boundaries with `from_dp = false` is refused in the same
+words, naming `pipe4.data.zeta2_at_a` (`/tmp/m724/small/WP4.mo`), and
+the same pipe with the default `from_dp = true` runs (`WP3.mo`). The
+loss data alone, `LossFactorData.wallFriction(...)` read as a
+parameter, runs too (`WF.mo`). So the depth is met on the
+`from_dp = false` path, which computes `dp` from the flow through
+`pressureLoss_m_flow_and_Re` and `Utilities.regSquare2`, and not in
+the record. Shown small at the switch; the storey count of that path
+is not yet measured.
