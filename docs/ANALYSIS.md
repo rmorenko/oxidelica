@@ -87991,3 +87991,11 @@ that returns. Either the compiler's walk takes the not-found path at
 flattening (the file read was empty or not read), or its test of
 assignment does not count a branch inside a `while`. The message is
 the one to narrow first. Placed, not shrunk.
+
+One of the two readings is refuted small: a function that assigns its
+output only inside an `if` within a `while`, and ends the not-found
+path in `assert(false, ...)`, is evaluated for a parameter and runs
+(`/tmp/m724/small/WD.mo`). What is left is the other reading. The
+example scans a resource file through `loadResource` and
+`readRealParameter`, so the not-found path is the one a missing or
+empty read would take.
