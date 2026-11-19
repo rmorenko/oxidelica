@@ -91030,7 +91030,46 @@ fail in three ways. `ThreeSprings` and
 cycle with period two at t = 0 (one unknown jumps between -702 and -127,
 another between -0.0006 and -264.85), with the residual not falling.
 `RollingWheelSetPulling` runs away, its residual rising to 1e22.
-`Spice3.Examples.Nand` converges, linearly, the residual falling by
-about 2.7 per step at the end, and runs out of iterations at
-t = 3.75e-8. The ceiling of iterations, damping and the step are not
-touched here, so these are named and left.
+`Spice3.Examples.Nand`, in its refusing run at t = 3.75e-8, does both:
+stretches of linear fall by about 2.7 per step (iterations 7 to 26, and
+again 56 to 59) broken by jumps of a millionfold and more (at 1, 4, 27,
+29). An earlier reading of the same run as swinging, six jumps of a
+hundredfold in sixty steps, is the same run at the same t seen by its
+jumps rather than by its stretches; the two readings do not disagree.
+Nor is the cap its lever: with a budget of 200 the loop converges on its
+106th iteration and the model dies at the next point,
+t = 3.75000000525e-8, on a direction that will not descend, and 1000
+gives the same counts to the digit (`/tmp/m725/nand.env`,
+`nand_trail200.txt`). The ceiling of iterations, damping and the step
+are not touched here, so these are named and left.
+
+One more line on the transformer, because it bears on the names
+refusals carry. The pairing hands an initial equation that reaches no
+state any orphan when the model itself wrote the equation (the comment
+at `compile.rs`, grep `any orphan it reads will do`), and
+`core1.derHstat = 0` takes `core3.MagRel`, a state of a different core.
+Whether or not that is the cause, it is the source of a wrong name in
+the refusal: 21 initial equations and 4 fixed starts for 23 unknowns,
+with the two missing conditions reported against the cores that kept
+their `MagRel`, not against the equation that took the wrong one.
+
+### What the mechanisms of the day open, counted
+
+Counted over the mechanisms this shift named, with the parked repair of
+the shift before, not over the corpus: the late binding of a declaration (parked, measured
+win 0, three models moved one storey up), the constant `if` around a
+capacitor current (three models, threshold, no repair), the dead
+capacitor column (one), the friction at rest (one), the repeated row of
+the singular Jacobians (five of six), the initial equation that
+reaches no state (three), and the four ways of not converging (four),
+seven in all, with the pairing switches tried as controls on the
+amplifier, the tank of
+water and the transformer. Of these, none is shown to open a model.
+Every control that removed a candidate cause left the model refused,
+either with the same words (the amplifier, the transformer) or at a
+different wall (`SN21.mo`, the three `_analytic` models). The only
+mechanism of the period known to open models is question 130, already
+in the tree. So the count is one that opens against seven that only
+make a refusal truer. That is reported as found: a refusal that names
+its real wall is what lets the next shift dig there, and the catalogue
+of walls is growing faster than the measure.
