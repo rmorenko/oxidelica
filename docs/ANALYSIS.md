@@ -91432,3 +91432,19 @@ order of declaration decides. Which block of the initialization plan
 holds `x1` beside the loop is not printed. Level: small models with
 four controls and a probe of the branch; the repair is in the pairing
 and goes as a question.
+
+The block is printed by a second probe (`/tmp/m730/ox58`, not in the
+tree). For `J7` the initialization plan is one implicit block,
+`["y", "u"]`, with the residual `u = x2 + y`. Inside the block's walk
+the residual names `y`, an unknown of the same block, whose row is not
+filled until the block is done. `reached_by` in `compile.rs` answers a
+name with no row yet with every state (its fallback arm sets the whole
+row true), so `x1` is reported read, and among the over-reported
+states the first declared is taken. The mechanism is therefore: a
+conservative fallback for an unknown of the block itself, met by a
+pairing that accepts any orphan reported read. A walk that skips the
+block's own unknowns instead of answering all states would report only
+`x2` for `J7`; that is the question that goes forward, with `J3`,
+`J5` and `J7` as its tests. Level: mechanism named on small models,
+weight four of five initialization refusals by the init probe, not yet
+shown model by model to be this fallback.
