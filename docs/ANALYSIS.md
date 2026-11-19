@@ -87683,3 +87683,12 @@ a mode question. `RollingWheelSetDriving` runs 1113 iterations and
 reads NaN by line 11, the wheel-set loop of its sibling
 `RollingWheelSetPulling`. So four of the six stand at a singular slope
 at a start of zeros, a start the models leave to the default.
+The all-zero start is the shape of the refusal and not yet its cause.
+Three small models that carry the obvious suspects run: a complex
+modulus solved from a zero start (`/tmp/m724/small/ZC.mo`), the
+quasi-static half of `Rectifier` alone with its source current
+started at zero (`QR.mo`), and the same with the ramped zero-conductance
+load of the example (`QG.mo`). So the singular slope of `Rectifier`
+needs a part of the example these leave out (its transient AC half,
+or the polar conversion of the measured current), and the next step
+is cutting the real model down rather than growing these.
