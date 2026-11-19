@@ -92900,3 +92900,36 @@ is not a slow approach to a root. No guess the start tries lands in the
 basin, and the start at zero is the singular point of the geometry
 (zero length). Implementation quality, in how the guesses are seeded
 (seeding is not to be touched).
+
+### The other four singular Jacobians
+
+The same print on the remaining four of the kind
+(`/tmp/m733/trj_*.txt`, commands in `/tmp/m733/ud.cmd`), rank and null
+directions taken from the last Jacobian each trail printed:
+
+- `PumpingSystem`, 15 unknowns, rank 14: the null direction is
+  `pumps.s` alone. The pump's curve parameter does not enter any row at
+  that point, which is the mode-law shape again (the pump's `s` reads
+  flow or head by branch, and at a stopped pump neither row sees it).
+- `SMPM_CurrentSource`, 20 unknowns, rank 18, rows 3 and 6 all zero: the
+  null directions are `smpm.wMechanical` and the derivative of the
+  rotator angle. At a standing start the speed enters only through
+  products that are zero, so two rows carry nothing. Ours, a start at
+  zero speed.
+- `UniversalConstraint`, 44 unknowns, rank 40, row 41 zero and two pairs
+  of equal rows (12 and 15, 34 and 43): the null directions mix second
+  derivatives of the initial angle with the constraint's frame torques,
+  the joint-and-constraint over-determination met in the MultiBody
+  constraint chain.
+- `RollingWheelSetDriving`: the last Jacobian printed is 32 by 32 of rank
+  4, with null directions on a wheel torque and `body1.a_0[1]`. Rank 4 of
+  32 is far below what one missing equation gives, so this print is read
+  with care: the trail prints a Jacobian per attempt, and the last one
+  may belong to an attempt at a guess where most rows are flat. Not
+  claimed as the holder.
+
+So of six in the kind, five have a named holder: equal rows from
+coinciding mode laws (gear friction, diodes), a dead column or zero rows
+at a standing or stopped start (pump, machine), and an over-determined
+constraint (universal joint). All are ours in the sense of structure at
+the start point, none is the step.
