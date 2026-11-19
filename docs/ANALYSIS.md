@@ -87914,3 +87914,12 @@ in series, `SW3.mo` a three-phase switch into a star of inductors with
 no neutral return). So the switch beside an inductance is not enough;
 the magnetic converter is the part not yet put in a small model.
 Placed, three hypotheses refuted.
+
+The FundamentalWave machines narrow it further. `IMC_DOL` and
+`IMS_Start`, also switched through ideal switches, are built by
+`library check --only` with nothing refused, and so is
+`SMEE_Generator` (command in `/tmp/m724/fwtwin.env`). Their
+`_Polyphase` twins, which use the polyphase converter that has a
+single-phase converter in each phase, are the ones refusing. So the
+next small model to try is that converter behind a switch, and not
+the switch on its own.
