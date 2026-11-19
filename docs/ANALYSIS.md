@@ -88129,3 +88129,14 @@ refuse earlier, on `columns` given as `2:size(table, 2)` with
 the file is read, and behind it stands the same C function. All five
 need a C compiler this compiler does not call, and the refusal is the
 right answer.
+
+A correction to the `Nand` paragraph above, read from the code. The
+loop's Newton iteration builds a fresh finite-difference Jacobian on
+every one of its 60 iterations (`crates/oxidelica-sim/src/solvers/mod.rs`,
+grep `Finite-difference Jacobian of the residual`, inside
+`for iteration in 0..budget`), so the Jacobian is never stale and
+"wrong or stale" narrows to "wrong". A linear rate with a Jacobian
+rebuilt each step points at a Jacobian that is inaccurate: a
+difference step too coarse or too fine for the two internal MOS nodes,
+or a residual that is not smooth there. The ratio and the cap stand as
+measured.
