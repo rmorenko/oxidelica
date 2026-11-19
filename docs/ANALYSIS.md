@@ -91757,3 +91757,13 @@ to 242 s, one pair each and not resolved against the run's own noise.
 `cannot evaluate` to `structurally singular` at 0 to 76 s of run half.
 So all five analytic models move a floor up and none runs; the line on
 the heavy basket that the parked note owed is in it.
+
+The register of the 61 that flatten and do not run was taken again on
+the present tree (`/tmp/m730/rc61.env`, output `/tmp/m730/rc61_out.txt`,
+binary `ox61` built from `e458043e`) against the shift-720 register
+(`/tmp/m720/recensus_out.txt`, from `c5eb1463`). The code between the
+two moved by 289 lines added and 7 removed. Both print `of the 61 that
+flatten, 0 run`, and the rows with the model each names first are
+equal line for line. Time: flattening 942 s to 917 s, running 837 s
+to 834 s. So nothing landed since shift 720 reached any of the 61, and
+every row of that register is the one the chapter has already read.
