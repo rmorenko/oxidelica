@@ -91858,3 +91858,18 @@ on `ox61` and `ox63`: `S4.mo` (`w = 1/time`, start 0.5) gives `w = 2`,
 initial problem is not entered, and the plan of the run is evaluated
 at the start time. So the fault needs an `initial equation` or a block
 the regularity check solves, which is what the ten corpus models lack.
+
+Three more forms, and two of them lie outside the patch. `S9.mo`,
+`v = time` begun at `StartTime = -2`, starts at 0 on `ox61` and at -2
+on `ox63`, ending at 2 and at 0, the second being right. `S7.mo`, an
+initial equation `v = w` with `w = if initial() then time else 0`,
+starts at `v = 0` on both binaries where 0.5 is due, so `initial()`
+inside the plan is not true at the point the initial problem reads.
+`S8.mo`, a `parameter Real p(fixed = false)` given by `p = time` in
+the initial section, with `der(v) = -p*v`, holds `v = 1` throughout on
+both binaries where `exp(-0.25) = 0.7788` is due at the end: `p` is
+used as zero, which the unknown parameters of the initial problem
+were meant to prevent. These two are wrong numbers on the present tree
+that the parked patch does not repair; they are named here as two
+further faults rather than folded into the first. Level: small models
+only, causes not traced.
