@@ -91990,6 +91990,19 @@ incompressible medium, which is the shape the state swap exists for
 (`main.rs`, the comment over the second attempt), and the second
 attempt then fails in another way. Level: print, five corpus models.
 
+Shown small: `/tmp/m731/W1.mo`, two tanks of a liquid with the
+compressibility of water whose pressures are read from their masses
+through `d = d0*(1 + k*(p - p0)) + 1e-9*sqrt(p)`, refuses in the
+corpus's words, `the Newton direction of algebraic loop ["p1"] does not
+reduce the residual at t = 0.001`, the step cut to 1.5e-5. The trail
+shows the same road: from a finite point the first step lands at
+p = -2.8e5, where `sqrt` answers NaN, and the retreat never finds a
+finite point that descends. Each control changes one term and runs:
+`W2.mo` with a compressibility of 1e-5, `W3.mo` without the `sqrt`, the
+edge of the domain. So both terms are needed, the near-incompressible
+column and an edge the full step crosses. Level: small model with a
+control on each term.
+
 ### The twenty "constrains no state", by name
 
 The 20 rows of `/tmp/m714/rows.tsv` whose text is `constrains no state`
