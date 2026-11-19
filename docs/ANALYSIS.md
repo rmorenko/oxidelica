@@ -90700,3 +90700,11 @@ ordinary among running models, and it does not separate them on its
 own. In `TestJunctionTraceSubstances` what kills is that seed meeting a
 medium whose temperature search is bounded below it. That is one model,
 not a rule for the five.
+
+Correction to the matching lever above. `Spice3BenchmarkDifferentialPair`
+is in the gap file (`/tmp/m724/gap90.tsv`, a run-half line). The
+paragraph called it outside the 90 because the name was searched with
+a leading dot before `DifferentialPair`, which the full name does not
+have. The lever is therefore 3 + 2 + 2 + 1 = 8 of the 90, and in the
+debt table its row is 8 and the remainder of named walls without a
+mechanism is 40, the run half still summing to 57.
