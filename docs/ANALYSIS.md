@@ -92385,3 +92385,28 @@ to `SeriesPipes1` under `bdf`. The swap retries the print also caught
 1e-10 to 1.4e-9, again far above their floors near 1e-19. So nowhere
 on these seven does the acceptance demand fall below the arithmetic;
 the stalls are the iteration's.
+
+### The nineteen kinds of the run half, with a verdict each
+
+The 60 `flat` rows of `/tmp/m724/gap90.tsv` fall into 19 kinds by text.
+Each kind got one of three verdicts - ours, not ours, quality of the
+implementation - from the maps of m729 and m731 for the top three and
+from one `--only` run each for the tail (`/tmp/m732/tail.txt` for ten,
+`/tmp/m732/t20.txt` for twenty-three, `ox1` without a key). The table
+is in `/tmp/m732/rody.tsv`. Counted in models: ours 37, quality 18, not
+ours 5 (the media test sweeps that assert at t = 0 on a medium bound,
+and `TestSuddenExpansion`, whose library comment says it shows correct
+and wrong usage). The five rows the register called `new` are not one
+kind: two `MoistAir` refuse a singular initialization, `R134a1` and
+`R134a2` a Newton direction like the Fluid seven, and
+`HeatExchangerSimulation` a start block of 162 unknowns.
+
+One kind was taken to its cause by `why`. Both `der not state` models,
+`HeatingSystem` and `BranchingDynamicPipes`, carry an initial equation
+the library writes for a steady start, `der(tank.medium.T) = 0` and
+`der(pipe1.mediums[1].T) = 0` (`/tmp/m732/why_hs.txt`). The temperature
+is not the state the compiler chose there - enthalpy or mass and
+energy are - and an initial equation on the derivative of an
+algebraic variable is refused instead of being built from the states.
+That is ours: the specification lets `der` stand on any variable whose
+value is a function of the states.
