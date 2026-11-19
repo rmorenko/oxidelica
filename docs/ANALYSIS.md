@@ -89199,7 +89199,8 @@ algebraic loops of the run half: 18 models refuse in words that say a
 loop did not converge, the largest wall in the table above, and not
 one of them carries a number. Cut further down by how the Newton
 iteration moves, at most 13 of those 18 are a failure to converge,
-since three take no step and two refuse elsewhere. That is the answer to what to repair
+since three take no step (question 133) and two refuse elsewhere, and
+eight of the 13 are question 132. That is the answer to what to repair
 first, and it is not the one that was expected.
 
 ### The loops that do not converge: ThreeSprings, shown small
