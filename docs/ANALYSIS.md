@@ -92090,3 +92090,25 @@ untouched (the twenty above are another set). The singular family is
 the only one of the three still standing, and seven of its twelve are cut
 by the attempt ceiling. Beyond it no lever is proven in the run half, and its 57 models are, until probed, a scatter of kinds
 rather than families.
+
+### TestSuddenExpansion: two roots that the library means
+
+`TestSuddenExpansion` refuses at t = 0 with `algebraic loop
+["suddenExpansion1.m_flow"] has a solution on either side`, after one
+Newton line from `m_flow = 0` (`/tmp/m731/se.txt`). Its loss law is
+`dp_fg = m_flow^2/2 * (if m_flow > 0 then K1 else K2)`, and with the
+diameters 0.1 and 0.2 of the example the arithmetic from the library
+gives K1 = -6079 and K2 at most -15198: both negative, because the
+kinetic terms of an expansion outweigh its friction. A negative
+coefficient on both branches puts a root on each side of zero. The
+model's own documentation calls `suddenExpansion1` the wrong usage,
+kept beside `suddenExpansion2` to show that a plain `connect` to a
+reservoir drops the kinetic terms. Shown small: `/tmp/m731/E4.mo`,
+`dp = m^2/2 * (if m > 0 then a else b)` with `a` and `b` negative and the
+start at zero, refuses in the same words; `E5.mo`, the same from a start
+of 1, runs and settles on the positive root, and `E1.mo` with both
+coefficients positive runs. So the refusal names a fork the model
+really has, from a start that sits exactly on it. Whether the
+compiler should take the side the start leans to (`m_flow_start`) is a
+question of the start, not a defect. Level: small model with a control
+on each term, arithmetic from the library.
