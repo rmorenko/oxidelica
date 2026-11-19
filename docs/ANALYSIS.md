@@ -87494,3 +87494,21 @@ of the side port is not refused on its own, and the layer that refuses
 `BatchPlant` lies in what the synthetic copy left out: the medium, the
 stream terms, or the two other ports. The next step is shrinking the
 real model, not growing this one.
+
+### The R134a Newton refusal stands on a derivative count
+
+`R134a1` and `R134a2` refuse on a Newton direction in a loop of one
+unknown, `volume.medium.p`. The smallest model that does the same is
+`/tmp/m724/small/RB.mo`: an `R134a_ph` `BaseProperties` with `h` and
+`d` given, refused on `medium.p` at every density tried (50, 1000,
+1300, `RB*.mo`). Asking the medium directly, `density_ph(1e5, 107390)`
+(`RD.mo`), refuses earlier and names the layer: the derivative
+`dBubbleEnthalpy_dPressure_der_sat` of `bubbleEnthalpy` is said to take
+one input but takes two. `bubbleEnthalpy` has one input, the record
+`sat`, and its derivative takes `sat` and `der_sat`, which is one input
+and one derivative, exactly what the specification asks. So the count
+the compiler holds against the derivative has dropped the derivative of
+the record input. In the full model the same function presumably meets
+a path that does not refuse but differentiates wrongly, and the Newton
+direction it builds does not reduce the residual. The second sentence
+is an inference, not yet shown; the first is shown by `RD.mo`.
