@@ -88502,3 +88502,19 @@ second figure still carrying the `TF4` shape as ours elsewhere.
 the refusal is about a path the library means to fail on. A hand-made
 loop with the same shape and a found delimiter runs (`SD2.mo`). Which
 input of the corpus model takes the unfound path was not narrowed.
+
+### TestStreams writes a file and reads it back
+
+`ModelicaTest.Utilities.TestStreams` refuses with
+`this is line 1 is a String, and a String has no value an equation can
+hold`. Small in `/tmp/m725` (`TS.env`): a function comparing two
+protected strings runs (`TS1.mo`), and so does one that prints a string
+to a file (`TS2.mo`), but the file `/tmp/m725/ts2out.txt` is never
+written: the print is dropped without a word. A function that writes
+a line, closes the file and reads it back with `readFile` (`TS3.mo`)
+refuses with the corpus model's words, and again no file is written.
+The compiler reads files while flattening, before the run, so a file
+the model writes itself cannot exist when it is read; the refusal is
+the honest answer to that order. The silent drop of `print` to a file
+in `TS2` is a separate finding: the model ran and reported success
+while the output it was asked to write went nowhere.
