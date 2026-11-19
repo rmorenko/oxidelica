@@ -87200,3 +87200,11 @@ The 46 unmarked models that run today, by package
 `Blocks.Examples` 3, and single members elsewhere. They are spread
 over the library rather than one family, so an example filter would
 take models from every package that keeps helpers beside its examples.
+
+The dear list (`scripts/dear_models.txt`, 14) through the same probe,
+appended to `/tmp/m723/edge.tsv`: of the nine that run, one more sits
+under one decade, QuasiStatic `IMC_Transformer` at 8.75, the twin of the
+FundamentalWave one above; the rest are 4e4 or more. So over the main
+and dear sets, 7 running models have less than one decade of margin.
+`ONEBIT` passes this first test at 1e-5 and is refused later, so its
+refusal is not this test's. The heavy list was not probed.
