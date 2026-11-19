@@ -86915,7 +86915,18 @@ writes for the transition that feeds it (`StateGraph.mo`, the loop
 `inPort[i].occupied = if i == 1 then localActive else ...`). Standing
 alone the composite has no outer transition reading those ports, so
 the helper shape of question 66 again: one cause in four, plus
-`Fourbar1`'s own. `4 equations of loop`: Spice3 `DifferentialPair`
+`Fourbar1`'s own. Read further, the cause is in the library's text.
+`PartialCompositeStep` (`StateGraph.mo`:2631-2640) writes
+`inPort.occupied = false` and `outPort.available = false` when
+`cardinality(inPort) < 2`, a workaround its own comment says is for
+zero-sized connectors. Standing alone, each port has only its inner
+connection, so the condition holds. The same variables are then fixed
+by that inner connection too (`initStep.inPort[1].occupied =
+inPort.occupied`, `outPort.available = exitStep.outPort[1].available`),
+and those are the two equations the refusal names. Two too many, as
+counted. The four are refused rightly under the standard, which
+lowers the reachable ceiling by four. This comes from reading the
+text, not from running another tool. `4 equations of loop`: Spice3 `DifferentialPair`
 on `der(Q2.vbx)`, `RevoluteConstraint` and `PlanarFourbar` on joint
 orientation, and the RobotR3 helper `GearType2` on `bearingFriction.sa`,
 so at least three. `2 tsat`: both `TwoPhaseWater` models call `tsat`
