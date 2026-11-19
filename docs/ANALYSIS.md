@@ -89614,3 +89614,15 @@ the purpose would read the type of each unknown.
   one defect.
 - `FilterOrder`: whether the example filter should count a utility
   block, which is Roman's question (66).
+
+One item of that list was cheap enough to take at once. The trail of
+`SC2.mo` (`/tmp/m726/small/trail_SC2.txt`, `SCM.env`) starts its loop of
+eight unknowns from all zeros, with a residual of 28.3, and the first
+step sends the air-gap currents to -1.6e8 and the rotator angle to
+-7.2e8 with the residual at 1.4e14; the run then swings between 1e1
+and 1e14 for 361 steps. So the stalling machine is not a frozen
+direction: it is a start of zeros for the angle and currents, and a
+first step that the trigonometry of the rotator cannot follow. That is
+the shape `/tmp/m724` named for the singular-Jacobian row, a start of
+zeros, here met in a loop that does not converge rather than one that
+is singular.
