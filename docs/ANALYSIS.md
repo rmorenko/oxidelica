@@ -90461,3 +90461,23 @@ simple air and on the constant-property liquid. The plain line "a
 pressure-dependent density" does not separate them, since `N2` has one.
 What the two refusing media share beyond that is not named here. Five
 controls and two refusals, all of them small.
+
+The start system of `SN7.mo` against `SN8.mo`, read with
+`OXIDELICA_INIT_PROBE=1` (`/tmp/m728/SN7_probe.txt`, `SN8_probe.txt`,
+`SNprobe.env`). `SimpleNaturalGas` is a `MixtureGasNasa` with
+`reducedX = false` (`IdealGases/Common/package.mo`, grep `reducedX =
+false`), so all six fractions are independent unknowns and the volume
+writes six steady rows, `der(medium.Xi[i]) = 0`, beside
+`der(medium.p) = 0`. The compiler solves those seven rows as
+`der(mXi[1..6]) = 0` and `der(m) = 0`. Six fractions that always sum
+to one make the six mass balances add up to the total, so
+`der(m) = 0` is implied by the other six, and `volume.m` is left with
+no row of its own. That is exactly the refusal. With fixed composition
+(`SN8.mo`) only `der(medium.p) = 0` is written and is solved as
+`der(m) = 0`, so nothing repeats. So for the gas the mechanism is
+shown: a steady start on every one of `nX` unreduced fractions repeats
+the total mass balance. Whether the library's steady start is
+over-specified there or the compiler should have read `der(p) = 0` on
+another row is a question, not a repair, and it is not this shift's.
+IF97 water (`SN14.mo`), which has no fractions, refuses through
+another route that was not read here. Level: small model with a probe.
