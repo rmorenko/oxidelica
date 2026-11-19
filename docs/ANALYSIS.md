@@ -88759,3 +88759,16 @@ a difference the constraint itself holds at zero. So the three
 constraint-joint examples share a family of small models, but the
 corpus refusal of `UniversalConstraint` stands one step further than
 any of them and is not shown small (`UC.env`).
+
+`PumpingSystem` comes down to twelve lines (`PS1.mo`, `PS.env`): one
+`PrescribedPump` with a quadratic characteristic between two
+`FixedBoundary`s, steady in mass and energy, refused on a Newton
+direction over `pump.port_a.h_outflow` and `pump.V_flow_single` at
+t = 0. Started at `V_flow_single = 0.25` instead of the default zero
+(`PS2.mo`) it runs. So the start of zeros named above for the
+singular-Jacobian row is, for the pump, the whole of its wall in the
+small model; the corpus model's refusal is a singular Jacobian rather
+than a Newton direction, so the small model shares the cause and not
+the wording. `LossyGearDemo2` needs no small model: its own
+documentation says that with both friction elements stuck "there is no
+unique solution", which is the mode question already named.
