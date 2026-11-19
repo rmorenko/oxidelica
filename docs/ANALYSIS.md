@@ -88792,3 +88792,15 @@ is first is a question for a trace, and `OXIDELICA_WHERE` names only
 the solver that met the NaN (`solvers/mod.rs`), not the stage that
 wrote it. Its weight is the three small models (`UC1.mo`, `CS3.mo`,
 `UC3.mo` with `SC3.mo`); no corpus model is yet shown to refuse on it.
+
+A trace then chose between the two (`/tmp/m726/ox45`, an `eprintln`
+outside the tree at both places, `DIV.env`, output `div_UC1.txt`). On
+`UC1.mo` the first division by the positional difference is made by
+`solve_linear_known`: it solves `c.frame_a.R.T[3,3]` out of
+`r_rel_a = resolve2(frame_a.R, frame_b.r_0 - frame_a.r_0)` with the
+slope `-(c.frame_b.r_0[3] - c.frame_a.r_0[3])`, a difference the
+constraint holds at zero (the 100th line of the trace). The square
+comes later, from the quotient rule differentiating that solution (line
+835 on). So the slope's test asks whether the coefficient is zero as
+written and cannot see that another equation of the same model makes
+it zero. That is the place; it is not edited.
