@@ -89533,9 +89533,11 @@ models won if the compiler were mended. The instrument that would
 price it is a step bounded at the physical limits of the medium, and
 that clamp is not this shift's to switch on, so the price is not
 measurable without Roman's word on it. What the measurement does give
-is a ceiling on what a perfect repair could buy: `BranchingPipes4` goes
-on to a second wall, so even then it buys three of the four, and
-carried over the eight that is near six and not eight. A wall counts
+is a fork on what a perfect repair could buy, measured and not carried
+by proportion: five shown running whole under the swap (the floor), one
+refuted (`BranchingPipes4`, behind a second wall), and the two `R134a`
+not measured, so between five and seven of the eight, and every reading
+of it still about a changed model, not a mended compiler. A wall counts
 as gone only when the model runs whole.
 
 `TestJunctionTraceSubstances` is a row of its own and not part of 132:
@@ -89544,3 +89546,13 @@ moist-air enthalpy inversion whose `solveOneNonlinearEquation` is not
 bracketed. That depends on neither the step nor the liquid. If the
 sieve now running finds others like it, they are a candidate for a
 question of their own.
+
+A warning about the two cuts of the 18. The first (`classes18.txt`,
+`classes18_full.txt`) describes each model's longest Newton run, and
+the second (`classes18b.txt`) the run at the instant its refusal names.
+For several models these are different blocks at different instants:
+`TestTemperature1` reads `f0 = 0.0142` in the first and `f0 = 0.283`
+at `t = 0.0002` in the second, and `BranchingPipes3` reads
+`f0 = 3.74e-4` in the first and `f0 = 3.68` at `t = 0.0008` in the
+second. The two tables are not to be compared column by column. Only
+the second speaks of the block that refuses.
