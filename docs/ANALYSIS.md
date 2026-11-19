@@ -92605,3 +92605,13 @@ of 16 `TestsWithFluid` media models run, `SimpleNaturalGasFixedComposition`
 among them (`/tmp/m732/bdf855_off.txt`). It is the same gas with
 `fixedX = true`, so no mass fractions are states and no redundant `m`
 arises; the one that refuses is the one whose fractions are all free.
+
+### The wide handoff on all sixty refusals
+
+`OXIDELICA_EDGE_HANDOFF=all` on the sixty `flat` rows of the gap
+(`/tmp/m731/run60.list`, `/tmp/m732/e60_on.txt`, command in `e60.env`,
+binary `/tmp/m732/ox1`): one model runs, `BranchingPipes3`, the same one
+the seven showed. Against `bdf` on the same sixty (four, m731) the wide
+handoff wins less; against the default (none) it wins one. Its price on
+the 855 that run is not measured; the m410 comment and question 2
+above stand.
