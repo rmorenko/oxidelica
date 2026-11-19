@@ -87876,3 +87876,13 @@ zeros for `q_fp1`, `q_fr1..3`; the op-amp adds `v_source = q_fp1` and
 and `resistor2.i = 0` is the one that has to reach `v_in` through the
 circuit (`v_in = Rdm*i_r2`). The compiler's Newton step does not see
 that path. Placed, not shrunk.
+
+`MultiBody.Examples.Elementary.ThreeSprings` refuses with a loop that
+does not converge, but the first Newton line already reads `|f|=NaN`
+at `t=0` (`/tmp/m724/ts.txt`, command in `/tmp/m724/ts.env`). The NaN
+entries sit at positions 19 and 22, where the unknown list names
+`spring2.lineForce.s` and `spring2.e_a[3]`, both guessed `0.0`. That
+reads as a line force with length zero dividing to its unit vector,
+the all-zero start of the singular-Jacobian family. The matching of
+residual to unknown by position is an assumption, so this stays placed
+rather than shown.
