@@ -89794,3 +89794,15 @@ for Roman and not this shift's. `Essotherm650` breaks `Pr`'s `max =
 itself may be wrong, and it needs its own probe. The other kinds are
 placed by text only, with no small model and no trail, so they are
 candidates and not mechanisms.
+
+`Essotherm650` joins the first row by arithmetic outside the compiler.
+Its table gives viscosity as 14370 at 0 degC and 1917 at 20 degC, with
+heat capacity near 1800 and conductivity near 0.13. Fitting the log of
+viscosity against inverse temperature, as `TableBased` does, and
+dividing out gives a Prandtl number of 2.7e7 at 20 degC and 4.6e5 at
+100 degC, against a declared `max = 1e5` (`Modelica/Media/package.mo`,
+the `PrandtlNumber` type). The compiler's 1.95e7 sits inside that
+range. So all three of the first row are the library's data breaking
+the library's own bound, and none is a wrong number from the compiler.
+The row weighs three models and is a question about whether a broken
+`min` or `max` refuses, not a defect to repair here.
