@@ -87801,3 +87801,14 @@ current (`/tmp/m724/small/TH.mo`, nine lines) is refused in exactly
 those words, branch `10000*(iGK - 0.95*IGT)*vAK` in W against `10*vAK`
 in V. The constant 10000 carries a unit of 1/A that the library does
 not declare, so the error is the library's, and the refusal is right.
+
+`ModelicaTest.Media.TestAllProperties.SimpleAir` refuses on the
+library's own text as well. `Media/package.mo` (grep `R_gas*Modelica.Math.log(p/reference_p)));`)
+writes the ideal-gas `setState_psX` as `T = exp(s/cp_const +
+log(reference_T) + R_gas*log(p/reference_p))`: the first two terms are
+pure numbers and the third is a gas constant in J/(kg K), so the sum has
+no unit, and the right term would be `R_gas/cp_const*log(...)`. Shown
+small: `setState_psX(1e5, 100, {})` alone (`/tmp/m724/small/SA.mo`)
+is refused in the same words. A unit error in the library, and the
+refusal is right; three of the 91 now stand on such errors (two
+thyristors and this one).
