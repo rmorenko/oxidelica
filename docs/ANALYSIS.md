@@ -89749,3 +89749,16 @@ flattened form but does not go red without the catcher, since the old
 path also reduced these small calls to their actual argument; no
 library-free model reaching the bare refusal was found, so the corpus
 pair is the witness, as the notes say it must be for such paths.
+
+Two readings added after the judgement. The first pair was taken with
+a greedy catcher that also swallowed malformed calls, so its won model
+could have been bought by masking a lawful refusal. The rule was named
+before the second pair landed: the same gates (986 / 855) and the same
+name mean a real win. `c2_on.txt` gives exactly that, so the win
+stands. And the work of the repaired catcher equals that of the greedy
+one in all nine counters, so its price is the one given above in units
+of work, no counter moved by more than 0.033%; the time of the two
+pairs moved with opposite signs on both halves and is weather, not
+price. Three hand-picked witnesses (`HC1`, `PO`, `PID_Controller`)
+passed the greedy catcher that the test suite refused, so witnesses
+speed up a refusal and do not replace the full preflight.
