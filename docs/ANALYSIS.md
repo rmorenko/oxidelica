@@ -89083,6 +89083,30 @@ model says about its states on both sides, the switch and the hand,
 and what stands behind is a model the library itself warns about.
 Counted over the twelve structural refusals among the 60: two move on
 state selection (`FullRobot`, `PointGravityWithPointMasses2`), the
-others hold under the switch, and of the five shown small with a
-stated selection, three hold under the hand as well (`OA9.mo` aside,
-which is the initializer). Not a family: two of twelve.
+others hold under the switch, and of the three checked by hand two
+hold (`RW2.mo`, `WS2.mo`) and one moves (`PG6.mo`), with `OA9.mo`
+kept apart because it also switches the initializer off. Not a
+family: two of twelve.
+
+The switch moved five walls and bought no model, which is the shape
+this repository already has a sentence for: a repair that takes a
+family one storey up moves no count at all, and the models still
+refuse, at the next wall. Stated once and plainly: `prefer` as a
+family, no, measured on 60 of the 91 as a pair from one binary.
+
+That leaves an apparent contradiction to settle, since `OneAxis` did
+not move under the switch while `OA9.mo`, the spring at default by
+hand, lost its structural refusal. The two instruments agree once the
+initializer is held equal (`OA.env`). `OA7.mo`, the initializer off,
+under the switch gives what `OA9.mo` gives by hand, the structural
+refusal gone and an initialization that is not square
+(`out_OA7k.txt`). And `OA10.mo`, the spring at default with the
+initializer kept, holds the library model's own refusal on
+`axis.gear.bearingFriction.w` (`out_OA10.txt`), exactly as the switch
+did. So `OneAxis` has two walls, one behind the other: in front, the
+initializer's, which state selection does not move; behind it, the
+spring's, which it does. `FullRobot` has no initializer in front of
+the spring, which is why it moves under the switch and `OneAxis` does
+not. The joining of the two above was made on the refusal at
+`spring.phi_rel` and stands; their different answers to the switch
+are the wall in front, not a refutation.
