@@ -90049,3 +90049,18 @@ with the high port leading to a second open tank (`VT2.mo`). The
 closed high port alone is therefore not the wall, and what
 `TanksWithOverflow` and `BatchPlant` add to it (the overflow pipe, the
 inner tank sides) is the next thing to keep while shrinking.
+
+Shown small: `VT3.mo` (`/tmp/m727/vt`, same `vt.env` command), two open
+tanks each with one port at `height = 6` above `level_start = 2`,
+joined by the overflow pipe of the corpus model, refuses with the
+corpus words, `b.ports[1].m_flow = 0` constrains no state. With both
+ends in the closed branch, the pipe's flow is fixed to zero from each
+side and its pressure drop is left free, which is singular only for
+the branch taken at the start. The library writes the switch as an
+`if` over `s[i]` so that the two branches together keep one structure;
+the compiler picks the branch at the start (`pre_as_now`) and sorts
+that branch alone. So this is a compiler question, of how a mode
+equation chosen by condition is matched, and it weighs two models
+(`TanksWithOverflow`, `BatchPlant_StandardWater`). It is a new
+numbered candidate for Roman and is not repaired here: matching is not
+this shift's to change.
