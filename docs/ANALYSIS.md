@@ -89637,3 +89637,27 @@ three are the derivative of an entry of a relative rotation matrix. So
 this row is a matching question, a derivative handed to a block that
 does not contain it, and not a convergence one. Read from the text
 only; nothing was run for it.
+
+### Question 133, and the 18 taken apart whole
+
+Question 133: a block holds a derivative that no equation of the block
+mentions, so nothing in it determines that unknown and the Newton
+iteration takes one step and stands. Weight three of the 92:
+`RevoluteConstraint` and `PlanarFourbar` (`der(R_rel.T)`) and
+`Spice3BenchmarkDifferentialPair` (`der(Q2.vbx)`). Level of proof: the
+refusal text alone, no run made for it. It is a matching question and
+goes to Roman as one; matching is not this shift's to change.
+
+With it the 18 that refuse in words of non-convergence come apart in
+full: 13 that fail to converge, 3 that are question 133, and 2
+(`TestTemperature1`, `DynamicPipeClosingValve`) whose refusing block
+the first cut did not reach. Of the 13, eight are question 132.
+
+A start from zeros was counted where the kept trails hold values
+(`ss/zero_start.txt`): of 27 first blocks at `t = 0`, 17 start with
+every unknown at zero, `SC2.mo`'s shape among them. This is not yet a
+mechanism. The first block printed is not always the block that
+refuses, the 18 loop trails kept no values to count, and there is no
+control from models that run, where a start of zeros may be just as
+common. So it stays a candidate, with that control as the next
+instrument.
