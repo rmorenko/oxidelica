@@ -92215,3 +92215,17 @@ a Newton direction, so a handoff on that kind too would reach them
 while leaving the models that run on the default alone. The fourth,
 `floor three`, is not covered by that reading. No change was made to
 `auto`; that is behaviour and goes to Roman.
+
+The fourth winner, read from what was already traced and not run
+again: `PolyphaseRectifier` refuses under the default as a block
+accepted on the arithmetic floor after three steps
+(`/tmp/m731/bdf_off.txt`), and the earlier trace
+(`/tmp/m729/ud_PolyRect.txt`, section "More of the run half") shows the
+point had run away by t = 4e-5, node voltages near 1e13. A refusal that
+follows a run-away of the explicit steps is a stiffness symptom, which
+an implicit method would plausibly not reach, so the four look like two
+different occasions rather than one: a Newton direction on the Fluid
+three, a run-away on the rectifier. The same refusal text, the floor
+after 60 iterations, is also what `ThyristorBridge2mPulse_RLV_Characteristic`
+meets under `bdf`, so the wording of a refusal alone cannot be the
+feature `auto` chooses on. Both are readings, not measurements.
