@@ -91747,3 +91747,13 @@ near it. So the corpus pair agrees with the small pair: the guarded
 current is harmless where the capacitance is set away from zero, and
 refuses where it is zero at the start. Level: one running control by
 reading the source, not run apart.
+
+The heavy basket under the parked array repair
+(`/tmp/m730/hv_off_<model>.txt` and `hv_on_<model>.txt`,
+`--with-heavy`, `ox60`, cap 40 minutes): `Engine1b` and `EngineV6` are
+refused in the same words in both halves, run half 81 to 83 s and 238
+to 242 s, one pair each and not resolved against the run's own noise.
+`Utilities.EngineV6_analytic`, the fifth of the row, goes from
+`cannot evaluate` to `structurally singular` at 0 to 76 s of run half.
+So all five analytic models move a floor up and none runs; the line on
+the heavy basket that the parked note owed is in it.
