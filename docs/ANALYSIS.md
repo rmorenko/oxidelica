@@ -88081,3 +88081,20 @@ Machines `SMPM_CurrentSource` shown by trail, and
 `readRealParameterModel` placed. That makes 16 shown small, 13 by
 trail or text, 18 placed, 5 carried and 2 by `why`. 37 have a named
 wall and nothing more.
+
+`Clocked.Examples.CascadeControlledDrive.AbsoluteClocks` is shown
+small. Two exact clocks, `Clock(10, 1000)` and `Clock(2, 1000)`, one
+partition on each, and a `superSample` without a factor carrying the
+slow one onto the fast side. That is refused in the corpus model's own
+words (`/tmp/m724/small/CK5.mo`, eleven lines). With the factor
+written out, `superSample(a, 5)`, the refusal moves and turns on itself
+(`CK6.mo`): `c` is "written on two clocks at once, one ticking every
+0.002 and one ticking every 0.002". So the compiler takes two clocks
+of the same rational interval, made by different constructors, as two
+base clocks. The example is written precisely so that its exact clocks
+are compatible, and a name it gives in its own description says so.
+Whether two such constructors must share a base partition is a
+reading of chapter 16 to settle before calling it a defect. Two side
+findings from the same probes: a named clock in `sample(u, c1)` runs
+(`CK4.mo`), and an inline `sample(u, Clock(10, 1000))` is read as the
+Boolean `sample` and refused (`CK2.mo`).
