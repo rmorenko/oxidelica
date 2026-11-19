@@ -89427,3 +89427,16 @@ answer about the example filter: kept in the universe it is not ours
 to repair, and taken out it shrinks the universe and the ceiling by
 one. So seven named models stand against at most 69 reachable, 62
 without a number, and the bound does not wait on that decision.
+
+The first classification file was keyed by the short name, and the two
+`SMPM_CurrentSource` models, one in `Electrical.Machines` and one in
+`Magnetic.QuasiStatic.FundamentalWave`, collided in it. The same rows
+keyed by full path are in `/tmp/m726/ss/classes18_full.txt`, and the
+cut at the refusing instant (`classes18b.txt`) was keyed by full path
+from the start. Within the ten that stall in the first cut, three never
+improve on their first residual (`BranchingPipes2`, `BranchingPipes4`,
+`RollingWheelSetPulling`) and four end worse than they began (those
+two of the three, and both `SMPM_CurrentSource`). A ratio near one over
+the last steps cannot tell a frozen run from one that blew up and then
+froze, which is why the second cut, at the refusing instant and by
+first step, is the one to read.
