@@ -91721,3 +91721,17 @@ coefficient is a conditional (`if m_bInit then 0 else c*der(vbx)`),
 which the earlier small models of this chapter showed to decide
 whether the derivative leaves the symbolic solve. Level: five small
 models, the corpus refusal not reproduced.
+
+With the conditional added, the shape turns red. `Q7` (`c = time`),
+`Q10` (`c` zero before `1e-9`) and `Q12` (`c = v*v`, zero at the start
+value), each with `i = if b then 0 else c*der(v)` and `b` a constant
+`false`, are refused as `underdetermined algebraic loop ["der(v)"]`.
+The controls run: `Q8`, the same conditional with a parameter `c = 0`,
+and `Q9`, with `c = 1e-3 + time`. So the two terms together, a
+conditional with a constant condition and a coefficient that is a
+variable zero at the start, put `der(v)` in a numeric block whose
+column is dead. That is the text of the three Spice3 transistors
+refused as underdetermined above, and the same block as
+`DifferentialPair`'s, whose text differs only in which of the two
+checks sees the dead column first. Level: small models, three red and
+two controls; the corpus text `do not mention` itself not reproduced.
