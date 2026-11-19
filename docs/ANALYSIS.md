@@ -87920,6 +87920,10 @@ The FundamentalWave machines narrow it further. `IMC_DOL` and
 `library check --only` with nothing refused, and so is
 `SMEE_Generator` (command in `/tmp/m724/fwtwin.env`). Their
 `_Polyphase` twins, which use the polyphase converter that has a
-single-phase converter in each phase, are the ones refusing. So the
-next small model to try is that converter behind a switch, and not
-the switch on its own.
+single-phase converter in each phase, are the ones refusing. That
+split covers two of the four: `SMEE_DOL` and `SMEE_Rectifier` are no
+`_Polyphase` models and refuse while `SMEE_Generator` runs, so for
+them the difference lies elsewhere (`SMEE_DOL` switches the machine on
+through ideal switches, `SMEE_Rectifier` feeds ideal diodes). The
+next small model to try is a converter behind a switch, and not the
+switch on its own.
