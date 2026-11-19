@@ -90739,3 +90739,21 @@ the springs' relative positions at zero. The guard has since let the
 block get past it, so the refusal moved from a NaN before any step to
 a two-cycle at the start. The model went up a storey, not to a new
 family.
+
+Two more of the run half, traced on `ox51`. `AmplifierWithOpAmpDetailed`
+(`/tmp/m728/aod.txt`, `OXIDELICA_INIT_PROBE=1`): the library writes
+`resistor2.i = 0` as an initial equation, and the start pairs it with
+`opAmp.v_in`, which is then reported unpinned. A current through a
+resistor is pinned by the voltage across it, so the row meets
+`v_in` only through the circuit, and at the start point that path
+carries no slope. Level: probe and `why`, a reading of the pairing.
+The FundamentalWave `SMEE_DOL` (`/tmp/m728/smee_fw.txt`, full path;
+a first probe took the Electrical `SMEE_DOL` by its short name and
+found it running, which it does in `/tmp/m727/c2_on.txt` as well) has
+42 Newton lines, all at `t = 0`, with every unknown near zero (1e-27
+to 1e-33) and the residual falling to 9.5e-11. So the start converges
+on the all-zero point of a machine switched off, and the loop is then
+refused as underdetermined there: a switch open and a converter at
+zero current leave the magnetic voltages without a slope. That fits
+the switch-beside-converter reading placed above, now with a trail.
+Not changed.
