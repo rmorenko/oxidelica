@@ -88426,3 +88426,22 @@ variable of type `Clock`; a `Clock(...)` written in place falls to the
 event `sample(start, interval)`, and a named `clock` argument is not
 known at all. That is the boundary of the defect in sample overloading,
 for the question. Nothing was changed.
+
+### RAM shrunk to nine lines
+
+Throwing parts out of `DLATRAM` while the refusal survives
+(`/tmp/m725/RM.env` lists every step) ends at `SC7.mo`: a component
+`r` with `parameter String s = "7 1"` and an algorithm
+`b := Modelica.Utilities.Strings.scanInteger(s, 1)`. It refuses on
+`ModelicaStrings_scanInteger$nextIndex`. The same line as an equation
+in the component (`SC8.mo`) runs with `r.b = 7`, and the same algorithm
+at the top level (`SC9.mo`) runs with `b = 7`. So the wall of `RAM` is
+an algorithm of a component reading a String parameter, not the depth
+and not the function: the copies of `getMemory` at the top level all
+run, and they refuse as soon as they are put inside a component
+(`SC1.mo`). A probe binary printing unanswered outside calls in the
+string layer's fold (`/tmp/m725/ox40`, `str.env`, output `str.txt`)
+shows the call reaching it as `r.s` with no settled strings in both
+`SC7` and `SC8`, so that fold is not where the two part; the
+difference lies in how a component's algorithm is carried, and the
+next probe belongs there.
