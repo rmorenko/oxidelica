@@ -88060,3 +88060,15 @@ derivative taken through it (`PD.mo`). What remains between `PD.mo`
 and `WP4.mo` is the pipe itself, its medium states and the
 `data` record bound with `final` inside a `BaseModel`, so the next cut
 is made on the pipe class and not on the functions.
+
+The cut lands on `homotopy`. Wrapped in `homotopy(..., 100*m)`, the
+loss call reaches the depth on its own, seven lines with no pipe and
+no medium (`/tmp/m724/small/PO.mo`). The same call without the wrapper
+runs (`PR.mo`), and so does `homotopy` over a small function of its own
+(`HS.mo`). With the `if use_Re` choice inside the wrapper, the refusal
+names `data.zeta2_at_a` exactly as the corpus model does (`PH.mo`).
+The compiler lowers `homotopy` to its first argument
+(`crates/oxidelica-parser/src/flatten/names.rs`, grep
+`name == "homotopy"`), so the value is not what changes. The question
+left open is why the depth runs out when the same call sits under the
+wrapper. Shown small: `PO.mo` against `PR.mo`.
