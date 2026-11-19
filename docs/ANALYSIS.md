@@ -92161,3 +92161,18 @@ whole measure. This series has no corpus pair, so the default method is
 not touched and the four are an upper bound of a win under a probe, not
 a win. The question for Roman is whether a pair under this key may be
 run. Level: probe pair on sixty corpus models, one binary.
+
+Small against corpus, the sixth time in two days: `bdf` rescues the
+small `W1` and does not rescue `SeriesPipes1` run alone by `simulate`,
+which refuses under it at t = 5.1e-6 from |f| = 3.3e-10. Whether that
+residual is above what can be asked is a question left open, with the
+one number at hand. A block is accepted when every row has
+`|f_i| <= 1e-10 * (1 + |v_i|)` or `|f_i| <= 1e-12 * (|lhs_i| + |rhs_i|)`
+(`solvers/mod.rs`, grep `An equation is solved when its two sides
+agree`); the first half pairs row i with unknown i, and the unknowns of
+this block are pressures near 5e5, a pressure drop near 7.7e4 and a
+volume flow near 2.4, for which the first half allows about 5e-5,
+7.7e-6 and 3.4e-10. A norm of 3.3e-10 is below all three, so the
+refusal is not obviously an unreachable demand, and which row held it
+back at that point was not printed. The acceptance test is under the
+ban; this is a question and not a finding.
