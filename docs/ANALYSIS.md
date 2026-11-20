@@ -93478,3 +93478,19 @@ solver at t = 4e-5 on a diode loop accepted on the arithmetic floor
 (`/tmp/m734/pr_default.txt`). So the `bdf` default gains exactly one model
 that runs to its stop time, and the rest of what its pair counted is the
 ten-step check moving.
+
+### How many corpus "ran" run to their stop time
+
+A first sample, since the three paragraphs above turn on it: every 43rd
+name of the 855 `ran` lines of `/tmp/m732/bdf855_off.txt` (19 models,
+`/tmp/m734/sample20.list`), each through `simulate` under the default
+solver to its own stop time with a 3-minute ceiling (`sm_*.txt`, commands
+in `samp.cmd`, verdicts in `samp_result.txt`). 16 finish. Two are refused
+on the way: `Dimmer_RL` by the evaluation budget at t = 0.0011, and
+`HeatingNPN_NORGate` by a 60-iteration loop. One, `IMC_Transformer`, was
+stopped by the 3-minute ceiling, an inequality and not a refusal. So in
+this sample 16 of 19 corpus "ran" models run to the end within three
+minutes and at least 2 of 19 do not run to the end at all. That is
+nineteen models and a ceiling, too few to put a number on the 855; what
+it does settle is that "ran" in the floors is a ten-step claim, and that
+the gap between it and a run to the stop time is not empty.
