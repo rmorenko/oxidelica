@@ -95934,3 +95934,58 @@ one model. The red test is in `park/m740_time_scaled/` and goes to Roman
 as a question, since event handling is his to open and a winning change
 in the same comment was rolled back once already
 (`park/m723_time_knee.txt`).
+
+## 2026-11-20, shift 697: the on-the-way refusals by kind, the capped models rerun, and item 34 probed
+
+The 57 refusals on the way to StopTime in `park/m740_reach855_full.tsv`
+(56 the compiler's and one the `extends` wrapper's lost `ph_explicit`)
+were sorted into kinds by the first error line of each log, with
+nothing run again. The kinds and the number of models in each: step
+size underflow 8, a Newton direction that does not reduce the residual
+8, states re-selected to different variables 7, an equation that
+constrains no state 7, more than 10000 events in one output interval 6,
+`3 * lszero.i = 0` of the machine zero-sequence inductor 5, the table
+tests' exact-zero assert 4, equations of a loop that do not mention its
+unknown 3, a derivative of order four 2, the Newton budget 2, and one
+each of a singular Jacobian, a non-constant exponent, the evaluation
+budget, the arithmetic floor and the wrapper artifact. Each of those is
+a row of the census and not a family, since none was probed. Two lines
+were first put under no kind at all, because the table column cuts the
+text at 300 characters and their keyword came later. The kind is now
+read from the whole log line.
+
+Grepped by full model name in both queue files, 48 of the 57 are named
+nowhere, and 9 are named nowhere even by the last part of the name. The
+seven names the sample of shift 696 found entered the queue by their
+tails at 21:57, so before then 55 of 57 had no full-name entry. Per
+model: `park/m741_path_refusals.tsv`.
+
+The 26 that the two-minute cap cut were run again at 6 minutes, and
+the 8 still cut at 15. 19 reach StopTime (13 within 6 minutes, 6 within
+15), 5 refuse on the way after 2.7 to 4.6 minutes each (Spice3
+`Inverter`, `Nor` and `Oscillator`, `BevelGear1D` and
+`TestWaterPumpDCMotorHeatTransfer`), and 2 are still cut. Those two are
+cut for different reasons. The QuasiStatic `IMC_Transformer` ran out of
+time at 15 minutes. `TestTruncatedDistributions` ran out of memory at
+41 seconds, 6.4 GB against a 6 GB cap, so it is no evidence of being
+slow at all. The table names the two kinds apart, `capped-time` and
+`capped-mem` (`park/m741_capped26.tsv`). Of 854, 791 now reach StopTime,
+61 refuse on the way for certain, and 63 is the upper bound on those
+that do not reach it.
+
+Item 34 was probed outside the tree. `clock_of` in `events.rs` was
+taught to read `time / d` against a parameter side as `time` against
+`side * d` when `d` is a known positive parameter, behind
+`PROBE_TIME_SCALED`. On the twelve-line model it works as written: the
+relation goes from a crossing to a time event. On the five
+`ModelicaTest.Tables.*.Test12` it changes nothing. The four that reach
+StopTime write byte-identical CSV with the probe on and off, and
+`CombiTimeTable.Test12` refuses with the same `err1.y = 1.67e-9`. The
+reason is in `why`: the table compares `t_new.timeScaled < 0.5`, where
+`timeScaled` is an algebraic variable bound by
+`timeScaled = time / timeScale`, so `time / d` never reaches
+`clock_of`. Item 34 as stated wins no model. Winning this one would
+mean seeing through an alias, which is a wider change. The patch,
+its note and the numbers are in `park/m741_p34_probe.patch`,
+`m741_p34_price.tsv`; nothing of it goes to main, since event handling
+waits on Roman's word and the heavy half is not measured.
