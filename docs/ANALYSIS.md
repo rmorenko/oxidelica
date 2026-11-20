@@ -95392,3 +95392,15 @@ None of the twelve has a text that names a stall or a time past zero as
 its kind. So twelve of 65 rows of a census read by text are filed with
 models that never ran, and that is the figure, replacing the 9, 10 and
 11 written above as it was approached.
+
+The four mid-run structural refusals against p.4's site print
+(`/tmp/m738/site.tsv`, binary `oxs`). `SMPM_ResistiveBraking` met
+`dopri.rs:806` (`selection_sound`) at t = 0.0046, and its structural
+refusal comes at 0.0047. `Engine1a` met it at t = 0.001, and its refusal
+comes at 0.001. So for these two, the solver asks for the state selection
+to be redone, and the redone reduction is what refuses with the
+structural text. `FullRobot` met `dopri.rs:761` at t = 2.6e-14, a
+different site, and refuses at 0.001. `ActuatorWithNoise` printed no
+Dopri site. That is two of four tied to one line by two instruments,
+which makes the reselection path the place where the structural text
+should carry its time.
