@@ -93019,3 +93019,43 @@ names, three of five are a volume's `U` or `m` (the `reducedX = false`
 redundancy read above) and one is `opAmp.v_in`. The five lines the
 sections above probed by hand (3009, 2764, 1820, 3065, 2769) hold 26 of
 the 60.
+
+### The singletons of the sixty, read from their refusals
+
+The one-model lines of the table, read from the refusal text in
+`/tmp/m733/sw/` alone, no further probe:
+
+- `FlueGasSixComponents` and `TestAllProperties.MoistAir` fail an assertion
+  at t = 0 that `dddX[1]` went below its minimum of 0 (-1.21 and
+  -0.71). `dddX` is the output of `density_derX`, the derivative of
+  density with respect to mass fraction, and the library declares it
+  `Density[nX]` (`Media/package.mo:4435`), whose type carries `min = 0.0`
+  (`Units.mo:298-302`). A derivative of density can be negative, so
+  the minimum belongs to the type and not to the quantity. Not ours: a
+  library defect, to go as a question, the library not being ours to
+  change.
+- `Essotherm650` fails `Pr` above its max of 1e5 with Pr = 1.95e7, at
+  t = 0, in an incomplete medium. Not ours (likely), as the register had
+  it.
+- `PolyphaseRectifier` and `ThyristorBridge2mPulse_RLV` stop at the door
+  for a block accepted on the arithmetic floor outside a validated
+  solve, found underdetermined: ideal diodes and thyristors whose `s`
+  the floor does not determine. The coinciding switch laws of the
+  singular section, seen at the floor instead of in the Jacobian.
+- `TestSuddenExpansion`: the loop on `suddenExpansion1.m_flow` has a root
+  on either side at t = 0 and the equations do not say which. A
+  flow-reversal law with two answers at the start.
+- `ControlledMixingUnit`: `inverseBlockConstraints.u1` assigned twice in
+  one `when sample(0, 1)` and `y2` never. The refusal names its own
+  reading: one equation was meant for another name. Ours, in how an
+  inverse block's constraint is bound.
+- `Fourbar1`: 1999 equations for 1990 unknowns, nine left over on
+  `frame_a.r_0` aliases of three bodies. Ours.
+- `OneAxis` and `SMPM_ResistiveBraking` at `compile.rs:3039`: the
+  structurally singular message of `3040` without the subset tried,
+  `OneAxis` on `bearingFriction.w = Jmotor.w`, the gear friction of
+  `GearType2` again.
+- `HeatExchangerSimulation`: a start block of 162 unknowns stalled on
+  the floor (`solvers/mod.rs:1653`), the start-stall refusal.
+- `DynamicPipeClosingValve`: initialization did not converge in 50
+  iterations (`compile.rs:10462`).
