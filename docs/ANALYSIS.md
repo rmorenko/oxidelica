@@ -93457,3 +93457,14 @@ what the ten-step check with its retry says. A comparison of solvers
 that is meant to be read as "models that run" wants `simulate` to the
 stop time beside the corpus pair; the pair alone counts passes of the
 check.
+
+The carrier, measured as far as one run allows: the three models through
+`library check --only-from /tmp/m734/won3.list` with `/tmp/m732/ox1`
+under `PROBE_BDF=1` (md5 f9deedac35649f4f08f5ffd829b7fdb1, command in
+`won3.cmd`, output `won3_bdf.txt`) all three `ran`, with `swap retries
+refused: 0 by the walk window, 0 otherwise`. A zero refused does not
+say whether a retry was taken. But `SeriesPipes1` is refused by
+`simulate` at t = 5.1e-6, well inside its first ten steps, so for it the
+horizon cannot be the carrier and the swap retry is the remaining one.
+One caveat stays: `ox1` was built on an older head than the binary that
+gave the `simulate` refusals, so the two are not one binary.
