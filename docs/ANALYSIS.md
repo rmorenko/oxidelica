@@ -95779,3 +95779,14 @@ cannot hold it. So the seed rule is deliberate and the misfit is the
 medium. This is a question about where the rule applies, not a defect,
 and seeding starts is not this shift's to change
 (`park/m739_tjts_h_source.txt`).
+
+### A bound MoistAir cannot meet
+
+`ModelicaTest.Media.TestAllProperties.MoistAir` is refused at t = 0
+because `dddX[1]` goes below its `min` of 0. Its equation is
+`-(p * (Rv - Ra)) / ((...)^2 * T)` with `Rv` = 461.5 and `Ra` = 287.1,
+so it is negative for every physical state, while the declaration MSL
+gives it carries `min = 0`. No guess and no Newton step are involved,
+so this is not the nominal-seed family above. Whether a broken `min` on
+a variable that is not a state should refuse or only warn is left as a
+question (`park/m739_moistair_dddX.txt`).
