@@ -95759,3 +95759,23 @@ signature and 855 that pass the ten-step check. The `FundamentalWave`
 outside. The slope check is blind by construction, and the price of
 that blindness in the library, measured this way, is zero
 (`park/m739_three_starts.txt`).
+
+### Where the enthalpy of TestJunctionTraceSubstances comes from
+
+The 34-name block of `TestJunctionTraceSubstances` is NaN at t = 0
+before any Newton step, because `T_phX` errors on an enthalpy outside
+its bracket. The trail shows `pipe1.port_b.h_outflow` and its siblings
+entering at 1.0e6 J/kg. `why` shows no start for them, while the
+temperatures of the same block start at 288.15. The 1.0e6 is the
+`nominal` of `Modelica.Media.Interfaces...SpecificEnthalpy`
+(`Media/package.mo:6627`). `compile.rs:8100-8117` seeds an unstarted
+unknown from its nominal on purpose, and the comment there gives the
+reason: a nominal is the right order of magnitude where zero is not a
+state any water table covers.
+
+For water that holds. For moist air at 288 K the enthalpy is about 3e4
+J/kg, the nominal is thirty times that, and the bracket of 190 to 647 K
+cannot hold it. So the seed rule is deliberate and the misfit is the
+medium. This is a question about where the rule applies, not a defect,
+and seeding starts is not this shift's to change
+(`park/m739_tjts_h_source.txt`).
