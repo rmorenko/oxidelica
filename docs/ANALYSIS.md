@@ -95883,3 +95883,33 @@ probed, 1 where the seed is the first wall (`TestJunctionTraceSubstances`,
 which then refuses on a second wall), and 0 that a change to the seed
 brings to run. The wrappers and logs are in `/tmp/m740/act/`, and the
 ladder is in `park/m740_nominal_seed.tsv`.
+
+### How far the 855 go, and where an open input's zero lands
+
+The headline 855 counts models that pass the ten-step check, which
+the check itself calls the cheap half of the question. A systematic
+sample of every third name of that list (285 models) was run to each
+model's own StopTime, capped at two minutes apiece. 252 reached it,
+which is 88.4%, or 730 to 782 of the 855 at 95% with the finite
+population taken into account. The earlier 79-model sample gave 654 to 784. 23 refused on the way, at least one of them an artifact of the
+`extends` wrapper, and 10 were cut by the cap, which is an inequality
+and not a refusal. The prediction made before the run was 82 to 90%,
+and the result fell inside it. Per model: `park/m740_reach855.tsv`.
+
+The two `TwoPhaseWater` property examples refuse on IF97 `tsat` at
+0 Pa, although the seed probe printed their pressure seeded at `1e5`.
+The value does not come from a seed. Flattening writes the equation
+`p = 0`, because an open causal input with no start of its own takes
+`0.0` (`flatten/mod.rs:1459-1465` and two sibling sites). A print at
+the three sites, run over the corpus with the outcome unchanged name
+for name, found 121 such names in 48 models. 46 of the 48 are helper
+blocks under `Utilities` or `BaseClasses`, whose inputs an enclosing
+example wires, and the other two are the `TwoPhaseWater` pair, which
+refuse. So no runnable example runs on such a zero. The finding worth
+carrying to Roman is narrower. The two places that make a start
+disagree: the algebraic seed falls back to `nominal` precisely so that
+a pressure does not begin at zero, while the open-input rule falls back
+to `0.0` without asking. Whether a start of `1e5` would let the pair
+run could not be measured, because an `extends` wrapper of either
+class fails on a lost constant (`ph_explicit`) before it reaches the
+question (`park/m740_open_input_zero.txt`).
