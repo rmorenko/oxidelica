@@ -94889,3 +94889,11 @@ and not an oversight (`m738_floor_price.txt` in the park). Kind E's
 sign also holds three `Loops.Utilities` classes, `CylinderBase`,
 `Cylinder_analytic_CAD` and `Utilities.EngineV6_analytic`, all of
 which hold the same `JointRRP`.
+
+Correction to kind E, made after grepping the queue by model name: the
+defect is not new. It stands as item 104 of the queue, from park m633,
+as an element bound to the whole name of a neighbour's array declared
+below it. What this shift adds is the fifteen-line `E6.mo` and its
+control `E7.mo`, which isolate declaration order as the only cause.
+Kind G (the constant subscript of `waterBaseProp_ph`) is not in the
+queue under that name.
