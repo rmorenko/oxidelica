@@ -94644,3 +94644,11 @@ under `der` of a capacitor law, and `ThreePhaseTransformerWithRectifier`
 on `core3.Hstat` and `core3.MagRel` of a hysteresis core; neither was
 probed further. So the breed stands at three shown, one probable, one
 excluded, five open, of 65.
+
+A correction to the line above: `TestJunctionTraceSubstances` was
+excluded too quickly. Its medium is `Air.MoistAir`, whose `T_phX` finds
+the temperature with `solveOneNonlinearEquation`, the function whose
+bracket assertion the walk refused, and `why` shows that
+`junction.port_3.h_outflow` has no start. So it is a probable member of
+the breed, a root finder asked at an enthalpy of zero, not an excluded
+one. The count becomes three shown, two probable, five open.
