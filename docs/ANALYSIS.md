@@ -93947,3 +93947,12 @@ the hand-back comes at `t = 0.3` with a mode change, exactly where its
 `if` on time switches branch. That fits a switch that only acts when a
 build is resumed. `OneAxis` is the same: a mode change at the start, a
 rebuild, and a refusal in the rebuilt model.
+
+The six full-horizon refusals of the stop-time sample were judged
+"no rebuild" by the same blind probe, so they were run again under
+`ox3` (`/tmp/m735/st6_*.txt`, summary in `st6_sum.txt`). Five still
+print none. `TwoMass` hands back twice for a mode change, at
+`t = 0.22` and `t = 0.24`, before its loop at `t = 0.693` loses
+`pipe1.flowPort_a.h`. So of the eight refusals of that sample, three are
+born after a rebuild (the two synchronous machines and `TwoMass`), not
+two. The other five fail in the model as first built.
