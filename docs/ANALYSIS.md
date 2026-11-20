@@ -93409,3 +93409,19 @@ and fails at 0.0341, while `bdf` fails at the first step and so fails
 the check too. "Ran" in the corpus means survived ten steps, and
 `HeatLosses` lost under `bdf` is a model that fails 0.034 s later under
 the default anyway.
+
+The other two `bdf` victims part the same way between `simulate` and the
+check. Under the default solver, `simulate` refuses
+`ThyristorBridge2mPulse_RLV_Characteristic` with a singular Jacobian on
+the thyristor loop (`solvers/mod.rs:2764`, `/tmp/m734/thy_default.txt`)
+and `RoomCO2WithControls` with the same `C_outflow[1] = -5.5e-18`
+assertion at t = 0.001 that it meets under `bdf`
+(`/tmp/m734/co2_default.txt`), yet `library check --only` lists both as
+`ran`. The check does more than `simulate`: after a refusal it may try a
+second compilation with swapped states (`compile_with_state_swap`,
+`main.rs` near `swap_may_help`) and runs ten steps of that. So all three
+models the `bdf` default "loses" are refused by `simulate` under the
+default solver too, and they count as run only through the ten-step
+check and its retry. Under `bdf` the same retry does not carry them.
+That narrows what the three victims cost: not three models that run
+today, but three that pass a ten-step check today.
