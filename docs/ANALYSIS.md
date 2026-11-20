@@ -95747,3 +95747,15 @@ the same way from every start. The lower bound of harm is now 0 of 7
 checked, out of 14 with the signature and 855 that pass the ten-step
 check (`park/m739_three_starts.txt`). A transient that differs early is
 not a second root. Only the settled answer decides it.
+
+### All testable candidates checked: none in ten
+
+The last three, `IMC_DOL` and `IMS_Start` of `Machines` and `IMS_Start`
+of `FundamentalWave`, were run from three starts of the rotor
+acceleration to t = 0.05. They differ by 0, 6.2e-7 and 0. That closes
+the testable set at 0 of 10 with a second root, out of 14 with the
+signature and 855 that pass the ten-step check. The `FundamentalWave`
+`IMC_DOL` served as a control, and three cannot take a start from
+outside. The slope check is blind by construction, and the price of
+that blindness in the library, measured this way, is zero
+(`park/m739_three_starts.txt`).
