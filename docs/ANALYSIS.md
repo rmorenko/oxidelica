@@ -95790,3 +95790,55 @@ gives it carries `min = 0`. No guess and no Newton step are involved,
 so this is not the nominal-seed family above. Whether a broken `min` on
 a variable that is not a state should refuse or only warn is left as a
 question (`park/m739_moistair_dddX.txt`).
+
+## 2026-11-20, shift 696: what the nominal seed reaches, counted
+
+The seed under question is the one at `compile.rs:8110-8117`: an
+algebraic unknown with no start of its own begins at its declaration's
+`nominal`, which for a specific enthalpy is `1e6` and for a pressure
+`1e5`, both written on the type. Seeding is under Roman's word, so it
+was measured and not touched.
+
+A one-line print at the seed (probe binary md5 `49754f11`, built from
+a worktree outside the tree) ran the whole corpus. It disturbed
+nothing: 986 flattened and 855 passing the ten-step check, 867 and 806
+of the runnable examples, and its 131 refusals equal
+`park/m738_refused_def.list` name for name. Of the 986 flattened
+models, 150 seed at least one unknown from a nominal. 127 of those run
+and 23 are among the 131 refusals. Only one of the 23,
+`TestJunctionTraceSubstances`, has the seed traced as the cause of its
+refusal. For the other 22 nothing ties the seed to the refusal.
+
+The question asked was a different one: how many models are seeded "a
+decade or more away" from where the variable lives. The rule was fixed
+before the number was read. A seed is off if it lies outside
+`[min/10, max*10]` of the variable's magnitude over a plain simulate of
+the same model. 4492 seeded unknowns were judged that way: 971 off (in
+82 models), 1091 in, 2404 where the model did not run so no range
+exists, and 26 that stayed at zero. The control was the point of the
+exercise, and it failed. `DrumBoiler` (hot water and steam) is in for
+all 19 of its seeded unknowns, but cold water is off: enthalpy holds at
+about `8.4e4` for the whole run of `TestWaterPumpDefault`,
+`WaterIF97_ph` and `ConstantPropertyLiquidWater`, which is 1.08 decades
+under the seed. So the sign measures "cold" and not "the wrong
+medium", and 82 is no answer to the question it was built for. The
+threshold was left where it was named, because moving it until water
+passes would be fitting the gate to the number.
+
+What stands is therefore the plain count (150 seeded of 986, 23 of
+them refused) and the statement that a decade test on enthalpy cannot
+tell moist air from cold water. A test that could would have to compare
+with something the medium declares, not with a run.
+Evidence: `park/m740_nominal_seed.tsv`, raw `/tmp/m740/corpus.txt` and
+`/tmp/m740/all.judge`.
+
+Two smaller results from the same shift. Of the 20 default refusals that
+exhaust their singular subset below the cap of 32, 15 are already in the
+queue by name. The other five are helper classes with an open pin, such
+as `AnalysatorDC` with `nv.i = 0` (`park/m740_subset_holders.tsv`).
+Kinds D and F of the breed table are all 11 in the default refusals,
+and neither kind is one cause. D splits into a singular initialization
+on four different unknowns, a start block and a non-square
+initialization. F splits into IF97 `tsat` at zero pressure twice, the
+MSL `dddX` bound twice, and an Essotherm650 `Pr` above its maximum
+(`park/m740_kinds_DF.tsv`).
