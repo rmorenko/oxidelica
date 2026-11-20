@@ -93494,3 +93494,19 @@ minutes and at least 2 of 19 do not run to the end at all. That is
 nineteen models and a ceiling, too few to put a number on the 855; what
 it does settle is that "ran" in the floors is a ten-step claim, and that
 the gap between it and a run to the stop time is not empty.
+
+A second sample, every 14th `ran` name without the first nineteen (60
+names, `/tmp/m734/sample2.list`, verdicts in `samp2_result.txt`). Two of
+the names share the short name `SMEE_Generator` (FundamentalWave and
+QuasiStatic), and the probe script named its output by the short name, so
+one file holds the later of the two and the other verdict is lost: 59
+models measured. 52 finish, 5 are refused on the way
+(`DiodeCenterTap2mPulse` by more than 10000 events, `SMEE_DOL` as
+structurally singular, `TestMixingVolumesPressureStates` on a singular
+loop Jacobian, `ThreeTanks` on the Newton direction, `TwoMass` on the
+equations of a loop), and 2 meet the 3-minute ceiling (`Counter`, one
+`SMEE_Generator`). Over both samples, 78 corpus "ran" models measured:
+68 run to the stop time within three minutes, 7 are refused before it,
+3 are inequalities. Roughly one in eleven models the floors count as run
+does not run to its end; with 78 of 855 sampled, that is a rate with a
+wide band, not a count.
