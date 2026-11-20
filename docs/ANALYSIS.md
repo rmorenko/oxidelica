@@ -93691,3 +93691,19 @@ orientation or velocity in MultiBody (`Engine1a`,
 sensor currents (`ActuatorWithNoise`, `IMC_DOL_CommonLeakage`). The
 shapes are a reading for the next probe to confirm or split. They are
 not families.
+
+### The zero-flow shape, read through `why`
+
+`why TanksWithOverflow lowerTank.ports[2].m_flow`
+(`/tmp/m735/why_tanks.txt`) and the model text together name the
+holder. Both tanks start at level 2, and the overflow pipe joins ports at
+height 6 on both of them. So both ends take the third branch of the
+vessel's port equation, `ports[i].m_flow = 0` (`Vessels.mo:381`). The
+pipe adds its own `0 = port_a.m_flow + port_b.m_flow`. Three rows bind
+two flows: in the mode the model starts in, the system has one equation
+too many on that pipe. The library writes it, and the model's own text
+says the overflow first enters above the lower tank's level. What holds
+this refusal is the structure of one mode of an `if` equation, read at
+`t = 0`, not a missing state. Whether `BatchPlant_StandardWater` (on
+`B5.InnerTankSide[1].port.m_flow = 0`) is the same holder is the next
+probe. The text suggests it, and the text is not the layer.
