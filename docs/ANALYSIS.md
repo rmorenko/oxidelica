@@ -93880,3 +93880,13 @@ models measured, the switch turns one refusal into a run (`OneAxis`)
 and takes no run away. Thirteen models are not the measure: the pair
 on the whole corpus is what would decide it, and that belongs to Roman
 together with the question.
+
+That last paragraph has to be corrected at once, because the measure
+does not use full runs. Under `library check --only`, which is the
+ten-step check the floors count, the trade is not one for nothing.
+`OneAxis` goes from refused to run (`/tmp/m735/lcO_def.txt` against
+`lcO_ntr.txt`), and the Machines `SMPM_Braking` goes from run to refused
+(`lcA_def.txt` against `lcA_ntr.txt`). Inside the ten steps the m552 win
+still stands, and the switch gives it back. So in the measure the switch
+is one won and one lost, and a victim goes to Roman at any price. It
+stays a question with both names on it, and nothing in the tree changes.
