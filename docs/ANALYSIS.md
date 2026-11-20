@@ -93913,3 +93913,16 @@ Either the weight is read on a path that the comment does not name, or
 the `resuming` flag is set during the first build. That is a narrower
 question than the one above, and the twelve-line model answers it in
 under a second.
+
+The step probe corrects the sentence above (`/tmp/m735/small/ps_MGk_2.txt`).
+The witness takes 34 explicit steps, up to `t = 0.0178`, before it is
+refused. So the refusal is not born at the first build. It is born at a
+rebuild that the probe `ox2` does not print, because that probe watches
+only the two hand-backs at `dopri.rs:805-815` and not the stalls on a
+failed evaluation (`or_stall!`). The relative weight is read at exactly
+that point (`resuming`, `compile.rs:3541`), which fits the switch. Under
+`--solver rk4`, which re-selects nothing, the same model stops instead
+on a loop through `load.a - gear.bearingFriction.a = 0`
+(`rk4_MGk_2.txt`). The "structurally singular" text of the witness, and
+so of `OneAxis`, is a rebuild refusal. That adds a third to the two found
+under item 1: the probe there undercounts by its own blind spot.
