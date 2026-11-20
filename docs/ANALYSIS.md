@@ -93468,3 +93468,13 @@ say whether a retry was taken. But `SeriesPipes1` is refused by
 horizon cannot be the carrier and the swap retry is the remaining one.
 One caveat stays: `ox1` was built on an older head than the binary that
 gave the `simulate` refusals, so the two are not one binary.
+The other two follow by the same arithmetic: `BranchingPipes3`
+(`Interval` 1e-3, ten steps to 0.01) is refused at 0.502, past the check,
+so the horizon carries it; `TestTemperature1` (no `Interval`, default step
+1e-3, ten steps to 0.01) is refused at 0.001, inside the check, so the
+swap retry carries it. And the one win that runs to its stop time under
+`bdf`, `PolyphaseRectifier`, is refused by `simulate` under the default
+solver at t = 4e-5 on a diode loop accepted on the arithmetic floor
+(`/tmp/m734/pr_default.txt`). So the `bdf` default gains exactly one model
+that runs to its stop time, and the rest of what its pair counted is the
+ten-step check moving.
