@@ -93510,3 +93510,14 @@ equations of a loop), and 2 meet the 3-minute ceiling (`Counter`, one
 3 are inequalities. Roughly one in eleven models the floors count as run
 does not run to its end; with 78 of 855 sampled, that is a rate with a
 wide band, not a count.
+
+The lost verdict, measured again by full name (`/tmp/m734/full_*.txt`):
+the FundamentalWave `SMEE_Generator` is refused by `simulate` as
+structurally singular (`der(terminalBoxE.starpoint.i) = 0` constrains no
+state, the same refusal as `SMEE_DOL`), and the QuasiStatic one meets the
+3-minute ceiling. With it, 79 models over both samples: 68 run to the
+end, 8 are refused before it, 3 are inequalities. Two of the eight,
+`SMEE_DOL` and `SMEE_Generator`, are refused by `simulate` on structure,
+before any step, yet the corpus counts them as run, so the check and
+`simulate` part on compilation as well as on the horizon. Why was not
+read this shift.
