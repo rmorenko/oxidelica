@@ -94768,3 +94768,27 @@ ordinary. With `eta` near 1000 at the test's reference temperature,
 which is the refused number. So the refusal is the table's units, a
 defect in the library, not the compiler's. It goes to Roman as a
 question and is not changed here. Arithmetic on the source, not a probe.
+
+### Kind G: `der(medium.T)` on a name that is not a state
+
+`HeatingSystem` and `BranchingDynamicPipes` refuse with
+"`der(tank.medium.T)`: `tank.medium.T` is not a state of the model". The
+derivative is written by the library itself, as the initial equation of
+`SteadyStateInitial` for a medium whose `ThermoStates` is not `ph`
+(`Fluid/Interfaces.mo:647`, and `:953` for the pipes).
+
+Small reproduction, `/tmp/m738/p6/G6.mo`: one `ClosedVolume` of
+`LinearWater_pT_Ambient`, `nPorts=0`, a fixed heat flow, and
+`SteadyStateInitial`. It refuses with the same text
+(`/tmp/m738/p6/G6.txt`, binary md5 c9e25082). Controls, same binary:
+`FixedInitial` in place of `SteadyStateInitial` runs (`G8.txt`), so the
+refusal belongs to the initial `der()` and not to the volume. A
+`ConstantPropertyLiquidWater` volume stops earlier and elsewhere,
+unbalanced on `vol.heatTransfer.states[1].p` (`G7.txt`), which is a
+finding of its own, not this kind.
+
+Hand-written models with `der(T) = 0` as an initial equation on an
+algebraic `T` run (`G1` to `G5`, linear, polynomial, through a function
+and through a product), so the compiler does differentiate a non-state
+in an initial equation in general. What the medium adds is not yet
+found. The next step is shrinking `G6` while the refusal survives.
