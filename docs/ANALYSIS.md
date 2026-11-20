@@ -93548,3 +93548,11 @@ changed branch), and a rebuild compiles again, which is where a
 structural refusal can come from in the middle of a run. Which of the
 two fires for `SMEE_DOL` near 0.0044 s is not measured; a print at those
 two returns would say it in one run.
+Measured: a probe binary `/tmp/m734/ox2` with one print at each of the two
+returns (patch `/tmp/m734/rebuild.patch`, output `smee_rb.txt`) prints
+`PROBE_REBUILD reselect t=0.004363` and then the refusal. The control
+without the print refuses the same way. So the pivot asks for other
+states at t = 0.00436, the re-selection compiles the model again, and
+that compilation is what refuses as structurally singular. A model the
+first selection runs is lost by the second; the refusal names structure,
+but what failed is the re-selection.
