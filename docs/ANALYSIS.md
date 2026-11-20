@@ -95429,3 +95429,12 @@ re-selection. The site is therefore shown by the code and by two
 instruments (the trail's time and p.4's `dopri.rs:806`), and not yet by
 `WHERE`. `simulate` on the class, which prints the whole text, is the
 instrument for that.
+
+Confirmed with the whole text. `simulate` on `W1.mo` (a three-line
+extension of `Engine1a`, `/tmp/m738/p6/where_W1.txt`) under
+`OXIDELICA_WHERE=1` prints `[crates/oxidelica-sim/src/compile.rs:3040]`.
+That is the reduction's refusal over its singular subset, reached here
+from the re-selection's `compile_at`, with an equation on
+`der(bearing.frame_b.R.T[2,2])` and no time in the text. The site is now
+shown by three instruments: the trail's time, p.4's `dopri.rs:806`, and
+`WHERE`.
