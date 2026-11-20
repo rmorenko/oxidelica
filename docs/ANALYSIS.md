@@ -94554,3 +94554,13 @@ probe of the inner block. Changing the step or the Jacobian is outside
 what this shift may touch. What would settle it is the same print with
 the inner blocks named. The kind stays "ours (candidate)" with a holder
 narrowed to the slope of an unstarted energy through `h_pTX`.
+
+The same print on the three corpus models of the kind
+(`/tmp/m738/p6/jac_{MoistAir1,MoistAir2,SimpleNaturalGas}.txt`):
+`MoistAir1` has one exactly zero column of three, at an unknown whose
+start is 0.0. `MoistAir2` has two of six, both at 0.0. `SimpleNaturalGas`
+has one of eight, at an unknown whose start is 0.069, not zero. So
+"a zero column at an unstarted energy" holds two of three, and the
+third is the same zero column without the zero start: the kind is one
+symptom, a column that reads nothing, with the zero start a sufficient
+condition in two models and not the cause in the third.
