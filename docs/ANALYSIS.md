@@ -94854,3 +94854,38 @@ a reader at a typo that does not exist. The refusal is true and its
 explanation is not. A refusal's hint that names a cause should hold for
 inverse blocks, and this one goes to Roman as a question rather than
 an edit.
+
+### The refusal set these kinds were taken over, and three counts on it
+
+`/tmp/m736/refused.list` (132 names) is the refusal set of the pass
+with `NO_THROUGH_RELATIVE`, not of the default. Checked by hand on
+normalised names (`/tmp/m738/def.n`, `on.n`, `ref.n`): `def ∩ ref` is 2,
+`SMPM_Braking` and `MovingActuatedDrive`; `on ∩ ref` is 0; `on ∪ ref`
+is 986, the floor; `def ∪ ref` is 985. So the default set is 131
+names: `ref` without those two, plus `RobotR3.OneAxis`. It is written
+as `m738_refused_def.list` in the park, and `def ∪` it is 986 with an
+empty intersection. The kinds in this chapter describe the key-on set.
+They differ from the default by those three names.
+
+Three counts over the 132 (`/tmp/m736/err_done.tsv`, texts cut at 200
+characters, with the 12 texts long enough to be cut checked by their
+openings, `/tmp/m738/trunc12.list`):
+
+| sign                                        | models | of which examples |
+| ------------------------------------------- | -----: | ----------------: |
+| `underdetermined algebraic loop`            |      9 |                 9 |
+| ... of them a 1×1 `der(v)` of a capacitance |      3 |                 3 |
+| `der(x)`: `x` is not a state (kind G)       |      2 |                 2 |
+| element bound to the whole name (kind E)    |      6 |                 3 |
+
+The floor of `linear.rs:208` reads `underdetermined` on 3 of the 9:
+NAND and ONEBIT with a real `capbe` of 1e-12, which are false refusals,
+and RtlInverter with a true zero from `XCJC = 1`, which is a true one.
+The other 6 are blocks of several names (ideal switches, air gaps), so
+the floor does not apply to them. The price of that trade is therefore
+2 models. `linear.rs:128-134` explains why it was made: without it no
+1×1 block would read singular, including `1/x = 0`. So it is a trade
+and not an oversight (`m738_floor_price.txt` in the park). Kind E's
+sign also holds three `Loops.Utilities` classes, `CylinderBase`,
+`Cylinder_analytic_CAD` and `Utilities.EngineV6_analytic`, all of
+which hold the same `JointRRP`.
