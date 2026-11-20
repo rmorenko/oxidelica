@@ -93396,10 +93396,10 @@ named for `LossyGearDemo2` (equal rows from coinciding mode laws at the
 start), met here by the corrector instead of the start. Under the default
 solver the same model does not run either; it stops later, at t = 0.0341,
 on a step size underflow and probable singularity
-(`/tmp/m734/hl_default.txt`), and in the corpus run lists it counts as run
-only in the off half of the `bdf` pair. So `HeatLosses` is a model at the
-edge of the friction family under either solver, not a model `bdf`
-breaks. One thing to note for whoever reads the instrument next:
-`library check --only` on this model prints `of which 1 run` on its count
-line and lists it as `flat`, so the count line and the list disagree on
-this model.
+(`/tmp/m734/hl_default.txt`). Yet `library check --only` on the same
+tree lists it as `ran`, as the off half of the `bdf` pair did. So the
+`simulate` command and the corpus check part on this model under the
+default solver, and that difference, not `bdf` alone, is what to read
+next. A correction to a mark of this shift: an earlier mark said the
+count line and the list of `--only` disagree here; they do not, the `ran`
+line was cut off by the filter that read it.
