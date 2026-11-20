@@ -95438,3 +95438,28 @@ from the re-selection's `compile_at`, with an equation on
 `der(bearing.frame_b.R.T[2,2])` and no time in the text. The site is now
 shown by three instruments: the trail's time, p.4's `dopri.rs:806`, and
 `WHERE`.
+
+### Why `ActuatorWithNoise` gets a structural verdict with no site printed
+
+The model was compiled again during the run, which is the re-selection
+loop's work, and p.4's probe did not see it. `simulate` on `AWN.mo` (a
+three-line extension) under `--solver dopri45` and under `--solver bdf`
+refuses at the same place, `compile.rs:3040`, in both
+(`/tmp/m738/p6/AWN_dopri.txt`, `AWN_bdf.txt`, `OXIDELICA_WHERE=1`, md5
+c9e25082). So the solver is not what separates it from the other three.
+The trail of the Dopri run (`AWN_dopri_nt.txt`, 1,063,374 Newton lines,
+largest t = 0.00114) prints the compile's mode lines twice. At t = 0 the
+lossy gear reads `eta_mf1 = 0, eta_mf2 = 0`, and at t = 0.001 it reads
+`eta_mf1 = 0.85, eta_mf2 = 0.8`. A second compilation at t = 0.001 is a
+`compile_at` with a resume point, and its index reduction is what
+refuses. Its site went unprinted because p.4's probe printed only the
+Dopri lines of `selection_sound` and `mode_holds`
+(`strings oxs`: `dopri.rs:280` to `886`), while this second compilation
+came from elsewhere in the loop. The run reached the same 0.001 grid
+point as `Engine1a` and `FullRobot`. Which of the loop's three entries
+(re-selection, mode change, or the integrator's own stall) handed it back
+is not printed by any switch in the tree, and naming it would need a
+probe. So the mechanism is the same as for the other three, a
+recompilation mid-run whose structural refusal carries no time, and the
+site is not missing but unprobed. The question that remains is which
+entry. It is not a new defect.
