@@ -96021,3 +96021,14 @@ cannot be on this corpus: equal counters mean it never fired. The
 small model that does carry the form ran in 301 to 318 ms off and 299
 to 300 ms on, process start included, which shows no cost at that size
 and says nothing about a large model.
+
+The other 21 timeless refusals were bisected the same way
+(`park/m741_timeless_bisect21.tsv`). Six machine examples (`IMC_DOL`,
+`IMC_YD`, `IMS_Start` in both libraries, `IMC_Transformer` in both
+packages) refuse between 0.102 and 0.106 s, just after a switch-on at
+0.1, like `SMR_DOL`: one mechanism, a rebuild after the event that the
+new compile refuses. `SMEE_DOL` refuses at 3.7 to 4.4 ms, `ControlCircuit`
+at 0.148 s, `DemonstrateLightning` at 10 microseconds. Three Fluid
+refusals fail at once under `simulate`, because only `library check`
+retries a refusal with the state swap. Four fail at their stop time,
+which is the chatter ceiling or an end check rather than a rebuild.
