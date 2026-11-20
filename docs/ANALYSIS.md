@@ -95232,3 +95232,14 @@ from 0.47 to 2.4e7 and back. That is a Newton that cycles, not one
 that meets a singular matrix, so their rank is not the question. In
 `R134a1` the block of one stops after 10 iterations on a direction that
 does not descend, as the m733 note says.
+
+Two last trails of the shift (`/tmp/m738/p6/nt_TestTemperature1.txt`,
+`nt_TestSuddenExpansion.txt`, md5 c9e25082). `TestTemperature1` runs
+1170 points and 2598 Newton iterations with no Jacobian printed. It
+creeps to t = 4.0e-7 with |f| = 6.5e3 and refuses there, which is the
+pipe tests' shape (kind A), not a singular block. `TestSuddenExpansion`
+makes one Newton print at t = 0, from v = 0 with f = -1e4, before the
+"solution on either side" refusal. Its loop of one variable is decided
+by a sign test on the start, not by an iteration, so the trail cannot
+add to what the m733 note says. The kind C table with every reading
+and file is `park/m738_kindC_blocks.tsv`.
