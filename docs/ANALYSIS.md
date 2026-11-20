@@ -96081,7 +96081,11 @@ W;`, and such a wrapper loses `M`'s experiment annotation. `simulate`
 says so in its own comment and takes a library class by name for that
 reason. Of the 772 logs read as reaching StopTime in
 `park/m740_reach855_full.tsv`, 770 end at t = 1.000000, the default
-stop, and the other two at 0.667. So "reached StopTime" there means
+stop. The other two, `RobotR3.Utilities.PathPlanning1` and
+`PathPlanning6`, end at 0.667109 because the model stops itself: a
+`TerminateSimulation` block fires at `path.endTime + swingTime`. That is
+a fourth outcome beside reached, refused and capped, and it is counted
+apart in the remeasure. So "reached StopTime" there means
 "reached t = 1". A model whose own stop is shorter may refuse past it,
 which is a refusal that should not count, and a model whose stop is
 longer was never run as far as it asks. Two cases show both. `NandGate`
