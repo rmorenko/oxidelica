@@ -95538,3 +95538,20 @@ The trail shows Newton taking the pressure from 3e5 to 1.0e6 and then to
 refusal names the direction, but the step that holds the model takes it
 out of the medium's domain. Trail:
 `/tmp/m738/tr65/Modelica.Media.Examples.R134a.R134a1.txt`.
+
+### The holder of TestTemperature1, and the stall axis counted
+
+`TestTemperature1` is refused for a Newton direction at t = 0.0002, and
+its trail shows something else. A block of 12 unknowns converges at
+every point to a residual near 1e-10, while two of its unknowns swing
+between about -1.2e6 and -1.2e9 and +3.7e5 and +4.3e8 from one point to
+the next, and time stops near 4.0e-7 after 2578 Newton iterations and
+no Jacobian. What holds it is a block whose solution changes branch
+between steps, not a Newton direction. Witness:
+`park/m739_p4_R134a.tsv`.
+
+Counted over the 65 rows of `park/m738_text_vs_behaviour.tsv`, 11 models
+show the step-collapse behaviour and not one of them has a refusal text
+naming a stall. The single text that names a stall belongs to a model
+whose behaviour is a cycle at t = 0. Grouping by text cannot see the
+stall at all (`park/m739_stall_axis.txt`).
