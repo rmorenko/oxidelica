@@ -95117,3 +95117,12 @@ pattern or from a difference step below the entry's size is not
 measured. It is the first thing to ask of this link, and it belongs to
 the Jacobian, which is under ban for this shift, so it goes as a
 question.
+
+Two checks on that row. The `heater.m_flows[1]` entry, -1.0120536517733e-3,
+agrees with -1/rho = -1.0120536517105e-3 to seven digits. So the row is
+being differentiated with respect to the flow correctly, and only the
+density column is missing. A small model with the same row
+(`/tmp/m738/p6/J1.mo`, `J2.mo`) runs, so the trail prints nothing there,
+and the entry cannot be read outside a refusing block with this binary.
+The question stands as it was put. The small model needs a refusing
+companion row, which has not been built.
