@@ -94918,3 +94918,14 @@ stays unfolded where seven hand-written analogues fold. The difference
 lies in the IF97 body or the record's size, and one of `G6`'s three
 library functions has to be cut down to find it. Stopped here, not
 concluded.
+
+The control that does separate it is the library's own sibling medium.
+`G18.mo` is `G6` with `LinearColdWater`, which writes `beta_const` and
+`kappa_const` as literals where `LinearWater_pT_Ambient` calls IF97 for
+them. It gets past `der(vol.medium.T)` and stops one wall later, at
+"the initialization problem is singular ... do not pin down
+[vol.U]" (`/tmp/m738/p6/G18.txt`, md5 c9e25082). That is the shape of
+kind D's moist air, where `U` has no start. So the IF97-bound constants
+are the whole of kind G. Behind it stands the unstarted `U` already
+mapped under D, and settling G alone would move these models one wall
+and not into the run list.
