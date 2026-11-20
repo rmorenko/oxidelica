@@ -95584,8 +95584,11 @@ about the compiler (`park/m739_unbalanced_default.tsv`).
 The same filter shows across the whole default refusal set. Of the 131
 names in `park/m738_refused_def.list`, 56 sit under `Utilities`,
 `BaseClasses`, `Components`, `ExampleUtilities` or `Internal`. These are
-building blocks. They are not examples. About 55 such helpers also run.
-So roughly two refusals in five belong to classes no user would run as
-models, and any ranking of the run half by count is weighted by them.
-Whether to keep them in the measure is a question for Roman. It is not a
-change for a shift. The list is `park/m739_helpers_refused.list`.
+building blocks. They are not examples. This is not a question for
+Roman, because the census already answers it: its own line
+`runnable examples (experiment or Example icon): 897, of which 867
+flatten and 806 run` is the measure without them, and that pair already
+has floors. The run half of that measure is 61 refusals. A filter by
+name gives 73, so the name is a weaker test than the annotation, which
+is the rule about spelling standing in for structure, met again. The
+list is `park/m739_helpers_refused.list`.
