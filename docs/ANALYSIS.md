@@ -92838,15 +92838,17 @@ The same print with `OXIDELICA_UNDERDET_DETAIL` added
 
 `Spice3BenchmarkRtlInverter`: a block of one unknown, `der(Q1.vbx)`, at
 t = 0, whose only equation is
-`Q1.icapbx = if Q1.m_bInit then 0 else Q1.cc.capbx * der(Q1.vbx)`. During
-initialization `m_bInit` is true, the equation takes the branch without
-the derivative, and the column is exactly zero (pivot 0, raw column 0).
-The holder is a derivative that the library's own initialization branch
-removes from its only equation. The same shape names `der(Q4.vbe)` on
-`NAND` and `der(X9.Q4.vbe)` on `ONEBIT` in the census, so this is likely
-three of the five; ours, in the matching (a derivative made an unknown of
-a block whose equation, in the branch taken at the start, does not
-contain it).
+`Q1.icapbx = if Q1.m_bInit then 0 else Q1.cc.capbx * der(Q1.vbx)`. The
+column is exactly zero (pivot 0, raw column 0). A first reading took the
+`m_bInit` branch for the cause; it is not: `m_bInit` is declared
+`constant Boolean m_bInit = false` (`Spice3.mo:4916`), so the derivative
+branch is the one taken, and the column is zero because its coefficient
+`Q1.cc.capbx` is zero at the start. The holder is a derivative made the
+unknown of a block whose only equation multiplies it by a capacitance
+that is zero there. The same shape names `der(Q4.vbe)` on `NAND` and
+`der(X9.Q4.vbe)` on `ONEBIT` in the census, so this is likely three of
+the five; ours, in the matching (a derivative chosen as the unknown of
+a row whose coefficient on it vanishes at the start point).
 
 `SMEE_DOL`: a block of 26 at t = 0, smallest pivot 1.4e-8 raw and 3.2e-9
 scaled, so near-singular rather than structurally empty. The null
@@ -92865,9 +92867,9 @@ Same binary and prints, `OXIDELICA_WHERE=1` added for the raising line
 `equations of loop` (three models): `GearType2` refuses a block of one,
 `bearingFriction.sa`, whose equations do not mention it at t = 0, and
 `Spice3BenchmarkDifferentialPair` refuses `der(Q2.vbx)` the same way,
-both raised at `solvers/mod.rs:2769`. The Spice one is the `m_bInit`
-shape of the section above (the initialization branch drops the
-derivative from its only equation); the gear one is the friction law in
+both raised at `solvers/mod.rs:2769`. The Spice one is the zero-capacitance
+shape of the section above (the coefficient of the derivative in its
+only equation is zero at the start); the gear one is the friction law in
 a branch where the relative acceleration `sa` does not appear. So this
 kind is the underdetermined kind seen one step earlier, when the column
 is structurally absent rather than numerically zero. Ours, same family.
