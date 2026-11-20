@@ -95735,3 +95735,15 @@ with the signature and 855 that pass the census's ten-step check. `CCCV_StackRC`
 follows from its source, and so far no harm from it has been found in
 the library. The other ten are left with the instrument ready
 (`park/m739_three_starts.txt`, `park/m739_INDEX.md`).
+
+### Seven of the fourteen checked, no second root
+
+Three more were run from three starts of their flagged unknown.
+`Rectifier12pulse` differs by 1.3% after five steps, which is the
+transient of the start: by t = 0.05 the three agree to 2.2e-6 (load
+current 632.083 A in each). `ComparisonPullInStroke` agrees to the last
+digit. `SMPM_Braking`, simulated past the census's ten steps, is refused
+the same way from every start. The lower bound of harm is now 0 of 7
+checked, out of 14 with the signature and 855 that pass the ten-step
+check (`park/m739_three_starts.txt`). A transient that differs early is
+not a second root. Only the settled answer decides it.
