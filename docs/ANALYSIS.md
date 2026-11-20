@@ -93097,3 +93097,24 @@ before any Newton step (`solvers/mod.rs:2742`). The one-unknown loop on
 the refusal declines to pick. A flow-reversal law with two answers at
 the start. Whether the library means one of them by a start value is
 not read here.
+
+### `DynamicPipeClosingValve`: the outer initialization, printed
+
+A print of the outer initialization residual at the top of each Newton
+iteration (patch `/tmp/m733/init_outer.patch`, binary `/tmp/m733/ox3`,
+output `/tmp/m733/io_DPCV.txt`, command in `/tmp/m733/ud.cmd`). Control:
+the refusal is the same text, its line moved from 10462 to 10469 by the
+seven lines of the print alone.
+
+The outer system has four unknowns, and one row (row 1) carries
+essentially all of the residual on every iteration: 2.5e8 at the start,
+3.5e7 after one step, then 1.2e9, and from there it creeps up to 5.75e8,
+where the last iterations repeat it to the digit while the unknown it is
+read against moves only in the eighth figure (80.2841). The plain road
+uses up its 50 iterations that way. The scaled road takes two steps
+(2.5e8, 3.6e7, 3.6e7) and stops. So what holds is one row of the
+four-state start, whose residual does not respond to the steps the
+iteration takes. The inner blocks all close (previous section), so the
+outer Jacobian's row 1 does not describe how that row moves. Which
+equation row 1 is, the print does not name; naming it is the next
+print.
