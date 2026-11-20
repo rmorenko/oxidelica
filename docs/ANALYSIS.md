@@ -95731,7 +95731,7 @@ for 0.01 s: `PumpAndValve`, `IdealMixing1` and `OvervoltageProtection`.
 All three settle to the same answer from every start. In `PumpAndValve`
 the only difference is the step at which the flow first appears. With
 `CCCV_CellRC` that makes 0 of 4 checked with a second root, out of 14
-with the signature and 855 that run. The blindness of the slope check
+with the signature and 855 that pass the census's ten-step check. `CCCV_StackRC`, `DifferenceAmplifier` and `BranchingPipes14` cannot be tested this way: the first's cells are redeclared inside `StackRC`, so no outer modifier reached the start (`why` showed none in four forms), the second's unknown is a derivative and the third's is a compiler name. The blindness of the slope check
 follows from its source, and so far no harm from it has been found in
 the library. The other ten are left with the instrument ready
 (`park/m739_three_starts.txt`, `park/m739_INDEX.md`).
