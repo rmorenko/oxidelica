@@ -95289,3 +95289,31 @@ Its 12 at rank 11 is real, but it is not a refusal, and it says nothing
 about why the key-on run refuses this model. The scan is only meaningful
 on a model that the same run refuses. `classify65.py` now marks a run
 before it reads anything else.
+
+### Text against behaviour over the 65
+
+Every one of the 65 was traced with `OXIDELICA_NEWTON_TRAIL`, one run each
+(`/tmp/m738/tr65/`, command in `/tmp/m738/tr65.cmd`, md5 c9e25082). Each
+was classified twice: once by the first words of the full refusal text, and
+once by the trail (`/tmp/m738/classify65.py`, table
+`park/m738_text_vs_behaviour.tsv`). Behaviour is read as one of three things:
+a printed singular Jacobian, a creep of more than 20 distinct times of
+Newton calls, or neither. "Neither" is not a kind. It covers a refusal
+raised on a path the trail does not print as well as a Newton cycling at
+one instant, so no mismatch is counted from it.
+
+Counted from the creep column alone, where the behaviour is clear, 11
+models run a long way and then collapse their step. Two of them run on the
+default (`SMPM_Braking`, `MovingActuatedDrive`). Of the other 9, the
+text names a stall for none. Five say `Newton direction` (the four pipe
+tests and `TestTemperature1`). Three say "structurally singular ...
+constrains no state": `ActuatorWithNoise`, `SMPM_ResistiveBraking` and
+`FullRobot`, which reach t = 0.005, 0.0047 and 0.001 first. One says a
+block was accepted on the arithmetic floor (`ThyristorBridge2mPulse_RLV`,
+t = 1.45e-3), and `Nand` says it did not converge, at 9e-8. So at least
+9 of the 65 have a text of one kind and a behaviour of another. That is a
+lower bound: the "neither" rows are not counted either way. The three
+structural texts at t > 0 are the sharpest case. Index reduction redone
+at an event refuses the model, and the refusal reads exactly like one
+made before the run. Grouping the 65 by text puts them with models that
+never started.
