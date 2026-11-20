@@ -93897,3 +93897,10 @@ of "0 run". No switch that exists lets that model through. Its refusal,
 which hits the ceiling of 32 attempts, is not held by any of the choices
 the tree already lets one turn off. That is a measured negative on one
 model of the seven at the ceiling.
+
+The sweep of the 117 switches was also run on `TanksWithOverflow` and
+`IMC_DOL_CommonLeakage` (`/tmp/m735/ks_*.txt`, summary in
+`ks_sum.txt`). Neither model is let through by any switch. `Engine1a`
+(80 seconds a switch) and `FullRobot` (46 seconds) were stopped before
+the sweep reached them, because together they would have taken longer
+than the shift had left. Their sweeps were not measured.
