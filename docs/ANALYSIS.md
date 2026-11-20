@@ -92963,3 +92963,19 @@ under `cap.sh`, commands in `/tmp/m733/ud.cmd`). All three raise at
 These three are three different shapes under one census line. The
 census counts one refusal kind where the probe sees an overshooting
 exponential, a cycle in an angle, and a start that is nowhere near.
+
+### `Newton direction` on `R134a1`
+
+`OXIDELICA_NEWTON_TRAIL` (`/tmp/m733/nd_R134a1.txt`): a block of one,
+`volume.medium.p`, at t = 0, started at 3e5 Pa with residual -12.2. The
+first full step goes to 1.0e6 and the residual grows to -13.4. The
+second goes to -2.53e6 Pa, a negative pressure, where the residual reads
+exactly 0.971828 and stays there to the last digit while the pressure
+moves by 9e1 Pa per step. The residual is flat: the medium functions
+answer a constant outside their domain, so no direction descends, and
+three such steps end the block (`solvers/mod.rs:3009`). The attempt is
+made twice with the same numbers. The holder is a step from a residual
+that grows with pressure out of the medium's range on the second
+iteration. Implementation quality (the step leaves the domain and is
+not brought back), and it agrees with the m731 reading of this kind as
+step handling.
