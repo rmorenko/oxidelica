@@ -94342,3 +94342,18 @@ the output-row limit (`Test68`, `Test72`) and 1 at the ceiling
 by the solver, 3 stop at the row limit and 1 at the ceiling: 181 to 185
 of 200 outside the machines, against 10 to 11 of 25 inside them. The
 second sample confirms the reading of the first.
+
+### The same tie-break in FullRobot
+
+The victim probe on `FullRobot` itself (`/tmp/m737/vp_FullRobot.txt`,
+`library check --only`, same binary) shows the same kind of decision on
+the same rigid segment. At reduction 9 the candidates
+`axis1.accSensor.flange.phi` and `axis1.gear.bearingFriction.phi` weigh
+109.9557428833785 and 109.955742869182, apart in the ninth significant
+digit, while `axis1.gear.spring.phi_rel` weighs 5.2e-14. The robot's
+default wall is the definition of `spring.phi_rel`, two reductions
+later in the same segment. So the witness `MGk` and `FullRobot` meet a
+numerical near-tie in state selection on the motor side of the gear.
+That they fail for the same reason is a reading, not a measured cause:
+moving the tie would mean touching index reduction, which is not done
+here.
