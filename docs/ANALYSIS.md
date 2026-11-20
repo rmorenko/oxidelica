@@ -94690,3 +94690,19 @@ count over 65: five where a start is one link (two moist-air volumes
 run; `ThreeSprings` and both `RollingWheelSet*` move one step), four
 refuted or misfiled, and `SimpleNaturalGas`, which is the vessel holder
 above.
+
+### The four Spice3 names of the loop-structure kind
+
+Four of the ten names of kind B are Spice3 bipolar circuits
+(`Spice3BenchmarkDifferentialPair`, `NAND`, `ONEBIT`,
+`Spice3BenchmarkRtlInverter`), each refusing on a loop of one
+`der(...vbx)` or `der(...vbe)` that the equations do not determine. On
+`Spice3BenchmarkRtlInverter` `why` and the source say where: the only
+equation naming `der(Q1.vbx)` is `icapbx = cc.capbx * der(vbx)`, and
+`capbx` comes from `junctionCapRevised(m_tBCcap * (1 - XCJC), ...)`
+(`Spice3.mo`, near line 9748), where `XCJC` defaults to 1.0. So the
+coefficient of `der(vbx)` is zero for every default modelcard: a term
+the structure counts and the parameters erase. Whether the other three
+refuse on a zero coefficient of the same kind (`vbe` has its own
+capacitance, not erased by `XCJC`) was not probed. Observation on one
+name; the kind is not split by it yet.
