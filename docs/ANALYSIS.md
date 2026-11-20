@@ -93835,3 +93835,33 @@ reports structure. The likeliest place is a zero test at a probe point
 in index reduction, the same family as the `zero_if` and
 zero-denominator rules. It is a question for Roman, with `MGk_2.mo` as
 the smallest witness.
+
+### Which switch decides the witness, and what it does to the twelve
+
+On `MGk_2.mo`, each of the 117 `OXIDELICA_NO_*` switches the simulator
+reads was run alone (`/tmp/m735/keysweep.txt`). Three let the witness
+run: `NO_CONSTANT_CANDIDATES`, `NO_THROUGH_RELATIVE` and
+`NO_TIME_CONDITION_EVENTS`. On the library's `OneAxis` only one of them
+does (`/tmp/m735/oneaxis_keys.txt`). Under `NO_THROUGH_RELATIVE` the
+model runs until its own terminate block stops it at `t = 1.498`, with
+1508 rows written (`oneaxis_ntr.txt`, exit code 0). Under the default
+it is refused (`oneaxis_def.txt`). The switch turns off the relative
+weighing of a re-selection candidate (`compile.rs:3182-3209`, used at
+`:3556`), which multiplies the slope by the candidate's own value. A
+weight that scales with a value can tie or cross at particular values,
+and that fits a refusal seen only at the factors 2 and 2.0944.
+
+The other eleven of the twelve were run under the same switch
+(`/tmp/m735/ntr_*.txt`, summary in `ntr_sum.txt`). Eight are refused
+exactly as before. Three move to a different wall. `Engine1a` now stops
+in a loop that does not mention `der(b2.frame_a.r_0[2])` at
+`t = 0.001`. `SMPM_ResistiveBraking` now stops on a re-selection at
+`t = 0.004` that names different states than the run so far.
+`FullRobot` is refused on another equation,
+`axis1.motor.flange_motor.phi = ...`, after 15 others are tried. So in
+this set of twelve the switch wins one model and loses none outright,
+while moving three. The relative weight came in for `SMPM_Braking`
+(m552), so turning it off would give that model back, and nothing here
+measures it. This is a mechanism for Roman to weigh, not a change: the
+switch is reduction, and this shift may not move it. `OneAxis` running
+under a switch is measured on one model and is not a win in the measure.
