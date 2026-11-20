@@ -93186,3 +93186,32 @@ rejected trials, row by row, with the floor each row is held to there.
 The mechanism of the 2.66 is therefore narrowed (the step is refused at
 longer fractions, and not because of the orifice row's own linearity)
 and not yet named.
+
+#### The rejected trials, printed: what holds `SeriesPipes1`
+
+Every trial of the line search, printed with the floor each row is held
+to in the descent norm (patch `/tmp/m733/trial.patch`, binary
+`/tmp/m733/ox5`, output `/tmp/m733/trial.txt`, command in `trial.cmd`;
+control: the refusal equals `/tmp/m731/SP1b_bdf.txt` to the digit).
+
+On the last solve the full Newton step does what it should for the
+orifice: row 4 goes from 2.66e-10 to 6e-17, below its floor of 1.7e-15.
+The step is refused anyway, because row 1 (`valve.dp_turbulent`, value
+1.08e5) comes back at 8.0e-10 where it stood at 2.18e-10. Along the
+halvings row 1 reads 4.95, 10.3, 8.88, 8.88, 6.99, 5.82, 9.02, 5.82 ...
+(units of 1e-10): not a smooth function of the step but a scatter of
+whole numbers of units in the last place (1.455e-11 each), from 15 to
+about 70 of them. In the descent norm row 1 is held to a floor of 2.4e-11,
+the reach-based one, so this scatter counts in full against the step.
+Only fractions near 6e-5, where row 1 happens to land back on its
+starting 15 units, pass the test, and they buy row 4 nothing.
+
+So the 2.66 is this: the orifice row would be solved in one step, and
+the step is refused because the valve row's rounding noise, tens of
+units in the last place of a number near 1e5, is weighed in the line
+search against a floor ten to forty times smaller than that noise. The
+acceptance floor at the end (loudness 1.6e7, so 1.4e-8) would forgive
+row 1. The descent norm (reach, 2.4e-11) does not. These are two floors
+for one row in two places, and they disagree by a factor near 600. That
+mismatch is the finding. Changing either floor is step handling and
+acceptance, so it goes to Roman as a question, not as a change.
