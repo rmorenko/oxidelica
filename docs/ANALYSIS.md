@@ -95475,3 +95475,66 @@ price, census stability against twelve refusals that report their time,
 and not as a defect. This is the third time in the shift that a guard
 read as too cautious turned out to be explained where it stands
 (`linear.rs:128-134`, `dopri.rs:805`, `compile.rs:3040`).
+
+## Shift 695: the kind letters of the 65, read against their texts
+
+The kind legend written for `/tmp/m738/breed.tsv` (65 rows, the key-on
+refusal set) was read against the first refusal line of every member in
+`/tmp/m738/full/`, all taken with binary `oxh`, md5 c9e25082. The
+witness is `~/oxideflow/park/m739_breed_vs_text.tsv`.
+
+Two of its lines describe each other's members. All 11 rows of kind A
+carry `structurally singular model`, and none of the 24 rows of kind C
+does. The counts and names in the legend were right but the meanings
+were reversed, which is why a check of counts did not catch it.
+
+### Kind C, the 24, by their own texts
+
+By text: Newton direction 10, singular block 6, loop not converging in 60
+iterations 3, a block on the arithmetic floor (underdetermined) 2,
+initialization not converging 1, a solution on either side 1, and the
+naninf loop of `MeasuringTemperature` 1. Shift 694 had covered 15 of
+them; the nine left are in `park/m739_kindC_rest.tsv`. By behaviour they
+fall to holders already named elsewhere: five Fluid tests whose text
+says Newton direction but whose step collapses mid-run (the four pipes
+and `TestTemperature1`), `R134a2` as the twin of `R134a1`,
+`RollingWheelSetPulling` as the twin of `RollingWheelSetDriving`, two
+ideal-switch rectifiers refused as underdetermined on the floor with
+eight and more names (kind B in shape, not the 1x1 floor), and
+`DynamicPipeClosingValve` and `MeasuringTemperature`, both already in the
+queue.
+
+One is new. `TestSuddenExpansion` refuses at t = 0 after one Newton
+iteration: `suddenExpansion1.m_flow` starts at 0, the residual is -1e4,
+and the column is flat there with a solution each way. The model's own
+documentation presents it as the example of wrong usage, where the
+kinetic terms of a plain connection make the flow run against the
+pressure difference. The trail is `/tmp/m739/tr_TSE.txt`.
+
+### Kind A, the 11, by where index reduction stopped
+
+Seven stopped at the attempt ceiling, `MAX_SINGULAR_ATTEMPTS = 32`
+(`compile.rs:907`), their refusal saying 31 others were tried. Three
+exhausted a smaller subset (3, 5 and 14 equations: `BatchPlant`,
+`TanksWithOverflow`, `FullRobot`). One, `SMPM_ResistiveBraking`, had no
+subset at all (`3 * smpm.lszero.i = 0`). By the time of the refusal,
+four are mid-run and seven at t = 0. The ceiling is a constant with no
+switch, and index reduction is not to be touched, so whether any of the
+seven finds its member past 32 is left unmeasured. Table:
+`park/m739_kindA_holders.tsv`.
+
+### Kind B, the 10, by block
+
+Four are Spice 1x1 blocks on a derivative (three priced already as the
+floor, `Spice3BenchmarkDifferentialPair` the not-mentioned form), four
+are machines with 26 to 80 names, and two are MultiBody loops refused as
+not mentioning their unknowns (25 and 52 names). Table:
+`park/m739_kindB_holders.tsv`.
+
+### The holder of R134a1
+
+The trail shows Newton taking the pressure from 3e5 to 1.0e6 and then to
+-2.53e6 on its second step, after which the residual stays at 0.97. The
+refusal names the direction, but the step that holds the model takes it
+out of the medium's domain. Trail:
+`/tmp/m738/tr65/Modelica.Media.Examples.R134a.R134a1.txt`.
