@@ -95220,3 +95220,15 @@ Three more blocks under the scan, same binary (md5 c9e25082, files
   the null direction moved with it. So the m733 reading of this model
   belongs to that binary, and the shape "a curve parameter no row sees"
   is not what stands now.
+
+The scan has nothing to read on three more, and that is itself the
+reading. `SMPM_CurrentSource`, `Nand` and `R134a1` print Newton
+iterations but no Jacobian (`work:` reads 0 jacobians,
+`/tmp/m738/p6/nt_{SMPM_CS,Nand,R134a1}.txt`), because the trail prints
+the matrix only on the singular path. For the first two the residual
+history shows the failure: `SMPM_CurrentSource` oscillates between 2e2
+and 5e2 for 60 iterations at t = 0, and `Nand` at t = 3.75e-8 swings
+from 0.47 to 2.4e7 and back. That is a Newton that cycles, not one
+that meets a singular matrix, so their rank is not the question. In
+`R134a1` the block of one stops after 10 iterations on a direction that
+does not descend, as the m733 note says.
