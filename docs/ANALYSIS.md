@@ -93987,3 +93987,8 @@ to 47 minutes, and this shift started it too late to finish. The
 witness's hand-back at `t = 0.3` with a mode change is the second return
 of the explicit step, `dopri.rs:811` (`!mode_holds`), beside the first at
 `:805` (`!selection_sound`). That names the place and not the cause.
+
+The five Newton-direction Fluid models that hand back at `t = 0` were
+checked under the switch too (`/tmp/m735/fl5.txt`). All five refuse
+both with and without it, so the re-selection weight does not hold that
+family.
