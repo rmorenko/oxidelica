@@ -95677,3 +95677,24 @@ root falls in, and two bands answer it. Small roots, flows of a fraction
 of a kilogram per second, are the band the library lives in. The
 existing test, `dp = 0.5*m*m` with `dp = 2` (root 2), lies just outside
 the lower band.
+
+### The price of the blind check, as an upper bound
+
+Every one of the 855 models that run by default was traced alone with
+`oxh` (`/tmp/m739/jumps/`). 40 take a first Newton step more than a
+million times their start (`park/m739_jump_models.list`). An exact
+signature of the one-ulp reading was then applied to those 40: a
+component whose first step, divided by a difference step of
+`1e-7*10^k*(1+|v|)`, lies in `[2^52, 2^53)`. It finds 14 of them
+(`park/m739_ulp_signature.tsv`), mostly machines, batteries and a few
+fluid tests. One candidate, `Dimmer_RL`, was still running when this
+was written.
+
+The controls set the reading. The signature fires on `Fork2`, which
+has two roots and a silent pick, but it also fires on `Fork` and on
+`Sq`. `Fork` has one root and returns the right answer. So the
+signature says the flat column was read through rounding. It does not
+say that a second root was dropped. Fourteen is an upper bound on the
+models where the blind check could have chosen a root, not a count of
+wrong answers. Turning the bound into a count needs each of the 14
+asked whether its block has a second root. Nothing here reaches that.
