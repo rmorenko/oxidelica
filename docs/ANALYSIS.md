@@ -93312,3 +93312,32 @@ differ by four won (`PolyphaseRectifier`, `TestTemperature1`,
 (`ThyristorBridge2mPulse_RLV_Characteristic`, `RoomCO2WithControls`,
 `HeatLosses`). These per-model differences come from inside a corpus
 pass and only name candidates; none was confirmed one at a time.
+
+### BranchingPipes2 under the trial print, read to a longer ceiling
+
+`/tmp/m733/ox5` with `PROBE_TRIAL=1` on `BranchingPipes2` under
+`--solver bdf`, ceilings raised to 45 minutes (command in
+`/tmp/m734/bp2.cmd`), was stopped by its own 45-minute ceiling with no
+refusal line (`/tmp/m734/bp2_trial.txt`, 35 MB, peak 0.3 GB). Unlike
+`SeriesPipes1` it does not stand at one point: simulated time moved from
+0 to t = 0.0127 during the run, with about half of the trials of the
+full step rejected along the way. So the answer is an inequality, at
+least 45 minutes to its refusal under `bdf`, and it is not bought
+further. No control was run, since a second empty file proves nothing.
+The class of the descent-floor finding stays at one model.
+
+### The row 4 Jacobian against a central difference
+
+A probe binary `/tmp/m734/ox1` (patch `/tmp/m734/fd.patch`, command in
+`fd.cmd`) prints, before each line search, every cell of the loop
+Jacobian beside a central difference of the residual. On
+`/tmp/m731/SP1b.mo` under `bdf` it printed 11268 cells up to t = 5.11e-6,
+past the refusal time 5.077e-6 of `/tmp/m731/SP1b_bdf.txt`, and was then
+stopped by hand. The worst relative disagreement over all cells is 0.23%
+(0.15% over the 1836 cells after t = 5e-6). The cell of row 4
+(`simpleGenericOrifice.V_flow`) against `valve.dp_turbulent` is 0 in the
+Jacobian and 0 in the difference. A kink of the `max` near the iterate
+would show as a difference that disagrees with the analytic cell, and
+none does. So the reading of question 19, that the row is held by a wrong
+derivative at the switch of the `max`, is dead, in agreement with
+`predict.txt`.
