@@ -93535,3 +93535,7 @@ its `Interval` is 1e-4, so ten steps reach 0.001, well before the
 refusal. What changes near 0.005 s was not read this shift; the
 switch sources of the model start at 0, 0.5 and 2 s, so none of those
 names it.
+With `OXIDELICA_EVENT_TRAIL=1` and `--stop 0.006`
+(`/tmp/m734/smee_ev.txt`) the only events printed are `booleanStep.y = 1`
+at t = 0 and at 1e-13; nothing fires near 0.005 s. So the route from the
+run to the structural refusal is not an event either, and stays open.
