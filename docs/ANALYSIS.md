@@ -95079,3 +95079,11 @@ whatever that leaves. This is an observation and one reading of it,
 not a measured cause. The test that would settle it is the m686 link
 (standing calls keep their rule) on this model, which this shift may
 not build.
+
+The second link of `HeatingSystem` (`G22`, 42 unknowns) holds `pump.N`,
+`pump.V_flow_single` and `pump.rho`. The same family's `PumpingSystem`
+was read with a single null direction, `pumps.s`, the pump's curve
+parameter, which no row sees at a standing pump. Whether `G22`'s block
+has that same null direction is not measured. The rank trail that read
+`PumpingSystem` (`/tmp/m733/ud.cmd`) is the instrument for it. Named
+here so that the two are not taken as separate walls before that run.
