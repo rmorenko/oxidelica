@@ -93225,3 +93225,18 @@ while the noise the row actually shows comes from terms of loudness
 guard exists and is aimed at this case, but on this row it is measured
 on the wrong quantity. The question for Roman: should the descent floor
 read the loudness term, as the acceptance floor already does?
+
+#### The same trial print on `BranchingPipes4`: a different holder
+
+The same binary on `BranchingPipes4` under `--solver bdf`
+(`/tmp/m733/trial_BranchingPipes4.txt`; control without the key,
+`ctl_BranchingPipes4.txt`, refuses with the same text). The last solve
+is at t = 1.79e-4, six unknowns, residual 1.2e-3. Here the valve rows do
+not hold it. The full step takes five rows down to between 1e-9 and 4e-6,
+but row 5 (`splitter.medium.p`) comes back NaN. Every halving down to
+2.4e-4 leaves row 5 NaN, below that all six rows go NaN, and only a
+fraction of 1.9e-6 returns a number. So `BranchingPipes4` is held by the
+splitter's medium leaving its domain along the Newton direction, not by
+the floor mismatch found on `SeriesPipes1`. Two models under one census
+line, two holders. The floor question to Roman covers `SeriesPipes1`
+only.
