@@ -93626,3 +93626,29 @@ entered is the step cut that let the short run end before the watch
 could fire. Nothing here is a defect to fix inside this shift's
 permissions. The bound that the implicit path breaks is the exact
 `>= 0` of queue item 24.
+
+### Holders for five more kinds of the run half
+
+Each of these was run once under `OXIDELICA_WHERE=1` to its stop time
+(`/tmp/m735/s_*.txt`, commands in `h.cmd`). The holder column of
+`/tmp/m734/rody.tsv` now carries them.
+
+- `DynamicPipeClosingValve`: the initialization uses up its budget of 50
+  Newton iterations (`compile.rs:10462`). No floor is involved. What holds
+  it is the budget.
+- `ThyristorBridge2mPulse_RLV`, at `t = 0.0002`: a block of the six
+  `idealThyristor.s` and one star-point pin is accepted on the
+  arithmetic floor after 60 iterations, then refused as underdetermined
+  (`mod.rs:1820`, raised through the guard at `:1871`). Here the floor is
+  a ground for refusing, the opposite polarity of the acceptance test.
+- `HeatExchangerSimulation`: the start block of 162 unknowns is entered
+  25 times at `t = 0` and stands at `|f| = 4.05e-6` for the last 24
+  entries (`mod.rs:1653`, the start-stall table). The floor here is the
+  one the stall test reads. It is neither of the two acceptance floors.
+- `Fourbar1`: 1999 equations for 1990 unknowns, with 48 alias rows
+  `frame_a.r_0 = body.frame_a.r_0` left over (`compile.rs:7382`). The
+  surplus of nine equals three bodies times three rows of loop closure.
+  That is a reading of the shape, not a probe.
+- `MoistAir1`: the initialization Newton step leaves `volume.U` unpinned
+  (`compile.rs:10350`). This is the same line that holds
+  `AmplifierWithOpAmpDetailed`.
