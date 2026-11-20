@@ -93718,3 +93718,20 @@ the starting mode. So two of the three zero-flow refusals share one
 holder: a branch of an `if` equation that fixes a flow some other
 equation already fixes. The third, `SMPM_ResistiveBraking`, is born at a
 rebuild and stays unread.
+
+### The twelve split by how far the search went
+
+The wrapper at `compile.rs:3039`/`:3040` says how many other equations
+of the singular subset were tried, and that count divides the twelve
+better than the equation's shape does. Seven say "31 other", which is
+the ceiling of 32 attempts: `ActuatorWithNoise`, `Engine1a`,
+`IMC_DOL_CommonLeakage`, `PointGravityWithPointMasses2`,
+`PrismaticConstraint`, `RollingWheel` and `SphericalConstraint`. For
+these the refusal is an inequality: no member was found in 32 tries,
+and that does not mean none exists. Three used up a smaller subset below
+the ceiling, so the refusal is structural: `FullRobot` (13),
+`TanksWithOverflow` (4) and `BatchPlant_StandardWater` (2), the last two
+being the doubled-flow holder above. Two had nothing else to try at
+all: `OneAxis` and `SMPM_ResistiveBraking`. So seven of the twelve stand
+on a ceiling that this shift may not move. That matches the earlier map
+of question 17 (seven cut by `MAX_SINGULAR_ATTEMPTS`), now with names.
