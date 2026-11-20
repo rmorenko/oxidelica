@@ -94897,3 +94897,15 @@ below it. What this shift adds is the fifteen-line `E6.mo` and its
 control `E7.mo`, which isolate declaration order as the only cause.
 Kind G (the constant subscript of `waterBaseProp_ph`) is not in the
 queue under that name.
+
+A medium-free reproduction of kind G was attempted and not found.
+`G9` to `G14` in `/tmp/m738/p6/` put a constant subscript of a
+function call into the definition of `T` under an initial
+`der(T) = 0`: directly, nested, through a loop body the compiler
+cannot inline, and inside a torn block of three like `G6`'s. All run
+(`G13.txt`, `G14.txt`, same binary). In `G13` the probe prints the
+call evaluated through to its branches, so a user function with literal
+arguments is folded before differentiation and its subscript never
+survives. What `waterBaseProp_ph` keeps is the subscript itself. So
+`G6.mo`, one `ClosedVolume`, remains the smallest witness, and which
+property of the IF97 function stops the folding is the open step.
