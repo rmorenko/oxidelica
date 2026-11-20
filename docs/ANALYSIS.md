@@ -96071,3 +96071,25 @@ in two libraries, and under the probe both end at t = 1.5 with a speed
 of 156.957833 rad/s and a torque of 46.576588 against 46.576586 N·m.
 They agree with each other, which is not the same as agreeing with a
 reference.
+
+### Every reach run ended at t = 1
+
+The measure under all of this has a fault, and it lowers what the
+earlier paragraphs of this shift and of shift 696 can claim. Every
+reach run went through an `extends` wrapper, `model W extends M; end
+W;`, and such a wrapper loses `M`'s experiment annotation. `simulate`
+says so in its own comment and takes a library class by name for that
+reason. Of the 772 logs read as reaching StopTime in
+`park/m740_reach855_full.tsv`, 770 end at t = 1.000000, the default
+stop, and the other two at 0.667. So "reached StopTime" there means
+"reached t = 1". A model whose own stop is shorter may refuse past it,
+which is a refusal that should not count, and a model whose stop is
+longer was never run as far as it asks. Two cases show both. `NandGate`
+(StopTime 1e-7) refuses under the wrapper at 5e-5 s on the event
+ceiling and runs by class name. `TestBearingConversion` (StopTime 1.1)
+refuses under the wrapper and runs by class name. The 791 of 854, the
+kinds of the 57, the capped 26 and the bisected times were all taken
+through the wrapper and stand corrected until a remeasure by class
+name, which was started (`/tmp/m741/cls`, the same binary, cap 2
+minutes). The mechanisms found by probe (rebuilds, columns, the two
+walls) do not depend on the stop and stand.
