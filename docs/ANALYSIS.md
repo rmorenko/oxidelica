@@ -95140,3 +95140,13 @@ does not descend is, though, what a Jacobian missing entries would
 give. Whether the four pipe models carry a zero column like `G22`'s
 `pump.rho` is the instrument's next question, and it is cheap: the
 same trail and the same script (`G22_null.txt`'s three lines) on each.
+
+The trail was run on the pipe models (`/tmp/m738/p6/nt_*.txt`, same
+binary). It answers differently from `G22`. `SeriesPipes1`,
+`BranchingPipes2` and `BranchingPipes4` print some 2700 Newton
+iterations and no Jacobian at all (`work:` reads 0 jacobians). The start
+solves, and the run creeps to t = 2.8e-9 in `SeriesPipes1` before the
+direction stops descending. That is a stall at the first steps, not a
+singular block, so the zero-column question of `G22` does not apply to
+them, and the IF97 marker they share with `HeatingSystem` is not their
+holder by this evidence. The four join kind A's shape rather than G's.
