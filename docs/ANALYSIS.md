@@ -93539,3 +93539,12 @@ With `OXIDELICA_EVENT_TRAIL=1` and `--stop 0.006`
 (`/tmp/m734/smee_ev.txt`) the only events printed are `booleanStep.y = 1`
 at t = 0 and at 1e-13; nothing fires near 0.005 s. So the route from the
 run to the structural refusal is not an event either, and stays open.
+The Newton trail (`/tmp/m734/smee_nt.txt`) shows the last loop solve at
+t = 0.0043 converging to 2e-10 in two iterations and the refusal right
+after it, so the loop is not what fails. Read in `solvers/dopri.rs`, two
+places hand a run back for a rebuild mid-way, `selection_sound` (the
+pivot would choose other states here) and `mode_holds` (a run-time `if`
+changed branch), and a rebuild compiles again, which is where a
+structural refusal can come from in the middle of a run. Which of the
+two fires for `SMEE_DOL` near 0.0044 s is not measured; a print at those
+two returns would say it in one run.
