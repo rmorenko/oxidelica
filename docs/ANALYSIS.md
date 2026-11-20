@@ -94091,3 +94091,38 @@ by `why` and by reading the source, rows in `/tmp/m736/rody.tsv`:
 - `structurally singular` on `G.i = 0` and `n2.i = 0` (2 and 2): first on
   `Spice3...InvertersExtendedModel.MPmos` and `OpAmpCircuits.Add`,
   building blocks with an open pin. Likely not ours, not probed further.
+
+### The 132 run-half refusals by name, helpers apart
+
+Each of the 132 models that flatten and do not run in the switched half
+(`/tmp/m736/refused.list`, taken from `on_half.txt`) went through
+`simulate` alone with the same binary, the default keys, and
+a ceiling of six minutes each (`/tmp/m736/err.tsv`, script `err.sh`, 132
+of 132 done). The names were sorted by whether the class lives under
+`Utilities`, `BaseClasses`, `Components`, `OpAmpCircuits`,
+`InvertersExtendedModel` or `Interfaces`, which is a reading of the path
+and not a probe.
+
+- 71 of the 132 are such building blocks. They refuse for reasons that
+  belong to a part with no surroundings: parameters left to the user,
+  open pins and connectors (all eight `unbalanced` and fourteen of the
+  eighteen `structurally singular` by name). They are admitted by the
+  example filter, which is not touched here.
+- 60 are examples that refuse. The commonest kinds among them are
+  `structurally singular` (about ten), loops that do not converge in 60
+  Newton iterations (5), an initialization problem that leaves a
+  variable free (4) and underdetermined loops (about seven, mostly
+  machines).
+- 1, `MovingActuatedDrive`, printed no error under `simulate` with the
+  default keys: it runs. It is in the list only as the switch's victim,
+  which this agrees with. `SMPM_Braking`, the other victim, refuses under
+  default `simulate` on a singular Jacobian although the default corpus
+  check runs it, so the two paths do not agree on it; not followed
+  further.
+
+Three of the four free-initialization examples are one shape:
+`ReferenceAir.MoistAir1`, `MoistAir2` and `SimpleNaturalGas` leave a
+volume's `U` or `m` unpinned. It is a reading for the next probe, not a
+measured family. So the run-half census, read by its rows, counts helpers
+and examples alike, and about half of what it shows is not a model anyone
+simulates.
