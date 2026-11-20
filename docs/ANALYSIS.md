@@ -95357,3 +95357,11 @@ by an index reduction redone during the run, after events, and the
 census's `structure` row holds both kinds under one text. The text could
 say which by naming the time. It names it for a Newton refusal ("at t =")
 but not for this one.
+
+Over all 18 rows whose text is structural (same table, points column):
+14 print 0 points and were refused before the run, and four ran first.
+These are `ActuatorWithNoise` (4841), `FullRobot` (557),
+`SMPM_ResistiveBraking` (120) and `Engine1a` (12). `Engine1a` creeps too
+little to fall in the creep column, so the bound of 10 above misses it.
+Counted by points instead of by creep, the mid-run structural refusals
+are four, and the bound becomes 11 of 65.
