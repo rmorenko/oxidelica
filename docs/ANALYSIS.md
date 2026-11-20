@@ -94706,3 +94706,11 @@ the structure counts and the parameters erase. Whether the other three
 refuse on a zero coefficient of the same kind (`vbe` has its own
 capacitance, not erased by `XCJC`) was not probed. Observation on one
 name; the kind is not split by it yet.
+
+The active test refutes that reading. With `Q11(XCJC=0.5)`
+(`/tmp/m738/p6/RTL_x.mo`), confirmed bound by `why` and passed through
+to `m_baseFractionBCcap` in the source, the model refuses with the same
+text, `underdetermined algebraic loop ["der(Q1.vbx)"]`. So the zero
+capacitance is not what holds it. The loop is underdetermined for a
+reason the coefficient of `der(vbx)` does not carry, and the source
+line above is a possible mechanism that did not act.
