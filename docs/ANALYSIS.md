@@ -93778,3 +93778,12 @@ At `t = 0.693` the loop equations of `TwoMass` no longer mention
 `pipe1.flowPort_a.h`: a column that is absent in a mode, the same shape
 as the "equations of loop" row. All six of these models run inside the
 ten-step check, and each fails later on its way to the stop time.
+
+`FullRobot` stops on the spring row `axis1.gear.spring.phi_rel = ...`
+after trying 13 others (`/tmp/m735/why_fullrobot.txt`). The axes of
+that robot use `GearType1`, which puts a `SpringDamper` in series with a
+`BearingFriction` (`RobotR3/Utilities/GearType1.mo:22-33`). So
+`OneAxis`, `FullRobot` and the `GearType2` model of the "equations of
+loop" row all carry the same friction element. Reading the text makes
+them one candidate family of three. One probe of the friction element
+on its own would confirm or split it.
