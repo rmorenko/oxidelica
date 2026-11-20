@@ -94666,3 +94666,14 @@ not what holds either of them, and both go back from "probable" to
 (`RollingWheelSetDriving`, not tested actively), six open, of 65. Two
 passive instruments, `why` and the text of the refusal, made a
 candidate; the active one that could have confirmed it did not.
+
+Two more candidates were tested actively (`/tmp/m738/p6/{RW_a,AO_v}.mo`).
+`RollingWheelSetDriving` with `aux(each start=1)` on both rolling
+joints loses its NaN and refuses one step later, as a loop that does
+not converge in 60 iterations. That is the pattern of `ThreeSprings`:
+the start was one link of a chain, and it is now shown rather than
+probable. `AmplifierWithOpAmpDetailed` with `opAmp.v_in(start=1e-6)`
+refuses with a text identical to its unchanged run, so for it the
+missing start is refuted. Count over 65: four shown as a link (two
+moist-air volumes run; `ThreeSprings` and `RollingWheelSetDriving` move
+one step), three refuted, three open.
