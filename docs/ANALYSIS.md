@@ -96110,3 +96110,13 @@ the whole 855 is offered from this. The other 450 are listed for the
 next pass with the script that runs them
 (`park/m741_reach_by_class405.tsv`, `park/m741_reach_by_class_todo450.list`,
 `park/m741_reach_by_class.sh`).
+
+Two cautions on that prefix. The final times are printed with six
+decimals, so the own stops of 1e-7 to 2e-8 s read as 0.000000, which is
+not zero. And the ten models that moved to reached did so because their
+own stop is seven or eight decades shorter than 1 s, so they halt
+before the trouble the wrapper ran them into: that is a shorter
+distance, not a win. The two counts measure different distances per
+model and do not subtract. The three models the column probe let
+through are not offered as gains until their answers are checked by
+name.
