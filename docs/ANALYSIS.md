@@ -94575,3 +94575,16 @@ row of three is two holders: the unstarted energy of `PortVolume` with
 reference moist air, and a zero column under a steady-state start in
 the Fluid vessel, not yet probed. The census row should be read as two
 families sharing one wording.
+
+The vessel half was shrunk too (`/tmp/m738/p6/V_CP*.mo`, binary
+`/tmp/m738/oxj`). A `ClosedVolume` fed by a mass flow and drained
+through a laminar `StaticPipe` to a fixed boundary, under
+`SteadyStateInitial`, refuses with `SimpleNaturalGas` with the same text
+as the corpus model (`volume.m`), and its start vector and residual
+print equal to the corpus model's to every digit. The same rig runs with
+the single gas `N2`, and runs with `SimpleNaturalGas` under
+`FixedInitial`. So the second holder is a mixture medium in a vessel
+under a steady-state start. The steady-state rows read zero slopes in
+every column of the mixture model, where the single gas solves. A rig
+with one port and no outlet (`V_CV*.mo`) refuses for both media, and is
+ill-posed as written, so it is not evidence.
