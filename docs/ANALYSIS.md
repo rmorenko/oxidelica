@@ -94987,3 +94987,15 @@ standing now keeps the derivative its function declares", parked as
 library-free witness and test for that link. Kind G's IF97 half (the
 constant subscript) is not in that chain. It remains unmatched in the
 queue.
+
+For the IF97 half, three more library-free shapes were tried, and all
+of them run (`/tmp/m738/p6/G33.txt` to `G35.txt`). They are a subscript
+of a call with literal arguments whose body has a loop the model
+decides (`G33`), the same nested inside itself as `waterBaseProp_ph`
+nests `waterBaseProp_pT` (`G34`), and a body with a `while` (`G35`).
+With literal arguments the compiler evaluates the call whole at
+flattening, so no subscript survives. What keeps IF97's from being
+evaluated is therefore something the evaluator refuses in its body,
+not the shape of the call. The candidate is the inlining depth
+(`MAX_NESTED_CALLS = 64`, `algorithms.rs:83`), past which a call stands
+unevaluated. That is not measured here.
