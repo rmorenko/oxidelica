@@ -93992,3 +93992,10 @@ The five Newton-direction Fluid models that hand back at `t = 0` were
 checked under the switch too (`/tmp/m735/fl5.txt`). All five refuse
 both with and without it, so the re-selection weight does not hold that
 family.
+
+The two rebuild counts differ, and they do not contradict each other.
+Five of the twelve structurally singular refusals are born at a rebuild,
+and ten of the 62 run-half refusals are. The twelve were picked by
+their refusal text, and that text itself goes with rebuilds more often
+than others do. A share inside a subset picked by a feature is not the
+share in the corpus.
