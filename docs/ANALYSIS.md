@@ -95317,3 +95317,11 @@ structural texts at t > 0 are the sharpest case. Index reduction redone
 at an event refuses the model, and the refusal reads exactly like one
 made before the run. Grouping the 65 by text puts them with models that
 never started.
+
+Correction to the count above, recounted from the table rather than
+from the list: the creep column holds 11 rows, and only one of them,
+`MovingActuatedDrive`, runs on the default. `SMPM_Braking` sits in the
+singular-block column and not here. So 10 creep and refuse, the text
+names a stall for none of them, and the lower bound is 10 of 65, not 9.
+The ten are the five named for `Newton direction`, the three structural
+texts, `ThyristorBridge2mPulse_RLV` and `Nand`.
