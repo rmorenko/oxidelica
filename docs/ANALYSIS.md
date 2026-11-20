@@ -94483,3 +94483,17 @@ the key moves the knife edge rather than removing every one. This
 explains `MGk` and the tie in `FullRobot`. Whether it explains the seven
 other structurally singular examples is not shown, and the earlier
 count of ties says it does not.
+
+### Hand-back sites over the eleven structurally singular examples
+
+The site print (`/tmp/m738/oxs`, md5 in `/tmp/m738/oxs.md5`) was run on
+all eleven names of `/tmp/m737/A11.list` (`/tmp/m738/site11.tsv`) and
+set beside the count of ties (`/tmp/m737/ties.tsv`). The seven models
+with no tie print no Dopri site. `FullRobot`, the one near-tie, hands
+back at the site taken when the mode is left (line 761, t near 3e-14).
+Of the three models with exact ties, `SMPM_ResistiveBraking` and
+`Engine1a` hand back at the `selection_sound` site (line 806), and
+`ActuatorWithNoise` hands back at no Dopri site. So "no tie, no site"
+holds seven of seven, and "exact tie, site 806" holds two of three, with
+one named exception. That is a correlation over eleven names, not a
+classifier.
