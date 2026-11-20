@@ -95102,3 +95102,18 @@ speed a `ControlledPump` solves for, meet in the block only through
 the head. Where the row that should tie `rho` to the medium went is
 the next question for `why pump.rho`. The pressure pair is a third,
 separate direction.
+
+One step further, and it found something the block should not hold. Row
+4 of the same block is `pump.V_flow = pump.m_flow / pump.rho`, which
+names `pump.rho`. Its printed Jacobian row has two nonzero entries only,
+`pump.V_flow_single` (1.0) and `heater.m_flows[1]` (-1.012e-3, which is
+-1/rho at rho = 988.09). The `pump.rho` entry is exactly 0.0
+(`/tmp/m738/p6/G22_row4.txt`). At the printed point,
+`V_flow_single = 1.0068e-5`, so the derivative there is
+`-m_flow/rho^2 = -V/rho`, about -1.0e-8, small but not zero. With that
+entry the column of `pump.rho` would be seen by two rows and not one.
+Whether the zero comes from the column being left out of the row's
+pattern or from a difference step below the entry's size is not
+measured. It is the first thing to ask of this link, and it belongs to
+the Jacobian, which is under ban for this shift, so it goes as a
+question.
