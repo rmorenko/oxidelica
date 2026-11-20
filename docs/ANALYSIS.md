@@ -96018,9 +96018,14 @@ What the pair says about item 34 is three things, not one. The gain is
 no model. The harm is none, because the lists and every work counter
 are equal. The cost of the new path when it fires is not measured, and
 cannot be on this corpus: equal counters mean it never fired. The
-small model that does carry the form ran in 301 to 318 ms off and 299
-to 300 ms on, process start included, which shows no cost at that size
-and says nothing about a large model.
+small model that does carry the form ran in 364 to 368 ms off (after
+one cold start at 515) and 351 to 357 ms on, process start included,
+which shows no cost at that size and says nothing about a large model.
+A first timing set the switch to an empty string for the off half,
+which the code reads as set, so both halves had run with the probe; the
+numbers here are from a second run with the variable removed. The
+corpus pair and the five table tests set it only for the on half and
+stand.
 
 The other 21 timeless refusals were bisected the same way
 (`park/m741_timeless_bisect21.tsv`). Six machine examples (`IMC_DOL`,
@@ -96048,3 +96053,15 @@ stand in each of the six, and the structural and state-reselect rows
 of the census are not independent. 13 models in all stop on the column
 set of a re-selection, 7 shown as such and 6 shown as structural
 (`park/m741_rebuild15.tsv`).
+
+Reading (a) was then probed outside the tree: undeclared `der(...)`
+names dropped from the output columns, behind `PROBE_DER_FILTER`, off
+with the variable removed (`park/m741_der_filter.tsv`). Three of the
+seven state-reselect refusals reach StopTime under it, `IMC_Steinmetz`
+and `SMR_Inverter` in both libraries. The other four leave that kind
+for the next wall, three structural and one step underflow, and the six
+machines whose full run ends structurally do not move. The three were
+already among the 855 that pass ten steps, so no floor moves, and their
+answers were not compared with anything. The probe only hides columns,
+it does not change what is solved. What the output columns of a
+rebuilt model should be is Roman's to say.
