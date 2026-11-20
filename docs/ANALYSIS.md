@@ -93240,3 +93240,21 @@ splitter's medium leaving its domain along the Newton direction, not by
 the floor mismatch found on `SeriesPipes1`. Two models under one census
 line, two holders. The floor question to Roman covers `SeriesPipes1`
 only.
+
+`BranchingPipes2` under the same trial print was not read to the end:
+both the probed half (`/tmp/m733/trial_BranchingPipes2.txt`) and the
+control (`ctl_BranchingPipes2.txt`) were stopped by their own 20-minute
+ceiling, and neither holds a refusal line. Two empty files compare equal,
+and that equality is not a control. So the class the `SeriesPipes1`
+floor finding names is one model for now: `BranchingPipes4` is held by
+something else, and `BranchingPipes2` is an inequality (more than 20
+minutes under `bdf` to its refusal).
+
+One more line, owed to the code rather than to a probe: acceptance
+already learned this lesson. `on_arithmetic_floor` (`solvers/mod.rs`,
+the comment above it) holds a row to both loudness and reach, after two
+measured cases, `Rectifier` at 9.3e-10 and `Rectifier6pulse` at 2.44e-10.
+The descent floor still holds one, reach alone. The valve row of
+`SeriesPipes1`, at 2.2e-10 to 1.0e-9, is the same order. So the question
+to Roman is the unfinished second half of a correction already made,
+not a new kind of fault.
