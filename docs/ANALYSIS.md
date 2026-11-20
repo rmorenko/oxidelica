@@ -93417,11 +93417,17 @@ the thyristor loop (`solvers/mod.rs:2764`, `/tmp/m734/thy_default.txt`)
 and `RoomCO2WithControls` with the same `C_outflow[1] = -5.5e-18`
 assertion at t = 0.001 that it meets under `bdf`
 (`/tmp/m734/co2_default.txt`), yet `library check --only` lists both as
-`ran`. The check does more than `simulate`: after a refusal it may try a
-second compilation with swapped states (`compile_with_state_swap`,
-`main.rs` near `swap_may_help`) and runs ten steps of that. So all three
-models the `bdf` default "loses" are refused by `simulate` under the
-default solver too, and they count as run only through the ten-step
-check and its retry. Under `bdf` the same retry does not carry them.
-That narrows what the three victims cost: not three models that run
-today, but three that pass a ten-step check today.
+`ran`. A correction made within the same hour: the state-swap retry is
+not what carries them, since `swap_may_help` (`main.rs`) takes only
+refusals naming a medium pressure, and neither of these does. For the
+thyristor model the ten-step horizon alone is the reason: its
+`Interval` is 2e-4, ten steps reach 0.002, and `simulate --stop 0.002`
+finishes (`/tmp/m734/thys.csv`, 13 steps), so the refusal lies past what
+the check looks at. For `RoomCO2WithControls` the reason is not
+measured: its refusal falls at t = 0.001, and why ten of its steps do not
+reach it was not read this shift. So the three models the `bdf` default
+"loses" are refused by `simulate` under the default solver too; at least
+two of them count as run only because the corpus check stops at ten
+steps, and the third is open. That narrows what the victims cost: not
+three models that run to their stop time today, but three that pass the
+corpus check today.
