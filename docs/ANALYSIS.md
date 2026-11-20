@@ -93823,3 +93823,15 @@ goes as a question and not as a fix. The twelve-line model is ready to
 be its test. A model that runs under the change is proof of a mechanism
 and not a win, because the library's `OneAxis` has not been run with any
 change.
+
+A sweep of the factor (`/tmp/m735/small/MGk_*.mo`, `sweep.txt`) makes
+the dependence sharper. The model runs at 0.5, 1.0001, 1.5, 1.9, 2.05,
+2.2, 2.5, 3 and -1. It is refused at exactly 2 and 2.0944. The result
+repeats three times out of three at both 2.0944 and 2.05, so it is
+deterministic. A band would point to a threshold, and isolated values
+point instead to a numeric test that happens to come out at zero at
+some sample point. That is a decision by value, made inside a pass that
+reports structure. The likeliest place is a zero test at a probe point
+in index reduction, the same family as the `zero_if` and
+zero-denominator rules. It is a question for Roman, with `MGk_2.mo` as
+the smallest witness.
