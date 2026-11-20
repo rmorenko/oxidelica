@@ -95723,3 +95723,15 @@ in `main.rs:1451`: `library check` runs a model for ten steps,
 census means ten steps. The jump scan above therefore saw only the
 first ten steps of each model, and 14 is a ceiling only over that
 stretch.
+
+### Harm found by the two-start test: none in four
+
+Three more of the 14 were run from three starts of their flagged unknown
+for 0.01 s: `PumpAndValve`, `IdealMixing1` and `OvervoltageProtection`.
+All three settle to the same answer from every start. In `PumpAndValve`
+the only difference is the step at which the flow first appears. With
+`CCCV_CellRC` that makes 0 of 4 checked with a second root, out of 14
+with the signature and 855 that run. The blindness of the slope check
+follows from its source, and so far no harm from it has been found in
+the library. The other ten are left with the instrument ready
+(`park/m739_three_starts.txt`, `park/m739_INDEX.md`).
