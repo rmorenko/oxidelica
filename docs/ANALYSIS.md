@@ -95183,3 +95183,14 @@ went and not what the model is. Read at the first iteration, not the
 last, before anything is concluded. The scan reads the last Jacobian
 printed, which is the right one for a block refused at once and the
 wrong one for a divergence.
+
+Read at the first Jacobian instead (`/tmp/m738/p6/RWSD_first.txt`, the
+first of ten printed): `RollingWheelSetDriving` is already 32 at rank 7
+before any step, with 25 null directions spread over the rolling
+joints' forces, contact velocities and accelerations. So the deficiency
+is not where Newton went but where it started. A block of 32 that sees
+7 is not a near-tie but most of a block with no rows reaching it. That
+is the shape of the `aux` starts the breed paragraph found: given them,
+the NaN went and the model moved one step. Most of the block is
+probably fed through `rolling1.aux`, which is NaN or zero before a
+start exists. Not measured further here.
