@@ -94725,3 +94725,21 @@ the refusal changes to a singular Jacobian over `der(vbc)`, `der(vbx)`,
 `Binternal`, and `vbx = B.v - Cinternal` then forms a block of its own.
 So the holder of this name is narrowed to the block that the base
 resistance cuts out around `der(vbx)`. Not yet named as a mechanism.
+
+The block's own print names the mechanism
+(`OXIDELICA_UNDERDET_DETAIL=1`, `/tmp/m738/p6/RTLx_ud.txt`). Under
+`XCJC=0.5` the block is one equation in one unknown,
+`icapbx = capbx * der(vbx)`, with the single Jacobian entry -1e-12: the
+capacitance. A one-by-one block is not equilibrated (`equilibrate_rows`
+and `equilibrate_columns` in `linear.rs` return early below two rows),
+so `reads_singular` compares the pivot 1e-12 with
+`1e-7 * scale.max(1.0)`, which is 1e-7, and calls it singular. That
+holds under either order of scaling, so `reads_underdetermined` agrees
+(`solvers/mod.rs` near line 1820). A capacitance in farads is about
+1e-12 by nature, so the floor of 1.0 under the scale turns a lone
+capacitor law into an underdetermined loop. Under the default `XCJC=1`
+the entry is exactly 0 and the refusal is right. So the default
+corpus model is refused for a true zero, and the same circuit with any
+real extrinsic capacitance is refused by the floor. The floor
+`scale.max(1.0)` is on the list this shift does not touch, and the
+finding goes to Roman as a question.
