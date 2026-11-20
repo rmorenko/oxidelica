@@ -94998,4 +94998,6 @@ flattening, so no subscript survives. What keeps IF97's from being
 evaluated is therefore something the evaluator refuses in its body,
 not the shape of the call. The candidate is the inlining depth
 (`MAX_NESTED_CALLS = 64`, `algorithms.rs:83`), past which a call stands
-unevaluated. That is not measured here.
+unevaluated. Measured at once: `G36.mo`, a chain of 70 nested functions
+with literal arguments under the same subscript, runs (`G36.txt`). So
+depth alone is not it either, and the cause stays in IF97's body.
