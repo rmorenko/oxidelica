@@ -94457,3 +94457,29 @@ tests: the one at line 280 for `BranchingPipes2`, `BranchingPipes3` and
 `BranchingPipes4` and `BranchingPipes3`. The `mode_holds` return fires
 for none of the ten. `ActuatorWithNoise` printed no Dopri site, so its
 stall comes from a caller outside `dopri.rs`.
+
+### Why the two weights are equal: the relative factor on a rigid gear
+
+The same seven start values were run again under
+`OXIDELICA_NO_THROUGH_RELATIVE=1`, same binary (`/tmp/m738/ntr.tsv`,
+outputs `/tmp/m738/k_{def,ntr}_*.txt` with their `.cmd`). With the key
+all seven run, where by default four refuse. Without the relative factor
+reduction 3 weighs `motor.emf.phi` at 1.0 against
+`gear.bearingFriction.phi` at 99.0: the slopes of the residual, one per
+side of a gear of ratio 99, and far apart.
+
+That gives the near-tie of the default a reason beyond rounding. For a
+residual `emf.phi - i * bearingFriction.phi` the relative weights are
+`1 * |emf.phi|` and `i * |bearingFriction.phi|`, and wherever the start
+satisfies the rigid relation `emf.phi = i * bearingFriction.phi` they
+are equal exactly. The default weights 27.488185204601184 and
+27.48818520364771 are `99 * 0.2777` twice over, and only the rounding
+of how the start was reached separates them. So on any homogeneous
+linear constraint between two candidates the relative weight builds an
+exact tie by construction, and which side of it the floating point
+falls on decides the victim. A smaller near-tie remains at reduction 2
+under the key (1.000000000021 against 1.0), and all seven still run, so
+the key moves the knife edge rather than removing every one. This
+explains `MGk` and the tie in `FullRobot`. Whether it explains the seven
+other structurally singular examples is not shown, and the earlier
+count of ties says it does not.
