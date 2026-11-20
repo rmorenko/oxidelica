@@ -92979,3 +92979,41 @@ that grows with pressure out of the medium's range on the second
 iteration. Implementation quality (the step leaves the domain and is
 not brought back), and it agrees with the m731 reading of this kind as
 step handling.
+
+### The sixty run-half refusals by the line that raised them
+
+Each of the sixty `flat` rows of the gap (`/tmp/m731/run60.list`) run
+alone by `simulate` under `OXIDELICA_WHERE=1`, one after the other,
+binary `/tmp/m733/ox2` (commands in `/tmp/m733/sweep.cmd`, outputs
+`/tmp/m733/sw/`, table `/tmp/m733/sweep_lines.tsv`). One fault in the
+instrument, named before the numbers: the outputs were keyed by the
+last part of the class name, and three models end in
+`SMPM_CurrentSource`, so two of them were overwritten. The table is of
+58 models, not 60.
+
+| raising line          | models | what it says                               |
+| --------------------- | ------ | ------------------------------------------ |
+| `compile.rs:3040`     | 10     | structurally singular, no state to reduce  |
+| `solvers/mod.rs:3009` | 7      | Newton direction does not descend          |
+| `solvers/mod.rs:2764` | 5      | singular Jacobian                          |
+| `solvers/mod.rs:1820` | 5      | underdetermined loop                       |
+| `compile.rs:10350`    | 5      | initialization does not pin down a name    |
+| `solvers/mod.rs:3065` | 4      | 60 Newton iterations, no convergence       |
+| `solvers/mod.rs:2769` | 3      | block does not mention its unknown         |
+| `solvers/mod.rs:1133` | 3      | an assertion on a min or max at t = 0      |
+| `compile.rs:6164`     | 3      | parameters cannot be evaluated (`e_ia`)    |
+| `solvers/mod.rs:1871` | 2      | block on the floor outside a validated one |
+| `compile.rs:31`       | 2      | derivative of a non-state                  |
+| `compile.rs:3039`     | 2      | structurally singular, sibling message     |
+| six other lines       | 6      | one model each                             |
+| one with no line      | 1      | `junction1.mbXi_flow` refusal unannotated  |
+
+The commonest line is not a run-time line at all: ten models refuse at
+`compile.rs:3040`, index reduction finding an equation that constrains
+no state, seven of them after trying all 31 other equations of the
+singular subset, which is the `MAX_SINGULAR_ATTEMPTS = 32` ceiling the
+m731 map already named (question p.17 to Roman). Of the initialization
+names, three of five are a volume's `U` or `m` (the `reducedX = false`
+redundancy read above) and one is `opAmp.v_in`. The five lines the
+sections above probed by hand (3009, 2764, 1820, 3065, 2769) hold 24 of
+the 58.
