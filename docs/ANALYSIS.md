@@ -95659,3 +95659,21 @@ This is the clearest case so far of a wrong-number risk where a refusal
 was owed. The guard and the step belong to the solver, which this shift
 may not touch, so it goes to Roman as a question. The small model is
 the test it would need.
+
+### The silent window sits in the root, and there are two of them
+
+A prediction was written down before the next sweep: if the window comes
+from the size of the root and not of the constant, then doubling the
+coefficient `k` in `dp = k*m*m` moves the window by one binade. It held
+(`park/m739_fork/k_sweep.txt`). With `k` = 0.5 the window is at 1.5*2^12,
+with `k` = 1 at 1.5*2^13, and with `k` = 2 at 1.5*2^14.
+
+Written directly as `m*m = r*r` with `m(start = 0)`
+(`park/m739_fork/root_sweep.txt`), the block runs silently to `+r` for
+`r` from 91 to 128 and again for every `r` from 0.1 to 1. It is refused
+for `r` = 1.2 to 90 and from 129 up. In every case there are two roots.
+So whether this fork is refused or answered depends on which band its
+root falls in, and two bands answer it. Small roots, flows of a fraction
+of a kilogram per second, are the band the library lives in. The
+existing test, `dp = 0.5*m*m` with `dp = 2` (root 2), lies just outside
+the lower band.
