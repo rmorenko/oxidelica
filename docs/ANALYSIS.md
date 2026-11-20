@@ -95150,3 +95150,15 @@ direction stops descending. That is a stall at the first steps, not a
 singular block, so the zero-column question of `G22` does not apply to
 them, and the IF97 marker they share with `HeatingSystem` is not their
 holder by this evidence. The four join kind A's shape rather than G's.
+
+A scanner for that question was written (`/tmp/m738/p6/nullscan.py`: rank,
+null directions, and every printed zero where the row's source names the
+unknown). On `G22` it finds 21 such zeros, and most are honest: rows 0
+to 2 read `radiator.port_b.m_flow` only through products with a flow
+that is zero at the point. So a zero beside a named unknown is not by
+itself a missing entry. The scanner gives candidates and does not judge
+them. `pump.rho` in row 4 stays the one whose true value (-V/rho, about
+-1e-8) is known to be nonzero. On the quasi-static `Rectifier`
+(`nt_Rectifier.txt`) the block is 12 at rank 11, and the null direction
+is the two ideal diodes' `s` against `load2.v` in equal parts. That is
+the mode-law shape already named for switches, not a missing column.
