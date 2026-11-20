@@ -94792,3 +94792,21 @@ algebraic `T` run (`G1` to `G5`, linear, polynomial, through a function
 and through a product), so the compiler does differentiate a non-state
 in an initial equation in general. What the medium adds is not yet
 found. The next step is shrinking `G6` while the refusal survives.
+
+The probe that already stands for this path answers it.
+`OXIDELICA_INIT_DER_PROBE=1` on `G6` (`/tmp/m738/p6/G6_probe.txt`, the
+command beside it in `G6_probe.cmd`, md5 c9e25082) prints for
+`vol.medium.T`: "unanswered: cannot differentiate a subscript that
+survived flattening", the subscript being
+`waterBaseProp_ph(101325, waterBaseProp_pT(101325, 298.15, 0)[5], 1, 0)[k]`.
+Every argument of that call is a literal, so the element is a constant
+and its derivative is zero, but the derivative rules refuse a subscript
+on a call before asking whether anything in it moves. So the
+definition of `T` through `d` and `h` cannot be differentiated, no
+derivative of `T` is worked out, and the initial `der(T) = 0` has
+nothing to stand on. `LinearWater_pT_Ambient` writes its coefficients
+this way, which is why the controls on other media do not show it.
+The rule "whatever does not move has a derivative of zero" already in
+the tree would answer it if it were asked before the subscript refusal.
+That is a change to differentiation and goes to Roman as a question,
+not into this shift.
