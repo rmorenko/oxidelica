@@ -93520,3 +93520,18 @@ end, 8 are refused before it, 3 are inequalities. Two of the eight,
 before any step, yet the corpus counts them as run, so the check and
 `simulate` part on compilation as well as on the horizon. Why was not
 read this shift.
+
+### SMEE_DOL: a structural refusal that waits for the run
+
+`SMEE_DOL` is one of the sampled corpus "ran" models that `simulate`
+refuses as structurally singular (`compile.rs:3040`). The refusal depends
+on the horizon: `simulate --stop` 0.001, 0.002 and 0.004 finish (10, 20,
+40 steps), 0.006, 0.01, 0.1, 1 and the stop time of 3 refuse with the same
+text (`/tmp/m734/smee_*.csv`, commands in this shift's marks). So the
+"structurally singular" refusal is raised during the run, between
+t = 0.004 and 0.006, by a recompilation after something changes, and not
+at compilation, which is why the ten-step check (0.01 at the default step
+1e-3 would already pass it, but the model's own interval is finer) counts
+the model as run. What changes near 0.005 s was not read this shift; the
+switch sources of the model start at 0, 0.5 and 2 s, so none of those
+names it.
