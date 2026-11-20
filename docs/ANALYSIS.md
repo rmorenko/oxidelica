@@ -94963,3 +94963,27 @@ through `h_pTX`, and not a constant subscript. The two share the text
 of the refusal and nothing behind it. The row was read as a family
 because the counter reads text, which this file warns of, and the probe
 split it.
+
+The moist-air half of kind G, walked to its mechanism and then checked
+against what is already known. `G26.mo` puts the real `MoistAir.h_pTX`
+into the shape of `G25`, which runs on a hand-written function with its
+own `derivative=`. It refuses with "cannot differentiate a call of
+several arguments: `h_pTX(100000, T, {Xi, 1 - Xi})`". `G28` with a
+literal `X` refuses the same way, and so does `G29`, a plain
+`der(h_pTX(...))` with no initial equation at all. `G31` calls
+`h_pTX_der` directly and runs, so the rule exists and compiles.
+`G32.mo` (36 lines, no library) separates it: a function with
+`derivative = f_der` whose body holds a loop with a count the model
+decides refuses the same way (`G32.txt`, `OXIDELICA_WHERE` names
+`compile.rs:2661`). The same function with an inlinable body runs
+(`G27`). So a call that `inline_function` leaves standing
+(`inlining.rs`, the `standing()` returns) loses the `derivative`
+annotation, which is attached only on the inlined path.
+
+This is not new. The m686 chain says it in so many words, "a call left
+standing now keeps the derivative its function declares", parked as
+`park/m686_steady_start_links.patch` for a victim in
+`ReferenceMoistAir`. What this shift adds is `G32.mo` as a
+library-free witness and test for that link. Kind G's IF97 half (the
+constant subscript) is not in that chain. It remains unmatched in the
+queue.
