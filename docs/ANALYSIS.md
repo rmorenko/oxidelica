@@ -94951,3 +94951,15 @@ in algebraic loop [`tank.portInDensities[1]`, `tank.portVelocities[1]`,
 So settling G would move `HeatingSystem` one wall, into the pump loop,
 and not into the run list. The chain is at least two links long, and
 the second link is not walked here.
+
+Kind G is two families, not one. The second member,
+`BranchingDynamicPipes`, is on `MoistAir`, not `LinearWater_pT_Ambient`.
+The same probe on it (`/tmp/m738/p6/BDP_probe.txt`, command in
+`BDP_probe.cmd`) answers for `pipe1.mediums[1].T`: "cannot
+differentiate a call of several arguments: `MoistAir.h_pTX(p, T, {Xi[1],
+1 - Xi[1]})`", inside a torn block of 824. That is the differentiation
+of a medium function, the layer kind D's moist air already meets
+through `h_pTX`, and not a constant subscript. The two share the text
+of the refusal and nothing behind it. The row was read as a family
+because the counter reads text, which this file warns of, and the probe
+split it.
