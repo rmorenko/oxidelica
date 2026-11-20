@@ -95169,3 +95169,17 @@ block of 12 at rank 11, its null direction almost purely
 row of the block fixes at that point is the near-tie shape p.4 found at
 `selection_sound` for this model, seen now from the matrix side: the
 state chosen leaves its derivative to a row that does not hold it.
+
+Two more blocks by the scan, both read as caution and not as findings.
+`UniversalConstraint` (`nt_UniversalConstraint.txt`): 44 at rank 40,
+four null directions all made of second derivatives and derivatives of
+positions and orientations (`der(der(initAngle.angle[3]))`,
+`der(constraint.frame_b.r_0[3])`, ...). That is the shape of a
+constraint differentiated twice where it was owed once, which the m733
+rank reading named. `RollingWheelSetDriving` (`nt_RWSD.txt`): 32 at
+rank 7, but the Jacobian is taken at iteration 26 of a run-away with
+|f| = 9.5e22 and positions of 3.5e14, so its rank says where Newton
+went and not what the model is. Read at the first iteration, not the
+last, before anything is concluded. The scan reads the last Jacobian
+printed, which is the right one for a block refused at once and the
+wrong one for a divergence.
