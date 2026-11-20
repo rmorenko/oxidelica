@@ -93273,7 +93273,7 @@ fails. So the gap exists and has a size: the one model the handoff wins
 finishes its implicit attempt in a quarter of the time the cheapest loser
 burns. A ceiling on the implicit attempt at the start point, anywhere
 between about 17 s and 67 s, would keep the win and cut the three losers
-to that ceiling. That is a proposal for Roman (questions 18 and 21), not
+to that ceiling. Its price is not zero: with a ceiling C the three losers still burn C each, so what is left of the 893 s is 133.3 + 3C (893 - 582.4 - 109.7 - 67.6 = 133.3), at C = 18 s 187 s or +7.0% of the 2664 s run half, a floor no choice of C removes. That is a proposal for Roman (questions 18 and 21), not
 a change: step handling is not this shift's to touch, and nothing was
 built.
 
@@ -93302,7 +93302,7 @@ ones that got cheaper give back 324 s, net 781 s over the top-60 union
 against 758 s for the whole half, so the lists account for the
 difference within their own truncation. One model owns most of it:
 `SeriesPipes1`, which `bdf` wins, costs 645 s more. `BranchingPipes3`,
-also won, is 81 s cheaper. The rest net to about +217 s, carried mainly
+also won, is 81 s cheaper. Taking the three wins in the list out (+645.1 - 80.9 - 8.0), the rest net to +225.1 s, +8.45% of the off run half, above six percent on its own, carried mainly
 by `BranchingPipes2` (+119), `TestMultiPortTraceSubstance` (+88),
 `BranchingPipes4` (+73) and `SeriesPipes2` (+29), and offset by
 `TestMixingVolumePressureStates` (-52), `BranchingPipes1` (-44),
@@ -93310,7 +93310,7 @@ by `BranchingPipes2` (+119), `TestMultiPortTraceSubstance` (+88),
 differ by four won (`PolyphaseRectifier`, `TestTemperature1`,
 `BranchingPipes3`, `SeriesPipes1`) and three lost
 (`ThyristorBridge2mPulse_RLV_Characteristic`, `RoomCO2WithControls`,
-`HeatLosses`). These per-model differences come from inside a corpus
+`Rotational.Examples.HeatLosses`). These per-model differences come from inside a corpus
 pass and only name candidates; none was confirmed one at a time.
 
 ### BranchingPipes2 under the trial print, read to a longer ceiling
@@ -93331,10 +93331,9 @@ The class of the descent-floor finding stays at one model.
 A probe binary `/tmp/m734/ox1` (patch `/tmp/m734/fd.patch`, command in
 `fd.cmd`) prints, before each line search, every cell of the loop
 Jacobian beside a central difference of the residual. On
-`/tmp/m731/SP1b.mo` under `bdf` it printed 11268 cells up to t = 5.11e-6,
+`/tmp/m731/SP1b.mo` under `bdf` it printed 11736 cells (8802 zero in both) up to t = 5.11e-6,
 past the refusal time 5.077e-6 of `/tmp/m731/SP1b_bdf.txt`, and was then
-stopped by hand. The worst relative disagreement over all cells is 0.23%
-(0.15% over the 1836 cells after t = 5e-6). The cell of row 4
+stopped by hand. The worst relative disagreement, |a-b|/max(|a|,|b|) over cells not zero in both, is 0.45% (cell i=1 j=5), and no cell disagrees by more than 1%. The difference reads the same residual as the Jacobian, so this checks their agreement, not the residual itself. The cell of row 4
 (`simpleGenericOrifice.V_flow`) against `valve.dp_turbulent` is 0 in the
 Jacobian and 0 in the difference. A kink of the `max` near the iterate
 would show as a difference that disagrees with the analytic cell, and
@@ -93361,7 +93360,7 @@ file behind each line:
   `--solver bdf` (`vic_*.txt`, commands in `vic.cmd`):
   `RoomCO2WithControls` fails the assertion that
   `ductOut.port_b.C_outflow[1]` stays at or above 0, at -5.5e-18, which is
-  rounding rather than physics; `HeatLosses` stops at t = 0 with a step
+  rounding rather than physics; `Rotational.Examples.HeatLosses` stops at t = 0 with a step
   size underflow because the corrector Newton does not converge
   (`solvers/bdf.rs:308`); `ThyristorBridge2mPulse_RLV_Characteristic`
   stops at t = 0.0002 on a thyristor loop accepted on the arithmetic floor
@@ -93385,7 +93384,7 @@ touch.
 ### HeatLosses under bdf: two rows on one column at the first step
 
 With `OXIDELICA_NEWTON_TRAIL=1` (`/tmp/m734/hl_trail.txt`, command in
-`hl.cmd`), `HeatLosses` under `--solver bdf` fails its first step at
+`hl.cmd`), `Rotational.Examples.HeatLosses` under `--solver bdf` fails its first step at
 t = 3.0e-15. The nine-unknown friction loop (`bearingFriction`,
 `oneWayClutch`, `brake`, `lossyGear`) is solved to 2e-24 until the
 residual jumps to 1.3e-3 at the same point, and the Jacobian printed
@@ -93407,7 +93406,7 @@ design: `ten_steps` (`main.rs`) runs a corpus model for ten of its steps
 only, here 10 x 1e-4 = 0.001 s, so the default solver passes the check
 and fails at 0.0341, while `bdf` fails at the first step and so fails
 the check too. "Ran" in the corpus means survived ten steps, and
-`HeatLosses` lost under `bdf` is a model that fails 0.034 s later under
+`Rotational.Examples.HeatLosses` lost under `bdf` is a model that fails 0.034 s later under
 the default anyway.
 
 The other two `bdf` victims part the same way between `simulate` and the
