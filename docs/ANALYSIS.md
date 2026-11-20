@@ -93423,11 +93423,17 @@ refusals naming a medium pressure, and neither of these does. For the
 thyristor model the ten-step horizon alone is the reason: its
 `Interval` is 2e-4, ten steps reach 0.002, and `simulate --stop 0.002`
 finishes (`/tmp/m734/thys.csv`, 13 steps), so the refusal lies past what
-the check looks at. For `RoomCO2WithControls` the reason is not
-measured: its refusal falls at t = 0.001, and why ten of its steps do not
-reach it was not read this shift. So the three models the `bdf` default
-"loses" are refused by `simulate` under the default solver too; at least
-two of them count as run only because the corpus check stops at ten
-steps, and the third is open. That narrows what the victims cost: not
+the check looks at. For `RoomCO2WithControls` the answer is stranger and
+measured: with no `Interval` its step is the default 1e-3, ten steps
+reach 0.01, and `simulate --stop 0.01` finishes ten steps
+(`/tmp/m734/co2_10.csv`) past the very t = 0.001 at which the run to its
+own stop time of 86400 s asserts. So the same model at the same point
+passes or fails its `min` depending on the horizon the run was given;
+by what path the horizon reaches the residue was not read this shift.
+That a -5.5e-18 residue appears or not with
+the horizon is one more reason the exact bound is the question here.
+So the three models the `bdf` default "loses" are refused by `simulate`
+under the default solver too, and all three count as run only because
+the corpus check stops at ten steps. That narrows what the victims cost: not
 three models that run to their stop time today, but three that pass the
 corpus check today.
