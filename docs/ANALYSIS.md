@@ -94126,3 +94126,21 @@ volume's `U` or `m` unpinned. It is a reading for the next probe, not a
 measured family. So the run-half census, read by its rows, counts helpers
 and examples alike, and about half of what it shows is not a model anyone
 simulates.
+
+### Three Media volumes whose initialization leaves the volume free
+
+`ReferenceAir.MoistAir1`, `ReferenceAir.MoistAir2` and
+`TestsWithFluid.MediaTestModels.IdealGases.SimpleNaturalGas` refuse at
+`compile.rs:10350` (`OXIDELICA_WHERE=1`), the initialization Newton step
+that cannot solve because `volume.U` or `volume.m` is not pinned. All
+three are the test harness `PartialTestModel` or `PartialTestModel2`
+around a `PortVolume` whose initial equations fix `medium.p`, `medium.T`
+and `medium.Xi`. Their siblings on the same harness run:
+`MediaTestModels.Air.MoistAir` and
+`IdealGases.SimpleNaturalGasFixedComposition` settle `volume.U` and
+`volume.m` as states and `medium.p` and `medium.T` as algebraic
+(`why`, `/tmp/m736/media_states.txt`). What separates the refusing three
+from them is, by reading, that they carry independent mass fractions with
+a heavier medium. That is not probed. It is a candidate family of ours,
+because a test harness the library ships with an initial pressure and
+temperature ought to pin the volume's mass and energy.
