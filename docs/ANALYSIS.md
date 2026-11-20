@@ -93890,3 +93890,10 @@ ten-step check the floors count, the trade is not one for nothing.
 still stands, and the switch gives it back. So in the measure the switch
 is one won and one lost, and a victim goes to Roman at any price. It
 stays a question with both names on it, and nothing in the tree changes.
+
+The same sweep of the 117 switches, run on `ActuatorWithNoise` through
+`library check --only` (`/tmp/m735/ks_actuator.txt`), gives 117 lines
+of "0 run". No switch that exists lets that model through. Its refusal,
+which hits the ceiling of 32 attempts, is not held by any of the choices
+the tree already lets one turn off. That is a measured negative on one
+model of the seven at the ceiling.
