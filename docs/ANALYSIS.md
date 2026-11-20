@@ -94941,3 +94941,13 @@ the IF97-bound constants are the whole of kind G in the smallest
 model, and the earlier sentence that D stands behind it is withdrawn.
 Whether something stands behind it in `HeatingSystem` itself is not
 measured.
+
+What stands behind kind G in `HeatingSystem` itself, measured without
+touching the library: `G22.mo` extends the example with
+`redeclare package Medium = LinearColdWater`. It passes the
+`der(medium.T)` wall and refuses one step on, with "singular Jacobian
+in algebraic loop [`tank.portInDensities[1]`, `tank.portVelocities[1]`,
+..., `pump.rho`, `pump.N`, ...]" (`/tmp/m738/p6/G22.txt`, md5 c9e25082).
+So settling G would move `HeatingSystem` one wall, into the pump loop,
+and not into the run list. The chain is at least two links long, and
+the second link is not walked here.
