@@ -93215,3 +93215,13 @@ row 1. The descent norm (reach, 2.4e-11) does not. These are two floors
 for one row in two places, and they disagree by a factor near 600. That
 mismatch is the finding. Changing either floor is step handling and
 acceptance, so it goes to Roman as a question, not as a change.
+
+The descent floor was written for exactly this case
+(`solvers/mod.rs:2861-2878`, the `CCCV_Stack` comment: a row on its
+floor should not rule the norm). It is built from reach alone,
+epsilon times the sum of |J_ij x_j|. On the valve row that is 2.4e-11,
+while the noise the row actually shows comes from terms of loudness
+1.6e7 that cancel inside it and never appear in the Jacobian. So the
+guard exists and is aimed at this case, but on this row it is measured
+on the wrong quantity. The question for Roman: should the descent floor
+read the loudness term, as the acceptance floor already does?
