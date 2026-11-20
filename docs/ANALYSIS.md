@@ -93059,3 +93059,22 @@ The one-model lines of the table, read from the refusal text in
   the floor (`solvers/mod.rs:1653`), the start-stall refusal.
 - `DynamicPipeClosingValve`: initialization did not converge in 50
   iterations (`compile.rs:10462`).
+
+### Two initialization names, by `why`
+
+`AmplifierWithOpAmpDetailed` refuses because the initial equations do
+not pin down `opAmp.v_in` (`/tmp/m733/why_vin.txt`). `v_in` is a state
+(`i_c3 = Cin*der(v_in)` in `OpAmpDetailed`), bound to nothing, with no
+start of its own. The example writes `resistor2.i = 0` and the four
+`q_f*` filter states to zero as initial equations, and `OpAmpDetailed`
+adds `v_source = q_fp1` and `x = 0`. So the library means `v_in` to
+follow from `resistor2.i = 0` through the input network
+(`v_in = Rdm*i_r2`, `p.v - m.v = v_vos + v_in`), and the compiler's
+initialization does not carry that condition through to the state.
+Ours.
+
+`ThreePhaseTransformerWithRectifier` (`/tmp/m733/why_hstat.txt`): the
+refusal is not square, 21 initial equations and 4 fixed starts for 23
+unknowns, and `transformer.core3.Hstat` is a state of a hysteresis core
+whose `asc = der(Hstat) > 0` and the clamp `H_lim` read it by branch.
+Two more conditions than unknowns: an over-determined start, ours.
