@@ -95001,3 +95001,20 @@ not the shape of the call. The candidate is the inlining depth
 unevaluated. Measured at once: `G36.mo`, a chain of 70 nested functions
 with literal arguments under the same subscript, runs (`G36.txt`). So
 depth alone is not it either, and the cause stays in IF97's body.
+
+The IF97 subscript itself, without a medium: `G38.mo`, nine lines,
+writes `U = T * waterBaseProp_pT(101325, 298.15, 0)[5] * 1e-7` under an
+initial `der(T) = 0`. The probe prints "`T`: unanswered: cannot
+differentiate a subscript that survived flattening:
+`waterBaseProp_pT(101325, 298.15, 0)[5]`" (`/tmp/m738/p6/G38.txt`; the
+same in `G39` with `T` implicit). So the IF97 call with literal
+arguments survives flattening unevaluated, where every hand-written
+analogue (`G9` to `G17`, `G33` to `G36`) is evaluated whole. `G37`,
+the same call bound to a parameter, runs. Both `G38` and `G39` still
+run, because the plan answers `der(T)` by another path. Only a torn
+block like `G20`'s leaves the probe's answer as the only one. The
+holder is therefore the IF97 call left unevaluated in an equation, and
+the refusal follows from it only where nothing else supplies the
+derivative. Why `waterBaseProp_pT` stands when a parameter binding of
+it evaluates is the next question, for the evaluator rather than for
+differentiation.
