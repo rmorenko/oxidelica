@@ -94357,3 +94357,15 @@ numerical near-tie in state selection on the motor side of the gear.
 That they fail for the same reason is a reading, not a measured cause:
 moving the tie would mean touching index reduction, which is not done
 here.
+
+The same probe on `OneAxis` (`/tmp/m737/vp_OneAxis.txt`) finds the same
+shape. At reduction 4, `axis.accSensor.flange.phi` and
+`axis.gear.bearingFriction.phi` weigh 439.8229715176348 and
+439.82297148410925, apart in the ninth significant digit, and
+`axis.gear.spring.phi_rel` weighs 2.7e-22. At reduction 8 the two
+candidates `axis.motor.speed.flange.phi` and `axis.motor.emf.phi` weigh
+exactly the same, 439.82297148410925, so there the choice falls to
+whatever breaks an exact tie. All three models of this family, the
+witness, `OneAxis` and `FullRobot`, decide victims on the motor segment
+between weights that are equal or nearly so. This is the reading of
+three probe traces; it is not a measured cause.
