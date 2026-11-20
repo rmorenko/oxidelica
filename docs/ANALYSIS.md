@@ -94677,3 +94677,16 @@ refuses with a text identical to its unchanged run, so for it the
 missing start is refuted. Count over 65: four shown as a link (two
 moist-air volumes run; `ThreeSprings` and `RollingWheelSetDriving` move
 one step), three refuted, three open.
+
+The last two open names were tested the same way. `RollingWheelSetPulling`
+with the same `aux` starts loses its NaN and refuses a step later on a
+singular Jacobian (`/tmp/m738/p6/RP_a.txt`), a link as for its sibling.
+`ThreePhaseTransformerWithRectifier` was misfiled by the text search:
+its refusal is "initialization is not square" (21 conditions and 4
+fixed starts for 23 unknowns), and the words "pin down" sit further on
+in the same text. Given starts on `core3.Hstat` and `core3.MagRel` it
+stays not square with the same counts, so it is not the breed. Final
+count over 65: five where a start is one link (two moist-air volumes
+run; `ThreeSprings` and both `RollingWheelSet*` move one step), four
+refuted or misfiled, and `SimpleNaturalGas`, which is the vessel holder
+above.
