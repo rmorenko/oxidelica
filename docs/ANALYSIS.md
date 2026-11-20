@@ -95194,3 +95194,11 @@ is the shape of the `aux` starts the breed paragraph found: given them,
 the NaN went and the model moved one step. Most of the block is
 probably fed through `rolling1.aux`, which is NaN or zero before a
 start exists. Not measured further here.
+
+Tested at once. `RW_a.mo`, the same model with `aux(each start=1)` on
+both rolling joints, under the same trail (`/tmp/m738/p6/nt_RW_a.txt`,
+`RW_a_first.txt`): the first Jacobian is 29 at rank 28, against 32 at
+rank 7 without the starts. So the missing starts on `aux` are what
+blank most of the block. With them a single direction is left, and the
+loop then fails to converge in 60 iterations, the next link already
+recorded. "Probably" in the paragraph above is now measured.
