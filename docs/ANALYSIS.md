@@ -95989,3 +95989,27 @@ mean seeing through an alias, which is a wider change. The patch,
 its note and the numbers are in `park/m741_p34_probe.patch`,
 `m741_p34_price.tsv`; nothing of it goes to main, since event handling
 waits on Roman's word and the heavy half is not measured.
+
+The corpus pair for the probe was taken with one binary, off then on:
+986 flatten and 855 run in both halves, the run list equal line for
+line to `/tmp/m739/ran855.list`, and the work counters of both phases
+equal byte for byte (24394433 points, 36066304 Newton steps, 707
+Jacobians). The probe is inert on the corpus. The minutes differ (run
+half 2673 s off, 2627 s on), and that is the desk, since the off half
+shared it with the capped reruns. The heavy models were not measured.
+
+27 of the 57 refusals say no time at all. All 27 pass the ten steps of
+`library check --only` and refuse later. `SMPM_Inverter` runs ten steps
+to `--stop 0.001` and refuses on the full run. The place is
+`simulate()` in `solvers/mod.rs`. On a stall that is not a mode change
+the run compiles again at the point reached, and a refusal from that
+compile is handed up as it is, with a text written for a start, so it
+names no instant. Bisected by `--stop`, the five models of the
+zero-sequence row (`3 * lszero.i = 0`) refuse at 5.1 to 5.5 ms
+(`SMPM_Inverter` in both libraries), 2.0 to 2.4 ms
+(`SMPM_VoltageSource`), 0.1001 to 0.1007 s (`SMR_DOL`, whose switch
+closes at 0.1) and 0.298 to 0.303 s (`IMC_Conveyor`). These are
+re-selections that the rebuilt model refuses, not starts that index
+reduction cannot reduce. Naming the time at that site is one line,
+but the text of a refusal and `compile_at` are not the shift's to
+change, so it goes as a question (`park/m741_timeless27.tsv`).
