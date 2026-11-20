@@ -93999,3 +93999,71 @@ and ten of the 62 run-half refusals are. The twelve were picked by
 their refusal text, and that text itself goes with rebuilds more often
 than others do. A share inside a subset picked by a feature is not the
 share in the corpus.
+
+## Shift m736: the drive-alias pair, the switch over the corpus, and AXSP
+
+### FullRobot under the re-selection switch
+
+One run, `OXIDELICA_NO_THROUGH_RELATIVE=1`, binary `/tmp/m735/oxh` (md5
+`c9e25082...`), `simulate` of the full name. By default `FullRobot` refuses
+on `axis1.gear.spring.phi_rel = axis1.gear.spring.flange_b.phi -
+axis1.gear.spring.flange_a.phi`, subset of 14 (`/tmp/m736/fullrobot_def.txt`).
+Under the switch it refuses on `axis1.motor.flange_motor.phi =
+axis1.motor.Jmotor.flange_b.phi`, subset of 16
+(`/tmp/m735/ntr_FullRobot.txt`, summary in `/tmp/m736/fullrobot_ntr.txt`).
+The new wall is an equality of two drive angles, the same kind as the one
+that held `OneAxis` (an equality of two drive speeds). By the rule written
+before the number, the two models are one family, and the switch closes it
+only in part: it moves `FullRobot` one wall along to a refusal of the same
+kind.
+
+### The switch over the corpus
+
+One corpus half under the switch, same binary, against the default list
+`/tmp/m727/c2_on.txt` (855 / 806). The half printed 854 run, 805 runnable
+(`/tmp/m736/on_half.txt`, list `ran_on.list`). Its time is not quoted: it
+ran beside other work. The diff names three models, and each was
+confirmed alone by `--only` off and on with the same binary
+(`/tmp/m736/c_*_{off,on}.txt`, commands in `confirm.cmd`):
+
+- won: `Modelica.Mechanics.MultiBody.Examples.Systems.RobotR3.OneAxis`;
+- lost: `Modelica.Electrical.Machines.Examples.SynchronousMachines.SMPM_Braking`;
+- lost: `Modelica.Mechanics.MultiBody.Examples.Rotational3DEffects.MovingActuatedDrive`.
+
+So over the corpus the switch is `+1 -2`, not the `+1 -1` that fourteen
+hand-run models gave. Both victims fail the same way under it: the states
+re-selected mid-run add derivative variables (`MovingActuatedDrive` at
+t = 0.005, two `revolute.internalAxis` angles; `SMPM_Braking` at
+t = 0.0009, `smpm.inertiaRotor.flange_b.phi`), and the run refuses to join
+the two stretches (`/tmp/m736/v_*.txt`).
+
+### AXSP: the trajectory defined by time
+
+The reading under test was that in `AXSP` the reference `s` is defined by
+time alone, so `s`, `der(s)` and `der(der(s))` carry no state. One
+falsifier: make `s` a state (`der(s) = if time < Ta2s then time else 0.3`,
+`s(start = 0, fixed = true)`) at the same scale. Small models in
+`/tmp/m736/small`, outside `.msl`:
+
+| `pd`   | `s` from time | `s` a state |
+| ------ | ------------- | ----------- |
+| 1.9    | runs          | runs        |
+| 2      | refuses       | runs        |
+| 2.0944 | refuses       | runs        |
+| 3      | refuses       | runs        |
+
+The falsifier did not fire: with `s` a state the model runs at every
+scale tried. The refusal needs both the time-defined reference and a
+scale at or above about 2, and `AXS` (no scale) running fits that. Which
+choice in reduction depends on the number is not read. Reduction is not
+touched here.
+
+### The six models said to have no rebuild
+
+The six refusals that the blind probe `ox2` found without a rebuild
+(`HeatingNPN_NORGate`, `Dimmer_RL`, `DiodeCenterTap2mPulse`, `ThreeTanks`,
+`TwoMass`, `TestMixingVolumesPressureStates`) went through the full probe
+`/tmp/m735/ox3` (`/tmp/m736/st6_sum.txt`). Five print nothing. `TwoMass`
+prints two stalls with a mode change, at t = 0.22 and 0.24, before its
+loop refusal. So it is one of six, not none: the earlier zero was the
+first probe's blind spot.
