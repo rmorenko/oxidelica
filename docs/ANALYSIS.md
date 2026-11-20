@@ -94369,3 +94369,17 @@ whatever breaks an exact tie. All three models of this family, the
 witness, `OneAxis` and `FullRobot`, decide victims on the motor segment
 between weights that are equal or nearly so. This is the reading of
 three probe traces; it is not a measured cause.
+
+### Ties in state selection over the structurally singular examples
+
+The victim probe was run on the eleven structurally singular examples
+of the run half (`/tmp/m737/A11.list`, traces in `/tmp/m737/vt/`,
+summary in `/tmp/m737/ties.tsv`). Counted are pairs of candidate
+weights in one selection, weights 0 and 1 left out, that are exactly
+equal or within one part in a million. A near tie appears in
+`FullRobot` alone (1). Exact ties appear in `ActuatorWithNoise` (6),
+`Engine1a` (5) and `SMPM_ResistiveBraking` (2). The other seven show
+neither. So the near-tie of the witness family is not the shape of the
+structurally singular kind as a whole: of eleven, one carries it, and
+the exact ties of three others are a different question, since an exact
+tie is broken by order and not by rounding.
