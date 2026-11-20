@@ -95913,3 +95913,24 @@ to `0.0` without asking. Whether a start of `1e5` would let the pair
 run could not be measured, because an `extends` wrapper of either
 class fails on a lost constant (`ph_explicit`) before it reaches the
 question (`park/m740_open_input_zero.txt`).
+
+The whole of the 855 was then run to StopTime the same way, so no
+interval is left. 772 reach it, 56 refuse on the way, 26 are cut by the
+two-minute cap, and one more refusal is the wrapper's lost
+`ph_explicit` (`TwoPhaseWater.TestTwoPhaseStates`). Not reaching is
+therefore 56 to 82 of 854 (`park/m740_reach855_full.tsv`).
+
+Seven of the on-the-way refusals in the sample are named in no queue.
+One of them, `ModelicaTest.Tables.CombiTimeTable.Test12`, compares a
+`Step` with a one-row table that must switch at the same instant. The
+step's `time < 0.5` is scheduled as a time event. The table's
+`time / timeScale < 0.5` is not, because `clock_of` in `events.rs`
+takes only `time` alone, so it is found as a crossing a hair late. The
+integrated squared difference comes to `1.67e-9` against an exact-zero
+assert. A twelve-line model shows the same thing in a second:
+`2.36e-9` with `time / T` and exactly 0 with `time`. The other four
+`Test12` of the table packages reach StopTime, so the known price is
+one model. The red test is in `park/m740_time_scaled/` and goes to Roman
+as a question, since event handling is his to open and a winning change
+in the same comment was rolled back once already
+(`park/m723_time_knee.txt`).
