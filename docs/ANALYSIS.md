@@ -93571,3 +93571,58 @@ all: `HeatingNPN_NORGate`, `Dimmer_RL`, `DiodeCenterTap2mPulse`,
 `ThreeTanks`, `TwoMass` and `TestMixingVolumesPressureStates` fail in the
 model as first selected. So the re-selection family is exactly the two
 synchronous machines, and the other six are six separate refusals.
+
+## Shift m735: the handoff on BranchingPipes3 to its end, the twelve rebuilds, and the horizon of RoomCO2WithControls
+
+### BranchingPipes3 under the narrow handoff, to its stop time
+
+One run, `OXIDELICA_EDGE_HANDOFF=all`, default solver, the binary built
+from 7e04a035 and copied to `/tmp/m735/oxh` (md5 `c9e25082...`), through
+the memory cap with 45 minutes allowed (`/tmp/m735/bp3_handoff.txt`,
+command in `bp3.cmd`). It refused at `t = 0.5020834`, the Newton
+direction of the splitter loop not reducing the residual from
+`|f| = 65.4`, exit code 1, peak 0.3 GB. That is the same point at which
+the model fails under `--solver bdf`. The win the handoff gives this
+model exists only inside the ten-step check, as the `bdf` wins of the
+last shift did. The rule written before the number said that a refusal
+here retires queue items 18, 21 and 23. Closing them is not for this
+shift; the number is.
+
+### Which of the twelve "structurally singular" refusals a rebuild raises
+
+The twelve names in `/tmp/m733/sweep_lines.tsv` whose wrapper line is
+`compile.rs:3039` or `:3040` (counted again: ten and two) were run one
+at a time to their stop time under the rebuild probe `/tmp/m734/ox2`
+(`/tmp/m735/rb_*.txt`, commands in `rb.cmd`). Two print a re-selection
+before the refusal: `Engine1a` (`reselect t=0.001`) and
+`SMPM_ResistiveBraking` (`reselect t=0.0046`). The other ten print no
+rebuild and fail in the model as first selected. The `RollingWheel`
+here is the MultiBody one. The Rotational model of that name runs and is
+not in the twelve. So of the twelve run-half refusals with this text, two
+are born at a rebuild and ten at the first build. The prediction made
+before the run was "at most ten born at a rebuild". It held, and with a
+lot of room: the work queue that reads this text is mostly about the
+first build.
+
+### Why the horizon decides RoomCO2WithControls
+
+A print-only probe on the explicit step (`/tmp/m735/step.patch`, binary
+`/tmp/m735/ox1`, md5 `6eb92a5f...`) gives each `(t, h, err, accepted)`.
+With `--stop 0.01` and with the model's own stop time, the first four
+steps are the same to the digit, and they reach `t = 6.0e-4`. The fifth
+differs only because `h = h.min(stop - t)` cuts it to land on 0.01. The
+short run then finishes, and its CSV has `ductOut.port_b.C_outflow[1]
+= 0.99` at every row. The long run takes 48 explicit steps up to
+`t = 5.29`. Then the stiffness watch hands it to the implicit solver,
+and that solver starts again from `t = 0`. It is the implicit run that
+refuses at `t = 0.001` with `-5.5e-18` against `min 0`. A third run,
+`--solver bdf --stop 0.01` (`/tmp/m735/co2_bdf_short.txt`), refuses at
+the same point with the same value. So the horizon does not change what
+happens at `t = 0.001`. It decides whether the explicit run lives long
+enough for the stiffness watch to fire, and with it which solver's path
+reaches the assert. Both candidates named beforehand
+(`dopri.rs:288` and `:292`) are innocent. The only place the stop time
+entered is the step cut that let the short run end before the watch
+could fire. Nothing here is a defect to fix inside this shift's
+permissions. The bound that the implicit path breaks is the exact
+`>= 0` of queue item 24.
