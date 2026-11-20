@@ -93556,3 +93556,10 @@ states at t = 0.00436, the re-selection compiles the model again, and
 that compilation is what refuses as structurally singular. A model the
 first selection runs is lost by the second; the refusal names structure,
 but what failed is the re-selection.
+The same probe on the FundamentalWave `SMEE_Generator`
+(`/tmp/m734/smeeg_rb.txt`) prints `PROBE_REBUILD reselect t=2.5317` and
+then the same structural refusal on `der(terminalBoxE.starpoint.i) = 0`.
+Two synchronous machines with a star-point terminal box, one family: the
+first selection runs, a re-selection is asked for, and the recompiled
+model is refused. Two of the eight refusals of the stop-time sample
+belong to it.
