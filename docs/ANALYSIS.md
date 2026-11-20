@@ -93735,3 +93735,20 @@ being the doubled-flow holder above. Two had nothing else to try at
 all: `OneAxis` and `SMPM_ResistiveBraking`. So seven of the twelve stand
 on a ceiling that this shift may not move. That matches the earlier map
 of question 17 (seven cut by `MAX_SINGULAR_ATTEMPTS`), now with names.
+
+### Holders for three more kinds, and the guard shared by the rectifiers
+
+The same probe was used (`/tmp/m735/s_*.txt`, commands in `h.cmd`).
+`PolyphaseRectifier` at `t = 4e-5` is held by the same guard as
+`ThyristorBridge2mPulse_RLV`: a block accepted on the arithmetic floor,
+outside a validated solve, is then refused as underdetermined
+(`mod.rs:1820` through `:1871`). That makes two rectifiers on one line,
+which is the floor used as a ground for refusing. `MeasuringTemperature`
+is a loop that turns NaN in the `regSquare2` pressure term of
+`openTankCold3`'s port (`mod.rs:1993`). `TestSuddenExpansion` is a loop
+of one unknown with a root on either side at `t = 0` (`mod.rs:2742`),
+and the library labels that model as showing correct and wrong use.
+`SMPM_ResistiveBraking` first asks for a re-selection at `t = 0.0046`.
+The rebuilt model then stops on the zero-sequence inductor row
+`3 * smpm.lszero.i = 0` with no other equation to try
+(`compile.rs:3039`).
