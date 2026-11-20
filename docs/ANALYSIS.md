@@ -94053,10 +94053,13 @@ falsifier: make `s` a state (`der(s) = if time < Ta2s then time else 0.3`,
 | 3      | refuses       | runs        |
 
 The falsifier did not fire: with `s` a state the model runs at every
-scale tried. The refusal needs both the time-defined reference and a
-scale at or above about 2, and `AXS` (no scale) running fits that. Which
-choice in reduction depends on the number is not read. Reduction is not
-touched here.
+scale tried. With `s` from time, a finer sweep shows no threshold: 0.5,
+1.95, 1.99, 2, 2.0944, 2.5, 3 and 4 refuse, while 1.9, 2.01, 2.05 and 10
+run, and `AXS` (no scale, so 1) runs. The refusal needs the time-defined
+reference and then falls on scattered values of the number, which fits
+the earlier reading of an accidental zero at the probe point rather than
+a bound. Which choice in reduction reads the number is not read.
+Reduction is not touched here.
 
 ### The six models said to have no rebuild
 
@@ -94067,3 +94070,24 @@ The six refusals that the blind probe `ox2` found without a rebuild
 prints two stalls with a mode change, at t = 0.22 and 0.24, before its
 loop refusal. So it is one of six, not none: the earlier zero was the
 first probe's blind spot.
+
+### Three more kinds of the run half, judged
+
+From the census of the switched half (`/tmp/m736/on_half.txt`), judged
+by `why` and by reading the source, rows in `/tmp/m736/rody.tsv`:
+
+- `IF97 tsat called with too low pressure` (2): in
+  `Media.Examples.TwoPhaseWater.BaseProperties` the medium's `p` and `h`
+  are top-level inputs of `BaseProperties`, nothing drives them, and the
+  flat model writes `p = 0` and `h = 0`; `tsat` then asserts on a
+  pressure below the triple point. Not ours as a model, but the zero for
+  an undriven top-level input is a default, not a value, and whether it
+  should be a refusal is a question.
+- `parameter X has no value` (25 models in 20 rows): every first-named
+  model is a helper under `Utilities` or `BaseClasses`, or an op-amp
+  building block (`OpAmpCircuits.Der`, `Derivative`) with neither an
+  experiment nor the Example icon. The parameter is left to the user by
+  design. Not ours; the example filter that admits them is not touched.
+- `structurally singular` on `G.i = 0` and `n2.i = 0` (2 and 2): first on
+  `Spice3...InvertersExtendedModel.MPmos` and `OpAmpCircuits.Add`,
+  building blocks with an open pin. Likely not ours, not probed further.
