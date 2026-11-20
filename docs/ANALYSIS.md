@@ -95365,3 +95365,12 @@ These are `ActuatorWithNoise` (4841), `FullRobot` (557),
 little to fall in the creep column, so the bound of 10 above misses it.
 Counted by points instead of by creep, the mid-run structural refusals
 are four, and the bound becomes 11 of 65.
+
+A check on the points column before it is trusted. A start refusal can
+print points too: `ThreePhaseTransformerWithRectifier` shows 49 points
+and 91 Newton calls, all at t = 0 (`/tmp/m738/tr65/`). So points alone
+do not mean the run began. The four mid-run structural refusals were
+therefore checked by the largest Newton time in their trail as well:
+`ActuatorWithNoise` 0.005, `SMPM_ResistiveBraking` 0.0047, `FullRobot`
+0.001 and `Engine1a` 0.001. All four ran past t = 0, so the bound of 11
+holds on both readings.
