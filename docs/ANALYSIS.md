@@ -95568,3 +95568,13 @@ listed in `park/m739_cap32_default.list`; seven of them are the kind A
 rows above, and `SimpleSolenoid` and `Cylinder` are utilities, not
 examples of their own. Whether any of the nine would find its member
 past 32 needs a change to index reduction, which waits for Roman's word.
+
+### The unbalanced rows of the default census are mostly not examples
+
+The two `unbalanced model` rows of the same census hold 18 models. Of
+those, 17 are classes under `Utilities`, `BaseClasses` or `Components`:
+partial building blocks that the example filter catches. They are
+unbalanced because they are meant to be connected. The one example
+among them is `Fourbar1`, which is already in the queue. So the third
+row of the census is mostly a measure of the filter and says little
+about the compiler (`park/m739_unbalanced_default.tsv`).
