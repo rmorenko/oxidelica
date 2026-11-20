@@ -94835,3 +94835,22 @@ instantiated is not known to be an array and is not subscripted.
 Modelica makes declaration order meaningless, so this is a compiler
 defect with a fifteen-line test ready for it. It is a flattening
 change and goes to Roman as a question.
+
+### Kind H: two models already mapped, one text grown a guess
+
+Both members of kind H have sections of their own. `Fourbar1` (see
+"nine equations a loop owes as three") now reads 1999 equations for 1990
+unknowns where m470 read 2002 for 1993 (`/tmp/m738/full/`, md5
+c9e25082). The excess is still nine, the twelve-for-three of one closed
+ring, and the shift by three on both sides is elsewhere in the model.
+
+`ControlledMixingUnit` stops at the same wall as before, a `y2` of
+`InverseBlockConstraints` that only an inverse solve defines, but the
+refusal now appends: "`inverseBlockConstraints.u1` is assigned twice in
+the same `when sample(0, 1)`, so one of its equations was meant for
+another name". That guess is wrong here. `u1 = u2` is the block's
+whole purpose, so `u1` is written twice by design, and the line points
+a reader at a typo that does not exist. The refusal is true and its
+explanation is not. A refusal's hint that names a cause should hold for
+inverse blocks, and this one goes to Roman as a question rather than
+an edit.
