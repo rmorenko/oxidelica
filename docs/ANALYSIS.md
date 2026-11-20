@@ -96013,3 +96013,11 @@ re-selections that the rebuilt model refuses, not starts that index
 reduction cannot reduce. Naming the time at that site is one line,
 but the text of a refusal and `compile_at` are not the shift's to
 change, so it goes as a question (`park/m741_timeless27.tsv`).
+
+What the pair says about item 34 is three things, not one. The gain is
+no model. The harm is none, because the lists and every work counter
+are equal. The cost of the new path when it fires is not measured, and
+cannot be on this corpus: equal counters mean it never fired. The
+small model that does carry the form ran in 301 to 318 ms off and 299
+to 300 ms on, process start included, which shows no cost at that size
+and says nothing about a large model.
