@@ -93078,3 +93078,22 @@ refusal is not square, 21 initial equations and 4 fixed starts for 23
 unknowns, and `transformer.core3.Hstat` is a state of a hysteresis core
 whose `asc = der(Hstat) > 0` and the clamp `H_lim` read it by branch.
 Two more conditions than unknowns: an over-determined start, ours.
+
+### Two more singletons, by the trail
+
+`DynamicPipeClosingValve` (`/tmp/m733/ntr_DynamicPipeClosingValve.txt`):
+the refusal is the outer initialization loop at `compile.rs:10462`,
+which runs out of its 50 Newton iterations. The trail shows 329 inner
+block solves under it, and every one of them closes: the last residuals
+read 1e-8 to 1e-15 within two iterations each. So the inner algebra is
+not what holds. The outer iteration over the states does not settle,
+and that loop has no print of its own, so its residual is not seen by
+this instrument. Named as the place, not as the cause. A print there is
+the next instrument.
+
+`TestSuddenExpansion` (`/tmp/m733/ntr_TestSuddenExpansion.txt`): refused
+before any Newton step (`solvers/mod.rs:2742`). The one-unknown loop on
+`suddenExpansion1.m_flow` has a root on either side of zero at t = 0, and
+the refusal declines to pick. A flow-reversal law with two answers at
+the start. Whether the library means one of them by a start value is
+not read here.
