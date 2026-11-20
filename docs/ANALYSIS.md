@@ -93341,3 +93341,29 @@ would show as a difference that disagrees with the analytic cell, and
 none does. So the reading of question 19, that the row is held by a wrong
 derivative at the switch of the `max`, is dead, in agreement with
 `predict.txt`.
+
+### Holders added to the kinds, and what the bdf victims refuse with
+
+Appended to a copy of the kinds table, `/tmp/m734/rody.tsv`, with the
+file behind each line:
+
+- `TestTemperature1` (Newton direction, `tt1_trial.txt`): at t = 0.0002,
+  |f| = 5.5e11, row 5 is NaN at every fraction of the step except a few
+  between 6.25e-2 and 1.56e-2, which buy 6%, 3% and 1.6% and no more. The
+  medium leaves its domain along the direction, the same holder kind as
+  `BranchingPipes4`. The descent-floor question does not reach it.
+- `DynamicPipeClosingValve` (init no converge, `dpcv.txt`): all 47 inner
+  loop solves during initialization take the full step, |f| from about
+  1e-8 down to 1e-11. The 50-iteration ceiling is spent by the outer
+  initialization Newton alone, which the outer print of shift m733
+  already showed stuck on row 1.
+- The three models the `bdf` default loses, each run alone under
+  `--solver bdf` (`vic_*.txt`, commands in `vic.cmd`):
+  `RoomCO2WithControls` fails the assertion that
+  `ductOut.port_b.C_outflow[1]` stays at or above 0, at -5.5e-18, which is
+  rounding rather than physics; `HeatLosses` stops at t = 0 with a step
+  size underflow because the corrector Newton does not converge
+  (`solvers/bdf.rs:308`); `ThyristorBridge2mPulse_RLV_Characteristic`
+  stops at t = 0.0002 on a thyristor loop accepted on the arithmetic floor
+  after 60 iterations and refused as underdetermined. Three victims, three
+  different holders, none of them the step ceiling question.
