@@ -93563,3 +93563,9 @@ Two synchronous machines with a star-point terminal box, one family: the
 first selection runs, a re-selection is asked for, and the recompiled
 model is refused. Two of the eight refusals of the stop-time sample
 belong to it.
+The other six refusals of the sample, through the same probe
+(`/tmp/m734/rb_*.txt`, commands in `rebuild.cmd`), print no rebuild at
+all: `HeatingNPN_NORGate`, `Dimmer_RL`, `DiodeCenterTap2mPulse`,
+`ThreeTanks`, `TwoMass` and `TestMixingVolumesPressureStates` fail in the
+model as first selected. So the re-selection family is exactly the two
+synchronous machines, and the other six are six separate refusals.
