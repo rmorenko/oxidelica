@@ -94205,3 +94205,102 @@ eighteen minutes (`/tmp/m736/long_*.txt`, commands in `long.cmd`): all
 three were stopped again, with no refusal and a memory peak of 0.2 GB.
 They stay inequalities: none of them reaches its stop time within
 eighteen minutes.
+
+## Shift m737: a hundred models outside the machines to their stop times, the refusals without building blocks, and the gain sweep
+
+### A hundred models outside the machines, to their own stop times
+
+The control of the previous shift was seventeen names. This one is a
+hundred, drawn at random from the 855 models that run by the measure
+(`/tmp/m736/ran_def.list`) after removing every name containing
+`Machines` (which also removes `BasicMachines`, `InductionMachines` and
+`SynchronousMachines`; a grep of the pool for those words prints 0) and
+the twenty names of the earlier control. The pool was 747 names; the
+sample is `/tmp/m737/ctrl100.list`. Each model ran through `simulate`
+without `-t`, one at a time, with the binary `/tmp/m735/oxh` (md5
+`c9e25082...`, in `oxh.md5`), a ceiling of 18 minutes and 24 GB (script
+`ctrl100.cmd`). The outcome of each name is in `/tmp/m737/out.tsv`.
+
+| outcome                                  | models |
+| ---------------------------------------- | ------ |
+| reached its stop time                    | 90     |
+| refused by the solver                    | 9      |
+| stopped by the output-row limit (Test71) | 1      |
+| stopped by the ceiling                   | 0      |
+
+So 90 to 91 of 100 outside the machines reach their stop time, against
+10 to 11 of 25 inside the machine family. By the rule named before the
+number, the gap between ten steps and the full distance is local to the
+machines and is not a property of the corpus. Nothing was censored, so
+both shares are points except for the one row-limit model.
+
+Fourteen of the hundred carry a building-block segment in their path,
+but by reading only four are helpers (`Digital.Examples.Utilities.Adder`,
+`FullAdder`, `Counter`, `Analog.Examples.Utilities.SwitchedCapacitor`);
+the other ten are `ModelicaTest...TestComponents` and `TestUtilities`
+tests. Without the four helpers the count is 86 of 96 and the same
+reading holds. The nine solver refusals are named in `out.tsv`; they
+include `Rotational.Examples.HeatLosses`, `CCCV_StackRC` (more than
+10000 events), `Test12` (its own assertion), `HeatingNPN_NORGate`,
+`DiodeCenterTapmPulse`, `ControlledTanks`, two op-amp oscillators and
+`TestMixingVolumesPressureStates`. The time of the sweep is not quoted:
+other probes ran beside it. The lists stand.
+
+### The refusals of the run half, building blocks apart
+
+The two markings of building blocks among the 132 run-half refusals
+(`/tmp/m736/refused.list`) differed by six names. Read one by one, the
+two `QuasiStatic.FundamentalWave.Examples.ExampleUtilities` classes are
+helpers, and the four `ModelicaTest.Fluid.TestComponents` and
+`TestAllProperties` names are tests that a substring match on
+`Components` took for parts. That gives 67 helpers and 65 examples
+(`/tmp/m737/blocks67.list`, `real65.list`). The order of the top kinds
+moves when the helpers are taken out: `parameter X has no value` falls
+from 25 to 0 or 2 depending on the matcher, `structurally singular`
+from 23 to 6 to 11, and `unbalanced` from 12 to 1. The 65 examples were
+sorted into kinds by the text of the refusal (`real65_kinds.tsv`): 24
+numerical failures of an algebraic loop, 11 structurally singular, 10
+loops whose structure is underdetermined, 6 at initialization, 5
+assertions of the model at run time, 3 MultiBody joints with parameters
+that cannot be evaluated, 2 balance, 2 `der` of a non-state, and 2 not
+sorted. These kinds read the message, not the layer, so they are a
+lower bound on the number of families.
+
+### FullRobot and OneAxis are one rigid segment
+
+`GearType1.mo` connects the motor flange to `bearingFriction`, then to
+`spring.flange_a`. The spring is the first compliant element, so all
+three walls lie on one rigid segment on the motor side: the speed
+relation of `OneAxis`, `spring.phi_rel` of `FullRobot` under the
+default, and `motor.flange_motor.phi = Jmotor.flange_b.phi` under the
+switch. The switch moves the wall along that segment and does not leave
+it. What stands behind the third wall cannot be seen without choosing
+another pair in the matching, which is not touched here. The chain is
+at least three links long and its end is not measured.
+
+### The six "no rebuild" readings
+
+Every statement in this file that a model had no rebuild by the blind
+probe `ox2` was already run again under the full probe `ox3`
+(`/tmp/m736/st6_sum.txt`, `/tmp/m735/small/rb_MGk_2.txt`); the
+corrections are written beside them. Nothing was left to measure again.
+
+### The gain sweep on the witness
+
+The witness `MGk_*` drives the motor with `current_ref = k*sdd`, where
+`s` is a function of time; the parameter `pd` is declared and never
+read, so the sweep is over the gain `k`. Eleven gains through the same
+binary (`/tmp/m737/ksweep.tsv`, md5 in `ksweep.md5`, each output in
+`k_*.txt`):
+
+| k                                    | outcome                        | friction mode at end |
+| ------------------------------------ | ------------------------------ | -------------------- |
+| -1, 0.5, 1.0001, 1.5, 1.9, 2.05, 2.2 | reaches t = 1                  | 0 (stuck)            |
+| 2, 2.0944                            | structurally singular at build | none                 |
+| 2.5, 3                               | reaches t = 1                  | -1 (sliding)         |
+
+The refusal is at two isolated gains with running neighbours on both
+sides, so it is not a threshold. The earlier record that the witness
+refuses at 3 does not hold on this binary. The mechanism is not named:
+this is an observation, and what it excludes is a monotone dependence on
+the gain and any dependence on `pd`.
