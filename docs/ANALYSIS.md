@@ -95278,3 +95278,14 @@ model's behaviour name different kinds. How many of the 65 split this
 way has not been counted. The trails of this shift cover 16 of them, and
 of those the three pipe tests and `TestTemperature1` are the four
 where text and behaviour part.
+
+Correction to the `SMPM_Braking` block above. That trail
+(`/tmp/m738/p6/nt_SMPM_Braking.txt`) ends with "of the 1 that flatten, 1
+run". On the default binary `SMPM_Braking` runs. It is one of the two
+names in the key-on refusal set that the default does not refuse
+(`def ∩ ref` above). The singular block the scan read was one the
+solver met and got past, printed once at line 53 of a run that went on.
+Its 12 at rank 11 is real, but it is not a refusal, and it says nothing
+about why the key-on run refuses this model. The scan is only meaningful
+on a model that the same run refuses. `classify65.py` now marks a run
+before it reads anything else.
