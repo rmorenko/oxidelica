@@ -93506,9 +93506,11 @@ loop Jacobian, `ThreeTanks` on the Newton direction, `TwoMass` on the
 equations of a loop), and 2 meet the 3-minute ceiling (`Counter`, one
 `SMEE_Generator`). Over both samples, 78 corpus "ran" models measured:
 68 run to the stop time within three minutes, 7 are refused before it,
-3 are inequalities. Roughly one in eleven models the floors count as run
-does not run to its end; with 78 of 855 sampled, that is a rate with a
-wide band, not a count.
+3 are inequalities. With the lost verdict recovered below, 79 models: 68 finish, 8 are
+refused before the stop time, 3 are inequalities. Firmly not reaching the
+end: 8 of 79, 10.1%; at most, counting the ceilings: 11 of 79, 13.9%.
+The sampled list is the off half (default solver) of
+`/tmp/m732/bdf855_off.txt`, 855 `ran` lines on the tree of 19 November.
 
 The lost verdict, measured again by full name (`/tmp/m734/full_*.txt`):
 the FundamentalWave `SMEE_Generator` is refused by `simulate` as
