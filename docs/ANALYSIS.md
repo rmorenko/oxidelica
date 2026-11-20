@@ -95698,3 +95698,28 @@ say that a second root was dropped. Fourteen is an upper bound on the
 models where the blind check could have chosen a root, not a count of
 wrong answers. Turning the bound into a count needs each of the 14
 asked whether its block has a second root. Nothing here reaches that.
+
+### The two-start test, and the horizon the census runs
+
+The hint asked for each candidate run from two starts: different
+answers mean two roots, the same answer means one. Three of the 14 could
+be tested from wrappers outside the tree (`/tmp/m739/two/`).
+
+`CCCV_CellRC` was run to its own `StopTime = 1200` with
+`cell.heatFlowSensor.port_a.Q_flow` starting at 0, +1e3 and -1e3 (`why`
+confirms the start reaches it). Over 1,200,002 rows the largest
+relative difference on any signal is 2.2e-18, which means one answer.
+The one-ulp reading happened, and no root was dropped
+(`park/m739_two_start_CCCV.txt`). In `BranchingPipes14` the flagged
+unknown is `pipe1.mediums[1].p$sw`, a name of the compiler's own that
+`why` does not know. In `DifferenceAmplifier` it is a derivative. A
+start can be given to neither, so neither can be tested this way.
+
+`IMC_DOL` showed something else. All three starts are refused alike at
+t = 0.102, where the states re-selected name four variables the run so
+far did not. Yet the census counts the model as running. The reason is
+in `main.rs:1451`: `library check` runs a model for ten steps,
+`min(10*step, StopTime)`, and not to its horizon. So "runs" in the
+census means ten steps. The jump scan above therefore saw only the
+first ten steps of each model, and 14 is a ceiling only over that
+stretch.
