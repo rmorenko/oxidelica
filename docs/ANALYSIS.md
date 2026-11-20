@@ -95635,3 +95635,27 @@ window. A test at `dp = 5000` would show it. Writing that test means a
 change to the solver, so it goes to Roman as a question with this sweep
 attached. No library model is known to sit in the window. The search for
 one is the next measurement.
+
+### The window is one binade, and the first slope is one ulp
+
+A sweep across powers of two puts the edges exactly
+(`~/oxideflow/park/m739_fork/binade.txt`). At 4095 and 4096 the block
+is refused, at 4097, 8191 and 8192 it runs, and at 8193 it is refused
+again. 2047, 2048, 16383 and 16384 are all refused. So the window is
+the binade (4096, 8192].
+
+The size of the first step says why. At `dp = 5000` the step lands at
+`m = 5.4976e9`, so the slope it used is `5000 / 5.4976e9 = 9.0949e-7`.
+That is `ulp(5000) / 1e-7` to every printed digit, and 1e-7 is the
+Jacobian's difference step at `m = 0` (`solvers/mod.rs:3304`). The
+column is flat at the start, but the difference read one unit in the
+last place of the residual as a slope. The noise guard did not catch
+it in this binade, and a step of four billion followed. The positive
+root is then where the walk back down happens to arrive. Which root
+comes out is a property of floating-point rounding at one exponent, and
+the model has no say in it.
+
+This is the clearest case so far of a wrong-number risk where a refusal
+was owed. The guard and the step belong to the solver, which this shift
+may not touch, so it goes to Roman as a question. The small model is
+the test it would need.
