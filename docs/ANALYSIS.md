@@ -95382,3 +95382,13 @@ t = 4e-5 before its "underdetermined" refusal, and
 row placed in the trail's blind spot also refuses mid-run. Its text
 reads like a start refusal, as the structural ones do. The bound becomes
 12 of 65, and the blind spot 9.
+
+The final count, printed in one run rather than assembled by hand
+(`/tmp/m738/midrun.py`, output `park/m738_midrun.txt`): of 65 rows, 2 run
+on the default, 51 are refused at t = 0 or before, and 12 are refused
+after the run began (largest Newton time above 0). By text the twelve
+are 5 `Newton direction`, 4 structural, 2 singular and 1 non-convergence.
+None of the twelve has a text that names a stall or a time past zero as
+its kind. So twelve of 65 rows of a census read by text are filed with
+models that never ran, and that is the figure, replacing the 9, 10 and
+11 written above as it was approached.
