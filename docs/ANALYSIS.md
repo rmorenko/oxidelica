@@ -94528,3 +94528,29 @@ Newton makes `U` unpinned with this call is not named. The refusal is
 raised in `compile.rs` where the Newton step's linear solve fails; the
 next instrument is the Jacobian of the start printed at that point.
 Observation, not mechanism; the kind stays "ours (candidate)".
+
+### The column of U reads zero at a start of zero
+
+A print of the start Newton at the refusal, built outside the tree
+(`/tmp/m738/oxj`, md5 in `/tmp/m738/oxj.md5`, output
+`/tmp/m738/p6/jac_s9.txt`), shows on the shrunk model `V_s9` the
+unknowns `[U, m, mXi]` at `[0.0, 0.1204, 0.0012]` and a Jacobian whose
+first column is exactly zero in all three rows. The other two columns
+are non-zero. `U` starts at 0.0 because nothing gives it a start. With
+`U(start=5456)`, the start that `m * h` gives, and nothing else changed,
+both `V_s9` and the eleven-line volume `V_RMA_u` run to t = 1
+(`/tmp/m738/p6/V_s9u.txt`, `V_RMA_u.txt`).
+
+So the refusal is not about the enthalpy function as a number. It is
+about the slope of `U` read at a start of zero. The step on a column
+whose value is zero is `1e-7 * (1 + |y|)`, here 1e-7 J, and the
+residual `U - m * h_pTX(...)` cannot fail to move by that much if it is
+evaluated as written. That it reads exactly zero suggests the residual
+of `U` is answered through an inner block solved coarser than 1e-7, the
+case the comment beside the step already names for
+`TestWaterPumpStorage` (a column of `U` exactly zero at 1e-7 and -0.09
+at 1e-3). That is a reading of the comment against one print, not a
+probe of the inner block. Changing the step or the Jacobian is outside
+what this shift may touch. What would settle it is the same print with
+the inner blocks named. The kind stays "ours (candidate)" with a holder
+narrowed to the slope of an unstarted energy through `h_pTX`.
