@@ -94383,3 +94383,10 @@ neither. So the near-tie of the witness family is not the shape of the
 structurally singular kind as a whole: of eleven, one carries it, and
 the exact ties of three others are a different question, since an exact
 tie is broken by order and not by rounding.
+
+A third sample, disjoint from both (`/tmp/m737/ctrl300.list`), was
+stopped at the end of the shift after 71 of its 100 names (outcomes in
+`/tmp/m737/out300.tsv`): 66 reached their stop time and 5 were refused.
+Over all 271 names measured outside the machines, 247 reached their
+stop time, 20 were refused by the solver, 3 stopped at the row limit and
+1 at the ceiling: 247 to 251 of 271.
