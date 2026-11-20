@@ -94564,3 +94564,14 @@ has one of eight, at an unknown whose start is 0.069, not zero. So
 third is the same zero column without the zero start: the kind is one
 symptom, a column that reads nothing, with the zero start a sufficient
 condition in two models and not the cause in the third.
+
+The third is a different test rig. `SimpleNaturalGas` extends
+`ModelicaTest.Media.TestsWithFluid.Components.PartialTestModel`, a
+`Fluid.Vessels.ClosedVolume` under `energyDynamics =
+SteadyStateInitial`, where the two `MoistAir` models extend the
+`PortVolume` of `Modelica.Media.Examples.Utilities`. The same medium in
+the `PortVolume` shape (`/tmp/m738/p6/V_SNG.mo`) runs to t = 1. So the
+row of three is two holders: the unstarted energy of `PortVolume` with
+reference moist air, and a zero column under a steady-state start in
+the Fluid vessel, not yet probed. The census row should be read as two
+families sharing one wording.
