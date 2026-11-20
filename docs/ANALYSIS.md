@@ -94810,3 +94810,28 @@ The rule "whatever does not move has a derivative of zero" already in
 the tree would answer it if it were asked before the subscript refusal.
 That is a change to differentiation and goes to Roman as a question,
 not into this shift.
+
+### Kind E: a binding that names a component declared after it
+
+`Engine1b_analytic`, `EngineV6_analytic` and `PlanarLoops_analytic`
+refuse with "cannot evaluate parameters [... `jointRRP.e_ia[1] =
+jointRRP.jointUSP.e2_ia` ...]: nothing gives a value to ...". `why` on
+the real model (`/tmp/m738/p6/E_why.txt`, `E_why2.txt`, md5 c9e25082)
+shows each element of `jointUSP.e2_ia` bound to the whole
+`jointUSP.rod1.e2_ia`, with no subscript, while `rod1.e2_ia[1]` itself
+is declared and bound correctly. In `JointUSP.mo` the binding
+`e2_ia = rod1.e2_ia` stands at line 103 and `rod1` is declared at
+line 123.
+
+Small reproduction, `/tmp/m738/p6/E6.mo`, fifteen lines: a `Mid` that
+declares `final parameter Real e2[3](each final unit="1") = rod1.e2`
+before `Rod rod1`. It refuses with the same text: `usp.e2[1] =
+usp.rod1.e2`, nothing gives a value to `usp.rod1.e2`. Controls, same
+binary: `E7.mo`, the same model with the two declarations swapped,
+runs. `E8.mo`, with `each final unit` removed, still refuses. So the
+cause is the order of declaration alone. When an array binding is
+split into elements, a name whose component has not yet been
+instantiated is not known to be an array and is not subscripted.
+Modelica makes declaration order meaningless, so this is a compiler
+defect with a fifteen-line test ready for it. It is a flattening
+change and goes to Roman as a question.
