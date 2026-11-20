@@ -93787,3 +93787,13 @@ that robot use `GearType1`, which puts a `SpringDamper` in series with a
 loop" row all carry the same friction element. Reading the text makes
 them one candidate family of three. One probe of the friction element
 on its own would confirm or split it.
+
+The candidate did not survive the smallest probe. A `BearingFriction`
+in series with a spring, and each of `GearType1` and `GearType2`, put
+between two inertias and driven by a sine torque for two seconds
+(`/tmp/m735/small/FricSpring.mo`, `G1.mo`, `G2.mo`), all three run to
+their end. So the friction element alone does not hold these refusals.
+Whatever holds `OneAxis` and `FullRobot` lies in what the robot connects
+to the gear, the motor and its drive. The three are not shown to be one
+family. Small models prove a mechanism and move no floor, and these
+three prove only an absence.
