@@ -94199,3 +94199,9 @@ ten steps and the full distance is mostly local to the machines. It is
 not absent outside them (2 of 17 refuse), and a sample of 17 does not
 make that a rate. Neither reading changes the measure, which stays the
 check's ten steps.
+
+The three runs stopped by the eight-minute ceiling were run again with
+eighteen minutes (`/tmp/m736/long_*.txt`, commands in `long.cmd`): all
+three were stopped again, with no refusal and a memory peak of 0.2 GB.
+They stay inequalities: none of them reaches its stop time within
+eighteen minutes.
