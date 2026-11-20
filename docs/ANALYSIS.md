@@ -93128,3 +93128,25 @@ closure of the initialization). Row 1 is therefore one segment's
 steady-energy condition, read through the inner blocks; a residual of
 5.7e8 on it is an energy derivative in watts-scale units. This is a
 reading of the layout, not a print of the row's name.
+
+### The structurally singular line, below and at its ceiling
+
+Of the ten at `compile.rs:3040`, seven tried all 31 other equations of
+their singular subset (`ActuatorWithNoise`, `Engine1a`,
+`IMC_DOL_CommonLeakage`, `PointGravityWithPointMasses2`,
+`PrismaticConstraint`, `RollingWheel`, `SphericalConstraint`): those
+stop at `MAX_SINGULAR_ATTEMPTS = 32`, the question already with Roman.
+Three stopped below the ceiling, so the ceiling is not what holds them:
+`BatchPlant_StandardWater` (3 tried, on `B5.InnerTankSide[1].port.m_flow = 0`),
+`TanksWithOverflow` (5 tried, on `lowerTank.ports[2].m_flow = 0`) and
+`FullRobot` (14 tried, on a gear spring's `phi_rel`). The first two are
+a port flow written to zero by a tank whose port is closed, an equation
+that by design constrains no state, and the subset exhausted itself
+without a member to swap. `SMPM_ResistiveBraking` at `3039` is
+`3 * smpm.lszero.i = 0`, the zero-sequence inductor current of a star
+connection set to zero, the same shape.
+
+`MeasuringTemperature` (`/tmp/m733/ntr_MeasuringTemperature`, here
+`ntr_MT.txt`): the loop over six tanks ends with residual NaN from
+iteration 15 to 20, as the register's earlier note had it (a step out of
+the medium's domain). Implementation quality.
