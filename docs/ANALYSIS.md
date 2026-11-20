@@ -93652,3 +93652,26 @@ Each of these was run once under `OXIDELICA_WHERE=1` to its stop time
 - `MoistAir1`: the initialization Newton step leaves `volume.U` unpinned
   (`compile.rs:10350`). This is the same line that holds
   `AmplifierWithOpAmpDetailed`.
+
+### Holders for four more kinds
+
+The same probe was used (`/tmp/m735/s_*.txt`, commands in `h.cmd`).
+
+- `ControlledMixingUnit`: in one `when sample(0, 1)`,
+  `inverseBlockConstraints.u1` is assigned twice and `y2` never
+  (`compile.rs:5314`). The clocked inverse block hands an equation to the
+  wrong name.
+- `ThreePhaseTransformerWithRectifier`: 21 initial equations and 4
+  fixed starts for 23 unknowns. The surplus test then leaves
+  `core3.Hstat` and `core3.MagRel` unpinned (`compile.rs:10350`), which is
+  the third model at that line.
+- `TestJunctionTraceSubstances`: temperature from enthalpy through
+  `solveOneNonlinearEquation` on the bracket 190 to 647 K returns
+  `f(190) = -1.09e6` and `f(647) = -5.88e5`, which have the same sign. So
+  the block is NaN at `t = 0`, before any Newton step (`walk.rs:1836`).
+  What holds it is a start enthalpy whose root lies outside the medium's
+  bracket. It is not the loop.
+- `BranchingPipes2` (`|f| = 3.06e6`), `BranchingPipes4` (at
+  `t = 0.0008`, `|f| = 232`) and `TestTemperature1` (`|f| = 5.5e11`) all
+  stop at the step floor of the descent at `mod.rs:3009`. That is the
+  Newton-direction family already mapped.
