@@ -93865,3 +93865,18 @@ while moving three. The relative weight came in for `SMPM_Braking`
 measures it. This is a mechanism for Roman to weigh, not a change: the
 switch is reduction, and this shift may not move it. `OneAxis` running
 under a switch is measured on one model and is not a win in the measure.
+
+The relative weight came in for `SMPM_Braking`, so both models of that
+name were run both ways (`/tmp/m735/smbA_*.txt` for the Machines model,
+`smbB_*.txt` for the FundamentalWave model, commands in `h.cmd`). The
+FundamentalWave model runs to its end with and without the switch, with
+exit code 0 both times and CSVs of the same size. The Machines model
+runs under neither. With the switch it stops on a re-selection at
+`t = 0.0009` that brings in `der(smpm.inertiaRotor.flange_b.phi)`.
+Without it, it stops on a singular Jacobian in the air-gap and diode
+loop. That moves the wall, but it is no win in the default today: the
+m552 win does not hold under the present tree. So for the thirteen
+models measured, the switch turns one refusal into a run (`OneAxis`)
+and takes no run away. Thirteen models are not the measure: the pair
+on the whole corpus is what would decide it, and that belongs to Roman
+together with the question.
