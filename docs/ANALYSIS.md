@@ -92988,8 +92988,10 @@ binary `/tmp/m733/ox2` (commands in `/tmp/m733/sweep.cmd`, outputs
 `/tmp/m733/sw/`, table `/tmp/m733/sweep_lines.tsv`). One fault in the
 instrument, named before the numbers: the outputs were keyed by the
 last part of the class name, and three models end in
-`SMPM_CurrentSource`, so two of them were overwritten. The table is of
-58 models, not 60.
+`SMPM_CurrentSource`, so two of them were overwritten. The three were run again under their
+full names (`/tmp/m733/sw2/`): the `Electrical.Machines` and the
+`QuasiStatic` one raise at `solvers/mod.rs:3065`, the `FundamentalWave`
+one at `2764`, and the table below is of all 60.
 
 | raising line          | models | what it says                               |
 | --------------------- | ------ | ------------------------------------------ |
@@ -93015,5 +93017,5 @@ singular subset, which is the `MAX_SINGULAR_ATTEMPTS = 32` ceiling the
 m731 map already named (question p.17 to Roman). Of the initialization
 names, three of five are a volume's `U` or `m` (the `reducedX = false`
 redundancy read above) and one is `opAmp.v_in`. The five lines the
-sections above probed by hand (3009, 2764, 1820, 3065, 2769) hold 24 of
-the 58.
+sections above probed by hand (3009, 2764, 1820, 3065, 2769) hold 26 of
+the 60.
