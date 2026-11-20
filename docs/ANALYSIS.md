@@ -95613,3 +95613,25 @@ answers and present it as the answer. That is the kind of guess the
 notes rank below a refusal. This is a mechanism shown on small models.
 No library model is known to move with it, and the solver is not this
 shift's to change, so it goes to Roman as a question.
+
+### The textbook fork is answered silently in a window
+
+The block the refusal was written for, `dp = 0.5*m*m` with `m(start =
+0)` (the test near `systems.rs:780`), was swept over its constant with
+`oxh`. The witness is `~/oxideflow/park/m739_fork/sweep.txt`. Every case
+has the same two roots, `+sqrt(2*dp)` and `-sqrt(2*dp)`.
+
+At `dp` = 2, 1000 and 4000 the block is refused as a fork. At 4500,
+5000, 6000 and 8000 the compiler returns the positive root without a
+word. At 9000, 1e4 and 1e6 it is refused again. `dp = m*m` at 1e4 also
+runs silently. The trail of the silent cases shows the first Newton step
+from the flat column landing at `m = 5.4976e9` (1.28 times 2^32), and
+the walk back down then finds the positive root.
+
+So the refusal depends on the size of the constant, not on the number
+of roots, and between those sizes the compiler picks one of two equal
+answers. The existing test pins only `dp = 2`, which lies outside the
+window. A test at `dp = 5000` would show it. Writing that test means a
+change to the solver, so it goes to Roman as a question with this sweep
+attached. No library model is known to sit in the window. The search for
+one is the next measurement.
