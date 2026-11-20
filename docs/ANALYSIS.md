@@ -95243,3 +95243,21 @@ makes one Newton print at t = 0, from v = 0 with f = -1e4, before the
 by a sign test on the start, not by an iteration, so the trail cannot
 add to what the m733 note says. The kind C table with every reading
 and file is `park/m738_kindC_blocks.tsv`.
+
+### Kind B's machines under the detail print
+
+`OXIDELICA_UNDERDET_DETAIL` on two of kind B's machine members
+(`/tmp/m738/p6/ud_SMEE_DOL.txt`, `ud_IMC_DOL.txt`, md5 c9e25082).
+`SMEE_DOL` is a block of 26 at t = 0 with smallest pivot 1.4e-8 raw and
+3.2e-9 scaled. `IMC_DOL_Polyphase` is 59 with 6.4e-9 and 3.7e-9. Both are
+multi-name blocks well above the 1×1 floor of `linear.rs:208`, so these
+are not the floor's false refusals the park file counts. Their null
+directions differ in kind. `SMEE_DOL`'s is made of derivatives,
+`der(airGap.V_mss.im)` at 0.69 and a converter current's derivative at
+0.62. `IMC_DOL`'s is made of the ideal closing switches' `s` and the
+star point's voltage. Both prints show the column of
+`stator.zeroInductor.v0` reaching the block through one diagonal row
+(raw 9.4e3 and 9.3e3) and the switch rows. The zero-sequence inductor
+under an open star point is the shape `docs` already maps at 70648 and
+85813, "not shrunk, map only", and these two prints are its witnesses at
+t = 0 on the present binary.
