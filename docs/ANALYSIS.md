@@ -93752,3 +93752,12 @@ and the library labels that model as showing correct and wrong use.
 The rebuilt model then stops on the zero-sequence inductor row
 `3 * smpm.lszero.i = 0` with no other equation to try
 (`compile.rs:3039`).
+
+`OneAxis` stops on `-axis.gear.bearingFriction.w + axis.motor.Jmotor.w
+= 0` with nothing else to try (`compile.rs:3039`). `why` on
+`bearingFriction.sa` (`/tmp/m735/why_oneaxis_sa.txt`) shows the
+friction element's mode law, `a_relfric = if locked then 0 else ...`,
+where `sa` carries both the acceleration and the torque. This is the
+same element that holds `GearType2` in the "equations of loop" row, so
+the drive-train shape and that row may be one holder. That is a reading
+and not a probe.
