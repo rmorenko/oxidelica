@@ -94613,3 +94613,21 @@ shows that `h_outflow` has no start, so IF97 is asked at an enthalpy
 of 0. The same breed as the moist-air volumes: an unknown with no start
 read at zero by a medium function. It is an observation on two names,
 not a count over the 24.
+
+### Where in the 65 a value goes non-finite or unpinned at the start
+
+`/tmp/m736/err_done.tsv` keeps each refusal to its first 200 characters
+(45 of the 65 lines are exactly 200 long), so a search there for NaN or
+infinity finds none, where the full texts hold several. The 65 were run
+again whole, one `simulate` each, same binary, four at a time
+(`/tmp/m738/full/`, command `/tmp/m738/full.cmd`, table
+`/tmp/m738/breed.tsv`). Of 65: five refuse on a value that is NaN or
+infinite (`ThreeSprings`, `MeasuringTemperature`, both
+`RollingWheelSet*` of kind C, and `TestJunctionTraceSubstances` of
+"other"); five refuse as unpinned at the start (all five of kind D,
+among them the three volumes above); 54 refuse otherwise; and
+`MovingActuatedDrive` runs under plain `simulate` with exit 0, the one
+name already known to have an empty refusal text. So the breed of a
+start read where nothing gave one can hold at most ten of the 65, and
+it is shown for three of them (the two moist-air volumes and
+`MeasuringTemperature`). The other seven are only candidates.
