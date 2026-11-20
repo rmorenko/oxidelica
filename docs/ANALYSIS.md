@@ -95578,3 +95578,14 @@ unbalanced because they are meant to be connected. The one example
 among them is `Fourbar1`, which is already in the queue. So the third
 row of the census is mostly a measure of the filter and says little
 about the compiler (`park/m739_unbalanced_default.tsv`).
+
+### Helper classes in the default refusals
+
+The same filter shows across the whole default refusal set. Of the 131
+names in `park/m738_refused_def.list`, 56 sit under `Utilities`,
+`BaseClasses`, `Components`, `ExampleUtilities` or `Internal`. These are
+building blocks. They are not examples. About 55 such helpers also run.
+So roughly two refusals in five belong to classes no user would run as
+models, and any ranking of the run half by count is weighted by them.
+Whether to keep them in the measure is a question for Roman. It is not a
+change for a shift. The list is `park/m739_helpers_refused.list`.
