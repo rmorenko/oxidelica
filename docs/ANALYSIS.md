@@ -93904,3 +93904,12 @@ The sweep of the 117 switches was also run on `TanksWithOverflow` and
 (80 seconds a switch) and `FullRobot` (46 seconds) were stopped before
 the sweep reached them, because together they would have taken longer
 than the shift had left. Their sweeps were not measured.
+
+The rebuild probe `/tmp/m734/ox2` on the witness
+(`/tmp/m735/small/rb_MGk_2.txt`) prints no re-selection before the
+refusal. So the witness is refused at its first build, while the switch
+that lets it run is described as weighing candidates at a re-selection.
+Either the weight is read on a path that the comment does not name, or
+the `resuming` flag is set during the first build. That is a narrower
+question than the one above, and the twelve-line model answers it in
+under a second.
