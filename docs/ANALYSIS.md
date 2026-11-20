@@ -95261,3 +95261,20 @@ star point's voltage. Both prints show the column of
 under an open star point is the shape `docs` already maps at 70648 and
 85813, "not shrunk, map only", and these two prints are its witnesses at
 t = 0 on the present binary.
+
+Correction to "the run creeps to t = 2.8e-9" for the pipe tests, and to
+the same claim about `TestTemperature1`. The trail's `t=` in
+`nt_SeriesPipes1.txt` reaches 0.0008 by its 97th Newton line, and later
+lines print 6.3e-9, 7.5e-9, then 2.84559e-9 to the end. That sequence
+goes back and forth, so it is not the time integrated to. Its last
+values sit in the family `2^-18 * 0.0008 = 3.05e-9` of the step fractions
+the refusals quote. So the run reached t = 0.0008, where the refusal
+text places it, and 2.8e-9 is the scale the step collapsed to there. The
+two readings measured the same thing in different units, and there is
+no contradiction. What stands is the other half: the text names a line
+search (`Newton direction`), while the trail shows no Jacobian and a
+collapsed step. For these three models the refusal's text and the
+model's behaviour name different kinds. How many of the 65 split this
+way has not been counted. The trails of this shift cover 16 of them, and
+of those the three pipe tests and `TestTemperature1` are the four
+where text and behaviour part.
