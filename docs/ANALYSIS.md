@@ -93118,3 +93118,13 @@ iteration takes. The inner blocks all close (previous section), so the
 outer Jacobian's row 1 does not describe how that row moves. Which
 equation row 1 is, the print does not name; naming it is the next
 print.
+
+The model sets `system.energyDynamics = SteadyStateInitial`
+(`ModelicaTest/Fluid/TestPipesAndValves.mo`, the `system` line of
+`DynamicPipeClosingValve`), so its initial equations are steady-state
+energy balances of the pipe segments, and the outer residual rows come
+first from those equations in order (`compile.rs`, the `residual`
+closure of the initialization). Row 1 is therefore one segment's
+steady-energy condition, read through the inner blocks; a residual of
+5.7e8 on it is an energy derivative in watts-scale units. This is a
+reading of the layout, not a print of the row's name.
