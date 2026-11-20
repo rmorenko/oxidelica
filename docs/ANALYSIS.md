@@ -93381,3 +93381,25 @@ bound is held rather than to the solver. Whether a bound should forgive a
 residue of that size is a question for Roman, not a change for a shift:
 the text of the refusal and the checks around it are not this shift's to
 touch.
+
+### HeatLosses under bdf: two rows on one column at the first step
+
+With `OXIDELICA_NEWTON_TRAIL=1` (`/tmp/m734/hl_trail.txt`, command in
+`hl.cmd`), `HeatLosses` under `--solver bdf` fails its first step at
+t = 3.0e-15. The nine-unknown friction loop (`bearingFriction`,
+`oneWayClutch`, `brake`, `lossyGear`) is solved to 2e-24 until the
+residual jumps to 1.3e-3 at the same point, and the Jacobian printed
+there has rows 4 and 6 nonzero only in column 8 (-0.5 and 0.25): two
+equations of the loop that read one unknown alone, so the loop's own
+matrix has rank at most eight of nine there. That is the shape already
+named for `LossyGearDemo2` (equal rows from coinciding mode laws at the
+start), met here by the corrector instead of the start. Under the default
+solver the same model does not run either; it stops later, at t = 0.0341,
+on a step size underflow and probable singularity
+(`/tmp/m734/hl_default.txt`), and in the corpus run lists it counts as run
+only in the off half of the `bdf` pair. So `HeatLosses` is a model at the
+edge of the friction family under either solver, not a model `bdf`
+breaks. One thing to note for whoever reads the instrument next:
+`library check --only` on this model prints `of which 1 run` on its count
+line and lists it as `flat`, so the count line and the list disagree on
+this model.
