@@ -95162,3 +95162,10 @@ them. `pump.rho` in row 4 stays the one whose true value (-V/rho, about
 (`nt_Rectifier.txt`) the block is 12 at rank 11, and the null direction
 is the two ideal diodes' `s` against `load2.v` in equal parts. That is
 the mode-law shape already named for switches, not a missing column.
+
+`SMPM_Braking` by the same scan (`/tmp/m738/p6/nt_SMPM_Braking.txt`): a
+block of 12 at rank 11, its null direction almost purely
+`der(smpm.airGap.i_sr[2])`. A derivative of a rotor current that no
+row of the block fixes at that point is the near-tie shape p.4 found at
+`selection_sound` for this model, seen now from the matrix side: the
+state chosen leaves its derivative to a row that does not hold it.
