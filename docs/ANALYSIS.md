@@ -95018,3 +95018,21 @@ the refusal follows from it only where nothing else supplies the
 derivative. Why `waterBaseProp_pT` stands when a parameter binding of
 it evaluates is the next question, for the evaluator rather than for
 differentiation.
+
+Correction to the word "folded" in the last four paragraphs. `why` on
+`G40.mo`, which calls `BaseIF97.Regions.region_pT(101325, 298.15)`,
+shows the equation as the inlined body with literals in place
+(`r = if 298.15 > 1073.15 then 5 else ...`), not as a number. So the
+compiler does not evaluate a call with literal arguments at flattening.
+It inlines it, and an inlined body is differentiable term by term. The
+hand-written analogues ran because they were inlined, not because they
+were folded. `waterBaseProp_pT` in `G38` is the other case: it is left
+standing (the `standing()` returns of `inlining.rs`) and stays a `Call`
+under an `Index`, which the differentiator refuses. Both halves of kind
+G are therefore one mechanism, a call left standing. On MoistAir the
+standing call loses its `derivative=` (`G32`). On IF97 a subscript of
+a standing call has no rule at all, even with constant arguments. The
+m686 link answers the first half. The second needs "a standing call
+whose arguments do not move has a derivative of zero", which is the
+rule this file already prefers for `abs`. Why `waterBaseProp_pT` stands
+rather than inlines was not measured.
