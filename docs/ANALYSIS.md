@@ -94304,3 +94304,29 @@ sides, so it is not a threshold. The earlier record that the witness
 refuses at 3 does not hold on this binary. The mechanism is not named:
 this is an observation, and what it excludes is a monotone dependence on
 the gain and any dependence on `pd`.
+
+### The gain sweep, widened, and where it turns
+
+Six more gains were added at the multiples of pi/3 with neighbours, and
+six more around the refusing points (all rows in `/tmp/m737/ksweep.tsv`,
+inputs in `/tmp/m737/kmo/`). The gains 1.0472, 3.1416 and 4.1888 run, so
+the multiples of pi/3 are not the cause: 2.0943951 runs while 2.0944
+refuses. The refusing gains are 2, 2.00001, 2.0944, 4, 6.28 and 6.2832;
+1.99999, 3.9999 and 4.19 run. The refusal of 2.00001 repeats three times
+out of three.
+
+The victim probe (`OXIDELICA_VICTIM_PROBE=1`) on 1.99999 and 2.00001
+(`/tmp/m737/vp_*.txt`) shows where the two part. The state selection
+weighs its candidates by a number read at the start point. At 1.99999
+the weights of reduction 1 are 0.0; at 2.00001 they are 0.2777, and at
+reduction 2 the weight of `motor.Jmotor.phi` is 27.49 against 0.0. The
+victim of reduction 2 changes from `motor.speed.flange.phi` to
+`motor.Jmotor.phi`, and at reduction 3 two weights that differ in the
+eleventh significant digit (27.488337100539855 and 27.488337100902275)
+choose between `motor.emf.phi` and `gear.bearingFriction.phi`. From
+there the chain ends in the refusal on
+`gear.bearingFriction.phi = flange_a.phi - phi_support`, the same kind
+of relative-coordinate definition as the default wall of `FullRobot`.
+So a structural verdict is decided by a numerical tie-break. Whether the
+weight is meant to be numerical is a question for Roman; index reduction
+is not touched here.
