@@ -94330,3 +94330,15 @@ of relative-coordinate definition as the default wall of `FullRobot`.
 So a structural verdict is decided by a numerical tie-break. Whether the
 weight is meant to be numerical is a question for Roman; index reduction
 is not touched here.
+
+### A second hundred outside the machines
+
+A second sample of 100, drawn from the same pool of 747 and disjoint from
+the first (`/tmp/m737/ctrl200.list`, script `ctrl200.cmd`, same binary,
+same ceiling of 18 minutes), outcome by name in `/tmp/m737/out200.tsv`:
+91 reached their stop time, 6 were refused by the solver, 2 stopped at
+the output-row limit (`Test68`, `Test72`) and 1 at the ceiling
+(`Fluid.Examples.DrumBoiler.DrumBoiler`, peak 0.3 GB). So 91 to 94 of 100. Over both samples, 181 of 200 reach their stop time, 15 are refused
+by the solver, 3 stop at the row limit and 1 at the ceiling: 181 to 185
+of 200 outside the machines, against 10 to 11 of 25 inside them. The
+second sample confirms the reading of the first.
