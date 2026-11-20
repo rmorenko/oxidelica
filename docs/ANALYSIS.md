@@ -95126,3 +95126,17 @@ density column is missing. A small model with the same row
 and the entry cannot be read outside a refusing block with this binary.
 The question stands as it was put. The small model needs a refusing
 companion row, which has not been built.
+
+How far the IF97 standing call reaches over the 65 (`/tmp/m738/full/`,
+marker `WithDerivative(Index(Call("Modelica.Media.Water.IF97` in a
+start note, list in `/tmp/m738/p6/if97_standing.list`): 8 models. Their
+refusals are `HeatingSystem` (kind G), the four `BranchingPipes2/3/4`
+and `SeriesPipes1` on a Newton direction that does not reduce the
+residual, `DynamicPipeClosingValve` and `HeatExchangerSimulation` on
+the start, and `BatchPlant_StandardWater` structurally singular. The
+marker says only that an IF97-bound start is carried into the run, not
+that the standing call is what refuses them. A Newton direction that
+does not descend is, though, what a Jacobian missing entries would
+give. Whether the four pipe models carry a zero column like `G22`'s
+`pump.rho` is the instrument's next question, and it is cheap: the
+same trail and the same script (`G22_null.txt`'s three lines) on each.
