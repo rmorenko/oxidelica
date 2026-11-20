@@ -93402,4 +93402,10 @@ tree lists it as `ran`, as the off half of the `bdf` pair did. So the
 default solver, and that difference, not `bdf` alone, is what to read
 next. A correction to a mark of this shift: an earlier mark said the
 count line and the list of `--only` disagree here; they do not, the `ran`
-line was cut off by the filter that read it.
+line was cut off by the filter that read it. And the parting is by
+design: `ten_steps` (`main.rs`) runs a corpus model for ten of its steps
+only, here 10 x 1e-4 = 0.001 s, so the default solver passes the check
+and fails at 0.0341, while `bdf` fails at the first step and so fails
+the check too. "Ran" in the corpus means survived ten steps, and
+`HeatLosses` lost under `bdf` is a model that fails 0.034 s later under
+the default anyway.
