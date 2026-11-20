@@ -94497,3 +94497,34 @@ Of the three models with exact ties, `SMPM_ResistiveBraking` and
 holds seven of seven, and "exact tie, site 806" holds two of three, with
 one named exception. That is a correlation over eleven names, not a
 classifier.
+
+### The singular start of the moist-air volumes, shrunk to one call
+
+The kind "initialization singular" over `MoistAir1`, `MoistAir2` and
+`SimpleNaturalGas` was taken as an item of the open list. A model of
+eleven lines (`/tmp/m738/p6/V_ReferenceMoistAir.mo`) refuses with the
+same text, `do not pin down [U]`, as `MoistAir1`. The dry medium
+`ReferenceAir.Air_pT` in the same shape runs. The model was then cut
+down to the medium functions alone (`/tmp/m738/p6/V_s*.mo`, outputs
+beside them, binary md5 `c9e250829f6a1aea6685f64e88edba7d`):
+
+| `U = m * ...` with `Xi` an unknown | verdict |
+| ---------------------------------- | ------- |
+| `u_pTX(p, T, {Xi})`                | refuses |
+| `h_pTX - p/rho_pTX` written out    | refuses |
+| `h_pTX(p, T, {Xi})`                | refuses |
+| `p / rho_pTX(p, T, {Xi})`          | runs    |
+| `pd_pTX(p, T, {Xi})`               | runs    |
+| `u_pTX(p, T, {0.01})`, `Xi` fixed  | runs    |
+| own function of `{Xi}`, same shape | runs    |
+
+So the holder is `ReferenceMoistAir.Utilities.h_pTX` with a mass
+fraction that is an unknown of the start. It is not the array argument,
+since an own function of `{Xi}` runs. The function's value and its
+declared derivative agree with finite differences at the start point
+(`/tmp/m738/p6/V_hd.csv`: d/dXi 2516523 against 2517280, d/dT 1015.147
+against 1015.147), so neither is wrong as a number. What in the start
+Newton makes `U` unpinned with this call is not named. The refusal is
+raised in `compile.rs` where the Newton step's linear solve fails; the
+next instrument is the Jacobian of the start printed at that point.
+Observation, not mechanism; the kind stays "ours (candidate)".
