@@ -95087,3 +95087,18 @@ parameter, which no row sees at a standing pump. Whether `G22`'s block
 has that same null direction is not measured. The rank trail that read
 `PumpingSystem` (`/tmp/m733/ud.cmd`) is the instrument for it. Named
 here so that the two are not taken as separate walls before that run.
+
+Measured with `OXIDELICA_NEWTON_TRAIL` on `G22` (`/tmp/m738/p6/G22_nt.txt`,
+command in `G22_nt.cmd`, rank and directions in `G22_null.txt` from the
+last Jacobian printed): 42 unknowns, rank 39. Of the three null
+directions, two are `pump.rho` and `pump.N` (0.92 / 0.38 and the
+reverse), and the third is `radiator.port_a.p` against
+`valve.port_b.p` in equal parts. The columns of `pump.rho` and `pump.N`
+are nonzero in one row only, row 5, the head law `pump.head =
+(N/N_nominal)^2 * ...`. One row cannot fix two unknowns. So this is not
+`PumpingSystem`'s single `pumps.s` direction but a wider one: the
+density that sets the pump's pressure rise from its head, and the
+speed a `ControlledPump` solves for, meet in the block only through
+the head. Where the row that should tie `rho` to the medium went is
+the next question for `why pump.rho`. The pressure pair is a third,
+separate direction.
