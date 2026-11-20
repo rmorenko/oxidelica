@@ -95463,3 +95463,15 @@ probe. So the mechanism is the same as for the other three, a
 recompilation mid-run whose structural refusal carries no time, and the
 site is not missing but unprobed. The question that remains is which
 entry. It is not a new defect.
+
+The price of the question about the time, read fifteen lines around
+`compile.rs:3040`. The author's comment above that `return` says the
+wording is kept as before "so a refusal that did not move keeps its row
+in the census". So the missing time is a deliberate choice, made to hold
+census rows still, and not an oversight. Carrying `stall.time` into the
+text would move the rows of every mid-run structural refusal in the
+census, at least the four here. It goes to Roman as a trade with that
+price, census stability against twelve refusals that report their time,
+and not as a defect. This is the third time in the shift that a guard
+read as too cautious turned out to be explained where it stands
+(`linear.rs:128-134`, `dopri.rs:805`, `compile.rs:3040`).
