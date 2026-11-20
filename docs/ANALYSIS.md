@@ -94390,3 +94390,70 @@ stopped at the end of the shift after 71 of its 100 names (outcomes in
 Over all 271 names measured outside the machines, 247 reached their
 stop time, 20 were refused by the solver, 3 stopped at the row limit and
 1 at the ceiling: 247 to 251 of 271.
+
+### The tie-break of MGk moves with a start value alone
+
+`MGk_2` (`/tmp/m735/small/MGk_2.mo`, gain 2, refuses) was copied with
+only the start of `load` changed, gain and equations untouched, and run
+under `OXIDELICA_VICTIM_PROBE=1` with the binary of md5
+`c9e250829f6a1aea6685f64e88edba7d` (inputs, commands and outputs in
+`/tmp/m738/`, summary `/tmp/m738/start.tsv`). `phi(start=1)` leaves
+every weight as it was and still refuses. `w(start=...)` moves them:
+
+| `load.w` start | reduction 3: `emf.phi` minus `bearingFriction.phi` | verdict |
+| -------------- | -------------------------------------------------- | ------- |
+| none, 0        | +9.5e-10                                           | refuses |
+| 0.5            | +1.2e-9                                            | refuses |
+| -0.5           | -2.1e-9                                            | runs    |
+| 2              | -1.5e-9                                            | runs    |
+| 10             | -6.4e-11                                           | runs    |
+| 100            | +1.5e-9                                            | refuses |
+
+So the phrase "read at the start point" in the chapter above holds, and
+it is worse than the gain sweep showed: the model compiles or refuses on
+a start value, with no equation changed. The verdict follows the sign
+of a difference near 1e-9 between two weights near 27, and the
+difference is not monotone in the start. The code says where the number
+comes from: `sensitivity` in `compile.rs` evaluates the slope of the
+residual in the start environment (`weigh_at_start` in
+`sensitivity.rs`) and, unless `OXIDELICA_NO_THROUGH_RELATIVE` is set,
+multiplies it by the candidate's own start value (`relative_weight`).
+That last factor also answers why every `spring.phi_rel` weighs 0.0 or
+1e-14 to 1e-24 beside neighbours of 110 and 440: the relative angle of
+the spring starts at about zero, so its weight is about zero by
+construction, not by an underflow in a product along the path. The
+product-along-the-path reading is dead by the code, and no path lengths
+were counted.
+
+The three time-defined variants of the same kind (`MGS`, `MGa`, `MGf`,
+`/tmp/m738/vp_MG{S,a,f}.txt`) refuse on the same equation
+`gear.bearingFriction.phi = flange_a.phi - phi_support` after the same
+near-tie at reduction 3 (differences 4.0e-10 and 1.1e-10). So the
+scattered refusals of the earlier question and the tie-break here are
+the same kind of wall on this evidence. That is an observation over
+four small models, not a proof that every refusing gain has the same
+cause.
+
+The 65 refusals of real examples split into kinds
+(`/tmp/m737/real65_kinds.tsv`) were checked by name. Each of the 65
+names is in exactly one kind and in `/tmp/m736/err_done.tsv`. The 14
+names of `/tmp/m737_fable/alg.list` all sit in kind C (24). The other
+ten are loop refusals worded differently, among them three acceptance
+floors and one start that did not converge. Kind A (11) equals
+`/tmp/m737/A11.list` exactly. None of the 25 `parameter has no value`
+refusals is among the 65. Three names in the 65 are
+`ModelicaTest...TestComponents` tests, which a strict example filter
+would count otherwise. So the top of the debt is the loop kind, 24 of
+65, of which 14 are the singular Jacobian names.
+
+Where a run hands itself back for a rebuild was printed per call site
+in `dopri.rs`, with a probe built outside the tree (`/tmp/m738/oxs`,
+`/tmp/m738/site.tsv`) on the ten models the earlier probe saw stall.
+The `selection_sound` return fires for `SMPM_ResistiveBraking` and
+`Engine1a`. The return taken when the mode is left fires for `FullRobot`
+and `OneAxis` at t near 1e-14. The other two sites fire for the Fluid
+tests: the one at line 280 for `BranchingPipes2`, `BranchingPipes3` and
+`SeriesPipes1`, and the one at line 886 for `TestTemperature1`,
+`BranchingPipes4` and `BranchingPipes3`. The `mode_holds` return fires
+for none of the ten. `ActuatorWithNoise` printed no Dopri site, so its
+stall comes from a caller outside `dopri.rs`.
