@@ -93707,3 +93707,14 @@ this refusal is the structure of one mode of an `if` equation, read at
 `t = 0`, not a missing state. Whether `BatchPlant_StandardWater` (on
 `B5.InnerTankSide[1].port.m_flow = 0`) is the same holder is the next
 probe. The text suggests it, and the text is not the layer.
+
+`BatchPlant_StandardWater` has the same holder by another road
+(`/tmp/m735/why_batch.txt`). `B5` declares one side port, and the model
+connects it to nothing, so the connection rules set its flow to zero.
+The tank's own side-port equation starts on `pre(m_flow_negative)`, which
+is fixed true, and a port above the level then takes
+`port.m_flow = 0` (`AST_BatchPlant.mo:963`). One flow is fixed twice in
+the starting mode. So two of the three zero-flow refusals share one
+holder: a branch of an `if` equation that fixes a flow some other
+equation already fixes. The third, `SMPM_ResistiveBraking`, is born at a
+rebuild and stays unread.
