@@ -93445,11 +93445,12 @@ run alone with `simulate --solver bdf` to its own stop time (`won_*.txt`,
 commands in `/tmp/m734/won.cmd`, 12-minute ceiling each, none reached).
 `PolyphaseRectifier` runs to the end, 4263 steps in 8.2 s. The other
 three are refused by `simulate` under `bdf`: `SeriesPipes1` at
-t = 5.1e-6, `BranchingPipes3` and `TestTemperature1` early as well, all
-three on the Newton direction of a loop that names a medium pressure.
-That is the refusal `swap_may_help` (`main.rs`) admits to the state-swap
-retry, so in the corpus check these three are carried by the swap retry
-over ten steps, not by `bdf` running them. Of the four wins and three
+t = 5.1e-6, `TestTemperature1` at t = 0.001 and `BranchingPipes3` at
+t = 0.502, all three on the Newton direction of a loop that names a
+medium pressure. That is the refusal `swap_may_help` (`main.rs`) admits
+to the state-swap retry, so the ten-step horizon or the swap retry, or
+both, carry them in the corpus check. Which of the two it is was not
+measured this shift. Of the four wins and three
 losses that the `bdf` pair counted, then, one win (`PolyphaseRectifier`)
 is a model that runs to its stop time, and the other six moved only in
 what the ten-step check with its retry says. A comparison of solvers
