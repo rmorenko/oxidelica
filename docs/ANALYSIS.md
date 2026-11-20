@@ -95374,3 +95374,11 @@ therefore checked by the largest Newton time in their trail as well:
 `ActuatorWithNoise` 0.005, `SMPM_ResistiveBraking` 0.0047, `FullRobot`
 0.001 and `Engine1a` 0.001. All four ran past t = 0, so the bound of 11
 holds on both readings.
+
+The same check on kind B's rows that printed points: `IMS_Start_Polyphase`
+and `SMEE_Rectifier` stay at t = 0, while `PolyphaseRectifier` reached
+t = 4e-5 before its "underdetermined" refusal, and
+`ThyristorBridge2mPulse_RLV` reached 1.45e-3 (already counted). So one
+row placed in the trail's blind spot also refuses mid-run. Its text
+reads like a start refusal, as the structural ones do. The bound becomes
+12 of 65, and the blind spot 9.
