@@ -94588,3 +94588,11 @@ under a steady-state start. The steady-state rows read zero slopes in
 every column of the mixture model, where the single gas solves. A rig
 with one port and no outlet (`V_CV*.mo`) refuses for both media, and is
 ill-posed as written, so it is not evidence.
+
+The printed Jacobian of `V_CP` (`/tmp/m738/p6/V_CP.txt`, eight
+unknowns of the vessel) has the column of `volume.m` exactly zero, and
+its eight rows are close to proportional to one another in the six
+mass-fraction columns. So the steady-state rows of a mixture say nearly
+the same thing eight times over: the rank lost is more than the one
+named in the refusal, and the refusal names only the first column it
+found empty.
