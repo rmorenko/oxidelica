@@ -94596,3 +94596,20 @@ mass-fraction columns. So the steady-state rows of a mixture say nearly
 the same thing eight times over: the rank lost is more than the one
 named in the refusal, and the refusal names only the first column it
 found empty.
+
+### Two names of the loop kind, read once each
+
+Kind C (24 loop refusals) was opened at its two cheapest names, under
+the binary of md5 `c9e250829f6a1aea6685f64e88edba7d`
+(`/tmp/m738/c_*.txt`). `ThreeSprings` refuses because its loop's own
+start makes `e_rel_0 = r_rel_0 / s` minus infinity: `s` has no start
+and reads 0. Given `s(start=0.5)` on all three springs
+(`/tmp/m738/p6/TS_s.txt`), the infinity is gone and the same loop
+refuses one step later with a Newton direction that does not descend.
+That is one link of a chain, not a wall removed. `MeasuringTemperature`
+refuses with a NaN in a tank's port velocity. The density it divides by
+is `waterBaseProp_ph(p, junctionIdeal.port_3.h_outflow)`, and `why`
+shows that `h_outflow` has no start, so IF97 is asked at an enthalpy
+of 0. The same breed as the moist-air volumes: an unknown with no start
+read at zero by a medium function. It is an observation on two names,
+not a count over the 24.
