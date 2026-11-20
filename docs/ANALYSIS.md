@@ -93529,9 +93529,9 @@ on the horizon: `simulate --stop` 0.001, 0.002 and 0.004 finish (10, 20,
 40 steps), 0.006, 0.01, 0.1, 1 and the stop time of 3 refuse with the same
 text (`/tmp/m734/smee_*.csv`, commands in this shift's marks). So the
 "structurally singular" refusal is raised during the run, between
-t = 0.004 and 0.006, by a recompilation after something changes, and not
-at compilation, which is why the ten-step check (0.01 at the default step
-1e-3 would already pass it, but the model's own interval is finer) counts
-the model as run. What changes near 0.005 s was not read this shift; the
+t = 0.004 and 0.006, and not at the compilation before the first step
+(by what path the run reaches `compile.rs:3040` was not read), which is why the ten-step check counts the model as run:
+its `Interval` is 1e-4, so ten steps reach 0.001, well before the
+refusal. What changes near 0.005 s was not read this shift; the
 switch sources of the model start at 0, 0.5 and 2 s, so none of those
 names it.
