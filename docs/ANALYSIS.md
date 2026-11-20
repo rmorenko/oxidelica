@@ -93675,3 +93675,19 @@ The same probe was used (`/tmp/m735/s_*.txt`, commands in `h.cmd`).
   `t = 0.0008`, `|f| = 232`) and `TestTemperature1` (`|f| = 5.5e11`) all
   stop at the step floor of the descent at `mod.rs:3009`. That is the
   Newton-direction family already mapped.
+
+### What the twelve "structurally singular" refusals say
+
+All twelve files of the rebuild probe (`/tmp/m735/rb_*.txt`) end in the
+same sentence: an equation "constrains no state, so index reduction"
+cannot go on. The equations named fall into four shapes, read off the
+text and not probed. Three are a flow or current set to zero
+(`BatchPlant_StandardWater` and `TanksWithOverflow` on `m_flow = 0`,
+`SMPM_ResistiveBraking` on `3 * smpm.lszero.i = 0`). Five are rows of an
+orientation or velocity in MultiBody (`Engine1a`,
+`PointGravityWithPointMasses2`, `PrismaticConstraint`,
+`SphericalConstraint`, `RollingWheel`). Two are drive-train aliases
+(`FullRobot` on `phi_rel`, `OneAxis` on a speed balance). Two are sums of
+sensor currents (`ActuatorWithNoise`, `IMC_DOL_CommonLeakage`). The
+shapes are a reading for the next probe to confirm or split. They are
+not families.
