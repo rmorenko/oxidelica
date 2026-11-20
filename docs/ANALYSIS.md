@@ -94714,3 +94714,14 @@ text, `underdetermined algebraic loop ["der(Q1.vbx)"]`. So the zero
 capacitance is not what holds it. The loop is underdetermined for a
 reason the coefficient of `der(vbx)` does not carry, and the source
 line above is a possible mechanism that did not act.
+
+Shrinking instead of reading: a 13-line circuit (`/tmp/m738/p6/R2.mo`,
+one `Q_NPNBJT`, two resistors, two constant sources) refuses with the
+corpus text `underdetermined algebraic loop ["der(Q1.vbx)"]`. Taking the
+modelcard apart one parameter at a time (`R2_*.mo`): without `RB=100`
+the refusal changes to a singular Jacobian over `der(vbc)`, `der(vbx)`,
+`der(vcs)` and `icapbc`, and `RB=100` alone keeps the corpus text; `BF`,
+`TF` and `CJC` do not matter. A base resistance splits `B.v` from
+`Binternal`, and `vbx = B.v - Cinternal` then forms a block of its own.
+So the holder of this name is narrowed to the block that the base
+resistance cuts out around `der(vbx)`. Not yet named as a mechanism.
