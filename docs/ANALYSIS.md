@@ -94652,3 +94652,17 @@ bracket assertion the walk refused, and `why` shows that
 `junction.port_3.h_outflow` has no start. So it is a probable member of
 the breed, a root finder asked at an enthalpy of zero, not an excluded
 one. The count becomes three shown, two probable, five open.
+
+And the active test that the readings above asked for refutes two of
+them. `MeasuringTemperature` given
+`junctionIdeal.port_3.h_outflow(start=1e5)` and
+`TestJunctionTraceSubstances` given `junction.port_3.h_outflow(start=5e4)`
+(`/tmp/m738/p6/{MT_h,TJ_h}.mo`, same binary) refuse with texts
+identical byte for byte to their unchanged runs, while `why` confirms
+the start was taken (`start: 100000`). So an enthalpy with no start is
+not what holds either of them, and both go back from "probable" to
+"open". The breed stands at three shown (the two moist-air volumes and
+`ThreeSprings`, whose infinity a start removed), one probable
+(`RollingWheelSetDriving`, not tested actively), six open, of 65. Two
+passive instruments, `why` and the text of the refusal, made a
+candidate; the active one that could have confirmed it did not.
