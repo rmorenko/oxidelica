@@ -93956,3 +93956,23 @@ print none. `TwoMass` hands back twice for a mode change, at
 `pipe1.flowPort_a.h`. So of the eight refusals of that sample, three are
 born after a rebuild (the two synchronous machines and `TwoMass`), not
 two. The other five fail in the model as first built.
+
+### The full rebuild probe on every run-half refusal
+
+Every model that flattens in `/tmp/m732/bdf855_off.txt` and whose short
+name is one of the run-half refusals of `/tmp/m733/sweep_lines.tsv` was
+put through `library check --only` under `ox3` (`/tmp/m735/st60.tsv`,
+names in `all60.txt`, script `st60.sh`). Matching on the short name gave
+72 models. Ten of them run, and those ten are namesakes of a refused
+model (four `MoistAir`, two `Rectifier`, the Rotational `RollingWheel`
+and others), not refusals. They are left out. Of the 62 refused models,
+ten hand back for a rebuild before the refusal. Five are the
+structurally singular ones named above. The other five are the
+Newton-direction Fluid family: `BranchingPipes2`, `3` and `4`,
+`SeriesPipes1` and `TestTemperature1`, all of which hand back at
+`t = 0` without a mode change. 52 refuse in the model as first built. So
+roughly one run-half refusal in six stands behind a rebuild, and the
+census text cannot tell which ones. Matching by short name was the
+instrument's weak point here: it is a guess, the ten namesakes show it,
+and the count of 62 is a count of refused models only after they were
+removed by hand.
