@@ -94631,3 +94631,16 @@ name already known to have an empty refusal text. So the breed of a
 start read where nothing gave one can hold at most ten of the 65, and
 it is shown for three of them (the two moist-air volumes and
 `MeasuringTemperature`). The other seven are only candidates.
+
+Four of the seven candidates were read once each, from the full texts.
+`RollingWheelSetDriving` goes NaN on `e_long_0 = aux / sqrt(aux * aux +
+...)`, where `aux` is a cross product of two unit vectors of the rolling
+joint with no start: zero over zero, the breed again but only probable,
+since the start of the vectors was not printed. `TestJunctionTraceSubstances`
+is not the breed: its NaN comes from a function the walk refused, on an
+assertion about `u_min` and `u_max` in the function call.
+`AmplifierWithOpAmpDetailed` is unpinned on `opAmp.v_in`, a variable
+under `der` of a capacitor law, and `ThreePhaseTransformerWithRectifier`
+on `core3.Hstat` and `core3.MagRel` of a hysteresis core; neither was
+probed further. So the breed stands at three shown, one probable, one
+excluded, five open, of 65.
