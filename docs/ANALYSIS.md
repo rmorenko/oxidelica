@@ -94743,3 +94743,15 @@ corpus model is refused for a true zero, and the same circuit with any
 real extrinsic capacitance is refused by the floor. The floor
 `scale.max(1.0)` is on the list this shift does not touch, and the
 finding goes to Roman as a question.
+
+The same print on the other three Spice3 names of kind B
+(`/tmp/m738/p6/ud_*.txt`): `NAND` and `ONEBIT` refuse on a one-by-one
+block `icapbe = capbe * der(vbe)` whose entry is 1e-12, a real
+base-emitter capacitance, and not zero. So two corpus models are refused
+by the floor `scale.max(1.0)` against a lone capacitor law, which is the
+mechanism above with no zero behind it. `Spice3BenchmarkRtlInverter`
+has the true zero of `XCJC=1`. `Spice3BenchmarkDifferentialPair`
+refuses earlier and differently ("do not mention"), so it is not
+counted. On this evidence, changing the floor for one-by-one blocks
+could let `NAND` and `ONEBIT` past this wall. Whether a wall stands
+behind it is not known, and the floor is not this shift's to change.
