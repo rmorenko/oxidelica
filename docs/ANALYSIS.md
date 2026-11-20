@@ -94144,3 +94144,24 @@ from them is, by reading, that they carry independent mass fractions with
 a heavier medium. That is not probed. It is a candidate family of ours,
 because a test harness the library ships with an initial pressure and
 temperature ought to pin the volume's mass and energy.
+
+### The switch's two victims at full distance
+
+The corpus check runs ten steps, so a victim there is a model that ran
+ten steps by default and does not under the switch. Each was run to its
+own stop time by default, same binary:
+
+- `MultiBody.Examples.Rotational3DEffects.MovingActuatedDrive` reaches
+  its stop time 1.1 (`/tmp/m736/mad_full.txt`, exit 0). A full victim.
+- `Electrical.Machines.Examples.SynchronousMachines.SMPM_Braking`
+  reaches t = 0.001 (the ten steps) and then, already by default,
+  refuses on a singular Jacobian in the air-gap loop by t = 0.01 (also at
+  0.1 and 0.4). It never ran to its stop time 0.8, so it is a ten-step
+  victim only.
+
+And the win, `OneAxis`, runs under the switch to its own `terminate()` at
+t = 1.498 (`/tmp/m735/oneaxis_ntr.txt`). So over the full distance the
+switch trades one model for one, `OneAxis` for `MovingActuatedDrive`,
+while the count of the check says `+1 -2`. Both readings are true. They
+answer different questions, and which one is the measure is not for this
+shift to choose.
