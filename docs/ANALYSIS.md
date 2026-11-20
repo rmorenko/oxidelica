@@ -96097,3 +96097,16 @@ through the wrapper and stand corrected until a remeasure by class
 name, which was started (`/tmp/m741/cls`, the same binary, cap 2
 minutes). The mechanisms found by probe (rebuilds, columns, the two
 walls) do not depend on the stop and stand.
+
+The remeasure by class name was stopped by the clock after 405 of the
+855, taken in the order of the list, so it is a prefix (Modelica up to
+MultiBody's elementary examples) and not a sample. On those 405, run to
+their own stop time: 328 reach it, 42 refuse on the way and 35 are cut
+by the two-minute cap. Through the wrapper the same 405 had read 356,
+36 and 13. 27 moved from reached to cut, because their own stop time is
+longer than 1 s, and 11 from reached to refused. Ten moved the other
+way, 5 from refused to reached and 5 from cut to reached. No figure for
+the whole 855 is offered from this. The other 450 are listed for the
+next pass with the script that runs them
+(`park/m741_reach_by_class405.tsv`, `park/m741_reach_by_class_todo450.list`,
+`park/m741_reach_by_class.sh`).
