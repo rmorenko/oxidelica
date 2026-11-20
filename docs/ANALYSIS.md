@@ -95404,3 +95404,17 @@ different site, and refuses at 0.001. `ActuatorWithNoise` printed no
 Dopri site. That is two of four tied to one line by two instruments,
 which makes the reselection path the place where the structural text
 should carry its time.
+
+Where the time is lost, by reading the code (not a probe). The re-selection
+loop in `solvers/mod.rs` (`AdaptiveOutcome::Stalled`, around line 3145)
+compiles the model again at the point reached with
+`compile_at(&self.flat, Some(ResumePoint { time: stall.time, ... }), false)?`.
+The `?` passes a compile refusal up unchanged. Index reduction redone at
+`stall.time` that finds an equation constraining no state therefore
+reports the same text as at the first compilation, and `stall.time` is
+in hand one line above and never added. The sibling refusals of the same
+loop ("the model kept changing mode at t = ...", "step size underflow at
+t = ...") do carry it. Adding "at re-selection, t = ..." to an error
+passing through that `?` would separate the four mid-run structural
+refusals in the census from the fourteen that never ran. It is a change
+to a refusal's wording, so it goes as a question and is not made here.
