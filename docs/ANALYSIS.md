@@ -95202,3 +95202,21 @@ rank 7 without the starts. So the missing starts on `aux` are what
 blank most of the block. With them a single direction is left, and the
 loop then fails to converge in 60 iterations, the next link already
 recorded. "Probably" in the paragraph above is now measured.
+
+Three more blocks under the scan, same binary (md5 c9e25082, files
+`/tmp/m738/p6/nt_*.txt`):
+
+- `LossyGearDemo2`: 5 at rank 4, one null direction `gear.sa` against
+  `gear.quadrant2` and `gear.quadrant4` in equal parts. These are the
+  coinciding mode laws already named for it.
+- `ThreeSprings`: 31 at rank 25, six directions over `body1.a_0`,
+  `body1.z_a` and the springs' `r_rel_0`. The start of
+  `spring2.lineForce.s` removed its infinity earlier, so this is the
+  block one link on.
+- `PumpingSystem`: 11 at rank 10, but the null direction is now
+  `pumps.medium.p$sw` alone, where m733 read `pumps.s` alone with the
+  binary `/tmp/m733/ox2` (md5 b9f82c3b). The block has been rewritten
+  between the two binaries (the `$sw` names are swapped states), and
+  the null direction moved with it. So the m733 reading of this model
+  belongs to that binary, and the shape "a curve parameter no row sees"
+  is not what stands now.
