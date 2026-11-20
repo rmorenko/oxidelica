@@ -94909,3 +94909,12 @@ arguments is folded before differentiation and its subscript never
 survives. What `waterBaseProp_ph` keeps is the subscript itself. So
 `G6.mo`, one `ClosedVolume`, remains the smallest witness, and which
 property of the IF97 function stops the folding is the open step.
+
+Three more shapes were tried with the same result: a record-returning
+function read through a wrapper (`G16`), and a package constant bound to
+such a function, as `LinearWater_pT_Ambient` binds `beta_const`
+(`G17`). Both run, and the probe has nothing to report. The IF97 call
+stays unfolded where seven hand-written analogues fold. The difference
+lies in the IF97 body or the record's size, and one of `G6`'s three
+library functions has to be cut down to find it. Stopped here, not
+concluded.
