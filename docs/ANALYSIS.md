@@ -96065,3 +96065,9 @@ already among the 855 that pass ten steps, so no floor moves, and their
 answers were not compared with anything. The probe only hides columns,
 it does not change what is solved. What the output columns of a
 rebuilt model should be is Roman's to say.
+
+One check on those answers is free. `SMR_Inverter` is the same machine
+in two libraries, and under the probe both end at t = 1.5 with a speed
+of 156.957833 rad/s and a torque of 46.576588 against 46.576586 N·m.
+They agree with each other, which is not the same as agreeing with a
+reference.
