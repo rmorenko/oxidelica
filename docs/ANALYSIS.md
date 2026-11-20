@@ -92842,10 +92842,11 @@ t = 0, whose only equation is
 column is exactly zero (pivot 0, raw column 0). A first reading took the
 `m_bInit` branch for the cause; it is not: `m_bInit` is declared
 `constant Boolean m_bInit = false` (`Spice3.mo:4916`), so the derivative
-branch is the one taken, and the column is zero because its coefficient
-`Q1.cc.capbx` is zero at the start. The holder is a derivative made the
-unknown of a block whose only equation multiplies it by a capacitance
-that is zero there. The same shape names `der(Q4.vbe)` on `NAND` and
+branch is the one taken, and a zero column then means its coefficient
+`Q1.cc.capbx` reads zero at the start. That value was not printed, so
+this is inferred from the zero column, not measured. The holder, on
+that reading, is a derivative made the unknown of a block whose only
+equation multiplies it by a capacitance that is zero there. The same shape names `der(Q4.vbe)` on `NAND` and
 `der(X9.Q4.vbe)` on `ONEBIT` in the census, so this is likely three of
 the five; ours, in the matching (a derivative chosen as the unknown of
 a row whose coefficient on it vanishes at the start point).
