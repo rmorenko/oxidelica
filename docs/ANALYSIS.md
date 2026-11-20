@@ -95056,3 +95056,26 @@ start was already refuted as its holder (above), so the next probe is
 waterBaseProp_ph(p, mix of h_outflow, 0, 0)[4]`, the water domain at
 t = 0 that queue item 30's note already names. Nothing new beyond the
 expression, which is now quoted whole in the file above.
+
+`OXIDELICA_INIT_PROBE` on the same model (`/tmp/m738/p6/TJ_ip.txt`,
+command in `TJ_ip.cmd`) prints the pairing of the four written start
+conditions of `junction1` with the states they replace:
+
+```text
+junction1.medium.T  = T_start              reaches []                    took junction1.U
+junction1.medium.p  = p_start              reaches []                    took junction1.mC_scaled[1]
+junction1.medium.Xi[1] = X_start[1]        reaches [m, mXi[1]]           took junction1.mXi[1]
+junction1.mC_scaled[1] = m*C_start[1]/1e-6 reaches [m, mC_scaled[1]]     took junction1.m
+```
+
+The temperature and pressure conditions reach no state at all, and the
+pressure condition takes the trace substance's mass. In a volume of
+MoistAir `T` and `p` are reached through `U`, `m` and `mXi` by way of
+`h_pTX`. That is the call kind G found standing without its derivative
+(`G32`), and a call left standing is opaque to the reach as well. If so,
+the pairing is made blind, the start Newton begins from conditions
+attached to the wrong unknowns, and the enthalpy handed to `T_phX` is
+whatever that leaves. This is an observation and one reading of it,
+not a measured cause. The test that would settle it is the m686 link
+(standing calls keep their rule) on this model, which this shift may
+not build.
