@@ -93153,3 +93153,9 @@ connection set to zero, the same shape.
 `ntr_MT.txt`): the loop over six tanks ends with residual NaN from
 iteration 15 to 20, as the register's earlier note had it (a step out of
 the medium's domain). Implementation quality.
+
+`why` on `Q1.cc.capbx` (`/tmp/m733/why_capbx.txt`) says it is bound by
+nothing, starts at 0, and is assigned from the output of the external
+helper `Spice3.Internal.Bjt.bjtNoBypassCode`. Its value at the start is
+therefore whatever that function returns there, and `why` does not
+evaluate it. The inference above stays an inference.
