@@ -95036,3 +95036,23 @@ m686 link answers the first half. The second needs "a standing call
 whose arguments do not move has a derivative of zero", which is the
 rule this file already prefers for `abs`. Why `waterBaseProp_pT` stands
 rather than inlines was not measured.
+
+### Two of the five non-finite refusals, read further
+
+`TestJunctionTraceSubstances` (MoistAir with a CO2 trace) is NaN at
+t = 0 "because a function it calls could not be walked". The function is
+`Math.Nonlinear.solveOneNonlinearEquation`, under `MoistAir.T_phX`, and
+it raises the library's own `error`. The bracket `u_min = 190`,
+`u_max = 647` K gives `f = -1.09e6` and `-5.88e5`, both negative
+(`/tmp/m738/full/...TestJunctionTraceSubstances.txt`, md5 c9e25082).
+With `f = h_pTX(T) - h`, the enthalpy asked for lies above that of
+647 K, while every source in the test stands at 278 to 293 K. So the
+`h` handed to the inversion at the start is not a physical enthalpy of
+this model. Which unknown supplies it was not traced. The enthalpy
+start was already refuted as its holder (above), so the next probe is
+`why` on the argument of `T_phX` and not another start.
+
+`MeasuringTemperature` is NaN in `T_junction.T =
+waterBaseProp_ph(p, mix of h_outflow, 0, 0)[4]`, the water domain at
+t = 0 that queue item 30's note already names. Nothing new beyond the
+expression, which is now quoted whole in the file above.
