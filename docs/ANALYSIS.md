@@ -93926,3 +93926,24 @@ on a loop through `load.a - gear.bearingFriction.a = 0`
 (`rk4_MGk_2.txt`). The "structurally singular" text of the witness, and
 so of `OneAxis`, is a rebuild refusal. That adds a third to the two found
 under item 1: the probe there undercounts by its own blind spot.
+
+### Item 1 corrected: five of the twelve are born at a rebuild, not two
+
+The probe used for item 1 printed only the two hand-backs inside the
+explicit step. A second probe (`/tmp/m735/stall.patch`, binary
+`/tmp/m735/ox3`, md5 `6bff1981...`) prints at `stall_at_last_row`,
+which every hand-back to a rebuild goes through. The twelve were run
+again under it (`/tmp/m735/st_*.txt`, summary in `st_sum.txt`, command
+in `h.cmd`). Five print a hand-back before the refusal.
+`ActuatorWithNoise` (`t = 2.7e-4`), `Engine1a` (`t = 0.001`) and
+`SMPM_ResistiveBraking` (`t = 0.004`) hand back for a re-selection.
+`FullRobot` (`t = 2.6e-14`) and `OneAxis` (`t = 7.2e-14`) hand back for a
+change of mode at the very start. The other seven print none and fail
+in the model as first built. So of the twelve run-half refusals with
+this text, five are born at a rebuild and seven at the first build. The
+prediction of at most ten held. The figure of two given above under item
+1 was the first probe's blind spot, and it is withdrawn. On the witness,
+the hand-back comes at `t = 0.3` with a mode change, exactly where its
+`if` on time switches branch. That fits a switch that only acts when a
+build is resumed. `OneAxis` is the same: a mode change at the start, a
+rebuild, and a refusal in the rebuilt model.
