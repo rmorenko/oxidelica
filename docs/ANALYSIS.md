@@ -96032,3 +96032,19 @@ at 0.148 s, `DemonstrateLightning` at 10 microseconds. Three Fluid
 refusals fail at once under `simulate`, because only `library check`
 retries a refusal with the state swap. Four fail at their stop time,
 which is the chatter ceiling or an end check rather than a rebuild.
+
+A print-only probe before the rebuild (`park/m741_rebuild_probe.patch`,
+outcome unchanged model by model) shows what those times are. 14 of the
+15 structural refusals among the 57 are refusals of a compile at a
+resumed point, 13 after a state re-selection and one
+(`DemonstrateLightning`) after a mode change. Six induction machines
+rebuild twice and refuse at the second, between 0.149 and 0.229 s. A
+stop just past their first rebuild shows a different refusal for all
+six: the states re-selected at about 0.103 s name different variables
+than the run so far. The rebuilt segment is compiled before the
+previous one is appended, so on a full run the structural refusal of
+the second rebuild hides the column mismatch of the first. Two walls
+stand in each of the six, and the structural and state-reselect rows
+of the census are not independent. 13 models in all stop on the column
+set of a re-selection, 7 shown as such and 6 shown as structural
+(`park/m741_rebuild15.tsv`).
