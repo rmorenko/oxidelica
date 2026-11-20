@@ -94165,3 +94165,37 @@ switch trades one model for one, `OneAxis` for `MovingActuatedDrive`,
 while the count of the check says `+1 -2`. Both readings are true. They
 answer different questions, and which one is the measure is not for this
 shift to choose.
+
+### Ten steps against the full distance, in a family and in a control
+
+Every model that the default check runs was run to its own stop time by
+default, same binary (`/tmp/m735/oxh`, md5 `c9e25082...`), `simulate`,
+a ceiling of eight minutes each. A model stopped by the ceiling is an
+inequality, neither reached nor refused.
+
+The family was all 25 synchronous machines that pass the check
+(`/tmp/m736/full.tsv`), picked because `SMPM_Braking` failed there, so
+it is a worst case by construction. 10 reach their stop time, 14
+refuse, and 1 (`Magnetic...SynchronousMachines.SMEE_LoadDump`) was
+stopped by the ceiling: between 10 and 11 of 25.
+
+The control was 20 random names from the same run list outside
+`.Machines.` (`/tmp/m736/ctrl.{list,tsv,md5,cmd}`). That filter was too
+narrow: three are machines under `BasicMachines` and two are helpers.
+
+| set                                     | reach | refuse | ceiling |
+| --------------------------------------- | ----- | ------ | ------- |
+| all 20                                  | 14    | 4      | 2       |
+| 17 without machines                     | 13    | 2      | 2       |
+| 15 without machines and without helpers | 11    | 2      | 2       |
+
+The two refusals of the seventeen are `Thermal.FluidHeatFlow.Examples.WaterPump`
+(step size underflow at t = 1.9) and `ModelicaTest.Tables.CombiTimeTable.Test69`
+(the output row ceiling of two million). The ceiling stopped
+`Fluid.Examples.IncompressibleFluidNetwork` and `Spice3.Examples.Inverter`.
+So outside the machines, 13 to 15 of 17 reach, against 10 to 11 of 25
+inside the family. By the rule set before the number, the gap between
+ten steps and the full distance is mostly local to the machines. It is
+not absent outside them (2 of 17 refuse), and a sample of 17 does not
+make that a rate. Neither reading changes the measure, which stays the
+check's ten steps.
