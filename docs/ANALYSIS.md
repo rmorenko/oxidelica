@@ -93976,3 +93976,14 @@ census text cannot tell which ones. Matching by short name was the
 instrument's weak point here: it is a guess, the ten namesakes show it,
 and the count of 62 is a count of refused models only after they were
 removed by hand.
+
+What the corpus would say about the switch was not measured. The `+1 -1`
+above comes from fourteen models run by hand, and thirteen of them were
+refusing already, so they could not have produced a victim. How many
+models like `SMPM_Braking` hide among the 852 that run is unknown. It
+needs one corpus half under `OXIDELICA_NO_THROUGH_RELATIVE=1` from one
+binary, diffed against the default list from the same binary, about 35
+to 47 minutes, and this shift started it too late to finish. The
+witness's hand-back at `t = 0.3` with a mode change is the second return
+of the explicit step, `dopri.rs:811` (`!mode_holds`), beside the first at
+`:805` (`!selection_sound`). That names the place and not the cause.
