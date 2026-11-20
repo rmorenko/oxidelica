@@ -93797,3 +93797,29 @@ Whatever holds `OneAxis` and `FullRobot` lies in what the robot connects
 to the gear, the motor and its drive. The three are not shown to be one
 family. Small models prove a mechanism and move no floor, and these
 three prove only an absence.
+
+### OneAxis shrunk to a twelve-line model: a "structural" refusal that depends on a number
+
+Shrinking the real model one part at a time (`/tmp/m735/small/*.mo`,
+every run in `h.cmd`) leads to `MGf.mo`. It holds the RobotR3 `Motor`,
+a `GearType2` and a load inertia. The motor's current reference is
+`2.0944 * sdd`, where `sdd = der(der(s))` and `s` is an `if` on `time`
+with two branches. That model is refused exactly as `OneAxis` is: the
+equation `gear.bearingFriction.phi = ...` "constrains no state" after 12
+others are tried. Each of the following runs to its end:
+
+- `MGe`: the same model with the factor 1 written as a parameter.
+- `MGd`: the reference with no factor at all.
+- `AXDP`: no `if` in `s`.
+- `MGc`: no gear.
+- `TGp`: a plain torque source in place of the motor.
+
+Changing one constant from 1 to 2.0944 turns a model that runs into a
+refusal that calls itself structurally singular. Structure does not
+depend on a coefficient's value, so something on the way decides by
+number. The likely places are a zero test or the order of attempts in
+index reduction. Reduction is outside this shift's permissions, so this
+goes as a question and not as a fix. The twelve-line model is ready to
+be its test. A model that runs under the change is proof of a mechanism
+and not a win, because the library's `OneAxis` has not been run with any
+change.
