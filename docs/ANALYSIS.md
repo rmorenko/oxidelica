@@ -95325,3 +95325,13 @@ singular-block column and not here. So 10 creep and refuse, the text
 names a stall for none of them, and the lower bound is 10 of 65, not 9.
 The ten are the five named for `Newton direction`, the three structural
 texts, `ThyristorBridge2mPulse_RLV` and `Nand`.
+
+The ten rows with a singular text and no printed Jacobian are exactly
+kind B (`park/m738_text_vs_behaviour.tsv`). Eight say `underdetermined`
+and two say "do not mention". Those refusals come from the
+underdetermined and the structure-at-a-point paths, which
+`OXIDELICA_UNDERDET_DETAIL` prints and `OXIDELICA_NEWTON_TRAIL` does not.
+So these rows are a blind spot of the trail and not a mismatch of
+behaviour, and leaving them out of the bound above was right. Kind B is
+one of the few kinds where text and instrument agree once the right
+instrument is used.
