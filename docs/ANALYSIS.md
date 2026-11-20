@@ -93159,3 +93159,30 @@ nothing, starts at 0, and is assigned from the output of the external
 helper `Spice3.Internal.Bjt.bjtNoBypassCode`. Its value at the start is
 therefore whatever that function returns there, and `why` does not
 evaluate it. The inference above stays an inference.
+
+#### The orifice row's Jacobian, tested, and the reading above withdrawn
+
+The section above said row 4's Jacobian "does not predict its change".
+That was a reading and it is now measured false. A print of the linear
+prediction `f - lambda*J*dv` against the residual actually found, per
+row, at each step the line search accepted (patch `/tmp/m733/predict.patch`,
+binary `/tmp/m733/ox4`, output `/tmp/m733/predict.txt`, command in
+`predict.cmd`; control: the refusal equals `/tmp/m731/SP1b_bdf.txt` to
+the digit). On the last solve, at the steps taken (fractions 1/8, 1/4,
+1/16, 1/32, then 6e-5 and 3e-5), row 4 lands exactly on the prediction
+to four figures every time: 3.903, 2.927, 2.744, 2.658 (units of 1e-10).
+Row 1 departs from it: at 1/4 predicted 2.183 against 2.328 found, and at
+1/32 predicted 2.115 against 2.183, its rounding floor.
+
+So the line search is not cutting the step because row 4 is badly
+modelled. It is linear at every fraction it was allowed to take. What
+the print does not show is the fractions it refused (1, 1/2 and so on
+above each accepted one), and that is where the answer is: some row, at
+the longer steps, rises above what the descent test allows. Row 1 at
+its rounding floor is the obvious candidate, but whether it counts
+toward that test depends on the floor each row is held to in the norm,
+which this print does not show. The next print is the residual of the
+rejected trials, row by row, with the floor each row is held to there.
+The mechanism of the 2.66 is therefore narrowed (the step is refused at
+longer fractions, and not because of the orifice row's own linearity)
+and not yet named.
