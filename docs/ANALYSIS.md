@@ -95555,3 +95555,16 @@ show the step-collapse behaviour and not one of them has a refusal text
 naming a stall. The single text that names a stall belongs to a model
 whose behaviour is a cycle at t = 0. Grouping by text cannot see the
 stall at all (`park/m739_stall_axis.txt`).
+
+### The top row of the default census, by where reduction stopped
+
+A census of the default set (`/tmp/m739/census.txt`, raw half
+`/tmp/m739/raw.txt`, 1026 examples, 986 flatten, 855 run) gives 131
+refusals of the run half in 26 rows. The top row, 29 models refused as
+`structurally singular`, splits by the count in its own text: 9 stopped
+at the ceiling of 32 attempts, 18 exhausted a smaller subset (3 to 17
+equations) and 2 had no subset at all. The nine at the ceiling are
+listed in `park/m739_cap32_default.list`; seven of them are the kind A
+rows above, and `SimpleSolenoid` and `Cylinder` are utilities, not
+examples of their own. Whether any of the nine would find its member
+past 32 needs a change to index reduction, which waits for Roman's word.
