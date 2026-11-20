@@ -94755,3 +94755,16 @@ refuses earlier and differently ("do not mention"), so it is not
 counted. On this evidence, changing the floor for one-by-one blocks
 could let `NAND` and `ONEBIT` past this wall. Whether a wall stands
 behind it is not known, and the floor is not this shift's to change.
+
+### Kind F: the Prandtl number of Essotherm650
+
+`Essotherm650` refuses on `Pr = 1.95e7` above the medium's maximum of
+1e5. `Pr = eta * cp / lambda`, and `eta` is fitted to `tableViscosity`
+(`Incompressible.mo`, `Essotherm650`), whose values run from 14370 at
+0 degC to 0.94 at 320 degC. Read as Pa s these are two to three orders
+too large for a heat-transfer oil; read as mPa s or mm2/s they are
+ordinary. With `eta` near 1000 at the test's reference temperature,
+`cp` near 1.9e3 and `lambda` near 0.13, the product is of order 1e7,
+which is the refused number. So the refusal is the table's units, a
+defect in the library, not the compiler's. It goes to Roman as a
+question and is not changed here. Arithmetic on the source, not a probe.
