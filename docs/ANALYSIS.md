@@ -93367,3 +93367,17 @@ file behind each line:
   stops at t = 0.0002 on a thyristor loop accepted on the arithmetic floor
   after 60 iterations and refused as underdetermined. Three victims, three
   different holders, none of them the step ceiling question.
+
+### The RoomCO2WithControls refusal under bdf is a bound held exactly
+
+`bound_asserts` (`compile.rs`, above `describe`) turns `min` into the
+plain comparison `x >= min`, with no allowance for rounding. Under `bdf`,
+`RoomCO2WithControls` stops at t = 0.001 on
+`ductOut.port_b.C_outflow[1] = -5.5e-18` against a `min` of 0
+(`/tmp/m734/vic_RoomCO2WithControls.txt`). A trace concentration of
+-5.5e-18 is a rounding residue of a quantity that is zero, not a physical
+excursion, so one of the three `bdf` victims is lost to how exactly a
+bound is held rather than to the solver. Whether a bound should forgive a
+residue of that size is a question for Roman, not a change for a shift:
+the text of the refusal and the checks around it are not this shift's to
+touch.
