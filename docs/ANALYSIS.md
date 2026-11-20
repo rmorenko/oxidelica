@@ -95335,3 +95335,14 @@ So these rows are a blind spot of the trail and not a mismatch of
 behaviour, and leaving them out of the bound above was right. Kind B is
 one of the few kinds where text and instrument agree once the right
 instrument is used.
+
+The rest of the table, read the same way. Ten more rows cycle at a single
+instant and agree with their text: five at the start (`init`), three
+that do not converge at t = 0 (`SMPM_CurrentSource` twice,
+`DynamicPipeClosingValve`), and the two `R134a` blocks of one that stop
+after ten iterations. The 16 rows with no Newton call at all are refused
+before the run: the structural texts, kinds E, G and H, and two IF97
+`tsat` range asserts. For those, text and behaviour cannot differ. So
+over the 65 the split stands as 10 where the text names another kind
+than the behaviour, 10 in the trail's blind spot (kind B), and the rest
+in agreement or refused before any behaviour exists.
