@@ -95418,3 +95418,14 @@ t = ...") do carry it. Adding "at re-selection, t = ..." to an error
 passing through that `?` would separate the four mid-run structural
 refusals in the census from the fourteen that never ran. It is a change
 to a refusal's wording, so it goes as a question and is not made here.
+
+An attempt to confirm the raise site with `OXIDELICA_WHERE=1` under
+`library check --only` (`/tmp/m738/p6/where_{Engine1a,SMPM_RB}.txt`)
+printed no location. The census line shortens the refusal text before
+the suffix, so the switch is invisible there. Note too that `Engine1a`'s
+structural equation is `der(bearing.frame_b.R...)`, a derivative, which a
+first compilation would not have written. That fits a reduction redone at
+re-selection. The site is therefore shown by the code and by two
+instruments (the trail's time and p.4's `dopri.rs:806`), and not yet by
+`WHERE`. `simulate` on the class, which prints the whole text, is the
+instrument for that.
