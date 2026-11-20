@@ -93258,3 +93258,57 @@ The descent floor still holds one, reach alone. The valve row of
 `SeriesPipes1`, at 2.2e-10 to 1.0e-9, is the same order. So the question
 to Roman is the unfinished second half of a correction already made,
 not a new kind of fault.
+
+## Shift m734: the handoff clock on the one model it wins, and the bdf price split by model
+
+### The implicit attempt on BranchingPipes3
+
+The probe binary `/tmp/m733/ox2` (patch `clock.patch`, command line in
+`/tmp/m733/hc.cmd`) on `BranchingPipes3` under
+`OXIDELICA_EDGE_HANDOFF=all` prints `explicit=4.001s implicit=17.117s
+ok=true`, and the model runs (`/tmp/m733/hc_bp3.txt`, exit 0, peak 0.3
+GB). The cheapest of the three models that pay for the handoff without
+winning, `BranchingPipes4`, spends 67.6 s in its implicit attempt and
+fails. So the gap exists and has a size: the one model the handoff wins
+finishes its implicit attempt in a quarter of the time the cheapest loser
+burns. A ceiling on the implicit attempt at the start point, anywhere
+between about 17 s and 67 s, would keep the win and cut the three losers
+to that ceiling. That is a proposal for Roman (questions 18 and 21), not
+a change: step handling is not this shift's to touch, and nothing was
+built.
+
+### Steps past a declared minimum, among the Newton-direction refusals
+
+Of the 60 refusals of the run half in `/tmp/m733/sweep_lines.tsv`, seven
+are the Newton-direction refusal at `solvers/mod.rs:3009`. Read against
+the traces already on disk (table in `/tmp/m734/p2_newton_dir.tsv`), one
+is seen to step past the declared `min` of its variable: `R134a1`, whose
+step lands at p = -2.5e6 Pa with a flat residual of 0.97. Two are seen
+not to: `SeriesPipes1` (the full step solves the holding row and is
+rejected on rounding of another) and `BranchingPipes3` (it runs under the
+handoff). Four are not seen either way: `R134a2` (same medium and text as
+`R134a1`, no trace), `BranchingPipes4` (a NaN, which is leaving the
+domain but not a value past a bound), `BranchingPipes2` and
+`TestTemperature1`. So the upper bound on what clamping to declared
+bounds could win among these refusals is 1 seen plus at most 4 unseen,
+5 of 60, and the lower bound stays at the one model Roman already has.
+
+### The 758 seconds of bdf, by model
+
+From the two `--slow 60` lists of `/tmp/m732/bdf855_off.txt` and
+`bdf855_on.txt` (run halves 2664 s and 3422 s), subtracting by name
+(`/tmp/m734/bdf_delta.tsv`): the models that got dearer add 1105 s, the
+ones that got cheaper give back 324 s, net 781 s over the top-60 union
+against 758 s for the whole half, so the lists account for the
+difference within their own truncation. One model owns most of it:
+`SeriesPipes1`, which `bdf` wins, costs 645 s more. `BranchingPipes3`,
+also won, is 81 s cheaper. The rest net to about +217 s, carried mainly
+by `BranchingPipes2` (+119), `TestMultiPortTraceSubstance` (+88),
+`BranchingPipes4` (+73) and `SeriesPipes2` (+29), and offset by
+`TestMixingVolumePressureStates` (-52), `BranchingPipes1` (-44),
+`BranchingPipes14` (-34) and `IMC_Transformer` (-28). The run lists
+differ by four won (`PolyphaseRectifier`, `TestTemperature1`,
+`BranchingPipes3`, `SeriesPipes1`) and three lost
+(`ThyristorBridge2mPulse_RLV_Characteristic`, `RoomCO2WithControls`,
+`HeatLosses`). These per-model differences come from inside a corpus
+pass and only name candidates; none was confirmed one at a time.
