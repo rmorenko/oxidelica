@@ -95842,3 +95842,44 @@ on four different unknowns, a start block and a non-square
 initialization. F splits into IF97 `tsat` at zero pressure twice, the
 MSL `dddX` bound twice, and an Essotherm650 `Pr` above its maximum
 (`park/m740_kinds_DF.tsv`).
+
+### The nominal seed, taken down to the refusing block
+
+The 23 seeded refusals were then asked the narrower question: does a
+nominal-seeded unknown sit inside the block that refuses (the names the
+refusal text gives)? In 7 it does. In only 2 is the seeded unknown an
+enthalpy, `MeasuringTemperature` and `TestJunctionTraceSubstances`. In
+the other five it is a valve's `dp_turbulent` or a port's `H_flow`. The
+"Newton direction" row (7 models) was all seeded at model level. At
+block level, `R134a1` and `R134a2` have nothing seeded in their block.
+
+Both enthalpy cases were probed actively. An `extends` wrapper started
+the block's enthalpies at a value of the medium, and the probe print
+confirmed that they left the seeded list. `MeasuringTemperature` then
+refused with a byte-identical text, so the seed is not its wall.
+`TestJunctionTraceSubstances` got past `t = 0`, where it had refused on
+a NaN. It refused again at `t = 4.96e-4` on an underdetermined loop
+accepted on the arithmetic floor, so the seed is its first wall and a
+wall of another family stands behind it.
+
+The other five carry a non-enthalpy seed in the block and were probed
+the same way. The worst of them is `dp_turbulent`. It is declared as
+an `AbsolutePressure`, so it is seeded at `1e5` while it lives near 1,
+five decades away, and it sits in the refusing block of
+`BranchingPipes2`, `BranchingPipes3`, `BranchingPipes4` and
+`SeriesPipes1`. The prediction was written down before the runs: if
+the seed is the cause, a start of 1 Pa changes the refusal, and if it
+is not, the text stays the same. The texts of the three
+`BranchingPipes` stayed byte-identical. `SeriesPipes1` kept the same
+block, time and kind, and its residual moved by 0.06%.
+`TestTemperature1` with its seeded `ports_H_flow` started at zero was
+byte-identical too. Against a base rate the count says nothing either.
+15.3% of the seeded models refuse (23 of 150) and 12.9% of the rest
+(108 of 836), under one standard deviation apart.
+
+The price of the decision under Roman's word, in models of the 986
+flattened: 150 seeded, 7 with a seed in the refusing block, all 7
+probed, 1 where the seed is the first wall (`TestJunctionTraceSubstances`,
+which then refuses on a second wall), and 0 that a change to the seed
+brings to run. The wrappers and logs are in `/tmp/m740/act/`, and the
+ladder is in `park/m740_nominal_seed.tsv`.
