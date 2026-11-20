@@ -95346,3 +95346,14 @@ before the run: the structural texts, kinds E, G and H, and two IF97
 over the 65 the split stands as 10 where the text names another kind
 than the behaviour, 10 in the trail's blind spot (kind B), and the rest
 in agreement or refused before any behaviour exists.
+
+The three structural texts at t > 0 are confirmed by the work counter,
+not only by the time (`/tmp/m738/tr65/`). `ActuatorWithNoise` ran 4841
+points with 53 reduction passes before refusing, `SMPM_ResistiveBraking`
+120 points with 33, and `FullRobot` 557 with 212. The controls refused
+before the run (`Fourbar1`, `Engine1b_analytic`) print 0 points and 0
+passes. So "structurally singular model ... constrains no state" is raised
+by an index reduction redone during the run, after events, and the
+census's `structure` row holds both kinds under one text. The text could
+say which by naming the time. It names it for a Newton refusal ("at t =")
+but not for this one.
