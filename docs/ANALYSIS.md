@@ -94929,3 +94929,15 @@ kind D's moist air, where `U` has no start. So the IF97-bound constants
 are the whole of kind G. Behind it stands the unstarted `U` already
 mapped under D, and settling G alone would move these models one wall
 and not into the run list.
+
+Correction to the paragraph above, by a better control. `G18`'s fixture
+is a fixed heat flow into a closed volume, which has no steady state at
+all, so its `vol.U` refusal is true and says nothing about kind D.
+`G20.mo` and `G21.mo` replace the heat flow with a conductor to a fixed
+ambient, which does have a steady state. `G20` (`LinearWater_pT_Ambient`)
+still refuses on `der(vol.medium.T)`. `G21` (`LinearColdWater`, literal
+constants) runs (`/tmp/m738/p6/G20.txt`, `G21.txt`, md5 c9e25082). So
+the IF97-bound constants are the whole of kind G in the smallest
+model, and the earlier sentence that D stands behind it is withdrawn.
+Whether something stands behind it in `HeatingSystem` itself is not
+measured.
