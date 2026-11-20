@@ -93761,3 +93761,20 @@ where `sa` carries both the acceleration and the torque. This is the
 same element that holds `GearType2` in the "equations of loop" row, so
 the drive-train shape and that row may be one holder. That is a reading
 and not a probe.
+
+### Holders of the six full-horizon refusals that no rebuild raises
+
+These six models of the stop-time sample were already read to their end
+by the rebuild probe (`/tmp/m734/rb_*.txt`). Their refusals now go into
+the holder column. Each one lands in a kind that is already mapped, and
+none starts a new family. `Dimmer_RL` runs out of the evaluation budget
+at `t = 0.00113`. `DiodeCenterTap2mPulse` handles more than 10000 events
+in one output interval at `t = 0.0066667`, which is the chattering
+ceiling. `HeatingNPN_NORGate` uses up 60 Newton iterations on a
+transistor loop. `TestMixingVolumesPressureStates` stops on a singular
+Jacobian through a saturation temperature. `ThreeTanks` reaches
+`t = 27.4` before the Newton direction stops reducing (`mod.rs:3009`).
+At `t = 0.693` the loop equations of `TwoMass` no longer mention
+`pipe1.flowPort_a.h`: a column that is absent in a mode, the same shape
+as the "equations of loop" row. All six of these models run inside the
+ten-step check, and each fails later on its way to the stop time.
