@@ -95592,3 +95592,24 @@ has floors. The run half of that measure is 61 refusals. A filter by
 name gives 73, so the name is a weaker test than the annotation, which
 is the rule about spelling standing in for structure, met again. The
 list is `park/m739_helpers_refused.list`.
+
+### A block with two roots is answered or refused by its slopes
+
+`TestSuddenExpansion` led to three small models, kept outside the tree
+in `~/oxideflow/park/m739_fork/` and run with `oxh` (md5 c9e25082). Each
+has a one-unknown block whose column is flat at its start, `m = 0`.
+
+With one root (`-1e4 = 0.5*m^2*(if m > 0 then 2 else -3)`), the compiler
+returns `m = -81.65`, which is correct. With two roots
+(`-1e4 = 0.5*m^2*(if m > 0 then -ka else -kb)`, roots `+sqrt(1e4/ka)`
+and `-sqrt(1e4/kb)`), the result depends on the slopes. At `ka = 2,
+kb = 3` and at `ka = kb = 2` it returns `+100` without a word, and it
+does the same under `OXIDELICA_NO_ROOT_SIDE=1`. At `ka = 3, kb = 2` it
+refuses with the either-side message.
+
+The number of roots is the same in all three, so the refusal is not
+reading the fact it names. Two of the three cases give one of two equal
+answers and present it as the answer. That is the kind of guess the
+notes rank below a refusal. This is a mechanism shown on small models.
+No library model is known to move with it, and the solver is not this
+shift's to change, so it goes to Roman as a question.
