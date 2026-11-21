@@ -96228,3 +96228,8 @@ and it does: `HeatingPNP_NORGate` refuses at t = 65 in the full run and
 `TestWaterPumpPowerCharacteristic` at t = 2.499, both outside their
 bisected intervals. For the five that print no time, the time of the
 full run cannot be recovered from outside.
+
+The 35 still cut at six minutes ran again with eight. At the end of
+the shift 33 had finished: 5 reach, 3 refuse and 25 are still cut
+(`park/m742_capped35_cap8_partial.tsv`). The last two were still
+running and their results land in `/tmp/m742/cap8`.
