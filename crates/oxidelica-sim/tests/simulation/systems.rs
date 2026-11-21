@@ -643,11 +643,12 @@ fn an_algebraic_loop_that_comes_apart_says_so() {
              equation 1 / x = 0; der(s) = x; \
              annotation(experiment(StopTime = 1, Interval = 0.1)); end D;"
         ),
-        "underdetermined algebraic loop [\"x\"]: the equations do not determine a \
+        "underdetermined algebraic loop [\"x\"] at t = 0: the equations do not determine a \
          unique solution; this from its zero starts moved to 1000, after its own start \
          was refused on `1 / x = 0` of algebraic loop is inf at t = 0 and it was refused \
-         from 0.000001 on underdetermined algebraic loop, from 0.001 on underdetermined \
-         algebraic loop, from 1 on underdetermined algebraic loop"
+         from 0.000001 on underdetermined algebraic loop at t = 0, from 0.001 on \
+         underdetermined algebraic loop at t = 0, from 1 on underdetermined algebraic \
+         loop at t = 0"
     );
 
     // The other way a loop fails: `x^2 * y = 1` where y is sin(t),
@@ -2117,6 +2118,9 @@ fn a_run_past_its_newton_count_is_refused_and_says_so() {
         refused.contains("Newton iterations in the whole run"),
         "{refused}"
     );
+    // And it says when, so the place is read off the refusal rather
+    // than found by cutting the horizon in halves.
+    assert!(refused.contains(", the last at t = "), "{refused}");
     // Unbounded by default, the same model runs.
     assert!(compile(&model).unwrap().simulate().is_ok());
 }

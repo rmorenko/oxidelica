@@ -1818,7 +1818,7 @@ impl CompiledModel {
             }
             if singular {
                 return err(format!(
-                    "underdetermined algebraic loop {:?}: the equations do not determine a unique solution",
+                    "underdetermined algebraic loop {:?} at t = {t}: the equations do not determine a unique solution",
                     block_names()
                 ));
             }
@@ -2763,7 +2763,10 @@ impl CompiledModel {
                     }
                     return err_of(
                         Refusal::Singular,
-                        format!("singular Jacobian in algebraic loop {:?}", block_names()),
+                        format!(
+                            "singular Jacobian in algebraic loop {:?} at t = {t}",
+                            block_names()
+                        ),
                     );
                 }
                 return err(format!(
@@ -3032,7 +3035,10 @@ impl CompiledModel {
                 last_jac = Some(jac);
             }
             if v.iter().any(|value| !value.is_finite()) {
-                return err(format!("algebraic loop diverged: {:?}", block_names()));
+                return err(format!(
+                    "algebraic loop diverged at t = {t}: {:?}",
+                    block_names()
+                ));
             }
         }
         if on_arithmetic_floor(values, &v, last_jac.as_deref()) {
@@ -3065,7 +3071,7 @@ impl CompiledModel {
         err_of(
             Refusal::Unconverged,
             format!(
-                "algebraic loop did not converge in {budget} Newton iterations: {:?}",
+                "algebraic loop did not converge in {budget} Newton iterations at t = {t}: {:?}",
                 block_names()
             ),
         )
@@ -3212,7 +3218,7 @@ impl CompiledModel {
         self.newton_total.set(total);
         if total > self.max_newton_total {
             return err(format!(
-                "`{}` spent more than {} Newton iterations in the whole run",
+                "`{}` spent more than {} Newton iterations in the whole run, the last at t = {t}",
                 self.name, self.max_newton_total
             ));
         }
