@@ -96656,3 +96656,27 @@ of a shared cause. `WaterIF97` already has the m744 active probe and does
 not become a new question. Together with the preceding two slices, the
 historical 33-name reading is complete. Queue item 120 has the timestamped
 addition. No solver, reduction, event-handling or output-grid change was made.
+
+### m749 quiet basket: OneTank remains above the process wall
+
+The remaining basket has 13 names: the inherited 15 less the sensor and
+inverter read above (`/tmp/m749/basket13.list`). Its first isolated run,
+`Modelica.Fluid.Examples.AST_BatchPlant.Test.OneTank`, hit our 25-minute
+time guard at a measured process wall of 1505 s, peak footprint 0.2 GB.
+The completion cost is therefore at least 1505 s, above 900 s even without
+parallel simulations. The weak pre-run forecast, at least 900 s with
+probability 0.6 based only on its earlier parallel 15-minute cap, held.
+This does not establish a compiler refusal or a correct final answer.
+
+The original binary is still `/tmp/m735/oxh`, md5
+`c9e250829f6a1aea6685f64e88edba7d`, the horizon comes from the class
+annotation, and no stop or output-grid override was supplied. The start
+witness is epoch 1795292456. Because the scratch harness initially used
+`set -e`, cap.sh's actual exit 10 bypassed its final wall write. The log's
+final mtime 1795293961 supplies the independent end witness: subtraction
+gives 1505 s. The harness now records its wall after nonzero wrapper exits
+too, without changing cap.sh or the compiler. No Sleep/Wake/DarkWake
+transition occurs in the pmset window 21:20:56-21:46:01 CET. The empty
+buffered model log before termination was not evidence of inactivity:
+child CPU grew from 26.63 s to 12:11.70 while wall grew to 12:12.
+Evidence and its limits are retained in `park/m749_quiet_runs.tsv`.
