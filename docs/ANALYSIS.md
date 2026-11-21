@@ -96525,6 +96525,77 @@ to Roman as a question rather than as a patch.
 Run once more on its default grid with nothing else on the desk,
 `TestControlledPump` reaches t = 7 in 7003 steps and 813.5 s, 835 s of wall
 clock, under the 900 s at which the measure cut it on a loaded desk. Its cap
-there was a margin of about a minute of desk load, so the model sits on the
-wall rather than behind it. One quiet run does not move the head count, which
-was taken under one condition for all models.
+there was imposed by our own parallelism, not by its isolated cost. One quiet
+run does not move the head count, which was taken under one condition for all
+models.
+
+## The desk is part of the reach condition, m747
+
+Recorded on 2026-11-21, with times below in CET (UTC+01:00). No compiler code,
+library model, floor or basket membership changed. The head count remains
+752 of 855. The question here is what that count's desk condition costs, not
+a new measurement of the basket.
+
+`ModelicaTest.Fluid.TestComponents.Machines.TestControlledPump` is the first
+confirmed model cut by our own parallelism, not by its isolated cost. The
+previous shift's `/tmp/m745/shape/CP_default.cmd` and `.log` record the same
+annotation path, without an explicit output step: 7003 steps, t = 7,
+813.5 s in the solver and 835 s for the process. The recorded desk condition
+was one simulation and load1 3.60. The process, not just the solver, fits
+under the measure's 900 s wall. Multiplying the solver time by the separately
+measured shared-desk factor gives 813.5 times 1.645 = 1338.2 s, already above
+that wall. This multiplication is an extrapolation, not a second full-horizon
+pump measurement. The actual loaded-desk measure cut the model. Thus the
+quiet-desk count would be at least 753 of 855, but this is a statement about
+conditions, not permission to replace 752 or to exclude a model. The question
+of remeasuring the basket has already been put to Roman.
+
+The second candidate did not fit. With `/tmp/m735/oxh` (md5 c9e25082),
+`ModelicaTest.Fluid.TestComponents.Pipes.IdealMixing1` reached t = 10 in
+10154 steps and 1219.7 solver seconds, taking 1255 s for the process. Witnesses
+are `/tmp/m747/ideal.cmd`, `.env`, `.md5`, `.start`, `.done` and `.log`.
+The run used its annotation, without `--dt` or `--stop`, under a 6 GB cap
+and a 25 minute time and stall ceiling. It completed normally, with a peak
+footprint of 0.2 GB and peak RSS 0.3 GB. The CSV was retained in the same
+directory. There were zero anchored simulations before launch, load1 1.41,
+and exactly one throughout every sample in `ideal.monitor.tsv`. No other
+simulation or build was launched alongside it. This is a finite isolated
+cost above 900 s, not a second model rescued from that wall by an empty desk,
+and not evidence of an unreachable horizon.
+
+The prediction in `/tmp/m747/PREDICTION.md`, written before launch, expected
+about 820.7 solver seconds from 135 times 10 divided by 1.645, about 840 s
+for the process, with a process band of 740 to 900 s. It also predicted
+10003 steps. Both the under-wall prediction and the exact step prediction
+are refuted. The outcome kind, completion under the larger ceiling, survives.
+There are 151 steps more than the predicted 10003, despite zero reported
+events. The earlier exact points-plus-three observation therefore does not
+generalise to this model. No step-handling change or causal account is
+inferred from this count alone.
+
+The earlier plateau of 134 to 136 machine seconds per model second describes
+only the measured shared-desk interval (0.5, 3]. Subtracting its 439 s point
+at t = 3 from this quiet-desk full-horizon time would mix two desks. Neither
+the segment cost on (3, 10] nor the reason the full-horizon prediction failed
+has been measured at a single desk condition. In particular, a short-run
+desk factor and an unmeasured continuation cannot jointly prove which
+assumption failed. The full-horizon run is not repeated to disguise that
+limit.
+
+The historical kind audit required no model runs. The original logs agree
+with all 855 two-minute rows, all 60 six-minute rows and all 35 eight-minute
+rows: mismatches 0/855, 0/60 and 0/35. These are nested populations, not 950
+distinct models. `park/m747_kind_audit.tsv` names every log and both kinds.
+The reached/refused/time-capped/memory-capped splits are 721/73/60/1,
+17/7/35/1 and 5/3/27/0. Both earlier baskets actually contain a memory-cap
+log, so this is not agreement on data that could never expose the defect.
+The two-minute merger in `/tmp/m742/merge.py` recognises the time marker
+explicitly. The fifteen-minute merger in `/tmp/m743/merge.py` instead asks
+for a memory word absent from the memory-cap message. The previously found
+Conveyor error belongs to that merger, not to a universal ambiguity in all
+earlier tables. No additional memory rerun was stolen in these three
+populations. The audit's own initial unknown was a path-reading mistake:
+the source label `m741 ARTIFACT` contains an annotation, not a directory
+name. Reading the actual `m741` log resolves it to the real assertion refusal
+of `Modelica.Media.Examples.TwoPhaseWater.TestTwoPhaseStates`; all 855 data
+rows, including that one, are counted here.
