@@ -96290,7 +96290,10 @@ now stops at 9e5 Pa, below the shut-off head. Both variants
 reach t = 10 (554 and 543 s), and the unchanged controls, run beside them,
 refuse again at 8.9995 and 5.8955. The same probe on the other two, with each ramp stopping below the shut-off
 head, gave the same answer: the variants reach t = 10 (523 and 310 s) and the
-controls refuse again. So for all four, the zero-flow crossing causes the refusal. The rest of the pump family refuses elsewhere (between t = 0.7 and
+controls refuse again. So for all four, the zero-flow crossing causes the refusal. A fifth, `TestWaterPumpDefault`,
+is still capped at 15 minutes. Its variant with the same short ramp reaches t = 10
+in 485 s, so the control spends its time at or after the crossing. Whether it would
+refuse there is unknown, because it was cut off by the wall, not refused. The rest of the pump family refuses elsewhere (between t = 0.7 and
 2.5) and is not explained by this.
 
 The two capped by memory were then run alone under a 12 GB cap. `IMC_withLosses`
