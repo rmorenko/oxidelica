@@ -96400,3 +96400,8 @@ The events and the cost sit in different places, so the event bursts are not
 what caps it. The events themselves have two named sources. With the
 sine-driven brake disengaged, the count to t = 1 falls from 104 687 to
 47 637. With the mass's end stops also moved out of reach, it falls to 9.
+The brake is nevertheless what caps the run. With it disengaged the run
+reaches t = 2 in 67 s, firing more events than the capped run had by 1.95
+(117 649). With the end stops also moved away it reaches in 0.11 s with 15
+events. So the brake causes the cost in (1.95, 2], but not through the number
+of events.
