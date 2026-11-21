@@ -96120,3 +96120,44 @@ distance, not a win. The two counts measure different distances per
 model and do not subtract. The three models the column probe let
 through are not offered as gains until their answers are checked by
 name.
+
+### Reach by class name over the whole run list
+
+The remeasure by class name, which keeps each model's experiment
+annotation, now covers all 855 models that pass the ten steps: 543 from
+the previous shift and the remaining 312 with the same binary (md5
+c9e25082), the same two-minute cap and the same script
+(`park/m742_reach_by_class854.tsv`). Of the 854 that count, 721 reach
+their own stop time, 72 refuse on the way, 60 are cut by the time cap
+and one by the memory cap. Cut is an inequality on a distance that grew,
+not a failure. Against the wrapper at the same two-minute cap (772, 57
+and 26 of 855) the two disagree on 81 models, and as on the prefix none
+of the disagreements falls on a model whose tolerance changed. The two
+counts measure different distances and do not subtract. The model that
+was set aside as the wrapper's artifact, `TestTwoPhaseStates`, refuses
+by class name with a real assertion (`medium.x` above its maximum of 1
+at t = 20.08), so its row is kept and flagged.
+
+Twenty-three models reached t = 1 through the wrapper and refuse before
+their own stop time (`park/m742_own_distance_refusals.tsv`). Ten of them
+are named in neither queue. Six of the 23 are one family, and a probe
+settled it: `CombiTimeTable.Test67` to `Test72` declare a stop time of
+4000 or 8000 s and no interval, so the compiler writes a row every
+millisecond and meets its ceiling of two million rows near t = 2000.
+With `--dt 0.002` the wall moves to t = 4000 in all five of `Test68` to
+`Test72`, and `Test67` with `--dt 1` reaches its stop. The question of a
+default interval scaled to the stop time goes to Roman.
+
+`CombiTimeTable.Test10`, `Test11` and `Test14` are a different family.
+They refuse by class name as well, and a twelve-line model with a
+`Step` and a table switching at the same start time gives the same
+integrated error to every digit, 6.8418919e-9: the two switches land at
+two different instants. Where in the event code they part is not yet
+probed. `TestBearingConversion` reaches its own stop of 0.5 s, and its
+structural refusal lies between 0.82 and 0.825 s (bisected with
+`--stop`). The two `SMR_Inverter` models that reach under the column
+probe agree with each other over the whole trajectory: shaft torque
+within 0.006 N·m outside the load step at 1.2 s. The source currents
+differ by exactly two, because the second library's example feeds two
+machines from one source. That checks the two against each other with
+parameters read equal in the source, not against a reference.
