@@ -96233,3 +96233,49 @@ The 35 still cut at six minutes ran again with eight. At the end of
 the shift 33 had finished: 5 reach, 3 refuse and 25 are still cut
 (`park/m742_capped35_cap8_partial.tsv`). The last two were still
 running and their results land in `/tmp/m742/cap8`.
+
+### The per-class reach map closed at fifteen minutes
+
+The question was how many of the 854 models in the run list reach their own
+`StopTime`, run by class name so that the `experiment` annotation is kept.
+Every number here comes from one binary, `/tmp/m735/oxh` (md5 c9e25082), with a
+6 GB memory cap. Each rerun only took the models the previous wall had cut off.
+
+| wall       | models rerun | reached | refused | still capped |
+| ---------- | ------------ | ------- | ------- | ------------ |
+| 2 minutes  | 854          | 721     | 72      | 60 + 1 mem   |
+| 6 minutes  | 60           | 17      | 7       | 35 + 1 mem   |
+| 8 minutes  | 35           | 5       | 3       | 27           |
+| 15 minutes | 27           | 7       | 2       | 18           |
+
+The final count over 854 is 750 reached, 78 refused, 18 capped by time,
+2 capped by memory (`IMC_withLosses` at 2 minutes, `IMC_Initialize` at 6) and
+6 capped by output rows. The six are `CombiTimeTable.Test67` to `Test72`. They
+come back as refusals, but the refusal is the compiler's `MAX_ROWS` limit and not
+the model failing: with `OXIDELICA_MAX_ROWS=2e7` all six reach their stop time.
+They are not counted as reached. The wrapper artifact `TestTwoPhaseStates` is
+kept in the table, flagged, and left out of the 854.
+
+Each raise of the wall turned up refusals as well as models that reached. Seven
+refusals at 6 minutes, three at 8 and two at 15 were all hidden behind a cap.
+So a capped model was never a model that nearly made it.
+
+How close the newly reached models came to the wall changed from one raise to the next.
+At 6 minutes none took more than 90% of the wall. At 8 minutes all five took more
+than 70% (365.8 to 466.1 s of 480), and `SMEE_Generator` took 97%. At 15
+minutes the seven took 480.4 to 602.4 s of 900, so none took more than 70%. The 8-minute five
+are the fragile part of the count, and the 15-minute seven are not.
+
+Five of the twelve refusals uncovered by the raises are water pumps. For three of them the
+time of the refusal can be predicted from the model source. `TestWaterPumpDefaultLV`
+refuses at t = 5.906 and `TestWaterPumpDefaultCV` at t = 5.8955. In both, the
+downstream pressure ramps up past the pump's shut-off head of 100 m. That is
+9.78e5 Pa, reached at t = 5.89. `TestWaterPumpVariableSpeed` refuses at
+t = 8.9995, and its valve finishes closing at t = 9. In all three cases the refusal
+comes within 0.02 s of the moment the pump's flow reaches zero, each time as a
+Newton direction refusal on a loop holding `pump.port_a.m_flow`. This link is
+positional only, because no probe has tested it.
+
+The 18 models still capped at 15 minutes are named in
+`m743_reach_by_class_final.tsv` in the shared park directory. Twelve of them are
+in Modelica.Fluid or ModelicaTest.Fluid.
