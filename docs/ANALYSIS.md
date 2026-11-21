@@ -96161,3 +96161,43 @@ within 0.006 N·m outside the load step at 1.2 s. The source currents
 differ by exactly two, because the second library's example feeds two
 machines from one source. That checks the two against each other with
 parameters read equal in the source, not against a reference.
+
+### What the 23 are, checked one by one
+
+Each of the 23 was run again by class name to t = 1 with its own
+settings. Twenty-one reach it, so for them the trouble lies past the
+second the wrapper ran. Six of those are the compiler's own wall: with
+the row ceiling raised through `OXIDELICA_MAX_ROWS=20000000`, and no
+code touched, `CombiTimeTable.Test67` to `Test72` all reach their stop
+time of 4000 or 8000 s, 4 or 8 million rows plus events. They are cut
+rows rather than refusals, and reach by class name would read 727
+rather than 721 with that ceiling lifted. Fifteen are refusals beyond
+one second. The remaining two, `SMEE_Rectifier` and `SMR_CurrentSource`,
+refuse before t = 1, so their cause is the declared output interval of
+1e-4 s and not the stop time. Swept at t = 1 with the solver pinned to
+BDF, `SMEE_Rectifier` gives a structural refusal at an interval of
+1e-4, a Newton-direction refusal in its diode loop at 1.5e-4 and 5e-4,
+and reaches at 1e-3. Auto-selection gives the same three regions, so the
+output grid decides the kind of refusal and the choice of solver does
+not. A census of refusal kinds is therefore conditional on the grid each
+model happens to declare.
+
+The 60 models cut by the two-minute time cap ran again with six
+minutes: 17 reach, 7 refuse and 35 are still cut. The 61st was cut by
+memory and a longer clock does not answer it. Counting those and the
+six rows, at least 744 of 854 reach their own stop time.
+
+The three tables that disagree with a `Step` at the same start time
+come down to how a relation on time is recognised. A `Step` against a
+`when` on a discrete threshold agrees to zero. A `Step` against
+`if time/scale < 1` on an algebraic alias of time differs by 2.2e-9.
+The table compares its scaled time, which is such an alias, so its
+corner is found as a crossing while the step's is a scheduled event.
+That makes `Test10`, `Test11` and `Test14` a priced instance of the
+question already with Roman, whether an alias of time should be
+substituted before a relation on time is recognised.
+
+None of the 17 that reached at six minutes was close to the wall: the
+slowest, `IMC_Transformer`, finished in 290 s of 360. The seven that
+refused had been cut at two minutes, so the cap hid refusals as well as
+successes, and a cut model is not one that nearly reached.
