@@ -96294,7 +96294,9 @@ refuse again at 8.9995 and 5.8955. The same probe on the other two, with each ra
 head, gave the same answer: the variants reach t = 10 (523 and 310 s) and the
 controls refuse again. So for all four, the zero-flow crossing causes the refusal. A fifth, `TestWaterPumpDefault`,
 is still capped at 15 minutes. Its variant with the same short ramp reaches t = 10
-in 485 s, and the same holds for `TestWaterPumpNPSH` (483 s), so each control spends its time at or after the crossing. Whether it would
+in 485 s, and the same holds for `TestWaterPumpNPSH` (483 s), but the control
+run with `--stop 6` is still cut at 15 minutes, so its time goes before t = 6,
+at the crossing or earlier; this one bit cannot tell which. Whether it would
 refuse there is unknown, because it was cut off by the wall, not refused. A rerun of the control writing its output to a
 file does not answer it either: the output is written only when a run ends,
 so a run cut by the wall leaves no file. The rest of the pump family refuses elsewhere (between t = 0.7 and
