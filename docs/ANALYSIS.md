@@ -96614,3 +96614,45 @@ the source label `m741 ARTIFACT` contains an annotation, not a directory
 name. Reading the actual `m741` log resolves it to the real assertion refusal
 of `Modelica.Media.Examples.TwoPhaseWater.TestTwoPhaseStates`; all 855 data
 rows, including that one, are counted here.
+
+## 2026-11-21: m749 closes the inherited CI and refusal-reading debts
+
+Run `44926345856`, head `1bed75b7ce3c0a540202ef1271836813438a4cd2`,
+finished successfully. Its main pass, dear pass and combined library judge
+all passed, as did coverage, linters and tests on the three platforms.
+The judge printed `2671 files read, 986 flatten, 855 run; runnable 867
+flatten, 806 run` (`/tmp/m749/judge.log`). The three heavy jobs were skipped
+by their event gates, not measured by this push. The library floors remain
+2671/986/852/867/803: the two run floors deliberately subtract the same
+three named swinging models from 855/806. No compiler change or new library
+measurement is claimed here.
+
+The two inherited full-horizon quiet runs are now read, not rerun.
+`TestTemperature2` reached its declared 15 seconds: solver time 1046.3 s,
+whole process 1069 s from its `.wall`, exit 0. Its start epoch 1795279592
+plus 1069 equals the next model's start epoch 1795280661 exactly, an
+independent check of both the wall and sequential execution.
+`Spice3.Examples.Inverter` was stopped by our 25-minute time guard:
+measured process wall 1505 s, hence completion cost at least 1505 s, not a
+completed simulation. Both exceed the 900-second basket threshold on the
+quiet desk. The inherited forecast for the sensor, at least 900 s, held.
+The weak inverter forecast, below 900 s with probability 0.4, was refuted.
+Both process and solver times, original log paths, and the original
+forecast timestamp are in `park/m749_quiet_runs.tsv`. The retained pmset
+inspection found no Sleep, Wake or DarkWake transitions between
+17:46:32 and 18:29:26 CET. Wake requests and assertions are not transitions.
+These are costs, not checks of numerical correctness.
+
+The final 13 names, rows 21-33 of `m745_unnamed_refusals.list`, were read
+from the original wrapper and class-name logs without new simulations.
+`park/m749_refusal_notes.md` retains every complete error with its source
+path. Wrapper kinds are 3 structural, 4 changed-column-set, 3 underflow,
+2 unmentioned-loop-unknown and 1 Newton-budget refusal. Class-name kinds
+are 4/3/3/2/1, still 13: FundamentalWave `IMC_DOL` changes from a column-set
+refusal to a structural refusal, not into a second model. The two FluidHeatFlow
+models `ParallelPumpDropOut` and `TwoMass` name the same seven-variable
+block but different unmentioned enthalpies. That is a holder map, not proof
+of a shared cause. `WaterIF97` already has the m744 active probe and does
+not become a new question. Together with the preceding two slices, the
+historical 33-name reading is complete. Queue item 120 has the timestamped
+addition. No solver, reduction, event-handling or output-grid change was made.
