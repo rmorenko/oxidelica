@@ -96288,9 +96288,9 @@ that keeps its experiment but never reaches zero flow. For `TestWaterPumpVariabl
 the valve now closes only to 0.1 of its opening. For `TestWaterPumpDefaultCV` the ramp
 now stops at 9e5 Pa, below the shut-off head. Both variants
 reach t = 10 (554 and 543 s), and the unchanged controls, run beside them,
-refuse again at 8.9995 and 5.8955. So for these two the zero-flow crossing
-causes the refusal. For the other two the link is by analogy and has not been
-probed. The rest of the pump family refuses elsewhere (between t = 0.7 and
+refuse again at 8.9995 and 5.8955. The same probe on the other two, with each ramp stopping below the shut-off
+head, gave the same answer: the variants reach t = 10 (523 and 310 s) and the
+controls refuse again. So for all four, the zero-flow crossing causes the refusal. The rest of the pump family refuses elsewhere (between t = 0.7 and
 2.5) and is not explained by this.
 
 The two capped by memory were then run alone under a 12 GB cap. `IMC_withLosses`
