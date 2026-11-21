@@ -96497,12 +96497,13 @@ The even rate is not a third kind, at least not for the pump. The seven
 remaining models that run on the compiler's default step were given 500
 output points over their horizon instead. `TestControlledPump` then reaches
 t = 7 in 67.5 s and `TestTemperature2` reaches t = 15 in 154.5 s, so the even
-cost was the cost of the default grid. With `DrumBoiler` that makes three of
-the nine undeclared models that the default step alone holds at the wall.
-`OneTank` and `IncompressibleFluidNetwork` stay capped, and `RoomCO2` was
-already a negative control. `TestWaterPumpNPSH`, `IdealMixing1` and
-`TestTankWithTopPorts` refuse on the coarse grid instead, which is a change of
-kind and not a reach.
+cost was the cost of the default grid. Of the nine undeclared models, then,
+three reach on a coarser grid (`DrumBoiler`, `TestControlledPump`,
+`TestTemperature2`), three stay capped (`OneTank`,
+`IncompressibleFluidNetwork`, and `RoomCO2` even with a step of 10 s) and three
+refuse (`TestWaterPumpNPSH`, `IdealMixing1` and `TestTankWithTopPorts`, which
+is a change of kind and not a reach). Nine models make no fraction, but three
+equal groups say the causes are at least three.
 
 `TestWaterPumpStorage` has no tank, only the pump's own volume, so its other
 knobs were turned instead. A source pressure one percent higher moves the
@@ -96520,3 +96521,10 @@ than the output step, and the cost grows linearly with the points. At the
 default 1e-3 the pump needs 7003 steps, which at about 0.12 s a step is the
 wall. The step handling is not something this shift may change, so this goes
 to Roman as a question rather than as a patch.
+
+Run once more on its default grid with nothing else on the desk,
+`TestControlledPump` reaches t = 7 in 7003 steps and 813.5 s, 835 s of wall
+clock, under the 900 s at which the measure cut it on a loaded desk. Its cap
+there was a margin of about a minute of desk load, so the model sits on the
+wall rather than behind it. One quiet run does not move the head count, which
+was taken under one condition for all models.
