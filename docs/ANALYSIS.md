@@ -96721,3 +96721,17 @@ window, recorded beside both times in `park/m749_quiet_runs.tsv`.
 Reaching the annotation horizon does not check the numerical answer.
 The row/step count is not an accepted-integrator-step count, and no
 output-grid or solver change follows from this observation.
+
+### m749 quiet basket: RoomCO2 burns its own 25 minutes
+
+The fifth isolated model,
+`Modelica.Fluid.Examples.TraceSubstances.RoomCO2`, was stopped by our
+time guard at process wall 1504 s, peak footprint 3.2 GB under the 6 GB
+cap. It was not stopped by the memory guard. Completion cost is at least
+1504 s, above 900 s, and its weak pre-run lower-bound forecast held.
+The `.start`/`.wall` window has zero pmset Sleep/Wake/DarkWake transitions
+(`park/m749_quiet_runs.tsv` and its per-run `.pmset` path). This quiet
+measurement does not establish where the time is spent or who owns the
+memory. The output-grid and memory questions already on the queue are
+not reopened or patched here. The first five of the 13 remaining basket
+names have therefore supplied no below-900-second desk-victim candidate.
