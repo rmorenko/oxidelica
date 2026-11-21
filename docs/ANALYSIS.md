@@ -96296,7 +96296,12 @@ controls refuse again. So for all four, the zero-flow crossing causes the refusa
 is still capped at 15 minutes. Its variant with the same short ramp reaches t = 10
 in 485 s, and the same holds for `TestWaterPumpNPSH` (483 s), but the control
 run with `--stop 6` is still cut at 15 minutes, so its time goes before t = 6,
-at the crossing or earlier; this one bit cannot tell which. Whether it would
+at the crossing or earlier; this one bit cannot tell which. Three more stops
+settle it: `--stop 3`, `4.5` and `5.5` all reach, in 165, 285 and 367 s. As
+rates of machine seconds per model second that is 55 on (0, 3], 80 on
+(3, 4.5] and 82 on (4.5, 5.5]: already rising before the crossing, by a factor
+of 1.5. On (5.5, 6], which holds the crossing at 5.906, it is at least 1067,
+since the run to 6 was cut. The time burns at the crossing, in (5.5, 6]. Whether it would
 refuse there is unknown, because it was cut off by the wall, not refused. A rerun of the control writing its output to a
 file does not answer it either: the output is written only when a run ends,
 so a run cut by the wall leaves no file. The rest of the pump family refuses elsewhere (between t = 0.7 and
@@ -96317,3 +96322,38 @@ decided nothing; bisecting the cap itself did. With the larger memory cap the co
 The 18 models still capped at 15 minutes are named in
 `m743_reach_by_class_final.tsv` in the shared park directory. Twelve of them are
 in Modelica.Fluid or ModelicaTest.Fluid.
+
+### Refusals no queue named, and a pump that refuses on a clock
+
+Of the 57 refusals met on the way to each model's own stop time, four were
+named nowhere in either work queue, not even by the last part of the name, at
+a cut-off of 21 November 06:53 (nine at 20 November 22:07). Three of them are
+`ModelicaTest.Tables.CombiTimeTable.Test10`, `Test11` and `Test14`. `oxidelica
+why` shows that each one switches its table on `time / timeScale`. This is the
+relation already shown, on `Test12`, to be located as a state event a hair
+after the time event it is compared with. The integrals that fail the asserts
+pair up exactly: 1.6657949166879303e-9 for the two tests that switch at 0.5,
+and 6.8418919101682314e-9 for the two that switch at 1.0. So that open
+question covers four models of 855, not one. The fourth,
+`LightningSegmentedTransmissionLine`, underflows its step at t = 0.000531. A
+coarser output grid does not change that. Under `bdf` it becomes a Newton
+refusal on the last inductor voltage of the line, and with 10 segments
+instead of 100 it moves to t = 0.004. The cause is not found.
+
+Three of the 18 models still capped at 15 minutes (`DrumBoiler`, `RoomCO2`,
+`TestTankWithTopPorts`) declare no output interval and a stop time of 3600 to 5400. On the default grid of 1e-3 they ask for more than the two million rows
+a run may write. Raising the time wall can therefore at best move them to the
+row cap.
+
+`TestWaterPumpStorage` is the pump the zero-flow rule does not explain. With
+the downstream pressure ramp removed it reaches t = 10. But it refuses at
+t = 2.268 whether the ramp climbs by 10e5 or by 2e5 Pa, and whether it takes
+5 s or 20 s. A ramp starting at 2 instead of 1 moves the refusal to 3.492.
+The Newton residual at the refusal changes 134 times between the two heights
+(46.97 against 0.349) while the time stays the same to the printed digit, and
+`bdf` gives the same time and residual as the default solver. So the pressure
+knob changes the problem but not where it fails. That makes this pump the
+negative control of the zero-flow rule: where the rule does not apply, its
+knobs do not move the refusal, which strengthens the rule for the four.
+The ramp causes the refusal, but neither its level nor its slope sets the
+time; what does is not found.
