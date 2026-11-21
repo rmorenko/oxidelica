@@ -96303,8 +96303,9 @@ rates of machine seconds per model second that is 55 on (0, 3], 80 on
 of 1.5. On (5.5, 6], which holds the crossing at 5.906, it is at least 1067,
 since the run to 6 was cut. Two more stops narrow it: `--stop 5.8` reaches in
 395 s (a rate of 93), and `--stop 5.9` is cut at 15 minutes, so (5.8, 5.9]
-costs at least 505 s, a rate of at least 5053. The knee lies just before the
-crossing at 5.906, not at it. Whether it would
+costs at least 505 s, a rate of at least 5053. A stop at 5.85 reaches in 432 s,
+so the knee is in (5.85, 5.9], at a rate of at least 9370, within 0.056 s of
+model time before the crossing at 5.906 but not at it. Whether it would
 refuse there is unknown, because it was cut off by the wall, not refused. A rerun of the control writing its output to a
 file does not answer it either: the output is written only when a run ends,
 so a run cut by the wall leaves no file. The rest of the pump family refuses elsewhere (between t = 0.7 and
@@ -96360,3 +96361,20 @@ negative control of the zero-flow rule: where the rule does not apply, its
 knobs do not move the refusal, which strengthens the rule for the four.
 The ramp causes the refusal, but neither its level nor its slope sets the
 time; what does is not found.
+
+Eleven models refuse by step underflow on the way to their own stop time.
+Changing one parameter in a copy outside the tree ties four of them to a
+cause. `Media.Examples.WaterIF97` and `MixtureGases` both take the derivative
+of a `setSmoothState` blend, and both underflow one output step before the
+blend window opens at 0.5 minus its width. Widening the window from 0.05 to
+0.2 moved the WaterIF97 refusal from 0.449 to 0.299, and narrowing the
+MixtureGases window from 0.2 to 0.1 moved its refusal from 0.299 to 0.399,
+each to the printed digit. The blend is built on `smoothStep`, which is
+declared smooth to first order only. `FluidHeatFlow.Examples.WaterPump`
+underflows one step before its trapezoid speed returns to zero, at 1.899.
+Ending the fall at 2.0, by either knob, moves it to 1.999.
+`Rotational.Examples.HeatLosses` reaches its stop time once its clutch is
+disengaged; without the brake it refuses later, at 0.702. `MoistAir`,
+`LightningSegmentedTransmissionLine` and `InductorWithHysteresis` moved
+under their variants without being tied to a cause, and four were not
+probed.
