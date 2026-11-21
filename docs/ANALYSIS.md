@@ -96273,8 +96273,20 @@ downstream pressure ramps up past the pump's shut-off head of 100 m. That is
 9.78e5 Pa, reached at t = 5.89. `TestWaterPumpVariableSpeed` refuses at
 t = 8.9995, and its valve finishes closing at t = 9. In all three cases the refusal
 comes within 0.02 s of the moment the pump's flow reaches zero, each time as a
-Newton direction refusal on a loop holding `pump.port_a.m_flow`. This link is
-positional only, because no probe has tested it.
+Newton direction refusal on a loop holding `pump.port_a.m_flow`. A fourth,
+`TestWaterPumpCharacteristics` from the 6-minute rerun, has its own ramp
+(2.4e5 Pa/s from a 2e5 Pa source). The same arithmetic predicts t = 5.4905, and it
+refuses at 5.505.
+
+The link was then probed. Each model was given a variant outside the library
+that keeps its experiment but never reaches zero flow. For `TestWaterPumpVariableSpeed`
+the valve now closes only to 0.1 of its opening. For `TestWaterPumpDefaultCV` the ramp
+now stops at 9e5 Pa, below the shut-off head. Both variants
+reach t = 10 (554 and 543 s), and the unchanged controls, run beside them,
+refuse again at 8.9995 and 5.8955. So for these two the zero-flow crossing
+causes the refusal. For the other two the link is by analogy and has not been
+probed. The rest of the pump family refuses elsewhere (between t = 0.7 and
+2.5) and is not explained by this.
 
 The 18 models still capped at 15 minutes are named in
 `m743_reach_by_class_final.tsv` in the shared park directory. Twelve of them are
