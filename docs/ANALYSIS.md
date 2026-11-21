@@ -96735,3 +96735,21 @@ measurement does not establish where the time is spent or who owns the
 memory. The output-grid and memory questions already on the queue are
 not reopened or patched here. The first five of the 13 remaining basket
 names have therefore supplied no below-900-second desk-victim candidate.
+
+### m749 quiet basket: SMEE_LoadDump refuses after more than 900 seconds
+
+The sixth isolated model,
+`Modelica.Magnetic.FundamentalWave.Examples.BasicMachines.SynchronousMachines.SMEE_LoadDump`,
+exited 1 after measured process wall 1089 s, with a singular Jacobian in
+a 17-name algebraic block. The log names, among others,
+`voltageQuasiRMSSensor.ToPolar1.u[1]`, `smee.airGap.Phi_ss.re`,
+`voltageController.limiter.u` and `der(smee.airGap.Phi_rr.re)`.
+No solver-completion time is printed, so that field remains unavailable
+rather than being filled with process time. Peak footprint was 0.2 GB,
+peak RSS 0.3 GB, and the witnessed window has zero pmset sleep transitions.
+The full error and its source log are retained with the process wall in
+`park/m749_quiet_runs.tsv`. The weak forecast of at least 900 s held.
+This is an actual refusal, unlike the four quiet time-cap bounds, but it
+still fails the basket's below-900-second criterion. Its text alone does
+not locate the cause or justify changing the solver. The seventh model
+starts only after this process has exited.
