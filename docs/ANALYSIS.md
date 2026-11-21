@@ -96489,10 +96489,20 @@ The two flat dear models were given more points. `IdealMixing1` costs 134 and
 136 machine seconds per model second on (0.5, 1.5] and (1.5, 3], all three
 points on one desk (the first half second costs 202, start included).
 `TestControlledPump` costs 131 and 152 on (0, 3.5] and (3.5, 5]. Neither
-rate grows beyond the noise of the loaded desk, so both read as dear at an even
-rate, a third kind next to the divergent and the grid-sharp ones, though seven
-tenths of the horizon of `IdealMixing1` are unmeasured, so its 1300 s at
-least holds only if the rate stays even.
+rate grows beyond the noise of the loaded desk, though seven tenths of the
+horizon of `IdealMixing1` are unmeasured, so its 1300 s at least holds only if
+the rate stays even.
+
+The even rate is not a third kind, at least not for the pump. The seven
+remaining models that run on the compiler's default step were given 500
+output points over their horizon instead. `TestControlledPump` then reaches
+t = 7 in 67.5 s and `TestTemperature2` reaches t = 15 in 154.5 s, so the even
+cost was the cost of the default grid. With `DrumBoiler` that makes three of
+the nine undeclared models that the default step alone holds at the wall.
+`OneTank` and `IncompressibleFluidNetwork` stay capped, and `RoomCO2` was
+already a negative control. `TestWaterPumpNPSH`, `IdealMixing1` and
+`TestTankWithTopPorts` refuse on the coarse grid instead, which is a change of
+kind and not a reach.
 
 `TestWaterPumpStorage` has no tank, only the pump's own volume, so its other
 knobs were turned instead. A source pressure one percent higher moves the
