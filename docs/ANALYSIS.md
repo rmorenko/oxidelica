@@ -96426,7 +96426,9 @@ its declared grid and at 5.447 with a step of 7e-4. On the declared grid
 `SMEE_Generator_Polyphase` underflows at 13.923, and with 7e-4 at 14.374,
 after about eight minutes. `Spice3.Examples.Nor` underflows at 0.5 on
 both grids, which is where its supply starts to rise. Three more underflows were tried the same way.
-`BevelGear1D` moves from 0.478 to 0.7245. `InductorWithHysteresis` stays at
+`BevelGear1D` moves from 0.478 to 0.7245, and with a step of 2e-3 to 0.238,
+so it refuses earlier the coarser the grid. `HBridge_DC_Drive` with 2e-3
+refuses at 5.433, which does not order its three times by step. `InductorWithHysteresis` stays at
 0.004993, and `MoistAir` moves only from 0.953 to 0.9527, which is within one
 output step. So of seven models tried, the output grid changes the outcome for
 four.
