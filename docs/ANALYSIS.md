@@ -96209,3 +96209,14 @@ pinned to BDF it refuses at t = 1 in a Newton direction at every
 interval from 1e-4 to 1e-3, while auto-selection is structural at 1e-4
 and reaches at 1e-3 by choosing the explicit method. There the grid
 changes which solver is picked, and the solver decides.
+
+Of the fifteen refusals past one second, six name their time in the
+text and nine do not. The nine were bisected with `--stop`, six halvings
+from one second to the model's own stop
+(`park/m742_timeless_bisect9.txt`). Both heating NOR gates refuse
+between 57.0 and 60.1 s, the two `SMEE_Generator` between 3.27 and
+3.72 s and between 2.36 and 2.81 s, `ThreeTanks` between 25.9 and
+29.0 s, `ControlledTanks` between 352 and 366 s, the thyristor bridge
+between 4.23 and 4.38 s, `TestWaterPumpPowerCharacteristic` between
+1.14 and 1.28 s and `BranchingPipes17` between 2.94 and 3.0 s. These are
+intervals read by stopping the run, which can itself change the run.
