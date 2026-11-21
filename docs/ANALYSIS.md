@@ -96510,3 +96510,13 @@ refusal from 2.268 to 2.718, and a valve nominal pressure drop one percent
 higher to 2.890, always on the same loop of `pump.medium.p` and
 `pump.V_flow_single`. The moment of that refusal is fragile to every knob tried
 so far, and the forecast of a shift under 0.05 was wrong.
+
+Why the default step costs so much is visible in the step counts. With output
+steps of 0.1, 0.014, 0.005 and 0.002, `TestControlledPump` takes 73, 505, 1403
+and 3503 steps in 12.0, 67.5, 173.5 and 422.0 s, and `DrumBoiler` took 5403
+steps for 5400 points. The number of steps is the number of output points plus
+three every time, so on these models the integrator never takes a step longer
+than the output step, and the cost grows linearly with the points. At the
+default 1e-3 the pump needs 7003 steps, which at about 0.12 s a step is the
+wall. The step handling is not something this shift may change, so this goes
+to Roman as a question rather than as a patch.
