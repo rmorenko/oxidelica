@@ -96295,14 +96295,17 @@ head, gave the same answer: the variants reach t = 10 (523 and 310 s) and the
 controls refuse again. So for all four, the zero-flow crossing causes the refusal. A fifth, `TestWaterPumpDefault`,
 is still capped at 15 minutes. Its variant with the same short ramp reaches t = 10
 in 485 s, and the same holds for `TestWaterPumpNPSH` (483 s), so each control spends its time at or after the crossing. Whether it would
-refuse there is unknown, because it was cut off by the wall, not refused. The rest of the pump family refuses elsewhere (between t = 0.7 and
+refuse there is unknown, because it was cut off by the wall, not refused. A rerun of the control writing its output to a
+file does not answer it either: the output is written only when a run ends,
+so a run cut by the wall leaves no file. The rest of the pump family refuses elsewhere (between t = 0.7 and
 2.5) and is not explained by this.
 
 The two capped by memory were then run alone under a 12 GB cap. `IMC_withLosses`
 reaches its stop time of 10 in 80 s with a peak of 7.4 GB. `IMC_Initialize`
 reaches 1.5 in 268 s. Its printed peak is 12.0 GB of the 12 allowed, but that is
 the kernel's lifetime peak, which the cap prints and never tests, so it does not
-show that the polled footprint ever touched the wall. With the larger memory cap the count is 752 of 855.
+show that the polled footprint ever touched the wall. Run again with the cap polled every second
+instead of every five, it reached in 278 s without being cut. With the larger memory cap the count is 752 of 855.
 
 The 18 models still capped at 15 minutes are named in
 `m743_reach_by_class_final.tsv` in the shared park directory. Twelve of them are
