@@ -96414,5 +96414,9 @@ over, though. Raising the sinks to 1.2e5 or 1.5e5 moves the zero to 5.79 or
 7.37 at the same slope, and both variants reach t = 10 in 8 s. So does a ramp
 that crosses zero at 2.63 at the same slope. Raising the sinks by one percent,
 to 1.01e5, is enough. Only the control and a ramp twice as steep are cut. The
-cap depends on these exact numbers rather than on the crossing itself, and
-what sets it is not found.
+cap depends on these exact numbers rather than on the crossing itself. The
+output grid shows how exact they are. The model declares an output step of
+1e-3, and with steps of 0.7e-3, 0.99e-3, 1.01e-3 or 2e-3 it reaches t = 10 in
+6 to 11 s. The cap therefore belongs to the declared grid alone, on which the
+output points 4.736 and 4.737 fall either side of the zero at 4.7368. Which
+quantity stalls there is not found.
