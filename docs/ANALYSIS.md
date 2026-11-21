@@ -96405,3 +96405,14 @@ reaches t = 2 in 67 s, firing more events than the capped run had by 1.95
 (117 649). With the end stops also moved away it reaches in 0.11 s with 15
 events. So the brake causes the cost in (1.95, 2], but not through the number
 of events.
+
+`TestSharpEdgedOrifice`, another of the capped Fluid tests, reaches t = 4.7 in
+3 s and is cut at 5 minutes on the way to 4.8. Its ambient pressure ramps
+through the sinks' 1e5 Pa at 90/19 = 4.7368, so the pressure difference across
+both orifices crosses zero inside that window. The pump rule does not carry
+over, though. Raising the sinks to 1.2e5 or 1.5e5 moves the zero to 5.79 or
+7.37 at the same slope, and both variants reach t = 10 in 8 s. So does a ramp
+that crosses zero at 2.63 at the same slope. Raising the sinks by one percent,
+to 1.01e5, is enough. Only the control and a ramp twice as steep are cut. The
+cap depends on these exact numbers rather than on the crossing itself, and
+what sets it is not found.
