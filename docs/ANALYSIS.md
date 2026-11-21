@@ -96303,9 +96303,14 @@ rates of machine seconds per model second that is 55 on (0, 3], 80 on
 of 1.5. On (5.5, 6], which holds the crossing at 5.906, it is at least 1067,
 since the run to 6 was cut. Two more stops narrow it: `--stop 5.8` reaches in
 395 s (a rate of 93), and `--stop 5.9` is cut at 15 minutes, so (5.8, 5.9]
-costs at least 505 s, a rate of at least 5053. A stop at 5.85 reaches in 432 s,
-so the knee is in (5.85, 5.9], at a rate of at least 9370, within 0.056 s of
-model time before the crossing at 5.906 but not at it. Whether it would
+costs at least 505 s, a rate of at least 5053. A stop at 5.85 reaches in 432 s.
+The rate is then 93 on (5.5, 5.8], 738 on (5.8, 5.85] and at least 9368 on
+(5.85, 5.9]. There is no single knee: the rate climbs over two segments of
+0.05 s as the crossing at 5.906 approaches. Fitted as a power of the distance
+to the crossing, the exponent is about 0.1 far from it, 1.8 nearer and at
+least 2.65 nearest. An exponent of one or more makes the cost of reaching the
+crossing infinite, so no finite wall would help if it holds; that is an
+extrapolation from two pairs, not a measurement. Whether it would
 refuse there is unknown, because it was cut off by the wall, not refused. A rerun of the control writing its output to a
 file does not answer it either: the output is written only when a run ends,
 so a run cut by the wall leaves no file. The rest of the pump family refuses elsewhere (between t = 0.7 and
@@ -96378,3 +96383,13 @@ disengaged; without the brake it refuses later, at 0.702. `MoistAir`,
 `LightningSegmentedTransmissionLine` and `InductorWithHysteresis` moved
 under their variants without being tied to a cause, and four were not
 probed.
+
+`Translational.Examples.HeatLosses`, one of the 18 still capped, is the same
+example as the rotational one above in another library. Stopped early, it
+shows that its cost is events, and that they come in bursts. It fires about
+10 000 events before t = 0.5, four in (0.5, 0.75], about 94 700 in
+(0.75, 1.0], and twenty more up to 1.75, so a run to 1.75 takes 88 s. All of
+the more than 800 s that the full run to 2 spends is in (1.75, 2]. The brake,
+whose normal force a 2 Hz sine drives, carries about 57 000 of the events up
+to t = 1. With the brake disengaged, or its sine set to zero, the count falls
+from 104 687 to 47 637.
