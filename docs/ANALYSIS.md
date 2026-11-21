@@ -96293,6 +96293,11 @@ causes the refusal. For the other two the link is by analogy and has not been
 probed. The rest of the pump family refuses elsewhere (between t = 0.7 and
 2.5) and is not explained by this.
 
+The two capped by memory were then run alone under a 12 GB cap. `IMC_withLosses`
+reaches its stop time of 10 in 80 s with a peak of 7.4 GB. `IMC_Initialize`
+reaches 1.5 in 268 s, but its peak is 12.0 GB of the 12 allowed, so it succeeded
+at the memory wall itself. With the larger memory cap the count is 752 of 854.
+
 The 18 models still capped at 15 minutes are named in
 `m743_reach_by_class_final.tsv` in the shared park directory. Twelve of them are
 in Modelica.Fluid or ModelicaTest.Fluid.
