@@ -96680,3 +96680,16 @@ transition occurs in the pmset window 21:20:56-21:46:01 CET. The empty
 buffered model log before termination was not evidence of inactivity:
 child CPU grew from 26.63 s to 12:11.70 while wall grew to 12:12.
 Evidence and its limits are retained in `park/m749_quiet_runs.tsv`.
+
+### m749 quiet basket: DrumBoiler also reaches the time guard
+
+The second of the remaining 13,
+`Modelica.Fluid.Examples.DrumBoiler.DrumBoiler`, was stopped by the same
+25-minute guard at measured process wall 1505 s, peak footprint 0.3 GB.
+Its completion cost is at least 1505 s, not a compiler refusal. The
+pre-run weak forecast of at least 900 s held. Its `.start`/`.wall` window
+is 21:53:50-22:18:55 CET, with zero pmset Sleep/Wake/DarkWake transitions.
+`park/m749_quiet_runs.tsv` carries the full log and witness paths. Both
+basket runs so far remain above 900 s when isolated; neither has been
+shown to be a parallel-desk victim. The third model is measured only after
+the second exits, with the same binary and annotation horizon.
