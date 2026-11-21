@@ -96693,3 +96693,17 @@ is 21:53:50-22:18:55 CET, with zero pmset Sleep/Wake/DarkWake transitions.
 basket runs so far remain above 900 s when isolated; neither has been
 shown to be a parallel-desk victim. The third model is measured only after
 the second exits, with the same binary and annotation horizon.
+
+### m749 quiet basket: IncompressibleFluidNetwork remains time-capped
+
+The third isolated model,
+`Modelica.Fluid.Examples.IncompressibleFluidNetwork`, hit our 25-minute
+time guard at measured process wall 1501 s, peak footprint 0.2 GB.
+There were no pmset Sleep/Wake/DarkWake transitions in its witnessed
+22:19:48-22:44:49 CET window. The completion cost is at least 1501 s:
+this is another own-cost bound above 900 s, not a completed simulation
+or evidence of a compiler refusal. Its weak pre-run forecast of at least
+900 s held. The full annotation-horizon command, restricted environment
+witness, binary hash, wall and tail are named in
+`park/m749_quiet_runs.tsv`. The run was sequential, with no other process
+matching the simulation anchor when it started.
