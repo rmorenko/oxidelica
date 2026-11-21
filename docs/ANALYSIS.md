@@ -96258,12 +96258,17 @@ kept in the table, flagged, and left out of the 854.
 
 Each raise of the wall turned up refusals as well as models that reached. Seven
 refusals at 6 minutes, three at 8 and two at 15 were all hidden behind a cap.
-So a capped model was never a model that nearly made it.
+Over the three raises, 29 capped models reached and 12 refused, so at every
+step the capped set held unknowns in both directions. A capped model was never
+a model that nearly made it.
 
 How close the newly reached models came to the wall changed from one raise to the next.
 At 6 minutes none took more than 90% of the wall. At 8 minutes all five took more
 than 70% (365.8 to 466.1 s of 480), and `SMEE_Generator` took 97%. At 15
-minutes the seven took 480.4 to 602.4 s of 900, so none took more than 70%. The 8-minute five
+minutes the seven took 480.4 to 602.4 s of 900, so none took more than 70%. The margin does not shrink steadily as the wall
+moves out: the small raise (+33%) bought models that barely fit, the large one
+(+88%) bought models with room to spare, so it has to be measured at every raise.
+The 8-minute five
 are the fragile part of the count, and the 15-minute seven are not.
 
 Five of the twelve refusals uncovered by the raises are water pumps. For three of them the
