@@ -96236,25 +96236,27 @@ running and their results land in `/tmp/m742/cap8`.
 
 ### The per-class reach map closed at fifteen minutes
 
-The question was how many of the 854 models in the run list reach their own
+The question was how many of the 855 models in the run list reach their own
 `StopTime`, run by class name so that the `experiment` annotation is kept.
 Every number here comes from one binary, `/tmp/m735/oxh` (md5 c9e25082), with a
 6 GB memory cap. Each rerun only took the models the previous wall had cut off.
 
 | wall       | models rerun | reached | refused | still capped |
 | ---------- | ------------ | ------- | ------- | ------------ |
-| 2 minutes  | 854          | 721     | 72      | 60 + 1 mem   |
+| 2 minutes  | 855          | 721     | 73      | 60 + 1 mem   |
 | 6 minutes  | 60           | 17      | 7       | 35 + 1 mem   |
 | 8 minutes  | 35           | 5       | 3       | 27           |
 | 15 minutes | 27           | 7       | 2       | 18           |
 
-The final count over 854 is 750 reached, 78 refused, 18 capped by time,
+The final count over 855 is 750 reached, 79 refused, 18 capped by time,
 2 capped by memory (`IMC_withLosses` at 2 minutes, `IMC_Initialize` at 6) and
 6 capped by output rows. The six are `CombiTimeTable.Test67` to `Test72`. They
 come back as refusals, but the refusal is the compiler's `MAX_ROWS` limit and not
 the model failing: with `OXIDELICA_MAX_ROWS=2e7` all six reach their stop time.
-They are not counted as reached. The wrapper artifact `TestTwoPhaseStates` is
-kept in the table, flagged, and left out of the 854.
+They are not counted as reached. `TestTwoPhaseStates`, earlier set aside as an artifact of the wrapper, is a real
+example with its own experiment. By class name it refuses on an assertion
+(`medium.x` above its maximum of 1 by 3.4e-10 at t = 20.08), so it is counted. Earlier chapters that give
+counts of 854 left it out, and their numbers are smaller by that one refusal.
 
 Each raise of the wall turned up refusals as well as models that reached. Seven
 refusals at 6 minutes, three at 8 and two at 15 were all hidden behind a cap.
@@ -96298,8 +96300,9 @@ refuse there is unknown, because it was cut off by the wall, not refused. The re
 
 The two capped by memory were then run alone under a 12 GB cap. `IMC_withLosses`
 reaches its stop time of 10 in 80 s with a peak of 7.4 GB. `IMC_Initialize`
-reaches 1.5 in 268 s, but its peak is 12.0 GB of the 12 allowed, so it succeeded
-at the memory wall itself. With the larger memory cap the count is 752 of 854.
+reaches 1.5 in 268 s. Its printed peak is 12.0 GB of the 12 allowed, but that is
+the kernel's lifetime peak, which the cap prints and never tests, so it does not
+show that the polled footprint ever touched the wall. With the larger memory cap the count is 752 of 855.
 
 The 18 models still capped at 15 minutes are named in
 `m743_reach_by_class_final.tsv` in the shared park directory. Twelve of them are
