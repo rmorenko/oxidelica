@@ -96204,14 +96204,18 @@ successes, and a cut model is not one that nearly reached.
 
 A correction to the grid finding, measured the same hour. It holds for
 `SMEE_Rectifier`, which also reaches its own stop of 1.1 s at an
-interval of 1e-3 with BDF. It does not hold for `SMR_CurrentSource`:
+interval of 1e-3 with BDF. For `SMR_CurrentSource` it holds within one
+solver and not across them: pinned to the explicit method it is
+structural at 1e-4 and reaches at 1e-3, as under auto-selection, while
 pinned to BDF it refuses at t = 1 in a Newton direction at every
-interval from 1e-4 to 1e-3, while auto-selection is structural at 1e-4
-and reaches at 1e-3 by choosing the explicit method. There the grid
-changes which solver is picked, and the solver decides.
+interval from 1e-4 to 1e-3. An earlier reading that the solver choice
+alone decides is withdrawn, because the failed runs do not print which
+solver they used.
 
-Of the fifteen refusals past one second, six name their time in the
-text and nine do not. The nine were bisected with `--stop`, six halvings
+Of the fifteen refusals past one second, the truncated table read six
+that name their time and nine that do not. The full logs say ten name
+it and five do not, so four of the nine had a time all along. The nine
+were bisected with `--stop`, six halvings
 from one second to the model's own stop
 (`park/m742_timeless_bisect9.txt`). Both heating NOR gates refuse
 between 57.0 and 60.1 s, the two `SMEE_Generator` between 3.27 and
@@ -96219,4 +96223,8 @@ between 57.0 and 60.1 s, the two `SMEE_Generator` between 3.27 and
 29.0 s, `ControlledTanks` between 352 and 366 s, the thyristor bridge
 between 4.23 and 4.38 s, `TestWaterPumpPowerCharacteristic` between
 1.14 and 1.28 s and `BranchingPipes17` between 2.94 and 3.0 s. These are
-intervals read by stopping the run, which can itself change the run.
+intervals read by stopping the run, which can itself change the run,
+and it does: `HeatingPNP_NORGate` refuses at t = 65 in the full run and
+`TestWaterPumpPowerCharacteristic` at t = 2.499, both outside their
+bisected intervals. For the five that print no time, the time of the
+full run cannot be recovered from outside.
