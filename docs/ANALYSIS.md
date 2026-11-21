@@ -96307,7 +96307,12 @@ reaches its stop time of 10 in 80 s with a peak of 7.4 GB. `IMC_Initialize`
 reaches 1.5 in 268 s. Its printed peak is 12.0 GB of the 12 allowed, but that is
 the kernel's lifetime peak, which the cap prints and never tests, so it does not
 show that the polled footprint ever touched the wall. Run again with the cap polled every second
-instead of every five, it reached in 278 s without being cut. With the larger memory cap the count is 752 of 855.
+instead of every five, it reached in 278 s without being cut. Run once more
+under an 11 GB cap, it was cut, and the kill line, which prints the polled
+current footprint, read 12.0 GB. So the current footprint reaches at least
+11 GB and, since the 12 GB run survived, at most 12: the margin under 12 GB is
+less than a gigabyte, the most fragile of the 752 successes. Denser polling
+decided nothing; bisecting the cap itself did. With the larger memory cap the count is 752 of 855.
 
 The 18 models still capped at 15 minutes are named in
 `m743_reach_by_class_final.tsv` in the shared park directory. Twelve of them are
