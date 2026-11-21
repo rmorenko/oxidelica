@@ -96707,3 +96707,17 @@ or evidence of a compiler refusal. Its weak pre-run forecast of at least
 witness, binary hash, wall and tail are named in
 `park/m749_quiet_runs.tsv`. The run was sequential, with no other process
 matching the simulation anchor when it started.
+
+### m749 quiet basket: InverseParameterization finishes just above 900 seconds
+
+The fourth isolated model,
+`Modelica.Fluid.Examples.InverseParameterization`, completed with exit 0:
+10005 printed steps, solver time 902.5 s, whole process 922 s, events 0,
+peak footprint 0.3 GB. It is not a cap and not a desk-victim candidate:
+the measured process still exceeds 900 s. The weak pre-run forecast of
+at least 900 s held, although no precise cost prediction was made.
+There were no pmset Sleep/Wake/DarkWake transitions in its witnessed
+window, recorded beside both times in `park/m749_quiet_runs.tsv`.
+Reaching the annotation horizon does not check the numerical answer.
+The row/step count is not an accepted-integrator-step count, and no
+output-grid or solver change follows from this observation.
