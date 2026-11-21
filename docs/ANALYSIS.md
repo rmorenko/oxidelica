@@ -96454,7 +96454,14 @@ digit. That is a change of kind, not a reach.
 5.8955 and 5.8964, just before the zero-flow crossing at 5.906 that its
 sibling `TestWaterPumpDefault` grinds on. Twelve stay capped on both sides,
 and `IMC_Conveyor` is cut by the memory cap at about 600 s on both. So grid
-sharpness explains one of sixteen capped models outright.
+sharpness lets one of sixteen capped models through, and changes the kind of
+three, both below the six that the forecast named as its refutation.
+`IMC_Conveyor` is no fourth: the log of the measure itself shows it cut by the
+memory cap at 6.8 GB, and the table listed it as capped on time only because
+its classifier matched the common start of the two cap messages. At 6 GB the
+basket is 17 capped on time and 3 on memory. Under a 12 GB cap `IMC_Conveyor`
+is cut again at 685 s, with 21.0 GB read after the crossing, so it needs more
+than 12 GB and the head count stays at 752 of 855.
 
 Only seven of the sixteen declare an output step: `Inverter`,
 `InverseParameterization`, `SMEE_LoadDump`, the three quasi-static induction
@@ -96464,9 +96471,13 @@ the compiler supplies when none is given (`compile.rs:8652`). So
 library asks for. For the nine the default is ours, and it can be the wall by
 itself: `DrumBoiler` runs for 5400 s, which is 5.4 million points at 1e-3, and
 with a step of 1 s it reaches the end in 629 s. `RoomCO2` (3600 s) is still
-cut with a step of 1 s. `IMC_Conveyor` meets the memory cap on its declared
-grid too, at 676 s, so its memory is not a property of the grid. The desk carried eight to twelve
-runs at once, so walls near 900 s are an inequality and nothing finer.
+cut with a step of 1 s, and with 10 s, so its cost is its own.
+`IMC_Conveyor` meets the memory cap on its declared grid too, at 676 s, so
+its memory is not a property of the grid. Split by who
+chose the step, the changes of kind fall one of seven on the declared side and
+two of nine on ours. Three events cannot show a difference, so none is claimed.
+The desk carried eight to twelve runs at once, so walls near 900 s are an
+inequality and nothing finer.
 
 `TestWaterPumpDefault` itself was asked whether its cap is as fragile as the
 orifice's. With the source pressure raised one percent, and separately the
@@ -96476,7 +96487,8 @@ on a measurement now and not only on an argument.
 
 The two flat dear models were given more points. `IdealMixing1` costs 134 and
 136 machine seconds per model second on (0.5, 1.5] and (1.5, 3], all three
-points on one desk (the first half second costs 202, start included). `TestControlledPump` costs 131 and 152 on (0, 3.5] and (3.5, 5]. Neither
+points on one desk (the first half second costs 202, start included).
+`TestControlledPump` costs 131 and 152 on (0, 3.5] and (3.5, 5]. Neither
 rate grows beyond the noise of the loaded desk, so both read as dear at an even
 rate, a third kind next to the divergent and the grid-sharp ones, though seven
 tenths of the horizon of `IdealMixing1` are unmeasured, so its 1300 s at
