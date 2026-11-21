@@ -96301,7 +96301,10 @@ settle it: `--stop 3`, `4.5` and `5.5` all reach, in 165, 285 and 367 s. As
 rates of machine seconds per model second that is 55 on (0, 3], 80 on
 (3, 4.5] and 82 on (4.5, 5.5]: already rising before the crossing, by a factor
 of 1.5. On (5.5, 6], which holds the crossing at 5.906, it is at least 1067,
-since the run to 6 was cut. The time burns at the crossing, in (5.5, 6]. Whether it would
+since the run to 6 was cut. Two more stops narrow it: `--stop 5.8` reaches in
+395 s (a rate of 93), and `--stop 5.9` is cut at 15 minutes, so (5.8, 5.9]
+costs at least 505 s, a rate of at least 5053. The knee lies just before the
+crossing at 5.906, not at it. Whether it would
 refuse there is unknown, because it was cut off by the wall, not refused. A rerun of the control writing its output to a
 file does not answer it either: the output is written only when a run ends,
 so a run cut by the wall leaves no file. The rest of the pump family refuses elsewhere (between t = 0.7 and
