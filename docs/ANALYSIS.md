@@ -96201,3 +96201,11 @@ None of the 17 that reached at six minutes was close to the wall: the
 slowest, `IMC_Transformer`, finished in 290 s of 360. The seven that
 refused had been cut at two minutes, so the cap hid refusals as well as
 successes, and a cut model is not one that nearly reached.
+
+A correction to the grid finding, measured the same hour. It holds for
+`SMEE_Rectifier`, which also reaches its own stop of 1.1 s at an
+interval of 1e-3 with BDF. It does not hold for `SMR_CurrentSource`:
+pinned to BDF it refuses at t = 1 in a Newton direction at every
+interval from 1e-4 to 1e-3, while auto-selection is structural at 1e-4
+and reaches at 1e-3 by choosing the explicit method. There the grid
+changes which solver is picked, and the solver decides.
