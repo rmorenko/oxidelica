@@ -96753,3 +96753,55 @@ This is an actual refusal, unlike the four quiet time-cap bounds, but it
 still fails the basket's below-900-second criterion. Its text alone does
 not locate the cause or justify changing the solver. The seventh model
 starts only after this process has exited.
+
+### m749 quiet basket: seven measured, six explicitly left open
+
+The seventh isolated model,
+`Modelica.Magnetic.QuasiStatic.FundamentalWave.Examples.BasicMachines.InductionMachines.IMC_Transformer`,
+hit our time guard at measured process wall 1506 s, peak footprint 0.6 GB.
+Its completion cost is at least 1506 s. The pre-run weak lower-bound
+forecast held. The full window, including the local midnight date change,
+has zero pmset Sleep/Wake/DarkWake transitions and is recorded beside the
+number in `park/m749_quiet_runs.tsv`.
+
+The new quiet measurements cover 7 of the 13 remaining names, not the
+whole basket. They are all full annotation-horizon attempts with the same
+frozen binary, no stop or dt overrides, 6 GB and 25-minute limits, and zero
+other anchored simulations at launch. Process times, not solver times,
+decide the basket threshold:
+
+| Model within the remaining basket           | Process seconds | Outcome                   |
+| ------------------------------------------- | --------------: | ------------------------- |
+| AST_BatchPlant.Test.OneTank                 |          >=1505 | time cap                  |
+| DrumBoiler.DrumBoiler                       |          >=1505 | time cap                  |
+| IncompressibleFluidNetwork                  |          >=1501 | time cap                  |
+| InverseParameterization                     |             922 | completed, solver 902.5 s |
+| TraceSubstances.RoomCO2                     |          >=1504 | time cap                  |
+| FundamentalWave SMEE_LoadDump               |            1089 | singular-Jacobian refusal |
+| QuasiStatic FundamentalWave IMC_Transformer |          >=1506 | time cap                  |
+
+Thus these seven add zero below-900-second desk-victim candidates. That
+is a statement about these measured names only, not the six unmeasured
+ones. Including the two inherited results gives nine read quiet outcomes,
+not nine newly run models. All seven weak forecasts of at least 900 s
+held, but they forecast no precise cost and do not establish a mechanism.
+
+The following six were not measured because, after the seventh result,
+about nine minutes remained before the 180-minute shift ceiling, less than
+the prescribed full 25-minute allowance for another isolated run:
+
+- `Modelica.Magnetic.QuasiStatic.FundamentalWave.Examples.BasicMachines.InductionMachines.IMC_YD`
+- `Modelica.Mechanics.Translational.Examples.HeatLosses`
+- `ModelicaTest.Fluid.TestComponents.Fittings.TestSharpEdgedOrifice`
+- `ModelicaTest.Fluid.TestComponents.Machines.TestWaterPumpDefault`
+- `ModelicaTest.Fluid.TestComponents.Machines.TestWaterPumpNPSH`
+- `ModelicaTest.Fluid.TestComponents.Vessels.TestTankWithTopPorts`
+
+They remain open by name in `park/m749_unmeasured6.list`, not silently
+classified as failures or desk victims. No simulation is left running.
+`park/m749_quiet_evidence.tgz` preserves the original non-secret commands,
+start/wall/desk/forecast witnesses, logs and pmset windows, the prior CI
+verdict and paired refusal errors. Environment dumps are deliberately
+excluded. New run witnesses use an environment allowlist and mode 600,
+not a full inherited environment dump. No code, library floor, solver,
+output-grid setting or heavy-model list changed in this shift.
