@@ -96310,7 +96310,12 @@ The rate is then 93 on (5.5, 5.8], 738 on (5.8, 5.85] and at least 9368 on
 to the crossing, the exponent is about 0.1 far from it, 1.8 nearer and at
 least 2.65 nearest. An exponent of one or more makes the cost of reaching the
 crossing infinite, so no finite wall would help if it holds; that is an
-extrapolation from two pairs, not a measurement. Whether it would
+extrapolation from two pairs, not a measurement. Its twin
+`TestWaterPumpDefaultLV` has the same annotation and ramp, so the same
+crossing. It costs more far from the crossing (159 against 93 on (5.5, 5.8])
+but far less near it (310 against at least 5053 on (5.8, 5.9]), and it
+reaches the crossing and refuses there. So the cost far from a point does not
+predict whether a run reaches it; the growth on the approach does. Whether it would
 refuse there is unknown, because it was cut off by the wall, not refused. A rerun of the control writing its output to a
 file does not answer it either: the output is written only when a run ends,
 so a run cut by the wall leaves no file. The rest of the pump family refuses elsewhere (between t = 0.7 and
@@ -96386,10 +96391,12 @@ probed.
 
 `Translational.Examples.HeatLosses`, one of the 18 still capped, is the same
 example as the rotational one above in another library. Stopped early, it
-shows that its cost is events, and that they come in bursts. It fires about
-10 000 events before t = 0.5, four in (0.5, 0.75], about 94 700 in
-(0.75, 1.0], and twenty more up to 1.75, so a run to 1.75 takes 88 s. All of
-the more than 800 s that the full run to 2 spends is in (1.75, 2]. The brake,
-whose normal force a 2 Hz sine drives, carries about 57 000 of the events up
-to t = 1. With the brake disengaged, or its sine set to zero, the count falls
-from 104 687 to 47 637.
+fires events in bursts: about 10 000 before t = 0.5, four in (0.5, 0.75],
+about 94 700 in (0.75, 1.0], and twenty-four more up to 1.95. A run to 1.95
+takes 85 s, and runs between 1.0 and 1.95 differ by up to 4 s with no added
+work, which is the noise of this series. The more than 800 s that the full run
+to 2 spends therefore lie in (1.95, 2], where the event count barely moved.
+The events and the cost sit in different places, so the event bursts are not
+what caps it. The events themselves have two named sources. With the
+sine-driven brake disengaged, the count to t = 1 falls from 104 687 to
+47 637. With the mass's end stops also moved out of reach, it falls to 9.
