@@ -96805,3 +96805,23 @@ verdict and paired refusal errors. Environment dumps are deliberately
 excluded. New run witnesses use an environment allowlist and mode 600,
 not a full inherited environment dump. No code, library floor, solver,
 output-grid setting or heavy-model list changed in this shift.
+
+### m750 quiet basket: QuasiStatic IMC_YD remains time-capped
+
+`Modelica.Magnetic.QuasiStatic.FundamentalWave.Examples.BasicMachines.InductionMachines.IMC_YD`
+was stopped by our 25-minute time guard at whole-process wall >=1501 s,
+with peak footprint 1.4 GB under the 6 GB cap. This is a lower bound, not
+completion or a compiler refusal. The weak pre-run forecast of >=900 s
+held, without predicting an exact price. The full annotation horizon was
+requested through frozen `/tmp/m735/oxh` (md5 `c9e25082`), with no stop or
+dt override and zero other anchored simulations at launch.
+
+The exact window, 2026-11-22T00:23:50+01:00 to
+2026-11-22T00:48:51+01:00, has zero pmset Sleep/Wake/DarkWake transitions.
+The process wall, log and power-window witness are recorded in
+`park/m750_quiet_runs.tsv`, alongside its four-part signature. The source
+log is `/tmp/m750/q_Modelica_Magnetic_QuasiStatic_FundamentalWave_Examples_BasicMachines_InductionMachines_IMC_YD.log`.
+This is 1 of the last 6 basket names, not a verdict on the other 5.
+No below-900-second desk victim is added by this run. Time arriving first
+does not establish that memory had no effect, and the cap does not check
+the numerical answer. No compiler, floor or model-list change follows.
