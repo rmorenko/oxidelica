@@ -96433,3 +96433,58 @@ points fall rather than through accuracy. `InductorWithHysteresis` stays at
 0.004993, and `MoistAir` moves only from 0.953 to 0.9527, which is within one
 output step. So of seven models tried, the output grid changes the outcome for
 four.
+
+## 2026-11-21, shift 701: the capped models on a grid one percent off
+
+The previous shift found that `TestSharpEdgedOrifice` is cut by the wall only
+on its declared output grid. This shift asked the same of the other sixteen
+capped models: each was run with an output step 0.99 and 1.01 times the
+declared one (1e-3 where none is declared), under the same 6 GB and 15 minute
+wall, with the binary of the week (md5 c9e25082). The forecast written before
+the first number was that one to three of the sixteen would reach.
+
+One reached. `Modelica.Mechanics.Translational.Examples.HeatLosses` reaches
+t = 2 on both sides, in 238 s and 579 s, firing 130051 and 902057 events. Two
+more change their outcome, but to a refusal of the Newton loop.
+`ModelicaTest.Fluid.TestComponents.Pipes.IdealMixing1` refuses at t = 0.2318
+and 0.0138, and a control settles that the grid decides: an explicit step of
+1e-3 reaches t = 0.5 in 101 s, while 0.99e-3 refuses at 0.23176 again, to the
+digit. That is a change of kind, not a reach.
+`ModelicaTest.Fluid.TestComponents.Machines.TestWaterPumpNPSH` refuses at
+5.8955 and 5.8964, just before the zero-flow crossing at 5.906 that its
+sibling `TestWaterPumpDefault` grinds on. Twelve stay capped on both sides,
+and `IMC_Conveyor` is cut by the memory cap at about 600 s on both. So grid
+sharpness explains one of sixteen capped models outright.
+
+Only seven of the sixteen declare an output step: `Inverter`,
+`InverseParameterization`, `SMEE_LoadDump`, the three quasi-static induction
+machines and the Translational `HeatLosses`. The other nine take the 1e-3 that
+the compiler supplies when none is given (`compile.rs:8652`). So
+`HeatLosses` is the second model, after the orifice, cut on the step its own
+library asks for. For the nine the default is ours, and it can be the wall by
+itself: `DrumBoiler` runs for 5400 s, which is 5.4 million points at 1e-3, and
+with a step of 1 s it reaches the end in 629 s. `RoomCO2` (3600 s) is still
+cut with a step of 1 s. `IMC_Conveyor` meets the memory cap on its declared
+grid too, at 676 s, so its memory is not a property of the grid. The desk carried eight to twelve
+runs at once, so walls near 900 s are an inequality and nothing finer.
+
+`TestWaterPumpDefault` itself was asked whether its cap is as fragile as the
+orifice's. With the source pressure raised one percent, and separately the
+sink ramp's offset, it is still cut at 15 minutes on the way to t = 5.9, as is
+the control. The account through the cost that diverges at the crossing stands
+on a measurement now and not only on an argument.
+
+The two flat dear models were given more points. `IdealMixing1` costs 134 and
+136 machine seconds per model second on (0.5, 1.5] and (1.5, 3], all three
+points on one desk (the first half second costs 202, start included). `TestControlledPump` costs 131 and 152 on (0, 3.5] and (3.5, 5]. Neither
+rate grows beyond the noise of the loaded desk, so both read as dear at an even
+rate, a third kind next to the divergent and the grid-sharp ones, though seven
+tenths of the horizon of `IdealMixing1` are unmeasured, so its 1300 s at
+least holds only if the rate stays even.
+
+`TestWaterPumpStorage` has no tank, only the pump's own volume, so its other
+knobs were turned instead. A source pressure one percent higher moves the
+refusal from 2.268 to 2.718, and a valve nominal pressure drop one percent
+higher to 2.890, always on the same loop of `pump.medium.p` and
+`pump.V_flow_single`. The moment of that refusal is fragile to every knob tried
+so far, and the forecast of a shift under 0.05 was wrong.
