@@ -96420,3 +96420,11 @@ output grid shows how exact they are. The model declares an output step of
 6 to 11 s. The cap therefore belongs to the declared grid alone, on which the
 output points 4.736 and 4.737 fall either side of the zero at 4.7368. Which
 quantity stalls there is not found.
+
+The grid moves other refusals too. `HBridge_DC_Drive` underflows at 5.293 on
+its declared grid and at 5.447 with a step of 7e-4. On the declared grid
+`SMEE_Generator_Polyphase` underflows at 13.923, and with 7e-4 it runs past
+eight minutes without a refusal. `Spice3.Examples.Nor` underflows at 0.5 on
+both grids, although its sources switch only at 1 and 2 and 0.5 is not a point
+of the finer grid. So of four models tried, the output grid changes the
+outcome for three.
