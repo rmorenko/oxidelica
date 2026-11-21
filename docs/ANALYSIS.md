@@ -96512,14 +96512,17 @@ higher to 2.890, always on the same loop of `pump.medium.p` and
 `pump.V_flow_single`. The moment of that refusal is fragile to every knob tried
 so far, and the forecast of a shift under 0.05 was wrong.
 
-Why the default step costs so much is visible in the step counts. With output
+The output-grid costs can be compared, but the printed step counts need
+care. With output
 steps of 0.1, 0.014, 0.005 and 0.002, `TestControlledPump` takes 73, 505, 1403
 and 3503 steps in 12.0, 67.5, 173.5 and 422.0 s, and `DrumBoiler` took 5403
-steps for 5400 points. The number of steps is the number of output points plus
-three every time, so on these models the integrator never takes a step longer
-than the output step, and the cost grows linearly with the points. At the
-default 1e-3 the pump needs 7003 steps, which at about 0.12 s a step is the
-wall. The step handling is not something this shift may change, so this goes
+steps for 5400 nominal output intervals. Each of these measured runs printed
+three more than its nominal interval count. The m747 reading below corrects
+what that count means: the CLI prints output rows minus one, not accepted
+internal steps. These counts therefore do not prove an integration-step cap.
+The measured pump costs grow approximately with their output interval counts. At the
+default 1e-3 the pump prints 7003 output intervals, and its measured cost is
+near the wall. The step handling is not something this shift may change, so this goes
 to Roman as a question rather than as a patch.
 
 Run once more on its default grid with nothing else on the desk,
@@ -96542,10 +96545,11 @@ previous shift's `/tmp/m745/shape/CP_default.cmd` and `.log` record the same
 annotation path, without an explicit output step: 7003 steps, t = 7,
 813.5 s in the solver and 835 s for the process. The recorded desk condition
 was one simulation and load1 3.60. The process, not just the solver, fits
-under the measure's 900 s wall. Multiplying the solver time by the separately
-measured shared-desk factor gives 813.5 times 1.645 = 1338.2 s, already above
-that wall. This multiplication is an extrapolation, not a second full-horizon
-pump measurement. The actual loaded-desk measure cut the model. Thus the
+under the measure's 900 s wall. The actual loaded-desk measure cut the model.
+These two outcomes establish the desk effect without a multiplier. The
+1.645 ratio measured on a short run of another model cannot price this
+full-horizon pump run, so neither a projected overrun nor its margin is
+claimed. Thus the
 quiet-desk count would be at least 753 of 855, but this is a statement about
 conditions, not permission to replace 752 or to exclude a model. The question
 of remeasuring the basket has already been put to Roman.
@@ -96568,10 +96572,21 @@ about 820.7 solver seconds from 135 times 10 divided by 1.645, about 840 s
 for the process, with a process band of 740 to 900 s. It also predicted
 10003 steps. Both the under-wall prediction and the exact step prediction
 are refuted. The outcome kind, completion under the larger ceiling, survives.
-There are 151 steps more than the predicted 10003, despite zero reported
-events. The earlier exact points-plus-three observation therefore does not
-generalise to this model. No step-handling change or causal account is
-inferred from this count alone.
+There are 151 more printed steps than the predicted 10003, despite zero
+reported events. The earlier exact points-plus-three observation therefore
+does not generalise to this model. A further reading corrects the instrument:
+`crates/oxidelica-cli/src/main.rs` prints `result.rows.len() - 1` as steps.
+The retained `/tmp/m747/ideal.csv` has 10155 data rows, reproducing 10154
+without another run. This is an output-row count, not an accepted internal
+step count.
+
+The distinction also withdraws the earlier inference that an output interval
+caps the integration step. In `solvers/dopri.rs`, the accepted-step output
+loop interpolates all grid points inside a step, while the adaptive step
+may grow by a factor up to five. Neither rows equal to nominal intervals
+plus three nor rows greater than intervals establishes a bound on internal
+steps. Grid-dependent costs and outcomes remain measured, but their cause
+is not identified by that count. No step-handling code was changed.
 
 The earlier plateau of 134 to 136 machine seconds per model second describes
 only the measured shared-desk interval (0.5, 3]. Subtracting its 439 s point
