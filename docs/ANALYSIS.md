@@ -96869,10 +96869,28 @@ The window, 2026-11-22T01:05:29+01:00 to
 `pmset -g log`, with no sleep in the window. There is no power-window
 witness file for this run because the placing shift died before the run
 ended. This absence is explicit, not evidence of an unchecked clean
-window. The placing shift's sleep assertion also expired before the run,
+window. The placing shift's sleep assertion also expired during the run,
 so protection cannot be inferred from its launch alone.
 
 This is the third of the final six names, not a verdict on the other
 three. It adds no below-900-second desk victim. No code, floor or model
 list changed, so corpus counts are not remeasured for this evidence-only
 addition.
+
+### m754 quiet basket: WaterPumpDefault still meets the time guard
+
+`ModelicaTest.Fluid.TestComponents.Machines.TestWaterPumpDefault`
+was stopped by our time guard at whole-process wall >=1505 s, peak
+footprint 0.3 GB out of 6 GB. Its completion price and eventual outcome
+remain unknown. The weak pre-launch >=900-second forecast held only
+as a lower bound. No below-900-second desk victim is added.
+
+The frozen annotation-path run used no stop or dt override and started
+with zero other anchored simulations. `park/m754_quiet_runs.tsv` records
+the wall, log tail and exact power window, with zero Sleep/Wake/DarkWake
+transitions. The source prefix is
+`/tmp/m754/q_ModelicaTest_Fluid_TestComponents_Machines_TestWaterPumpDefault`.
+This is 1 of 3 newly assigned measurements, and 4 of the final 6 names
+including the inherited orifice result. A time cap does not clear memory
+as irrelevant and does not establish numerical correctness. No compiler,
+floor or model-list change follows.
