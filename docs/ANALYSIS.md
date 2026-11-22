@@ -97064,3 +97064,122 @@ and forecasts, without environment dumps. This is a small demonstrated
 mechanism, not a corpus win, a numerical correctness check or a proof of
 global minimality. No solver, index reduction, compiler or MSL code was
 changed, and no fix is proposed for merging by this measurement.
+
+### m762 parameter exponent: parked polynomial rule under corpus judgement
+
+The eight-line `park/m754_lightning_min.mo` reduces the real
+DemonstrateLightning refusal to `y=time^m`, `dy=der(y)`, with
+`parameter Integer m=5`. The original literal-only differentiation rule
+in `crates/oxidelica-sim/src/symbolic.rs` near line 962 simplifies the
+exponent but does not read its held parameter value. Naming the power
+therefore refuses where the literal `5` works.
+
+The proposed change remains exclusively in
+`park/m755_param_exponent.patch`. It reads a held exponent only when
+stationary with respect to the differentiation target, finite, integral
+and at least one. Zero, negative, fractional, unbound and moving named
+exponents retain the original refusal. Literal exponents retain their
+existing path. This is a deliberately narrower polynomial rule, not a
+claim to support general variable-exponent differentiation.
+
+The historical population count in `park/m755_family_count.md` is
+wrapper 1/33 and class 2/33 distinct queue-selected names. The two
+carriers are DemonstrateLightning, in both worlds, and IMC_Conveyor,
+only in the class world. The wrapper conveyor instead meets the
+no-state equation `3 * aimc.lszero.i = 0`. The three source notes contain
+33 sections but only 32 distinct names: InductorWithHysteresis occurs
+twice. Existing TestMixingVolumesPressureStates logs supply the missing
+33rd name. Separately, the surviving m739 and m714 raw reports each
+contain zero exact-phrase carriers among 131 run-refusal records.
+Those historical populations and invocation worlds are not interchangeable.
+
+The inherited m755 witnesses were read, not repeated. In
+`/tmp/m755/{minimum_on,literal_on,inline_on,minimum_off}.log`, the
+minimum and literal control complete with return code zero, the inline
+form retains `der() outside a state equation is not supported`, and the
+disabled rule restores the minimum's original error byte for byte.
+The existing `lightning_check.log`, `conveyor_check.log` and
+`difference_check.log` each contain both `flat` and `ran` for their
+single selected class. They report respectively 255, 114 and 11673
+running points, with 254 Newton steps for the conveyor. These short
+class checks establish mechanisms and controls, not full-corpus wins.
+
+The frozen instrument is `/tmp/m755/ox1`, full md5
+`3bf6186ff37fedfe17cebdc6ea953710`, verified against `ox1.md5` and a
+working help response on 2026-11-22. The sequential corpus launcher is
+`/tmp/m762/pair.sh`, with outputs `/tmp/m762/off.txt` and
+`/tmp/m762/on.txt`, narrow mode-600 witnesses `off.env` and `on.env`,
+and `--list --slow 60` on both halves. Off sets
+`OXIDELICA_NO_PARAM_EXPONENT=1`; on unsets it. Each half runs under
+`CAP_GB=24` through the same cap wrapper. The launcher checks off's
+flat and ran lists against `/tmp/m727/c2_on.txt` before allowing on.
+A baseline list difference stops the pair rather than silently changing
+the comparison population.
+
+No compiler patch is merged by this shift, regardless of the outcome.
+Supplying a derivative definition can change index reduction's state
+choices beyond these small examples. Heavy models are not measured by
+this pair. Floors and model lists remain unchanged.
+
+#### m762 completed pair: no corpus wins and no victims
+
+Both capped halves completed with model return code zero. Off ran from
+2026-11-22T07:43:10+0100 to 08:00:42+0100, and on from
+08:00:42+0100 to 08:18:02+0100. The initial estimate of 120 to
+150 minutes for the pair was too high: elapsed wall time was about
+35 minutes. The printed phase times below are accumulated model times,
+not the elapsed wall duration of the parallel corpus process.
+
+| Measure                   |  Off |   On |
+| ------------------------- | ---: | ---: |
+| Files read                | 2671 | 2671 |
+| Example models examined   | 1026 | 1026 |
+| Flattened                 |  986 |  986 |
+| Run                       |  855 |  855 |
+| Runnable examples         |  897 |  897 |
+| Runnable flattened        |  867 |  867 |
+| Runnable run              |  806 |  806 |
+| Flattening seconds        | 5189 | 5049 |
+| Running seconds           | 2581 | 2461 |
+| Caught peak footprint, GB |  8.8 |  7.7 |
+
+`/tmp/m762/reference.diff` is empty: off's ordered flat and ran
+lists equal the historical reference. `/tmp/m762/judgement.txt`
+likewise records ordered equality of all 986 flat names and all 855
+ran names between off and on. There are zero winners among 1026
+examined models and zero victims among the 855 baseline runners.
+DemonstrateLightning and the electrical IMC_Conveyor already occur in
+the off ran list, as they do in the historical reference. Neither is
+a new win. The predicted DemonstrateLightning win is therefore refuted,
+and the predicted conveyor wrapper wall is not present in this corpus
+invocation. This does not erase the historical wrapper/class evidence.
+
+The exact phase prints are:
+
+```text
+off time: flattening 5189s over 1026 models (5057ms each); running 2581s over 986 (2618ms each)
+on  time: flattening 5049s over 1026 models (4921ms each); running 2461s over 986 (2496ms each)
+```
+
+Running time falls by 120 seconds, 4.65 percent of off, rather than
+exceeding the six-percent ceiling. Flattening falls by 140 seconds,
+2.70 percent. All four flattening work totals and all five running
+work totals are identical: running has 24394433 points, 36066304
+Newton steps, 707 Jacobians, 143 Jacobians apart and 1405035 damped
+trials. This pair has no separate A/A noise measurement and does not
+prove a speedup or that the counters cover every affected operation.
+
+Both slow-table halves were inspected. The same 60 names occur in both
+running top lists. Candidate positive differences include the
+quasistatic IMC_Transformer, 86.8 to 91.7 seconds, and FullRobot,
+40.5 to 41.7. Opposing differences include Engine1a, 85.9 to 73.4,
+and UniversalConstraint, 77.5 to 67.1. These are corpus-table
+candidates, not confirmed causal prices: no standalone off/on/off
+was taken, and identical aggregate counters do not justify attributing
+the clock difference to the patch. The flattening top lists exchange
+two names each, retained in the judgement file. No whole-population
+per-model attribution is claimed from truncated top-60 tables.
+
+The experiment establishes no corpus coverage benefit for this patch.
+It leaves the patch parked for the next review, with no code, floor,
+work-centre or model-list change. Heavy models remain unmeasured.
