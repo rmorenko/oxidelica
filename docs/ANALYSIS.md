@@ -97017,3 +97017,50 @@ TestControlledPump remains the one previously observed 835-second desk
 victim outside this basket, not a sixteenth new measurement. The basket
 adds zero to that count. No compiler, floor, model-list, grid or solver
 behavior changed, so it changes no library count or numerical answer.
+
+### m754 DemonstrateLightning reduction: bound parameter power still refuses
+
+After the basket's last process exited, the assigned reduction of
+`Modelica.Electrical.Analog.Examples.DemonstrateLightning` was performed
+outside the repository using frozen `/tmp/m735/oxh`, md5 `c9e25082`.
+The real model's refusal survived deletion of its independent DoubleExp
+branch, integrator, electrical circuit and sensor, then replacement of
+`Der` by its actual equation. Inlining only the real Heidler branch and
+its five initial equations still produced the original error line
+byte for byte, including `lightning2.signalSource.m`.
+
+Further deletion leaves the eight-line
+`park/m754_lightning_min.mo`, with its own experiment annotation:
+
+```modelica
+model LightningMinimum
+  parameter Integer m=5;
+  Real y, dy;
+equation
+  y=time^m;
+  dy=der(y);
+  annotation(experiment(StopTime=2e-5, Interval=1e-7, Tolerance=1e-6));
+end LightningMinimum;
+```
+
+The exact parked file refuses with the full reduced error line:
+
+```text
+error: structurally singular model: cannot differentiate a non-constant exponent, differentiating the equation `y = time ^ m`
+```
+
+This is the same refusal kind, not the same equation text as the original.
+The forecast that a time switch was necessary was refuted: removing the
+switch still refuses. Replacing only the named exponent by literal `5`
+completes, as does deleting the derivative consumer. Inlining away the
+intermediate variable as `dy=der(time^m)` instead gives a different
+refusal, `der() outside a state equation is not supported`, so that shorter
+form is not claimed as a smaller same-kind reproduction.
+
+`park/m754_lightning_min.README.md` carries the full original error,
+numbered-by-stage deletion path, controls and command. The archive
+`park/m754_lightning_evidence.tgz` retains source models, logs, commands
+and forecasts, without environment dumps. This is a small demonstrated
+mechanism, not a corpus win, a numerical correctness check or a proof of
+global minimality. No solver, index reduction, compiler or MSL code was
+changed, and no fix is proposed for merging by this measurement.
