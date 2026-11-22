@@ -96847,3 +96847,32 @@ overrides, with zero other anchored simulations at launch. The observed
 an uninterrupted full run. No allocation site or mechanism is established.
 This is 2 of the last 6 names measured, with no new below-900-second
 candidate. No library floor, numerical algorithm or model list changed.
+
+### m754 quiet basket: inherited orifice bound with no power-witness file
+
+`ModelicaTest.Fluid.TestComponents.Fittings.TestSharpEdgedOrifice`
+was stopped by our time guard at whole-process wall >=1505 s, peak
+footprint 0.2 GB under the 6 GB cap. The original `.wall` reads 1505,
+`.wrapper_rc` reads 10, and the log tail explicitly identifies the
+25-minute time guard. This is neither a completion nor a compiler
+refusal. Memory was not cleared by this time-first outcome.
+
+The run was placed by shift 708 and collected by shift 712, without a
+rerun. Its command, environment, forecast and zero-simulation desk
+witness predate launch. Sources are
+`/tmp/m750/q_ModelicaTest_Fluid_TestComponents_Fittings_TestSharpEdgedOrifice.*`,
+with the result indexed in `park/m754_quiet_runs.tsv`.
+The weak >=900-second prediction held only as a lower bound.
+
+The window, 2026-11-22T01:05:29+01:00 to
+2026-11-22T01:30:34+01:00, was checked by the duty officer using
+`pmset -g log`, with no sleep in the window. There is no power-window
+witness file for this run because the placing shift died before the run
+ended. This absence is explicit, not evidence of an unchecked clean
+window. The placing shift's sleep assertion also expired before the run,
+so protection cannot be inferred from its launch alone.
+
+This is the third of the final six names, not a verdict on the other
+three. It adds no below-900-second desk victim. No code, floor or model
+list changed, so corpus counts are not remeasured for this evidence-only
+addition.
