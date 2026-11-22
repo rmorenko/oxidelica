@@ -96913,3 +96913,23 @@ The source prefix is
 Two of the three new assigned names now have outcomes, five of the final
 six including inherited evidence. Memory relevance and numerical
 correctness remain unchecked. No compiler, floor or model list changed.
+
+### m754 quiet basket: TankWithTopPorts reveals a refusal beyond the old wall
+
+`ModelicaTest.Fluid.TestComponents.Vessels.TestTankWithTopPorts`
+refused after 1271 s of whole-process wall, not a time or memory cap.
+The log reports `singular Jacobian in algebraic loop` with the names
+`tank.ports[4].m_flow`, `tank.Wb_flow`, `der(tank.medium.h)`,
+`tank.level`, and `tank.medium.h`. Peak footprint was 0.3 GB under 6 GB.
+The weak >=900-second forecast held without predicting the refusal.
+This adds no below-900-second desk victim.
+
+`park/m754_quiet_runs.tsv` records the log, process wall and exact
+power-log window, with zero Sleep/Wake/DarkWake transitions. Sources use
+`/tmp/m754/q_ModelicaTest_Fluid_TestComponents_Vessels_TestTankWithTopPorts`.
+The frozen binary was run to the annotation horizon, with no stop or dt
+override and zero other anchored simulations at launch. This completes
+3 of 3 new assigned measurements and all 6 final names with the inherited
+results, bringing the basket to 15 of 15. This is a measured refusal
+price, not a lower bound on a successful completion. No numerical
+correctness claim, compiler change, floor change or list change follows.
