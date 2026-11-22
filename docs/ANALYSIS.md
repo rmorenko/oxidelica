@@ -96933,3 +96933,87 @@ override and zero other anchored simulations at launch. This completes
 results, bringing the basket to 15 of 15. This is a measured refusal
 price, not a lower bound on a successful completion. No numerical
 correctness claim, compiler change, floor change or list change follows.
+
+### m754 basket fifteen: time censoring, memory censoring, completion and refusal are separate outcomes
+
+The basket is now measured 15 of 15, with ten time-censored attempts,
+one memory-censored attempt, two completions and two refusals. These are
+four different outcome kinds, not fifteen failures or fifteen prices.
+No new process below 900 seconds was found among these fifteen.
+
+The population is the 15 names in `/tmp/m748/basket15.list`. It excludes
+TestControlledPump, the already measured 835-second comparator. The
+instrument is frozen `/tmp/m735/oxh`, md5
+`c9e250829f6a1aea6685f64e88edba7d`, full class annotation horizon, no
+stop or dt override, CAP_GB=6, CAP_MIN=25, CAP_STALL_MIN=25. Each launch
+has zero other anchored simulations. Full process wall, not solver time,
+is compared with 900 seconds. No numerical correctness is established.
+
+#### m754 synthesis time-censored attempts
+
+| Model                                                                                                  | Process bound, s | Peak footprint, GB / 6 | Record                   |
+| ------------------------------------------------------------------------------------------------------ | ---------------: | ---------------------: | ------------------------ |
+| Modelica.Electrical.Spice3.Examples.Inverter                                                           |           >=1505 |                    0.2 | park/m749_quiet_runs.tsv |
+| Modelica.Fluid.Examples.AST_BatchPlant.Test.OneTank                                                    |           >=1505 |                    0.2 | park/m749_quiet_runs.tsv |
+| Modelica.Fluid.Examples.DrumBoiler.DrumBoiler                                                          |           >=1505 |                    0.3 | park/m749_quiet_runs.tsv |
+| Modelica.Fluid.Examples.IncompressibleFluidNetwork                                                     |           >=1501 |                    0.2 | park/m749_quiet_runs.tsv |
+| Modelica.Fluid.Examples.TraceSubstances.RoomCO2                                                        |           >=1504 |                    3.2 | park/m749_quiet_runs.tsv |
+| Modelica.Magnetic.QuasiStatic.FundamentalWave.Examples.BasicMachines.InductionMachines.IMC_Transformer |           >=1506 |                    0.6 | park/m749_quiet_runs.tsv |
+| Modelica.Magnetic.QuasiStatic.FundamentalWave.Examples.BasicMachines.InductionMachines.IMC_YD          |           >=1501 |                    1.4 | park/m750_quiet_runs.tsv |
+| ModelicaTest.Fluid.TestComponents.Fittings.TestSharpEdgedOrifice                                       |           >=1505 |                    0.2 | park/m754_quiet_runs.tsv |
+| ModelicaTest.Fluid.TestComponents.Machines.TestWaterPumpDefault                                        |           >=1505 |                    0.3 | park/m754_quiet_runs.tsv |
+| ModelicaTest.Fluid.TestComponents.Machines.TestWaterPumpNPSH                                           |           >=1506 |                    0.3 | park/m754_quiet_runs.tsv |
+
+The inherited >=1501..>=1506 spread is the five-second guard polling
+resolution (CAP_POLL=5 with CAP_MIN=25), not a ranking of model prices.
+A time cap says which guard arrived first. In particular RoomCO2 at
+3.2 GB out of 6 GB has not had memory cleared as irrelevant.
+
+#### m754 synthesis memory-censored attempts
+
+| Model                                                | Process bound, s | Footprint at stop, GB / 6 | Record                   |
+| ---------------------------------------------------- | ---------------: | ------------------------: | ------------------------ |
+| Modelica.Mechanics.Translational.Examples.HeatLosses |            >=948 |              7.0, RSS 6.6 | park/m750_quiet_runs.tsv |
+
+The footprint is the polling guard's caught value, not an uninterrupted
+run's peak. It must not be grouped with time-censored attempts.
+
+#### m754 synthesis completed process prices
+
+| Model                                                      | Process, s | Solver, s | Record                   |
+| ---------------------------------------------------------- | ---------: | --------: | ------------------------ |
+| ModelicaTest.Fluid.TestComponents.Sensors.TestTemperature2 |       1069 |    1046.3 | park/m749_quiet_runs.tsv |
+| Modelica.Fluid.Examples.InverseParameterization            |        922 |     902.5 | park/m749_quiet_runs.tsv |
+
+InverseParameterization misses the 900-second threshold by just 22 s,
+2.44 percent. Its completion is not a wide miss and not a refusal.
+
+#### m754 synthesis refusal process prices
+
+| Model                                                                                      | Process, s | Outcome           | Record                   |
+| ------------------------------------------------------------------------------------------ | ---------: | ----------------- | ------------------------ |
+| Modelica.Magnetic.FundamentalWave.Examples.BasicMachines.SynchronousMachines.SMEE_LoadDump |       1089 | singular Jacobian | park/m749_quiet_runs.tsv |
+| ModelicaTest.Fluid.TestComponents.Vessels.TestTankWithTopPorts                             |       1271 | singular Jacobian | park/m754_quiet_runs.tsv |
+
+The two specified kind changes when raising the wall were SMEE_LoadDump
+from a time cap to refusal at 1089 s and HeatLosses from a time cap to
+memory at 948 s. The last measurement reveals another refusal behind its
+earlier cap, TestTankWithTopPorts at 1271 s. Time censoring meant an
+unknown outcome, and these revealed outcomes are worse than successful
+completion.
+
+Each record names its original log and exact power window. For the
+orphan TestSharpEdgedOrifice, placed by shift 708 and collected by shift
+712, the duty officer checked `pmset -g log` over
+2026-11-22T01:05:29+01:00 to 2026-11-22T01:30:34+01:00: no sleep in
+the window. There is no power-window witness file because the placing
+shift died before the run ended. That exception must remain explicit.
+
+The source split is nine records in `park/m749_quiet_runs.tsv`, two in
+`park/m750_quiet_runs.tsv`, and four in `park/m754_quiet_runs.tsv`.
+The latter four include the inherited orifice, not four new runs. Their
+full-name union equals the prescribed 15-name basket, without duplicates.
+TestControlledPump remains the one previously observed 835-second desk
+victim outside this basket, not a sixteenth new measurement. The basket
+adds zero to that count. No compiler, floor, model-list, grid or solver
+behavior changed, so it changes no library count or numerical answer.
