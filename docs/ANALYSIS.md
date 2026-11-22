@@ -96894,3 +96894,22 @@ This is 1 of 3 newly assigned measurements, and 4 of the final 6 names
 including the inherited orifice result. A time cap does not clear memory
 as irrelevant and does not establish numerical correctness. No compiler,
 floor or model-list change follows.
+
+### m754 quiet basket: WaterPumpNPSH remains time-censored on its own horizon
+
+`ModelicaTest.Fluid.TestComponents.Machines.TestWaterPumpNPSH`
+was stopped by our 25-minute time guard at whole-process wall >=1506 s,
+peak footprint 0.3 GB under the 6 GB limit. This is a time-censored
+attempt, not the refusal seen on a modified output grid and not a
+completion. The weak >=900-second forecast held as a lower bound only.
+There is no new below-900-second desk victim.
+
+The annotation-path command used frozen `/tmp/m735/oxh`, no stop or dt
+override, and zero other anchored simulations at launch. The exact
+start-to-end window has zero Sleep/Wake/DarkWake transitions, recorded
+beside the number and original log in `park/m754_quiet_runs.tsv`.
+The source prefix is
+`/tmp/m754/q_ModelicaTest_Fluid_TestComponents_Machines_TestWaterPumpNPSH`.
+Two of the three new assigned names now have outcomes, five of the final
+six including inherited evidence. Memory relevance and numerical
+correctness remain unchecked. No compiler, floor or model list changed.
