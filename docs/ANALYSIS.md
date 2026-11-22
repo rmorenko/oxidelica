@@ -97183,3 +97183,68 @@ per-model attribution is claimed from truncated top-60 tables.
 The experiment establishes no corpus coverage benefit for this patch.
 It leaves the patch parked for the next review, with no code, floor,
 work-centre or model-list change. Heavy models remain unmeasured.
+
+### m772 parameter exponent: coverage earned without moving the floor
+
+Roman authorized the polynomial parameter-exponent patch on 2026-11-22,
+explicitly leaving the floor unchanged. The boundary remains finite,
+positive integral exponents stationary with respect to the differentiation
+target. It does not define a derivative for a moving exponent or broaden
+the literal-exponent rule.
+
+The first isolated coverage pass, `/tmp/m772/cov1.txt`, reproduced the
+inherited shortfall: 50237 lines, 3773 uncovered, 92.49 percent. Added
+unit cases exercise arithmetic over held parameters for both targets,
+zero, negative, fractional and non-finite results, unbound names and
+moving exponents. Refusals assert the complete diagnostic. The resulting
+`cov2.txt` still failed: 3768 uncovered lines round to 92.50 percent,
+but the unrounded result is below 92.5. A displayed percentage alone is
+not the threshold verdict.
+
+The end-to-end regression
+`a_named_integral_power_has_its_polynomial_rate_at_zero_and_away` retains
+the reduced DemonstrateLightning shape, `y=time^m; dy=der(y)`. It checks
+both values for powers 1, 2 and 5 at every stored point, including zero.
+It passes with the patch and fails with the literal-only rule restored
+by `OXIDELICA_NO_PARAM_EXPONENT=1`; the focused outputs are
+`/tmp/m772/integration_green.txt` and `integration_red.txt`. This is a
+small-model mechanism check, not a corpus win. The unit-only and
+integration measurements differ because coverage merges the unit-test
+and dependency builds of the symbolic layer.
+
+The final isolated pass, `/tmp/m772/cov5.txt`, reports 50237 lines,
+3761 uncovered and 92.51 percent, with exit zero in `cov5.exit`.
+`park/m772_param_exponent_v2.patch` contains the complete change and
+tests. Floors, work centres and model lists are untouched. The inherited
+m762 pair still establishes zero victims among 855 baseline runners,
+zero winners among 1026 examined models and identical work and run
+lists, not a new library-coverage gain. Heavy models are not measured;
+the daily cron after integration is their judge.
+
+### m772 Overvoltage sum order: close outputs do not prove a local failure
+
+The bounded map is `park/m772_overvoltage_sum_order.md`, with forecasts,
+commands and observed versus reconstructed quantities. Its instrument
+is the unchanged `/tmp/m735/oxh`, md5
+`c9e250829f6a1aea6685f64e88edba7d`. Both sides of the earlier permutation
+check matter: all eight orders placing both `RL.p.i` and `Rv.n.i`
+before `zDiode1.p.i` refuse, and none of the other sixteen do.
+
+Two shortened runs provide 220 common stored timestamps through
+0.219 seconds. Their largest voltage differences are about
+5.59e-7 V for `CL.v` and 6.04e-6 V for `zDiode.v`, rather than a
+demonstrated macroscopic accepted-state drift. At the last common
+stored point, KCL operand magnitudes span a factor of about 5.09,
+not sixteen decimal orders. Same-input reassociation gives identical
+binary64 sums at the displayed near-failure stored points. This
+refutes the simple claim that the diode term is already swallowed
+there.
+
+The failing trail instead contains enormous nonphysical trial states.
+Reconstruction from the printed residual and the original diode law
+is consistent with lost binary64 sensitivity there, but those inferred
+states are not direct prints of the solver inputs. The two worlds do
+not supply an identical-input comparison at the failure time. Thus
+neither a purely local sum effect nor accumulated microscopic drift
+has been established as the complete cause. No solver, Jacobian or
+dead-column safeguard is changed on this evidence.

@@ -959,8 +959,27 @@ pub(crate) fn differentiate_at(
             // divisor one case up is put to it: a live exponent, the
             // `a^b` of `DifferenceAmplifier`, does not fold and goes
             // on being refused in the same words.
-            let Expr::Number(c) = simplify(exponent) else {
-                return Err("cannot differentiate a non-constant exponent".to_string());
+            let c = match simplify(exponent) {
+                Expr::Number(c) => c,
+                _ if crate::param_exponent_enabled()
+                    && match target {
+                        DiffTarget::Time { .. } => does_not_move(exponent, target),
+                        DiffTarget::Variable { name, .. } => !mentions_name(exponent, name),
+                    } =>
+                {
+                    // Deliberately only polynomials: the usual power
+                    // formula at x=0 is singular for p<1, and p=0
+                    // would manufacture 0*x^-1. Refuse those parameter
+                    // cases rather than hiding an undefined value by
+                    // multiplication by zero. Both targets carry the
+                    // parameter values, but the variable target must
+                    // still exclude its own name from the exponent.
+                    match value_held(exponent, target) {
+                        Some(p) if p.is_finite() && p >= 1.0 && p.fract() == 0.0 => p,
+                        _ => return Err("cannot differentiate a non-constant exponent".to_string()),
+                    }
+                }
+                _ => return Err("cannot differentiate a non-constant exponent".to_string()),
             };
             bin(
                 Mul,

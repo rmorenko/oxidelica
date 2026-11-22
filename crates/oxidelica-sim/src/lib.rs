@@ -50,6 +50,12 @@ pub(crate) fn arithmetic_chain_enabled() -> bool {
     std::env::var_os("OXIDELICA_NO_ARITHMETIC_CHAIN").is_none()
 }
 
+/// Positive integral parameter exponents use the polynomial rate;
+/// `OXIDELICA_NO_PARAM_EXPONENT` restores the literal-only rule.
+pub(crate) fn param_exponent_enabled() -> bool {
+    std::env::var_os("OXIDELICA_NO_PARAM_EXPONENT").is_none()
+}
+
 /// Bodies walked on this thread so far.
 pub fn walks_so_far() -> u64 {
     walk::walks_so_far()

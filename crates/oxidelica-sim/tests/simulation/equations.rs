@@ -229,6 +229,31 @@ fn rc_circuit_from_components_matches_analytic() {
 }
 
 #[test]
+fn a_named_integral_power_has_its_polynomial_rate_at_zero_and_away() {
+    // Reduced from DemonstrateLightning: retain a named exponent and
+    // an explicit derivative, rather than substituting a literal.
+    for power in [1, 2, 5] {
+        let source = format!(
+            "model NamedPower parameter Integer m={power}; Real y; Real dy; \
+             equation y=time^m; dy=der(y); \
+             annotation(experiment(StopTime=1, Interval=0.25)); end NamedPower;"
+        );
+        let result = run(&source);
+        let y = result.columns.iter().position(|name| name == "y").unwrap();
+        let dy = result.columns.iter().position(|name| name == "dy").unwrap();
+        for row in &result.rows {
+            let time = row[0];
+            assert!((row[y] - time.powi(power)).abs() < 1e-12);
+            assert!(
+                (row[dy] - f64::from(power) * time.powi(power - 1)).abs() < 1e-12,
+                "m={power}, t={time}, dy={}",
+                row[dy]
+            );
+        }
+    }
+}
+
+#[test]
 fn index2_dae_tracks_the_constraint() {
     // q = time^2 with der(q) = z: the constraint must be
     // differentiated once (Pantelides) to expose z; z = 2t follows.

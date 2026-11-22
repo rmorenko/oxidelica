@@ -149,14 +149,15 @@ fn differentiates_every_elementary_function() {
             .abs()
             < 1e-12
     );
-    // Refusals: unknown function, non-constant exponent, time target.
+    // Refusals: unknown function, unbound exponent, time target.
     // An exponent that is arithmetic over literals is a constant that
     // nobody folded, and the number is the point rather than the
     // absence of a refusal: `d/da a^(2/3)` at `a = 8` is
     // `(2/3) * 8^(-1/3)` = 1/3, and `d/da a^(-0.14874)` at `a = 2` is
     // `-0.14874 * 2^(-1.14874)`. The first shape is the one
     // `DryAirNasa` writes and the second stands beside it in the same
-    // equation. A live exponent is still refused.
+    // equation. An unbound exponent is still refused. A known positive
+    // integral parameter is covered separately below.
     assert!(differentiate(&expr_of("asin(a)"), &by_name("a")).is_err());
     assert!(
         (value_of(&d("a ^ (2.0 / 3.0)"), &[("a", 8.0)]) - 1.0 / 3.0).abs() < 1e-12,
@@ -175,6 +176,143 @@ fn differentiates_every_elementary_function() {
         ),
         0.0
     );
+}
+
+#[test]
+fn parameter_exponents_are_positive_integral_and_stationary() {
+    let states = HashMap::new();
+    let dummies = HashMap::new();
+    let definitions = HashMap::new();
+    let implicit = HashMap::new();
+    for power in [1.0, 2.0, 5.0] {
+        let params = HashMap::from([("b".to_string(), power)]);
+        let variable = DiffTarget::Variable {
+            name: "a",
+            params: &params,
+        };
+        let time = DiffTarget::Time {
+            state_rhs: &states,
+            params: &params,
+            dummies: &dummies,
+            alg_defs: &definitions,
+            implicit_defs: &implicit,
+            holding: &[],
+        };
+        for (source, target, base) in [("a ^ b", &variable, "a"), ("time ^ b", &time, "time")] {
+            let rate = simplify(&differentiate(&expr_of(source), target).unwrap());
+            for point in [0.0_f64, 2.0, -2.0] {
+                let expected = power * point.powf(power - 1.0);
+                let actual = if base == "time" {
+                    eval(
+                        &rate,
+                        &EvalCtx {
+                            vars: &params,
+                            time: point,
+                            programs: None,
+                            depth: 0,
+                        },
+                    )
+                    .unwrap()
+                } else {
+                    value_of(&rate, &[("a", point), ("b", power)])
+                };
+                assert_eq!(actual, expected, "{source}, p={power}, x={point}");
+            }
+        }
+    }
+    for power in [0.0, -1.0, 0.5, f64::NAN, f64::INFINITY] {
+        let params = HashMap::from([("b".to_string(), power)]);
+        let target = DiffTarget::Variable {
+            name: "a",
+            params: &params,
+        };
+        assert_eq!(
+            differentiate(&expr_of("a ^ b"), &target).unwrap_err(),
+            "cannot differentiate a non-constant exponent"
+        );
+    }
+    assert_eq!(
+        differentiate(&expr_of("a ^ b"), &by_name("a")).unwrap_err(),
+        "cannot differentiate a non-constant exponent"
+    );
+    let params = HashMap::from([("a".to_string(), 5.0)]);
+    let target = DiffTarget::Variable {
+        name: "a",
+        params: &params,
+    };
+    assert_eq!(
+        differentiate(&expr_of("2 ^ a"), &target).unwrap_err(),
+        "cannot differentiate a non-constant exponent"
+    );
+}
+
+#[test]
+fn parameter_exponent_expressions_keep_the_polynomial_boundary() {
+    let states = HashMap::new();
+    let dummies = HashMap::new();
+    let definitions = HashMap::new();
+    let implicit = HashMap::new();
+    let params = HashMap::from([("b".to_string(), 2.0)]);
+    let variable = DiffTarget::Variable {
+        name: "a",
+        params: &params,
+    };
+    let time = DiffTarget::Time {
+        state_rhs: &states,
+        params: &params,
+        dummies: &dummies,
+        alg_defs: &definitions,
+        implicit_defs: &implicit,
+        holding: &[],
+    };
+    // Each arithmetic shape must read the held parameter, not merely
+    // simplify a literal. At x=2, d(x^p)/dx is p*2^(p-1).
+    for (exponent, power) in [
+        ("b + 1", 3.0_f64),
+        ("b - 1", 1.0),
+        ("b * 2", 4.0),
+        ("b / 2", 1.0),
+        ("b ^ 2", 4.0),
+        ("-(-b)", 2.0),
+    ] {
+        for (base, target) in [("a", &variable), ("time", &time)] {
+            let source = expr_of(&format!("{base} ^ ({exponent})"));
+            let rate = simplify(&differentiate(&source, target).unwrap());
+            let vars = HashMap::from([("a".to_string(), 2.0), ("b".to_string(), 2.0)]);
+            let actual = eval(
+                &rate,
+                &EvalCtx {
+                    vars: &vars,
+                    time: 2.0,
+                    programs: None,
+                    depth: 0,
+                },
+            )
+            .unwrap();
+            assert_eq!(
+                actual,
+                power * 2.0_f64.powf(power - 1.0),
+                "{base}^{exponent}"
+            );
+        }
+    }
+    // A stationary exponent is not enough: zero, negative, fractional
+    // and non-finite values still owe the same explicit refusal.
+    for exponent in ["b - 2", "-b", "b / 4", "b / 0", "b + missing", "abs(b)"] {
+        for (base, target) in [("a", &variable), ("time", &time)] {
+            assert_eq!(
+                differentiate(&expr_of(&format!("{base} ^ ({exponent})")), target).unwrap_err(),
+                "cannot differentiate a non-constant exponent",
+                "{base}^{exponent}"
+            );
+        }
+    }
+    for source in ["time ^ time", "time ^ a"] {
+        assert_eq!(
+            differentiate(&expr_of(source), &time).unwrap_err(),
+            "cannot differentiate a non-constant exponent"
+        );
+    }
 }
 
 #[test]
