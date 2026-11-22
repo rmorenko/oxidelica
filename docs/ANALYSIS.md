@@ -96825,3 +96825,25 @@ This is 1 of the last 6 basket names, not a verdict on the other 5.
 No below-900-second desk victim is added by this run. Time arriving first
 does not establish that memory had no effect, and the cap does not check
 the numerical answer. No compiler, floor or model-list change follows.
+
+### m750 quiet basket: Translational HeatLosses meets the memory guard
+
+`Modelica.Mechanics.Translational.Examples.HeatLosses` was stopped by
+our memory guard, not the 25-minute time guard: current footprint 7.0 GB
+against the 6 GB limit, RSS 6.6 GB at the stop. Its whole-process wall is
+
+> =948 s. This is a censored attempt, neither a completion nor a compiler
+> refusal. It therefore belongs with cap bounds, with the memory subtype
+> kept explicit, rather than with completed or refused process costs.
+> The weak >=900-second forecast held only as a lower-bound prediction.
+
+`park/m750_quiet_runs.tsv` records the original log,
+`/tmp/m750/q_Modelica_Mechanics_Translational_Examples_HeatLosses.log`,
+and the exact power-log window: 2026-11-22T00:49:14+01:00 to
+2026-11-22T01:05:02+01:00, zero Sleep/Wake/DarkWake transitions.
+The same frozen binary and annotation path were used, without stop or dt
+overrides, with zero other anchored simulations at launch. The observed
+7.0 GB is the footprint when the polling guard caught it, not a peak for
+an uninterrupted full run. No allocation site or mechanism is established.
+This is 2 of the last 6 names measured, with no new below-900-second
+candidate. No library floor, numerical algorithm or model list changed.
