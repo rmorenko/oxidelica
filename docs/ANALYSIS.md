@@ -97632,3 +97632,11 @@ and `|f|` constant at 0.0160002. ControlCircuit does not. It exhausts the budget
 iterations at t = 0.147 with `|f|` near 6.38, falling by 0.05% a step, and with
 `feedbackA.opAmp.v_in` inside the linear range (-3.84 V after the gain). This is a stall far
 from the root, and it stays in the budget family.
+
+### MoistAir's quiet floor is a declared bound
+
+Run with `--solver bdf` and `--solver rk4`, MoistAir refuses at t = 0.954 because `medium.x_sat`
+went above its declared maximum of 1. Under dopri45 it is a step size underflow at 0.953.
+`x_sat` is 0.973 at 0.95 and rises about 8 per second, so it crosses 1 near 0.9533. The quiet
+floor is the step control meeting that bound. LightningSegmentedTransmissionLine under the same
+two solvers stalls in Newton on `line1.L[101].v` instead, and its cause stays unnamed.
