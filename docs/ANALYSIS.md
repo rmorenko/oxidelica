@@ -97688,9 +97688,16 @@ solver question. Map:
 Stops at 0.170 to 0.172 run. Stops at 0.173, 0.174 and 0.175 refuse with the same five
 `der(...R.w[2])` leaving at the stop time itself, and stops from 0.176 refuse at 0.176
 (`/tmp/m779/gyro_stops.txt`). There is no event near 0.176, and every Newton solve before the
-rebuild converges in three or four iterations at full step. The re-selection is asked for by
-the step control while Newton is healthy, which puts the model in the mid-run rebuild family.
-Map: `park/m779_gyro_map.md`.
+rebuild converges in three or four iterations at full step. A second probe printing where the
+stall is raised and what the monitor read (`/tmp/m779/oxp3`, md5
+c44f4bf90716215803065269fb6c47da) puts it at `dopri.rs:806`, the pivot's selection monitor,
+and not at the step control. At t = 0.17637 the own weight is 0.603 against a best alternative
+of 6.07, under the threshold of 0.15 times the baseline of 0.7071 times the alternative, which
+is 0.644. Stopped at 0.173 the monitor fails at the stop itself, with 0.606 against 0.613. The
+ratio of own weight to alternative falls through about 0.106 near t = 0.173, and the monitor
+is consulted at the points it is asked at, the stop among them. That explains the ladder. The
+model is in the mid-run rebuild family, raised by the relative selection monitor. Map:
+`park/m779_gyro_map.md`.
 
 ### Additions: IMC_Conveyor after the power rule, and DiodeCenterTapmPulse
 
@@ -97698,7 +97705,8 @@ On a binary of e4ac77ce (`/tmp/m779/oxh`, md5 fcb88f4b25259362e66baaa903de3372, 
 8a874bd0), both IMC_Conveyor examples flatten and run their ten steps under `library check
 --only`. The class-side refusal about the power is gone. Run to its stop time of 20 s, the
 Electrical one rebuilds at t = 0.302 and `compile_at` refuses: it cannot differentiate `abs` in
-`aimc.rs.resistor[3].v = ...`. Map: `park/m779_conveyor_after_patch.md`.
+`aimc.rs.resistor[3].v = ...`. The QuasiStatic one runs to 20 s in 678 s under bdf. Map:
+`park/m779_conveyor_after_patch.md`.
 
 DiodeCenterTapmPulse refuses on the ceiling of event density near t = 0.055. The trail holds
 20001 events inside the 9.2e-10 s window and 76 before it. Nearly all of them carry the same
