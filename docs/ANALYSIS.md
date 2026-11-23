@@ -98133,3 +98133,21 @@ branch whose root has just vanished, walks to the corner of the limiter, and fin
 only as large as the amount by which the root vanished. A one-line static model of the multivibrator with the
 root gone by `4e-7` refuses at once with the full model's residual to six digits, while the same model with
 the root gone by `1e-2` runs to the other branch. The Schmitt trigger reaches its switch with `1e-3`.
+
+`ParallelPumpDropOut` runs its ten steps in the corpus, but under a full simulation it is refused at
+`t = 0.38` for a block that does not mention `pipe1.flowPort_b.h`. A print of the event search shows the
+time is the first midpoint of a bisection from `t = 0.36` with a step of `0.04`, started from the flows
+the far end left behind, `-2.5e-12` and `2.2e-12`. Taking the bisection from the step's own start moves
+the refusal to `t = 0.62`, where it is a stage of a step from an accepted point at which the flow is truly
+about `1e-13`. The carrier is the rewrite that gives `semiLinear` an equation at zero flow: it asks
+whether the flow is exactly zero, a flow of `1e-13` takes the outflow branch, and that branch does not
+contain the enthalpy. With the test widened to `|m| <= 1e-9` the full simulation reaches its stop time
+with the pump restarted. The thirteen `FluidHeatFlow` examples keep their lists, and their damped steps
+fall from 96 to 0. A tolerance is a change that adds a definition, so it waits in the park for a pair.
+
+`LossyGearDemo2` is refused on a singular block whose Jacobian has two equal rows, the accelerations of
+the gear and of the bearing friction on one shaft. `LossyGearDemo1`, which runs, has no bearing
+friction, so the carrier is two friction elements on one rigid degree of freedom. The surplus of nine
+equations in `Fourbar1` is the twelve equalities of an orientation kept at a connection that closes the
+loop, where three are owed. `constraint_is_empty` says outright that the residue of three is not yet
+written, so this is a feature not built yet and not a fault.
