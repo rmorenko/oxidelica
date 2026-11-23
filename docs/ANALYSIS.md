@@ -97734,3 +97734,16 @@ best`. The ratios at the last failure run from 0.098 to 0.148. So the hair under
 the three machines above is not general: the SMPM and SMR rows fall to 0.10 to 0.12. The victims
 are flux and stray-inductance currents of the machines (`airGap.psi_mr`, `airGap.psi_ms`,
 `lssigma.i_[2]`). Table: `/tmp/m779/fam_table.txt`.
+
+### Parked: the monitor's factor as a knob
+
+A parked experiment (`park/m779_monitor_factor.md`, binary `/tmp/m779/oxf`, not for main)
+reads the factor of the selection monitor from `OXIDELICA_MONITOR_FACTOR`. Run to each model's
+stop time on one binary, the thirteen rows reach the end 0 times at the default 0.15 and 8
+times at 0.05: IMC_Conveyor, IMC_DOL, IMC_YD, both IMS_Start, MechanicalStructure and
+SMEE_DOL. Both IMC_Transformer models then exhaust the Newton budget at t = 2.0937. The four
+SMPM and SMR rows keep refusing `3 * lszero.i = 0`. The Electrical IMC_Conveyor at 0.05 agrees
+with the independent FundamentalWave machine of the QuasiStatic example to four or five digits
+over 20 s, for instance 146.1658 against 146.1655 rad/s at one second. `library check` runs
+all thirteen at both factors, because its ten steps never reach a rebuild. So the knob moves
+no floor, and no corpus pair, heavy basket or witness has been run on it.
