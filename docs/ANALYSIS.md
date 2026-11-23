@@ -97329,7 +97329,7 @@ residual `1.5000123106506294e-2` at `t = 0.027` on `["opAmp.v_in"]`
 (`/tmp/m774/m773_exact_best.txt` and `.env`), as predicted before the
 run.
 
-## 2026-11-23: m775, the ten-step horizon hides every unnamed refusal
+## 2026-11-23: m775, the ten-step horizon hides twenty unnamed refusals
 
 The corpus judges the run half by ten of a model's steps:
 `ten_steps` in `crates/oxidelica-cli/src/main.rs` sets
@@ -97347,14 +97347,22 @@ that refuse when simulated whole by class name and are absent from the
 `/tmp/m775/only/`. Prediction written before the series: 4 of 33 would
 be reported as run. Outcome: 33 of 33 print
 `example models: 1, of which 1 flatten and 1 run`. The prediction is
-refuted. Table: `park/m775_horizon_blindspot.md`.
+refuted.
 
-So the whole family is a horizon artefact on the corpus side. One name
-first looked like an exception: the notes give
-`LightningSegmentedTransmissionLine` a refusal at t = 0, but that line
-belongs to the wrapper world. Simulated by class (`/tmp/m775/lst.txt`)
-it refuses with step size underflow at t = 0.000531, which is step 531
-of 1e-6, also past the horizon. The horizon is not
+Each name was then simulated whole by class with the same binary
+(`/tmp/m775/cls/`), and that splits the 33 four ways. Twenty refuse
+during the run, at a time the corpus run never reached since it reports
+them as run: those are the horizon. Eleven
+refuse as structurally singular before any step is taken, yet run under
+the corpus: the horizon cannot explain them, and the difference between
+`simulate` by class and `library check --only` before the run is an open
+question of its own. `DemonstrateLightning` runs by class as well, and
+`TestMixingVolumesPressureStates` refuses at t = 0. The note-derived
+times are not to be trusted for this: `LightningSegmentedTransmissionLine`
+carries t = 0 in the notes, which is the wrapper world's line, and refuses
+by class at step 531. Table: `park/m775_horizon_blindspot.md`.
+
+The horizon is not
 changed here: moving it moves the census and the floors of two
 households and waits for Roman's word.
 
@@ -97389,5 +97397,6 @@ at all. A star box turns it into the structural refusal
 same machine with either an ideal closing switch or a current sensor in
 series; a series resistor instead gives the re-selection refusal. The
 two models are one core parting along the supply element. Minimum
-`park/m775_dol_min.mo`, map `park/m775_dol_map.md`. Both refusals at the
-minimum lie at twelve steps or more, past the corpus horizon.
+`park/m775_dol_min.mo`, map `park/m775_dol_map.md`. The re-selection minimum refuses at
+step twelve, past the corpus horizon; the structural one refuses before
+the run.
