@@ -97747,3 +97747,9 @@ with the independent FundamentalWave machine of the QuasiStatic example to four 
 over 20 s, for instance 146.1658 against 146.1655 rad/s at one second. `library check` runs
 all thirteen at both factors, because its ten steps never reach a rebuild. So the knob moves
 no floor, and no corpus pair, heavy basket or witness has been run on it.
+
+A sweep on the same binary gives 0 of 13 at 0.15, 3 at 0.10, 8 at 0.05 and the same 8 at 0.02.
+The end points at 0.02 and 0.05 are identical to the last bit on all seven comparable pairs
+(`/tmp/m779/cmp_005_002.txt`). Below the lowest ratio of the family the monitor never fires,
+and the run is the run of the first build. These eight models therefore need no re-selection
+at all. At 0.10 a rebuild still happens and lands in a build that refuses.
