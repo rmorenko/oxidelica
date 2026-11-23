@@ -98058,7 +98058,8 @@ takes the longer step for every zero column, both models run. A small court of 3
 refusal that names initialization or Newton, and 13 running controls, one binary off and on) found
 those two wins, no victim, and the same refusal text on the other 20. Shrinking the amplifier showed the
 column belongs to its user initial equation `resistor2.i = 0`: without it the copy runs without the key.
-`MoistAir2` keeps a dead `U` held at zero, where a step relative to the value cannot help, and
+`MoistAir2` keeps a dead `U` even with an absolute step of 1000 J, so there the residual does not read `U`
+at all, and
 `SimpleNaturalGas` is right to refuse, since its steady-state start leaves the mass of the volume free.
 The change sits in an area closed to this shift, so it waits in the park with its numbers; no corpus
 pair and no measurement of the heavy models were taken.
