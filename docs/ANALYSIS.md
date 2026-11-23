@@ -97606,3 +97606,13 @@ iteration 31, 1.7e-6 at 55). This is not a divergence. Newton converges linearly
 root, and sixty iterations are not enough to reach the tolerance. The prediction of a
 divergence was refuted. It is not joined with ControlCircuit: no print compares the two.
 Map: `park/m778_edgedbend_map.md`.
+
+### Two genera behind one step-floor message
+
+The same `EVENT_TRAIL` sorts two more models from the list of unnamed refusals.
+DiodeCenterTap2mPulse prints 20018 events, 20002 of them between 0.0066666652 and
+0.0066666680: chatter, like the Inductor. LightningSegmentedTransmissionLine runs at
+0.00053, refuses at 0.0006 and 0.002 at t = 0.000531, and prints no event near that instant,
+like MoistAir. A reading of MoistAir as the saturation boundary was withdrawn after `why`
+showed that neither `max` in the moist-air functions switches near 0.953. Its cause stays
+unnamed. Maps: `park/m778_q120_tail.md`, `park/m778_underflow_map.md`.
