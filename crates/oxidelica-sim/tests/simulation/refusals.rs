@@ -227,3 +227,14 @@ fn a_name_assigned_twice_in_a_tick_is_named_beside_the_one_left_over() {
     );
     assert!(why.contains("`u` is assigned twice"), "{why}");
 }
+
+#[test]
+fn a_clock_operator_with_no_clock_says_so_and_not_unknown_function() {
+    // A bare `Clock()` with no clock to meet leaves `previous` in
+    // continuous code; the refusal names that, not an unknown function.
+    let why = refused(
+        "model M Real x(start = 1, fixed = true); equation when Clock() then x = previous(x) + 1; end when; end M;",
+    );
+    assert!(why.contains("asked outside any clock"), "{why}");
+    assert!(!why.contains("unknown function"), "{why}");
+}

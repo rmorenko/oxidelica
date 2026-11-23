@@ -1223,6 +1223,15 @@ impl SlotTable {
         if name == "der" {
             return err("der() outside a state equation is not supported".to_string());
         }
+        if matches!(
+            operator_name(name),
+            "previous" | "interval" | "firstTick" | "subSample" | "superSample"
+        ) {
+            return err(format!(
+                "`{name}` is asked outside any clock: nothing in this model put the equation \
+                 on one, which is what a bare `Clock()` with no clock to meet leaves behind"
+            ));
+        }
         err(format!("unknown function `{name}`"))
     }
 }
