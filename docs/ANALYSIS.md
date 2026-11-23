@@ -98076,3 +98076,16 @@ so none of the seven outer residuals moves. In `MoistAir2`, moving either volume
 small enough for a derivative never leaves the tolerance of the inner block it disturbs. The longer step
 crosses it for the amplifier and for `MoistAir1`, and not for `MoistAir2`. The acceptance lives in the
 solver, which this shift may not touch, so the reading stays a question for review.
+
+The chain behind `MoistAir2`, walked to its end with print-only probes: a probe of `1e-7` on either
+volume's `U` leaves a pure balance row of the inner block at `1.0e-6` against a pressure near `1.0e5`,
+inside the first clause of its tolerance, so the block returns at once. The longer step stops at
+`1e-5`, the first step that moves anything, and there four rows move; but the slopes read at `h` and at
+`2h` differ by more than a quarter, so the steadiness test resets the column to zero. In `MoistAir1` the
+same step moves two rows and is steady, which is why it runs under the key and `MoistAir2` does not.
+Whether the slope there is truly unsteady or the farther point is still half absorbed was not measured.
+Two smaller models of an isolated star behind ideal closers, one with a zero-sequence inductor, both
+run, so the floating-star family still needs the `FundamentalWave` converter to show itself.
+`PointGravityWithPointMasses2` spends the quaternion of its free body at the first reductions and
+joins the constraint family; `RollingWheel` does not, its victims being the positions of the joint
+frame and of the body, after which their velocities equate two dummies.
