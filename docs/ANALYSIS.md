@@ -97589,3 +97589,20 @@ MoistAir also holds its instant: it runs at 0.9 and 0.95 and refuses at t = 0.95
 block. The fastest-growing column is `medium.x_sat` (0.973 at 0.95), on its way to the pole of
 the saturation formula. The two models share one refusal text, but they are two different
 genera. Map: `park/m778_underflow_map.md`.
+
+### Additions: S4 below the edge, and EdgedBend
+
+S4 at `--stop 0.025` under `MODE_PROBE` prints two builds and no branch in either. The four
+names of the refusal's "4 arrived" (the derivatives of `aimc.airGap.spacePhasor_s.i_[2]`,
+`i_ss[2]`, `i_ms[2]` and `i_ms[1]`) appear nowhere in the first build. In the second they
+appear twelve or thirteen times each, three of them as inner assignments of the torn block
+that now begins with `aimc.inertiaRotor.a`. The new plan solves them rather than integrating
+them. Map: `park/m778_s4_plan.md`.
+
+EdgedBend runs at 0.01 and 0.1 and refuses at 0.5 and 1.0, both at t = 0.5, on
+`fitting2.V_flow` and `fitting2.dp`. `NEWTON_TRAIL` shows `V_flow` exactly zero and `dp`
+changing sign every iteration while `|f|` falls by a steady factor of about 0.84 (1.1e-4 at
+iteration 31, 1.7e-6 at 55). This is not a divergence. Newton converges linearly at a flat
+root, and sixty iterations are not enough to reach the tolerance. The prediction of a
+divergence was refuted. It is not joined with ControlCircuit: no print compares the two.
+Map: `park/m778_edgedbend_map.md`.
