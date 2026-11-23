@@ -97711,3 +97711,17 @@ Electrical one rebuilds at t = 0.302 and `compile_at` refuses: it cannot differe
 DiodeCenterTapmPulse refuses on the ceiling of event density near t = 0.055. The trail holds
 20001 events inside the 9.2e-10 s window and 76 before it. Nearly all of them carry the same
 diode states, which is the same kind as 2mPulse. Map: `park/m779_diode_mpulse.md`.
+
+### Who asks for the rebuild
+
+The same probe, extended to print the call site of every stall and the monitor entry that
+fails (`/tmp/m779/oxp4`), shows that all five rebuilds of this chapter are raised at
+`dopri.rs:806`, by the pivot's selection monitor, with no change of mode. The entries are named
+in `park/m779_rebuild_trigger.md`. In S4 and the Electrical IMC_Conveyor the victim is
+`aimc.airGap.psi_ms[1]` or `[2]`, with an own weight of 108.397 in both, against
+`aimc.inertiaRotor.phi` at 731.68 and 733.84. In MechanicalStructure the victim
+`b4.body.w_a[3]` weighs 1.0000000000 against `r4.phi` at 6.674. The ratios are 0.1481, 0.1477
+and 0.1498. Their baselines are above one, so the level is capped at one, and each ratio
+stands a hair under the fixed factor of 0.15 rather than falling through it. A drift of a
+percent decides these rebuilds. GyroscopicEffects is the only one of the five that falls
+through its own relative level, at 0.0993 against a baseline of 0.7071.
