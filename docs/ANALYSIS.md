@@ -97786,3 +97786,9 @@ the source, a SignalVoltage driven by `Machines.Utilities.VfController`. Its amp
 `if abs(u) < fNominal then (abs(u)/fNominal)^pow else 1`. The rebuilt selection needs the time
 derivative of the stator voltage, which the first build did not, and that derivative reaches
 `abs`. Map: `park/m779_conveyor_after_patch.md`.
+
+ForceAndTorque is the monitor's too, with the rate `body.body.w_a[1]` at 92.9 against the angle
+`revolute2.phi` at 773.4, a ratio of 0.120. IMC_InverterDrive is not. Its eight stalls up to
+1 ms are all changes of mode, raised every 0.125 ms by the inverter's switching at
+`bdf.rs:463`, `bdf.rs:493` and `dopri.rs:761`, with no failure of the monitor, which is why
+the factor does not move it. Maps: `park/m779_rebuild_trigger.md`.
