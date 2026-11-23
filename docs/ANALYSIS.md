@@ -97248,3 +97248,83 @@ not supply an identical-input comparison at the failure time. Thus
 neither a purely local sum effect nor accumulated microscopic drift
 has been established as the complete cause. No solver, Jacobian or
 dead-column safeguard is changed on this evidence.
+
+### m773: a one-unknown Schmitt refusal and the Multivibrator transfer
+
+The already integrated parameter-power patch and URL update were not
+reapplied. This diagnostic uses clean `62cce3ce`, release binary
+`/tmp/m773/ox`, MD5 `3bf6186ff37fedfe17cebdc6ea953710`. The full
+InvertingSchmittTrigger reproduces the inherited refusal verbatim in
+`/tmp/m773/full.txt`, witnessed by `full.env`: Newton cannot lower the
+residual of `opAmp.v_in` at 0.027 seconds, with residual
+`1.5000123106506294e-2`.
+
+Removing the output sensor, presentation annotations and parameter
+indirection leaves that complete refusal unchanged (`circuit.txt` and
+`circuit.env`). Replacing the amplifier and resistor divider by scalar
+equations reduces it further. The nine-line
+`park/m773_schmitt_min.mo` has one unknown, still named `opAmp.v_in`,
+and reproduces the time and refusal family, but its residual is scaled
+to `1.0000082071164355e-3`. It is not an exact replay of the full
+model. The measured reduction ladder and its limits are in
+`park/m773_schmitt_map.md`.
+
+Existing Newton tracing preserves each corresponding untraced refusal.
+`FullSchmittTrail.txt` ends at `v_in=-0.001000008207102135` and
+`SchmittNamedOneTrail.txt` at `-0.0010000082071164752`, on the negative
+saturation corner. Both descend with step fractions
+`9.765625e-4` and `1.52587890625e-5`, then fail to descend at
+`9.5367431640625e-7`. Each trace has its own command, working-directory
+and binary-checksum witness beside it.
+
+The reduced equation is
+`x = clip(15000*x, -15, 15)/15 - u(t)`, where `u(0.027)=-1`.
+There is a positive saturated root `x=2`. Continuing the negative
+saturated branch instead gives `x=0`, outside that branch. Thus the
+observed corner trap is not evidence that the equation lacks a root.
+A six-line constant-input replay, starting at `x=-0.5`, reproduces the
+same refusal family at time zero (`SchmittReplay.txt` and `.env`).
+This isolates the branch-transition difficulty without a circuit or
+an integration history. It does not establish a permissible root-jump
+rule for the solver.
+
+The same reduction recipe was tested on Multivibrator rather than
+inferred from its error wording. The full model reproduces its inherited
+refusal at `0.09167154645736529`, residual
+`1.136926018218798e-6`, in `FullMultivibrator.txt` and `.env`.
+`park/m773_multivibrator_min.mo` retains the scalar amplifier, the
+divider `x=y/2-c` and the capacitor equation
+`der(c)=(y-c)/(1000*C)`. It refuses on the same unknown at
+`0.09167154542039135`, residual `3.975540314186815e-7`
+(`MultivibratorScalar.txt` and `.env`). The approximately
+`1.04e-9` second difference and changed residual preclude calling this
+an exact replay.
+
+Both Multivibrator trails approach the opposite corner, `+0.001`,
+and preserve their own untraced refusal text. The common measured
+structure is scalar positive feedback through a saturating amplifier,
+not an assertion that every Newton-direction refusal has this cause.
+No solver, Jacobian, safeguard, library, floor or dependency changed.
+No corpus count moved because no compiler change was made, and these
+small reproductions are not corpus wins. No new corpus or heavy
+measurement is claimed.
+
+The noninverting `SchmittTrigger` was measured with the same binary
+(md5 `3bf6186ff37fedfe17cebdc6ea953710`). The full model reproduces its
+inherited refusal on the block `["opAmp.out.v", "vIn.p.i", "r2.p.i"]` at
+`t = 0.027`, residual `1.6000222439311648e-2` (`FullNoninverting.txt`
+and `.env`). The scalar reduction by the same recipe refuses on the one
+unknown `["opAmp.v_in"]` at `t = 0.027`, residual
+`1.000013900482278e-3` (`NoninvertingScalar.txt` and `.env`). A third
+OpAmps model therefore reduces to the same scalar form; this was
+measured, not inferred.
+
+The exact-replay line holds 14 probes in `/tmp/m773/exact/`, each with
+its environment witness. `inline_amp` and `inline_wave` reproduce the
+full model's residual `1.5000123106506294e-2` exactly, with the holder
+`opAmp.v_in` and the same step threshold `9.5367431640625e-7`: the exact
+replay the map lacked. The last probe, `exact_best`, was run by the next
+shift with the same binary and gave the same refusal to the digit,
+residual `1.5000123106506294e-2` at `t = 0.027` on `["opAmp.v_in"]`
+(`/tmp/m774/m773_exact_best.txt` and `.env`), as predicted before the
+run.
