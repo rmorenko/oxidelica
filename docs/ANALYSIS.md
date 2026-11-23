@@ -98038,3 +98038,11 @@ does not descend, the wall the parked Levenberg-Marquardt stack took. `TwoPhaseW
 calls `tsat` at zero pressure at the start, like its extended sibling. And 37 entries of the refused
 list are parts caught by the example filter, with the right refusal each: parameters without a
 value, open connectors, open inputs. Every one of the 131 names in the list now has a probe behind it.
+
+### The census on the merged head
+
+The census on 0b55756d prints 986 flatten and 855 run, 867 and 806 among the runnable examples, the
+counts before the merge. The 131 models refused in the run half are the same names as before, and so
+are the 40 that do not flatten. The rows stay at 20 and 27 and move only in wording, where the two
+patches meant them to: the two depth rows now carry the root of their chain, and the one
+`unknown function` row became the row for a clock operator with no clock.
