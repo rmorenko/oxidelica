@@ -97950,3 +97950,20 @@ branch of an if-equation that holds at the start: `park/m781_TwoEnds.mo` reprodu
 word for word in 29 lines. Two leave a node floating between switches that are off. Three Media
 tests trip bounds that the library itself declares, among them `dddX` typed as `Density` with
 `min = 0`. The table is in `park/m781_families.md`.
+
+### Two reproductions shrunk from the library
+
+Two of the families above now have a model small enough to hand over. Each was shrunk from the
+library rather than grown from scratch, because the synthetic models written first all ran:
+three for the floating star and two for the branch structure.
+
+`park/m781_IMS_M.mo` and `park/m781_IMS_M3.mo` are `IMS_Start_Polyphase` without its
+three-phase twin, and they differ only in the two phase counts. At five phases the model runs. At
+three it is refused at `t = 0` as underdetermined, with a null vector made of derivatives:
+`der(airGap.V_mss)` against the derivatives of the stator currents, with the stator open through
+the closer's off conductance. Three of the cuts made along the way changed the topology, by
+leaving the rotor star ungrounded, and are recorded as invalid rather than as evidence.
+
+`park/m781_TwoEnds.mo` holds two tanks and one pipe in 29 lines. It is refused word for word as
+`TanksWithOverflow` is, because in the starting branch both ends write `m_flow = 0` and the two
+pressures are left with one relation.
