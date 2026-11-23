@@ -2274,3 +2274,17 @@ fn homotopy_flattens_to_its_actual_argument() {
         );
     }
 }
+
+#[test]
+fn a_refusal_for_depth_names_the_root_and_not_only_the_leaf() {
+    // Forty `if`s inside one another pass the ceiling on expression depth.
+    // The node at the ceiling is `time`, a leaf; a reader needs the root.
+    let mut body = String::from("time");
+    for i in 0..40 {
+        body = format!("if time >= {i} then {i} else {body}");
+    }
+    let source = format!("model M\n  Real x;\nequation\n  x = {body};\nend M;\n");
+    let why = parse_model(&source).unwrap_err().to_string();
+    assert!(why.contains("nested deeper"), "{why}");
+    assert!(why.contains(", under if time >= 39"), "{why}");
+}

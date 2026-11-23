@@ -23,6 +23,31 @@ pub(super) fn expand(
     imports: &[(String, String)],
     depth: usize,
 ) -> Result<Value, String> {
+    if depth == 0 {
+        // The refusal at the ceiling names the node it stood on, which is a
+        // leaf of the deep chain; the root is what a reader can find.
+        return expand_at(expr, shapes, registry, scope, imports, 0).map_err(|why| {
+            match why.contains(NO_BOTTOM)
+                && why.contains("nested deeper")
+                && !why.contains(", under ")
+            {
+                true => format!("{why}, under {}", sketch(expr)),
+                false => why,
+            }
+        });
+    }
+    expand_at(expr, shapes, registry, scope, imports, depth)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn expand_at(
+    expr: &Expr,
+    shapes: &Shapes,
+    registry: &HashMap<&str, &ClassDef>,
+    scope: &str,
+    imports: &[(String, String)],
+    depth: usize,
+) -> Result<Value, String> {
     crate::work::tick(crate::work::Step::Expanded);
     if depth > MAX_DEPTH {
         // A last resort before refusing, the same one `resolve` takes,
