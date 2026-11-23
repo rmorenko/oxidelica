@@ -98063,3 +98063,16 @@ at all, and
 `SimpleNaturalGas` is right to refuse, since its steady-state start leaves the mass of the volume free.
 The change sits in an area closed to this shift, so it waits in the park with its numbers; no corpus
 pair and no measurement of the heavy models were taken.
+
+### Why the column is dead: the inner block absorbs the probe
+
+A tag on each finite-difference probe of the outer initialization step shows what moves. In
+`AmplifierWithOpAmpDetailed`, moving `opAmp.v_in` by `1e-7` starts its one-unknown inner block at a
+residual of `5.0e-12`, and the block accepts that point at its first Newton iteration without a step,
+so none of the seven outer residuals moves. In `MoistAir2`, moving either volume's `U` starts the
+13-unknown inner block at `1.0e-6`, and it is accepted the same way, while the mass columns start it at
+`3.9e-2` and `3.6` and move five rows of six. Under the longer step the `U` probes start the block at
+`1e-4` and `2e-4` and are still accepted. One mechanism sits under the three refusals: an outer probe
+small enough for a derivative never leaves the tolerance of the inner block it disturbs. The longer step
+crosses it for the amplifier and for `MoistAir1`, and not for `MoistAir2`. The acceptance lives in the
+solver, which this shift may not touch, so the reading stays a question for review.
