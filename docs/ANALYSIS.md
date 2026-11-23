@@ -98098,3 +98098,10 @@ in it. A floor of `1e-10` on the change a row must show before its steadiness is
 the longer step, lets `MoistAir2` run. A court of 96 models, one binary off and on, went from 74 to 77
 running: exactly the amplifier and both `MoistAir` models, with no victim, running 621 s against 630 s
 in a parallel pair. The patch waits in the park; the area is closed to this shift.
+
+The same two keys were then judged on the rest of the run refusals and on twelve of the dear models,
+one binary off and on. Of the 44 run refusals that name neither initialization nor Newton, none moved:
+work and refusal rows were equal byte for byte. The twelve dear models kept their seven runs and
+their work to the digit, 634 s against 622 s of running in a parallel pair. The floor alone, without
+the longer step, wins none of the 22 initialization refusals, so both parts are needed. Over 152
+models the form wins three and loses none; the heavy models were not measured.
