@@ -97640,3 +97640,7 @@ went above its declared maximum of 1. Under dopri45 it is a step size underflow 
 `x_sat` is 0.973 at 0.95 and rises about 8 per second, so it crosses 1 near 0.9533. The quiet
 floor is the step control meeting that bound. LightningSegmentedTransmissionLine under the same
 two solvers stalls in Newton on `line1.L[101].v` instead, and its cause stays unnamed.
+
+The line's refusal at t = 0.000531 comes 19.5 ms before the lightning impulse, which the model
+fires at 20 ms. The cause is the 380 kV source charging the two hundred segments, during which
+every power column grows by more than half in thirty microseconds. It is not the impulse.
