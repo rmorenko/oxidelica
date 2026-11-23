@@ -97904,3 +97904,34 @@ does not recover. `TestJunctionTraceSubstances` is NaN at its start point. `Dyna
 solves every inner block in one or two steps, while the outer initialization drifts and does not
 settle. `TestSuddenExpansion` and `CompositeStep2` are refused correctly. Every model that refuses
 is now named in a row map or a family map. Maps: `park/m781_row2.md` to `park/m781_row6.md`.
+
+### How each run refusal ends, from its own Newton trail
+
+All 131 models that flatten and do not run were run alone under `simulate` with the Newton
+trail, four at a time under a cap of 8 GB and 6 minutes. None reached the cap. A classifier read
+the last solve of each trail, and its table is in `park/m781_run_refusal_classes.tsv`. Eighty-one
+models print no Newton step at all, so they are refused by structure before any solve. Ten fail on
+the first step of a solve, which goes to NaN or jumps by more than a factor of a million: the
+five Fluid pipe models, `TestTemperature1`, `MeasuringTemperature`, `TestJunctionTraceSubstances`,
+`Spice3.Examples.Nand` and `RollingWheelSetPulling`/`Driving`. The two `R134a` models leave the
+valid pressure range on the second step. Five stall above `1e-6`. The rest converge and are then
+refused by a check on the converged point, or meet a structural refusal after initialization.
+In all, the solver itself is the wall for 19 of the 131. The written prediction of 15 to 35
+first-step failures was refuted at 10. The trail of `library check --only` stops early for a
+refusal at `t > 0`, while `simulate` reaches the refused instant, so a refusal at `t > 0` is
+traced with `simulate`. A finer output grid (`--dt 1e-4`) makes `SeriesPipes1` fail sooner, at
+`2.3e-8`, so the instant of failure is incidental and is not set by the grid. Maps:
+`park/m781_cross_rows.md` and `park/m781_row7.md` to `park/m781_row11.md`.
+
+### Three patches built for the park
+
+Three patches were built for the park and none of them is merged. `park/m781_depth_root.patch`
+appends the root of the chain to the depth refusal. `Digital.Examples.RAM` then reads
+`... time, under if time >= addr_1.t[80] ...`. The FFT models are not covered, because their
+chain comes from an unrolled algorithm. On the two dearest flatteners the flattening work stays
+equal to the digit and the time stays inside the off band. `park/m781_bare_clock_B.patch` has the
+code compiler name a clock operator that is asked outside any clock, in place of
+`unknown function previous`. A court of all 133 clocked examples shows equal lists and equal work.
+`park/m781_bare_clock.patch` does the same in flattening, but it moves `SpeedControl` into the
+flatten refusals and would lower the flatten floor by one, so variant B is the one to take. Both
+text patches come with a test that fails without them. The heavy basket was not measured.
