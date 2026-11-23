@@ -97983,3 +97983,15 @@ purely electrical copy with inductors, a zero-sequence inductor and the same clo
 FundamentalWave converter is part of the cause. Along the way, `IMC_DOL` was found to run under
 `library check` and to be refused under `simulate`. The two entry points do not disagree: the
 check runs ten steps, and the refusal comes at the closer's event at `t = 0.1`.
+
+### Why five phases pass where three are refused
+
+The victim lists of `Probe.Open3X` (star, refused) and `Probe.Open3Dl` (delta, runs) are equal but
+for one reduction. In the star, `tb.starpoint.i = 0` demotes the stator's `zeroInductor.i0`.
+`Probe.Open5n` demotes the same state on another row: `zeroInductor.m * i0 = 0`, which the search
+in `hidden.rs` writes out as standing in for the star's balance. With
+`OXIDELICA_NO_HIDDEN_CONSTRAINT=1` the five-phase model is refused as well. The search runs only
+when the matching succeeds (`compile.rs`, around line 1998). A three-phase star fails the
+matching at its own row first, so reduction takes that row and the search is never asked. Running
+the search before a reduction on such a subset would change which states are kept, so it is a
+question for a corpus pair, and nothing was changed.
