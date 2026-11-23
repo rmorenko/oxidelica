@@ -98046,3 +98046,19 @@ counts before the merge. The 131 models refused in the run half are the same nam
 are the 40 that do not flatten. The rows stay at 20 and 27 and move only in wording, where the two
 patches meant them to: the two depth rows now carry the root of their chain, and the one
 `unknown function` row became the row for a clock operator with no clock.
+
+### A dead column in the outer initialization step
+
+A print-only probe on the refusal path of the outer initialization Newton loop names the free column
+and its nonzero rows. In `AmplifierWithOpAmpDetailed` the free column is `opAmp.v_in` and in
+`ReferenceAir.MoistAir1` it is `volume.U`; in both, no row of the finite-difference Jacobian moves with
+it. The longer step that the loop already takes when a row is swapped (up to `1e-3`, kept only if twice
+the distance gives the same slope) had not switched on, because nothing was swapped. Behind a key that
+takes the longer step for every zero column, both models run. A small court of 35 models (every run
+refusal that names initialization or Newton, and 13 running controls, one binary off and on) found
+those two wins, no victim, and the same refusal text on the other 20. Shrinking the amplifier showed the
+column belongs to its user initial equation `resistor2.i = 0`: without it the copy runs without the key.
+`MoistAir2` keeps a dead `U` held at zero, where a step relative to the value cannot help, and
+`SimpleNaturalGas` is right to refuse, since its steady-state start leaves the mass of the volume free.
+The change sits in an area closed to this shift, so it waits in the park with its numbers; no corpus
+pair and no measurement of the heavy models were taken.
