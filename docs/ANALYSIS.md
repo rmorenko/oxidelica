@@ -97676,8 +97676,11 @@ Adding `line2.i[1] = 0` to the initial equations of an out-of-tree copy leaves t
 unchanged: step size underflow at t = 0.000531, the same as the untouched copy. Under the event
 and Newton trails there are events only at t = 0 and 6.4e-17. The stall is a block of one
 unknown at v = 96.86 where `|f|` creeps from 3.19e-8 to 2.91e-8 while the damping falls to
-9.5e-7, against loudest terms of 3.87e5. That is a ratio of 7.5e-14, at the rounding floor.
-How the solver accepts such a residual is a solver question and stays parked. Map:
+9.5e-7, against loudest terms of 3.87e5 and a reach of 7.75e5. The ratio 7.5e-14 looks like
+rounding, but counted in units of the last place it is exactly 500 ulp of the loudest term and
+250 ulp of the reach, while the floor test accepts 4. So the residual stands well above what
+the solver may call arithmetic, and it is a stall rather than a floor. This stays parked as a
+solver question. Map:
 `park/m779_lightning_init.md`.
 
 ### GyroscopicEffects does not hold its instant
