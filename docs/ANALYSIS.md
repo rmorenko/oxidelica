@@ -97539,3 +97539,53 @@ refuses at 0.4, 0.42, 0.45, 0.48 and 0.5, always at t = 0.37999999996610667. `ra
 -0.025 at 0.39). The refusal at 0.38 switches on only once the horizon contains that
 crossing, and the flow was already negative well before 0.38 (map
 `park/m777_pump_tail.md`).
+
+## m778: the back-step that starts past the crossing, and two kinds of underflow
+
+Binary `/tmp/m773/ox`, md5 3bf6186ff37fedfe17cebdc6ea953710; every run in `/tmp/m778` has
+its `.env` witness, and the predictions were written before the series
+(`/tmp/m778/prediction_p1p2.md`, `prediction_p3p4.md`). Only ready keys were used.
+
+### TwoMass and the pump are one mechanism
+
+`OXIDELICA_MODE_PROBE=1` on TwoMass shows the port law of `pipe1` branching on
+`pipe1.flowPort_a.m_flow`, an unknown of the torn block itself ("of the block:
+pipe1.flowPort_a.m_flow; family B"). `OXIDELICA_NEWTON_TRAIL=1` at `--stop 1.0` shows the
+step converging at t = 0.7331798105665615 with both loop flows negative (-0.3318 and
+-0.1659), past the zero crossing. The solver then steps back to t = 0.7065899 and to
+t = 0.6932949526129243, and starts Newton there from a vector whose flows are still negative.
+The branch that vector selects carries no port enthalpy, and the block is judged mute at a
+time before the crossing. At `--stop 0.7` the same shape: converged at 0.7 with flows near
+1e-12, then a start at t = 0.6899999999808559. The m777 reading that TwoMass is not the pump
+is withdrawn: the refusal belongs to the start vector, not to the accepted trajectory.
+
+ParallelPumpDropOut does the same. `OXIDELICA_EVENT_TRAIL=1` at 0.39 prints events at 0.36
+and 0.38. At 0.4 it prints only 0 and 0.2, then the refusal at t = 0.37999999996610667.
+`NEWTON_TRAIL` shows the solver reaching t = 0.4, converging there with zero flow, and
+restarting Newton at 0.38 from that vector. `OXIDELICA_NO_SAMPLE_AT_CROSSING=1` refuses the
+same way. The prediction of an extra event at 0.4 was refuted in form: the longer horizon
+prints fewer events, not more. Maps: `park/m778_twomass_map.md`, `park/m778_pump_probe.md`.
+This is material for question 121.
+
+### MechanicalStructure: the ready keys do not see the second build
+
+`MODE_PROBE` and `DEAD_PROBE` together at `--stop 0.53` print the first build's torn block
+(31 residuals, no branch at all) and no dead column: the second build is refused structurally
+before any Newton, and `DEAD_PROBE` only fires inside one. The prediction of a dead column was
+refuted. Parked: seeing that plan needs a new print, which this round forbids. Map:
+`park/m778_ms_plan.md`.
+
+### The underflow pair: chatter and a smooth blow-up
+
+InductorWithHysteresis holds its instant: the class refuses at t = 0.004993 for every stop
+from 0.006 to 0.05, and the wrapper refuses at 0.007424 on the same binary (so the m749
+difference is not a binary artefact). `EVENT_TRAIL` names the difference: the class chatters
+with 20008 events at t = 0.0049925721177279, while the wrapper crosses that instant with one
+event and chatters 20003 times at 0.007424. Up to 0.0049 the two worlds agree to about 1e-4
+relative, so the instants differ by where a roundoff-size drift tips a hysteresis switch.
+
+MoistAir also holds its instant: it runs at 0.9 and 0.95 and refuses at t = 0.953 for 0.96,
+1.0 and 1.5. On the refusing side there is no event near the instant and there is no Newton
+block. The fastest-growing column is `medium.x_sat` (0.973 at 0.95), on its way to the pole of
+the saturation formula. The two models share one refusal text, but they are two different
+genera. Map: `park/m778_underflow_map.md`.
