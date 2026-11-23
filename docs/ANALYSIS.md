@@ -97995,3 +97995,46 @@ when the matching succeeds (`compile.rs`, around line 1998). A three-phase star 
 matching at its own row first, so reduction takes that row and the search is never asked. Running
 the search before a reduction on such a subset would change which states are kept, so it is a
 question for a corpus pair, and nothing was changed.
+
+### Two wording refusals merged, and the narrow hidden retake
+
+Two refusal texts from the park went in, each with a test that is red without it: a bare `Clock()`
+now says that a clock operator found no clock instead of calling it an unknown function (4ac1911b),
+and a refusal for nesting depth names the root of the array chain and not only its leaf (0b55756d).
+Neither moves a count by design; the census on the new head is the judge of that, and its result is
+recorded below once it has printed.
+
+The narrower form of the hidden-constraint search was built behind `OXIDELICA_HIDDEN_ON_MATCH_FAIL`:
+the search of `hidden.rs` is asked once, as a retake, after the matching has failed, instead of always
+before a reduction. The prediction was written first: `Probe.Open3X` would run, and the eleven victims
+of the earlier pair would be untouched because their matching succeeds. Both halves were refuted, with
+one binary off and on. The retake fires on `Open3X` and writes `im.inertiaStator.w = 0`, and the model
+is still refused with the same underdetermined loop. `IMC_DOL_Polyphase` and `IMS_Start_Polyphase` are
+refused in both halves with equal work. Four of the eleven earlier victims are lost again:
+`AsymmetricalLoad`, `Rectifier6pulse`, `Rectifier12pulse` and `TransformerTestbench`, all refused as
+structurally singular on `transformer.l2sigma`; their matching fails too, so the retake reaches them.
+The other seven are equal to the point and the Newton step. With victims named and no win, the form is
+closed and no corpus pair was run.
+
+### Open tails of the run refusals, probed
+
+`IMC_DOL_CommonLeakage` is refused at its sixteenth reduction on a magnetic potential identity between
+two stator converters, with no victim left. The reach of that last reduction holds every stator flux,
+the rotor angle and `zeroInductor.i0`, all with weight zero: the zero sequence is in the subset, which
+the victims alone could not show. `SMPM_ResistiveBraking` belongs to the same family from the other
+side: the search writes `3 * smpm.lszero.i = 0`, and that row is the one left unmatched, because the
+states it would demote have been spent on inertias and air-gap flux first.
+
+`AmplifierWithOpAmpDetailed` is refused by the outer initialization Newton loop (`compile.rs`, near
+line 10349). That loop prints no trail, so the residual, the skipped row and the free column per
+iteration are not visible; this is an instrument gap, named and not filled. In
+`ReferenceAir.MoistAir1` the medium temperature is not defined through an inverse, as predicted: the
+internal energy is a forward function of pressure and temperature through indexed calls of
+array-valued functions such as `airBaseProp_pT(p, T)[3]`, so the path from the start temperature to
+`U` exists in the equations and the question is the Jacobian across such a call.
+
+`BranchingPipes3` dies in the run after 1209 points on a loop of pipe pressures whose Newton direction
+does not descend, the wall the parked Levenberg-Marquardt stack took. `TwoPhaseWater.BaseProperties`
+calls `tsat` at zero pressure at the start, like its extended sibling. And 37 entries of the refused
+list are parts caught by the example filter, with the right refusal each: parameters without a
+value, open connectors, open inputs. Every one of the 131 names in the list now has a probe behind it.
