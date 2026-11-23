@@ -97880,3 +97880,27 @@ which is linear convergence onto a degenerate root and not a bad start. After th
 to `3.75e-8`, Newton diverges at its first iteration and is refused after 60. This is the same
 breed as the Spice3 capacitance floor, met inside a Newton block. The solver is closed to this
 work, so no patch was built. Map: `park/m781_top_row.md`.
+
+### The movers under the monitor factor, one model at a time
+
+The three models whose run half moved most between the halves of the m780 pair were run alone,
+off, on and off again, with `/tmp/m779/oxf` (md5 c899e03c95dc3f4fbbb7a52632487ddc).
+`MovingActuatedDrive` runs and takes 20389, 10658 and 20486 ms. Its work moves too, from 212
+points and 353 Newton steps to 203 and 339, so the saving is real. `RevoluteConstraint` takes
+70745, 79842 and 83351 ms and `UniversalConstraint` 47544, 48709 and 49423 ms. Both are refused
+after 7 points and 7 Newton steps in every half, and the on half lies inside the spread of the
+two off halves. Their move in the pair was drift. Map: `park/m781_factor_movers.md`.
+
+### Down the queue with the Newton trail
+
+Rows below the top were probed one model at a time with the Newton trail, and each model now has
+a map. `ThrottleControl.SpeedControl` reports an unknown `previous`. The message is raised in the
+catch-all of the code compiler, `crates/oxidelica-sim/src/code.rs:1226`, but the cause is a clock
+with no base, so the text names the wrong thing. The depth refusal of `Digital.Examples.RAM`
+prints the node it reached at the ceiling, `time`, and not the root of the deep chain.
+`GearType2` and `Spice3BenchmarkDifferentialPair` each leave a dead column at `t = 0`.
+`MeasuringTemperature` goes from a residual of 1.6e6 to NaN on its first full Newton step and
+does not recover. `TestJunctionTraceSubstances` is NaN at its start point. `DynamicPipeClosingValve`
+solves every inner block in one or two steps, while the outer initialization drifts and does not
+settle. `TestSuddenExpansion` and `CompositeStep2` are refused correctly. Every model that refuses
+is now named in a row map or a family map. Maps: `park/m781_row2.md` to `park/m781_row6.md`.
