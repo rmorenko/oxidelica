@@ -97756,3 +97756,17 @@ and the run is the run of the first build. These eight models therefore need no 
 at all. At 0.10 a rebuild still happens and lands in a build that refuses.
 GyroscopicEffects at 0.02 passes 0.176 and refuses the same merge at t = 0.317, because its
 level is its own baseline of 0.7071 and not the fixed factor.
+
+### The lightning stall is a floor after all, but not the one the test asks about
+
+The block of the stall (`/tmp/m779/li_mode.txt`) is the residual
+`-line1.L[101].v/L + line2.L[1].v/L` with L = 2.5e-4 H, and its inner assignments build both
+inductor voltages as differences of node potentials. At t = 0.00053 the potentials stand near
+32.7 kV while the voltages are 91.5 V. One ulp of 32.7e3 is 3.638e-12, which divided by L is
+1.4552e-8. The stalled residual, 2.9103830456733704e-8, is exactly twice that, and the trail
+prints 1.4551915228366852e-8 itself 219940 times. So the residual is the rounding of the node
+potentials carried through the inner differences. Neither the loudness of the residual's own
+terms nor the reach through the Jacobian sees it, and both put the floor about sixty times
+lower. The earlier withdrawal was right that this is not the floor the test measures, and
+wrong that it is no floor. How a floor could be carried through inner assignments is a solver
+question and stays parked (`park/m779_lightning_init.md`).
