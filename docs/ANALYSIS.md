@@ -97742,7 +97742,8 @@ reads the factor of the selection monitor from `OXIDELICA_MONITOR_FACTOR`. Run t
 stop time on one binary, the thirteen rows reach the end 0 times at the default 0.15 and 8
 times at 0.05: IMC_Conveyor, IMC_DOL, IMC_YD, both IMS_Start, MechanicalStructure and
 SMEE_DOL. Both IMC_Transformer models then exhaust the Newton budget at t = 2.0937. The four
-SMPM and SMR rows keep refusing `3 * lszero.i = 0`. The Electrical IMC_Conveyor at 0.05 agrees
+SMPM and SMR rows keep refusing `3 * lszero.i = 0`, after rebuilds that still happen at 0.02,
+where SMR_DOL's ratios fall to 0.0196 and 0.017. The Electrical IMC_Conveyor at 0.05 agrees
 with the independent FundamentalWave machine of the QuasiStatic example to four or five digits
 over 20 s, for instance 146.1658 against 146.1655 rad/s at one second. `library check` runs
 all thirteen at both factors, because its ten steps never reach a rebuild. So the knob moves
@@ -97753,3 +97754,5 @@ The end points at 0.02 and 0.05 are identical to the last bit on all seven compa
 (`/tmp/m779/cmp_005_002.txt`). Below the lowest ratio of the family the monitor never fires,
 and the run is the run of the first build. These eight models therefore need no re-selection
 at all. At 0.10 a rebuild still happens and lands in a build that refuses.
+GyroscopicEffects at 0.02 passes 0.176 and refuses the same merge at t = 0.317, because its
+level is its own baseline of 0.7071 and not the fixed factor.
