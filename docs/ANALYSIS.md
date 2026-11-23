@@ -97616,3 +97616,13 @@ DiodeCenterTap2mPulse prints 20018 events, 20002 of them between 0.0066666652 an
 like MoistAir. A reading of MoistAir as the saturation boundary was withdrawn after `why`
 showed that neither `max` in the moist-air functions switches near 0.953. Its cause stays
 unnamed. Maps: `park/m778_q120_tail.md`, `park/m778_underflow_map.md`.
+
+### InvertingSchmittTrigger and Multivibrator park on the limiter's corner
+
+Under `NEWTON_TRAIL` both drive `opAmp.v_in` to the corner of the output clamp
+`smooth(0, if V0*v_in > vps then vps else if V0*v_in < vns then vns else V0*v_in)` with
+`V0 = 15000`. The Schmitt trigger reaches -0.0010000082 with `|f|` fixed at 0.0150001 at
+t = 0.027. The multivibrator reaches 0.0010000000010 with `|f|` fixed at 1.137e-6. No event is
+printed at either instant, because `smooth(0, ...)` raises none. The two refusals that the
+earlier notes declined to join now share a print: Newton parks on the kink of the clamp with
+a residual that does not vanish there. Map: `park/m778_opamp_corner.md`.
