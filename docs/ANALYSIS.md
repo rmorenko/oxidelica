@@ -98105,3 +98105,10 @@ work and refusal rows were equal byte for byte. The twelve dear models kept thei
 their work to the digit, 634 s against 622 s of running in a parallel pair. The floor alone, without
 the longer step, wins none of the 22 initialization refusals, so both parts are needed. Over 152
 models the form wins three and loses none; the heavy models were not measured.
+
+A caveat on those three wins, from the full simulation and not the ten steps of `library check`. Under
+`simulate` with the keys, `MoistAir1` and `MoistAir2` reach their stop time with temperatures near 352
+and 360 K and pressures near `1.1e5` and `1.2e5` Pa, which is where a volume fed at `1.2` times its start
+temperature should go; no reference result was compared. `AmplifierWithOpAmpDetailed` passes its
+initialization and is then refused at `t = 1.1e-3` for more than 10000 events in one output interval,
+so for it the keys move the wall rather than remove it.
