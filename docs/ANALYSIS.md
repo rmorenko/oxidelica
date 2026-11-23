@@ -97935,3 +97935,18 @@ code compiler name a clock operator that is asked outside any clock, in place of
 `park/m781_bare_clock.patch` does the same in flattening, but it moves `SpeedControl` into the
 flatten refusals and would lower the flatten floor by one, so variant B is the one to take. Both
 text patches come with a test that fails without them. The heavy basket was not measured.
+
+### Families across the run refusals
+
+Probes taken after the trail survey group about 94 of the 131 run refusals into ten families.
+About 60 are helper classes that are not meant to run alone. They sit under `Utilities`,
+`BaseClasses` or `Components`, leave a parameter unbound or an input undriven, and the example
+filter counts them as examples. Refusing them is honest, so the run queue proper is about 71
+models. Among the rest, four permanent-magnet machines lose their rotor angle as a state to a
+reduction on a stator current sum, in a tie that the walk order breaks. Four `Constraints` models
+demote a quaternion component. Three models start the event loop from a guess of `1e-6` and step
+to `1e17`. Three stall on friction at rest after a mode switch. Two judge the structure on the
+branch of an if-equation that holds at the start: `park/m781_TwoEnds.mo` reproduces that refusal
+word for word in 29 lines. Two leave a node floating between switches that are off. Three Media
+tests trip bounds that the library itself declares, among them `dddX` typed as `Density` with
+`min = 0`. The table is in `park/m781_families.md`.
