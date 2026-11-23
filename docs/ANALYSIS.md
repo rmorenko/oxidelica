@@ -98144,6 +98144,9 @@ whether the flow is exactly zero, a flow of `1e-13` takes the outflow branch, an
 contain the enthalpy. With the test widened to `|m| <= 1e-9` the full simulation reaches its stop time
 with the pump restarted. The thirteen `FluidHeatFlow` examples keep their lists, and their damped steps
 fall from 96 to 0. A tolerance is a change that adds a definition, so it waits in the park for a pair.
+A second small court over twenty `Thermal` examples kept the lists as well, damped steps 96 to 0. A
+third over twenty-eight running `Fluid` pipe models is undecided: its second half was stopped by hand
+before it had used the first half's own time.
 
 `LossyGearDemo2` is refused on a singular block whose Jacobian has two equal rows, the accelerations of
 the gear and of the bearing friction on one shaft. `LossyGearDemo1`, which runs, has no bearing
