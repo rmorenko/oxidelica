@@ -97406,3 +97406,59 @@ two models are one core parting along the supply element. Minimum
 `park/m775_dol_min.mo`, map `park/m775_dol_map.md`. The re-selection minimum refuses at
 step twelve, past the corpus horizon; the structural one refuses before
 the run.
+
+## m776: the re-selection family by name, the switch that was not, and the synchronous core
+
+Binary `/tmp/m773/ox`, MD5 `3bf6186ff37fedfe17cebdc6ea953710`. Small models in
+`/tmp/m776/small`, witnesses `/tmp/m776/*.env`. The solver was not touched.
+
+### The eleven born mid-run, by the equation they quote
+
+All eleven run ten steps by class and are refused later (table
+`m775_horizon_blindspot.md`; equations read from `/tmp/m775/cls`):
+
+| Model                                      | Equation quoted                    |
+| ------------------------------------------ | ---------------------------------- |
+| Machines IMC_DOL, FundamentalWave IMC_DOL  | `airGap.spacePhasor_s.v_[2]`       |
+| Machines IMC_Conveyor                      | `aimc.rs.resistor[3].v`            |
+| Machines IMS_Start                         | `aims.lssigma.v_[1]` / airGap      |
+| FundamentalWave IMS_Start                  | `der(der(aimsE.inertiaRotor.a))`   |
+| SMPM_Inverter, SMPM_VoltageSource, SMR_DOL | `3 * <m>.lszero.i = 0`             |
+| FundamentalWave SMPM_Inverter              | `-3 * smpmE.lszero.i = 0`          |
+| SMEE_DOL                                   | `der(terminalBox.starpoint.i) = 0` |
+| MechanicalStructure (RobotR3)              | `der(b1.body.v_0[1])`              |
+
+The other twenty of the thirty-one horizon models are timed refusals
+(state re-selection, loops, underflow, Newton), listed in the same table.
+
+### Item 1: no equation of the switch or sensor decides the kind
+
+The quoted refusals of m775's DOL4 (switch) and DOL5 (sensor) are
+byte-identical. With DOL4's own settings (V=141, StopTime 0.2, Interval
+1e-4) a series resistor (S1), a hand-written if-switch with no plug extras
+(S2), the same switch always closed (S3) and no supply element at all (S4)
+all give the same structural airGap refusal with 31 tried. The prediction
+that S1, S3 and S4 would re-select was refuted. m775's resistor probe DOL6
+also differed in V=326, StopTime 0.01 and Interval 5e-5, and that is what
+parted it. S4 alone: `--stop 0.01` refuses as a re-selection at t=0.0015,
+`--stop 0.05`, 0.1 and 0.15 refuse as structural
+(`/tmp/m776/S4_stops.txt`). One machine core, one failing mid-run
+re-selection, two messages depending on the horizon. Map:
+`park/m776_switch_equation_map.md`.
+
+### Item 2: the synchronous core is the zero-sequence inductor, not airGap
+
+A bare `SM_PermanentMagnet` on a sine source in a Y terminal box (PY)
+refuses with `-3 * smpm.lszero.i = 0`. The same machine in D (PD) runs to
+0.2 s with exit 0. The real `SMPM_VoltageSource` runs to 0.001 s and refuses
+with `3 * smpm.lszero.i = 0` at `--stop 0.1`. The inverter is not needed,
+and the kind is the one m775 found for the induction machine in Y (DOL3).
+Map: `park/m776_smpm_map.md`.
+
+### Item 4: ParallelPumpDropOut
+
+`why` shows `pipe1.flowPort_b.h` only in `T_b`, two aliases and the port law
+whose `m_flow < 0` branch is `pipe1.h * m_flow`. The flow there is negative
+(-0.05025 at t=0.3799), so the selected branch carries no such name: the
+mute unknown comes from the branch choice, not from term order as at
+Overvoltage. Map: `park/m776_pump_map.md`.
