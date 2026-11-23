@@ -98112,3 +98112,24 @@ and 360 K and pressures near `1.1e5` and `1.2e5` Pa, which is where a volume fed
 temperature should go; no reference result was compared. `AmplifierWithOpAmpDetailed` passes its
 initialization and is then refused at `t = 1.1e-3` for more than 10000 events in one output interval,
 so for it the keys move the wall rather than remove it.
+
+The parked initialization form then had its corpus pair, one binary, halves one after the other. With the
+keys unset the corpus counted 986 flattened and 855 run; with both keys on, 986 and 858. The run list under the
+keys is the list without them plus exactly the amplifier and both `MoistAir` models, with no victim and the flatten
+list unchanged. The first half without the keys ran on a crowded machine and is not the base: a second run
+without the keys right after the keyed half has the same lists and the same work to the digit, and its run half
+took 2484 s against 2485 s with the keys. The first half took 3752 s for that same work. The price of the form
+is within the noise, far under six percent. The heavy models were not measured, and the patch stays in the park.
+
+The amplifier's second wall is one relation. Of its seven event indicators only `q_fp1 - (v_neg + vcm)`, the
+state half of the lower clamp of `OpAmpDetailed`, stands near zero over the last events before the ceiling, and
+it alternates between `0` and `3.55e-15`, one unit in the last place at fifteen volts. The clamp holds the
+filter state on the rail with zero slope, a rounding lifts it off, the clamp lets go and the state is pulled back.
+Each turn is an event. The solution is well defined and the model is not chattering, so the refusal
+is about rounding and not about the model. Nothing was changed.
+
+`Multivibrator` and `InvertingSchmittTrigger` share their carrier. Both stall where Newton starts on a saturated
+branch whose root has just vanished, walks to the corner of the limiter, and finds that the residual there is
+only as large as the amount by which the root vanished. A one-line static model of the multivibrator with the
+root gone by `4e-7` refuses at once with the full model's residual to six digits, while the same model with
+the root gone by `1e-2` runs to the other branch. The Schmitt trigger reaches its switch with `1e-3`.
