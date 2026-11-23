@@ -97852,3 +97852,31 @@ stops next on a non-constant exponent in the same equation. Electrical `SMR_Inve
 `IMC_Conveyor` stop on `der(terminalBox.starpoint.i) = 0`, which constrains no state.
 FundamentalWave `SMR_Inverter` stops on `-3 * smrE.lszero.i = 0`. For all four, `abs` is the
 first wall and not the last. Map: `park/m780_abs_probe.md`.
+
+## m781: the refusal census after the loop wording and the exponent parameter
+
+### The census against the last reference
+
+The census was taken from a fresh release build of `d2dc5766` (md5
+3bf6186ff37fedfe17cebdc6ea953710) with `scripts/refusals.sh .msl both` and printed into
+`/tmp/m781/census.txt`. It reads 1026 examples, of which 986 flatten and 855 run, and 897
+runnable, of which 867 flatten and 806 run. The 131 models that flatten and do not run are the
+same by name as the reference `park/m738_refused_def.list`, and the 40 that do not flatten are
+the same as in `/tmp/m739/raw.txt`. The exponent parameter of 8a874bd0 held none of them, as
+predicted. The flatten half keeps 20 rows. The run half goes from 26 rows to 27 with the same
+sum: since 1bed75b7 the loop refusal names its time, so the old row of five
+(`algebraic loop did not converge in N Newton iterations`) splits into four at `t = 0` and one
+at `t = N.N`, which is `Spice3.Examples.Nand`. Maps: `park/m781_census_diff.md`,
+`park/m781_rows.tsv`, `park/m781_refused_def.list`.
+
+### The top of the queue and the one model no map named
+
+Every model in the ten largest run rows is named in some row map in the park (a model-by-model
+list is in `park/m781_census_cov.tsv`). The renamed loop row was the first with a member that no
+row map named, apart from a ranking list: `Spice3.Examples.Nand`. A probe with the Newton trail
+shows that two of the ten loop unknowns move, `mp2.Sinternal` and `mn2.Dinternal`. The other
+eight stay at zero. At `t = 5.5e-8` the residual falls by exactly a factor of four per step,
+which is linear convergence onto a degenerate root and not a bad start. After the step is cut
+to `3.75e-8`, Newton diverges at its first iteration and is refused after 60. This is the same
+breed as the Spice3 capacitance floor, met inside a Newton block. The solver is closed to this
+work, so no patch was built. Map: `park/m781_top_row.md`.
