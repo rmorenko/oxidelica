@@ -97778,3 +97778,11 @@ SMR_Inverter models move from the merge to the wall of IMC_Conveyor, `abs` that 
 differentiated. IMC_InverterDrive rebuilds at 0.000875 at both factors, so its re-selection
 is not decided by the factor. ParallelPumpDropOut, OvervoltageProtection and
 InductorWithHysteresis refuse identically at both.
+
+The wall that IMC_Conveyor and both SMR_Inverter models meet after their rebuild is raised by
+the supply step of index reduction (`compile.rs:2807`). Under the supply probe, reduction 12 of
+the rebuilt Conveyor differentiates the stator voltage back through `aimc.rs.resistor[3]` to
+the source, a SignalVoltage driven by `Machines.Utilities.VfController`. Its amplitude reads
+`if abs(u) < fNominal then (abs(u)/fNominal)^pow else 1`. The rebuilt selection needs the time
+derivative of the stator voltage, which the first build did not, and that derivative reaches
+`abs`. Map: `park/m779_conveyor_after_patch.md`.
