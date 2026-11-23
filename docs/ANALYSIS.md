@@ -97792,3 +97792,53 @@ ForceAndTorque is the monitor's too, with the rate `body.body.w_a[1]` at 92.9 ag
 1 ms are all changes of mode, raised every 0.125 ms by the inverter's switching at
 `bdf.rs:463`, `bdf.rs:493` and `dopri.rs:761`, with no failure of the monitor, which is why
 the factor does not move it. Maps: `park/m779_rebuild_trigger.md`.
+
+## m780: the price of the monitor factor
+
+The factor that decides when the pivot monitor asks for a rebuild, `OXIDELICA_MONITOR_FACTOR`,
+lives only in the probe binary `/tmp/m779/oxf` (md5 c899e03c95dc3f4fbbb7a52632487ddc) and is
+not in main. This shift priced it before any question about it goes to Roman. The prediction,
+written before the pair in `/tmp/m780/pred.md`, was zero to two victims, in MultiBody if any.
+
+### Corpus pair, off against 0.05
+
+Both halves ran one after the other with one binary under a 24 GB cap
+(`/tmp/m780/c_off.txt`, `/tmp/m780/c_on.txt`, each with its `.env`). Both print 1026 examples,
+986 flatten and 855 run, runnable 897 / 867 / 806. The run lists (855 lines) and the flattened
+lists (986 lines) are equal line for line, and the 135 census rows are equal too: no victims
+and no wins, so the prediction stood. Flattening work is equal to the digit. Running work moved
+inside models that already ran, from 24394433 to 24397002 points, 36066304 to 36072552 Newton
+steps and 707 to 720 Jacobians. Time is not a judge in this pair, because the table carried the
+other items of the shift while it ran. For the record, flattening took 5537 s and 5318 s, and
+running 2655 s and 2496 s. The `--slow` movers above five seconds are all MultiBody and all
+cheaper (RevoluteConstraint 150.0 s to 110.0 s, MovingActuatedDrive 30.9 s to 14.3 s). They are
+candidates only, from one corpus pair and one alphabetical block, with no single-model check
+behind them. The heavy basket was not measured.
+
+### Reduction witness under the factor
+
+`scripts/victim_witness.sh .msl /tmp/m779/oxf` printed the same bytes with and without
+`OXIDELICA_MONITOR_FACTOR=0.05` (`/tmp/m780/w_off.txt`, `w_on.txt`, exit 0 both). The demoted
+members are `smee.lssigma.i_[1]`, `loadInductor.inductor[1].i` and `smpm.inertiaRotor.w` at
+reduction 14, and none at reduction 13. The factor does not reach the start reduction.
+
+### Accuracy of the models that run at 0.05
+
+The rows are the m779 runs to StopTime at 0.05, not rerun. The two pairs of independent twins
+agree. Electrical against FundamentalWave `IMC_DOL` gives `wMechanical` 51.0068 / 51.0205 /
+51.0229 at 0.3 s in the steepest run-up, and 150.84384 / 150.84382 / 150.84344 at 1.5 s.
+Electrical against Magnetic `IMS_Start` gives 93.1166 / 93.1233 at 0.3 s and 150.84233 /
+150.84229 / 150.84202 at 1.5 s. That is the fourth digit during run-up and five to six digits
+at steady state. Of the models without a twin, `IMC_YD` settles at 150.844 rad/s and
+`SMEE_DOL` at 157.0825 against a synchronous 157.0796. `MechanicalStructure` has no non-finite
+value and stays below 3171 in magnitude over its second. Its energy balance was not checked.
+Map: `park/m780_accuracy.md`.
+
+### The `abs` family
+
+The refusal is raised in the catch-all of the one-argument derivative table,
+`crates/oxidelica-sim/src/symbolic.rs:1159`. The table has no `abs`. In the corpus off half it
+stops one model at the start, `FluxTubes...SolenoidActuator.Components.AdvancedSolenoid`. Past
+the ten-step horizon it stops three more, each after a rebuild: both `SMR_Inverter` models at
+0.05 and Electrical `IMC_Conveyor` at the default factor. That makes four named. The probe
+patch was not built in this shift. Maps: `park/m780_factor_pair.md`, `park/m780_abs_family.md`.
