@@ -97967,3 +97967,19 @@ leaving the rotor star ungrounded, and are recorded as invalid rather than as ev
 `park/m781_TwoEnds.mo` holds two tanks and one pipe in 29 lines. It is refused word for word as
 `TanksWithOverflow` is, because in the starting branch both ends write `m_flow = 0` and the two
 pressures are left with one relation.
+
+### The three-phase machine witness, narrowed
+
+The `IMS_M` and `IMS_M3` pair narrowed further under `library check`, in a probe package beside the
+library, `park/m781_Probe.mo`. `Probe.Open3X` holds a single three-phase FundamentalWave squirrel
+cage behind an ideal polyphase closer, with its terminal box in `"Y"`, and it is refused at
+`t = 0` as underdetermined. The same model with the box in `"D"` (`Probe.Open3Dl`) runs. So does
+the model with the closer replaced by a wire (`Probe.Open3W`). At five phases it runs as well
+(`Probe.Open5n`). The refused block holds the stator's `zeroInductor.v0`, the potential of the
+isolated star and the three switch parameters `s`, beside the air-gap voltage.
+
+The rule is not yet general. Twenty-three examples that are not refused also wire a `"Y"` box. A
+purely electrical copy with inductors, a zero-sequence inductor and the same closer runs, so the
+FundamentalWave converter is part of the cause. Along the way, `IMC_DOL` was found to run under
+`library check` and to be refused under `simulate`. The two entry points do not disagree: the
+check runs ten steps, and the refusal comes at the closer's event at `t = 0.1`.
