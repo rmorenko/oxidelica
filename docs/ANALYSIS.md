@@ -97328,3 +97328,47 @@ shift with the same binary and gave the same refusal to the digit,
 residual `1.5000123106506294e-2` at `t = 0.027` on `["opAmp.v_in"]`
 (`/tmp/m774/m773_exact_best.txt` and `.env`), as predicted before the
 run.
+
+## 2026-11-23: m775, the ten-step horizon hides every unnamed refusal
+
+The corpus judges the run half by ten of a model's steps:
+`ten_steps` in `crates/oxidelica-cli/src/main.rs` sets
+`stop_time = (step * 10).min(stop_time)`. A refusal that arrives later
+in the experiment than ten steps is invisible to the census and to the
+floors.
+
+### The measurement
+
+The set is the 33 names of `park/m745_unnamed_refusals.list`, models
+that refuse when simulated whole by class name and are absent from the
+131-name census list. Each was asked of the corpus alone with binary
+`/tmp/m773/ox` (md5 3bf6186ff37fedfe17cebdc6ea953710):
+`library check .msl --only <name> --list`, outputs in
+`/tmp/m775/only/`. Prediction written before the series: 4 of 33 would
+be reported as run. Outcome: 33 of 33 print
+`example models: 1, of which 1 flatten and 1 run`. The prediction is
+refuted. Table: `park/m775_horizon_blindspot.md`.
+
+So the whole family is a horizon artefact on the corpus side, with one
+name not yet explained by it: `LightningSegmentedTransmissionLine`,
+whose class-world note records the refusal at t = 0, which no horizon
+cuts away. It is a probe for later, not a conclusion. The horizon is not
+changed here: moving it moves the census and the floors of two
+households and waits for Roman's word.
+
+### What m774 found on the way
+
+The noninverting Schmitt trails confirmed the prediction that both
+models approach the corner +0.001 (`park/m774_noninverting_note.md`),
+and the trace left the untraced refusal unchanged to the byte.
+
+`ControlCircuit` refuses at t = 0.147 with a block of nine unknowns, not
+ten as note m747 said. The trail shows Newton crawling monotonically
+toward a root and running out of its 60 iterations, so the family is the
+iteration budget (`park/m774_controlcircuit_map.md`). The corpus reports
+the same model as run with 46 points: the first sighting of the horizon.
+
+`OvervoltageProtection` needs both Zener diodes in series and the load
+pair RL parallel to CL to refuse; dropping either runs. With C = 1e-5
+the same refusal moves to t = 0.1206 (`park/m774_overvoltage_min.mo`,
+`park/m774_overvoltage_map.md`).
