@@ -97372,3 +97372,20 @@ the same model as run with 46 points: the first sighting of the horizon.
 pair RL parallel to CL to refuse; dropping either runs. With C = 1e-5
 the same refusal moves to t = 0.1206 (`park/m774_overvoltage_min.mo`,
 `park/m774_overvoltage_map.md`).
+
+### Two machine refusals, one core
+
+`IMC_InverterDrive` (state re-selection, four airGap derivatives arrive)
+reduces to a bare `IM_SquirrelCage` with a delta terminal box on a sine
+source: the same refusal at t = 0.0006, unmoved by the step (0.00061 at
+1e-5), by the initial equations or by the inverter, which is not needed
+at all. A star box turns it into the structural refusal
+`-3 * aimc.lszero.i = 0`. Minimum `park/m775_inverterdrive_min.mo`, map
+`park/m775_inverterdrive_map.md`.
+
+`IMC_DOL` (structural, airGap equation, 31 others tried) reduces to the
+same machine with either an ideal closing switch or a current sensor in
+series; a series resistor instead gives the re-selection refusal. The
+two models are one core parting along the supply element. Minimum
+`park/m775_dol_min.mo`, map `park/m775_dol_map.md`. Both refusals at the
+minimum lie at twelve steps or more, past the corpus horizon.
