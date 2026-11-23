@@ -97725,3 +97725,12 @@ and 0.1498. Their baselines are above one, so the level is capped at one, and ea
 stands a hair under the fixed factor of 0.15 rather than falling through it. A drift of a
 percent decides these rebuilds. GyroscopicEffects is the only one of the five that falls
 through its own relative level, at 0.0993 against a baseline of 0.7071.
+
+Run over the thirteen timed rows of the rebuild table of m741, each stopped just after its last
+listed rebuild, the probe finds 19 stalls in all, 11 at `bdf.rs:487` and 8 at `dopri.rs:806`.
+Both lines are the same test of the selection monitor, and the 19 monitor failures match them
+one for one. Every baseline is at or above one, so every test is the fixed `own >= 0.15 *
+best`. The ratios at the last failure run from 0.098 to 0.148. So the hair under 0.15 seen in
+the three machines above is not general: the SMPM and SMR rows fall to 0.10 to 0.12. The victims
+are flux and stray-inductance currents of the machines (`airGap.psi_mr`, `airGap.psi_ms`,
+`lssigma.i_[2]`). Table: `/tmp/m779/fam_table.txt`.
