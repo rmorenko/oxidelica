@@ -98089,3 +98089,12 @@ run, so the floating-star family still needs the `FundamentalWave` converter to 
 `PointGravityWithPointMasses2` spends the quaternion of its free body at the first reductions and
 joins the constraint family; `RollingWheel` does not, its victims being the positions of the joint
 frame and of the body, after which their velocities equate two dummies.
+
+The last link of that chain is a rounding flicker. At `h = 1e-5` the `U` column of `MoistAir2` has two
+steady rows (slopes `3.97343683` and `3.97343319`, and `1.37333e-2` twice) and a third row that moved
+by `1.455e-11` at both `h` and `2h`, one unit in the last place of a value near `1e5`. Its two slopes
+differ by a factor of two, the test fails, and `.all()` throws away the column with the two true slopes
+in it. A floor of `1e-10` on the change a row must show before its steadiness is judged, together with
+the longer step, lets `MoistAir2` run. A court of 96 models, one binary off and on, went from 74 to 77
+running: exactly the amplifier and both `MoistAir` models, with no victim, running 621 s against 630 s
+in a parallel pair. The patch waits in the park; the area is closed to this shift.
