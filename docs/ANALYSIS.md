@@ -97770,3 +97770,11 @@ terms nor the reach through the Jacobian sees it, and both put the floor about s
 lower. The earlier withdrawal was right that this is not the floor the test measures, and
 wrong that it is no floor. How a floor could be carried through inner assignments is a solver
 question and stays parked (`park/m779_lightning_init.md`).
+
+The other eight rows of the horizon table of m775 were run the same way (`/tmp/m779/rest_table.txt`).
+The FundamentalWave IMC_DOL reaches its stop time at 0.05, making nine in all, against none at
+0.15. ForceAndTorque moves its rebuild from 0.051 to 0.126 and still refuses the merge. Both
+SMR_Inverter models move from the merge to the wall of IMC_Conveyor, `abs` that cannot be
+differentiated. IMC_InverterDrive rebuilds at 0.000875 at both factors, so its re-selection
+is not decided by the factor. ParallelPumpDropOut, OvervoltageProtection and
+InductorWithHysteresis refuse identically at both.
