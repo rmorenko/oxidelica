@@ -97644,3 +97644,59 @@ two solvers stalls in Newton on `line1.L[101].v` instead, and its cause stays un
 The line's refusal at t = 0.000531 comes 19.5 ms before the lightning impulse, which the model
 fires at 20 ms. The cause is the 380 kV source charging the two hundred segments, during which
 every power column grows by more than half in thirty microseconds. It is not the impulse.
+
+## m779: the second build refuses before its plan, and three instants that are not events
+
+Numbers below are read from `/tmp/m779` and the park maps named with them. The probe binary
+`/tmp/m779/oxp` (md5 c6d290702da31bde68a7a64720394a72) is the rebuild print of m741 with a plan
+print added after `build_plan` when the build resumes, and a print of a refusal raised by
+`compile_at` in the rebuild branch (`park/m779_rebuild_plan.patch`, not for main). The other
+runs use `/tmp/m773/ox` (md5 3bf6186ff37fedfe17cebdc6ea953710). Predictions were written
+before the series in `/tmp/m779/pred.md` and `/tmp/m779/pred_d.md`.
+
+### The second build of MechanicalStructure has no plan
+
+At `--stop 0.53` the run rebuilds once at t = 0.53 with `mode_change = false`, and `compile_at`
+refuses before any plan is built: the equation `der(b1.body.v_0[1]) + ...` "constrains no
+state", and 31 other equations of its singular subset were tried in its place. The plan print
+never fires. The refusal is born in index reduction at the resume point, so the mode and dead
+column probes, which read a plan, could not see it. Map: `park/m779_ms_second_build.md`.
+
+S4 gets further. Its first rebuild at t = 0.0015 reaches a plan of 222 stages, and the four
+derivatives that arrive in the merge (`der(aimc.airGap.spacePhasor_s.i_[2])`,
+`der(aimc.airGap.i_ss[2])`, `der(aimc.airGap.i_ms[1])` and `der(aimc.airGap.i_ms[2])`) are all
+unknowns of the torn block that starts with `aimc.inertiaRotor.a`. Three are inner assignments.
+That confirms the m778 reading with the plan itself. A third build at t = 0.0262 then refuses
+the way MechanicalStructure does: a second derivative `der(der(aimc.airGap.spacePhasor_r.v_[1]))`
+constrains no state, with 31 others tried.
+
+### Lightning: the missing initial current is not the cause
+
+Adding `line2.i[1] = 0` to the initial equations of an out-of-tree copy leaves the refusal
+unchanged: step size underflow at t = 0.000531, the same as the untouched copy. Under the event
+and Newton trails there are events only at t = 0 and 6.4e-17. The stall is a block of one
+unknown at v = 96.86 where `|f|` creeps from 3.19e-8 to 2.91e-8 while the damping falls to
+9.5e-7, against loudest terms of 3.87e5. That is a ratio of 7.5e-14, at the rounding floor.
+How the solver accepts such a residual is a solver question and stays parked. Map:
+`park/m779_lightning_init.md`.
+
+### GyroscopicEffects does not hold its instant
+
+Stops at 0.170 to 0.172 run. Stops at 0.173, 0.174 and 0.175 refuse with the same five
+`der(...R.w[2])` leaving at the stop time itself, and stops from 0.176 refuse at 0.176
+(`/tmp/m779/gyro_stops.txt`). There is no event near 0.176, and every Newton solve before the
+rebuild converges in three or four iterations at full step. The re-selection is asked for by
+the step control while Newton is healthy, which puts the model in the mid-run rebuild family.
+Map: `park/m779_gyro_map.md`.
+
+### Additions: IMC_Conveyor after the power rule, and DiodeCenterTapmPulse
+
+On a binary of e4ac77ce (`/tmp/m779/oxh`, md5 fcb88f4b25259362e66baaa903de3372, which holds
+8a874bd0), both IMC_Conveyor examples flatten and run their ten steps under `library check
+--only`. The class-side refusal about the power is gone. Run to its stop time of 20 s, the
+Electrical one rebuilds at t = 0.302 and `compile_at` refuses: it cannot differentiate `abs` in
+`aimc.rs.resistor[3].v = ...`. Map: `park/m779_conveyor_after_patch.md`.
+
+DiodeCenterTapmPulse refuses on the ceiling of event density near t = 0.055. The trail holds
+20001 events inside the 9.2e-10 s window and 76 before it. Nearly all of them carry the same
+diode states, which is the same kind as 2mPulse. Map: `park/m779_diode_mpulse.md`.
