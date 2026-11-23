@@ -97462,3 +97462,80 @@ whose `m_flow < 0` branch is `pipe1.h * m_flow`. The flow there is negative
 (-0.05025 at t=0.3799), so the selected branch carries no such name: the
 mute unknown comes from the branch choice, not from term order as at
 Overvoltage. Map: `park/m776_pump_map.md`.
+
+## m777: two refusals in one loop, a mechanical re-selection, and fixed instants
+
+Binary `/tmp/m773/ox` (md5 3bf6186ff37fedfe17cebdc6ea953710) for every run; each run's
+command and md5 are in the `.env` beside its output in `/tmp/m777`, and every series had
+its prediction written to a file before it ran. Nothing in `crates/` was changed.
+
+### MechanicalStructure is the re-selection family
+
+The stop row (`/tmp/m777/ms_stops.txt`) runs at 0.5 through 0.5299 (twelve horizons) and
+refuses at 0.53, 0.54, 0.55, 0.6, 0.65, 0.7 and 0.85 with one message: the equation in
+`der(b1.body.v_0[1])` constrains no state, nor did the 31 other equations of its singular
+subset. With `OXIDELICA_VICTIM_PROBE=1`, 0.52 prints one build and 0.53 prints two (the
+second `reduction 1` at line 761 of `msv_0.53.txt`). The second build weighs with the run
+point - reduction 23 weighs `b1.body.w_a[2]` and `r1.w` at 0.01188 where the first saw 0 -
+and its victims are the joint coordinates themselves (`r1.w`, `r1.phi`, `qd[1]`, `r2.phi`,
+`r2.w`, `r3.phi`) with nine reductions ending in no victim (`ms_victims_diff.txt`, 133
+lines). The event trail shows no event, so the hand-back is the selection monitor. The
+genus is the mid-run re-selection of S4 and `airGap`; the coat is its own, since here the
+build at the run point is what refuses, where `airGap`'s build succeeds and the table merge
+refuses. Map: `park/m777_ms_map.md`.
+
+### S4: the horizon picks which of two refusals is printed
+
+Bisected with `/tmp/m776/small/S4.mo` (md5 3109813dc49bc704554694eedfaab88b): the
+re-selection message at 0.02 through 0.02595, the structural one at 0.026 through 0.04.
+Both sides are kept whole as `s4_edge_below_0.02595.txt` and `s4_edge_above_0.026.txt`.
+Below the edge there are two builds, above it three, and the second build is the same line
+for line on both sides (the diff of lines 47 to 86 between 0.025 and 0.0275 is empty), so
+the re-selection at t = 0.0015 does not move. The loop in `simulate`
+(`solvers/mod.rs:3101-3186`) merges a segment only when the next outcome arrives: on
+`Finished` (line 3111) or on the next stall (line 3180), and on a stall `compile_at` (line 3151) runs before that merge. A segment that reaches the horizon therefore meets the merge
+and its column refusal. A segment the monitor stalls again first meets the third build,
+which is structurally singular. The point that fails is the same, and only the order of
+two checks decides which message is printed. This is material for question 121 and needs
+no change to the solver to state. Map: `park/m777_message_edge.md`.
+
+### ForceAndTorque, minimal model
+
+At `--stop 0.06`: the verbatim copy re-selects at t = 0.051 (1 left
+`der(revolute2.frame_a.R.w[3])`, 2 arrived). Without `revolute1`, without the force
+element, with the force zeroed or with the torque zeroed, it runs. Without
+`fixedRotation` (`resolveInFrame = frame_b`) it still re-selects, at 0.048. With a
+`BodyShape` of mass 1 in place of the cylinder it re-selects at 0.007. The minimum is the
+world, two revolutes, the body and a force-and-torque element with both loads non-zero:
+`park/m777_fat_min.mo` (md5 d10f2075ffef78af936e1b2ef5a899af). The predictions that one
+revolute and gravity alone would keep it were refuted.
+
+### TwoMass is not the pump
+
+`why` on `pipe1.flowPort_a.h` gives the same port law as the pump case, at port a. But
+at 0.687 to 0.690 `pipe1.flowPort_a.m_flow` is positive (0.065 falling to 0.050) and the
+refusal is at t = 0.6932949526129243, before the linear zero near 0.700. So the branch in
+force is `h*m_flow`, which carries the name. The pump's explanation (a branch that does not
+carry it) does not hold here at face value, and the two stay apart. Map:
+`park/m777_twomass_map.md`.
+
+### SMR_DOL is the star
+
+`--stop` 0.01 and 0.09 run. 0.11 and 1.5 refuse with `3 * smr.lszero.i = 0` constrains no
+state, so the refusal is born when the closer switches at 0.1. A wrapper `extends SMR_DOL`
+refuses the same way. The same wrapper with `terminalBox(terminalConnection="D")` loses
+that row and stops on a step size underflow at t = 0.1 instead. The chapter's attribution
+to the star holds by print. Note: `park/m777_smr_note.md`.
+
+### Fixed instants: the diode rectifiers and the pump
+
+DiodeCenterTap2mPulse runs at 0.005 and refuses at 0.01, 0.02, 0.05 and 0.1, every time in
+the same window near t = 0.0066667 with more than 10000 events. DiodeCenterTapmPulse runs up
+to 0.05 and refuses at 0.06, 0.07, 0.1 and 0.2, every time near t = 0.055. The refusal holds
+its own instant on the supply period and does not grow with the horizon (map
+`park/m777_diode_map.md`). ParallelPumpDropOut runs at 0.379, 0.3801, 0.381 and 0.39 and
+refuses at 0.4, 0.42, 0.45, 0.48 and 0.5, always at t = 0.37999999996610667. `ramp1` of the
+`DoubleRamp` ends at 0.4, and `pipe1.flowPort_b.m_flow` reaches zero there (-0.050 at 0.38,
+-0.025 at 0.39). The refusal at 0.38 switches on only once the horizon contains that
+crossing, and the flow was already negative well before 0.38 (map
+`park/m777_pump_tail.md`).
