@@ -97842,3 +97842,13 @@ stops one model at the start, `FluxTubes...SolenoidActuator.Components.AdvancedS
 the ten-step horizon it stops three more, each after a rebuild: both `SMR_Inverter` models at
 0.05 and Electrical `IMC_Conveyor` at the default factor. That makes four named. The probe
 patch was not built in this shift. Maps: `park/m780_factor_pair.md`, `park/m780_abs_family.md`.
+
+### A probe past the `abs` wall
+
+A probe binary, `/tmp/m780/oxa` (md5 1d14566298b5c72c1a385fdc3a8a7763), differentiates `abs(u)`
+as `sign(u) * du` behind a key. That rule is wrong at zero and is not meant for main. All four
+models of the family get past the `abs` refusal and none of them runs. `AdvancedSolenoid`
+stops next on a non-constant exponent in the same equation. Electrical `SMR_Inverter` and
+`IMC_Conveyor` stop on `der(terminalBox.starpoint.i) = 0`, which constrains no state.
+FundamentalWave `SMR_Inverter` stops on `-3 * smrE.lszero.i = 0`. For all four, `abs` is the
+first wall and not the last. Map: `park/m780_abs_probe.md`.
