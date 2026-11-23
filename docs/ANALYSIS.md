@@ -97626,3 +97626,9 @@ t = 0.027. The multivibrator reaches 0.0010000000010 with `|f|` fixed at 1.137e-
 printed at either instant, because `smooth(0, ...)` raises none. The two refusals that the
 earlier notes declined to join now share a print: Newton parks on the kink of the clamp with
 a residual that does not vanish there. Map: `park/m778_opamp_corner.md`.
+
+The noninverting SchmittTrigger joins them: its trail ends with `opAmp.out.v` at 15.0160002
+and `|f|` constant at 0.0160002. ControlCircuit does not. It exhausts the budget of sixty
+iterations at t = 0.147 with `|f|` near 6.38, falling by 0.05% a step, and with
+`feedbackA.opAmp.v_in` inside the linear range (-3.84 V after the gain). This is a stall far
+from the root, and it stays in the budget family.
