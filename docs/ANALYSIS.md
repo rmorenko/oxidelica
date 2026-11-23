@@ -98151,3 +98151,13 @@ friction, so the carrier is two friction elements on one rigid degree of freedom
 equations in `Fourbar1` is the twelve equalities of an orientation kept at a connection that closes the
 loop, where three are owed. `constraint_is_empty` says outright that the residue of three is not yet
 written, so this is a feature not built yet and not a fault.
+
+The amplifier's ring has a small reproduction. Twenty-four lines of the same circuit (the operational
+amplifier, its two feedback resistors, the load, and the initial equation `resistor2.i = 0`) ring on the
+same clamp indicator under the original tolerance of `2e-7` at `t = 1.1053e-3`, which matches the library
+model to five digits, and run at `1e-6`. The rule that fires is `turned`: a reading of exactly zero
+followed by one unit in the last place counts as a turn. With a probe key that ignores such a turn, the
+small model runs and the library model passes `1.1e-3`. It then rings one sine period later on the same
+relation at exactly zero, which is the rule for a step landing on its threshold. Both rules were written
+against models that rang the other way, `Z2` and `DiodeBridge2mPulse`, so changing either is a judgement
+for review with all three as witnesses. Nothing was changed.
