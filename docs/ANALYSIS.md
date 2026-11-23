@@ -97349,10 +97349,12 @@ be reported as run. Outcome: 33 of 33 print
 `example models: 1, of which 1 flatten and 1 run`. The prediction is
 refuted. Table: `park/m775_horizon_blindspot.md`.
 
-So the whole family is a horizon artefact on the corpus side, with one
-name not yet explained by it: `LightningSegmentedTransmissionLine`,
-whose class-world note records the refusal at t = 0, which no horizon
-cuts away. It is a probe for later, not a conclusion. The horizon is not
+So the whole family is a horizon artefact on the corpus side. One name
+first looked like an exception: the notes give
+`LightningSegmentedTransmissionLine` a refusal at t = 0, but that line
+belongs to the wrapper world. Simulated by class (`/tmp/m775/lst.txt`)
+it refuses with step size underflow at t = 0.000531, which is step 531
+of 1e-6, also past the horizon. The horizon is not
 changed here: moving it moves the census and the floors of two
 households and waits for Roman's word.
 
