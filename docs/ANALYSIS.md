@@ -97329,7 +97329,7 @@ residual `1.5000123106506294e-2` at `t = 0.027` on `["opAmp.v_in"]`
 (`/tmp/m774/m773_exact_best.txt` and `.env`), as predicted before the
 run.
 
-## 2026-11-23: m775, the ten-step horizon hides twenty unnamed refusals
+## 2026-11-23: m775, the ten-step horizon hides 31 of 33 unnamed refusals
 
 The corpus judges the run half by ten of a model's steps:
 `ten_steps` in `crates/oxidelica-cli/src/main.rs` sets
@@ -97350,17 +97350,23 @@ be reported as run. Outcome: 33 of 33 print
 refuted.
 
 Each name was then simulated whole by class with the same binary
-(`/tmp/m775/cls/`), and that splits the 33 four ways. Twenty refuse
-during the run, at a time the corpus run never reached since it reports
-them as run: those are the horizon. Eleven
-refuse as structurally singular before any step is taken, yet run under
-the corpus: the horizon cannot explain them, and the difference between
-`simulate` by class and `library check --only` before the run is an open
-question of its own. `DemonstrateLightning` runs by class as well, and
-`TestMixingVolumesPressureStates` refuses at t = 0. The note-derived
-times are not to be trusted for this: `LightningSegmentedTransmissionLine`
-carries t = 0 in the notes, which is the wrapper world's line, and refuses
-by class at step 531. Table: `park/m775_horizon_blindspot.md`.
+(`/tmp/m775/cls/`). Twenty refuse during the run at a time the corpus
+never reached. Eleven print a structurally singular refusal with no
+time, which first read as a refusal before the run; it is not. Run by
+class to ten steps (`--stop` of ten intervals) all eleven pass, and
+`IMC_DOL` passes with `--stop 0.101` and refuses with `--stop 0.11`:
+the structural refusal is born at a state re-selection in mid-run, so
+these eleven are the horizon too, 31 of 33 in all.
+
+The other two are not the horizon. `DemonstrateLightning` runs by class
+as well. `TestMixingVolumesPressureStates` refuses by class at t = 0
+with a singular Jacobian naming `mixingVolume2.medium.p`, which is the
+shape `swap_may_help` in `crates/oxidelica-cli/src/main.rs` answers:
+the corpus takes a second attempt with the state swap, `simulate` takes
+none. The note-derived times were not to be trusted:
+`LightningSegmentedTransmissionLine` carries t = 0 in the notes, the
+wrapper world's line, and refuses by class at step 531. Table:
+`park/m775_horizon_blindspot.md`.
 
 The horizon is not
 changed here: moving it moves the census and the floors of two
