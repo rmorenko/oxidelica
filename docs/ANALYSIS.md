@@ -98183,3 +98183,46 @@ finished both halves.
 The corpus half under the key did not finish: its own ceiling of 300 minutes stopped it with 824 of
 1026 models done, against 128 minutes for the whole half without the key, so its price is an inequality
 and not a number.
+
+## m786: the run top under the full horizon, by name
+
+The corpus half under `OXIDELICA_FULL_HORIZON=1` did not finish, so the width of its tail was taken
+by name instead: the fifteen models at the top of the "slowest run" list of the off half
+(`/tmp/m784/pair_off.txt`, lines 186 to 200), each alone under the key with a 30-minute ceiling, one
+binary (`/tmp/m784/oxh`, md5 14847f3b108ba0ed2c4aec7f57b0251c). Commands are in `/tmp/m786/r.log`,
+outputs in `/tmp/m786/r_<Name>.txt`.
+
+The list ranks models that spent run time, not models that run: only seven of the fifteen run off.
+The other eight refuse off and refuse under the key for the same reason. Of the seven that run off,
+none finishes under the key:
+
+| model            | off run s | under the key                                 |
+| ---------------- | --------- | --------------------------------------------- |
+| BranchingPipes1  | 124.9     | Newton direction refusal after 123 s          |
+| Dimmer_RL        | 98.7      | evaluation budget exceeded at t = 0.001134    |
+| IMC_Transformer  | 90.5      | cut by its own 30-minute ceiling, peak 0.9 GB |
+| BranchingPipes14 | 86.3      | Newton direction refusal after 98 s           |
+| BranchingPipes13 | 63.5      | Newton direction refusal after 122 s          |
+| SeriesPipes2     | 58.1      | Newton direction refusal after 67 s           |
+
+(`IMC_Transformer` is the QuasiStatic FundamentalWave induction machine.)
+Six victims beyond the 31 already named in m785, no win.
+The width of the tail asked for: one model of the run top costs more than half an hour under the
+key, and the rest fail within two minutes. The prediction written before the runs
+(`/tmp/m786/pred.md`) is refuted: it assumed all fifteen run off and that the tubes would be cut by
+time rather than refused.
+
+### Court no. 3 on the semilinear tolerance, taken again
+
+The pair on `OXIDELICA_SEMILINEAR_EPS=1e-9` over the 28 Fluid tubes of `/tmp/m783/fluidp.txt`
+(binary `/tmp/m783/oxr8`, md5 10de9806b6478e89b6425793cf7cb9bb) was taken with the halves one after
+the other. Off: 28 flatten and 28 run, 1232 s flattening and 410 s running summed over threads. On:
+stopped by its own 60-minute ceiling with the counter at 24 of 28, unmoved for 56 minutes while the
+process kept burning processor time; the m783 on half stops at the same line. So the on half has no
+list, its price is an inequality, and the key is not merged.
+
+The model it stands on was then found by name, each alone under the key: the four dearest tubes,
+`IncompressibleFluidNetwork` and `InverseParameterization` all run (49 to 100 s), while
+`RoomCO2WithControls` is stopped by a 15-minute ceiling. Off, with the same binary, it runs in 5.2 s
+(`/tmp/m786/c3_RoomCO2WithControls_off.txt`). The tolerance makes that one model at least 170 times
+dearer, which is a price well past the six percent, so the question goes to Roman.
