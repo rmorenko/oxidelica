@@ -98698,11 +98698,13 @@ Nothing was lost. The cost of the runner's main pass, which went from
 52 to 62 minutes, still has no known cause. There are two points, and
 the map is `park/m796_runner_cost.md`.
 
-The reference binary built from 06d214e1 has md5 12784d79, and the
-binary of m795 has 1067953f. No code moved between the two (only
-documents), so the two builds differ without a change in the source.
-That is a finding about builds, not about behaviour. The probes in this
-shift all used the new binary.
+The reference binary built from 06d214e1 with `-p oxidelica-cli` has
+md5 12784d79, and the binary of m795 has 1067953f. Building the whole
+workspace from 06d214e1, as m795 did, gives 1067953f again. So the two
+md5 differ by the set of packages built (cargo settles the features of
+shared dependencies over what it builds), not by the source. A witness
+md5 is comparable only between builds made with the same command. The
+probes in this shift all used the `-p` binary.
 
 `RevoluteConstraint` was a price candidate from one pair in m795 (78.5 s
 against 73.8 s). Three off/on pairs with one binary give a run half of
