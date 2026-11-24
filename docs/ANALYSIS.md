@@ -98406,3 +98406,52 @@ skips blocks of one row on purpose: scaled, their single entry is always one, so
 `1/x = 0` would be answered with a number instead of refused. A rule for `NAND`
 would have to tell a coefficient that is small because of its units from one
 that is small because the point is singular.
+
+## Shift m791: the zero capacitance is a tie, not a missing derivative
+
+Binary `/tmp/m789/ox1`, md5 2e25160c, unchanged code since 511c69ea. The
+witness of every command is `/tmp/m791/r.log`; the maps are
+`park/m791_q0.md`.
+
+### Where S1 parts from the synthetic models
+
+The nine-line transistor `S1` refuses with a dead column `der(Q1.vbx)`. The
+same model with `CJE=1e-12` runs. With `CJE=0` every candidate of reduction 1
+weighs zero (`vcs`, `vbc`, `vbe`), the tie goes to `vcs`, and reduction 2 then
+demotes `vbx`, whose derivative only a zero capacitance reads. Forcing
+`OXIDELICA_VICTIM_FORCE=1:Q1.vbc` makes `S1` run. So the carrier is the choice
+at a tie of zero weights, not a missing derivative of `vbx = B.v - Cinternal`.
+
+The synthetic models run because a literal zero parameter is quenched before
+reduction (`quench_zero_der`, `compile.rs:4252`). The zeros of the transistor
+are not literal: `capbx` comes out of `junctionCapRevised` with a zero input
+capacitance, and `capcs` out of an `if` inside `bjtNoBypassCode`. Fifteen
+synthetic variants, including a function that returns zero, never reproduced
+the refusal.
+
+### Both stops of the order are met
+
+`Spice3BenchmarkRtlInverter` under the forced victim refuses on a singular
+block, `der(Q1.vbc)` with `der(Q1.vcs)`, whose `icapcs` row is all zeros. No
+single victim fixes the corpus model. What remains is either folding those
+function outputs to zero (a fold of two Spice3 functions) or treating a dead
+column in the block (the solver). Both are closed without a word, so nothing
+was built and the judge of the order was not run.
+
+### Seeding starts for line forces
+
+A probe key that grows the reach of start reading to a fixpoint
+(`park/m791_read_reach_all.patch`) reads the frame positions of `ThreeSprings`,
+but the spring lengths then read zero through `s_rel(start=0)` of
+`PartialCompliant`. With the true lengths given as starts the refusal is still
+a Newton direction that does not reduce the residual, so the next link lies in
+the solver. Of seven models measured one at a time, three are inert, two
+controls run with equal work, and `ThreeSprings` and `RollingWheelSetPulling`
+move to another wall. No model ran.
+
+### SeriesPipes1 under the subscript key
+
+The trail of the first attempt is the same to the digit with the key and
+without it. The difference in output points belongs to the state-swap second
+attempt, whose verdict is discarded: there the key lets tearing take blocks of
+four unknowns instead of eight.
