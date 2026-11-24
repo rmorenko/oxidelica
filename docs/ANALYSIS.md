@@ -98180,3 +98180,6 @@ so it is the likely model the corpus waited on. That is likely and not proven, b
 models side by side. It is named here as a candidate for the heavy set and has not been moved. The slow
 progress counter under the key is not a fault in flattening: the counter counts models that have
 finished both halves.
+The corpus half under the key did not finish: its own ceiling of 300 minutes stopped it with 824 of
+1026 models done, against 128 minutes for the whole half without the key, so its price is an inequality
+and not a number.
