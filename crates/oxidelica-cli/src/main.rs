@@ -1236,7 +1236,8 @@ fn library_check(args: &[String]) -> Result<(), String> {
         each.sort_by(|a, b| a.1.cmp(&b.1));
         for (why, name) in each {
             let why = why.replace('\n', " ");
-            println!("  refused  {name}\t{why}");
+            let part = part_mark(&runnable, name);
+            println!("  refused  {name}{part}\t{why}");
         }
     }
     report(&why_not, "  ", list);
@@ -1250,11 +1251,27 @@ fn library_check(args: &[String]) -> Result<(), String> {
         each.sort_by(|a, b| a.1.cmp(&b.1));
         for (why, name) in each {
             let why = why.replace('\n', " ");
-            println!("  built    {name}\t{why}");
+            let part = part_mark(&runnable, name);
+            println!("  built    {name}{part}\t{why}");
         }
     }
     report(&would_not_run, "  ", list);
     Ok(())
+}
+
+/// The mark a line of `--refused` carries for a model that is not
+/// written to be run on its own - no `experiment`, no Example icon. Such
+/// a class is finished by whoever instantiates it, so its refusal is
+/// often right, and a queue that read it as work read work that does
+/// not exist: twenty-two of the top rows of the register were classes
+/// of that kind. The mark goes after the name and before the tab, so a
+/// reader that takes the reason from after the tab reads what it did.
+fn part_mark(runnable: &std::collections::HashSet<&String>, name: &String) -> &'static str {
+    if runnable.contains(name) {
+        ""
+    } else {
+        " (part)"
+    }
 }
 
 /// Whether a model is written to be run, rather than to be a part of

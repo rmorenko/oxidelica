@@ -162,6 +162,9 @@ if [ "$half" = built ] || [ "$half" = both ]; then
                 print where
             }' |
         sort | uniq -c | sort -rn
+    # A name the check marks `(part)` has neither an `experiment` nor
+    # the Example icon: it is not written to be run alone, and is in
+    # the queue only until somebody reads the mark.
     echo "=== and the queue by name ==="
     echo "$report" |
         awk -F'	' '
@@ -169,7 +172,8 @@ if [ "$half" = built ] || [ "$half" = both ]; then
             ($2 ~ /parameter .* has no value/ || $2 ~ /cannot evaluate parameters/) {
                 split($1, a, " ")
                 if (a[2] !~ /\.(Utilities|BaseClasses|Interfaces|Components|ExampleUtilities|OpAmpCircuits)\./) {
-                    print "  " a[2] "	" substr($2, 1, 70)
+                    part = (a[3] == "(part)") ? " (part)" : ""
+                    print "  " a[2] part "	" substr($2, 1, 70)
                 }
             }' | sort
 fi

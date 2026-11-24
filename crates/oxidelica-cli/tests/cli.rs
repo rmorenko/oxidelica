@@ -1293,6 +1293,34 @@ fn the_models_that_were_refused_are_named_one_by_one() {
     assert!(!text.contains("refused  Lib.Examples.Works"), "{text}");
 }
 
+/// A line of `--refused` marks a class that is not written to be run
+/// on its own, so that a queue read from the register does not take a
+/// part for work. The reason after the tab is untouched.
+#[test]
+fn a_refused_part_is_marked_as_one() {
+    let library = TempDir::new("refused-part");
+    std::fs::write(
+        library.0.join("Lib.mo"),
+        "package Lib package Examples \
+         model Run Real v[2]; Real y; equation v = {1, 2}; y = v[7]; \
+         annotation(experiment(StopTime = 1)); end Run; \
+         model Part Real v[2]; Real y; equation v = {1, 2}; y = v[7]; end Part; \
+         end Examples; end Lib;",
+    )
+    .unwrap();
+    let out = bin()
+        .args(["library", "check", library.0.to_str().unwrap(), "--refused"])
+        .output()
+        .unwrap();
+    assert!(out.status.success(), "{}", stderr(&out));
+    let text = stdout(&out);
+    assert!(
+        text.contains("refused  Lib.Examples.Part (part)\t"),
+        "{text}"
+    );
+    assert!(text.contains("refused  Lib.Examples.Run\t"), "{text}");
+}
+
 /// Reading a library takes minutes, so it says how far along it is.
 /// The count goes to standard error, where it disturbs nothing that
 /// reads the report, and `OXIDELICA_QUIET` stops it for a caller that
