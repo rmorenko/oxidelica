@@ -98756,3 +98756,15 @@ spends 80.1 s on 7 points and 7 Newton steps: the run counters are
 nearly zero while the time burns before the loop is refused, the same
 blind spot as `FOURBIT`, and only a new counter can say which phase it
 is. The map is in the park as `m797_refusal_burners.md`.
+
+Sixteen of the 21 burners were probed one at a time with the same
+binary. They fall in two kinds. Seven are integrations that end refused
+(the Fluid pipes and sensors, `FullRobot`, both `RollingWheelSet`
+models), with 1000 to 2800 Newton steps each. Nine MultiBody models are
+refused at t = 0 after 0 to 7 points and spend 17 to 80 s each with the
+run counters near zero. Sampled, `RevoluteConstraint` and `RollingWheel`
+spend that time in symbolic simplification, substitution and
+differentiation inside index reduction and `solve_shape`.
+`RollingWheel` needs only 6 reduction passes for its 19 s, so the cost
+is in each pass, not in how many there are. A counter of that work is
+the next instrument. Until it exists, time is the only judge there.
