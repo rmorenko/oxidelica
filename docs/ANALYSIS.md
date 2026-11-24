@@ -98647,9 +98647,10 @@ a flow or stream member saved `MomentumBalanceFittings`, but
 names the chain adds settles that one: it is lost when the chain reaches
 `pipe1.flowModel.dimensions[1..2]`, a diameter in metres set from
 `4*crossArea/perimeter`. Denying single reads behind it, only `zetas[1]` saves the model. It is read
-through `pipe1.flowModel.ks_inv[1]`, the quantity the inverse
-parameterization solves for, so the loss coefficient starts out of scale. No
-narrowing by kind of name tells that read apart. Item stopped, map in
+through `pipe1.flowModel.ks_inv[1]`, which the model sets from
+`m_flow_nominal`, `dp_nominal` and the start of `rhos_act[1]`, so the loss
+coefficient is only as good as a density start. No narrowing by kind of name
+tells that read apart. Item stopped, map in
 `park/m795_zero_start.md`, patch `m795_read_reach_kind_with_probes.patch`.
 Nothing merged.
 
