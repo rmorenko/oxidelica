@@ -98575,3 +98575,60 @@ and not of the solver. The same wrapper for `RollingWheelSetPulling`, with
 moves the wall to a Newton direction that does not reduce a residual of 3.3e6.
 The candidate is to start a variable without one from its defining equation,
 evaluated at the starts, in the start table rather than the solver.
+
+## The start reader's reach, walked to ThreeSprings and back (m794)
+
+**Why the existing reader did not reach.** `read_starts` already reads a
+start from a defining equation; the question was why it stopped short of
+`ThreeSprings`. A local print of which names held each equation back (not
+committed, binary `/tmp/m794/oxp2`, md5 in `/tmp/m794/r.log`) answered it:
+`spring1` is read (`s = 0.346`), and `spring2` and `spring3` are not,
+because `spring2.lineForce.r_rel_0` waits on `spring1.frame_b.r_0`, which
+is not among the wanted names. The reach is one equation from a wanted
+name, on purpose, and the chain here is three links of plain sums. So the
+condition is the reach, not linearity.
+
+**The key and what it found under it.** `OXIDELICA_READ_REACH_CHAIN=1`
+grows the reach from every wanted name along equations with no call in
+them, four links deep. Alone it moves `ThreeSprings` to a Newton direction
+refusal, with `spring2.s` read as `1e-10`: the rigid bar `bar1.r` was read
+at its type's start of zero instead of its value 0.3. That is the parked
+`OXIDELICA_PARAM_VALUE_STATED` (ffd3bcbc). With both keys `ThreeSprings`
+runs. A small model, `ZA` (a loop with `log(s - 0.29)` and `s` three links
+from anything with a start), is NaN before any Newton step without the
+chain key and runs from `s = 0.3` with it; it is the test parked beside the
+patch. `RollingWheelSetPulling` under both keys moves from "did not
+converge in 60" to a singular Jacobian.
+
+**The pair, and why it is parked.** One binary, halves one after the other,
+`--slow 60` on both (`/tmp/m794/off.txt`, `on.txt`): 986 / 858 against
+986 / 857, runnable 867 / 809 against 867 / 808. The run half was 2696 s
+off and 2517 s on. It won `ThreeSprings` and lost
+`Fluid.Examples.Explanatory.MomentumBalanceFittings` (singular Jacobian) and
+`Fluid.Examples.InverseParameterization` (Newton direction). Both losses are
+the chain key's alone, by `--only` on each key (`/tmp/m794/victims.txt`).
+Diffing the start tables of the first one shows the chain reading port
+pressures, enthalpies and zero flows that stayed unread before, and the
+block going singular at zero flow from there. Narrowing the chain to names
+with no start of their own keeps `ThreeSprings` and both losses
+(`/tmp/m794/narrow.txt`). With two victims the change goes to Roman, so it is
+in the park (`m794_zero_start.md`) and not in the tree. Heavy list not
+measured.
+
+**The `_analytic` three, mapped.** `Engine1b_analytic`,
+`EngineV6_analytic` and `PlanarLoops_analytic` are one family: a
+whole-array binding to an array of a component declared after it,
+scalarized without a subscript on the right (`e2_ia[1] = rod1.e2_ia`). The
+fifteen-line `/tmp/m738/p6/E6.mo` is still red on the head in the
+corpus's words. The repair (park `m592-e_ia-declared-shape.patch`) is
+known, and so is the wall behind it, a structurally singular loop joint.
+Map in `park/m794_analytic.md`.
+
+**`HeatingSystem`'s second link, mapped.** With the two parked keys for the
+first link the model stops at a singular block of 31 at the start, holding
+`pump.rho` and `pump.N`. Only `pump.m_flow` has a start, and every other
+flow of the loop starts at zero. Adding the chain key reads 22 more of them
+(unread flow lines 60 to 38, `/tmp/m794/hs_keys.txt` and `hs_chain.txt`)
+and leaves the same singular block. So the start reader is not where it
+ends, and the material goes to the solver's questions. Map in
+`park/m794_heatingsystem.md`.
