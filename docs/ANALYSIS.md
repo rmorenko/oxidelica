@@ -98164,3 +98164,19 @@ small model runs and the library model passes `1.1e-3`. It then rings one sine p
 relation at exactly zero, which is the rule for a step landing on its threshold. Both rules were written
 against models that rang the other way, `Z2` and `DiodeBridge2mPulse`, so changing either is a judgement
 for review with all three as witnesses. Nothing was changed.
+
+The price of running every model to its stop time was taken further by name while the corpus half under
+the key was still running. Twenty-eight of the thirty-one models that the blind-spot list said would
+change under the key were run alone under it, about five seconds each, and all twenty-eight were
+refused: ten as structurally singular, six by a refusal naming the class, four on a step-size underflow,
+three on a Newton direction, two on sixty Newton iterations and three on a loop that does not mention a
+name. None of them ran where the ten steps had let it run, and no model won. The control, `SMR_DOL` alone
+without the key from the same binary, runs. Of the ten models dearest to flatten, five that run under
+ten steps were taken alone under the key: four ran, with run halves of 50 to 64 seconds, and
+`BranchingPipes17` was refused on a Newton direction, a victim the list had not named.
+`IncompressibleFluidNetwork` did not finish within its 45-minute ceiling, so its price is at least 45
+minutes. Its notes are the ones the corpus printed just before it stopped moving for nearly two hours,
+so it is the likely model the corpus waited on. That is likely and not proven, because the corpus runs
+models side by side. It is named here as a candidate for the heavy set and has not been moved. The slow
+progress counter under the key is not a fault in flattening: the counter counts models that have
+finished both halves.
