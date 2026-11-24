@@ -98400,3 +98400,9 @@ scaled pivot of 3.7e-9, which puts it with the other machines. The
 Under the parked subscript key, `SeriesPipes1` refuses at the same t = 0.0008
 with the same words, after a different number of output points, so the key is
 not neutral on the run path. That is recorded beside the patch.
+
+The one-unknown scaling key has a ceiling written in the tree. Commit 9de48f8d
+skips blocks of one row on purpose: scaled, their single entry is always one, so
+`1/x = 0` would be answered with a number instead of refused. A rule for `NAND`
+would have to tell a coefficient that is small because of its units from one
+that is small because the point is singular.
