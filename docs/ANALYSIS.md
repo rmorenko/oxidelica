@@ -98632,3 +98632,33 @@ flow of the loop starts at zero. Adding the chain key reads 22 more of them
 and leaves the same singular block. So the start reader is not where it
 ends, and the material goes to the solver's questions. Map in
 `park/m794_heatingsystem.md`.
+
+## Shift m795: the start chain narrowed by kind, and the long step priced twice
+
+**Narrowing the chain by the kind of a name.** The parked chain key of m794
+won `ThreeSprings` and lost two Fluid models. The flat model already carries
+`flow`, `stream` and `unit` on each component, so narrowing by kind needs no
+new pass. Four narrowings were tried by `--only` on the three models, all with
+`OXIDELICA_PARAM_VALUE_STATED` (`/tmp/m795/<tag>_<model>.txt`, md5 in
+`/tmp/m795/r.log`). Leaving flow and stream names out of the chain, and then
+whole stream ports too, kept both losses. Leaving out any equation that names
+a flow or stream member saved `MomentumBalanceFittings`, but
+`InverseParameterization` still failed on the Newton direction. Bisecting the
+names the chain adds settles that one: it is lost when the chain reaches
+`pipe1.flowModel.dimensions[1..2]`, a diameter in metres set from
+`4*crossArea/perimeter`. No narrowing by kind can tell a true start of a
+diameter from a harmful one. Item stopped, map in
+`park/m795_zero_start.md`, patch `m795_read_reach_kind_with_probes.patch`.
+Nothing merged.
+
+**The long initial step, priced with its switch off.** One binary from the
+head, `OXIDELICA_NO_INIT_LONG_STEP=1` against the default (`/tmp/m795/off.txt`,
+`on.txt`). Counts: 986 / 855 against 986 / 858, runnable 806 against 809. The
+run lists differ by exactly the three wins of that merge
+(`AmplifierWithOpAmpDetailed`, `MoistAir1`, `MoistAir2`), with no victims. The
+flattening work was equal to the digit and its time moved 5068 to 5188 s, so
+this series' floor is 120 s. The run half went 2533 to 2467 s, which is inside
+that floor. The only model that got dearer is `MoistAir2` (+8.3 s), which now
+runs. So the desk again sees no price. Whatever made the runner's main pass
+dearer is not visible here, and goes to the scheduled run. Map in
+`park/m795_init_price.md`.
