@@ -10260,7 +10260,17 @@ impl CompiledModel {
                     // longer step answers only if twice the distance gives
                     // the same slope - a coefficient that is a fact, not a
                     // fact about the step.
-                    if any_swapped {
+                    //
+                    // Not only a swapped row: an outer probe of a dead
+                    // initialization column is swallowed by the tolerance
+                    // of any inner block, and `AmplifierWithOpAmpDetailed`
+                    // and both `ReferenceAir.MoistAir` examples were refused
+                    // as singular for a column the longer step reads (m782).
+                    // `OXIDELICA_NO_INIT_LONG_STEP` restores the old gate,
+                    // swapped rows only, and the old slope test without
+                    // the noise floor.
+                    let long_step = std::env::var_os("OXIDELICA_NO_INIT_LONG_STEP").is_none();
+                    if any_swapped || long_step {
                         let base = h;
                         let ceiling = 1e-3 * (1.0 + y[j].abs());
                         // A longer step the equations cannot answer leaves
@@ -10290,7 +10300,17 @@ impl CompiledModel {
                                 Ok(ff) => fp.iter().zip(&ff).zip(&full).all(|((near, far), at)| {
                                     let a = (near - at) / h;
                                     let b = (far - at) / (2.0 * h);
-                                    (a - b).abs() <= 0.25 * a.abs().max(b.abs())
+                                    // A row that moved by a few ulps of
+                                    // its own value at both distances is
+                                    // noise, not a slope: a balance near
+                                    // 1e5 shifted by one ulp reads two
+                                    // different "slopes" and would turn the
+                                    // column back to zero.
+                                    let floor = 64.0 * f64::EPSILON * at.abs() + 1e-10;
+                                    let flicker = long_step
+                                        && (near - at).abs() <= floor
+                                        && (far - at).abs() <= floor;
+                                    flicker || (a - b).abs() <= 0.25 * a.abs().max(b.abs())
                                 }),
                                 Err(_) => false,
                             };

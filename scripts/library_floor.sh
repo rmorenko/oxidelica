@@ -2064,7 +2064,13 @@ FLATTEN_FLOOR=986
 # And 852 = 855 - 3 (SpringWithMass, SMPM_VoltageSource FW,
 # TestJunctionIdeal, all three seen running in that same print), the
 # judge of run 44488845654 on b1ee56d4; see `FLATTEN_FLOOR`.
-RUN_FLOOR=852
+# And 855 = 858 - 3: the long initialization step for every dead column
+# won AmplifierWithOpAmpDetailed, ReferenceAir.MoistAir1 and MoistAir2.
+# The pair /tmp/m783/pair_on.txt (binary oxa, md5 8b077aa6) printed
+# 986 / 858 against the off half's 855, flattening work equal byte for
+# byte, no victims, less the same three swings (SpringWithMass,
+# SMPM_VoltageSource FW, TestJunctionIdeal). Roman's word of 2026-11-24.
+RUN_FLOOR=855
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -2660,7 +2666,9 @@ RUNNABLE_FLATTEN_FLOOR=867
 # 44197305414 printed 866 / 805, so 805 - 3 = 802.
 # The homotopy catcher: the judge of run 44488845654 on b1ee56d4
 # printed 867 / 806, so 806 - 3 = 803, the same three swings.
-RUNNABLE_RUN_FLOOR=803
+# The long initialization step: the pair /tmp/m783/pair_on.txt printed
+# 867 / 809, so 809 - 3 = 806, the same three swings.
+RUNNABLE_RUN_FLOOR=806
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
