@@ -4038,7 +4038,11 @@ if [ "$mode" = pass ]; then
   flags="$(pass_flags "$pass")"
   # shellcheck disable=SC2086
   OXIDELICA_WORK_EACH=1 ./target/release/oxidelica library check --list $flags "$directory" > "$pass_report"
-  grep -E '^(files:|classes:|runnable examples|time:|work:)' "$pass_report"
+  # The split of the run half (what ran against what was refused at run)
+  # is printed per pass so the runner's log carries it; the judge's
+  # combined summary does not, since adding it would need the awk below
+  # to learn to sum it.
+  grep -E '^(files:|classes:|runnable examples|time:|work:| +of which ran )' "$pass_report"
   exit 0
 fi
 
