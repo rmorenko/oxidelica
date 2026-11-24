@@ -98514,3 +98514,15 @@ is in demoted starts, which the path for written surplus rows does not take.
 `MeasuringTemperature` steps out of the medium's domain at its first Newton
 step and halving never returns to a finite residual. Its tank modes are read
 from a port height nobody wrote. Both are maps, no change.
+
+### The two fluid models with both keys
+
+The rule for a standing call and the parked rule for a still subscript
+(`park/m790_still_index_slope.patch`) were built into one binary and run
+together, so that each chain is walked to its end rather than a link at a
+time. `BranchingDynamicPipes` stops at "initialization diverged" after 1980
+points and 5024 Newton steps, and `HeatingSystem` at a singular block of 30
+around zero flows at the start. Both next walls are in the initialization and
+the solver, where this shift does not go. The small model that the standing
+rule owes as a test is in the park beside the patch, red without the key and
+-0.518 with it.
