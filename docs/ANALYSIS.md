@@ -98713,3 +98713,15 @@ the three offs is 8.2 s. The means differ by 3.5 s, which is below twice
 the floor. The work is equal to the digit in both halves, and the model
 is refused at run in both, so the key never touches it. No price, only
 drift (`/tmp/m796/rc_*.txt`).
+
+The first full point of the new line, taken on the desk with the `-p`
+binary over 1026 models (main and dear, `/tmp/m796/corpus_split.txt`):
+the run half is 2638 s over 986 models. Of that, 1507 s go to the 858
+that ran (1757 ms each) and 1131 s to the 128 refused at run (8836 ms
+each). So 43% of the run half is spent on models that end in a refusal,
+and one refused model costs five times as much as one that runs.
+`RevoluteConstraint` (115.5 s, refused) is second in the slowest-run
+list. That is one desk point and not yet a runner figure. The judge's
+pass filter keeps only lines that begin with `time:` and `work:`
+(`scripts/library_floor.sh:4041`), so the CI print does not carry the
+split yet. Passing it through would be a separate change to the script.
