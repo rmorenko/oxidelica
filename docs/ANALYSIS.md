@@ -98455,3 +98455,62 @@ The trail of the first attempt is the same to the digit with the key and
 without it. The difference in output points belongs to the state-swap second
 attempt, whose verdict is discarded: there the key lets tearing take blocks of
 four unknowns instead of eight.
+
+## Shift m792: a rotating source has a choice, and a standing call loses its rule
+
+Binary `/tmp/m789/ox1` (md5 2e25160c, the code of 511c69ea) for every base
+reading, probe builds under their own names in `/tmp/m792`, every command in
+`/tmp/m792/r.log`. The map with the numbers is `park/m792_family_R.md` in
+the flow directory. Nothing here is merged: the tree is as it was.
+
+### Family R is not one cause
+
+`SMPM_CurrentSource` (FundamentalWave) falls into its singular subset twice,
+at reductions 14 and 16. A probe key that skips chosen attempts showed what
+each member of the subset at reduction 14 leads to. Member 3, the one taken
+today, is the current law of `pin[2]`: its supply chain differentiates 51
+equations through `dqToThreePhase.rotator`, and the victim is the rotor angle
+`smpm.phiMechanical`. That is the row that reads zero at rest. Member 8, the
+stator flux node, needs no supply chain, demotes a stator flux instead, and
+the model runs. So for this model the reduction has a choice.
+
+`UniversalConstraint` at reduction 17 (24 members) and
+`RollingWheelSetDriving` at reduction 20 (22 members) have none: no member
+makes either run. The two share the symptom and not the cause.
+
+A rule built on the one finding, a first pass that takes only members needing
+no supply chain, was measured on five models one at a time with one binary.
+It wins `SMPM_CurrentSource` and loses `SMPM_Braking` and `SMPM_Inverter`, so
+it is not right in both directions. It is parked and was not taken to a pair.
+
+### A call left standing drops its derivative rule
+
+`BranchingDynamicPipes` is refused because `der(T)` reaches
+`MoistAir.h_pTX`, a function that names its derivative. Small models with an
+inlinable body and an array argument run, so the annotation and the array
+were not the wall. A small model whose annotated body has a loop is refused
+with the same words. The rule is kept beside the value only on the inlined
+path. A call left standing, which is the road `h_pTX` takes through the
+depth catch in the array layer, travels with no rule. Behind that are two more
+links: the rule of `h_pTX` holds the array `{Xi, 1 - Xi}` and was dropped as
+an array, and its own standing call names the seed `$seed2` whole while the
+seeds are split one per element.
+
+A probe key that carries the rule on both standing paths takes all three.
+Under it `h_pTX` under `der` answers 3537.4 to 3539.2 against a finite
+difference of 3538.28 over the run, and the model with a loop answers
+-0.518, the hand value. `BranchingDynamicPipes` moves one wall on, from "not
+a state" to "initialization diverged", with its run half going from 23 s to
+250 s. No model of the corpus was won. `HeatingSystem`, refused with the
+same words, does not move: its wall is a constant subscript of a call with
+numeric arguments, inside a torn block.
+
+### Neighbours, mapped
+
+`ThreePhaseTransformerWithRectifier` is over by two initial conditions. The
+library component writes `fixed = I2Fixed[1]` on all three secondaries, so a
+star of three currents is pinned where its node leaves two free. The surplus
+is in demoted starts, which the path for written surplus rows does not take.
+`MeasuringTemperature` steps out of the medium's domain at its first Newton
+step and halving never returns to a finite residual. Its tank modes are read
+from a port height nobody wrote. Both are maps, no change.
