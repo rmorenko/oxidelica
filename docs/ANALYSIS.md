@@ -98526,3 +98526,9 @@ around zero flows at the start. Both next walls are in the initialization and
 the solver, where this shift does not go. The small model that the standing
 rule owes as a test is in the park beside the patch, red without the key and
 -0.518 with it.
+
+The standing rule was then judged on 30 media and fluid examples with one
+binary. It loses three that run today, the `ReferenceAir` moist-air examples,
+refused for `medium.state`: the rule is built over a record argument whose
+seed no later pass knows. Flattening of the 30 grew from 447 s to 537 s. As
+parked, the rule wins nothing and costs three models.
