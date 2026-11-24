@@ -98646,8 +98646,10 @@ a flow or stream member saved `MomentumBalanceFittings`, but
 `InverseParameterization` still failed on the Newton direction. Bisecting the
 names the chain adds settles that one: it is lost when the chain reaches
 `pipe1.flowModel.dimensions[1..2]`, a diameter in metres set from
-`4*crossArea/perimeter`. No narrowing by kind can tell a true start of a
-diameter from a harmful one. Item stopped, map in
+`4*crossArea/perimeter`. Denying single reads behind it, only `zetas[1]` saves the model. It is read
+through `pipe1.flowModel.ks_inv[1]`, the quantity the inverse
+parameterization solves for, so the loss coefficient starts out of scale. No
+narrowing by kind of name tells that read apart. Item stopped, map in
 `park/m795_zero_start.md`, patch `m795_read_reach_kind_with_probes.patch`.
 Nothing merged.
 
