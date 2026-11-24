@@ -98307,3 +98307,50 @@ refuses one wall further on in the same gear. No code changed.
 The three OpAmps refusals queued on 21 November (`ControlCircuit`,
 `InvertingSchmittTrigger`, `Multivibrator`) are stale. All three run under
 `--only` on this tree and stand as `ran` in the m783 pair.
+
+## m790: FullRobot stands on the same tie six times, then on a MultiBody wall
+
+One `AxisType1` with the `FullRobot` axis 1 parameters (ratio -105, kp 10, ks 1,
+Ts 0.01), a load inertia and `PathPlanning1` refuses by the `OneAxis` path, and
+`OXIDELICA_VICTIM_FORCE=6:axis.motor.speed.flange.phi` makes it run. A single
+axis therefore carries the `OneAxis` question and not the `FullRobot` wall. The
+mechanics with axis 1 and the other five axes fixed refuses on a different wall
+(reduction 150, `mechanics.r1.tau`), so `FullRobot` was probed directly. Binary
+md5 2e25160c, code at 511c69ea, commands and outputs in `/tmp/m790`.
+
+The m789 chapter says that forcing the six motor reductions still refused. That
+force was inert. It named `axis1.motor.speed.flange.phi` at reduction 11, but in
+the re-selection pass reduction 11 weighs `Jmotor.phi` against
+`bearingFriction.phi`, and the force only takes a name that is among the
+candidates. Nothing was forced.
+
+Read again from the re-selection pass, the chain has three links. At reductions
+10, 17 and 24, `set_a_start.flange.phi = initializeFlange.flange.phi` weighs
+`mechanics.rN.phi` at 1.047, 1.222 and 0.611 (its slope times its start angle)
+against the initializer's flange angle at 1.0 (direct slope, not scaled). It
+demotes the joint angle on axes 1 and 2. Axis 3 happens to come out right
+because its start angle is under one radian. Forcing the initializer on all six
+moves the wall to axis 4, reduction 32: `Jmotor.phi` at 77.75 against
+`speed.flange.phi` at 1.0, the `OneAxis` tie exactly. With all nine choices
+forced the model refuses at
+`der(der(mechanics.load.frame_a.r_0[2])) - mechanics.load.body.a_0[2] = 0`
+(compile.rs:3040), a MultiBody wall that has nothing to do with the drives. So
+links 1 and 2 are the same comparison of a direct slope with a through slope
+scaled by size, and a rule for it would not be enough to win `FullRobot`. No
+code changed.
+
+`SchmittTrigger` runs under `--only`, so all four OpAmps of the queue run. The 13
+models of the census row `unbalanced: nothing determines` are all service
+classes (`Utilities`, `BaseClasses`, `Components`), each checked alone with
+inputs, pins or an expandable bus that only an enclosing model drives. They are
+refused correctly. The row is a question about the example filter, not about
+the compiler.
+
+The next row, `underdetermined algebraic loop`, holds 7 models in the census.
+Nine lines of the raw list carry that cause, two of them under the
+arithmetic-floor wording. All nine refuse the same way under `--only`. By the
+unknowns they name they split into ideal-switch states at the start (two machine
+starters, a polyphase rectifier, a thyristor bridge), the two `SMEE` machines
+(air-gap and cage currents), and three Spice3 bipolar circuits that cannot settle
+the derivative of a junction voltage. The refusals print no source location, so
+this split is a lower bound until each part has been probed.
