@@ -98240,3 +98240,15 @@ all six victims are confirmed with one binary.
 `IMC_Transformer` was then given a 50-minute ceiling under the key and was cut by it, with a peak
 of 1.5 GB (`/tmp/m786/r_IMC_Transformer_50.txt`). Its price under the key is at least 50 minutes
 against 75 s off; the ceiling was not raised further, since a cut is a verdict.
+
+### Two last prices for the horizon question
+
+Each alone, commands in `/tmp/m787/r.log`. `RoomCO2WithControls` under the semilinear tolerance
+of court no. 3 (`OXIDELICA_SEMILINEAR_EPS=1e-9`, binary `/tmp/m783/oxr8`, md5
+10de9806b6478e89b6425793cf7cb9bb) was cut by a 50-minute ceiling with a peak of 3.2 GB
+(`/tmp/m787/c3_RoomCO2_50.txt`); off it runs in 5.2 s, so the tolerance makes it at least about
+580 times dearer. `IncompressibleFluidNetwork` under the full horizon (`/tmp/m784/oxh`, md5
+14847f3b108ba0ed2c4aec7f57b0251c) was cut by a 140-minute ceiling with a peak of 0.4 GB
+(`/tmp/m787/inf_140.txt`). Both prices are inequalities. The second makes it the likely holder of
+the corpus stall at 824 of 1026, though the corpus itself has not shown it. The predictions
+written before the runs (`/tmp/m787/pred.md`) stood: both cut, neither fell.
