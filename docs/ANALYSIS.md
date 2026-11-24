@@ -98192,8 +98192,8 @@ by name instead: the fifteen models at the top of the "slowest run" list of the 
 binary (`/tmp/m784/oxh`, md5 14847f3b108ba0ed2c4aec7f57b0251c). Commands are in `/tmp/m786/r.log`,
 outputs in `/tmp/m786/r_<Name>.txt`.
 
-The list ranks models that spent run time, not models that run: only seven of the fifteen run off.
-The other eight refuse off and refuse under the key for the same reason. Of the seven that run off,
+The list ranks models that spent run time, not models that run: only six of the fifteen run off.
+The other nine refuse off and refuse under the key for the same reason. Of the six that run off,
 none finishes under the key:
 
 | model            | off run s | under the key                                 |
@@ -98226,3 +98226,17 @@ The model it stands on was then found by name, each alone under the key: the fou
 `RoomCO2WithControls` is stopped by a 15-minute ceiling. Off, with the same binary, it runs in 5.2 s
 (`/tmp/m786/c3_RoomCO2WithControls_off.txt`). The tolerance makes that one model at least 170 times
 dearer, which is a price well past the six percent, so the question goes to Roman.
+
+### The run top under the full horizon, corrected and closed
+
+Two corrections to the section above. The count was wrong against its own table: six of the
+fifteen run off, not seven, and nine do not, which the run register of the off half
+(`/tmp/m784/pair_off.txt`) confirms by name: `BranchingPipes1`, `BranchingPipes13`,
+`BranchingPipes14`, `SeriesPipes2`, `Dimmer_RL` and the QuasiStatic `IMC_Transformer`.
+Four off controls taken alone with the same binary arrived after the push: `BranchingPipes14`
+70.8 s, `BranchingPipes13` 62.0 s, `SeriesPipes2` 49.4 s and `IMC_Transformer` 75.1 s. All run, so
+all six victims are confirmed with one binary.
+
+`IMC_Transformer` was then given a 50-minute ceiling under the key and was cut by it, with a peak
+of 1.5 GB (`/tmp/m786/r_IMC_Transformer_50.txt`). Its price under the key is at least 50 minutes
+against 75 s off; the ceiling was not raised further, since a cut is a verdict.
