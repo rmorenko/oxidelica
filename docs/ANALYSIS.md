@@ -98665,3 +98665,49 @@ that floor. The only model that got dearer is `MoistAir2` (+8.3 s), which now
 runs. So the desk again sees no price. Whatever made the runner's main pass
 dearer is not visible here, and goes to the scheduled run. Map in
 `park/m795_init_price.md`.
+
+## Shift m796: a lock on the long init step, and the run half split by outcome
+
+The long finite-difference step of the outer init Jacobian (4a2c00f0) went
+in guarded by the corpus floors alone. It now has a unit test,
+`a_dead_initialization_column_is_read_with_a_longer_step` in
+`crates/oxidelica-cli/tests/cli.rs`. The model in it is `OpAmpDetailed`
+written out without the library, in the circuit of
+`AmplifierWithOpAmpDetailed`. With the default it runs. Under
+`OXIDELICA_NO_INIT_LONG_STEP=1` it is refused as a singular start that
+does not pin down `opAmp.v_in`. With the gate put back to swapped rows
+only, the test goes red. The witness the order named, `A2` of
+`/tmp/m782/oa/OA.mo`, runs in both halves. It is the variant with the
+initial equation `resistor2.i = 0` deleted, so it cannot show the step.
+`A0` and `A1` show it, and the small model was cut from them.
+
+The library check now splits the run half as it splits the flattening
+half: `of which ran Ns over M; refused at run Ns over K`. A model
+refused in the run can spend minutes there, and the total could not say
+so. On `PumpingSystem` the new line reads `refused at run 0s over 1
+(256ms each)`, and on `CauerLowPassAnalog` it reads `ran 0s over 1`. The
+judge and the census read only lines that begin with `time:`,
+`classes:`, `runnable` and `work:` (`scripts/library_floor.sh:4041`,
+`:4154` to `:4202`, `scripts/heavy_floor.sh:234`). The new line begins
+with spaces, so neither reads it. It is a print only. Lists and floors
+do not move.
+
+The judge's ran lists of 19 and 24 November (855 and 858 names) differ
+by exactly `AmplifierWithOpAmpDetailed`, `MoistAir1` and `MoistAir2`.
+Nothing was lost. The cost of the runner's main pass, which went from
+52 to 62 minutes, still has no known cause. There are two points, and
+the map is `park/m796_runner_cost.md`.
+
+The reference binary built from 06d214e1 has md5 12784d79, and the
+binary of m795 has 1067953f. No code moved between the two (only
+documents), so the two builds differ without a change in the source.
+That is a finding about builds, not about behaviour. The probes in this
+shift all used the new binary.
+
+`RevoluteConstraint` was a price candidate from one pair in m795 (78.5 s
+against 73.8 s). Three off/on pairs with one binary give a run half of
+74.6, 75.3 and 82.8 s off, and 82.7, 77.8 and 82.8 s on. The floor from
+the three offs is 8.2 s. The means differ by 3.5 s, which is below twice
+the floor. The work is equal to the digit in both halves, and the model
+is refused at run in both, so the key never touches it. No price, only
+drift (`/tmp/m796/rc_*.txt`).
