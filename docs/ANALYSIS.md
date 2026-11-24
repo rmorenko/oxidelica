@@ -98725,3 +98725,34 @@ list. That is one desk point and not yet a runner figure. The judge's
 pass filter keeps only lines that begin with `time:` and `work:`
 (`scripts/library_floor.sh:4041`), so the CI print does not carry the
 split yet. Passing it through would be a separate change to the script.
+
+## Who burns the run half's refusals, and the split carried into CI
+
+The split of the run half now reaches the CI log of each pass: the pass
+filter in `scripts/library_floor.sh` keeps the line `of which ran ...;
+refused at run ...` beside `time:` and `work:`. The judge's combined
+summary does not carry it, because its awk adds the two passes up and
+would have to learn to sum the split as well; the points on the runner
+come from each pass's own print. Checked on
+`/tmp/m796/corpus_split.txt`: the new alternative matches that one line
+only, nothing in the scripts or the workflow reads it, and 1507 s +
+1131 s = 2638 s over 858 + 128 = 986 models.
+
+The 1131 s of refusals are concentrated. The 128 models refused at run
+(986 flattened less 858 run, by `comm`) meet the slowest-run table in
+21 names, which hold 1080.9 s, 95.6% of the total; the other 107 share
+50.1 s. Three families own it: Fluid pipes and sensors refused on a
+Newton direction after stepping to t = 0.0008 (401.9 s), MultiBody
+loops refused at t = 0 (360.5 s), and MultiBody models refused as
+structurally singular (286.3 s). `BranchingPipes1`, the top of the
+slowest-run list at 125.2 s, runs: its seconds are a run, not a
+refusal.
+
+Two probes with one binary (d44be43f, md5 b5039f81) say where the
+seconds go. `BranchingPipes3` spends 99.4 s on 1209 points and 2787
+Newton steps: a real integration that ends in a failed direction, so an
+earlier refusal would save time but win nothing. `RevoluteConstraint`
+spends 80.1 s on 7 points and 7 Newton steps: the run counters are
+nearly zero while the time burns before the loop is refused, the same
+blind spot as `FOURBIT`, and only a new counter can say which phase it
+is. The map is in the park as `m797_refusal_burners.md`.
