@@ -98275,3 +98275,35 @@ five controls, `LowPass`, `SeriesPipes1`, `SimpleAir`, `ThreeTanks` and `Differe
 came out with the same outcome and the same points and Newton counts as the off world of m782.
 The floors rise to 855 run and 806 runnable run: the on half's 858 / 809 less the three swinging
 models.
+
+## m789: RobotR3 OneAxis loses its motor angle at the re-selection
+
+A nine-line model refuses the same way `OneAxis` does: `AxisType1` with the
+`OneAxis` parameters, a load inertia and `PathPlanning1`. It gets as far as
+`(-bearingFriction.w) + Jmotor.w = 0 constrains no state`. With constant or sine
+references in place of the path planner the same axis runs, so what matters is
+the start values the planner gives, not the topology. Binary md5 2e25160c at
+511c69ea. The commands and outputs are in `/tmp/m789`.
+
+The map of m788 read reduction 12 as the culprit. Forcing reduction 12 (or 11)
+to the other candidates did not stop the refusal. The demotion that matters is
+reduction 6 of the re-selection pass, on
+`motor.speed.flange.phi = Jmotor.flange_a.phi`. The first build weighs
+`Jmotor.phi` at 0 and `speed.flange.phi` at 1, and demotes the sensor angle.
+The re-selection weighs `Jmotor.phi` at 439.8 and the sensor angle still at 1,
+and demotes the motor angle. 439.8 is 210 times 2.094. `Jmotor.phi` is weighed
+through the definitions and scaled by its own size (6f659570). The sensor angle
+is weighed by its direct slope and is not scaled. Two units are being compared,
+the case that commit fixed for `SMPM_Braking`, here in the other direction.
+
+`OXIDELICA_VICTIM_FORCE=6:axis.motor.speed.flange.phi` makes the small model run
+and makes `OneAxis` run under `--only`. Neither fix is right in both
+directions. Without the scaling the two weigh 1.0 against 1.0. Scaling the
+direct slope as well gives 439.8 against 439.8. Either way the walk's order
+breaks the tie, and it breaks it differently for the small model. `FullRobot`
+weighs `Jmotor.phi` at 0 at its six motor reductions, and forcing all six still
+refuses one wall further on in the same gear. No code changed.
+
+The three OpAmps refusals queued on 21 November (`ControlCircuit`,
+`InvertingSchmittTrigger`, `Multivibrator`) are stale. All three run under
+`--only` on this tree and stand as `ran` in the m783 pair.
