@@ -98391,3 +98391,12 @@ mode that makes two acceleration rows the same. `SMPM_CurrentSource` and
 leaves its pressure domain in two Newton steps, past the declared `min`.
 `ThreeSprings` fills a zero start with one size for lengths and accelerations
 alike. The remaining rows are service classes checked on their own.
+
+Probed further in the same shift, `RollingWheelSetPulling` falls in the
+`ThreeSprings` family. Its handed start gives NaN, and the retry fills every zero
+with one size; the best attempt stalls near 6e-2. `IMS_Start_Polyphase` has a
+scaled pivot of 3.7e-9, which puts it with the other machines. The
+`SMPM_CurrentSource` example refuses in three libraries under three wordings.
+Under the parked subscript key, `SeriesPipes1` refuses at the same t = 0.0008
+with the same words, after a different number of output points, so the key is
+not neutral on the run path. That is recorded beside the patch.
