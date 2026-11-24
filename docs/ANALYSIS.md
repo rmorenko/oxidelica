@@ -98252,3 +98252,26 @@ of court no. 3 (`OXIDELICA_SEMILINEAR_EPS=1e-9`, binary `/tmp/m783/oxr8`, md5
 (`/tmp/m787/inf_140.txt`). Both prices are inequalities. The second makes it the likely holder of
 the corpus stall at 824 of 1026, though the corpus itself has not shown it. The predictions
 written before the runs (`/tmp/m787/pred.md`) stood: both cut, neither fell.
+
+## m788: the long initialization step taken as the default
+
+The outer initialization Newton reads its Jacobian by finite differences at a step of 1e-7
+relative. Where a residual reaches an unknown only through an inner block, the inner block's own
+tolerance swallows a probe that fine: the column comes back exactly zero and the start is refused
+as singular. The cure of m350 (step up to 1e-3, keep the slope only if twice the distance agrees)
+existed only for swapped rows, and the refusing columns, `opAmp.v_in` and `volume.U`, had no
+swapped row (map `park/m782_init_long_step.md`). The step now runs for every column that reads
+zero, and its slope test has a noise floor of `64 eps |f| + 1e-10`: a row near 1e5 that moved by
+one ulp at both distances otherwise read two different slopes and turned the column back to zero.
+`OXIDELICA_NO_INIT_LONG_STEP` restores the old behaviour.
+
+Won, from the pair `/tmp/m783/pair_off2.txt` against `/tmp/m783/pair_on.txt` (one binary,
+flattening work equal byte for byte): `AmplifierWithOpAmpDetailed`, `ReferenceAir.MoistAir1`
+and `ReferenceAir.MoistAir2`. No victims. The run half went from 2484 s to 2485 s (+0.04%), and
+the three winners cost +8.1 s between them alone (`/tmp/m783/winners_price.txt`). The heavy
+models were not measured. Before the push, the merged code with no keys (binary `/tmp/m788/ox1`,
+md5 2e25160cbc03bfc25066e19ff50c7fcb, commands in `/tmp/m788/r.log`) ran all three winners, and
+five controls, `LowPass`, `SeriesPipes1`, `SimpleAir`, `ThreeTanks` and `DifferenceAmplifier`,
+came out with the same outcome and the same points and Newton counts as the off world of m782.
+The floors rise to 855 run and 806 runnable run: the on half's 858 / 809 less the three swinging
+models.
