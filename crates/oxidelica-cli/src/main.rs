@@ -1023,6 +1023,10 @@ fn library_check(args: &[String]) -> Result<(), String> {
     let (mut built_count, mut refused_count) = (0_usize, 0_usize);
     let mut running = std::time::Duration::ZERO;
     let mut ran_count = 0usize;
+    // The run half split as the flattening half is: a model refused in
+    // the run can burn minutes (FOURBIT) and the total cannot say so.
+    let (mut ran_time, mut run_refused_time) = (0.0_f64, 0.0_f64);
+    let (mut ran_only, mut run_refused) = (0_usize, 0_usize);
     let mut flattening_work = oxidelica_parser::work::Work::default();
     let mut running_work = oxidelica_parser::work::Work::default();
     let mut loose_jacobians = 0u64;
@@ -1074,6 +1078,16 @@ fn library_check(args: &[String]) -> Result<(), String> {
         }
         if !spent.running.is_zero() {
             ran_count += 1;
+            match answer {
+                Answer::Ran => {
+                    ran_time += spent.running.as_secs_f64();
+                    ran_only += 1;
+                }
+                _ => {
+                    run_refused_time += spent.running.as_secs_f64();
+                    run_refused += 1;
+                }
+            }
         }
         running += spent.running;
     }
@@ -1183,6 +1197,12 @@ fn library_check(args: &[String]) -> Result<(), String> {
          refused {refused_time:.0}s over {refused_count} ({:.0}ms each)",
         each(built_time, built_count),
         each(refused_time, refused_count)
+    );
+    println!(
+        "        of which ran {ran_time:.0}s over {ran_only} ({:.0}ms each); \
+         refused at run {run_refused_time:.0}s over {run_refused} ({:.0}ms each)",
+        each(ran_time, ran_only),
+        each(run_refused_time, run_refused)
     );
     // The same two halves counted in steps rather than seconds. The
     // clock over one binary and one library has come out twice as long

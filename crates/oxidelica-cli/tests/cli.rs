@@ -2303,3 +2303,87 @@ fn a_reduction_of_the_index_is_counted_and_a_model_without_one_counts_none() {
     assert!(tied.iter().all(|&n| n > 0), "{tied:?}");
     assert_eq!(counts("Lib.Examples.Plain"), vec![0, 0, 0]);
 }
+
+#[test]
+fn a_dead_initialization_column_is_read_with_a_longer_step() {
+    // `OpAmpDetailed` from the standard library, written out without it,
+    // in the amplifier of `AmplifierWithOpAmpDetailed`. The initial
+    // equation `r2.i = 0` reaches `opAmp.v_in` only through the gain
+    // chain, whose slope at a base step of 1e-7 rounds away inside the
+    // inner blocks: the column read exactly zero and the start was
+    // refused as not pinning `v_in` down. The longer step reads it
+    // (m782, merged in 4a2c00f0). `OXIDELICA_NO_INIT_LONG_STEP=1`
+    // restores the old gate, so the same binary shows both halves.
+    let file = TempFile::new("dead_init_column.mo", DEAD_INIT_COLUMN);
+    let run = |old: bool| {
+        let mut command = bin();
+        if old {
+            command.env("OXIDELICA_NO_INIT_LONG_STEP", "1");
+        } else {
+            command.env_remove("OXIDELICA_NO_INIT_LONG_STEP");
+        }
+        command
+            .args(["simulate", file.path(), "--stop", "0"])
+            .output()
+            .unwrap()
+    };
+    let out = run(false);
+    assert!(out.status.success(), "{}", stderr(&out));
+    let old = run(true);
+    assert!(!old.status.success(), "{}", stdout(&old));
+    let text = stderr(&old);
+    assert!(
+        text.contains("initialization problem is singular"),
+        "{text}"
+    );
+    assert!(text.contains("opAmp.v_in"), "{text}");
+}
+
+const DEAD_INIT_COLUMN: &str = r#"
+model OB
+  connector Pin Real v; flow Real i; end Pin;
+  model R parameter Real R; Pin p; Pin n; Real i; equation p.v - n.v = R*i; p.i = i; n.i = -i; end R;
+  model V parameter Real V; Pin p; Pin n; equation p.v - n.v = V; p.i + n.i = 0; end V;
+  model G Pin p; equation p.v = 0; end G;
+  model Op
+    constant Real pi = 3.141592653589793;
+    parameter Real Rdm=2.0e6; parameter Real Rcm=2.0e9; parameter Real Cin=1.4e-12;
+    parameter Real Vos=1.0e-3; parameter Real I1=9e-8; parameter Real I2=7e-8;
+    parameter Real Avd0_val=199526.2314968879; parameter Real Avcm_val=3.1547867224009654;
+    parameter Real fp1=5.0; parameter Real fp2=2.0e6; parameter Real fp3=20.0e6; parameter Real fp4=100.0e6;
+    parameter Real fz=5.0e6; parameter Real sr=0.5e6; parameter Real Rout=75.0; parameter Real Imax=25.0e-3;
+    parameter Real Ts=0.0000012;
+    Pin p; Pin m; Pin outp; Pin p_supply; Pin m_supply;
+    Real v_pos; Real v_neg; Real v_vos; Real v_3; Real v_in; Real v_4;
+    Real i_vos; Real i_3; Real i_r2; Real i_c3; Real i_4;
+    Real q_fr1; Real q_fr2; Real q_fr3; Real q_sum; Real q_sum_help; Real q_fp1;
+    Real v_source; Real x; Real v_out; Real i_out;
+  initial equation
+    v_source = q_fp1; x = 0;
+  equation
+    v_pos = p_supply.v; v_neg = m_supply.v;
+    p.i = i_vos; m.i = i_4 - i_r2 - i_c3; 0 = i_3 + i_r2 + i_c3 - i_vos;
+    p.v - m.v = v_vos + v_in; v_4 = m.v; v_3 = p.v - v_vos; v_vos = Vos;
+    i_3 = I1 + v_3/Rcm; v_in = Rdm*i_r2; i_c3 = Cin*der(v_in); i_4 = I2 + v_4/Rcm;
+    der(q_fr1) = 2.0*pi*fp2*(v_in - q_fr1);
+    q_fr2 + (1.0/(2.0*pi*fp3))*der(q_fr2) = q_fr1 + (1.0/(2.0*pi*fz))*der(q_fr1);
+    der(q_fr3) = 2.0*pi*fp4*(q_fr2 - q_fr3);
+    q_sum = Avd0_val*q_fr3 + Avcm_val*(v_3 + v_4);
+    q_sum_help = if q_sum > v_pos and q_fp1 >= v_pos then v_pos else if q_sum < v_neg and q_fp1 <= v_neg then v_neg else q_sum;
+    der(q_fp1) = 2.0*pi*fp1*(q_sum_help - q_fp1);
+    der(x) = (q_fp1 - v_source)/Ts;
+    der(v_source) = smooth(0, noEvent(if der(x) > sr then sr else if der(x) < -sr then -sr else der(x)));
+    v_out = outp.v; i_out = outp.i;
+    i_out = if v_out > v_source + Rout*Imax then Imax else if v_out < v_source - Rout*Imax then -Imax else (v_out - v_source)/Rout;
+    p_supply.i = 0; m_supply.i = 0;
+  end Op;
+  Op opAmp; R r(R=10000); R r1(R=20000); R r2(R=10000); V s(V=1); G g; V vp(V=15); V vm(V=-15);
+initial equation
+  r2.i = 0; opAmp.q_fp1 = 0; opAmp.q_fr1 = 0; opAmp.q_fr2 = 0; opAmp.q_fr3 = 0;
+equation
+  connect(r.n, opAmp.m); connect(r1.n, r2.p); connect(r.p, s.p); connect(r1.p, opAmp.m);
+  connect(s.n, g.p); connect(opAmp.p, g.p); connect(r2.n, g.p);
+  connect(opAmp.p_supply, vp.p); connect(opAmp.m_supply, vm.p); connect(vp.n, vm.n); connect(vm.n, g.p);
+  connect(opAmp.outp, r2.p);
+end OB;
+"#;
