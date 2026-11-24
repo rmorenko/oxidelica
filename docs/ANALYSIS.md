@@ -98354,3 +98354,40 @@ starters, a polyphase rectifier, a thyristor bridge), the two `SMEE` machines
 (air-gap and cage currents), and three Spice3 bipolar circuits that cannot settle
 the derivative of a junction voltage. The refusals print no source location, so
 this split is a lower bound until each part has been probed.
+
+### m790, further rows of the run census
+
+The next rows were read from `/tmp/m788/raw.txt` and probed one model at a time.
+The maps are in the park (`m790_row3.md`). Families are named by the layer each
+refusal comes from, not by its words.
+
+Two Spice3 benchmarks, `RtlInverter` and `DifferentialPair`, are one family under
+two wordings. The modelcard default `XCJC = 1.0` makes the external base-collector
+capacitance `CJC*(1 - XCJC)` zero, so `icapbx = capbx*der(vbx)` has a zero
+coefficient on the only derivative that reads `vbx`. A nine-line circuit with one
+transistor refuses the same way, and the same circuit with `XCJC = 0.5` runs.
+`capbx` is the output of a junction function and not a parameter, so the matcher
+cannot see the zero. The fix would be either to fold that function or to change
+the solver, and the solver is not this shift's to change.
+
+`NAND` and `ONEBIT` refuse on a 1x1 block with a coefficient of 1e-12. Row and
+column scaling return early when n < 2 (`linear.rs:136`, `:163`), so a
+one-unknown block is judged against 1.0. A probe key that scales those blocks
+moves both models one wall further on and leaves an exact zero refused. The
+patch is parked and the tree is unchanged.
+
+`HeatingSystem` refuses `der(tank.medium.T)` in a steady initial equation. The
+slope of the equation that defines `T` meets a subscript of a call on literals,
+`waterBaseProp_ph(...)[9]`, and the rule that gives a still call a zero slope
+(`symbolic.rs:733`) does not reach a subscript around it. A key extending the rule
+moves the model on to a singular Jacobian at zero flows. `BranchingDynamicPipes`
+stands on a different link, the derivative of `MoistAir.h_pTX` with an array
+argument. That patch is parked too, and no model ran.
+
+The rest is recorded without a change. Four machine starters and two rectifiers
+leave ideal switch states open at the start. `LossyGearDemo2` picks a friction
+mode that makes two acceleration rows the same. `SMPM_CurrentSource` and
+`UniversalConstraint` carry a differentiated row that is zero at rest. `R134a1`
+leaves its pressure domain in two Newton steps, past the declared `min`.
+`ThreeSprings` fills a zero start with one size for lengths and accelerations
+alike. The remaining rows are service classes checked on their own.
