@@ -98532,3 +98532,46 @@ binary. It loses three that run today, the `ReferenceAir` moist-air examples,
 refused for `medium.state`: the rule is built over a record argument whose
 seed no later pass knows. Flattening of the 30 grew from 447 s to 537 s. As
 parked, the rule wins nothing and costs three models.
+
+## Shift m793: the transformer's singular start was the choice of rows
+
+### The surplus of the rectifier transformer
+
+`ThreePhaseTransformerWithRectifier` is over by two conditions, and the
+written-surplus path drops two written rows that the matching left unpaired.
+What it then reports, a singular start in `core3.Hstat` and `core3.MagRel`, is
+a property of that choice. A probe key that drops named demoted starts instead
+(kept in the park as `m793_probe_leave_out.patch`, not for merging) shows it.
+Dropping the two that the library's typo pins, `winding22.i` and
+`winding23.i`, moves the wall to "initialization did not converge in 50 Newton
+iterations". Four other pairs of currents end at the same wall, and one
+mixed pair ends singular again. The outer iteration throws two unknowns to
+1.4e7 on its first step and a hysteresis row to a residual near 1e9, then
+cycles back to the start. That is the initialization's Newton on the
+hysteresis cores, so the model is not taken. A small star of three pinned
+currents and a node already runs: one over is handled.
+
+### The queue marks its parts
+
+Each line of `library check --refused` now carries `(part)` after the name of
+a class that has neither an `experiment` nor the Example icon, and
+`scripts/refusals.sh` carries the mark into the queue by name. Before, a shift
+choosing from the queue read such classes as work. Counts, floors and the four
+sections of the register are unchanged: the census on the old binary agrees
+with the one of m788 at 40 models in 20 rows that would not flatten and 128 in
+27 that would not run, and the census on the new binary prints the same two
+sums and rows. Of the 168 refused models, 80 carry the mark: 10 that would
+not flatten and 70 that would not run. The three left in the queue by name
+are the `_analytic` engines and loops, none of them a part.
+
+### The zero start of the spring
+
+A wrapper around `ThreeSprings` that gives each spring's `lineForce.length`
+and `s` a start of 0.4123 runs to its stop time, where the plain model is
+refused by an algebraic loop that does not converge at t = 0. The NaN came
+from `e_a = r_rel_a / s` with `s` at zero, so it is a fault of start values
+and not of the solver. The same wrapper for `RollingWheelSetPulling`, with
+`aux` started at the value its cross product takes, removes the NaN rows and
+moves the wall to a Newton direction that does not reduce a residual of 3.3e6.
+The candidate is to start a variable without one from its defining equation,
+evaluated at the starts, in the start table rather than the solver.
