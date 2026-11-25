@@ -98863,3 +98863,46 @@ UniversalConstraint fell 10%, the rest between 0.7% and 3%, each a
 single point. The saving follows the count of substituted nodes. What
 the simplifier carries is now the remainder: PlanarFourbar has 566 M
 nodes in 57 s and Engine1a 368 M in 53 s.
+
+## Shift m801: the simplifier rebuilt without copies
+
+### The simplifier rebuilt without copies, and what it saved
+
+The question was what share of the simplifier's rebuilding changes
+nothing. A probe build counted the nodes that came back altered, a fold
+or an ancestor of one, against all the nodes visited. PlanarFourbar
+visited 546.2 M nodes and altered 204.0 M of them (37%). Engine1a
+visited 365.5 M and altered 144.2 M (39%). So about three nodes in five
+were copied only to be put back as they were.
+
+A copy-on-write simplifier was then built. It returns nothing for an
+untouched node, keeps the order of the rules and adds no new rule. It
+was judged with `--only` against the head (ox1, then ox2, then ox1
+again, `/tmp/m801/c_*_ox{1,2,1b}.txt`). Every line except the times
+matched in all four models. Run times:
+
+| model              | ox1 s | ox2 s | ox1 again s |
+| ------------------ | ----- | ----- | ----------- |
+| PlanarFourbar      | 59.3  | 58.3  | 58.0        |
+| Engine1a           | 53.4  | 53.8  | 53.3        |
+| RevoluteConstraint | 42.8  | 40.0  | 42.5        |
+| ThreeSprings       | 5.8   | 5.9   | 5.7         |
+
+The falsifier set beforehand was a fall of 10% on PlanarFourbar, and
+the fall was 1%. So the change was not merged. It is parked as
+`park/m801_simplify_cow.diff`. RevoluteConstraint's 6% is a single
+model and does not make the case alone.
+
+A profile of the head on PlanarFourbar (`sample` for 20 s from the 45th
+second, `/tmp/m801/prof_sample.txt`) says why. All the working samples
+sit under `reduce_index_once`. Inclusive counts at the shallowest
+frames: `solve_shape` 3992 of 16368, `solve_linear_known` 2784,
+`simplify` 1550 (about 9%), `differentiate_at` 987,
+`dependent_row_real` 548. Allocation, freeing, cloning and dropping
+take about three quarters of the self time. But that cost is spread
+over the whole reduction loop, and the simplifier's rebuild is a small
+part of it. The next carrier to count is the copying in the member
+closure: the equation clone at `compile.rs:2126`, the matching clones
+just above it, and the solved forms that are built and then dropped.
+That needs a count per site before any edit. The map is
+`park/m801_simplify_map.md`.
