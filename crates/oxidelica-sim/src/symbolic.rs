@@ -11,6 +11,27 @@ use crate::*;
 /// its variable, and differentiated constraints are evaluated at every
 /// step.
 pub(crate) fn simplify(expr: &Expr) -> Expr {
+    // Counted only, never branched on: a call from outside is one
+    // call, and every node visited on the way down is one node.
+    use oxidelica_parser::work::{tick, Step};
+    thread_local! {
+        static DEPTH: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
+    }
+    let depth = DEPTH.with(|d| {
+        let now = d.get();
+        d.set(now + 1);
+        now
+    });
+    if depth == 0 {
+        tick(Step::SimplifyCall);
+    }
+    tick(Step::SimplifyNode);
+    let folded = simplify_node(expr);
+    DEPTH.with(|d| d.set(depth));
+    folded
+}
+
+fn simplify_node(expr: &Expr) -> Expr {
     use oxidelica_parser::BinOp::*;
     match expr {
         Expr::WithDerivative(value, rule, seeds) => Expr::WithDerivative(

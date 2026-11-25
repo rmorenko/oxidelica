@@ -44,9 +44,15 @@ pub enum Step {
     ReductionEq,
     /// A definition so gathered.
     ReductionCandidate,
+    /// A call of the simplifier from outside itself.
+    SimplifyCall,
+    /// A node of an expression the simplifier visited, recursion
+    /// included: the product of calls and their size, which is what
+    /// the time is spent on.
+    SimplifyNode,
 }
 
-const KINDS: usize = 10;
+const KINDS: usize = 12;
 
 impl Step {
     fn at(self) -> usize {
@@ -61,6 +67,8 @@ impl Step {
             Step::ReductionPass => 7,
             Step::ReductionEq => 8,
             Step::ReductionCandidate => 9,
+            Step::SimplifyCall => 10,
+            Step::SimplifyNode => 11,
         }
     }
 }
@@ -68,6 +76,8 @@ impl Step {
 thread_local! {
     static COUNTED: [Cell<u64>; KINDS] = const {
         [
+            Cell::new(0),
+            Cell::new(0),
             Cell::new(0),
             Cell::new(0),
             Cell::new(0),
@@ -127,6 +137,10 @@ pub struct Work {
     pub reduction_eqs: u64,
     /// Definitions the reductions gathered.
     pub reduction_candidates: u64,
+    /// Calls of the simplifier.
+    pub simplify_calls: u64,
+    /// Nodes the simplifier visited.
+    pub simplify_nodes: u64,
 }
 
 impl Work {
@@ -145,6 +159,8 @@ impl Work {
             reductions: get(Step::ReductionPass),
             reduction_eqs: get(Step::ReductionEq),
             reduction_candidates: get(Step::ReductionCandidate),
+            simplify_calls: get(Step::SimplifyCall),
+            simplify_nodes: get(Step::SimplifyNode),
         }
     }
 
@@ -162,6 +178,8 @@ impl Work {
             reductions: self.reductions - earlier.reductions,
             reduction_eqs: self.reduction_eqs - earlier.reduction_eqs,
             reduction_candidates: self.reduction_candidates - earlier.reduction_candidates,
+            simplify_calls: self.simplify_calls - earlier.simplify_calls,
+            simplify_nodes: self.simplify_nodes - earlier.simplify_nodes,
         }
     }
 
@@ -179,6 +197,8 @@ impl Work {
             reductions: self.reductions + other.reductions,
             reduction_eqs: self.reduction_eqs + other.reduction_eqs,
             reduction_candidates: self.reduction_candidates + other.reduction_candidates,
+            simplify_calls: self.simplify_calls + other.simplify_calls,
+            simplify_nodes: self.simplify_nodes + other.simplify_nodes,
         }
     }
 }
@@ -201,6 +221,8 @@ mod tests {
         tick(Step::ReductionPass);
         add(Step::ReductionEq, 5);
         add(Step::ReductionCandidate, 3);
+        tick(Step::SimplifyCall);
+        add(Step::SimplifyNode, 4);
         let done = Work::here().since(before);
         assert_eq!(
             done,
@@ -216,6 +238,8 @@ mod tests {
                 reductions: 1,
                 reduction_eqs: 5,
                 reduction_candidates: 3,
+                simplify_calls: 1,
+                simplify_nodes: 4,
             }
         );
         assert_eq!(done.plus(done).expanded, 4);

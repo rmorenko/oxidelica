@@ -1229,6 +1229,12 @@ fn library_check(args: &[String]) -> Result<(), String> {
         "reduction: {} passes, {} equations scanned, {} candidates",
         running_work.reductions, running_work.reduction_eqs, running_work.reduction_candidates
     );
+    // The simplifier on a line of its own as well: the MultiBody
+    // refusals spend their seconds there with the counts above near zero.
+    println!(
+        "symbolic: {} simplify, {} nodes",
+        running_work.simplify_calls, running_work.simplify_nodes
+    );
     if list {
         let mut named: Vec<&&String> = flat.iter().collect();
         named.sort();
