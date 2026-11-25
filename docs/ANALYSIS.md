@@ -98824,3 +98824,42 @@ reduction or symbolic code, so the likely source is the iteration order
 of a randomly seeded map that reaches a few calls; that is not proven.
 Until it is, the `symbolic:` line is good to about a tenth of a percent
 and is not a witness that two runs did the same work to the digit.
+
+## Shift m800: a stable simplifier count, substitution counted, and substituted in place
+
+The drift of the `symbolic:` line is gone. `fold_bodies` now walks its
+bodies in the order of their names, so the number of tries no longer
+follows the hash seed. RevoluteConstraint gives 438730 / 377110452 and
+UniversalConstraint 633631 / 408093616, twice each and identical down to the byte
+(`/tmp/m800/s_*.txt`). These are the same numbers the park build gave.
+
+A new line, `rewrites:`, counts the nodes that substitution and
+differentiation visit. It sits beside `symbolic:` rather than inside it,
+so nothing that reads the older line has to change. RevoluteConstraint
+visits 1161458448 nodes substituting against 377110452 simplifying,
+which is the carrier the simplifier count could not see.
+
+The three loops that fold a body one name at a time now substitute in
+place. Before, they rebuilt the whole tree for every name. Judged by
+`--only` with one binary against the one before it (ox1, then ox2 twice,
+`/tmp/m800/c_*_ox{1,2,2b}.txt`), the work, reduction, symbolic and
+rewrites lines and the refusals matched exactly in all four models.
+Run times for ox1 against the two ox2 runs:
+
+| model              | ox1 s | ox2 s       |
+| ------------------ | ----- | ----------- |
+| RevoluteConstraint | 69.4  | 42.2 / 42.3 |
+| PlanarFourbar      | 57.6  | 57.2 / 58.2 |
+| RollingWheel       | 18.9  | 19.0 / 18.8 |
+| ThreeSprings       | 5.9   | 5.8 / 5.8   |
+
+All three changes went into 3ae87c9f. The preflight was green with
+986 / 858 and a runnable 867 / 809, and the floors did not move. The
+heavy models were not measured.
+
+The nine burners were measured again on ox2 against m799. The table is in
+`park/m800_symbolic_counter.md`, and work matched exactly in all of them.
+UniversalConstraint fell 10%, the rest between 0.7% and 3%, each a
+single point. The saving follows the count of substituted nodes. What
+the simplifier carries is now the remainder: PlanarFourbar has 566 M
+nodes in 57 s and Engine1a 368 M in 53 s.
