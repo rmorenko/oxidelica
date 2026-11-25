@@ -98922,3 +98922,11 @@ the refusals matched in all four. It was not merged, because it was not
 an item of the shift and only the victim witnesses have judged it (exit 0,
 `/tmp/m801/witness_ox3.txt`); the corpus pair has not. The
 patch and numbers are in `park/m801_carried_shapes.md`.
+
+On the six other burners of `park/m800_symbolic_counter.md`, measured
+once each with ox1 and ox3 (`/tmp/m801/e_*_ox{1,3}.txt`), every line
+except the times matched. The one exception was UniversalConstraint,
+whose simplifier count fell from 408.1 M to 366.4 M nodes and whose run
+fell from 43.8 s to 43.0 s. The other five moved by less than 1.5%.
+The gain belongs to models that retreat, and among the ten only
+PlanarFourbar retreats often enough to carry it.
