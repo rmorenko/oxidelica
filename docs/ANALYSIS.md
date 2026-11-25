@@ -98814,3 +98814,13 @@ time sits outside the simplifier (substitution or differentiation),
 which is where the next counter goes. The points, Newton iterations and
 passes of every model equal those of the previous shift's runs to the
 digit, so the counter moved no work. Floors and lists are untouched.
+
+### The simplifier count is not equal to the digit between runs
+
+Four runs of `RevoluteConstraint` with one binary gave 438730, 438758,
+438772 and 438744 simplifier calls, and node counts 0.05% apart, while
+every other counter came out equal. No clock is read in the compiler's
+reduction or symbolic code, so the likely source is the iteration order
+of a randomly seeded map that reaches a few calls; that is not proven.
+Until it is, the `symbolic:` line is good to about a tenth of a percent
+and is not a witness that two runs did the same work to the digit.
