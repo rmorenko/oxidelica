@@ -1296,6 +1296,7 @@ fn aliases_last_enabled() -> bool {
 /// be paid again at every reduction for an answer that cannot have
 /// changed, which is what took the library's run half from 591
 /// seconds of processor time to 3153.
+#[derive(Clone)]
 enum SolveShape {
     /// The name stands alone on one side and is named nowhere else, so
     /// the equation is read off with no arithmetic at all.
@@ -1371,6 +1372,39 @@ fn solve_shape(lhs: &Expr, rhs: &Expr, name: &str, params: &HashMap<String, f64>
     SolveShape::Slope(Some(named))
 }
 
+/// The shape of an equation for a name, from an earlier walk of the
+/// same reduction where it holds the same equation, else worked out
+/// and offered to the walks after this one.
+fn carried_shape(
+    eq: usize,
+    lhs: &Expr,
+    rhs: &Expr,
+    name: &str,
+    params: &HashMap<String, f64>,
+) -> SolveShape {
+    if !carried_shapes_enabled() {
+        return solve_shape(lhs, rhs, name, params);
+    }
+    let key = (eq, name.to_string());
+    let usable = |carried: &CarriedShapes| eq < carried.0 && !carried.2.contains(&eq);
+    if let Some(shape) = CARRIED_SHAPES.with(|cell| {
+        let carried = cell.borrow();
+        usable(&carried)
+            .then(|| carried.1.get(&key).cloned())
+            .flatten()
+    }) {
+        return shape;
+    }
+    let shape = solve_shape(lhs, rhs, name, params);
+    CARRIED_SHAPES.with(|cell| {
+        let mut carried = cell.borrow_mut();
+        if usable(&carried) {
+            carried.1.insert(key, shape.clone());
+        }
+    });
+    shape
+}
+
 /// How dearly an equation is solved for one of its unknowns: the
 /// shape above, read against this block's other unknowns.
 ///
@@ -1427,7 +1461,7 @@ fn order_by_solve_cost(
         for (&v, name) in vars.iter().zip(&names) {
             let shape = shapes
                 .entry((eq, name.clone()))
-                .or_insert_with(|| solve_shape(lhs, rhs, name, params));
+                .or_insert_with(|| carried_shape(eq, lhs, rhs, name, params));
             let others: Vec<String> = names.iter().filter(|n| *n != name).cloned().collect();
             ranked.push((solve_cost(shape, &others), v));
         }
@@ -1667,6 +1701,12 @@ fn reduce_index(
     programs: &HashMap<String, ClassDef>,
 ) -> Result<Reduction, SimError> {
     REFUSED_VICTIMS.with(|set| set.borrow_mut().clear());
+    CARRIED_SHAPES.with(|cell| {
+        let mut carried = cell.borrow_mut();
+        carried.0 = algebraic_eqs.len();
+        carried.1.clear();
+        carried.2.clear();
+    });
     let original_rhs = state_rhs.clone();
     let mut retreats = 0usize;
     loop {
@@ -1736,7 +1776,28 @@ fn retreat_enabled() -> bool {
     std::env::var_os("OXIDELICA_NO_RETREAT").is_none()
 }
 
+/// What a reduction carries between its walks: the count of equations
+/// every walk begins with, the shapes by equation and name, and the
+/// indices the current walk replaced with a hidden constraint.
+type CarriedShapes = (usize, HashMap<(usize, String), SolveShape>, Vec<usize>);
+
+/// Whether shapes are carried from one walk of a reduction to the walks
+/// a retreat starts again. The carried shape is the one `solve_shape`
+/// would work out afresh, so the switch changes only how often it is
+/// worked out; it is kept so the two can be measured with one binary.
+fn carried_shapes_enabled() -> bool {
+    std::env::var_os("OXIDELICA_NO_CARRIED_SHAPES").is_none()
+}
+
 thread_local! {
+    /// The shapes worked out by one walk, kept for the walks a retreat
+    /// starts again. Every walk begins from the same equations, so an
+    /// index below the count they began with (the first field) names
+    /// the same equation in each - unless a walk put a hidden
+    /// constraint in its place, and the indices it replaced (the last
+    /// field, cleared as each walk begins) are neither kept nor read.
+    static CARRIED_SHAPES: std::cell::RefCell<CarriedShapes> =
+        std::cell::RefCell::new((0, HashMap::new(), Vec::new()));
     /// The victims refused to the walk, by the reduction that took them.
     static REFUSED_VICTIMS: std::cell::RefCell<Vec<(usize, String)>> =
         const { std::cell::RefCell::new(Vec::new()) };
@@ -1888,6 +1949,7 @@ fn reduce_index_once(
     programs: &HashMap<String, ClassDef>,
     may_retreat: bool,
 ) -> Result<Reduction, SimError> {
+    CARRIED_SHAPES.with(|cell| cell.borrow_mut().2.clear());
     let mut dummies: HashMap<String, String> = HashMap::new();
     // Which reduction demoted each state, for a retreat to name.
     let mut taken_at: HashMap<String, usize> = HashMap::new();
@@ -2017,6 +2079,11 @@ fn reduce_index_once(
                     algebraic_eqs[replaced] = (lhs, Expr::Number(0.0));
                     solved_for.retain(|(index, _), _| *index != replaced);
                     solve_shapes.retain(|(index, _), _| *index != replaced);
+                    CARRIED_SHAPES.with(|cell| {
+                        let mut carried = cell.borrow_mut();
+                        carried.1.retain(|(index, _), _| *index != replaced);
+                        carried.2.push(replaced);
+                    });
                     continue;
                 }
             }
@@ -3140,6 +3207,74 @@ fn held_row(algebraic_eqs: &[(Expr, Expr)], derivative: &Expr) -> Option<usize> 
     algebraic_eqs
         .iter()
         .position(|(l, r)| matches!(r, Expr::Number(z) if *z == 0.0) && simplify(l) == wanted)
+}
+
+#[cfg(test)]
+mod carried_shape_tests {
+    use super::{carried_shape, SolveShape, CARRIED_SHAPES};
+    use oxidelica_parser::{BinOp, Expr};
+    use std::collections::HashMap;
+
+    fn begin(count: usize) {
+        CARRIED_SHAPES.with(|cell| {
+            let mut carried = cell.borrow_mut();
+            carried.0 = count;
+            carried.1.clear();
+            carried.2.clear();
+        });
+    }
+
+    /// A shape worked out once is handed back for the same equation
+    /// and name, while an index a hidden constraint replaced, or one
+    /// past the equations the walks began with, is worked out afresh.
+    /// The second equation is given a different body under the same
+    /// index on purpose: only a carried answer can ignore it.
+    #[test]
+    fn a_shape_is_carried_only_where_the_equation_is_the_same() {
+        let params = HashMap::new();
+        let alone = (Expr::Ref("x".into()), Expr::Ref("y".into()));
+        let scaled = (
+            Expr::Bin(
+                BinOp::Mul,
+                Box::new(Expr::Ref("x".into())),
+                Box::new(Expr::Ref("x".into())),
+            ),
+            Expr::Ref("y".into()),
+        );
+        let fresh = |eq: (&Expr, &Expr)| {
+            matches!(
+                super::solve_shape(eq.0, eq.1, "x", &params),
+                SolveShape::Alone
+            )
+        };
+        assert!(fresh((&alone.0, &alone.1)));
+        assert!(!fresh((&scaled.0, &scaled.1)));
+
+        begin(2);
+        let first = carried_shape(0, &alone.0, &alone.1, "x", &params);
+        assert!(matches!(first, SolveShape::Alone));
+        let again = carried_shape(0, &scaled.0, &scaled.1, "x", &params);
+        assert!(
+            matches!(again, SolveShape::Alone),
+            "carried from the first walk"
+        );
+
+        CARRIED_SHAPES.with(|cell| cell.borrow_mut().2.push(0));
+        let replaced = carried_shape(0, &scaled.0, &scaled.1, "x", &params);
+        assert!(
+            !matches!(replaced, SolveShape::Alone),
+            "a replaced row is not read"
+        );
+
+        let past = carried_shape(5, &alone.0, &alone.1, "x", &params);
+        assert!(matches!(past, SolveShape::Alone));
+        let past_again = carried_shape(5, &scaled.0, &scaled.1, "x", &params);
+        assert!(
+            !matches!(past_again, SolveShape::Alone),
+            "nothing past the count is kept"
+        );
+        begin(0);
+    }
 }
 
 #[cfg(test)]
