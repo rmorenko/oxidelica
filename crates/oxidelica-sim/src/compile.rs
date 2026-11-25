@@ -286,9 +286,14 @@ fn values_at_starts(
 
 /// Fold every body whose names are all numbers, to a fixpoint.
 fn fold_bodies(table: &mut HashMap<String, f64>, bodies: &HashMap<&str, &Expr>) {
+    // In the order of the names, so that the number of tries does not
+    // follow the hash seed of the process; the table at the fixpoint
+    // is the same in any order.
+    let mut ordered: Vec<(&&str, &&Expr)> = bodies.iter().collect();
+    ordered.sort_by(|a, b| a.0.cmp(b.0));
     loop {
         let mut grew = false;
-        for (name, body) in bodies {
+        for &(name, body) in &ordered {
             if table.contains_key(*name) {
                 continue;
             }
@@ -300,7 +305,7 @@ fn fold_bodies(table: &mut HashMap<String, f64>, bodies: &HashMap<&str, &Expr>) 
             let mut folded = (*body).clone();
             for r in refs {
                 if let Some(value) = table.get(r) {
-                    folded = crate::symbolic::substitute(&folded, r, *value);
+                    crate::symbolic::substitute_mut(&mut folded, r, *value);
                 }
             }
             if let Expr::Number(value) = crate::symbolic::simplify(&folded) {
@@ -479,7 +484,7 @@ fn build_plan(
                 let mut folded = candidate.body.clone();
                 for need in &candidate.needs {
                     if let Some(value) = settled.get(need) {
-                        folded = crate::symbolic::substitute(&folded, need, *value);
+                        crate::symbolic::substitute_mut(&mut folded, need, *value);
                     }
                 }
                 if let Expr::Number(value) = crate::symbolic::simplify(&folded) {
@@ -1357,7 +1362,7 @@ fn solve_shape(lhs: &Expr, rhs: &Expr, name: &str, params: &HashMap<String, f64>
     let mut folded = slope.clone();
     for named_ref in &named {
         if let Some(value) = params.get(named_ref.as_str()) {
-            folded = substitute(&folded, named_ref, *value);
+            crate::symbolic::substitute_mut(&mut folded, named_ref, *value);
         }
     }
     if matches!(simplify(&folded), Expr::Number(n) if n == 0.0) {

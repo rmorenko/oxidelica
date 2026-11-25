@@ -1065,6 +1065,61 @@ impl Expr {
         }
     }
 
+    /// The same walk one level down, in place: for a pass that changes
+    /// a few leaves of a large tree, where building every node anew is
+    /// the whole of its cost.
+    pub fn for_each_child_mut(&mut self, f: &mut dyn FnMut(&mut Expr)) {
+        match self {
+            // Nothing below them to visit.
+            Expr::Number(_)
+            | Expr::Bool(_)
+            | Expr::Str(_)
+            | Expr::Ref(_)
+            | Expr::Time
+            | Expr::ColonSubscript
+            | Expr::EndSubscript => {}
+            Expr::Neg(inner) | Expr::Not(inner) => f(inner),
+            Expr::Member(base, _) => f(base),
+            Expr::NamedArg(_, value) => f(value),
+            Expr::Bin(_, l, r)
+            | Expr::Elementwise(_, l, r)
+            | Expr::Rel(_, l, r)
+            | Expr::And(l, r)
+            | Expr::Or(l, r) => {
+                f(l);
+                f(r);
+            }
+            Expr::If(c, a, b) => {
+                f(c);
+                f(a);
+                f(b);
+            }
+            Expr::Comprehension(body, _, over) => {
+                f(body);
+                f(over);
+            }
+            Expr::Range(from, step, to) => {
+                f(from);
+                if let Some(step) = step {
+                    f(step);
+                }
+                f(to);
+            }
+            Expr::Call(_, items) | Expr::Array(items) => items.iter_mut().for_each(f),
+            Expr::Tuple(items) => items.iter_mut().flatten().for_each(f),
+            Expr::Index(base, subscripts) => {
+                f(base);
+                subscripts.iter_mut().for_each(f);
+            }
+            Expr::MatrixRows(rows) => rows.iter_mut().flatten().for_each(f),
+            Expr::WithDerivative(value, rule, seeds) => {
+                f(value);
+                f(rule);
+                seeds.iter_mut().for_each(|(_, arg)| f(arg));
+            }
+        }
+    }
+
     /// The same, for a walk that may refuse: the first refusal is the
     /// answer, and nothing below it is asked.
     pub fn try_map_children<E>(

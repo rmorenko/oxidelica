@@ -98,6 +98,26 @@ fn substitute_replaces_every_occurrence() {
 }
 
 #[test]
+fn substitute_in_place_gives_the_same_tree_as_substitute() {
+    // Every kind of node with children, so a variant the in-place walk
+    // skipped would leave a reference behind and differ from the copy.
+    let sources = [
+        "if a > 0 and a < 5 or not a > 9 then sin(a) + (-a) else a / 2 ^ a",
+        "sum({a, b, a * b}) + sum(x * a for x in 1:3)",
+        "max(a, b) + atan2(a, a * b)",
+    ];
+    for source in sources {
+        let expr = expr_of(source);
+        let mut in_place = expr.clone();
+        crate::symbolic::substitute_mut(&mut in_place, "a", 3.0);
+        assert_eq!(in_place, substitute(&expr, "a", 3.0), "{source}");
+        let mut refs = Vec::new();
+        in_place.collect_refs(&mut refs);
+        assert!(!refs.contains(&"a"), "a survived: {in_place:?}");
+    }
+}
+
+#[test]
 fn differentiates_every_elementary_function() {
     // d/da of f(a) at a = 0.7, compared with a central difference.
     for name in [

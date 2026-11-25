@@ -142,11 +142,24 @@ fn seeded(rule: &Expr, given: &HashMap<String, Expr>) -> Expr {
 
 /// Replace every reference to `var` with `value`.
 pub(crate) fn substitute(expr: &Expr, var: &str, value: f64) -> Expr {
+    oxidelica_parser::work::tick(oxidelica_parser::work::Step::SubstituteNode);
     match expr {
         // The one case this is about; everything else is the same
         // expression with its children substituted.
         Expr::Ref(name) if name == var => Expr::Number(value),
         _ => expr.map_children(&mut |child| substitute(child, var, value)),
+    }
+}
+
+/// The same as `substitute`, in place: a node that does not change is
+/// not built again. The loops that fold a body name by name walk the
+/// whole tree once per name, and the rebuilding was where the time went
+/// (m799, the profile of RevoluteConstraint in malloc and free).
+pub(crate) fn substitute_mut(expr: &mut Expr, var: &str, value: f64) {
+    oxidelica_parser::work::tick(oxidelica_parser::work::Step::SubstituteNode);
+    match expr {
+        Expr::Ref(name) if name == var => *expr = Expr::Number(value),
+        _ => expr.for_each_child_mut(&mut |child| substitute_mut(child, var, value)),
     }
 }
 
@@ -158,6 +171,7 @@ pub(crate) fn substitute(expr: &Expr, var: &str, value: f64) -> Expr {
 /// thousand times over, which is quadratic in a tree that index
 /// reduction is perfectly capable of growing to that size.
 pub(crate) fn substitute_all(expr: &Expr, table: &HashMap<&str, f64>) -> Expr {
+    oxidelica_parser::work::tick(oxidelica_parser::work::Step::SubstituteNode);
     match expr {
         Expr::Ref(name) => match table.get(name.as_str()) {
             Some(value) => Expr::Number(*value),
@@ -665,6 +679,7 @@ pub(crate) fn differentiate_at(
     target: &DiffTarget,
     depth: usize,
 ) -> Result<Expr, String> {
+    oxidelica_parser::work::tick(oxidelica_parser::work::Step::DiffNode);
     if depth > MAX_DIFF_DEPTH {
         return Err("an expression too deep to differentiate".to_string());
     }

@@ -50,9 +50,15 @@ pub enum Step {
     /// included: the product of calls and their size, which is what
     /// the time is spent on.
     SimplifyNode,
+    /// A node of an expression substitution visited, by one name or by
+    /// a table: the simplifier's count missed the walk that index
+    /// reduction spends most of its symbolic time in.
+    SubstituteNode,
+    /// A node of an expression differentiation visited.
+    DiffNode,
 }
 
-const KINDS: usize = 12;
+const KINDS: usize = 14;
 
 impl Step {
     fn at(self) -> usize {
@@ -69,6 +75,8 @@ impl Step {
             Step::ReductionCandidate => 9,
             Step::SimplifyCall => 10,
             Step::SimplifyNode => 11,
+            Step::SubstituteNode => 12,
+            Step::DiffNode => 13,
         }
     }
 }
@@ -76,6 +84,8 @@ impl Step {
 thread_local! {
     static COUNTED: [Cell<u64>; KINDS] = const {
         [
+            Cell::new(0),
+            Cell::new(0),
             Cell::new(0),
             Cell::new(0),
             Cell::new(0),
@@ -141,6 +151,10 @@ pub struct Work {
     pub simplify_calls: u64,
     /// Nodes the simplifier visited.
     pub simplify_nodes: u64,
+    /// Nodes substitution visited.
+    pub substitute_nodes: u64,
+    /// Nodes differentiation visited.
+    pub diff_nodes: u64,
 }
 
 impl Work {
@@ -161,6 +175,8 @@ impl Work {
             reduction_candidates: get(Step::ReductionCandidate),
             simplify_calls: get(Step::SimplifyCall),
             simplify_nodes: get(Step::SimplifyNode),
+            substitute_nodes: get(Step::SubstituteNode),
+            diff_nodes: get(Step::DiffNode),
         }
     }
 
@@ -180,6 +196,8 @@ impl Work {
             reduction_candidates: self.reduction_candidates - earlier.reduction_candidates,
             simplify_calls: self.simplify_calls - earlier.simplify_calls,
             simplify_nodes: self.simplify_nodes - earlier.simplify_nodes,
+            substitute_nodes: self.substitute_nodes - earlier.substitute_nodes,
+            diff_nodes: self.diff_nodes - earlier.diff_nodes,
         }
     }
 
@@ -199,6 +217,8 @@ impl Work {
             reduction_candidates: self.reduction_candidates + other.reduction_candidates,
             simplify_calls: self.simplify_calls + other.simplify_calls,
             simplify_nodes: self.simplify_nodes + other.simplify_nodes,
+            substitute_nodes: self.substitute_nodes + other.substitute_nodes,
+            diff_nodes: self.diff_nodes + other.diff_nodes,
         }
     }
 }
@@ -223,6 +243,8 @@ mod tests {
         add(Step::ReductionCandidate, 3);
         tick(Step::SimplifyCall);
         add(Step::SimplifyNode, 4);
+        add(Step::SubstituteNode, 6);
+        add(Step::DiffNode, 2);
         let done = Work::here().since(before);
         assert_eq!(
             done,
@@ -240,6 +262,8 @@ mod tests {
                 reduction_candidates: 3,
                 simplify_calls: 1,
                 simplify_nodes: 4,
+                substitute_nodes: 6,
+                diff_nodes: 2,
             }
         );
         assert_eq!(done.plus(done).expanded, 4);

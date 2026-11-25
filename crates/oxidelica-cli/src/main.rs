@@ -1235,6 +1235,14 @@ fn library_check(args: &[String]) -> Result<(), String> {
         "symbolic: {} simplify, {} nodes",
         running_work.simplify_calls, running_work.simplify_nodes
     );
+    // Substitution and differentiation beside it, on a line of their
+    // own so that nothing reading the one above has to learn a field:
+    // RevoluteConstraint visits four nodes substituting for every one
+    // it simplifies (m799).
+    println!(
+        "rewrites: {} substitute nodes, {} differentiate nodes",
+        running_work.substitute_nodes, running_work.diff_nodes
+    );
     if list {
         let mut named: Vec<&&String> = flat.iter().collect();
         named.sort();

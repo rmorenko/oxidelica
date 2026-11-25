@@ -2298,7 +2298,7 @@ fn a_reduction_of_the_index_is_counted_and_a_model_without_one_counts_none() {
             .map(|n| n.parse().unwrap())
             .collect()
     };
-    let symbolic = |model: &str| -> Vec<u64> {
+    let symbolic = |model: &str, head: &str| -> Vec<u64> {
         let out = bin()
             .args([
                 "library",
@@ -2312,8 +2312,8 @@ fn a_reduction_of_the_index_is_counted_and_a_model_without_one_counts_none() {
         let text = stdout(&out);
         let line = text
             .lines()
-            .find(|l| l.starts_with("symbolic:"))
-            .unwrap_or_else(|| panic!("no symbolic line in: {text}"));
+            .find(|l| l.starts_with(head))
+            .unwrap_or_else(|| panic!("no {head} line in: {text}"));
         line.split(|c: char| !c.is_ascii_digit())
             .filter(|s| !s.is_empty())
             .map(|n| n.parse().unwrap())
@@ -2321,9 +2321,15 @@ fn a_reduction_of_the_index_is_counted_and_a_model_without_one_counts_none() {
     };
     // The reduction of `Tied` differentiates and folds: the simplifier
     // is called, and every call visits at least one node.
-    let folded = symbolic("Lib.Examples.Tied");
+    let folded = symbolic("Lib.Examples.Tied", "symbolic:");
     assert_eq!(folded.len(), 2, "{folded:?}");
     assert!(folded[0] > 0 && folded[1] >= folded[0], "{folded:?}");
+    // And it differentiates a member, so differentiation visits nodes;
+    // a model with no reduction visits none of either.
+    let rewritten = symbolic("Lib.Examples.Tied", "rewrites:");
+    assert_eq!(rewritten.len(), 2, "{rewritten:?}");
+    assert!(rewritten[1] > 0, "{rewritten:?}");
+    assert_eq!(symbolic("Lib.Examples.Plain", "rewrites:")[1], 0);
     let tied = counts("Lib.Examples.Tied");
     assert_eq!(tied.len(), 3, "{tied:?}");
     assert!(tied.iter().all(|&n| n > 0), "{tied:?}");
