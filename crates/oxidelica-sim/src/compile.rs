@@ -1789,6 +1789,17 @@ fn carried_shapes_enabled() -> bool {
     std::env::var_os("OXIDELICA_NO_CARRIED_SHAPES").is_none()
 }
 
+/// The folded plain side and the named list of one equation, as the
+/// candidate loop of a reduction reads them.
+type EqRead = (Option<(String, Expr)>, Vec<String>);
+
+/// Whether the candidate loop keeps what it read off an equation for
+/// the rest of the reduction. The answer is the same either way; the
+/// switch is kept so the two can be measured with one binary.
+fn eq_reads_enabled() -> bool {
+    std::env::var_os("OXIDELICA_NO_EQ_READS").is_none()
+}
+
 thread_local! {
     /// The shapes worked out by one walk, kept for the walks a retreat
     /// starts again. Every walk begins from the same equations, so an
@@ -1999,6 +2010,13 @@ fn reduce_index_once(
     // equation mentions it - so a remembered refusal costs no more
     // than a remembered answer.
     let mut solved_for: HashMap<(usize, String), Option<Expr>> = HashMap::new();
+    // What the candidate loop reads off an equation before it asks who
+    // is an unknown - the folded other side of a plain name, and the
+    // names the equation mentions - depends on the equation alone, so
+    // it rides the same bracket and the same index as `solved_for`.
+    // Which of those names are unknowns moves, and is asked each time.
+    let mut eq_reads: HashMap<usize, EqRead> = HashMap::new();
+    let reads_kept = eq_reads_enabled();
     // The same bracket serves the matching's rank, whose dear half -
     // differentiating the equation and folding the slope - depends on
     // the equation and the name and on nothing else. Which of the
@@ -2078,6 +2096,7 @@ fn reduce_index_once(
                     }
                     algebraic_eqs[replaced] = (lhs, Expr::Number(0.0));
                     solved_for.retain(|(index, _), _| *index != replaced);
+                    eq_reads.remove(&replaced);
                     solve_shapes.retain(|(index, _), _| *index != replaced);
                     CARRIED_SHAPES.with(|cell| {
                         let mut carried = cell.borrow_mut();
@@ -2217,17 +2236,50 @@ fn reduce_index_once(
                         if index == eq {
                             continue;
                         }
-                        if let (Expr::Ref(name), other) | (other, Expr::Ref(name)) = (l, r) {
+                        let read_afresh = || {
+                            let plain = match (l, r) {
+                                (Expr::Ref(name), other) | (other, Expr::Ref(name)) => {
+                                    Some((name.clone(), simplify(other)))
+                                }
+                                _ => None,
+                            };
+                            let mut named = Vec::new();
+                            l.collect_refs(&mut named);
+                            r.collect_refs(&mut named);
+                            named.sort_unstable();
+                            named.dedup();
+                            (plain, named.into_iter().map(str::to_string).collect())
+                        };
+                        // The switch off is the old walk to the letter:
+                        // the plain side is folded only for an unknown.
+                        let fresh;
+                        let (plain, named): &EqRead = if reads_kept {
+                            eq_reads.entry(index).or_insert_with(read_afresh)
+                        } else {
+                            let plain = match (l, r) {
+                                (Expr::Ref(name), other) | (other, Expr::Ref(name)) => {
+                                    // Asked of the first reading alone, as
+                                    // the walk always asked it.
+                                    unknowns
+                                        .contains(name)
+                                        .then(|| (name.clone(), simplify(other)))
+                                }
+                                _ => None,
+                            };
+                            let mut named = Vec::new();
+                            l.collect_refs(&mut named);
+                            r.collect_refs(&mut named);
+                            named.sort_unstable();
+                            named.dedup();
+                            fresh = (plain, named.into_iter().map(str::to_string).collect());
+                            &fresh
+                        };
+                        if let Some((name, folded)) = plain {
                             if unknowns.contains(name) {
-                                candidates.push((name.clone(), simplify(other), index));
+                                candidates.push((name.clone(), folded.clone(), index));
                             }
                         }
-                        let mut named = Vec::new();
-                        l.collect_refs(&mut named);
-                        r.collect_refs(&mut named);
-                        named.sort_unstable();
-                        named.dedup();
-                        for name in named {
+                        for name in named.iter().map(String::as_str) {
                             if !unknowns.iter().any(|u| u == name) {
                                 continue;
                             }
@@ -3090,6 +3142,7 @@ fn reduce_index_once(
                         // an index past the truncation will hold another
                         // equation on the next attempt.
                         solved_for.retain(|(index, _), _| *index < saved_eqs);
+                        eq_reads.retain(|index, _| *index < saved_eqs);
                         solve_shapes.retain(|(index, _), _| *index < saved_eqs);
                         minted_defs = saved_minted.clone();
                         attempt_supplied.clear();

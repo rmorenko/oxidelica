@@ -1381,3 +1381,36 @@ fn a_remembered_walk_answers_as_the_body_does() {
         "another argument answered from the table"
     );
 }
+
+/// What the candidate loop of a reduction reads off an equation is
+/// kept for the rest of the reduction: the same states come out, and
+/// fewer foldings are spent on them than when every attempt reads
+/// every equation afresh. The switch only changes how often the work
+/// is done, so other tests running beside this one are not disturbed.
+#[test]
+fn a_reduction_reads_each_equation_once() {
+    // Two bobs on rods, the second hung from the first: the members of
+    // its reductions are tried in turn, and every try reads the block.
+    let source = "model DoubleCartesian \
+         parameter Real g = 9.81; \
+         Real x1(start = 0.6); Real y1(start = -0.8); Real vx1(start = 0); Real vy1(start = 0); \
+         Real x2(start = 1.2); Real y2(start = -1.6); Real vx2(start = 0); Real vy2(start = 0); \
+         Real l1; Real l2; \
+         equation der(x1) = vx1; der(y1) = vy1; der(x2) = vx2; der(y2) = vy2; \
+         der(vx1) = -l1 * x1 + l2 * (x2 - x1); der(vy1) = -l1 * y1 + l2 * (y2 - y1) - g; \
+         der(vx2) = -l2 * (x2 - x1); der(vy2) = -l2 * (y2 - y1) - g; \
+         x1 ^ 2 + y1 ^ 2 = 1; (x2 - x1) ^ 2 + (y2 - y1) ^ 2 = 1; end DoubleCartesian;";
+    let model = parse_model(source).unwrap();
+    let measure = || {
+        let before = oxidelica_parser::work::Work::here();
+        let compiled = crate::compile(&model).unwrap();
+        let spent = oxidelica_parser::work::Work::here().since(before);
+        (compiled.states.clone(), spent.simplify_calls)
+    };
+    std::env::set_var("OXIDELICA_NO_EQ_READS", "1");
+    let (afresh_states, afresh) = measure();
+    std::env::remove_var("OXIDELICA_NO_EQ_READS");
+    let (kept_states, kept) = measure();
+    assert_eq!(kept_states, afresh_states);
+    assert!(kept < afresh, "kept {kept} foldings, afresh {afresh}");
+}
