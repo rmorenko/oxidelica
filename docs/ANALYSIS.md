@@ -98930,3 +98930,47 @@ whose simplifier count fell from 408.1 M to 366.4 M nodes and whose run
 fell from 43.8 s to 43.0 s. The other five moved by less than 1.5%.
 The gain belongs to models that retreat, and among the ten only
 PlanarFourbar retreats often enough to carry it.
+
+## Shift m802: the shape carry merged
+
+The parked carry of `solve_shape` across retreats went into the tree
+with a switch, `OXIDELICA_NO_CARRIED_SHAPES=1`, that turns it off so
+one binary gives both halves of a measurement. A unit test gives the
+same index a different equation and passes only when the carried shape
+is the one handed back. It goes red with the switch set.
+
+Judged again with `--only` on PlanarFourbar, with oxk (md5 baa205ea),
+in `/tmp/m802/d_PF_{off,on}.txt`: switch off matches m801's ox1 line
+for line apart from times, and switch on matches ox3 the same way. The
+run half was 58.5 s off and 48.3 s on.
+
+The corpus pair used the final binary, oxk2 (md5 4e428a32), with
+`--slow 60` on both halves, in `/tmp/m802/c_{off,on}.txt`. Both halves
+print 1026 / 986 / 858 and runnable 897 / 867 / 809, and the flat and
+ran lists match line for line. The reference named for the off half,
+`/tmp/m727/c2_on.txt`, no longer exists, so the off half was not checked
+against it. The four flattening counters match to the digit, and so do
+the running work and reduction lines. Symbolic nodes fell from 6057 M
+to 5807 M and differentiate nodes from 71.58 M to 70.96 M, which is the
+skipped work. Flattening took 5649 s against 5274 s with identical work,
+so the noise ceiling of this pair is 375 s. The run half went from 2520
+to 2493 s (-27 s), below that ceiling, so the corpus does not resolve
+the gain. The named carrier does: PlanarFourbar ran 74.2 s off and
+62.2 s on in the pair. In `slowest run`, the largest rise was
+PointGravityWithPointMasses2 at +2.9 s. That is below the ceiling, and
+in m801 the same model ran 24.6 s off and 24.3 s on with `--only`.
+The victim witnesses on oxk2 gave no failures and printed what m801's
+ox3 printed (`/tmp/m802/witness_oxk2.txt`). The heavy basket was not
+measured, and the daily run judges it.
+
+The preflight's clippy step then refused the carried table's type as
+too complex. Naming it with a type alias changed no behaviour. Still, the
+compiler changed after the pair, so the pair no longer stood in for the
+library step, and the preflight ran it in full
+(`/tmp/m802/preflight2.txt`).
+
+With the carry in, a profile of PlanarFourbar
+(`/tmp/m802/prof_sample.txt`, taken beside the pair, so shares only)
+puts `solve_shape` at 18 samples where it had 3992. The largest named
+frames are now `simplify` and `collect_refs`. The map for the next
+series is `park/m802_next_carrier.md`. No edit was built from it.
