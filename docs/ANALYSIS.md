@@ -98906,3 +98906,19 @@ closure: the equation clone at `compile.rs:2126`, the matching clones
 just above it, and the solved forms that are built and then dropped.
 That needs a count per site before any edit. The map is
 `park/m801_simplify_map.md`.
+
+### Shapes worked again after every retreat
+
+The profile named `solve_shape` as the largest frame. A probe counted
+its calls on PlanarFourbar: 19.5 k, of which 15.2 k (79%) were for an
+equation and a name already worked out. The cause is the retreat:
+`reduce_index` enters `reduce_index_once` five times with the same 2266
+equations, and the table of shapes starts empty on each entry. A parked
+build carries the shapes across retreats for the equations every walk
+starts from. Judged with `--only` (`/tmp/m801/d_*_ox{1,3,1b}.txt`), it
+ran PlanarFourbar in 48.6 s against 58.0 and 57.7 s. The other three
+models moved within their own spread. The work and reduction lines and
+the refusals matched in all four. It was not merged, because it was not
+an item of the shift and only the victim witnesses have judged it (exit 0,
+`/tmp/m801/witness_ox3.txt`); the corpus pair has not. The
+patch and numbers are in `park/m801_carried_shapes.md`.
