@@ -98974,3 +98974,79 @@ With the carry in, a profile of PlanarFourbar
 puts `solve_shape` at 18 samples where it had 3992. The largest named
 frames are now `simplify` and `collect_refs`. The map for the next
 series is `park/m802_next_carrier.md`. No edit was built from it.
+
+## Shift m803: what a reduction reads off an equation, kept and parked
+
+With the shape carry in, the next carrier was looked for on a quiet
+table before anything was edited. A profile of PlanarFourbar with
+m802's binary (md5 4e428a32, `/tmp/m803/samp_pf.txt`) put 15957 samples
+in `reduce_index_once`. Inclusive, `simplify` had 5357, `Expr::clone`
+7244, `collect_refs` 2429, `solve_linear_known` 1554 and
+`differentiate_at` 1547. The SipHash writer had 163, about 1%, so the
+hasher is not a carrier. Engine1a (`/tmp/m803/samp_e1.txt`) gave the same
+order: 14679 in the reduction, 4960 in `simplify`, 2672 in
+`collect_refs`, 201 in SipHash.
+
+A probe, kept out of the tree, counted calls at each site of
+`collect_refs` and `simplify` inside the reduction, and asked whether
+each input had been seen before in the same reduction. Asked by content
+(`/tmp/m803/z2_pf.txt`), 96 to 99% of the calls at every site were
+repeats. The fold of a plain name's other side in the candidate loop
+took 258358 calls and 105.8 M input nodes, about a quarter of all
+simplifier nodes. 86% of those calls gave back their input unchanged.
+So the carrier is repetition, not the size of the expressions. A first
+probe keyed by address said less, because an equation keeps its
+address while its index is reused.
+
+The edit makes the candidate loop keep, per equation index, the folded plain side
+and the sorted list of names, under the bracket `solved_for` already
+uses. The two tables are dropped in the same places: a replaced row, and
+a retreat past the equations the walk began with. Which of the names are
+unknowns still moves, and it is asked each time. The switch
+`OXIDELICA_NO_EQ_READS=1` gives back the old walk to the letter. Its off
+half matched m802's head on every count of PlanarFourbar
+(`/tmp/m803/run_pf.txt` against `t_pf2_off.txt`). The first build's off
+half folded the plain side before asking whether the name was an
+unknown, and its off half did 3432 more simplifier calls, so it was
+rebuilt. A unit test on a Cartesian double pendulum passes only when
+fewer folds are spent with the table than without it, with the same
+states. It goes red with the table forced off.
+
+Judged with `--only` on PlanarFourbar, off/on/off. On a quiet table
+with the first build (`/tmp/m803/t_pf_*.txt`), the run half was 51.62,
+47.31 and 51.56 s, which is -8.4%. With the final build oxe2 (md5
+6f6b66b4), after the machine had woken on battery
+(`/tmp/m803/t_pf4_*.txt`), it was 77.08, 71.01 and 77.35 s, which is
+-8.0%. Simplifier calls fell from 1036588 to 636639 and nodes from 399.5 M
+to 237.4 M, and every other count matched. One triple,
+`t_pf3_*_SLEPT.txt`, was taken while the machine slept and is void. The
+forecast written before the number was 38 to 46 s. The result, 47.3 s, is
+outside that band: the direction stood and the size did not.
+
+The corpus pair used the same binary as oxe3, with `--slow 60` on both
+halves (`/tmp/m803/c_{off,on}.txt`). Both halves print 1026 / 986 / 858
+and runnable 897 / 867 / 809. The flat and ran lists, 1844 lines, are
+equal between the halves and equal to the m802 reference
+`/tmp/m802/c_off.txt`. Every work, reduction and rewrite count matches
+between the halves except the simplifier, which went from 31.48 M calls
+and 5807 M nodes to 25.55 M and 4436 M. The table was slow on this pair,
+about 1.8 times m802 on both halves. Flattening took 9231 against 8903 s
+with identical work, so the noise ceiling is 328 s. The run half went
+from 4582 to 4516 s (-66 s), below that ceiling, so the corpus does not
+resolve the gain. The named carriers do: PlanarFourbar ran 102.6 s off
+and 96.8 s on, and Engine1a 156.1 s against 141.7 s. The victim
+witnesses on oxe3 passed with exit 0 and printed what m802's oxk2
+printed (`/tmp/m803/witness_oxe3.txt`). The heavy basket was not
+measured, and the daily run judges it.
+
+The empty rebuild that the parked copy-on-write simplifier
+(`park/m801_simplify_cow.diff`) was waiting on is real: 86% at the
+largest site. Most of those calls are now not made at all, so that patch
+was not judged. Its condition should be measured again on what is left.
+
+The edit is not in the tree. The full preflight takes about an hour on
+this table and did not fit in the shift after the pair, and the quick
+run had found a clippy complaint in the new test, which is now fixed.
+The commit, with the test, is `park/m803_eq_reads.diff` and its notes
+are in `park/m803_eq_reads.md`. Both measurements above were taken with
+it, so merging it needs only the preflight.
