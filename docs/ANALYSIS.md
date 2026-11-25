@@ -98768,3 +98768,49 @@ differentiation inside index reduction and `solve_shape`.
 `RollingWheel` needs only 6 reduction passes for its 19 s, so the cost
 is in each pass, not in how many there are. A counter of that work is
 the next instrument. Until it exists, time is the only judge there.
+
+## Shift m799: a counter of the simplifier, and the run census read against its maps
+
+### Every run refusal of the census has a map
+
+The run half of `/tmp/m793/raw.txt` names 128 models (the census file
+sums the same 128 over 27 rows). Each was matched by its last name
+segment, as a whole word, against the shift notes kept outside the
+tree; the four namesakes (`Nand`, `SMPM_CurrentSource`,
+`SpringDamperNoRelativeStates`, `EngineV6_analytic`) were checked by
+their full paths. None is without a map. By family: 56 service classes
+with no experiment, 23 Fluid and Media first steps and starts, 17
+MultiBody refusals at t = 0, 12 machines, 6 of the `_analytic` family,
+5 Spice3 and 9 singles, each standing at a wall that already carries a
+standing decision. The top of the census therefore does not move a
+floor without a decision of the owner; no unread row is left.
+
+### What the simplifier does per model
+
+`library check` now prints a line of its own,
+`symbolic: N simplify, M nodes`: calls of the simplifier from outside
+itself, and every node it visited on the way down. It only counts.
+Measured one model at a time with one binary (md5 674fd667), on the
+MultiBody refusals whose run half the other counters left near zero:
+
+| model                        | run s | passes | nodes   | nodes per pass | ns per node |
+| ---------------------------- | ----- | ------ | ------- | -------------- | ----------- |
+| RevoluteConstraint           | 69.6  | 41     | 377.1 M | 9.20 M         | 185         |
+| PlanarFourbar                | 58.1  | 193    | 565.8 M | 2.93 M         | 103         |
+| Engine1a                     | 53.9  | 195    | 368.1 M | 1.89 M         | 146         |
+| UniversalConstraint          | 48.4  | 74     | 408.1 M | 5.51 M         | 119         |
+| PointGravityWithPointMasses2 | 24.8  | 63     | 177.5 M | 2.82 M         | 140         |
+| Cylinder                     | 21.9  | 28     | 156.6 M | 5.59 M         | 140         |
+| RollingWheel                 | 19.3  | 6      | 215.9 M | 35.99 M        | 89          |
+| PrismaticConstraint          | 17.7  | 18     | 138.3 M | 7.69 M         | 128         |
+| SphericalConstraint          | 17.4  | 34     | 136.4 M | 4.01 M         | 127         |
+| ThreeSprings                 | 6.0   | 1      | 81.4 M  | 81.43 M        | 74          |
+
+The nodes divide the models roughly as time does and the passes do
+not: `RollingWheel` and `PlanarFourbar` are 32 times apart in passes,
+3 times in time and 2.6 times in nodes. The time per node still spreads
+2.5 times, and `RevoluteConstraint` is dearest by it, so part of its
+time sits outside the simplifier (substitution or differentiation),
+which is where the next counter goes. The points, Newton iterations and
+passes of every model equal those of the previous shift's runs to the
+digit, so the counter moved no work. Floors and lists are untouched.
