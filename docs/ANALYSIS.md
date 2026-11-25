@@ -99050,3 +99050,18 @@ run had found a clippy complaint in the new test, which is now fixed.
 The commit, with the test, is `park/m803_eq_reads.diff` and its notes
 are in `park/m803_eq_reads.md`. Both measurements above were taken with
 it, so merging it needs only the preflight.
+
+## The equation-read table merged (m804)
+
+The parked commit `park/m803_eq_reads.diff` applied cleanly with `git am`
+on 44b6cec4, which differs from the code it was written on only in docs.
+`cargo fmt --check` and clippy with `-D warnings` were clean.
+
+Re-judged on the merged head with `--only` PlanarFourbar, off/on/off, one
+binary oxa (md5 75cfe9f9), quiet table (`/tmp/m804/t_pf_*.txt`): the run
+half took 51.38, 48.24 and 52.45 s. The two off halves differ by 1.08 s,
+and on is faster than both by 3.1 and 4.2 s, more than twice that, about
+-6.6%. The m803 pair was not run again because the code had not changed
+since it was taken. The full preflight passed (`/tmp/m804/preflight.txt`).
+The floors are unchanged because the lists of the pair are equal. The
+heavy basket is not measured, and the daily cron judges it.
