@@ -99304,3 +99304,41 @@ it.
 A map of where substitute nodes are born (`park/m809_substitute_map.md`)
 puts them at about 1% of the PlanarFourbar profile. They contain no
 literal garbage of the kind this line removed.
+
+## Shift m810: where the derivative's clones come from, on both carriers
+
+Nothing in the compiler changed in this shift. It measured a second carrier, so that a question
+about sharing would not rest on PlanarFourbar alone.
+
+Binary `/tmp/m809/oxdp` (head af795cfd, release with debug info, md5 bd66640a, matching
+`/tmp/m809/r.log`). Engine1a was sampled for 15 s starting 45 s in. It flattens in 32.7 s, so the
+window falls in the run half, and no Debug-formatting frames appear under it
+(`/tmp/m810/samp_e1a.txt`). The PlanarFourbar numbers come from `/tmp/m809/samp_pf2.txt`.
+
+| direct child of differentiate_at | PlanarFourbar | Engine1a    |
+| -------------------------------- | ------------- | ----------- |
+| top total                        | 978           | 906         |
+| simplify                         | 186 (19.0%)   | 179 (19.8%) |
+| clone                            | 512 (52.4%)   | 510 (56.3%) |
+| drop                             | 208 (21.3%)   | 154 (17.0%) |
+| clone + drop                     | 720 (73.6%)   | 664 (73.3%) |
+
+Both carriers pay for clones in the same proportion. The clones split by call site in
+`symbolic.rs` as follows:
+
+- live factors of the product rule (lines 980-987): 215 / 194;
+- the quotient rule's `b` (1024-1033): 98 / 118;
+- the if-branch rewrite (1350-1353), mostly `cond.clone()`: 163 / 141;
+- `sqrt` (1231): 36 / 57.
+
+The largest drop is at line 1022. It is the quotient's derivatives, built and then thrown away
+when the zero-divisor shortcut returns, so these are one-off trees rather than copies. No
+literal fold applies to any of this. The clones are shared subtrees, and only sharing would
+remove them.
+
+The direct ceiling of sharing, read from the sample, is about 2.0 s on PlanarFourbar and 1.7 s
+on Engine1a. That is a share of the window, not a guarantee. The outermost frame of both runs is
+`reduce_index`, and `differentiate_at` holds only 8-10% of the main thread. The cost of the trees
+it builds shows up further downstream, in `simplify`. This is why `mul_still` won 14% while
+`differentiate_at` holds about 10%. The pricing for Roman's word is in the park
+(`m810_word_price.md`). Heavy basket: not measured, since no code changed.
