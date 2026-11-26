@@ -684,8 +684,41 @@ pub(crate) fn differentiate_at(
         return Err("an expression too deep to differentiate".to_string());
     }
     use oxidelica_parser::BinOp::*;
+    // The derivative is built with the literals already folded where an
+    // operand is the number zero or one: `0*x`, `x+0`, `1*x` and their
+    // mirrors are made here as what `simplify` would turn them into, so
+    // the dead half is never allocated, cloned and dropped again. Asked
+    // of the literal only, never of a value worked out, so the tree that
+    // comes out of `simplify` is the same one the unfolded rule gives -
+    // the same folds, done before the nodes exist rather than after.
     fn bin(op: oxidelica_parser::BinOp, a: Expr, b: Expr) -> Expr {
-        Expr::Bin(op, Box::new(a), Box::new(b))
+        let is = |e: &Expr, v: f64| matches!(e, Expr::Number(n) if *n == v);
+        // Two literals fold by the very arithmetic `simplify` does, which
+        // keeps the sign of a zero (`0*-3` is `-0`) a fold to `0` loses.
+        if let (Expr::Number(x), Expr::Number(y)) = (&a, &b) {
+            return Expr::Number(match op {
+                Add => x + y,
+                Sub => x - y,
+                Mul => x * y,
+                Div => x / y,
+                Pow => x.powf(*y),
+            });
+        }
+        match op {
+            Mul if is(&a, 0.0) || is(&b, 0.0) => Expr::Number(0.0),
+            Mul if is(&a, 1.0) => b,
+            Mul if is(&b, 1.0) => a,
+            Add if is(&a, 0.0) => b,
+            Add | Sub if is(&b, 0.0) => a,
+            _ => Expr::Bin(op, Box::new(a), Box::new(b)),
+        }
+    }
+    fn neg(inner: Expr) -> Expr {
+        if let Expr::Number(n) = inner {
+            Expr::Number(-n)
+        } else {
+            Expr::Neg(Box::new(inner))
+        }
     }
     fn call(name: &str, arg: Expr) -> Expr {
         Expr::Call(name.to_string(), vec![arg])
@@ -929,14 +962,32 @@ pub(crate) fn differentiate_at(
                 }
             }
         },
-        Expr::Neg(inner) => Expr::Neg(Box::new(d(inner)?)),
+        Expr::Neg(inner) => neg(d(inner)?),
         Expr::Bin(Add, a, b) => bin(Add, d(a)?, d(b)?),
         Expr::Bin(Sub, a, b) => bin(Sub, d(a)?, d(b)?),
-        Expr::Bin(Mul, a, b) => bin(
-            Add,
-            bin(Mul, d(a)?, (**b).clone()),
-            bin(Mul, (**a).clone(), d(b)?),
-        ),
+        Expr::Bin(Mul, a, b) => {
+            // A factor whose derivative came back as the literal zero
+            // contributes nothing, and the half it would head is built,
+            // cloned and later folded only to vanish. A parameter or a
+            // name other than the target answers exactly `Number(0.0)`,
+            // so this half is dead in most calls. Asked of the literal
+            // and not of `simplify`, so the answer is the same tree the
+            // full rule folds to and no new work is spent asking.
+            let da = d(a)?;
+            let db = d(b)?;
+            let zero = |e: &Expr| matches!(e, Expr::Number(n) if *n == 0.0);
+            if zero(&da) {
+                bin(Mul, (**a).clone(), db)
+            } else if zero(&db) {
+                bin(Mul, da, (**b).clone())
+            } else {
+                bin(
+                    Add,
+                    bin(Mul, da, (**b).clone()),
+                    bin(Mul, (**a).clone(), db),
+                )
+            }
+        }
         Expr::Bin(Div, a, b) => {
             // A denominator whose derivative is zero divides the
             // derivative and nothing else: `(a/J)' = a'/J` exactly,
@@ -967,7 +1018,9 @@ pub(crate) fn differentiate_at(
             // doors were found to be one identity.
             let da = d(a)?;
             let db = d(b)?;
-            if matches!(simplify(&db), Expr::Number(n) if n == 0.0) {
+            if matches!(db, Expr::Number(n) if n == 0.0)
+                || matches!(simplify(&db), Expr::Number(n) if n == 0.0)
+            {
                 bin(Div, da, (**b).clone())
             } else {
                 bin(

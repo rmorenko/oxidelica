@@ -1414,3 +1414,39 @@ fn a_reduction_reads_each_equation_once() {
     assert_eq!(kept_states, afresh_states);
     assert!(kept < afresh, "kept {kept} foldings, afresh {afresh}");
 }
+
+/// A product whose factor does not move builds one half of the product
+/// rule, not two: the dead half was cloned and built only for the
+/// simplifier to fold it away again. Read off the raw derivative, before
+/// any folding, and checked for the same value as the full rule.
+#[test]
+fn product_with_a_still_factor_builds_one_half() {
+    for source in ["3 * a", "a * c", "c * (a * a)"] {
+        let raw = differentiate(&expr_of(source), &by_name("a")).unwrap();
+        assert!(
+            !matches!(raw, Expr::Bin(oxidelica_parser::BinOp::Add, _, _)),
+            "{source}: {raw:?}"
+        );
+        let got = value_of(&simplify(&raw), &[("a", 2.0), ("c", 5.0)]);
+        let want = match source {
+            "3 * a" => 3.0,
+            "a * c" => 5.0,
+            _ => 20.0,
+        };
+        assert_eq!(got, want, "{source}");
+    }
+}
+
+/// The raw derivative is built with its literal zeros and ones already
+/// folded, so the simplifier has nothing of that kind left to take
+/// apart: `3*a` by `a` comes out as the number three, not `3*1`, and a
+/// sum with a still term as the live term alone. The value is checked
+/// against the folded answer, which the fold must not change.
+#[test]
+fn a_raw_derivative_is_born_with_its_literals_folded() {
+    for (source, want) in [("3 * a", 3.0), ("a + c", 1.0), ("-(c) + a * c", 5.0)] {
+        let raw = differentiate(&expr_of(source), &by_name("a")).unwrap();
+        assert_eq!(simplify(&raw), raw, "{source}: {raw:?}");
+        assert_eq!(value_of(&raw, &[("a", 2.0), ("c", 5.0)]), want, "{source}");
+    }
+}

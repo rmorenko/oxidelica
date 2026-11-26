@@ -99266,3 +99266,41 @@ Simplify calls went from 25549285 to 24263881 (-5.0%) and nodes from
 4436492839 to 4082133352 (-8.0%). The run half took 2195 s on head and
 2171 s here, on a different day, so it measures nothing. The 14 witness
 lines are equal (`/tmp/m808/witness_oxc.txt`).
+
+## The divisor guard's literal folds, merged (m809)
+
+The review sent `park/m808_divguard.diff` to a full judgment, and it is
+merged unchanged. The binary is oxd f02f44b3, head 91be3aed with the
+diff applied (`/tmp/m809/r.log`). The falsifier was written down before
+any run: two interleaved PlanarFourbar trios against head oxn 8e36b5e9,
+both means at least 0.40 s faster, or the change is parked. One Engine1a
+trio 0.34 s or more slower would park it whatever PlanarFourbar did.
+
+Run half, `--only`, interleaved (`/tmp/m809/trio.txt`):
+
+```text
+PlanarFourbar A  head 28.780 s  oxd 28.115 s  -0.665 s
+PlanarFourbar B  head 28.762 s  oxd 28.191 s  -0.571 s
+Engine1a         head 29.412 s  oxd 29.313 s  -0.099 s
+```
+
+Both PlanarFourbar trios clear 0.40 s and Engine1a is not slower, so the
+falsifier did not fire. On PlanarFourbar the simplify calls fall from
+636639 to 572910, and nodes from 237383400 to 227798044.
+
+The corpus run on oxd (`/tmp/m809/c_oxd.txt`) against head
+(`/tmp/m806/c_new.txt`) gives 986 / 858 and runnable 867 / 809. The run
+lists match line for line (1844 lines). Flattening, running and reduction
+work match to the digit. Only the symbolic family moves, and it moves
+down. Simplify calls go from 25549285 to 24263881 (-5.0%), nodes from
+4436492839 to 4082133352 (-8.0%), and substitute nodes from 1988257947
+to 1988257809 (-138). These lines match the park reference
+`/tmp/m808/c_oxc.txt` to the digit. The run half took 2187 s here against
+2195 s on head, measured on another day, so that pair does not price
+anything. The trios do. The floors stay where they are, because the
+lists are equal. The heavy basket is not measured. The daily cron judges
+it.
+
+A map of where substitute nodes are born (`park/m809_substitute_map.md`)
+puts them at about 1% of the PlanarFourbar profile. They contain no
+literal garbage of the kind this line removed.
