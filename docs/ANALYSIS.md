@@ -99518,3 +99518,32 @@ the roughly 6370 nonzero denominators' derivatives and saved 18 nodes out of 171
 CurrentControlledDCPM ran in both halves with equal counters (6702 / 21303). The nonzero
 derivatives are compound expressions, and a predicate that can see through them would be
 `simplify` again. The result is empty, and no triples were run.
+
+## Shift m813: the price of sharing, measured on a parked prototype
+
+A fresh profile of the clone bucket at 0fcc658e (binary `/tmp/m813/oxh1`, `park/m813_profile.md`)
+puts the quotient rule first: 36-37% of the clones under `differentiate_at` on PlanarFourbar and
+39-40% on Engine1a. The if-branch article fell from 36-37% to 24-28% after the borrow, and what
+is left of it is the `d(branch)` itself.
+
+The prototype gives up `Box<Expr>` and uses `Arc<Expr>` in all fourteen child fields of `Expr`,
+so a clone anywhere costs one level and a counter. It lives in a separate tree and is parked,
+not merged (`park/m813_sharing_probe.diff`, binary `/tmp/m813/oxs1`). The narrow move, `Rc` in
+`Bin` alone, broke 177 places in the parser before reaching the simulator, so a narrow type
+costs as much as the whole one. `Rc` was refused by the compiler: `library check` shares parsed
+classes between threads. The whole change touches 36 files and 784 lines, and nearly all of it
+is mechanical. The real places are the mutable child walker, which now goes through `make_mut`,
+and six moves out of a box. All 1342 workspace tests pass and clippy has nothing new to report.
+
+Interleaved triples from one pair of binaries (`/tmp/m813/trio.txt`). Run half: PlanarFourbar
+24.0 / 23.7 / 23.6 s to 15.0 / 14.9 / 15.1 s, and Engine1a 24.7 / 24.5 / 25.1 s to 15.7 / 15.5 /
+15.6 s. Flattening fell from 24 s to 9 s and from 33 s to 12 s. Every work and symbolic counter
+was equal to the digit (571370 / 171248053 and 661940 / 112303007). CurrentControlledDCPM was
+equal (6702 / 21303, 50 points, 52 newton). Seven control models of other families
+(`/tmp/m813/ctl.txt`) gave equal counters and outcomes, and HeatingSystem went from 72 s to 37 s.
+The witnesses were byte-equal, 14 of 14. Peak memory on PlanarFourbar fell from 1.64 GB to
+1.19 GB. TWOBIT in the heavy basket, two runs in each order: run half 66.4 / 66.9 s against
+66.9 / 66.7 s, with no sign, and flattening 22 s to 16 s. The forecast written before the number
+was about -0.3 s on PlanarFourbar, from the quotient article alone. The direction held and the
+size did not, because the prototype cheapens every clone in the compiler and not just one
+article. No corpus pair was run, since there is no merge to judge.
