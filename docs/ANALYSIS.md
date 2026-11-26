@@ -99385,3 +99385,50 @@ A second probe was refuted and parked: keeping the simplified `db` at the quotie
 PlanarFourbar -0.3% and Engine1a +0.2%, both inside the spread (`/tmp/m810/ktrio.txt`).
 Fewer nodes in the differentiator do not buy seconds. The same walk spent once fewer times in
 `solve_shape` does.
+
+## Shift m810b: the seven victims of the still factor, and a narrower rule that keeps them
+
+Roman took the still-factor rule (`park/m807_mul_still.diff`) in its direction, on the condition
+that the cause of each of its seven victims be measured first. A probe binary (`/tmp/m810/oxs1`)
+put the rule behind a key and, for every factor it skipped, still asked the derivative and
+printed whatever was not a plain zero. Each victim ran without the key and refused with it
+(`/tmp/m810/s_*_{off,on}.txt`). There are two causes, not seven:
+
+- The six PowerConverters bridges (DiodeBridge2mPulse, ThyristorBridge2mPulse_RLV_Characteristic,
+  SinglePhaseTwoLevel_RL, HBridge_DC_Drive, HBridge_RL, HBridge_TrianglePWM_RL) are one family. The
+  skipped factor carries a conditional on an ideal switch's `off`, and its derivative is
+  `if off then 0 else 0`. That is zero in value but not in form, and these models run on the
+  plan that the form leads to.
+- TestMixingVolumesPressureStates is the other cause. The skipped factor holds a subscript of
+  `waterBaseProp_ph(...)` that survived flattening, and its derivative refuses. Skipping the
+  factor removed the refusal, and the plan changed.
+
+Narrowings were tried by key, all from one probe binary (`/tmp/m810/r.log`). Excluding subscripts
+alone lost the bridges. Excluding every conditional lost Engine1a's gain as well as
+TestMixingVolumes. Allowing only numbers, names and arithmetic kept all seven but lost the whole
+gain, because the carriers' skipped factors carry conditionals on comparisons. The rule that
+went in skips a factor only when it holds neither a subscript nor a conditional on a bare name.
+`OXIDELICA_NO_MUL_STILL=1` brings back the full product rule. The test
+`a_still_factor_skips_its_half_unless_it_switches_on_a_boolean` goes red without the
+conditional arm.
+
+Per model, with `--only`: all seven run (`/tmp/m810/r6_*.txt`). PlanarFourbar's run half went
+from 28.0 / 27.7 s to 25.3 s, and Engine1a's from 28.0 / 28.1 s to 25.7 s. Their node counts
+equal the unnarrowed rule's to the digit (171248053 and 112303007).
+
+The corpus pair used one binary, `/tmp/m810/oxf1` (md5 416be1ca), which is also what the final
+tree builds. Off ran under the key (`/tmp/m810/c_off.txt`), on ran with the default
+(`/tmp/m810/c_on.txt`). Both halves read 986 flattened and 858 run, with 867 / 809 runnable. The
+run and flat lists are equal line for line, and the off list equals the head's
+`/tmp/m809/c_oxd.txt`. Victims 0, wins 0. The run half went from 2133 s to 2050 s (-3.9%), and
+the flatten half from 5409 s to 5412 s. Nodes went from 3619255881 to 2910472884, substitute
+nodes from 1988257809 to 724179581, and differentiate nodes from 70956085 to 31869039. Run work
+moved by a hair: 155 more points, 184 more Newton steps on 36.07M, and 5790 more candidates on
+20.46M, with no list moving. All 14 witnesses are equal to `/tmp/m806/preflight.txt`. Heavy
+basket: not measured. Floors do not move, because the lists are equal.
+
+One fault of this shift's own: the label m810 had already been used by an earlier shift that
+day. This shift's `/tmp/m810/c_off.txt` overwrote the off half of that shift's skip-refold pair,
+which the section above cites. The on half survives as `/tmp/m810/STALE_0922_c_on.txt`. The
+earlier `park/m810_word_price.md` was overwritten too. This shift's park files carry the prefix
+`m810b_`.

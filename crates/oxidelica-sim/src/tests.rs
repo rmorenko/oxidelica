@@ -1450,3 +1450,22 @@ fn a_raw_derivative_is_born_with_its_literals_folded() {
         assert_eq!(value_of(&raw, &[("a", 2.0), ("c", 5.0)]), want, "{source}");
     }
 }
+
+/// A factor that does not name the target builds one half of the product
+/// rule, and the two shapes measured to change a model's plan keep the
+/// full rule: a conditional on a bare Boolean, whose derivative is zero
+/// in value but not in form, as in an ideal diode's `off`.
+#[test]
+fn a_still_factor_skips_its_half_unless_it_switches_on_a_boolean() {
+    let raw = differentiate(&expr_of("c * (a * a)"), &by_name("a")).unwrap();
+    assert!(
+        !matches!(raw, Expr::Bin(oxidelica_parser::BinOp::Add, _, _)),
+        "{raw:?}"
+    );
+    assert_eq!(value_of(&simplify(&raw), &[("a", 2.0), ("c", 5.0)]), 20.0);
+    let raw = differentiate(&expr_of("(if off then c else 1) * a"), &by_name("a")).unwrap();
+    assert!(
+        matches!(raw, Expr::Bin(oxidelica_parser::BinOp::Add, _, _)),
+        "{raw:?}"
+    );
+}

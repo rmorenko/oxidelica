@@ -973,6 +973,41 @@ pub(crate) fn differentiate_at(
             // so this half is dead in most calls. Asked of the literal
             // and not of `simplify`, so the answer is the same tree the
             // full rule folds to and no new work is spent asking.
+            // A factor that does not name the target does not move with
+            // it, so its derivative is zero and its half of the rule is
+            // not built at all - not built, cloned and folded away. The
+            // same rule the call above already uses.
+            //
+            // Two shapes are left to the full rule, both measured. A
+            // factor carrying a subscript that survived flattening is
+            // one the derivative refuses, and the refusal is what keeps
+            // TestMixingVolumesPressureStates on the plan it runs with.
+            // A factor carrying a conditional on a bare Boolean - the
+            // `off` of an ideal diode or thyristor - has as derivative
+            // `if off then 0 else 0`, zero in value but not in form,
+            // and the six PowerConverters bridges run on the plan that
+            // form leads to. Neither costs the two carriers anything:
+            // their skipped factors carry conditionals on comparisons.
+            if !crate::walk::switch_set("OXIDELICA_NO_MUL_STILL") {
+                let still = |e: &Expr| {
+                    let DiffTarget::Variable { name, .. } = target else {
+                        return false;
+                    };
+                    let mut plain = true;
+                    e.for_each(&mut |x| match x {
+                        Expr::Index(..) => plain = false,
+                        Expr::If(c, ..) if matches!(c.as_ref(), Expr::Ref(_)) => plain = false,
+                        _ => {}
+                    });
+                    plain && !mentions_name(e, name)
+                };
+                if still(a) {
+                    return Ok(bin(Mul, (**a).clone(), d(b)?));
+                }
+                if still(b) {
+                    return Ok(bin(Mul, d(a)?, (**b).clone()));
+                }
+            }
             let da = d(a)?;
             let db = d(b)?;
             let zero = |e: &Expr| matches!(e, Expr::Number(n) if *n == 0.0);
