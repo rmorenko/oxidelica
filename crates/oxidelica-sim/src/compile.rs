@@ -3233,10 +3233,25 @@ fn dependent_row_check(
     if !reads_dependent_rows(&supply_once_said()) {
         return None;
     }
-    let mut with_member = algebraic_eqs.to_vec();
-    with_member.push((member.clone(), Expr::Number(0.0)));
-    let row = crate::hidden::dependent_row_real(&with_member, unknowns, states, params, from)?;
-    Some((row, with_member.swap_remove(row)))
+    let added = (member.clone(), Expr::Number(0.0));
+    if std::env::var_os("OXIDELICA_NO_ROW_SHARE").is_some() {
+        let mut with_member = algebraic_eqs.to_vec();
+        with_member.push(added);
+        let row = crate::hidden::dependent_row_real(&with_member, unknowns, states, params, from)?;
+        return Some((row, with_member.swap_remove(row)));
+    }
+    // The member is read after the system rather than appended to a
+    // copy of it: the copy was the whole system, once per member.
+    let row = crate::hidden::dependent_row_real_with(
+        algebraic_eqs,
+        Some(&added),
+        unknowns,
+        states,
+        params,
+        from,
+    )?;
+    let found = algebraic_eqs.get(row).cloned().unwrap_or(added);
+    Some((row, found))
 }
 
 /// Whether a tie at zero slope drops the candidates the constraint does

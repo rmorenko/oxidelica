@@ -361,6 +361,20 @@ pub(crate) fn dependent_row_real(
     params: &HashMap<String, f64>,
     from: usize,
 ) -> Option<usize> {
+    dependent_row_real_with(algebraic_eqs, None, unknowns, states, params, from)
+}
+
+/// As `dependent_row_real`, over the equations followed by one more
+/// row, so that a caller asking about a member does not copy the whole
+/// system to append it.
+pub(crate) fn dependent_row_real_with(
+    algebraic_eqs: &[(Expr, Expr)],
+    extra: Option<&(Expr, Expr)>,
+    unknowns: &[String],
+    states: &[String],
+    params: &HashMap<String, f64>,
+    from: usize,
+) -> Option<usize> {
     let mut column_of: HashMap<&str, usize> = HashMap::new();
     for name in unknowns.iter().chain(states) {
         let next = column_of.len();
@@ -369,7 +383,7 @@ pub(crate) fn dependent_row_real(
     let mut work = 0usize;
     let mut pivots: Vec<(usize, BTreeMap<usize, f64>)> = Vec::new();
     let mut pivot_columns: HashSet<usize> = HashSet::new();
-    for (index, (lhs, rhs)) in algebraic_eqs.iter().enumerate() {
+    for (index, (lhs, rhs)) in algebraic_eqs.iter().chain(extra).enumerate() {
         let mut values: BTreeMap<usize, f64> = BTreeMap::new();
         let mut rest = false;
         let read = read_real(lhs, 1.0, &column_of, params, &mut values, &mut rest)
@@ -504,6 +518,43 @@ mod tests {
         // Nor is one with a term of its own beside the names.
         other[3] = (parse("da + v / L"), parse("time"));
         assert_eq!(dependent_row_real(&other, &unknowns, &[], &params, 3), None);
+    }
+
+    #[test]
+    fn a_row_read_after_the_system_answers_as_a_row_appended_to_it() {
+        // The member is read after the system instead of appended to a
+        // copy: every answer must be the one the copy gave.
+        let names = |list: &[&str]| list.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        let unknowns = names(&["da", "db", "dc", "v"]);
+        let params = HashMap::from([("L".to_string(), 0.0019)]);
+        let system = vec![
+            (parse("da"), parse("db")),
+            (parse("db + dc"), Expr::Number(0.0)),
+            (parse("dc"), parse("v / L")),
+        ];
+        for member in ["da + v / L", "da + 2 * v / L", "db + dc"] {
+            let added = (parse(member), Expr::Number(0.0));
+            let mut copy = system.clone();
+            copy.push(added.clone());
+            for from in 0..=3 {
+                assert_eq!(
+                    dependent_row_real_with(&system, Some(&added), &unknowns, &[], &params, from),
+                    dependent_row_real(&copy, &unknowns, &[], &params, from),
+                    "{member} from {from}"
+                );
+            }
+        }
+        assert_eq!(
+            dependent_row_real_with(
+                &system,
+                Some(&(parse("da + v / L"), Expr::Number(0.0))),
+                &unknowns,
+                &[],
+                &params,
+                3
+            ),
+            Some(3)
+        );
     }
 
     #[test]
