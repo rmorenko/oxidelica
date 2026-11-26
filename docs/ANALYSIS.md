@@ -99432,3 +99432,39 @@ day. This shift's `/tmp/m810/c_off.txt` overwrote the off half of that shift's s
 which the section above cites. The on half survives as `/tmp/m810/STALE_0922_c_on.txt`. The
 earlier `park/m810_word_price.md` was overwritten too. This shift's park files carry the prefix
 `m810b_`.
+
+## Shift m811: the clone ceiling remeasured on the head with the narrow still factor
+
+The question was what the narrowed still-factor rule (17620056) left of the clone cost in the
+differentiator, so that the price of sharing could be put to Roman on fresh numbers. CI for
+17620056 finished green (run 45802260072, the library passes included). A profiling build of
+the head, `/tmp/m811/oxp1` (md5 d09e9f84, `/tmp/m811/r.log`), was sampled in the run half of
+both carriers: two 15 s windows each, and one window covering the whole run half
+(`/tmp/m811/samp_*.txt`, `/tmp/m811/wsamp_*.txt`).
+
+Inside `differentiate_at`, clone and drop together are still two thirds of the samples. Over the
+whole run half PlanarFourbar shows 1772 of 2660 (66.6%) and Engine1a 1118 of 1708 (65.5%),
+against 73.6% and 73.3% on the old head (different binary, compared only as "before"). The rule
+cut nodes but not the share. Split by the line that called the clone, the product rule fell from
+the first item to the third: 35% before, 20% now. The two that are left are the rewrite of an
+`if` branch for `abs` (36-37%, lines 1385 and 1388) and the quotient rule (32-33%, lines 1057 to
+1068). Elementary functions hold 10-12%. The drop bucket is the quotient rule at 57-59% (the
+simplified `db` thrown away at line 1057) and the `if` rewrite at 35-37%. These are temporary
+trees, not copies of the source. Both carriers show the same items in the same shares.
+
+The ceiling of sharing, read from samples and not a guarantee, is clone and drop over the main
+thread times the run half. PlanarFourbar: 8.4% of 26.4 s, about 2.2 s, or 1.65 s for clones
+alone. Engine1a: 5.2% of 26.9 s, about 1.4 s, or 1.0 s for clones alone. Neither fell below one
+second. The figures are in `park/m811_word_price.md`, and the question goes to Roman from the
+review, not from this shift.
+
+A probe was parked, not merged. `resolve_abs_under` clones the whole branch even when it has
+nothing to rewrite. A check with `for_each` that lets the derivative read the branch by
+reference in that case (`park/m811_abs_borrow_probe.diff`, binary `/tmp/m811/oxa1` md5
+f9ae5003) was timed in interleaved off/on triples (`/tmp/m811/trio.txt`, `trio2.txt`).
+PlanarFourbar's run half went from 24809 / 24818 / 24835 ms to 24112 / 23941 / 24025 ms
+(-3.2%, outside a spread under 0.4%). Engine1a's went -1.2% and -1.8% in two triples, inside
+their spread. Symbolic and work counters were equal to the digit in all 18 runs. The prediction
+written beforehand was -1 to -2.5% for PlanarFourbar, so its direction held and its size did
+not. No corpus pair, witnesses or heavy basket were measured. Taken, it would bring the clone
+ceiling of sharing under a second on both carriers.
