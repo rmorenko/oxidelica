@@ -99065,3 +99065,44 @@ and on is faster than both by 3.1 and 4.2 s, more than twice that, about
 since it was taken. The full preflight passed (`/tmp/m804/preflight.txt`).
 The floors are unchanged because the lists of the pair are equal. The
 heavy basket is not measured, and the daily cron judges it.
+
+## The next carrier after the read table, and the dependent-row copy (m804)
+
+Profiled on the merged head with one binary oxa (md5 75cfe9f9), `sample`
+for 20 s from the 35th second (`/tmp/m804/samp_{pf,e1}.txt`). Of 14352
+samples in `reduce_index_once` on PlanarFourbar, `Expr::clone` takes 7672
+and `simplify` 3948. Before the table, in m803, they took 7244 and 5357
+of 15957. On Engine1a, clone takes 7519 of 13591. So the hump moved to
+cloning. A build with line tables and `dsymutil` (`/tmp/m804/samp_pfd.txt`)
+names the sites. compile.rs:2301, the push of a solved candidate out of
+`solved_for`, has 1641. compile.rs:2985, the dependent-row check, has 771.
+compile.rs:2279, the push of a plain candidate out of the read table, has 610. compile.rs:2561, where settle accepts a definition, has 545.
+
+The condition for the parked copy-on-write simplifier was measured with a
+probe that was never committed (`OXIDELICA_M804=1`, `/tmp/m804/z_pf.txt`).
+Over 500000 top-level calls, 63.5% returned their input unchanged, but
+those calls carried only 10.0% of the input nodes. The empty rebuild is
+not the carrier of what is left, so that patch is parked for good.
+
+The dependent-row check copied the whole system to append one member.
+It now reads the system followed by the member as one chain, behind
+`OXIDELICA_NO_ROW_SHARE=1`. On PlanarFourbar with one binary oxr (md5
+084f0354), off/on/off (`/tmp/m804/r_pf_*.txt`), the run half took 46.72,
+42.24 and 46.53 s, which is -9.4%, and every count matched. The forecast
+was -2% to -5%. The direction stood and the size did not. In the corpus
+pair (`/tmp/m804/c_{off,on}.txt`, `--slow 60`), both halves print
+986 / 858 and runnable 867 / 809. The 1844-line lists are equal to each
+other and to m802, and the work and simplifier counts match. The run half
+went from 2429 to 2342 s. The flattening halves, with identical work,
+differ by 91 s, so the pair does not resolve this. The named carriers do:
+Engine1a went from 71.7 to 62.5 s and PlanarFourbar from 57.7 to 51.3 s.
+The victim witnesses print what m803 printed. The heavy basket is not
+measured.
+
+What is left is the two candidate pushes, about 16% of PlanarFourbar's
+reduction. Sharing candidates by pointer would change their type through
+folding, settling and the divisor filter. That is the clone architecture
+this line was told not to build without a word, so it is a question
+(`park/m804_next_carrier.md`). The third dearest runner, Dimmer_RL, spends
+its time in the BDF solver and not in reduction, so this line does not
+reach it.
