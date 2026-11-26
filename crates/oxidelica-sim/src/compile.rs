@@ -2489,26 +2489,41 @@ fn reduce_index_once(
                                 break;
                             }
                         }
-                        candidates.retain(|(_, expr, _)| {
-                            let Expr::Bin(oxidelica_parser::BinOp::Div, _, den) = expr.as_ref()
-                            else {
-                                return true;
-                            };
-                            let mut refs = Vec::new();
-                            den.collect_refs(&mut refs);
-                            if !refs.iter().all(|r| valued.contains_key(*r)) {
-                                return true;
-                            }
-                            let at = eval(
-                                den,
-                                &EvalCtx {
-                                    vars: &valued,
-                                    time: at_time,
-                                    programs: None,
-                                    depth: 0,
-                                },
-                            );
-                            !matches!(at, Ok(value) if value.abs() < 1e-12)
+                        // The names read once go out with their candidate,
+                        // so the two lists stay slot for slot.
+                        let keep: Vec<bool> = candidates
+                            .iter()
+                            .map(|(_, expr, _)| {
+                                let Expr::Bin(oxidelica_parser::BinOp::Div, _, den) = expr.as_ref()
+                                else {
+                                    return true;
+                                };
+                                let mut refs = Vec::new();
+                                den.collect_refs(&mut refs);
+                                if !refs.iter().all(|r| valued.contains_key(*r)) {
+                                    return true;
+                                }
+                                let at = eval(
+                                    den,
+                                    &EvalCtx {
+                                        vars: &valued,
+                                        time: at_time,
+                                        programs: None,
+                                        depth: 0,
+                                    },
+                                );
+                                !matches!(at, Ok(value) if value.abs() < 1e-12)
+                            })
+                            .collect();
+                        let mut slot = 0;
+                        candidates.retain(|_| {
+                            slot += 1;
+                            keep[slot - 1]
+                        });
+                        let mut slot = 0;
+                        named_once.retain(|_| {
+                            slot += 1;
+                            keep[slot - 1]
                         });
                     }
 
@@ -2522,16 +2537,15 @@ fn reduce_index_once(
                     // a definition from, for the reason given where it is built.
                     // Each candidate's names, read once: the fixpoint below
                     // asks the same candidate the same question every round,
-                    // and only `accepted` changes between askings.
-                    let settle_refs: Vec<Vec<&str>> = candidates
+                    // and only `accepted` changes between askings. They are
+                    // the names gathered above, sorted and without repeats
+                    // as this reading always was; a candidate folded to a
+                    // number had its list cleared with it, which is what a
+                    // number names. Walking every tree a second time for
+                    // the same list was a twentieth of PlanarFourbar (m806).
+                    let settle_refs: Vec<Vec<&str>> = named_once
                         .iter()
-                        .map(|(_, expr, _)| {
-                            let mut refs = Vec::new();
-                            expr.collect_refs(&mut refs);
-                            refs.sort_unstable();
-                            refs.dedup();
-                            refs
-                        })
+                        .map(|names| names.iter().map(String::as_str).collect())
                         .collect();
                     let settle_unknowns: std::collections::HashSet<&str> =
                         unknowns.iter().map(String::as_str).collect();
