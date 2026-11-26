@@ -99482,3 +99482,39 @@ the literal test missed. PlanarFourbar: 38125 literal zeros, 5 zeros found by si
 not zero. Engine1a: 24378, 0 and 4272. The tree built there nearly always answers no, but the
 five yeses are the guard against the growing denominator, so the test stays. A cheaper refusal
 before simplifying was mapped (`park/m811_quotient_map.md`) and not built.
+
+## Shift m812: the if-branch borrow merged, and a cheap refusal on the quotient rule found empty
+
+The parked probe of m811 is now the default. When the branch of an `if` has no `abs` of the
+compared subject in it, `resolve_abs_under` has nothing to rewrite and would only return an
+equal copy, so the derivative now reads the branch where it stands.
+`OXIDELICA_NO_ABS_BORROW=1` puts the copy back. The check `abs_rewrite_possible` is generous: it
+does not look at the sign of the bound and it looks inside nested `if`s. A wrong yes costs one
+copy and never a wrong derivative. The test `borrowed_if_branch_differentiates_as_the_copy_did`
+guards the semantics and is not a falsifier. It takes four `if` expressions, including one that
+is refused, and checks that the derivatives and refusals are equal with the key and without it.
+It cannot fail without the change, because the change does not alter any output.
+
+One binary, `/tmp/m812/oxb1` (md5 062535ce, `/tmp/m812/r.log`), was used for everything
+measured here. Interleaved off/on triples (`/tmp/m812/trio.txt`), run half in ms:
+PlanarFourbar off 24322 / 24271 / 24071, on 23778 / 23765 / 23622, so -2.1% with the two
+spreads apart. The prediction from the park was about -3%, so the direction held and the size
+did not. Engine1a off 24969 / 24882 / 25266, on 24656 / 25239 / 25254, which gives no sign.
+Symbolic and work counters were equal to the digit in all twelve runs (PlanarFourbar 571370
+simplify / 171248053 nodes, Engine1a 661940 / 112303007).
+
+Corpus pair, off then on, `--slow 60`, cap 24 GB (`/tmp/m812/c_off.txt`, `c_on.txt`, provenance
+in `c_*.prov`). Both halves: 986 flatten and 858 run, runnable 867 and 809. The flat, ran and
+runnable lists are equal line for line between the halves and against `/tmp/m810/c_on.txt`.
+The `work:`, `reduction:` and `symbolic:` lines are equal to the digit. There are no victims and
+no wins. Run half 2155 s off and 2045 s on, and flattening 5601 s and 5333 s. These are signs
+and not prices, because the triples gave the price. The heavy basket was not measured. The
+floors stay where they are.
+
+A cheap refusal before `simplify(&db)` in the quotient rule was probed in a separate tree and
+parked (`park/m812_quotient_cheap.md`, binary `/tmp/m812/oxq1`). It skips the simplification
+when `db` is a bare name, a negated name or a nonzero number. On PlanarFourbar it caught 12 of
+the roughly 6370 nonzero denominators' derivatives and saved 18 nodes out of 171 million.
+CurrentControlledDCPM ran in both halves with equal counters (6702 / 21303). The nonzero
+derivatives are compound expressions, and a predicate that can see through them would be
+`simplify` again. The result is empty, and no triples were run.

@@ -1469,3 +1469,29 @@ fn a_still_factor_skips_its_half_unless_it_switches_on_a_boolean() {
         "{raw:?}"
     );
 }
+
+/// A guard of semantics, not a falsifier: a branch of an `if` with no
+/// `abs` to resolve is differentiated where it stands rather than as a
+/// copy, and the derivative must come out the same either way. The
+/// switch is read once per thread, so each half asks on a thread of
+/// its own.
+#[test]
+fn borrowed_if_branch_differentiates_as_the_copy_did() {
+    let sources = [
+        "if a > 1 then abs(a) * a else a * a",
+        "if a > 1 then a * a else 2 * a",
+        "if a < -1 then -sqrt(abs(a)) else c * a",
+        "if a >= 2 then (if a > 3 then abs(a) else a) else abs(a)",
+    ];
+    let derive = move || {
+        sources
+            .iter()
+            .map(|s| format!("{:?}", differentiate(&expr_of(s), &by_name("a"))))
+            .collect::<Vec<_>>()
+    };
+    let borrowed = std::thread::spawn(derive).join().unwrap();
+    std::env::set_var("OXIDELICA_NO_ABS_BORROW", "1");
+    let copied = std::thread::spawn(derive).join().unwrap();
+    std::env::remove_var("OXIDELICA_NO_ABS_BORROW");
+    assert_eq!(borrowed, copied);
+}

@@ -1382,12 +1382,25 @@ pub(crate) fn differentiate_at(
             // Zero is excluded by the comparison itself: a condition
             // that only proves `x <= 0` proves nothing here, because
             // `abs` is not differentiable at the point it admits.
-            let then_branch = resolve_abs_under(cond, then_branch, target, false);
-            let else_branch = resolve_abs_under(cond, else_branch, target, true);
+            //
+            // A branch with no `abs` of the compared subject in it has
+            // nothing to resolve, and the rewrite would only hand back
+            // an equal copy of it. It is differentiated where it stands
+            // instead: the copy was a third of what the differentiator
+            // spent on clones in the two dearest carriers.
+            // `OXIDELICA_NO_ABS_BORROW` puts the copy back.
+            let borrow = !crate::walk::switch_set("OXIDELICA_NO_ABS_BORROW");
+            let branch_d = |branch: &Expr, taken_false: bool| {
+                if borrow && !abs_rewrite_possible(cond, branch, target, taken_false) {
+                    d(branch)
+                } else {
+                    d(&resolve_abs_under(cond, branch, target, taken_false))
+                }
+            };
             Expr::If(
                 cond.clone(),
-                Box::new(d(&then_branch)?),
-                Box::new(d(&else_branch)?),
+                Box::new(branch_d(then_branch, false)?),
+                Box::new(branch_d(else_branch, true)?),
             )
         }
         // A call that said how to differentiate itself: the rule takes
@@ -1752,6 +1765,37 @@ fn value_held(expr: &Expr, target: &DiffTarget) -> Option<f64> {
 /// `x <= 0` proves only `x <= 0`, which admits the one point where
 /// `abs` has no derivative, so it proves nothing here. That is the
 /// whole difference between this and `sign(x)*der(x)`.
+/// Whether `resolve_abs_under` could change a branch at all.
+///
+/// It answers yes more often than the rewrite acts: it does not ask
+/// the sign of the bound, and it looks inside nested `if`s where the
+/// rewrite stops. A yes only sends the branch the old way, so being
+/// generous costs a copy and never a wrong derivative. A no is given
+/// only where the rewrite returns the branch unchanged.
+fn abs_rewrite_possible(
+    cond: &Expr,
+    branch: &Expr,
+    target: &DiffTarget,
+    taken_false: bool,
+) -> bool {
+    let Expr::Rel(_, left, right) = cond else {
+        return false;
+    };
+    if taken_false || value_held(right, target).is_none() {
+        return false;
+    }
+    let mut found = false;
+    branch.for_each(&mut |x| {
+        if let Expr::Call(name, args) = x {
+            let bare = name.strip_prefix('.').unwrap_or(name);
+            if bare == "abs" && args.len() == 1 && &args[0] == left.as_ref() {
+                found = true;
+            }
+        }
+    });
+    found
+}
+
 fn resolve_abs_under(cond: &Expr, branch: &Expr, target: &DiffTarget, taken_false: bool) -> Expr {
     use oxidelica_parser::RelOp::*;
     let Expr::Rel(op, left, right) = cond else {
