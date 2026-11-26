@@ -99466,5 +99466,12 @@ PlanarFourbar's run half went from 24809 / 24818 / 24835 ms to 24112 / 23941 / 2
 (-3.2%, outside a spread under 0.4%). Engine1a's went -1.2% and -1.8% in two triples, inside
 their spread. Symbolic and work counters were equal to the digit in all 18 runs. The prediction
 written beforehand was -1 to -2.5% for PlanarFourbar, so its direction held and its size did
-not. No corpus pair, witnesses or heavy basket were measured. Taken, it would bring the clone
-ceiling of sharing under a second on both carriers.
+not. A third Engine1a triple went -0.8%, so nine against nine give -1.3% with the same sign in
+every triple, still inside the spread. A small court of 15 neighbours (the six bridges,
+TestMixingVolumesPressureStates, Nor and seven Fluid examples, `/tmp/m811/court_{off,on}.txt`)
+ran 15 of 15 in both halves with equal lists and counters. All 14 witnesses under the key equal
+`/tmp/m810/b_preflight.txt`. No corpus pair was run and the heavy basket was not measured.
+Sampled under the key, clones fell from 1313 to 1202 on PlanarFourbar and from 818 to 776 on
+Engine1a, less than the third the split suggested, because the condition's clone and the clones
+under nested derivatives stay. The clone ceiling of sharing would then be about 1.5 s and
+0.95 s.
