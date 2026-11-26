@@ -99475,3 +99475,10 @@ Sampled under the key, clones fell from 1313 to 1202 on PlanarFourbar and from 8
 Engine1a, less than the third the split suggested, because the condition's clone and the clones
 under nested derivatives stay. The clone ceiling of sharing would then be about 1.5 s and
 0.95 s.
+
+A counting probe on the quotient rule's zero test (`/tmp/m811/probe_q.diff`, binary
+`/tmp/m811/oxq2`, tree reverted) asked how often `simplify(&db)` at line 1057 finds a zero that
+the literal test missed. PlanarFourbar: 38125 literal zeros, 5 zeros found by simplifying, 6370
+not zero. Engine1a: 24378, 0 and 4272. The tree built there nearly always answers no, but the
+five yeses are the guard against the growing denominator, so the test stays. A cheaper refusal
+before simplifying was mapped (`park/m811_quotient_map.md`) and not built.
