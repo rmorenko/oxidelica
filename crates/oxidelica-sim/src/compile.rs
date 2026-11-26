@@ -1791,7 +1791,7 @@ fn carried_shapes_enabled() -> bool {
 
 /// The folded plain side and the named list of one equation, as the
 /// candidate loop of a reduction reads them.
-type EqRead = (Option<(String, Expr)>, Vec<String>);
+type EqRead = (Option<(String, std::rc::Rc<Expr>)>, Vec<String>);
 
 /// Whether the candidate loop keeps what it read off an equation for
 /// the rest of the reduction. The answer is the same either way; the
@@ -2009,7 +2009,7 @@ fn reduce_index_once(
     // Both halves are bounded - a name is asked for only where the
     // equation mentions it - so a remembered refusal costs no more
     // than a remembered answer.
-    let mut solved_for: HashMap<(usize, String), Option<Expr>> = HashMap::new();
+    let mut solved_for: HashMap<(usize, String), Option<std::rc::Rc<Expr>>> = HashMap::new();
     // What the candidate loop reads off an equation before it asks who
     // is an unknown - the folded other side of a plain name, and the
     // names the equation mentions - depends on the equation alone, so
@@ -2222,7 +2222,7 @@ fn reduce_index_once(
                         attempt_supplied.push(eq);
                     }
 
-                    let mut candidates: Vec<(String, Expr, usize)> = Vec::new();
+                    let mut candidates: Vec<(String, std::rc::Rc<Expr>, usize)> = Vec::new();
                     // Counted here and handed over once: this loop is where
                     // the dearest reductions spend their time, and a
                     // thread-local access per turn would weigh on it.
@@ -2239,7 +2239,7 @@ fn reduce_index_once(
                         let read_afresh = || {
                             let plain = match (l, r) {
                                 (Expr::Ref(name), other) | (other, Expr::Ref(name)) => {
-                                    Some((name.clone(), simplify(other)))
+                                    Some((name.clone(), std::rc::Rc::new(simplify(other))))
                                 }
                                 _ => None,
                             };
@@ -2262,7 +2262,7 @@ fn reduce_index_once(
                                     // the walk always asked it.
                                     unknowns
                                         .contains(name)
-                                        .then(|| (name.clone(), simplify(other)))
+                                        .then(|| (name.clone(), std::rc::Rc::new(simplify(other))))
                                 }
                                 _ => None,
                             };
@@ -2276,7 +2276,7 @@ fn reduce_index_once(
                         };
                         if let Some((name, folded)) = plain {
                             if unknowns.contains(name) {
-                                candidates.push((name.clone(), folded.clone(), index));
+                                candidates.push((name.clone(), std::rc::Rc::clone(folded), index));
                             }
                         }
                         for name in named.iter().map(String::as_str) {
@@ -2295,10 +2295,14 @@ fn reduce_index_once(
                                     // everything after this reads the shape
                                     // rather than the wrapping.
                                     reduction_solve(l, r, name, params)
-                                        .map(|solved| simplify(&solved))
+                                        .map(|solved| std::rc::Rc::new(simplify(&solved)))
                                 });
                             if let Some(solved) = answer {
-                                candidates.push((name.to_string(), solved.clone(), index));
+                                candidates.push((
+                                    name.to_string(),
+                                    std::rc::Rc::clone(solved),
+                                    index,
+                                ));
                             }
                         }
                     }
@@ -2383,7 +2387,7 @@ fn reduce_index_once(
                                 if !grounded.contains(name) && !ever.contains(name) {
                                     continue;
                                 }
-                                if matches!(expr, Expr::Number(_)) {
+                                if matches!(**expr, Expr::Number(_)) {
                                     continue;
                                 }
                                 let wanted: HashMap<&str, f64> = named_once[slot]
@@ -2426,7 +2430,7 @@ fn reduce_index_once(
                                         );
                                     if value.is_finite() && !forgets {
                                         known.insert(name.clone(), value);
-                                        *expr = folded;
+                                        *expr = std::rc::Rc::new(folded);
                                         named_once[slot].clear();
                                         grew = true;
                                     }
@@ -2486,7 +2490,8 @@ fn reduce_index_once(
                             }
                         }
                         candidates.retain(|(_, expr, _)| {
-                            let Expr::Bin(oxidelica_parser::BinOp::Div, _, den) = expr else {
+                            let Expr::Bin(oxidelica_parser::BinOp::Div, _, den) = expr.as_ref()
+                            else {
                                 return true;
                             };
                             let mut refs = Vec::new();
@@ -2558,7 +2563,7 @@ fn reduce_index_once(
                                                 || grounded.contains_key(*r))
                                     });
                                     if ok {
-                                        accepted.insert(name.clone(), expr.clone());
+                                        accepted.insert(name.clone(), Expr::clone(expr));
                                         progress = true;
                                     }
                                 }
@@ -3466,7 +3471,7 @@ fn derivatives_at_reduction() -> bool {
 /// reads to something not finite, gives nothing rather than a guess.
 fn held_at_start(
     start_env: &HashMap<String, f64>,
-    defining: &[(String, Expr, usize)],
+    defining: &[(String, std::rc::Rc<Expr>, usize)],
     at_time: f64,
     programs: &HashMap<String, ClassDef>,
 ) -> HashMap<String, f64> {
@@ -3620,7 +3625,7 @@ fn choose_the_victim(
     reduction: usize,
     resuming: bool,
     programs: &HashMap<String, ClassDef>,
-    defining: &[(String, Expr, usize)],
+    defining: &[(String, std::rc::Rc<Expr>, usize)],
     taken_at: &HashMap<String, usize>,
     may_retreat: bool,
 ) -> Result<Option<String>, SimError> {
@@ -11314,6 +11319,10 @@ mod held_tests {
                 4,
             ),
         ];
+        let defining: Vec<(String, std::rc::Rc<Expr>, usize)> = defining
+            .into_iter()
+            .map(|(name, expr, source)| (name, std::rc::Rc::new(expr), source))
+            .collect();
         let held = held_at_start(&start, &defining, 0.0, &HashMap::new());
         assert_eq!(held.get("der(x)"), Some(&6.0));
         assert_eq!(held.get("der(v)"), Some(&7.0));
