@@ -99106,3 +99106,45 @@ this line was told not to build without a word, so it is a question
 (`park/m804_next_carrier.md`). The third dearest runner, Dimmer_RL, spends
 its time in the BDF solver and not in reduction, so this line does not
 reach it.
+
+## Reduction candidates shared by pointer, and the runner's memory (m805)
+
+The main pass of CI died twice in a row with "The hosted runner lost
+communication with the server", once on 5e517faf and once on the merge
+after it. One suspect was memory, since the equation-read table holds
+folded sides and names for a whole reduction. Five models from the top
+of the run list, without the dear models, were measured with
+`/usr/bin/time -l`, using one binary oxm (md5 084f0354) with and without
+`OXIDELICA_NO_EQ_READS=1` (`/tmp/m805/memtab.txt`). The ratio of maximum
+resident size, table on over table off, was 0.987 for BranchingPipes3,
+0.995 for SeriesPipes1, 0.987 for BranchingPipes14, 1.022 for
+RevoluteConstraint (1.94 to 1.99 GB) and 1.023 for UniversalConstraint.
+All of them are below 1.25, so the table does not eat memory, and the
+two deaths are put down to the runner. A first pass of this probe named
+the models by their last part, and every half answered "no model of the
+library is called" in a quarter of a second. It was set aside
+(`/tmp/m805/void`) and run again with full names.
+
+The candidate loop copied every definition it offered out of the read
+table and out of `solved_for`, and settle copied every definition it
+accepted. These were the largest clone sites left in m804. The two
+tables and the candidate list now hold the folded expressions behind
+`Rc`, so a push copies a pointer. The constant fold puts a fresh `Rc`
+in place of a candidate, and only what settle accepts is copied out.
+There is no switch, so the judgement compares two binaries built from
+the same tree, head oxm (084f0354) and oxrc (d5bbf4ce). The corpus run
+of oxrc (`/tmp/m805/c_rc.txt`) prints the same as m804's head print
+(`/tmp/m804/c_on.txt`): 986 / 858, runnable 867 / 809, the 1844-line
+lists equal line for line, and the work and simplifier counts equal to
+the digit. Interleaved `--only` trios on a quiet table, run half:
+PlanarFourbar took 42.25, 42.50 and 42.74 s on head against 31.01,
+30.79 and 30.88 s, which is -27% with head's own spread at 0.49 s.
+Engine1a took 46.31, 46.21 and 46.37 s against 32.05, 32.10 and
+32.06 s, which is -31%. The per-model counts are equal. The forecast
+written before the number was -5% to -12%, with the profile's ceiling
+put at about 16%. The direction stood and the size did not: the
+copies cost more than their sampled share, probably through the
+allocator and the cache rather than in the frames that did the
+copying. The victim witnesses print the 14 lines m804 printed. The
+floors are unchanged because the lists are equal. The heavy basket is
+not measured, and the daily cron judges it.
