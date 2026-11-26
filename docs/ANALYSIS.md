@@ -99161,3 +99161,39 @@ interleaved trios (`/tmp/m805/trio2.txt`). PlanarFourbar took 30.88 and
 (`park/m805_settle_slots.diff`). The clones that remain are spread over
 sites of 200 to 400 samples each. On RevoluteConstraint, clones take 156
 samples, and the reduction's own solving and simplifying lead.
+
+## The names the settle reads are the names already read
+
+After the candidates were shared by pointer, a profile of PlanarFourbar
+with line tables (`/tmp/m806/samp_pf.txt`, build oxd 6026e037 from
+ed0c4687) put the walk that gathers names at the top of the reduction's
+own time: 1619 of 11324 samples in `collect_refs`. Two callers held
+about 510 samples each, and they read the same thing. `named_once`
+gathers every candidate's names once per reduction, sorted and without
+repeats, for the constant fold and the start divisors. A few lines
+later `settle_refs` walked every candidate again to build the same
+sorted list for the settle. Between the two nothing changes a candidate
+except the constant fold, which clears the list of a candidate it turns
+into a number (and a number names nothing), and the divisor check,
+which drops candidates. The change drops the matching lists along with
+them, so the two stay slot for slot, and builds the settle's view from
+`named_once` instead of walking again.
+
+The change leaves the reduction's rules alone, so it is judged as a
+pure transfer. Head and new were built by one command, oxh (a8ab0cfc)
+and oxn (8e36b5e9). Interleaved `--only` trios on a quiet table
+(`/tmp/m806/trio.txt`), run half: PlanarFourbar took 30.80, 30.95 and
+31.08 s on head against 28.87, 28.86 and 28.67 s, which is -6.9% with
+head's spread at 0.28 s. Engine1a took 32.28, 32.04 and 32.10 s against
+29.54, 29.57 and 29.40 s, which is -8.2%. The reduction and simplifier
+counters are equal to the digit in every run. The forecast written
+before the number was -2% to -5%, with not faster by two noises as the
+falsifier. The direction stood and the size did not. The victim
+witnesses print the 14 lines m805 printed.
+
+The corpus run of oxn (`/tmp/m806/c_new.txt`) prints what head's print from m805 (`/tmp/m805/c_rc.txt`) does: 986 / 858, runnable 867 / 809, the 1844-line lists equal line for line, and the work, reduction and simplifier counts equal to the digit. With the times taken out, the two files have no differing lines. The floors are unchanged because the lists are equal. The heavy basket is not measured, and the daily cron judges it.
+
+Next in the same stack, mapped and not built
+(`park/m806_slk_map.md`): the reduction's linear solve builds the slope
+raw, simplifies it and drops the raw tree, and the drop costs about as
+much as the build (1258 against 1376 samples).
