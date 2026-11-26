@@ -99231,3 +99231,38 @@ against 858, and runnable 867 / 804 against 809. Seven models are lost,
 six of them PowerConverters bridges plus TestMixingVolumesPressureStates,
 two are won, and the reduction counters move. It is parked with the
 list as a question. The heavy basket is not measured for either.
+
+## Literal folds at the birth of a derivative, and the divisor guard (m808)
+
+The profiles already on disk (`/tmp/m807/samp_pf.txt`, `samp_pfp.txt`)
+were read for the children of `differentiate_at` on PlanarFourbar. The
+largest are the divisor guard's `simplify(&db)` (260 samples of 1426),
+the clones of live factors in the product and quotient rules (about 460),
+the `if` branch's rewrite (292), and dropped temporaries (263). The map
+is `park/m808_clone_map.md`. Clones of live factors stay in the answer,
+so no fold removes them. Only sharing would, and that needs a word.
+
+A fold of literal zeros and ones where the derivative is built (`0*x`,
+`x+0`, `1*x`, `-0`, two literals by the simplifier's own arithmetic) was
+bundled with the parked product-rule patch (`park/m808_bundle.diff`).
+Interleaved `--only` trios, oxn 8e36b5e9 against oxb f52a3069, run half
+(`/tmp/m808/trio.txt`): PlanarFourbar 28.65 s against 28.27 s, -0.38 s,
+under the 0.40 s written before the run. Engine1a moved -0.11 s. The
+work and reduction counters are equal to the digit. Nodes fell 4.0% and
+0.9%. The falsifier fired, so the bundle is parked.
+
+Testing the literal before calling `simplify` in the divisor guard gives
+the same answer and cuts simplify calls on PlanarFourbar from 636639 to 572910. It was built after the bundle's falsifier fired, so it is park
+only (`park/m808_divguard.diff`). Two trios against head gave -0.46 s
+and -0.77 s on PlanarFourbar (`/tmp/m808/trio2.txt`, `trio3.txt`), the
+second against a 0.40 s threshold written before it. The corpus run on
+that binary (`/tmp/m808/c_oxc.txt`) is a reference for the review, not
+a merge. The heavy basket is not measured.
+
+That corpus run came back clean against head (`/tmp/m806/c_new.txt`):
+986 / 858, runnable 867 / 809, run lists equal, flattening, running and
+reduction work equal to the digit. Substitute nodes went down by 138.
+Simplify calls went from 25549285 to 24263881 (-5.0%) and nodes from
+4436492839 to 4082133352 (-8.0%). The run half took 2195 s on head and
+2171 s here, on a different day, so it measures nothing. The 14 witness
+lines are equal (`/tmp/m808/witness_oxc.txt`).
