@@ -99148,3 +99148,16 @@ allocator and the cache rather than in the frames that did the
 copying. The victim witnesses print the 14 lines m804 printed. The
 floors are unchanged because the lists are equal. The heavy basket is
 not measured, and the daily cron judges it.
+
+After the merge, a profile of a build with line tables
+(`/tmp/m805/samp_pfd.txt`) named settle's copy of each accepted
+definition as the largest direct clone left in PlanarFourbar's
+reduction, with 919 samples. A patch that has settle collect slots and
+copy once was built and judged against the merged binary oxrc with
+interleaved trios (`/tmp/m805/trio2.txt`). PlanarFourbar took 30.88 and
+30.94 s against 30.70 and 30.84 s, and Engine1a took 32.23, 32.27 and
+31.99 s against 32.11, 32.05 and 31.97 s, about -0.4%. The forecast was
+-1% to -4%, so it was refuted, and the patch is parked
+(`park/m805_settle_slots.diff`). The clones that remain are spread over
+sites of 200 to 400 samples each. On RevoluteConstraint, clones take 156
+samples, and the reduction's own solving and simplifying lead.
