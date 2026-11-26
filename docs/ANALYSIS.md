@@ -99197,3 +99197,37 @@ Next in the same stack, mapped and not built
 (`park/m806_slk_map.md`): the reduction's linear solve builds the slope
 raw, simplifies it and drops the raw tree, and the drop costs about as
 much as the build (1258 against 1376 samples).
+
+## The product rule that builds a half for nothing
+
+The slope that the reduction's linear solve takes against one name is
+built by the product rule with both halves every time. A parameter or
+another name answers that slope with the literal `Number(0.0)`, so one
+half of most products is cloned, built and then folded away. A patch
+that builds only the live half when a factor's derivative is that
+literal (`park/m807_mul_zero.diff`, with a test that fails without it)
+was judged against head with interleaved `--only` trios on one quiet
+table (`/tmp/m807/trio.txt`, oxn 8e36b5e9 against oxp 8d294a00), run
+half. PlanarFourbar took 28.73 and 28.58 s on head against 28.28,
+28.19 and 28.30 s, about -1.4%. Engine1a took 29.52, 29.42 and 29.47 s
+against 29.40, 29.34 and 29.31 s, about -0.4%. The reduction and
+simplify-call counters are equal to the digit. Nodes fall by 2.1% and
+0.5%. The forecast was not faster by two head noises (0.40 s), and
+PlanarFourbar came in at 0.39 s on the mean. The direction stood and
+the size did not, so the patch is parked. Its corpus run
+(`/tmp/m807/c_oxp.txt`) is clean by the court: 986 / 858, runnable
+867 / 809, lists equal, work and reduction counters equal to the
+digit, simplifier nodes 4436492839 to 4152323986. A profile with line tables
+(`/tmp/m807/samp_pf.txt` and `samp_pfp.txt`) shows the solve going
+from 3835 to 3743 samples, which agrees.
+
+A wider form skips the derivative of any factor that does not name the
+target, as the rule for calls already does (`park/m807_mul_still.diff`).
+It is much cheaper: PlanarFourbar -14% and Engine1a -12% with the
+reduction counters equal on both (`/tmp/m807/t2_*.cur`). But it is a
+different compiler. A factor whose derivative used to be refused now
+gives a zero. The corpus run (`/tmp/m807/c_oxq.txt`) prints 986 / 853
+against 858, and runnable 867 / 804 against 809. Seven models are lost,
+six of them PowerConverters bridges plus TestMixingVolumesPressureStates,
+two are won, and the reduction counters move. It is parked with the
+list as a question. The heavy basket is not measured for either.
