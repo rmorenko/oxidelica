@@ -99342,3 +99342,46 @@ on Engine1a. That is a share of the window, not a guarantee. The outermost frame
 it builds shows up further downstream, in `simplify`. This is why `mul_still` won 14% while
 `differentiate_at` holds about 10%. The pricing for Roman's word is in the park
 (`m810_word_price.md`). Heavy basket: not measured, since no code changed.
+
+### The rank's slope is simplified once where nothing folds into it
+
+The longer Engine1a sample (`/tmp/m810/sfull_E1a.txt`, 19843 main-thread samples) has 1736
+samples with `simplify` as the outermost symbolic frame. Of those, 739 come from `solve_shape`
+in `compile.rs`, and PlanarFourbar has no such entry. `solve_shape` simplifies the slope,
+substitutes the parameters it names into a copy, and simplifies the copy to test for zero. Where
+the slope names no parameter at all, the copy is the slope itself, already simplified, and the
+second walk cannot change the answer. Now that walk is skipped. A slope that names a parameter is
+folded exactly as before. `OXIDELICA_NO_SKIP_REFOLD=1` restores the old path. The test
+`a_slope_without_parameters_is_simplified_once` counts one simplify call where the old path
+made two, and goes red under the key.
+
+The prediction was written before any number: Engine1a would get 2 to 5 percent cheaper, and the
+probe would count as empty below 0.4 percent. Triples were interleaved from one binary
+(`/tmp/m810/oxr`, md5 3eea3ad9, `/tmp/m810/rtrio.txt`), run half in ms:
+
+| model         | off               | on                | change |
+| ------------- | ----------------- | ----------------- | ------ |
+| PlanarFourbar | 28293 28187 28293 | 27564 27412 27441 | -2.8%  |
+| Engine1a      | 30167 29769 29904 | 28467 28460 28368 | -5.0%  |
+
+Work, reduction and refusals were equal to the digit on both models. The prediction held in
+both magnitude and direction.
+
+The corpus pair used one binary built from the final tree (`/tmp/m810/oxs`, md5 84bbbadc), with
+the halves run one after the other. Off was `/tmp/m810/c_off.txt` under the key, and on was
+`/tmp/m810/c_on.txt`. Both halves read 986 flattened and 858 run, with 867 / 809 runnable. The
+run lists are equal line for line, and the off list also equals the head's
+`/tmp/m809/c_oxd.txt`. Victims 0, wins 0. Every work and reduction counter agrees to the digit.
+Simplify calls went from 24263881 to 24008722, and nodes from 4082133352 to 3619255881 (-11%).
+Time: the run half went from 2183 s to 2155 s (-1.3%), and the flatten half from 5550 s to
+5512 s. The `--slow 60` lists differ by -30.6 s over 60 names, led by BranchingPipes3 at -2.5 s.
+Per model, inside a pass of a thousand models, these are candidates and not proof. Engine1a shows
++0.9 s there against -5.0% in its own triples. All 14 witnesses are equal to
+`/tmp/m806/preflight.txt`. Heavy basket: not measured. Floors do not move, because the lists
+are equal.
+
+A second probe was refuted and parked: keeping the simplified `db` at the quotient rule
+(`symbolic.rs:1022`, the largest drop site). It cut nodes by 9% and left time unchanged:
+PlanarFourbar -0.3% and Engine1a +0.2%, both inside the spread (`/tmp/m810/ktrio.txt`).
+Fewer nodes in the differentiator do not buy seconds. The same walk spent once fewer times in
+`solve_shape` does.

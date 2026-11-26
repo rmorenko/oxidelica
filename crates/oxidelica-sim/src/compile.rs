@@ -1328,6 +1328,12 @@ fn zero_rank_enabled() -> bool {
     *ANSWER.get_or_init(|| std::env::var_os("OXIDELICA_NO_ZERO_RANK").is_none())
 }
 
+/// Read once and kept, like the rank's own switch above.
+fn refold_skip_enabled() -> bool {
+    static ANSWER: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ANSWER.get_or_init(|| std::env::var_os("OXIDELICA_NO_SKIP_REFOLD").is_none())
+}
+
 /// The half of the rank that does not move: worked once per equation
 /// and name, under the same bracket as `solved_for` - inside one
 /// reduction the equation list is only appended to, so the pair at an
@@ -1360,6 +1366,18 @@ fn solve_shape(lhs: &Expr, rhs: &Expr, name: &str, params: &HashMap<String, f64>
     // A slope every one of whose names is a parameter is a number, and
     // a number that is zero says the equation does not hold this name
     // at all. Pairing it here is what hands Newton a singular row.
+    // Where no name of the slope is a parameter there is nothing to
+    // fold: the copy would be the slope itself, already simplified,
+    // and a second simplify of it is a walk of the whole tree that
+    // cannot change the answer. Engine1a spent close to half its
+    // outermost simplify samples here. `OXIDELICA_NO_SKIP_REFOLD=1`
+    // walks it again as before.
+    if refold_skip_enabled() && !named.iter().any(|n| params.contains_key(n.as_str())) {
+        if matches!(slope, Expr::Number(n) if n == 0.0) {
+            return SolveShape::ZeroSlope(named);
+        }
+        return SolveShape::Slope(Some(named));
+    }
     let mut folded = slope.clone();
     for named_ref in &named {
         if let Some(value) = params.get(named_ref.as_str()) {
@@ -3309,6 +3327,31 @@ mod carried_shape_tests {
             carried.1.clear();
             carried.2.clear();
         });
+    }
+
+    /// A slope that names no parameter is simplified once, not twice:
+    /// there is nothing to fold into it, so the second walk could not
+    /// change the answer. A slope that does name one is still folded,
+    /// and a parameter at zero still says the name is not held.
+    #[test]
+    fn a_slope_without_parameters_is_simplified_once() {
+        let product = |a: &str, b: &str| {
+            Expr::Bin(
+                BinOp::Mul,
+                Box::new(Expr::Ref(a.into())),
+                Box::new(Expr::Ref(b.into())),
+            )
+        };
+        let y = Expr::Ref("y".into());
+        let none = HashMap::new();
+        let before = oxidelica_parser::work::Work::here();
+        let shape = super::solve_shape(&product("x", "z"), &y, "x", &none);
+        let spent = oxidelica_parser::work::Work::here().since(before);
+        assert!(matches!(shape, SolveShape::Slope(Some(_))));
+        assert_eq!(spent.simplify_calls, 1);
+        let zero = HashMap::from([("k".to_string(), 0.0)]);
+        let shape = super::solve_shape(&product("x", "k"), &y, "x", &zero);
+        assert!(matches!(shape, SolveShape::ZeroSlope(_)));
     }
 
     /// A shape worked out once is handed back for the same equation
