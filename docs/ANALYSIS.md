@@ -99746,3 +99746,35 @@ and 4%. The tables of the reduction answer every lookup by hashing a name, and `
 its environment the same way. That is where the line can still pay: a cheaper hash for the
 reduction's own tables, which does not touch an answer. The symbolic line itself is at its
 bottom on both models.
+
+## Shift m818: the delta guard, taken on two clean points
+
+Shift m817 parked a judge of the delta between two prints of the main pass because no pair
+in its table had one compiler on both sides. Two such pairs exist now, and both are inside
+half of the limit, so the guard goes in beside the observer (`scripts/delta_guard.sh`, the
+step after the observer in `ci.yml`, a self-test in `scripts/preflight.sh`).
+
+### The two clean points
+
+The first was already in the history: 62bf450f touched no code (`ci.yml`, `AGENTS.md`,
+`library_floor.sh`, `preflight.sh`), so run 45976362582 against 45946079680 is one compiler
+twice. Through `ratio_delta.sh` on the 850 models both prints ran, flatten 2026 s to 1502 s
+(0.741), run 1686 s to 1308 s (0.775), and the quotient is 1.046. The judge's own sums of
+both passes give 0.971 for the same pair.
+
+The second is an A/A: attempt 2 of run 45976362582, the same commit on a fresh runner.
+Flatten 1502 s to 1790 s (1.192), run 1308 s to 1416 s (1.083), quotient 0.909. The work,
+reduction and symbolic counters of the two prints are equal to the byte and so are the
+lists of models run; one model doubles in flattening on weather alone (DryAirNasa, 2245 to
+4626 ms). The prints are kept in `/tmp/m817/a_45976362582` and `/tmp/m818/a2`, the table in
+`/tmp/m818/deltas.tsv`.
+
+### The limit
+
+The worst clean deviation is 9.1%, so two clean noises reach 18% and sit under the limit of
+0.75 to 1.25, which is twice the worst quiet pair of the history (12.7%). The two loud pairs
+of 0fcc658e, 1.602 and 1.339 on equal work, are outside it: the guard sees the price in the
+step that no counter registers. It sees such a step once, since the next green print is the
+next base, while the band keeps seeing the level. It judges the main pass only, because the
+dear pass reads 1.154 on equal work across fourteen models. With no green print to compare
+against, it says not judged and stays green.

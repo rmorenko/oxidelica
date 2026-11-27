@@ -392,6 +392,22 @@ delta_judges() {
   return 0
 }
 
+# The delta guard on both sides of its limit: 1.20 inside, 1.30
+# outside, and a missing base not judged. The points move with
+# DELTA_GUARD_HIGH in delta_guard.sh, in one commit.
+delta_guard_judges() {
+  local d
+  d="$(mktemp -d)"
+  printf 'ran A\nwork A 1000 ms flattening 1000 ms running\n' > "$d/p"
+  printf 'ran A\nwork A 1000 ms flattening 1200 ms running\n' > "$d/in"
+  printf 'ran A\nwork A 1000 ms flattening 1300 ms running\n' > "$d/out"
+  ./scripts/delta_guard.sh "$d/p" "$d/in" > /dev/null || return 1
+  ./scripts/delta_guard.sh "$d/p" "$d/out" > /dev/null && return 1
+  ./scripts/delta_guard.sh /missing "$d/in" > /dev/null || return 1
+  rm -rf "$d"
+  return 0
+}
+
 # The band on the counts of work, seen the same way: five percent
 # either side of the written number fires, inside it is quiet, and a
 # band of its own in parts per million is honoured.
@@ -416,6 +432,7 @@ step "Tests" cargo test --workspace
 step "The examples all simulate" examples_all_simulate
 step "The time band fires on both sides" time_band_judges
 step "The delta against the stored print speaks in its shapes" delta_judges
+step "The delta guard judges both sides of its limit" delta_guard_judges
 step "The work band fires on both sides" work_band_judges
 step "The cut of the library job is guarded" partition_judges
 

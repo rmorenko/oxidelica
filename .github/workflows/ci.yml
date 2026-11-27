@@ -336,6 +336,14 @@ jobs:
           done
           echo "no previous green print with library-main found"
 
+      # A judge beside the observer, on the print the observer just
+      # downloaded into prev/: the delta's run/flatten quotient held to
+      # 0.75..1.25 (scripts/delta_guard.sh says why). No prev/main.txt
+      # means not judged, and the step stays green.
+      - name: The delta's run over flatten (guard)
+        if: always()
+        run: ./scripts/delta_guard.sh prev/main.txt main.txt
+
   # The models the check above does not measure, measured here. Three
   # `Spice3` benchmarks cost seventy-two percent of the run half between
   # them and what they measure is the speed of the solver, so they are
