@@ -99649,3 +99649,43 @@ which the change does not touch). By `--slow` the carriers are BranchingPipes3 -
 BranchingPipes1 -3.7 s, UniversalConstraint and PlanarFourbar -2.9 s, RevoluteConstraint
 -2.4 s and Engine1a -2.3 s; the dearest rise is SeriesPipes1 +1.0 s of 93 s. Not measured on
 the heavy basket.
+
+## Shift m815: the names of a candidate's denominator kept by its tree
+
+The zero-denominator test of the candidate loop in `reduce_index_once` gathered the names of
+every dividing candidate's denominator afresh on every reduction, which the profile of shift
+m814 put at 9.7% of PlanarFourbar's worker thread and 10.9% of Engine1a's, the evaluation
+included. The list of names is now kept under the same bracket as the names of the candidate,
+keyed by the denominator's tree, with the `Arc` held in the entry so that its address cannot be
+reused. The value is still evaluated each time: what is valued moves between reductions, so a
+kept value would be a different compiler.
+
+The forecast, written before the number: the gathering is about two thirds of that line, so
+the run of PlanarFourbar and Engine1a should fall by 0.6 to 1.2 s, and a fall under 0.3 s on
+both would have said the change is empty. Interleaved triples with one binary per half
+(`/tmp/m815/oxq2`, md5 b7bf2d63, the head; `/tmp/m815/oxr1`, md5 0300a59d;
+`/tmp/m815/trio.txt`): PlanarFourbar run 12.97 s to 12.63 s, Engine1a 13.07 s to 12.74 s, the
+means of three. The falsifier is silent and the number is outside the band: the direction held
+and the magnitude did not - the gathering was nearer a third of the line than two thirds. The
+symbolic and work lines are equal in all eighteen runs (PlanarFourbar 571370 simplify /
+171248053 nodes, Engine1a 661940 / 112303007, CurrentControlledDCPM 50 points, 52 newton).
+
+The corpus pair (`/tmp/m815/c_off.txt` and `c_on.txt`, `--slow 60` on both): 986 / 858 and
+runnable 867 / 809 in both halves, the lists equal line for line, every counter equal to the
+digit, the run half 1832 s to 1829 s, which is inside the noise of the desk and claims no
+saving of its own. Not measured on the heavy basket. The floors are not moved, since the pair
+moved no count.
+
+### Where the misses of the solved-for table come from
+
+A probe in a separate tree, not committed (`/tmp/m815/probe_PlanarFourbar.txt` and
+`probe_Engine1a.txt`), counted the lookups and misses of `solved_for` and whether a miss had
+been seen before, keyed by the text of the equation and the name. PlanarFourbar: 535898 lookups
+and 17634 misses, none repeated within one call of `reduce_index_once`, and 13153 of them (75%)
+repeating a pair solved in an earlier call; 4481 distinct pairs in all. The earlier calls are
+the retreats of `reduce_index`, which starts the walk again with a fresh table each time - four
+calls for this model. Engine1a: 448447 lookups, 5097 misses, one call, no repeats. The key and
+its invalidation are right; it is the bracket that does not outlive a retreat. Carrying the
+answers for the original equations across a retreat, as `CARRIED_SHAPES` already carries the
+solve shapes, would save up to three quarters of that line on models that retreat and nothing
+on the rest. It is not built here.

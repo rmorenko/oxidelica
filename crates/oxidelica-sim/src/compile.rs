@@ -2040,6 +2040,12 @@ fn reduce_index_once(
     // holds the `Arc`, which keeps the address from being reused and the
     // tree from changing under it, so an entry never goes stale.
     let mut candidate_reads: HashMap<usize, (std::sync::Arc<Expr>, Vec<String>)> = HashMap::new();
+    // The names a dividing candidate's denominator reads, kept by the
+    // denominator's own tree on the same terms as `candidate_reads`:
+    // the entry holds the `Arc`, so the address cannot be reused. Only
+    // the list of names is kept; the value is asked afresh each time,
+    // because what is valued moves between reductions.
+    let mut denominator_reads: HashMap<usize, (std::sync::Arc<Expr>, Vec<String>)> = HashMap::new();
     let reads_kept = eq_reads_enabled();
     // The same bracket serves the matching's rank, whose dear half -
     // differentiating the equation and folding the slope - depends on
@@ -2536,9 +2542,19 @@ fn reduce_index_once(
                                 else {
                                     return true;
                                 };
-                                let mut refs = Vec::new();
-                                den.collect_refs(&mut refs);
-                                if !refs.iter().all(|r| valued.contains_key(*r)) {
+                                let key = std::sync::Arc::as_ptr(den) as usize;
+                                let refs = &denominator_reads
+                                    .entry(key)
+                                    .or_insert_with(|| {
+                                        let mut all = Vec::new();
+                                        den.collect_refs(&mut all);
+                                        (
+                                            std::sync::Arc::clone(den),
+                                            all.into_iter().map(str::to_string).collect(),
+                                        )
+                                    })
+                                    .1;
+                                if !refs.iter().all(|r| valued.contains_key(r.as_str())) {
                                     return true;
                                 }
                                 let at = eval(
