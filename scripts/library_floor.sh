@@ -2792,8 +2792,16 @@ UNREAD_CEILING=0
 # (run 43917571028, job 133504130605), and 0.822 x 1.17 = 0.962,
 # written 0.96. The floor 0.41 stays: only the ceiling moves. The 1045
 # probe point stays outside, since 0.96 < 1.045.
-RATIO_LOW="${RATIO_LOW:-0.41}"
-RATIO_HIGH="${RATIO_HIGH:-0.96}"
+#
+# On 2026-11-27 the band was centred again, Roman's word: four judge
+# prints in a row - 1.038 (125711b1, run 45923472246), 0.940 (4446a6e2,
+# run 45930661283), 1.000 (86aa9635, run 45938013475) and 1.061
+# (3572afef, run 45946079680) - put the runner's centre at 1.010, three
+# of them past the old ceiling of 0.96 with no model lost. The room is
+# his word of 15 November, 21% either way: 1.010 / 1.21 = 0.835, written
+# 0.83, and 1.010 x 1.21 = 1.222, written 1.22. Floors untouched.
+RATIO_LOW="${RATIO_LOW:-0.83}"
+RATIO_HIGH="${RATIO_HIGH:-1.22}"
 
 # The band itself, as a function, so that it can be seen red without a
 # library pass: `library_floor.sh --ratio-check <flatten ms> <run ms>`

@@ -337,9 +337,11 @@ time_band_judges() {
   # to 0.54, stands inside.
   # Since 2026-11-16 the top is 0.96 (the judge's 0.822 x 1.17), and
   # 1.045 is still past it.
-  ./scripts/library_floor.sh --ratio-check 1000 300 > /dev/null && return 1
-  ./scripts/library_floor.sh --ratio-check 1000 1045 > /dev/null && return 1
-  ./scripts/library_floor.sh --ratio-check 1000 520 || return 1
+  # Since 2026-11-27 the band is 0.83..1.22 round the judge's centre of
+  # 1.010: 0.700 under it, 1.300 past it, and 1.010 inside.
+  ./scripts/library_floor.sh --ratio-check 1000 700 > /dev/null && return 1
+  ./scripts/library_floor.sh --ratio-check 1000 1300 > /dev/null && return 1
+  ./scripts/library_floor.sh --ratio-check 1000 1010 || return 1
   # And the desk's band, at what the desk has measured and past either
   # end of it. Since 2026-11-14, with the cache of property answers:
   # inside, the two desk prints 0.342 (/tmp/m676/preflight_props.txt)
