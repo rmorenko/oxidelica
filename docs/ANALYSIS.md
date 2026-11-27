@@ -99588,3 +99588,64 @@ lines are equal in all six. The +6 s was the desk and not the change. Peak memor
 sign in the run half, and Engine1b, Fourbar2, LineForceWithTwoMasses and IMC_YDarc cheaper.
 
 The floors are not moved, since the pair moved no count.
+
+## Shift m814: a fresh profile of the run half after sharing, and the names of a candidate kept
+
+### The judge of sharing is red on the ceiling of the time band
+
+The judge of 125711b1 (run 45923472246) printed 986 / 858 and runnable 867 / 809, the floors
+held, and the job went red on `CEILING: run/flatten ratio is 1.038, and the band is
+0.41..0.96`. The ratio went out at the top, not at the bottom: against the judge of 0fcc658e
+(run 45854683886) flattening fell from 5596 s to 4532 s, and the run half rose from 3501 s to
+4520 s. By pass, the main pass ran 2355 s to 3625 s (+54%) and the dear pass 1146 s to 895 s
+(-22%). On the desk the same change made the run half 10.2% cheaper (shift m813b). One print
+of the runner against a pair on the desk does not tell the runner's weather from a price that
+only the runner pays, and CI prints no `--slow`, so nothing names the carriers. The band is not
+moved: a run half dearer by more than six percent is a question for Roman, not a print to set
+the band from.
+
+### Where the run half of PlanarFourbar and Engine1a goes now
+
+`sample` windows of ten seconds in the run half, two per model, on a build of the head with
+debug info (`/tmp/m814/oxp1`, md5 73d36f9a; `/tmp/m814/samp_*.txt`). The symbolic counters of
+these runs equal the references (PlanarFourbar 571370 simplify / 171248053 nodes, Engine1a
+661940 / 112303007). The top of the run half is no longer the differentiator: `simplify` is
+6.6% of PlanarFourbar's worker thread and 4.4% of Engine1a's, `differentiate_at` 3.1%. It is
+the candidate loop of `reduce_index_once`, by line of `compile.rs`, as a share of the worker
+thread in windows 1 / 2:
+
+| what                                                        | PlanarFourbar | Engine1a     |
+| ----------------------------------------------------------- | ------------- | ------------ |
+| `solved_for` misses, solving the equation for the name      | 21.7 / 22.0%  | 7.2 / 7.0%   |
+| the names each candidate reads, gathered on every reduction | 15.7 / 15.3%  | 16.5 / 16.4% |
+| the zero-denominator test of each candidate                 | 9.7 / 9.3%    | 10.9 / 10.7% |
+
+Copies on write through `make_mut` are 0 to 27 samples of about 7000, under 0.4%: sharing
+pays nothing visible in copies.
+
+### The names of a candidate, kept by its tree
+
+A candidate is an `Arc` handed out of `solved_for` or `eq_reads`, so the same tree comes back
+reduction after reduction, and the names it reads were gathered, sorted and turned into
+strings again each time. They are now kept in a table under the same bracket as `solved_for`,
+keyed by the address of the tree. The entry holds the `Arc` itself, so the address cannot be
+reused by another tree while the entry lives, and the tree cannot change under it. A
+candidate the fold turns into a number gets a new tree and so a new key.
+
+Forecast written before the number: PlanarFourbar and Engine1a each 1.5 to 2.5 s cheaper in
+the run half, refuted below 0.5 s. Interleaved triples with one pair of binaries, off
+`/tmp/m814/oxo1` (md5 046c9280) and on `/tmp/m814/oxq1` (md5 0cf7f766), in
+`/tmp/m814/trio.txt`: PlanarFourbar 14570 / 14713 / 14664 ms to 12829 / 13135 / 12834 ms,
+Engine1a 15203 / 15110 / 15357 ms to 13347 / 13535 / 13104 ms. The forecast stood. Work and
+symbolic lines are equal in all twelve runs, and CurrentControlledDCPM is equal to the digit
+(6702 / 21303, 50 points, 52 newton).
+
+The corpus pair, halves one after the other: off `/tmp/m814/oxo1`, on `/tmp/m814/oxq2` (md5
+b7bf2d63, the same patch after `cargo fmt`), `--list --slow 60`, in `/tmp/m814/c_off.txt` and
+`/tmp/m814/c_on.txt`. Both halves read 986 / 858 and runnable 867 / 809, the sorted lists are
+equal (1844 lines each), and every work, `reduction` and `symbolic` counter is equal to the
+digit. The run half went 1878 s to 1836 s (-2.2%) and flattening 5038 s to 5127 s (+1.8%,
+which the change does not touch). By `--slow` the carriers are BranchingPipes3 -4.7 s,
+BranchingPipes1 -3.7 s, UniversalConstraint and PlanarFourbar -2.9 s, RevoluteConstraint
+-2.4 s and Engine1a -2.3 s; the dearest rise is SeriesPipes1 +1.0 s of 93 s. Not measured on
+the heavy basket.

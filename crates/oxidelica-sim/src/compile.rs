@@ -2034,6 +2034,12 @@ fn reduce_index_once(
     // it rides the same bracket and the same index as `solved_for`.
     // Which of those names are unknowns moves, and is asked each time.
     let mut eq_reads: HashMap<usize, EqRead> = HashMap::new();
+    // The names a candidate reads, kept by the candidate's own tree.
+    // A candidate is an `Arc` handed out of `solved_for` or `eq_reads`,
+    // so the same tree comes back reduction after reduction; the entry
+    // holds the `Arc`, which keeps the address from being reused and the
+    // tree from changing under it, so an entry never goes stale.
+    let mut candidate_reads: HashMap<usize, (std::sync::Arc<Expr>, Vec<String>)> = HashMap::new();
     let reads_kept = eq_reads_enabled();
     // The same bracket serves the matching's rank, whose dear half -
     // differentiating the equation and folding the slope - depends on
@@ -2364,11 +2370,21 @@ fn reduce_index_once(
                     let mut named_once: Vec<Vec<String>> = candidates
                         .iter()
                         .map(|(_, expr, _)| {
-                            let mut all = Vec::new();
-                            expr.collect_refs(&mut all);
-                            all.sort_unstable();
-                            all.dedup();
-                            all.into_iter().map(str::to_string).collect()
+                            let key = std::sync::Arc::as_ptr(expr) as usize;
+                            candidate_reads
+                                .entry(key)
+                                .or_insert_with(|| {
+                                    let mut all = Vec::new();
+                                    expr.collect_refs(&mut all);
+                                    all.sort_unstable();
+                                    all.dedup();
+                                    (
+                                        std::sync::Arc::clone(expr),
+                                        all.into_iter().map(str::to_string).collect(),
+                                    )
+                                })
+                                .1
+                                .clone()
                         })
                         .collect();
                     if constant_candidates() {
