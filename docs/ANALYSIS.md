@@ -99689,3 +99689,60 @@ its invalidation are right; it is the bracket that does not outlive a retreat. C
 answers for the original equations across a retreat, as `CARRIED_SHAPES` already carries the
 solve shapes, would save up to three quarters of that line on models that retreat and nothing
 on the rest. It is not built here.
+
+## Shift m816: what an equation solves for, carried across a retreat
+
+Shift m815 found that three quarters of the misses of the `solved_for` table in
+PlanarFourbar repeat a pair solved by an earlier walk of the same reduction: `reduce_index`
+starts the walk again on each retreat with a fresh table, and four walks solve the same
+original equations four times. What an original equation solves for is now kept across those
+walks on the same terms as the solve shapes already carried by `CARRIED_SHAPES`: only for an
+index below the count of equations every walk begins with, never for an index a hidden
+constraint replaced, and the table is emptied when `reduce_index` begins. The answers are the
+ones `reduction_solve` and `simplify` give afresh, so the change alters how often they are
+worked out and nothing else. Both rewrites of the equation list were read before the change:
+`hidden_constraint` overwrites an index in place, which is excluded and removed from the carried
+table, and the truncation after a refused member cuts only indices at or above the count the
+attempt started from, which is never below the count the walks began with.
+
+The forecast, written before the number (`/tmp/m816/r.log`): PlanarFourbar's top-level
+simplify calls fall by about the 13153 repeated misses and its run by 1 to 2.5 s; Engine1a,
+which never retreats, keeps its symbolic line to the digit; the work and reduction counters and
+the lists stay equal. Interleaved triples, one binary per half (`/tmp/m816/oxh1`, md5 92c8191d,
+the head; `/tmp/m816/oxn1`, md5 3299c854; `/tmp/m816/trio.txt`): PlanarFourbar run 12.81 s to
+10.23 s, simplify 571370 to 500488 and nodes 171248053 to 64078445; Engine1a run 12.90 s to
+12.90 s with 661940 / 112303007 in every run; CurrentControlledDCPM 50 points, 52 newton,
+6702 / 21303 in every run. The falsifiers are silent and the fall of 2.58 s is 0.08 s past the
+band: the direction held and the magnitude only just did not. The simplify calls fell by 70882,
+more than the 13153 repeats, because each miss simplifies more than once inside
+`solve_linear_known`. A test fails without the carried lookup and passes with it. Witnesses:
+no `WITNESS` line (`/tmp/m816/witness.txt`).
+
+The corpus pair (`/tmp/m816/c_off.txt` and `c_on.txt`, `--slow 60` on both, the halves one
+after the other): 986 / 858 and runnable 867 / 809 in both halves, the lists equal line for
+line, the work counters and the reduction line (4081 passes, 7427004 equations scanned,
+20463668 candidates) equal to the digit; symbolic 23986563 to 23839184 simplify and
+2910472884 to 2749455920 nodes. The run half read 1836 s to 1905 s, 3.8% dearer, with less
+work in it. By `--slow` the rise sat in solver models that do not retreat - BranchingPipes1
++8.3 s, BranchingPipes3 +7.0 s, the quasi-static IMC_Transformer +6.1 s, BranchingPipes14
++5.0 s - while PlanarFourbar fell 2.8 s. Measured alone, off and on twice each from the same
+two binaries (`/tmp/m816/bp.txt`): BranchingPipes1 100.2 / 100.6 s against 99.7 / 99.5 s,
+IMC_Transformer 73.3 / 74.6 s against 74.1 / 74.2 s, symbolic equal in all eight runs. The
+rise of the pair is the desk, not the change. Not measured on the heavy basket. The floors are
+not moved, since the pair moved no count.
+
+### Where the bottom of the reduction line is now
+
+A profile of the run half after the change, from a build of the same tree with debug
+information (`/tmp/m816/oxd1`, md5 c03020d1, eight seconds of `sample` in the run,
+`/tmp/m816/samp_PlanarFourbar.txt` and `samp_Engine1a.txt`; symbolic lines equal to the
+triples). PlanarFourbar's worker thread: 6021 samples, `reduce_index_once` 83% of them, the
+carried lookups 8% (of which the remaining first solves, `solve_linear_known`, 3%), `simplify`
+2.6% at the top of the stack, `differentiate` 2.5%. Engine1a: 6058 samples, `reduce_index_once`
+55%, `solve_linear_known` 3.5%. What now leads the top of the stack is not symbolic work but
+bookkeeping: SipHash over `String` keys 16% of PlanarFourbar's samples and 11% of Engine1a's,
+the walk of `collect_refs` 13% and 10%, allocation and freeing about 10% and 17%, `eval` 6%
+and 4%. The tables of the reduction answer every lookup by hashing a name, and `eval` reads
+its environment the same way. That is where the line can still pay: a cheaper hash for the
+reduction's own tables, which does not touch an answer. The symbolic line itself is at its
+bottom on both models.

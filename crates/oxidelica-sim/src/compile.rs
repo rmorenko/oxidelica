@@ -1725,6 +1725,7 @@ fn reduce_index(
         carried.1.clear();
         carried.2.clear();
     });
+    CARRIED_SOLVED.with(|cell| cell.borrow_mut().clear());
     let original_rhs = state_rhs.clone();
     let mut retreats = 0usize;
     loop {
@@ -1807,6 +1808,40 @@ fn carried_shapes_enabled() -> bool {
     std::env::var_os("OXIDELICA_NO_CARRIED_SHAPES").is_none()
 }
 
+/// An equation solved for a name and folded, or `None` where it cannot be.
+type CarriedSolve = Option<std::sync::Arc<Expr>>;
+
+/// An equation solved for a name, from an earlier walk of the same
+/// reduction where it holds the same equation, else worked out and
+/// offered to the walks after this one. PlanarFourbar retreats three
+/// times, and three quarters of what its walks solved had been solved
+/// by the walk before, which threw it away.
+fn carried_solve(
+    eq: usize,
+    lhs: &Expr,
+    rhs: &Expr,
+    name: &str,
+    params: &HashMap<String, f64>,
+) -> CarriedSolve {
+    let work = || {
+        reduction_solve(lhs, rhs, name, params).map(|solved| std::sync::Arc::new(simplify(&solved)))
+    };
+    let usable = CARRIED_SHAPES.with(|cell| {
+        let carried = cell.borrow();
+        eq < carried.0 && !carried.2.contains(&eq)
+    });
+    if !usable {
+        return work();
+    }
+    let key = (eq, name.to_string());
+    if let Some(answer) = CARRIED_SOLVED.with(|cell| cell.borrow().get(&key).cloned()) {
+        return answer;
+    }
+    let answer = work();
+    CARRIED_SOLVED.with(|cell| cell.borrow_mut().insert(key, answer.clone()));
+    answer
+}
+
 /// The folded plain side and the named list of one equation, as the
 /// candidate loop of a reduction reads them.
 type EqRead = (Option<(String, std::sync::Arc<Expr>)>, Vec<String>);
@@ -1827,6 +1862,11 @@ thread_local! {
     /// field, cleared as each walk begins) are neither kept nor read.
     static CARRIED_SHAPES: std::cell::RefCell<CarriedShapes> =
         std::cell::RefCell::new((0, HashMap::new(), Vec::new()));
+    /// What an equation solves for, by equation and name, kept for the
+    /// walks a retreat starts again on the same terms as the shapes
+    /// above: only below their count and never for a replaced index.
+    static CARRIED_SOLVED: std::cell::RefCell<HashMap<(usize, String), CarriedSolve>> =
+        std::cell::RefCell::new(HashMap::new());
     /// The victims refused to the walk, by the reduction that took them.
     static REFUSED_VICTIMS: std::cell::RefCell<Vec<(usize, String)>> =
         const { std::cell::RefCell::new(Vec::new()) };
@@ -2133,6 +2173,9 @@ fn reduce_index_once(
                         carried.1.retain(|(index, _), _| *index != replaced);
                         carried.2.push(replaced);
                     });
+                    CARRIED_SOLVED.with(|cell| {
+                        cell.borrow_mut().retain(|(index, _), _| *index != replaced);
+                    });
                     continue;
                 }
             }
@@ -2328,8 +2371,7 @@ fn reduce_index_once(
                                     // plain name is written as one, and
                                     // everything after this reads the shape
                                     // rather than the wrapping.
-                                    reduction_solve(l, r, name, params)
-                                        .map(|solved| std::sync::Arc::new(simplify(&solved)))
+                                    carried_solve(index, l, r, name, params)
                                 });
                             if let Some(solved) = answer {
                                 candidates.push((
@@ -3440,6 +3482,35 @@ mod carried_shape_tests {
             "nothing past the count is kept"
         );
         begin(0);
+    }
+
+    /// An equation solved for a name in one walk is handed back to the
+    /// next for the same index, and the same guards hold as for the
+    /// shapes: a replaced index and one past the count are solved
+    /// afresh. The second body differs under the same index on purpose.
+    #[test]
+    fn a_solve_is_carried_only_where_the_equation_is_the_same() {
+        let params = HashMap::new();
+        let first = (Expr::Ref("x".into()), Expr::Ref("y".into()));
+        let other = (Expr::Ref("x".into()), Expr::Ref("z".into()));
+        let solves_to = |answer: super::CarriedSolve, to: &str| matches!(answer.as_deref(), Some(Expr::Ref(n)) if n == to);
+        begin(2);
+        super::CARRIED_SOLVED.with(|cell| cell.borrow_mut().clear());
+        let once = super::carried_solve(0, &first.0, &first.1, "x", &params);
+        assert!(solves_to(once, "y"));
+        let again = super::carried_solve(0, &other.0, &other.1, "x", &params);
+        assert!(solves_to(again, "y"), "carried from the first walk");
+
+        CARRIED_SHAPES.with(|cell| cell.borrow_mut().2.push(0));
+        let replaced = super::carried_solve(0, &other.0, &other.1, "x", &params);
+        assert!(solves_to(replaced, "z"), "a replaced row is not read");
+
+        let past = super::carried_solve(5, &first.0, &first.1, "x", &params);
+        assert!(solves_to(past, "y"));
+        let past_again = super::carried_solve(5, &other.0, &other.1, "x", &params);
+        assert!(solves_to(past_again, "z"), "nothing past the count is kept");
+        begin(0);
+        super::CARRIED_SOLVED.with(|cell| cell.borrow_mut().clear());
     }
 }
 
