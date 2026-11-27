@@ -1186,20 +1186,29 @@ mod tests {
 
     #[test]
     fn the_reporting_helpers_walk_the_array_forms() {
-        let x = || Box::new(Expr::Ref("x".to_string()));
-        let one = || Box::new(Expr::Number(1.0));
+        let x = || std::sync::Arc::new(Expr::Ref("x".to_string()));
+        let one = || std::sync::Arc::new(Expr::Number(1.0));
         // The loose walks see every child of the array forms.
         let range = Expr::Range(one(), Some(one()), one());
         assert_eq!(children(&range).len(), 3);
         assert_eq!(
-            children(&Expr::Comprehension(x(), "i".to_string(), Box::new(range))).len(),
+            children(&Expr::Comprehension(
+                x(),
+                "i".to_string(),
+                std::sync::Arc::new(range)
+            ))
+            .len(),
             2
         );
         assert_eq!(
-            children(&Expr::MatrixRows(vec![vec![*one()], vec![*one()]])).len(),
+            children(&Expr::MatrixRows(vec![
+                vec![(*one()).clone()],
+                vec![(*one()).clone()]
+            ]))
+            .len(),
             2
         );
-        assert_eq!(children(&Expr::Index(x(), vec![*one()])).len(), 2);
+        assert_eq!(children(&Expr::Index(x(), vec![(*one()).clone()])).len(), 2);
         assert_eq!(children(&Expr::Member(x(), "y".to_string())).len(), 1);
 
         assert_eq!(Units::Any.text(), "unknown");

@@ -529,7 +529,7 @@ fn unrolled_with_exit(
     let mut round = vec![lower];
     round.extend(flagged.iter().cloned());
     let guarded = [Statement::If(vec![StatementBranch {
-        condition: Some(Expr::Not(Box::new(Expr::Ref(flag.clone())))),
+        condition: Some(Expr::Not(std::sync::Arc::new(Expr::Ref(flag.clone())))),
         body: round,
     }])];
     bindings.insert(flag.clone(), Expr::Bool(false));
@@ -561,7 +561,7 @@ fn unrolled_with_exit(
         if settled.is_none() {
             if let Some(Expr::If(_, raised, otherwise)) = bindings.get(&flag) {
                 if **otherwise == standing {
-                    let carried = Expr::Or(Box::new(standing), raised.clone());
+                    let carried = Expr::Or(std::sync::Arc::new(standing), raised.clone());
                     bindings.insert(flag.clone(), carried);
                 }
             }
@@ -605,7 +605,9 @@ fn exit_flagged(statements: &[Statement], flag: &str) -> Vec<Statement> {
                 let rest = exit_flagged(&statements[at + 1..], flag);
                 if !rest.is_empty() {
                     out.push(Statement::If(vec![StatementBranch {
-                        condition: Some(Expr::Not(Box::new(Expr::Ref(flag.to_string())))),
+                        condition: Some(Expr::Not(std::sync::Arc::new(Expr::Ref(
+                            flag.to_string(),
+                        )))),
                         body: rest,
                     }]));
                 }
@@ -725,11 +727,11 @@ fn written_at_run_time(
             .map(|((_, place, _), at)| {
                 Expr::Rel(
                     RelOp::Eq,
-                    Box::new(place.clone()),
-                    Box::new(Expr::Number(*at as f64)),
+                    std::sync::Arc::new(place.clone()),
+                    std::sync::Arc::new(Expr::Number(*at as f64)),
                 )
             })
-            .reduce(|a, b| Expr::And(Box::new(a), Box::new(b)))
+            .reduce(|a, b| Expr::And(std::sync::Arc::new(a), std::sync::Arc::new(b)))
             .expect("one place at least is open");
         let mut place: Vec<Expr> = subscripts.to_vec();
         for ((at, _, _), number) in open.iter().zip(&numbers) {
@@ -1040,7 +1042,7 @@ fn one_assignment(
                 items = (0..named.len())
                     .map(|step| {
                         Expr::Index(
-                            Box::new(call.clone()),
+                            std::sync::Arc::new(call.clone()),
                             vec![Expr::Number((first + step) as f64)],
                         )
                     })
@@ -1843,17 +1845,23 @@ fn one_if_statement(
             let not_before = outcomes
                 .iter()
                 .filter_map(|(earlier, _)| earlier.clone())
-                .map(|earlier| Expr::Not(Box::new(earlier)))
-                .reduce(|a, b| Expr::And(Box::new(a), Box::new(b)));
+                .map(|earlier| Expr::Not(std::sync::Arc::new(earlier)))
+                .reduce(|a, b| Expr::And(std::sync::Arc::new(a), std::sync::Arc::new(b)));
             match (not_before, condition.clone()) {
-                (Some(before), Some(own)) => Some(Expr::And(Box::new(before), Box::new(own))),
+                (Some(before), Some(own)) => Some(Expr::And(
+                    std::sync::Arc::new(before),
+                    std::sync::Arc::new(own),
+                )),
                 (before, own) => own.or(before),
             }
         };
         if let Some(taken) = &taken {
-            let otherwise = Expr::Not(Box::new(taken.clone()));
+            let otherwise = Expr::Not(std::sync::Arc::new(taken.clone()));
             for (check, _) in asserts.iter_mut().skip(mark) {
-                *check = Expr::Or(Box::new(otherwise.clone()), Box::new(check.clone()));
+                *check = Expr::Or(
+                    std::sync::Arc::new(otherwise.clone()),
+                    std::sync::Arc::new(check.clone()),
+                );
             }
             algorithms::checks_guarded(aside, taken, true);
         }
@@ -2041,9 +2049,9 @@ fn one_if_statement(
             match (taken, value) {
                 (Some(taken), Some(otherwise)) => {
                     value = Some(Expr::If(
-                        Box::new(condition.clone()),
-                        Box::new(taken),
-                        Box::new(otherwise),
+                        std::sync::Arc::new(condition.clone()),
+                        std::sync::Arc::new(taken),
+                        std::sync::Arc::new(otherwise),
                     ));
                 }
                 _ => {
@@ -2116,7 +2124,9 @@ fn split_whole_arrays(
                 Some(
                     a.into_iter()
                         .zip(b)
-                        .map(|(a, b)| Expr::If(c.clone(), Box::new(a), Box::new(b)))
+                        .map(|(a, b)| {
+                            Expr::If(c.clone(), std::sync::Arc::new(a), std::sync::Arc::new(b))
+                        })
                         .collect(),
                 )
             }

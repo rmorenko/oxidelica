@@ -99547,3 +99547,44 @@ The witnesses were byte-equal, 14 of 14. Peak memory on PlanarFourbar fell from 
 was about -0.3 s on PlanarFourbar, from the quotient article alone. The direction held and the
 size did not, because the prototype cheapens every clone in the compiler and not just one
 article. No corpus pair was run, since there is no merge to judge.
+
+## Shift m813b: sharing merged
+
+Roman's answer to the measured price was to build it. The parked prototype
+(`park/m813_sharing_probe.diff`, `Arc<Expr>` in all fourteen child fields of `Expr`) applied
+to e134dcf0 without a conflict, and `cargo fmt` was the only edit on top of it. It is merged
+as it was measured, so the engineering price written for shift m813 stands: 36 files, almost
+all of it mechanical, with the mutable child walker going through `make_mut` and six moves out
+of a box through `unwrap_or_clone`.
+
+### The corpus pair for sharing
+
+One pair of binaries, halves one after the other on a quiet desk: off `/tmp/m813b/oxb2`
+(md5 062535ce, 0fcc658e, the same code as e134dcf0) and on `/tmp/m813b/oxs2` (md5 5791f61f),
+both with `--list --slow 60`, printed into `/tmp/m813b/c_off.txt` and `/tmp/m813b/c_on.txt`.
+Both halves read 986 / 858 and runnable 867 / 809. The sorted `flat` and `ran` lists are equal
+line for line (1844 lines each), so there are no victims and no wins. Every work counter is
+equal to the digit in both phases (286557 classes, 95303345 expansions, 24397507 points,
+36071492 newton, 710 jacobians, 1405038 damped), as are `reduction` (4081 passes, 7427004
+equations, 20463668 candidates) and `symbolic` (23986563 simplify, 2910472884 nodes).
+
+Time: run half 2064 s to 1854 s (-10.2%), flattening 5392 s to 5147 s (-4.5%). The run half
+is cheaper, so Roman's six percent does not arise. The carriers by `--slow` are MultiBody, as
+the triples said: Engine1a 33.8 s to 24.6 s, PlanarFourbar 29.0 to 19.9, RevoluteConstraint
+29.7 to 17.8, UniversalConstraint 29.0 to 20.3, PointGravityWithPointMasses2 20.0 to 12.5, and
+IMC_Transformer 95.3 to 86.4. The Fluid giants that head the list do not move
+(BranchingPipes1 121.4 / 122.0 s, Dimmer_RL 101.2 / 101.0 s). These are candidates from one
+pass and not prices, except for PlanarFourbar and Engine1a, whose triples shift m813 took.
+The desk ratio of the on half is 1854 / 5147 = 0.36, inside the desk band of 0.28 to 0.67.
+
+### EngineV6 and the heavy basket
+
+EngineV6 was the one heavy candidate for a price, +6 s of run in a single run of shift m813.
+Interleaved triples with the same two binaries (`/tmp/m813b/v6_oxb2_N.txt` and
+`v6_oxs2_N.txt`): run half 220.5 / 220.6 / 219.5 s off and 218.5 / 219.5 / 218.4 s on, and
+flattening 212.5 / 211.7 / 211.7 s to 87.6 / 87.4 / 87.0 s. The work, symbolic and outcome
+lines are equal in all six. The +6 s was the desk and not the change. Peak memory fell from
+3.1 GB to 1.8 GB. The rest of the heavy basket stands as shift m813 measured it: TWOBIT with no
+sign in the run half, and Engine1b, Fourbar2, LineForceWithTwoMasses and IMC_YDarc cheaper.
+
+The floors are not moved, since the pair moved no count.

@@ -262,7 +262,11 @@ pub(crate) fn hidden_constraint(
             continue;
         };
         let lhs = terms.into_iter().skip(1).fold(first, |sum, term| {
-            Expr::Bin(oxidelica_parser::BinOp::Add, Box::new(sum), Box::new(term))
+            Expr::Bin(
+                oxidelica_parser::BinOp::Add,
+                std::sync::Arc::new(sum),
+                std::sync::Arc::new(term),
+            )
         });
         let mut named = Vec::new();
         lhs.collect_refs(&mut named);
@@ -433,11 +437,11 @@ pub(crate) fn dependent_row_real_with(
 fn scaled(k: i128, expr: Expr) -> Expr {
     match k {
         1 => expr,
-        -1 => Expr::Neg(Box::new(expr)),
+        -1 => Expr::Neg(std::sync::Arc::new(expr)),
         _ => Expr::Bin(
             oxidelica_parser::BinOp::Mul,
-            Box::new(Expr::Number(k as f64)),
-            Box::new(expr),
+            std::sync::Arc::new(Expr::Number(k as f64)),
+            std::sync::Arc::new(expr),
         ),
     }
 }

@@ -567,7 +567,7 @@ fn a_flexible_size_is_measured_only_where_it_can_be() {
 fn a_range_is_measured_only_along_its_one_axis() {
     use crate::ast::Expr;
     use std::collections::HashMap;
-    let n = |v: f64| Box::new(Expr::Number(v));
+    let n = |v: f64| std::sync::Arc::new(Expr::Number(v));
     let consts = HashMap::new();
     let sizes = HashMap::new();
     let range = |from, step: Option<f64>, to| Expr::Range(n(from), step.map(n), n(to));
@@ -596,7 +596,11 @@ fn a_range_is_measured_only_along_its_one_axis() {
         None
     );
     // A bound the environment cannot settle leaves it unmeasured.
-    let named = Expr::Range(n(1.0), None, Box::new(Expr::Ref("unknown".into())));
+    let named = Expr::Range(
+        n(1.0),
+        None,
+        std::sync::Arc::new(Expr::Ref("unknown".into())),
+    );
     assert_eq!(
         super::shapes::range_length(&named, 0, &consts, &sizes),
         None
@@ -623,8 +627,8 @@ fn the_walk_for_a_read_reaches_every_corner_of_an_expression() {
     // rule and the seeds are all read.
     let derived = |value: Expr, rule: Expr, seed: Expr| {
         Expr::WithDerivative(
-            Box::new(value),
-            Box::new(rule),
+            std::sync::Arc::new(value),
+            std::sync::Arc::new(rule),
             vec![("x".to_string(), seed)],
         )
     };
@@ -638,7 +642,10 @@ fn the_walk_for_a_read_reaches_every_corner_of_an_expression() {
     )));
 
     // An argument given by name, and a subscript reaching the whole.
-    assert!(reads(&Expr::NamedArg("k".into(), Box::new(named.clone()))));
+    assert!(reads(&Expr::NamedArg(
+        "k".into(),
+        std::sync::Arc::new(named.clone())
+    )));
     assert!(reads(&Expr::Ref("o[1]".into())));
     assert!(!reads(&Expr::Ref("other".into())));
 }
@@ -848,12 +855,20 @@ fn a_reduction_over_an_elementwise_product_keeps_the_reduction() {
     // The same name under an elementwise product is exactly as late,
     // and this is what was missed.
     assert!(unmeasured_name_under(
-        &Expr::Elementwise(BinOp::Mul, Box::new(named("m.vs")), Box::new(named("m.is"))),
+        &Expr::Elementwise(
+            BinOp::Mul,
+            std::sync::Arc::new(named("m.vs")),
+            std::sync::Arc::new(named("m.is"))
+        ),
         &shapes
     ));
     // A plain operator between the two is late for the same reason.
     assert!(unmeasured_name_under(
-        &Expr::Bin(BinOp::Add, Box::new(named("m.vs")), Box::new(named("m.is"))),
+        &Expr::Bin(
+            BinOp::Add,
+            std::sync::Arc::new(named("m.vs")),
+            std::sync::Arc::new(named("m.is"))
+        ),
         &shapes
     ));
     // A name that was measured is not late, whatever it stands under,
@@ -863,8 +878,8 @@ fn a_reduction_over_an_elementwise_product_keeps_the_reduction() {
     assert!(!unmeasured_name_under(
         &Expr::Elementwise(
             BinOp::Mul,
-            Box::new(named("m.known")),
-            Box::new(named("m.known"))
+            std::sync::Arc::new(named("m.known")),
+            std::sync::Arc::new(named("m.known"))
         ),
         &shapes
     ));
@@ -1101,7 +1116,13 @@ fn a_carried_parameter_note_shows_the_head_of_a_long_binding() {
     // how many there were.
     let long = (0..400)
         .map(|i| Expr::Ref(format!("x{i}")))
-        .reduce(|a, b| Expr::Bin(crate::ast::BinOp::Add, Box::new(a), Box::new(b)))
+        .reduce(|a, b| {
+            Expr::Bin(
+                crate::ast::BinOp::Add,
+                std::sync::Arc::new(a),
+                std::sync::Arc::new(b),
+            )
+        })
         .unwrap();
     let whole = format!("{long:?}").chars().count();
     let note = super::bound_to_note(&long);

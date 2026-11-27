@@ -577,7 +577,7 @@ pub(super) fn stream_mix(
                 if outside {
                     flow
                 } else {
-                    Expr::Neg(Box::new(flow))
+                    Expr::Neg(std::sync::Arc::new(flow))
                 }
             };
             let weight = |other: &str| {
@@ -589,7 +589,9 @@ pub(super) fn stream_mix(
             let sum = |terms: Vec<Expr>| {
                 terms
                     .into_iter()
-                    .reduce(|a, b| Expr::Bin(BinOp::Add, Box::new(a), Box::new(b)))
+                    .reduce(|a, b| {
+                        Expr::Bin(BinOp::Add, std::sync::Arc::new(a), std::sync::Arc::new(b))
+                    })
                     .expect("at least two others")
             };
             let numerator = sum(others
@@ -597,24 +599,28 @@ pub(super) fn stream_mix(
                 .map(|other| {
                     Expr::Bin(
                         BinOp::Mul,
-                        Box::new(weight(other)),
-                        Box::new(Expr::Ref(format!("{other}.{member}"))),
+                        std::sync::Arc::new(weight(other)),
+                        std::sync::Arc::new(Expr::Ref(format!("{other}.{member}"))),
                     )
                 })
                 .collect());
             let denominator = sum(others.iter().map(|other| weight(other)).collect());
-            Expr::Bin(BinOp::Div, Box::new(numerator), Box::new(denominator))
+            Expr::Bin(
+                BinOp::Div,
+                std::sync::Arc::new(numerator),
+                std::sync::Arc::new(denominator),
+            )
         }
     };
     Ok(if actual {
         Expr::If(
-            Box::new(Expr::Rel(
+            std::sync::Arc::new(Expr::Rel(
                 crate::ast::RelOp::Gt,
-                Box::new(Expr::Ref(format!("{path}.{flow_name}"))),
-                Box::new(Expr::Number(0.0)),
+                std::sync::Arc::new(Expr::Ref(format!("{path}.{flow_name}"))),
+                std::sync::Arc::new(Expr::Number(0.0)),
             )),
-            Box::new(in_stream),
-            Box::new(Expr::Ref(name.to_string())),
+            std::sync::Arc::new(in_stream),
+            std::sync::Arc::new(Expr::Ref(name.to_string())),
         )
     } else {
         in_stream
@@ -1218,7 +1224,7 @@ fn weighted_mix(terms: Vec<(Expr, Expr)>) -> Expr {
     let sum = |terms: Vec<Expr>| {
         terms
             .into_iter()
-            .reduce(|a, b| Expr::Bin(BinOp::Add, Box::new(a), Box::new(b)))
+            .reduce(|a, b| Expr::Bin(BinOp::Add, std::sync::Arc::new(a), std::sync::Arc::new(b)))
             .expect("a mix of at least one")
     };
     let weight = |inflow: &Expr| {
@@ -1232,13 +1238,17 @@ fn weighted_mix(terms: Vec<(Expr, Expr)>) -> Expr {
         .map(|(inflow, value)| {
             Expr::Bin(
                 BinOp::Mul,
-                Box::new(weight(inflow)),
-                Box::new(value.clone()),
+                std::sync::Arc::new(weight(inflow)),
+                std::sync::Arc::new(value.clone()),
             )
         })
         .collect());
     let denominator = sum(terms.iter().map(|(inflow, _)| weight(inflow)).collect());
-    Expr::Bin(BinOp::Div, Box::new(numerator), Box::new(denominator))
+    Expr::Bin(
+        BinOp::Div,
+        std::sync::Arc::new(numerator),
+        std::sync::Arc::new(denominator),
+    )
 }
 
 /// The flow of `path` as it enters a set, by the side `path` stands on
@@ -1249,7 +1259,7 @@ fn inflow_of(path: &str, outside: bool, flow_name: &str) -> Expr {
     if outside {
         flow
     } else {
-        Expr::Neg(Box::new(flow))
+        Expr::Neg(std::sync::Arc::new(flow))
     }
 }
 

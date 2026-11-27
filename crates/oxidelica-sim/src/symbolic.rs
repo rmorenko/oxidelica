@@ -35,8 +35,8 @@ fn simplify_node(expr: &Expr) -> Expr {
     use oxidelica_parser::BinOp::*;
     match expr {
         Expr::WithDerivative(value, rule, seeds) => Expr::WithDerivative(
-            Box::new(simplify(value)),
-            Box::new(simplify(rule)),
+            std::sync::Arc::new(simplify(value)),
+            std::sync::Arc::new(simplify(rule)),
             seeds
                 .iter()
                 .map(|(name, argument)| (name.clone(), simplify(argument)))
@@ -50,8 +50,8 @@ fn simplify_node(expr: &Expr) -> Expr {
             // moving terms across, so `-(-i)` is the ordinary shape of
             // a current that was on the other side, and left standing
             // it hides a plain name from everything downstream.
-            Expr::Neg(twice) => *twice,
-            other => Expr::Neg(Box::new(other)),
+            Expr::Neg(twice) => std::sync::Arc::unwrap_or_clone(twice),
+            other => Expr::Neg(std::sync::Arc::new(other)),
         },
         Expr::Call(name, args) => Expr::Call(name.clone(), args.iter().map(simplify).collect()),
         Expr::Bin(op, l, r) => {
@@ -70,7 +70,7 @@ fn simplify_node(expr: &Expr) -> Expr {
                 Add if is(&l, 0.0) => r,
                 Add if is(&r, 0.0) => l,
                 Sub if is(&r, 0.0) => l,
-                Sub if is(&l, 0.0) => Expr::Neg(Box::new(r)),
+                Sub if is(&l, 0.0) => Expr::Neg(std::sync::Arc::new(r)),
                 Mul if is(&l, 0.0) || is(&r, 0.0) => Expr::Number(0.0),
                 Mul if is(&l, 1.0) => r,
                 Mul if is(&r, 1.0) => l,
@@ -78,25 +78,35 @@ fn simplify_node(expr: &Expr) -> Expr {
                 // connection equation for one of its currents divides
                 // by the sign it was written with, and `x/-1` left as
                 // a division is a multiplication nobody meant.
-                Mul if is(&l, -1.0) => simplify(&Expr::Neg(Box::new(r))),
-                Mul if is(&r, -1.0) => simplify(&Expr::Neg(Box::new(l))),
+                Mul if is(&l, -1.0) => simplify(&Expr::Neg(std::sync::Arc::new(r))),
+                Mul if is(&r, -1.0) => simplify(&Expr::Neg(std::sync::Arc::new(l))),
                 Div if is(&l, 0.0) => Expr::Number(0.0),
                 Div if is(&r, 1.0) => l,
-                Div if is(&r, -1.0) => simplify(&Expr::Neg(Box::new(l))),
+                Div if is(&r, -1.0) => simplify(&Expr::Neg(std::sync::Arc::new(l))),
                 Pow if is(&r, 1.0) => l,
                 Pow if is(&r, 0.0) => Expr::Number(1.0),
-                _ => Expr::Bin(*op, Box::new(l), Box::new(r)),
+                _ => Expr::Bin(*op, std::sync::Arc::new(l), std::sync::Arc::new(r)),
             }
         }
         Expr::If(c, a, b) => Expr::If(
-            Box::new(simplify(c)),
-            Box::new(simplify(a)),
-            Box::new(simplify(b)),
+            std::sync::Arc::new(simplify(c)),
+            std::sync::Arc::new(simplify(a)),
+            std::sync::Arc::new(simplify(b)),
         ),
-        Expr::Rel(op, l, r) => Expr::Rel(*op, Box::new(simplify(l)), Box::new(simplify(r))),
-        Expr::And(l, r) => Expr::And(Box::new(simplify(l)), Box::new(simplify(r))),
-        Expr::Or(l, r) => Expr::Or(Box::new(simplify(l)), Box::new(simplify(r))),
-        Expr::Not(inner) => Expr::Not(Box::new(simplify(inner))),
+        Expr::Rel(op, l, r) => Expr::Rel(
+            *op,
+            std::sync::Arc::new(simplify(l)),
+            std::sync::Arc::new(simplify(r)),
+        ),
+        Expr::And(l, r) => Expr::And(
+            std::sync::Arc::new(simplify(l)),
+            std::sync::Arc::new(simplify(r)),
+        ),
+        Expr::Or(l, r) => Expr::Or(
+            std::sync::Arc::new(simplify(l)),
+            std::sync::Arc::new(simplify(r)),
+        ),
+        Expr::Not(inner) => Expr::Not(std::sync::Arc::new(simplify(inner))),
         // Subscripts are resolved to scalar references while
         // flattening, so none can reach the compiler.
         Expr::Index(_, _)
@@ -129,13 +139,25 @@ fn seeded(rule: &Expr, given: &HashMap<String, Expr>) -> Expr {
         Expr::WithDerivative(..) => rule.clone(),
         Expr::Ref(name) => given.get(name).cloned().unwrap_or_else(|| rule.clone()),
         Expr::Call(name, args) => Expr::Call(name.clone(), args.iter().map(recur).collect()),
-        Expr::Neg(inner) => Expr::Neg(Box::new(recur(inner))),
-        Expr::Not(inner) => Expr::Not(Box::new(recur(inner))),
-        Expr::Bin(op, l, r) => Expr::Bin(*op, Box::new(recur(l)), Box::new(recur(r))),
-        Expr::Rel(op, l, r) => Expr::Rel(*op, Box::new(recur(l)), Box::new(recur(r))),
-        Expr::And(l, r) => Expr::And(Box::new(recur(l)), Box::new(recur(r))),
-        Expr::Or(l, r) => Expr::Or(Box::new(recur(l)), Box::new(recur(r))),
-        Expr::If(c, a, b) => Expr::If(Box::new(recur(c)), Box::new(recur(a)), Box::new(recur(b))),
+        Expr::Neg(inner) => Expr::Neg(std::sync::Arc::new(recur(inner))),
+        Expr::Not(inner) => Expr::Not(std::sync::Arc::new(recur(inner))),
+        Expr::Bin(op, l, r) => Expr::Bin(
+            *op,
+            std::sync::Arc::new(recur(l)),
+            std::sync::Arc::new(recur(r)),
+        ),
+        Expr::Rel(op, l, r) => Expr::Rel(
+            *op,
+            std::sync::Arc::new(recur(l)),
+            std::sync::Arc::new(recur(r)),
+        ),
+        Expr::And(l, r) => Expr::And(std::sync::Arc::new(recur(l)), std::sync::Arc::new(recur(r))),
+        Expr::Or(l, r) => Expr::Or(std::sync::Arc::new(recur(l)), std::sync::Arc::new(recur(r))),
+        Expr::If(c, a, b) => Expr::If(
+            std::sync::Arc::new(recur(c)),
+            std::sync::Arc::new(recur(a)),
+            std::sync::Arc::new(recur(b)),
+        ),
         _ => rule.clone(),
     }
 }
@@ -206,8 +228,8 @@ pub(crate) fn solve_linear_known(
 ) -> Option<Expr> {
     let residual = Expr::Bin(
         oxidelica_parser::BinOp::Sub,
-        Box::new(lhs.clone()),
-        Box::new(rhs.clone()),
+        std::sync::Arc::new(lhs.clone()),
+        std::sync::Arc::new(rhs.clone()),
     );
     let slope = simplify(
         &differentiate(
@@ -299,8 +321,8 @@ pub(crate) fn solve_linear_known(
     let intercept = simplify(&substitute(&residual, var, 0.0));
     Some(simplify(&Expr::Bin(
         oxidelica_parser::BinOp::Div,
-        Box::new(Expr::Neg(Box::new(intercept))),
-        Box::new(slope),
+        std::sync::Arc::new(Expr::Neg(std::sync::Arc::new(intercept))),
+        std::sync::Arc::new(slope),
     )))
 }
 
@@ -363,8 +385,8 @@ pub(crate) fn solve_reciprocal_known(
     }
     Some(simplify(&Expr::Bin(
         oxidelica_parser::BinOp::Div,
-        Box::new(Expr::Number(1.0)),
-        Box::new(solved),
+        std::sync::Arc::new(Expr::Number(1.0)),
+        std::sync::Arc::new(solved),
     )))
 }
 
@@ -385,8 +407,8 @@ fn as_reciprocal(expr: &Expr, var: &str, fresh: &str) -> Option<Expr> {
             }
             Some(Expr::Bin(
                 oxidelica_parser::BinOp::Mul,
-                Box::new(dividend.as_ref().clone()),
-                Box::new(Expr::Ref(fresh.to_string())),
+                std::sync::Arc::new(dividend.as_ref().clone()),
+                std::sync::Arc::new(Expr::Ref(fresh.to_string())),
             ))
         }
         Expr::Ref(name) if name == var => None,
@@ -710,14 +732,14 @@ pub(crate) fn differentiate_at(
             Mul if is(&b, 1.0) => a,
             Add if is(&a, 0.0) => b,
             Add | Sub if is(&b, 0.0) => a,
-            _ => Expr::Bin(op, Box::new(a), Box::new(b)),
+            _ => Expr::Bin(op, std::sync::Arc::new(a), std::sync::Arc::new(b)),
         }
     }
     fn neg(inner: Expr) -> Expr {
         if let Expr::Number(n) = inner {
             Expr::Number(-n)
         } else {
-            Expr::Neg(Box::new(inner))
+            Expr::Neg(std::sync::Arc::new(inner))
         }
     }
     fn call(name: &str, arg: Expr) -> Expr {
@@ -753,7 +775,10 @@ pub(crate) fn differentiate_at(
             let (Expr::Ref(n), DiffTarget::Time { state_rhs, .. }) = (base.as_ref(), target) else {
                 unreachable!("asked in the guard")
             };
-            Expr::Index(Box::new(state_rhs[n].clone()), subscripts.clone())
+            Expr::Index(
+                std::sync::Arc::new(state_rhs[n].clone()),
+                subscripts.clone(),
+            )
         }
         // Inside a walked body, an element of an array that stands
         // still stands still too, whichever element the body picks.
@@ -909,7 +934,11 @@ pub(crate) fn differentiate_at(
                     if let Some(answer) = pair_block_rate(name, target, depth)? {
                         return Ok(answer);
                     }
-                    let residual = Expr::Bin(Sub, Box::new(l.clone()), Box::new(r.clone()));
+                    let residual = Expr::Bin(
+                        Sub,
+                        std::sync::Arc::new(l.clone()),
+                        std::sync::Arc::new(r.clone()),
+                    );
                     let slope = simplify(&differentiate_at(
                         &residual,
                         &DiffTarget::Variable { name, params },
@@ -931,7 +960,7 @@ pub(crate) fn differentiate_at(
                         holding: &chain,
                     };
                     let motion = simplify(&differentiate_at(&residual, &held, depth + 1)?);
-                    bin(Div, Expr::Neg(Box::new(motion)), slope)
+                    bin(Div, Expr::Neg(std::sync::Arc::new(motion)), slope)
                 } else if holding.is_empty() {
                     // Nothing here determines `name`, and substitution
                     // is the wrong instrument for what does: a current
@@ -1208,22 +1237,22 @@ pub(crate) fn differentiate_at(
             let u = &args[0];
             let du = d(u)?;
             let rel = |op, a: &Expr| {
-                Box::new(Expr::Rel(
+                std::sync::Arc::new(Expr::Rel(
                     op,
-                    Box::new(a.clone()),
-                    Box::new(Expr::Number(0.0)),
+                    std::sync::Arc::new(a.clone()),
+                    std::sync::Arc::new(Expr::Number(0.0)),
                 ))
             };
             Expr::If(
                 rel(Gt, u),
-                Box::new(du.clone()),
-                Box::new(Expr::If(
+                std::sync::Arc::new(du.clone()),
+                std::sync::Arc::new(Expr::If(
                     rel(Lt, u),
-                    Box::new(Expr::Neg(Box::new(du.clone()))),
-                    Box::new(Expr::If(
+                    std::sync::Arc::new(Expr::Neg(std::sync::Arc::new(du.clone()))),
+                    std::sync::Arc::new(Expr::If(
                         rel(Eq, &du),
-                        Box::new(Expr::Number(0.0)),
-                        Box::new(Expr::Number(f64::NAN)),
+                        std::sync::Arc::new(Expr::Number(0.0)),
+                        std::sync::Arc::new(Expr::Number(f64::NAN)),
                     )),
                 )),
             )
@@ -1255,7 +1284,7 @@ pub(crate) fn differentiate_at(
             let du = d(u)?;
             let outer = match name {
                 "sin" => call("cos", u.clone()),
-                "cos" => Expr::Neg(Box::new(call("sin", u.clone()))),
+                "cos" => Expr::Neg(std::sync::Arc::new(call("sin", u.clone()))),
                 "tan" => bin(
                     Div,
                     Expr::Number(1.0),
@@ -1329,9 +1358,13 @@ pub(crate) fn differentiate_at(
                 oxidelica_parser::RelOp::Gt
             };
             Expr::If(
-                Box::new(Expr::Rel(op, Box::new(a.clone()), Box::new(b.clone()))),
-                Box::new(d(a)?),
-                Box::new(d(b)?),
+                std::sync::Arc::new(Expr::Rel(
+                    op,
+                    std::sync::Arc::new(a.clone()),
+                    std::sync::Arc::new(b.clone()),
+                )),
+                std::sync::Arc::new(d(a)?),
+                std::sync::Arc::new(d(b)?),
             )
         }
         // `atan2(y, x)` is the angle of a point, and its derivative is
@@ -1399,8 +1432,8 @@ pub(crate) fn differentiate_at(
             };
             Expr::If(
                 cond.clone(),
-                Box::new(branch_d(then_branch, false)?),
-                Box::new(branch_d(else_branch, true)?),
+                std::sync::Arc::new(branch_d(then_branch, false)?),
+                std::sync::Arc::new(branch_d(else_branch, true)?),
             )
         }
         // A call that said how to differentiate itself: the rule takes
@@ -1535,9 +1568,13 @@ fn pair_block_rate(name: &str, target: &DiffTarget, depth: usize) -> Result<Opti
         return Ok(None);
     }
     let residual_of = |n: &str| {
-        implicit_defs
-            .get(n)
-            .map(|(l, r)| Expr::Bin(Sub, Box::new(l.clone()), Box::new(r.clone())))
+        implicit_defs.get(n).map(|(l, r)| {
+            Expr::Bin(
+                Sub,
+                std::sync::Arc::new(l.clone()),
+                std::sync::Arc::new(r.clone()),
+            )
+        })
     };
     let torn_named = |e: &Expr| -> Vec<String> {
         let mut refs = Vec::new();
@@ -1622,7 +1659,7 @@ fn pair_block_rate(name: &str, target: &DiffTarget, depth: usize) -> Result<Opti
         ));
     }
     let numerator = cramer_bin(Sub, cramer_bin(Mul, b1, a22), cramer_bin(Mul, b2, a12));
-    let rate = cramer_bin(Div, Expr::Neg(Box::new(numerator)), det);
+    let rate = cramer_bin(Div, Expr::Neg(std::sync::Arc::new(numerator)), det);
     let mut nodes = 0usize;
     rate.for_each(&mut |_| nodes += 1);
     if std::env::var_os("OXIDELICA_INIT_DER_PROBE").is_some() {
@@ -1632,7 +1669,7 @@ fn pair_block_rate(name: &str, target: &DiffTarget, depth: usize) -> Result<Opti
 }
 
 fn cramer_bin(op: oxidelica_parser::BinOp, a: Expr, b: Expr) -> Expr {
-    Expr::Bin(op, Box::new(a), Box::new(b))
+    Expr::Bin(op, std::sync::Arc::new(a), std::sync::Arc::new(b))
 }
 
 /// The ceiling on a residual with the block's inner assignments
@@ -1825,7 +1862,7 @@ fn resolve_abs_under(cond: &Expr, branch: &Expr, target: &DiffTarget, taken_fals
             if bare == "abs" && args.len() == 1 && &args[0] == subject {
                 let inner = args[0].clone();
                 return if negative {
-                    Expr::Neg(Box::new(inner))
+                    Expr::Neg(std::sync::Arc::new(inner))
                 } else {
                     inner
                 };

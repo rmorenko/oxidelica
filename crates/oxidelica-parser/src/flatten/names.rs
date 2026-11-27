@@ -172,9 +172,9 @@ pub(super) fn prefix_expr_under(
             let mut inner: Vec<&str> = bound.to_vec();
             inner.push(var);
             Expr::Comprehension(
-                Box::new(prefix_expr_under(body, prefix, outers, &inner)),
+                std::sync::Arc::new(prefix_expr_under(body, prefix, outers, &inner)),
                 var.clone(),
-                Box::new(recur(range)),
+                std::sync::Arc::new(recur(range)),
             )
         }
         // A call kept whole for its derivative is made while an
@@ -674,7 +674,7 @@ pub(super) fn resolve(
             // until the call is made.
             if let Expr::Call(..) = base.as_ref() {
                 return Ok(Expr::Index(
-                    Box::new(recur(base)?),
+                    std::sync::Arc::new(recur(base)?),
                     subscripts
                         .iter()
                         .map(&recur)
@@ -733,7 +733,7 @@ pub(super) fn resolve(
                             )
                         {
                             return Ok(Expr::Index(
-                                Box::new(list),
+                                std::sync::Arc::new(list),
                                 subscripts
                                     .iter()
                                     .map(&recur)
@@ -920,20 +920,20 @@ pub(super) fn resolve(
                 // `semiLinear(x, a, b)` is `a * x` one way and `b * x`
                 // the other, meeting at zero.
                 _ if name == "semiLinear" && args.len() == 3 => Expr::If(
-                    Box::new(Expr::Rel(
+                    std::sync::Arc::new(Expr::Rel(
                         crate::ast::RelOp::Ge,
-                        Box::new(args[0].clone()),
-                        Box::new(Expr::Number(0.0)),
+                        std::sync::Arc::new(args[0].clone()),
+                        std::sync::Arc::new(Expr::Number(0.0)),
                     )),
-                    Box::new(Expr::Bin(
+                    std::sync::Arc::new(Expr::Bin(
                         BinOp::Mul,
-                        Box::new(args[1].clone()),
-                        Box::new(args[0].clone()),
+                        std::sync::Arc::new(args[1].clone()),
+                        std::sync::Arc::new(args[0].clone()),
                     )),
-                    Box::new(Expr::Bin(
+                    std::sync::Arc::new(Expr::Bin(
                         BinOp::Mul,
-                        Box::new(args[2].clone()),
-                        Box::new(args[0].clone()),
+                        std::sync::Arc::new(args[2].clone()),
+                        std::sync::Arc::new(args[0].clone()),
                     )),
                 ),
                 _ if args.iter().any(|a| matches!(a, Expr::NamedArg(_, _))) => {
@@ -997,8 +997,16 @@ pub(super) fn resolve(
                 (Err(trouble), None) => return Err(trouble),
             };
             match settled {
-                Some(0.0) => Expr::If(Box::new(condition), Box::new(second), Box::new(first)),
-                _ => Expr::If(Box::new(condition), Box::new(first), Box::new(second)),
+                Some(0.0) => Expr::If(
+                    std::sync::Arc::new(condition),
+                    std::sync::Arc::new(second),
+                    std::sync::Arc::new(first),
+                ),
+                _ => Expr::If(
+                    std::sync::Arc::new(condition),
+                    std::sync::Arc::new(first),
+                    std::sync::Arc::new(second),
+                ),
             }
         }
         Expr::Member(base, path) => {
@@ -1039,14 +1047,15 @@ pub(super) fn substitute_end(expr: &Expr, length: f64) -> Expr {
         Expr::EndSubscript => Expr::Number(length),
         Expr::Bin(op, l, r) => Expr::Bin(
             *op,
-            Box::new(substitute_end(l, length)),
-            Box::new(substitute_end(r, length)),
+            std::sync::Arc::new(substitute_end(l, length)),
+            std::sync::Arc::new(substitute_end(r, length)),
         ),
-        Expr::Neg(inner) => Expr::Neg(Box::new(substitute_end(inner, length))),
+        Expr::Neg(inner) => Expr::Neg(std::sync::Arc::new(substitute_end(inner, length))),
         Expr::Range(a, step, b) => Expr::Range(
-            Box::new(substitute_end(a, length)),
-            step.as_ref().map(|s| Box::new(substitute_end(s, length))),
-            Box::new(substitute_end(b, length)),
+            std::sync::Arc::new(substitute_end(a, length)),
+            step.as_ref()
+                .map(|s| std::sync::Arc::new(substitute_end(s, length))),
+            std::sync::Arc::new(substitute_end(b, length)),
         ),
         other => other.clone(),
     }

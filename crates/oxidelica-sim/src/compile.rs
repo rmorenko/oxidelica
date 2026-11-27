@@ -1351,8 +1351,8 @@ fn solve_shape(lhs: &Expr, rhs: &Expr, name: &str, params: &HashMap<String, f64>
     }
     let residual = Expr::Bin(
         oxidelica_parser::BinOp::Sub,
-        Box::new(lhs.clone()),
-        Box::new(rhs.clone()),
+        std::sync::Arc::new(lhs.clone()),
+        std::sync::Arc::new(rhs.clone()),
     );
     let Ok(slope) = differentiate(&residual, &DiffTarget::Variable { name, params }) else {
         return SolveShape::Slope(None);
@@ -1809,7 +1809,7 @@ fn carried_shapes_enabled() -> bool {
 
 /// The folded plain side and the named list of one equation, as the
 /// candidate loop of a reduction reads them.
-type EqRead = (Option<(String, std::rc::Rc<Expr>)>, Vec<String>);
+type EqRead = (Option<(String, std::sync::Arc<Expr>)>, Vec<String>);
 
 /// Whether the candidate loop keeps what it read off an equation for
 /// the rest of the reduction. The answer is the same either way; the
@@ -2027,7 +2027,7 @@ fn reduce_index_once(
     // Both halves are bounded - a name is asked for only where the
     // equation mentions it - so a remembered refusal costs no more
     // than a remembered answer.
-    let mut solved_for: HashMap<(usize, String), Option<std::rc::Rc<Expr>>> = HashMap::new();
+    let mut solved_for: HashMap<(usize, String), Option<std::sync::Arc<Expr>>> = HashMap::new();
     // What the candidate loop reads off an equation before it asks who
     // is an unknown - the folded other side of a plain name, and the
     // names the equation mentions - depends on the equation alone, so
@@ -2240,7 +2240,7 @@ fn reduce_index_once(
                         attempt_supplied.push(eq);
                     }
 
-                    let mut candidates: Vec<(String, std::rc::Rc<Expr>, usize)> = Vec::new();
+                    let mut candidates: Vec<(String, std::sync::Arc<Expr>, usize)> = Vec::new();
                     // Counted here and handed over once: this loop is where
                     // the dearest reductions spend their time, and a
                     // thread-local access per turn would weigh on it.
@@ -2257,7 +2257,7 @@ fn reduce_index_once(
                         let read_afresh = || {
                             let plain = match (l, r) {
                                 (Expr::Ref(name), other) | (other, Expr::Ref(name)) => {
-                                    Some((name.clone(), std::rc::Rc::new(simplify(other))))
+                                    Some((name.clone(), std::sync::Arc::new(simplify(other))))
                                 }
                                 _ => None,
                             };
@@ -2278,9 +2278,9 @@ fn reduce_index_once(
                                 (Expr::Ref(name), other) | (other, Expr::Ref(name)) => {
                                     // Asked of the first reading alone, as
                                     // the walk always asked it.
-                                    unknowns
-                                        .contains(name)
-                                        .then(|| (name.clone(), std::rc::Rc::new(simplify(other))))
+                                    unknowns.contains(name).then(|| {
+                                        (name.clone(), std::sync::Arc::new(simplify(other)))
+                                    })
                                 }
                                 _ => None,
                             };
@@ -2294,7 +2294,11 @@ fn reduce_index_once(
                         };
                         if let Some((name, folded)) = plain {
                             if unknowns.contains(name) {
-                                candidates.push((name.clone(), std::rc::Rc::clone(folded), index));
+                                candidates.push((
+                                    name.clone(),
+                                    std::sync::Arc::clone(folded),
+                                    index,
+                                ));
                             }
                         }
                         for name in named.iter().map(String::as_str) {
@@ -2313,12 +2317,12 @@ fn reduce_index_once(
                                     // everything after this reads the shape
                                     // rather than the wrapping.
                                     reduction_solve(l, r, name, params)
-                                        .map(|solved| std::rc::Rc::new(simplify(&solved)))
+                                        .map(|solved| std::sync::Arc::new(simplify(&solved)))
                                 });
                             if let Some(solved) = answer {
                                 candidates.push((
                                     name.to_string(),
-                                    std::rc::Rc::clone(solved),
+                                    std::sync::Arc::clone(solved),
                                     index,
                                 ));
                             }
@@ -2448,7 +2452,7 @@ fn reduce_index_once(
                                         );
                                     if value.is_finite() && !forgets {
                                         known.insert(name.clone(), value);
-                                        *expr = std::rc::Rc::new(folded);
+                                        *expr = std::sync::Arc::new(folded);
                                         named_once[slot].clear();
                                         grew = true;
                                     }
@@ -2752,8 +2756,8 @@ fn reduce_index_once(
 
                     let residual = Expr::Bin(
                         oxidelica_parser::BinOp::Sub,
-                        Box::new(lhs.clone()),
-                        Box::new(rhs.clone()),
+                        std::sync::Arc::new(lhs.clone()),
+                        std::sync::Arc::new(rhs.clone()),
                     );
                     let derivative = match differentiate(
                         &residual,
@@ -2949,8 +2953,8 @@ fn reduce_index_once(
                             matched_defs.insert(name.clone(), (sl.clone(), sr.clone()));
                             let source_residual = Expr::Bin(
                                 oxidelica_parser::BinOp::Sub,
-                                Box::new(sl.clone()),
-                                Box::new(sr.clone()),
+                                std::sync::Arc::new(sl.clone()),
+                                std::sync::Arc::new(sr.clone()),
                             );
                             let supply = match differentiate(
                                 &source_residual,
@@ -3338,8 +3342,8 @@ mod carried_shape_tests {
         let product = |a: &str, b: &str| {
             Expr::Bin(
                 BinOp::Mul,
-                Box::new(Expr::Ref(a.into())),
-                Box::new(Expr::Ref(b.into())),
+                std::sync::Arc::new(Expr::Ref(a.into())),
+                std::sync::Arc::new(Expr::Ref(b.into())),
             )
         };
         let y = Expr::Ref("y".into());
@@ -3366,8 +3370,8 @@ mod carried_shape_tests {
         let scaled = (
             Expr::Bin(
                 BinOp::Mul,
-                Box::new(Expr::Ref("x".into())),
-                Box::new(Expr::Ref("x".into())),
+                std::sync::Arc::new(Expr::Ref("x".into())),
+                std::sync::Arc::new(Expr::Ref("x".into())),
             ),
             Expr::Ref("y".into()),
         );
@@ -3419,8 +3423,8 @@ mod held_row_tests {
     fn a_row_already_held_is_found_and_another_is_not() {
         let row = Expr::Bin(
             BinOp::Sub,
-            Box::new(Expr::Ref("m1.v_0[1]".into())),
-            Box::new(Expr::Ref("der(ft.frame_a.r_0[1])".into())),
+            std::sync::Arc::new(Expr::Ref("m1.v_0[1]".into())),
+            std::sync::Arc::new(Expr::Ref("der(ft.frame_a.r_0[1])".into())),
         );
         let eqs = vec![
             (Expr::Ref("x".into()), Expr::Number(1.0)),
@@ -3528,7 +3532,7 @@ fn derivatives_at_reduction() -> bool {
 /// reads to something not finite, gives nothing rather than a guess.
 fn held_at_start(
     start_env: &HashMap<String, f64>,
-    defining: &[(String, std::rc::Rc<Expr>, usize)],
+    defining: &[(String, std::sync::Arc<Expr>, usize)],
     at_time: f64,
     programs: &HashMap<String, ClassDef>,
 ) -> HashMap<String, f64> {
@@ -3682,7 +3686,7 @@ fn choose_the_victim(
     reduction: usize,
     resuming: bool,
     programs: &HashMap<String, ClassDef>,
-    defining: &[(String, std::rc::Rc<Expr>, usize)],
+    defining: &[(String, std::sync::Arc<Expr>, usize)],
     taken_at: &HashMap<String, usize>,
     may_retreat: bool,
 ) -> Result<Option<String>, SimError> {
@@ -4580,31 +4584,45 @@ fn name_derivatives(expr: &Expr, seen: &mut Vec<String>) -> Expr {
             }
             Expr::Call(name.clone(), out)
         }
-        Expr::Neg(inner) => Expr::Neg(Box::new(name_derivatives(inner, seen))),
-        Expr::Not(inner) => Expr::Not(Box::new(name_derivatives(inner, seen))),
+        Expr::Neg(inner) => Expr::Neg(std::sync::Arc::new(name_derivatives(inner, seen))),
+        Expr::Not(inner) => Expr::Not(std::sync::Arc::new(name_derivatives(inner, seen))),
         Expr::Bin(op, l, r) => {
             let left = name_derivatives(l, seen);
-            Expr::Bin(*op, Box::new(left), Box::new(name_derivatives(r, seen)))
+            Expr::Bin(
+                *op,
+                std::sync::Arc::new(left),
+                std::sync::Arc::new(name_derivatives(r, seen)),
+            )
         }
         Expr::Rel(op, l, r) => {
             let left = name_derivatives(l, seen);
-            Expr::Rel(*op, Box::new(left), Box::new(name_derivatives(r, seen)))
+            Expr::Rel(
+                *op,
+                std::sync::Arc::new(left),
+                std::sync::Arc::new(name_derivatives(r, seen)),
+            )
         }
         Expr::And(l, r) => {
             let left = name_derivatives(l, seen);
-            Expr::And(Box::new(left), Box::new(name_derivatives(r, seen)))
+            Expr::And(
+                std::sync::Arc::new(left),
+                std::sync::Arc::new(name_derivatives(r, seen)),
+            )
         }
         Expr::Or(l, r) => {
             let left = name_derivatives(l, seen);
-            Expr::Or(Box::new(left), Box::new(name_derivatives(r, seen)))
+            Expr::Or(
+                std::sync::Arc::new(left),
+                std::sync::Arc::new(name_derivatives(r, seen)),
+            )
         }
         Expr::If(c, a, b) => {
             let condition = name_derivatives(c, seen);
             let then = name_derivatives(a, seen);
             Expr::If(
-                Box::new(condition),
-                Box::new(then),
-                Box::new(name_derivatives(b, seen)),
+                std::sync::Arc::new(condition),
+                std::sync::Arc::new(then),
+                std::sync::Arc::new(name_derivatives(b, seen)),
             )
         }
         other => other.clone(),
@@ -4860,7 +4878,10 @@ fn isolate_der(lhs: &Expr, rhs: &Expr) -> Option<(String, Expr)> {
         }
         let (next, moved) = match held {
             // `-a = other` is `a = -other`.
-            Expr::Neg(inner) => (*inner, Expr::Neg(Box::new(other))),
+            Expr::Neg(inner) => (
+                std::sync::Arc::unwrap_or_clone(inner),
+                Expr::Neg(std::sync::Arc::new(other)),
+            ),
             Expr::Bin(op, a, b) => {
                 let left = a.contains_der();
                 // The side without the derivative is what moves, so
@@ -4870,17 +4891,41 @@ fn isolate_der(lhs: &Expr, rhs: &Expr) -> Option<(String, Expr)> {
                 }
                 match (op, left) {
                     // a + b = other  ->  a = other - b
-                    (BinOp::Add, true) => (*a, Expr::Bin(BinOp::Sub, Box::new(other), b)),
-                    (BinOp::Add, false) => (*b, Expr::Bin(BinOp::Sub, Box::new(other), a)),
+                    (BinOp::Add, true) => (
+                        std::sync::Arc::unwrap_or_clone(a),
+                        Expr::Bin(BinOp::Sub, std::sync::Arc::new(other), b),
+                    ),
+                    (BinOp::Add, false) => (
+                        std::sync::Arc::unwrap_or_clone(b),
+                        Expr::Bin(BinOp::Sub, std::sync::Arc::new(other), a),
+                    ),
                     // a - b = other  ->  a = other + b  |  b = a - other
-                    (BinOp::Sub, true) => (*a, Expr::Bin(BinOp::Add, Box::new(other), b)),
-                    (BinOp::Sub, false) => (*b, Expr::Bin(BinOp::Sub, a, Box::new(other))),
+                    (BinOp::Sub, true) => (
+                        std::sync::Arc::unwrap_or_clone(a),
+                        Expr::Bin(BinOp::Add, std::sync::Arc::new(other), b),
+                    ),
+                    (BinOp::Sub, false) => (
+                        std::sync::Arc::unwrap_or_clone(b),
+                        Expr::Bin(BinOp::Sub, a, std::sync::Arc::new(other)),
+                    ),
                     // a * b = other  ->  a = other / b
-                    (BinOp::Mul, true) => (*a, Expr::Bin(BinOp::Div, Box::new(other), b)),
-                    (BinOp::Mul, false) => (*b, Expr::Bin(BinOp::Div, Box::new(other), a)),
+                    (BinOp::Mul, true) => (
+                        std::sync::Arc::unwrap_or_clone(a),
+                        Expr::Bin(BinOp::Div, std::sync::Arc::new(other), b),
+                    ),
+                    (BinOp::Mul, false) => (
+                        std::sync::Arc::unwrap_or_clone(b),
+                        Expr::Bin(BinOp::Div, std::sync::Arc::new(other), a),
+                    ),
                     // a / b = other  ->  a = other * b  |  b = a / other
-                    (BinOp::Div, true) => (*a, Expr::Bin(BinOp::Mul, Box::new(other), b)),
-                    (BinOp::Div, false) => (*b, Expr::Bin(BinOp::Div, a, Box::new(other))),
+                    (BinOp::Div, true) => (
+                        std::sync::Arc::unwrap_or_clone(a),
+                        Expr::Bin(BinOp::Mul, std::sync::Arc::new(other), b),
+                    ),
+                    (BinOp::Div, false) => (
+                        std::sync::Arc::unwrap_or_clone(b),
+                        Expr::Bin(BinOp::Div, a, std::sync::Arc::new(other)),
+                    ),
                     // A derivative under a power would need a root,
                     // and which root depends on the exponent.
                     (BinOp::Pow, _) => return None,
@@ -5791,9 +5836,9 @@ fn with_transport_equations(model: &Model) -> Model {
     for (index, transport) in model.transports.iter().enumerate() {
         let pick = |forward: Expr, backward: Expr| {
             Expr::If(
-                Box::new(transport.positive.clone()),
-                Box::new(forward),
-                Box::new(backward),
+                std::sync::Arc::new(transport.positive.clone()),
+                std::sync::Arc::new(forward),
+                std::sync::Arc::new(backward),
             )
         };
         let read = |name: String| Expr::Ref(name);
@@ -5896,8 +5941,8 @@ fn bound_asserts(model: &Model) -> Vec<(Expr, String)> {
             out.push((
                 Expr::Rel(
                     op,
-                    Box::new(Expr::Ref(component.name.clone())),
-                    Box::new(limit.clone()),
+                    std::sync::Arc::new(Expr::Ref(component.name.clone())),
+                    std::sync::Arc::new(limit.clone()),
                 ),
                 format!("`{}` went {side} {}", component.name, describe(limit)),
             ));
@@ -6463,7 +6508,7 @@ fn distribute_der(expr: &Expr, params: &HashMap<String, f64>) -> Expr {
         !e.contains_der() && !names_time(e) && refs.iter().all(|r| params.contains_key(*r))
     }
     fn der_of(e: &Expr, params: &HashMap<String, f64>) -> Option<Expr> {
-        let b = |x: Expr| Box::new(x);
+        let b = |x: Expr| std::sync::Arc::new(x);
         Some(match e {
             Expr::Ref(_) => Expr::Call("der".to_string(), vec![e.clone()]),
             Expr::Number(_) => Expr::Number(0.0),
@@ -9154,8 +9199,8 @@ pub(crate) fn collect_relations(expr: &Expr, out: &mut Vec<Expr>) {
         Expr::Rel(_, l, r) => {
             out.push(simplify(&Expr::Bin(
                 oxidelica_parser::BinOp::Sub,
-                Box::new((**l).clone()),
-                Box::new((**r).clone()),
+                std::sync::Arc::new((**l).clone()),
+                std::sync::Arc::new((**r).clone()),
             )));
             collect_relations(l, out);
             collect_relations(r, out);
@@ -11339,7 +11384,7 @@ mod held_tests {
     }
 
     fn bin(op: BinOp, a: Expr, b: Expr) -> Expr {
-        Expr::Bin(op, Box::new(a), Box::new(b))
+        Expr::Bin(op, std::sync::Arc::new(a), std::sync::Arc::new(b))
     }
 
     /// A derivative name earlier reductions made has no start, and the
@@ -11376,9 +11421,9 @@ mod held_tests {
                 4,
             ),
         ];
-        let defining: Vec<(String, std::rc::Rc<Expr>, usize)> = defining
+        let defining: Vec<(String, std::sync::Arc<Expr>, usize)> = defining
             .into_iter()
-            .map(|(name, expr, source)| (name, std::rc::Rc::new(expr), source))
+            .map(|(name, expr, source)| (name, std::sync::Arc::new(expr), source))
             .collect();
         let held = held_at_start(&start, &defining, 0.0, &HashMap::new());
         assert_eq!(held.get("der(x)"), Some(&6.0));
@@ -11519,7 +11564,11 @@ mod implied_row_tests {
     }
 
     fn sub(a: &str, b: &str) -> Expr {
-        Expr::Bin(BinOp::Sub, Box::new(r(a)), Box::new(r(b)))
+        Expr::Bin(
+            BinOp::Sub,
+            std::sync::Arc::new(r(a)),
+            std::sync::Arc::new(r(b)),
+        )
     }
 
     /// The transformer's fourth copy: an earlier reduction left
@@ -11536,14 +11585,22 @@ mod implied_row_tests {
             (r("w3"), r("der(g3)")),
             (
                 r("v"),
-                Expr::Bin(BinOp::Mul, Box::new(r("w1")), Box::new(r("L"))),
+                Expr::Bin(
+                    BinOp::Mul,
+                    std::sync::Arc::new(r("w1")),
+                    std::sync::Arc::new(r("L")),
+                ),
             ),
         ];
         assert!(row_follows_from_aliases(&sub("der(g2)", "w1"), &system));
         assert!(row_follows_from_aliases(&sub("w1", "der(g2)"), &system));
         assert!(!row_follows_from_aliases(&sub("der(g3)", "w1"), &system));
         assert!(!row_follows_from_aliases(&sub("v", "w1"), &system));
-        let product = Expr::Bin(BinOp::Mul, Box::new(r("w1")), Box::new(r("w2")));
+        let product = Expr::Bin(
+            BinOp::Mul,
+            std::sync::Arc::new(r("w1")),
+            std::sync::Arc::new(r("w2")),
+        );
         assert!(!row_follows_from_aliases(&product, &system));
     }
 
@@ -11561,8 +11618,8 @@ mod implied_row_tests {
         assert_eq!(order(&rung), 4);
         let deep = Expr::Bin(
             BinOp::Mul,
-            Box::new(r("mu")),
-            Box::new(call(call(Expr::Neg(Box::new(r("y")))))),
+            std::sync::Arc::new(r("mu")),
+            std::sync::Arc::new(call(call(Expr::Neg(std::sync::Arc::new(r("y")))))),
         );
         assert_eq!(order(&deep), 2);
     }
@@ -11634,8 +11691,8 @@ mod watched_order_tests {
         let relation = |name: &String| {
             Expr::Rel(
                 RelOp::Lt,
-                Box::new(Expr::Ref(name.clone())),
-                Box::new(Expr::Number(1.0)),
+                std::sync::Arc::new(Expr::Ref(name.clone())),
+                std::sync::Arc::new(Expr::Number(1.0)),
             )
         };
         let watched = || {
@@ -11667,7 +11724,7 @@ mod theorem_tests {
     }
 
     fn bin(op: BinOp, a: Expr, b: Expr) -> Expr {
-        Expr::Bin(op, Box::new(a), Box::new(b))
+        Expr::Bin(op, std::sync::Arc::new(a), std::sync::Arc::new(b))
     }
 
     /// The equation of a prismatic joint's rotation entry on the axis
@@ -11771,11 +11828,15 @@ mod zero_if_tests {
     }
 
     fn cond(a: Expr, b: Expr) -> Expr {
-        Expr::If(Box::new(r("c")), Box::new(a), Box::new(b))
+        Expr::If(
+            std::sync::Arc::new(r("c")),
+            std::sync::Arc::new(a),
+            std::sync::Arc::new(b),
+        )
     }
 
     fn div(a: Expr, b: Expr) -> Expr {
-        Expr::Bin(BinOp::Div, Box::new(a), Box::new(b))
+        Expr::Bin(BinOp::Div, std::sync::Arc::new(a), std::sync::Arc::new(b))
     }
 
     /// A conditional with zero on both branches is zero with the rule
@@ -11802,7 +11863,11 @@ mod zero_if_tests {
         let by_if = div(r("z"), cond(Expr::Number(0.0), Expr::Number(0.0)));
         let by_product = div(
             r("z"),
-            Expr::Bin(BinOp::Mul, Box::new(r("z")), Box::new(Expr::Number(2.0))),
+            Expr::Bin(
+                BinOp::Mul,
+                std::sync::Arc::new(r("z")),
+                std::sync::Arc::new(Expr::Number(2.0)),
+            ),
         );
         let live = div(r("z"), r("x"));
         assert!(!zero_throughout_with(&by_if, &params, &zeros, true));
@@ -11824,23 +11889,23 @@ mod zero_if_tests {
         let zeros = HashSet::new();
         let dead = div(r("f"), r("f"));
         let by_params = Expr::If(
-            Box::new(Expr::Not(Box::new(Expr::Rel(
+            std::sync::Arc::new(Expr::Not(std::sync::Arc::new(Expr::Rel(
                 RelOp::Gt,
-                Box::new(r("given")),
-                Box::new(Expr::Number(0.5)),
+                std::sync::Arc::new(r("given")),
+                std::sync::Arc::new(Expr::Number(0.5)),
             )))),
-            Box::new(dead.clone()),
-            Box::new(Expr::Number(0.0)),
+            std::sync::Arc::new(dead.clone()),
+            std::sync::Arc::new(Expr::Number(0.0)),
         );
         assert!(zero_throughout_with(&by_params, &params, &zeros, true));
         let by_state = Expr::If(
-            Box::new(Expr::Rel(
+            std::sync::Arc::new(Expr::Rel(
                 RelOp::Gt,
-                Box::new(r("v")),
-                Box::new(Expr::Number(0.5)),
+                std::sync::Arc::new(r("v")),
+                std::sync::Arc::new(Expr::Number(0.5)),
             )),
-            Box::new(r("v")),
-            Box::new(Expr::Number(0.0)),
+            std::sync::Arc::new(r("v")),
+            std::sync::Arc::new(Expr::Number(0.0)),
         );
         assert!(!zero_throughout_with(&by_state, &params, &zeros, true));
     }

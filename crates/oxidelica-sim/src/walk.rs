@@ -870,23 +870,43 @@ fn to_scalar(
                     let terms = left
                         .into_iter()
                         .zip(right)
-                        .map(|(a, b)| Expr::Bin(BinOp::Mul, Box::new(a), Box::new(b)))
+                        .map(|(a, b)| {
+                            Expr::Bin(BinOp::Mul, std::sync::Arc::new(a), std::sync::Arc::new(b))
+                        })
                         .collect();
                     fold("sum", terms)?
                 }
-                _ => Expr::Bin(BinOp::Mul, Box::new(recur(a)?), Box::new(recur(b)?)),
+                _ => Expr::Bin(
+                    BinOp::Mul,
+                    std::sync::Arc::new(recur(a)?),
+                    std::sync::Arc::new(recur(b)?),
+                ),
             }
         }
-        Expr::Bin(op, a, b) => Expr::Bin(*op, Box::new(recur(a)?), Box::new(recur(b)?)),
-        Expr::Rel(op, a, b) => Expr::Rel(*op, Box::new(recur(a)?), Box::new(recur(b)?)),
-        Expr::And(a, b) => Expr::And(Box::new(recur(a)?), Box::new(recur(b)?)),
-        Expr::Or(a, b) => Expr::Or(Box::new(recur(a)?), Box::new(recur(b)?)),
-        Expr::Not(inner) => Expr::Not(Box::new(recur(inner)?)),
-        Expr::Neg(inner) => Expr::Neg(Box::new(recur(inner)?)),
+        Expr::Bin(op, a, b) => Expr::Bin(
+            *op,
+            std::sync::Arc::new(recur(a)?),
+            std::sync::Arc::new(recur(b)?),
+        ),
+        Expr::Rel(op, a, b) => Expr::Rel(
+            *op,
+            std::sync::Arc::new(recur(a)?),
+            std::sync::Arc::new(recur(b)?),
+        ),
+        Expr::And(a, b) => Expr::And(
+            std::sync::Arc::new(recur(a)?),
+            std::sync::Arc::new(recur(b)?),
+        ),
+        Expr::Or(a, b) => Expr::Or(
+            std::sync::Arc::new(recur(a)?),
+            std::sync::Arc::new(recur(b)?),
+        ),
+        Expr::Not(inner) => Expr::Not(std::sync::Arc::new(recur(inner)?)),
+        Expr::Neg(inner) => Expr::Neg(std::sync::Arc::new(recur(inner)?)),
         Expr::If(condition, then, otherwise) => Expr::If(
-            Box::new(recur(condition)?),
-            Box::new(recur(then)?),
-            Box::new(recur(otherwise)?),
+            std::sync::Arc::new(recur(condition)?),
+            std::sync::Arc::new(recur(then)?),
+            std::sync::Arc::new(recur(otherwise)?),
         ),
         // A call inside a walked body is handed what the frame holds,
         // not what the body wrote. A record the frame carries as
@@ -1109,7 +1129,9 @@ fn other_elements_of(
                 (Some(left), Some(right)) if left.len() == right.len() => Some(
                     left.into_iter()
                         .zip(right)
-                        .map(|(a, b)| Expr::Bin(*op, Box::new(a), Box::new(b)))
+                        .map(|(a, b)| {
+                            Expr::Bin(*op, std::sync::Arc::new(a), std::sync::Arc::new(b))
+                        })
                         .collect(),
                 ),
                 _ => None,
@@ -1141,8 +1163,8 @@ fn other_elements_of(
                 for (one, other) in row.iter().zip(&right) {
                     terms.push(Expr::Bin(
                         BinOp::Mul,
-                        Box::new(to_scalar(one, frame, programs, time, depth)?),
-                        Box::new(other.clone()),
+                        std::sync::Arc::new(to_scalar(one, frame, programs, time, depth)?),
+                        std::sync::Arc::new(other.clone()),
                     ));
                 }
                 items.push(fold("sum", terms)?);
@@ -1168,7 +1190,13 @@ fn other_elements_of(
                     Some(
                         right
                             .into_iter()
-                            .map(|item| Expr::Bin(*op, Box::new(one.clone()), Box::new(item)))
+                            .map(|item| {
+                                Expr::Bin(
+                                    *op,
+                                    std::sync::Arc::new(one.clone()),
+                                    std::sync::Arc::new(item),
+                                )
+                            })
                             .collect(),
                     )
                 }
@@ -1176,7 +1204,13 @@ fn other_elements_of(
                     let one = to_scalar(b, frame, programs, time, depth)?;
                     Some(
                         left.into_iter()
-                            .map(|item| Expr::Bin(*op, Box::new(item), Box::new(one.clone())))
+                            .map(|item| {
+                                Expr::Bin(
+                                    *op,
+                                    std::sync::Arc::new(item),
+                                    std::sync::Arc::new(one.clone()),
+                                )
+                            })
                             .collect(),
                     )
                 }
@@ -1189,7 +1223,7 @@ fn other_elements_of(
             elements_of(inner, frame, programs, time, depth)?.map(|items| {
                 items
                     .into_iter()
-                    .map(|item| Expr::Neg(Box::new(item)))
+                    .map(|item| Expr::Neg(std::sync::Arc::new(item)))
                     .collect()
             })
         }
@@ -1252,8 +1286,16 @@ fn other_elements_of(
                 one.map(|one| {
                     many.into_iter()
                         .map(|item| match first {
-                            true => Expr::Bin(*op, Box::new(one.clone()), Box::new(item)),
-                            false => Expr::Bin(*op, Box::new(item), Box::new(one.clone())),
+                            true => Expr::Bin(
+                                *op,
+                                std::sync::Arc::new(one.clone()),
+                                std::sync::Arc::new(item),
+                            ),
+                            false => Expr::Bin(
+                                *op,
+                                std::sync::Arc::new(item),
+                                std::sync::Arc::new(one.clone()),
+                            ),
                         })
                         .collect()
                 })
@@ -1262,7 +1304,9 @@ fn other_elements_of(
                 (Some(left), Some(right)) if left.len() == right.len() => Some(
                     left.into_iter()
                         .zip(right)
-                        .map(|(a, b)| Expr::Bin(*op, Box::new(a), Box::new(b)))
+                        .map(|(a, b)| {
+                            Expr::Bin(*op, std::sync::Arc::new(a), std::sync::Arc::new(b))
+                        })
                         .collect(),
                 ),
                 (Some(left), None) => Some(spread(b, left, false)?),
@@ -1641,11 +1685,11 @@ fn fold(name: &str, items: Vec<Expr>) -> Result<Expr, SimError> {
     let joined = match name {
         "sum" => items
             .into_iter()
-            .reduce(|a, b| Expr::Bin(BinOp::Add, Box::new(a), Box::new(b)))
+            .reduce(|a, b| Expr::Bin(BinOp::Add, std::sync::Arc::new(a), std::sync::Arc::new(b)))
             .unwrap_or(Expr::Number(0.0)),
         "product" => items
             .into_iter()
-            .reduce(|a, b| Expr::Bin(BinOp::Mul, Box::new(a), Box::new(b)))
+            .reduce(|a, b| Expr::Bin(BinOp::Mul, std::sync::Arc::new(a), std::sync::Arc::new(b)))
             .unwrap_or(Expr::Number(1.0)),
         _ => items
             .into_iter()

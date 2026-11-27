@@ -62,8 +62,8 @@ pub(crate) fn cone_of(
                     name.to_string(),
                     Expr::Bin(
                         oxidelica_parser::BinOp::Sub,
-                        Box::new(l.clone()),
-                        Box::new(r.clone()),
+                        std::sync::Arc::new(l.clone()),
+                        std::sync::Arc::new(r.clone()),
                     ),
                 )
             })
@@ -568,8 +568,8 @@ mod tests {
         // phi = pi/3, and d/dx sin(acos(x)) = -x / sqrt(1 - x^2).
         let residual = Expr::Bin(
             oxidelica_parser::BinOp::Sub,
-            Box::new(r("y")),
-            Box::new(Expr::Call(".sin".into(), vec![r("phi")])),
+            std::sync::Arc::new(r("y")),
+            std::sync::Arc::new(Expr::Call(".sin".into(), vec![r("phi")])),
         );
         let mut implicit = HashMap::new();
         implicit.insert(
@@ -604,8 +604,8 @@ mod tests {
                 r("x"),
                 Expr::Bin(
                     oxidelica_parser::BinOp::Mul,
-                    Box::new(r("phi")),
-                    Box::new(r("phi")),
+                    std::sync::Arc::new(r("phi")),
+                    std::sync::Arc::new(r("phi")),
                 ),
             ),
         );
@@ -626,10 +626,20 @@ mod tests {
         // so p = (a + b)/2 and q = (b - a)/2. The residual p + q = b
         // reads nothing of `a`, though worked one definition at a time
         // it would.
-        let sub =
-            |l: Expr, r: Expr| Expr::Bin(oxidelica_parser::BinOp::Sub, Box::new(l), Box::new(r));
-        let add =
-            |l: Expr, r: Expr| Expr::Bin(oxidelica_parser::BinOp::Add, Box::new(l), Box::new(r));
+        let sub = |l: Expr, r: Expr| {
+            Expr::Bin(
+                oxidelica_parser::BinOp::Sub,
+                std::sync::Arc::new(l),
+                std::sync::Arc::new(r),
+            )
+        };
+        let add = |l: Expr, r: Expr| {
+            Expr::Bin(
+                oxidelica_parser::BinOp::Add,
+                std::sync::Arc::new(l),
+                std::sync::Arc::new(r),
+            )
+        };
         let residual = add(r("p"), r("q"));
         let mut implicit = HashMap::new();
         implicit.insert("p".to_string(), (r("p"), add(r("a"), r("q"))));
@@ -653,8 +663,13 @@ mod tests {
         // is 1 there, but c's own start is 0: the Newton begun at c = 0
         // finds i's column empty and the cone singular, where at c = 1
         // it is regular and di/dv = 1/c = 1.
-        let mul =
-            |l: Expr, r: Expr| Expr::Bin(oxidelica_parser::BinOp::Mul, Box::new(l), Box::new(r));
+        let mul = |l: Expr, r: Expr| {
+            Expr::Bin(
+                oxidelica_parser::BinOp::Mul,
+                std::sync::Arc::new(l),
+                std::sync::Arc::new(r),
+            )
+        };
         let residual = r("i");
         let mut alg = HashMap::new();
         alg.insert("c".to_string(), Expr::Call(".cos".into(), vec![r("phi")]));
@@ -674,8 +689,13 @@ mod tests {
     #[test]
     fn a_cone_with_no_unique_solution_is_not_a_weight() {
         // p - (a + q) = 0 twice over: p and q are not determined.
-        let add =
-            |l: Expr, r: Expr| Expr::Bin(oxidelica_parser::BinOp::Add, Box::new(l), Box::new(r));
+        let add = |l: Expr, r: Expr| {
+            Expr::Bin(
+                oxidelica_parser::BinOp::Add,
+                std::sync::Arc::new(l),
+                std::sync::Arc::new(r),
+            )
+        };
         let residual = r("p");
         let mut implicit = HashMap::new();
         implicit.insert("p".to_string(), (r("p"), add(r("a"), r("q"))));

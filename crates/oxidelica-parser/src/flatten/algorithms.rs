@@ -38,13 +38,16 @@ pub(super) fn checks_rewind(mark: usize) {
 /// either the condition fell the other way, or the check holds.
 pub(super) fn checks_guarded(mark: usize, condition: &Expr, on_true: bool) {
     let otherwise = if on_true {
-        Expr::Not(Box::new(condition.clone()))
+        Expr::Not(std::sync::Arc::new(condition.clone()))
     } else {
         condition.clone()
     };
     SET_ASIDE.with(|aside| {
         for (check, _) in aside.borrow_mut().iter_mut().skip(mark) {
-            *check = Expr::Or(Box::new(otherwise.clone()), Box::new(check.clone()));
+            *check = Expr::Or(
+                std::sync::Arc::new(otherwise.clone()),
+                std::sync::Arc::new(check.clone()),
+            );
         }
     });
 }

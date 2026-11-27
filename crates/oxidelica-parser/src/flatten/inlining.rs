@@ -167,8 +167,8 @@ pub(super) fn inline_function(
         Some(named) if !class.derivative_unseeded.is_empty() => {
             match derivative_rule(class, named, args, shapes, consts, registry, depth) {
                 Ok(rule) if !holds_an_array(&rule.0) => Ok(Expr::WithDerivative(
-                    Box::new(value),
-                    Box::new(rule.0),
+                    std::sync::Arc::new(value),
+                    std::sync::Arc::new(rule.0),
                     rule.1,
                 )),
                 _ => Ok(value),
@@ -177,8 +177,8 @@ pub(super) fn inline_function(
         Some(named) => {
             let rule = derivative_rule(class, named, args, shapes, consts, registry, depth)?;
             Ok(Expr::WithDerivative(
-                Box::new(value),
-                Box::new(rule.0),
+                std::sync::Arc::new(value),
+                std::sync::Arc::new(rule.0),
                 rule.1,
             ))
         }
@@ -727,7 +727,7 @@ fn numbered_outputs(
 ) -> Result<Vec<(String, Expr)>, String> {
     let place = |which: usize| {
         Expr::Index(
-            Box::new(made.clone()),
+            std::sync::Arc::new(made.clone()),
             vec![Expr::Number(which as f64 + 1.0)],
         )
     };
@@ -1066,9 +1066,9 @@ impl Drop for Inlined {
 /// these are worth the same. A model's table of numbers holds
 /// thousands and a body reads a handful, so the handful is what is
 /// looked up rather than the table compared.
-pub(super) fn names_read(class: &ClassDef) -> std::rc::Rc<Vec<String>> {
+pub(super) fn names_read(class: &ClassDef) -> std::sync::Arc<Vec<String>> {
     thread_local! {
-        static READ: std::cell::RefCell<HashMap<String, std::rc::Rc<Vec<String>>>> =
+        static READ: std::cell::RefCell<HashMap<String, std::sync::Arc<Vec<String>>>> =
             std::cell::RefCell::new(HashMap::new());
     }
     if let Some(known) = READ.with(|read| read.borrow().get(&class.name).cloned()) {
@@ -1095,7 +1095,7 @@ pub(super) fn names_read(class: &ClassDef) -> std::rc::Rc<Vec<String>> {
     }
     names.sort();
     names.dedup();
-    let names = std::rc::Rc::new(names);
+    let names = std::sync::Arc::new(names);
     READ.with(|read| read.borrow_mut().insert(class.name.clone(), names.clone()));
     names
 }
@@ -2417,7 +2417,10 @@ fn body_written_elsewhere(
                 Expr::Array(
                     (1..=*length as i64)
                         .map(|index| {
-                            Expr::Index(Box::new(made.clone()), vec![Expr::Number(index as f64)])
+                            Expr::Index(
+                                std::sync::Arc::new(made.clone()),
+                                vec![Expr::Number(index as f64)],
+                            )
                         })
                         .collect(),
                 ),
@@ -2442,8 +2445,8 @@ fn body_written_elsewhere(
             };
             let past = Expr::Rel(
                 RelOp::Gt,
-                Box::new(args[1].clone()),
-                Box::new(Expr::Call(
+                std::sync::Arc::new(args[1].clone()),
+                std::sync::Arc::new(Expr::Call(
                     "ModelicaInternal_countLines".to_string(),
                     vec![args[0].clone()],
                 )),
@@ -3471,7 +3474,12 @@ pub(super) fn walked_outputs(
     registry: &HashMap<&str, &ClassDef>,
     standing: &Expr,
 ) -> Vec<(String, Expr)> {
-    let place = |at: usize| Expr::Index(Box::new(standing.clone()), vec![Expr::Number(at as f64)]);
+    let place = |at: usize| {
+        Expr::Index(
+            std::sync::Arc::new(standing.clone()),
+            vec![Expr::Number(at as f64)],
+        )
+    };
     // Under `OXIDELICA_NO_MIXED_ANSWERS` every output is one place, as
     // it was: `walkable` then lets no array through beside another
     // output, so the old count is the whole of the old behaviour.

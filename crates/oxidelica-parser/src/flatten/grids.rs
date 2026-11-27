@@ -169,7 +169,11 @@ fn powers_written(
             _ => {
                 let mut out = base.clone();
                 for _ in 1..power {
-                    out = Expr::Bin(BinOp::Mul, Box::new(out), Box::new(base.clone()));
+                    out = Expr::Bin(
+                        BinOp::Mul,
+                        std::sync::Arc::new(out),
+                        std::sync::Arc::new(base.clone()),
+                    );
                 }
                 Some(out)
             }
@@ -194,11 +198,19 @@ fn powers_written(
             }
             let mut term = Expr::Number(coefficient);
             for part in [raised(s, p), raised(t, q)].into_iter().flatten() {
-                term = Expr::Bin(BinOp::Mul, Box::new(term), Box::new(part));
+                term = Expr::Bin(
+                    BinOp::Mul,
+                    std::sync::Arc::new(term),
+                    std::sync::Arc::new(part),
+                );
             }
             written = Some(match written {
                 None => term,
-                Some(so_far) => Expr::Bin(BinOp::Add, Box::new(so_far), Box::new(term)),
+                Some(so_far) => Expr::Bin(
+                    BinOp::Add,
+                    std::sync::Arc::new(so_far),
+                    std::sync::Arc::new(term),
+                ),
             });
         }
     }
@@ -274,14 +286,14 @@ pub(super) fn on_the_grid(
         }
         Expr::Bin(
             BinOp::Add,
-            Box::new(Expr::Number(axis[0])),
-            Box::new(Expr::Call(
+            std::sync::Arc::new(Expr::Number(axis[0])),
+            std::sync::Arc::new(Expr::Call(
                 "mod".to_string(),
                 vec![
                     Expr::Bin(
                         BinOp::Sub,
-                        Box::new(u.clone()),
-                        Box::new(Expr::Number(axis[0])),
+                        std::sync::Arc::new(u.clone()),
+                        std::sync::Arc::new(Expr::Number(axis[0])),
                     ),
                     Expr::Number(period),
                 ],
@@ -298,15 +310,15 @@ pub(super) fn on_the_grid(
             let (near, far) = (axis[0], axis[axis.len() - 1]);
             super::algorithms::check_aside(
                 Expr::And(
-                    Box::new(Expr::Rel(
+                    std::sync::Arc::new(Expr::Rel(
                         RelOp::Ge,
-                        Box::new(u.clone()),
-                        Box::new(Expr::Number(near)),
+                        std::sync::Arc::new(u.clone()),
+                        std::sync::Arc::new(Expr::Number(near)),
                     )),
-                    Box::new(Expr::Rel(
+                    std::sync::Arc::new(Expr::Rel(
                         RelOp::Le,
-                        Box::new(u.clone()),
-                        Box::new(Expr::Number(far)),
+                        std::sync::Arc::new(u.clone()),
+                        std::sync::Arc::new(Expr::Number(far)),
                     )),
                 ),
                 format!(
@@ -335,12 +347,12 @@ pub(super) fn on_the_grid(
         }
         let fraction = Expr::Bin(
             BinOp::Div,
-            Box::new(Expr::Bin(
+            std::sync::Arc::new(Expr::Bin(
                 BinOp::Sub,
-                Box::new(u.clone()),
-                Box::new(Expr::Number(near)),
+                std::sync::Arc::new(u.clone()),
+                std::sync::Arc::new(Expr::Number(near)),
             )),
-            Box::new(Expr::Number(run)),
+            std::sync::Arc::new(Expr::Number(run)),
         );
         match held_beyond {
             false => fraction,
@@ -449,8 +461,12 @@ pub(super) fn on_the_grid(
             };
             return powers_written(&powers, &s, &t, wanted, span_down, span_across);
         }
-        let times = |a: Expr, b: Expr| Expr::Bin(BinOp::Mul, Box::new(a), Box::new(b));
-        let plus = |a: Expr, b: Expr| Expr::Bin(BinOp::Add, Box::new(a), Box::new(b));
+        let times = |a: Expr, b: Expr| {
+            Expr::Bin(BinOp::Mul, std::sync::Arc::new(a), std::sync::Arc::new(b))
+        };
+        let plus = |a: Expr, b: Expr| {
+            Expr::Bin(BinOp::Add, std::sync::Arc::new(a), std::sync::Arc::new(b))
+        };
         let corner = c00 - c10 - c01 + c11;
         let span = |axis: &[f64], at: usize| -> f64 {
             match axis.len() > 1 {
@@ -500,13 +516,13 @@ pub(super) fn on_the_grid(
                 continue;
             }
             row = Expr::If(
-                Box::new(Expr::Rel(
+                std::sync::Arc::new(Expr::Rel(
                     RelOp::Lt,
-                    Box::new(u2.clone()),
-                    Box::new(Expr::Number(across[j + 1])),
+                    std::sync::Arc::new(u2.clone()),
+                    std::sync::Arc::new(Expr::Number(across[j + 1])),
                 )),
-                Box::new(piece(i, j)),
-                Box::new(row),
+                std::sync::Arc::new(piece(i, j)),
+                std::sync::Arc::new(row),
             );
         }
         if i == last_i {
@@ -514,13 +530,13 @@ pub(super) fn on_the_grid(
             continue;
         }
         written = Expr::If(
-            Box::new(Expr::Rel(
+            std::sync::Arc::new(Expr::Rel(
                 RelOp::Lt,
-                Box::new(u1.clone()),
-                Box::new(Expr::Number(down[i + 1])),
+                std::sync::Arc::new(u1.clone()),
+                std::sync::Arc::new(Expr::Number(down[i + 1])),
             )),
-            Box::new(row),
-            Box::new(written),
+            std::sync::Arc::new(row),
+            std::sync::Arc::new(written),
         );
     }
     Ok(written)

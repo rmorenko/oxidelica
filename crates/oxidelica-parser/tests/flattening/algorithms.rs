@@ -2690,8 +2690,8 @@ fn an_answer_of_more_than_one_dimension_is_an_array_of_arrays() {
             .and_then(|c| c.binding.clone()),
         Some(Expr::Bin(
             BinOp::Mul,
-            Box::new(Expr::Number(2.0)),
-            Box::new(Expr::Number(2.0))
+            std::sync::Arc::new(Expr::Number(2.0)),
+            std::sync::Arc::new(Expr::Number(2.0))
         ))
     );
 
@@ -3503,11 +3503,14 @@ fn a_file_is_counted_the_way_it_is_read() {
             Some(Expr::Bool(truth)) => f64::from(u8::from(truth)),
             // The flag is the line asked for against the count, both
             // settled by now; the run folds the comparison.
-            Some(Expr::Rel(oxidelica_parser::ast::RelOp::Gt, left, right)) => match (*left, *right)
-            {
-                (Expr::Number(asked), Expr::Number(count)) => f64::from(u8::from(asked > count)),
-                other => panic!("`{wanted}` compared {other:?}"),
-            },
+            Some(Expr::Rel(oxidelica_parser::ast::RelOp::Gt, left, right)) => {
+                match ((*left).clone(), (*right).clone()) {
+                    (Expr::Number(asked), Expr::Number(count)) => {
+                        f64::from(u8::from(asked > count))
+                    }
+                    other => panic!("`{wanted}` compared {other:?}"),
+                }
+            }
             other => panic!("`{wanted}` came to {other:?}"),
         }
     };

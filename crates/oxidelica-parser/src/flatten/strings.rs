@@ -395,18 +395,26 @@ pub(super) fn branch_taken(
                 Some(truth) if truth != 0.0 => recur(then),
                 Some(_) => recur(otherwise),
                 None => Expr::If(
-                    Box::new(recur(condition)),
-                    Box::new(recur(then)),
-                    Box::new(recur(otherwise)),
+                    std::sync::Arc::new(recur(condition)),
+                    std::sync::Arc::new(recur(then)),
+                    std::sync::Arc::new(recur(otherwise)),
                 ),
             }
         }
-        Expr::Neg(inner) => Expr::Neg(Box::new(recur(inner))),
-        Expr::Not(inner) => Expr::Not(Box::new(recur(inner))),
-        Expr::Bin(op, l, r) => Expr::Bin(*op, Box::new(recur(l)), Box::new(recur(r))),
-        Expr::Rel(op, l, r) => Expr::Rel(*op, Box::new(recur(l)), Box::new(recur(r))),
-        Expr::And(l, r) => Expr::And(Box::new(recur(l)), Box::new(recur(r))),
-        Expr::Or(l, r) => Expr::Or(Box::new(recur(l)), Box::new(recur(r))),
+        Expr::Neg(inner) => Expr::Neg(std::sync::Arc::new(recur(inner))),
+        Expr::Not(inner) => Expr::Not(std::sync::Arc::new(recur(inner))),
+        Expr::Bin(op, l, r) => Expr::Bin(
+            *op,
+            std::sync::Arc::new(recur(l)),
+            std::sync::Arc::new(recur(r)),
+        ),
+        Expr::Rel(op, l, r) => Expr::Rel(
+            *op,
+            std::sync::Arc::new(recur(l)),
+            std::sync::Arc::new(recur(r)),
+        ),
+        Expr::And(l, r) => Expr::And(std::sync::Arc::new(recur(l)), std::sync::Arc::new(recur(r))),
+        Expr::Or(l, r) => Expr::Or(std::sync::Arc::new(recur(l)), std::sync::Arc::new(recur(r))),
         Expr::Call(name, args) => Expr::Call(name.clone(), args.iter().map(recur).collect()),
         other => other.clone(),
     }
@@ -451,16 +459,30 @@ pub(super) fn fold(
     let recur = |e: &Expr| fold(e, values, numbers);
     Ok(match expr {
         Expr::Number(_) | Expr::Bool(_) | Expr::Ref(_) | Expr::Time => expr.clone(),
-        Expr::Neg(inner) => Expr::Neg(Box::new(recur(inner)?)),
-        Expr::Not(inner) => Expr::Not(Box::new(recur(inner)?)),
-        Expr::Bin(op, l, r) => Expr::Bin(*op, Box::new(recur(l)?), Box::new(recur(r)?)),
-        Expr::Rel(op, l, r) => Expr::Rel(*op, Box::new(recur(l)?), Box::new(recur(r)?)),
-        Expr::And(l, r) => Expr::And(Box::new(recur(l)?), Box::new(recur(r)?)),
-        Expr::Or(l, r) => Expr::Or(Box::new(recur(l)?), Box::new(recur(r)?)),
+        Expr::Neg(inner) => Expr::Neg(std::sync::Arc::new(recur(inner)?)),
+        Expr::Not(inner) => Expr::Not(std::sync::Arc::new(recur(inner)?)),
+        Expr::Bin(op, l, r) => Expr::Bin(
+            *op,
+            std::sync::Arc::new(recur(l)?),
+            std::sync::Arc::new(recur(r)?),
+        ),
+        Expr::Rel(op, l, r) => Expr::Rel(
+            *op,
+            std::sync::Arc::new(recur(l)?),
+            std::sync::Arc::new(recur(r)?),
+        ),
+        Expr::And(l, r) => Expr::And(
+            std::sync::Arc::new(recur(l)?),
+            std::sync::Arc::new(recur(r)?),
+        ),
+        Expr::Or(l, r) => Expr::Or(
+            std::sync::Arc::new(recur(l)?),
+            std::sync::Arc::new(recur(r)?),
+        ),
         Expr::If(c, a, b) => Expr::If(
-            Box::new(recur(c)?),
-            Box::new(recur(a)?),
-            Box::new(recur(b)?),
+            std::sync::Arc::new(recur(c)?),
+            std::sync::Arc::new(recur(a)?),
+            std::sync::Arc::new(recur(b)?),
         ),
         Expr::Call(name, args) => Expr::Call(
             name.clone(),

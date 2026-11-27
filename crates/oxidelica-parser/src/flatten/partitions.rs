@@ -528,8 +528,8 @@ pub(super) fn partition_clocks(model: &mut Model) -> Result<(), String> {
             let skipped = format!("$every{clock}");
             let due = Expr::Rel(
                 crate::ast::RelOp::Ge,
-                Box::new(after(&skipped, Expr::Number(1.0))),
-                Box::new(Expr::Number(spec.every_nth() as f64)),
+                std::sync::Arc::new(after(&skipped, Expr::Number(1.0))),
+                std::sync::Arc::new(Expr::Number(spec.every_nth() as f64)),
             );
             for (target, value) in &mut actions {
                 *value = Expr::If(
@@ -538,17 +538,17 @@ pub(super) fn partition_clocks(model: &mut Model) -> Result<(), String> {
                     // skips, so the edge that fires is the one that is
                     // due rather than one that leaves the counter at
                     // zero.
-                    Box::new(if skipped_edges > 0 {
+                    std::sync::Arc::new(if skipped_edges > 0 {
                         due.clone()
                     } else {
                         Expr::Rel(
                             crate::ast::RelOp::Lt,
-                            Box::new(Expr::Ref(skipped.clone())),
-                            Box::new(Expr::Number(0.5)),
+                            std::sync::Arc::new(Expr::Ref(skipped.clone())),
+                            std::sync::Arc::new(Expr::Number(0.5)),
                         )
                     }),
-                    Box::new(value.clone()),
-                    Box::new(Expr::Call(
+                    std::sync::Arc::new(value.clone()),
+                    std::sync::Arc::new(Expr::Call(
                         "pre".to_string(),
                         vec![Expr::Ref(target.clone())],
                     )),
@@ -557,9 +557,9 @@ pub(super) fn partition_clocks(model: &mut Model) -> Result<(), String> {
             actions.push((
                 skipped.clone(),
                 Expr::If(
-                    Box::new(due),
-                    Box::new(Expr::Number(0.0)),
-                    Box::new(after(&skipped, Expr::Number(1.0))),
+                    std::sync::Arc::new(due),
+                    std::sync::Arc::new(Expr::Number(0.0)),
+                    std::sync::Arc::new(after(&skipped, Expr::Number(1.0))),
                 ),
             ));
             // Counting from one short of the factor makes the first

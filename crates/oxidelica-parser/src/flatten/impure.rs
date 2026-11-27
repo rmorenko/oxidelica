@@ -142,10 +142,12 @@ pub(super) fn state_handed(class: &ClassDef, args: &[Expr]) -> Result<(), String
 fn laid_out(expr: &Expr, into: &mut Vec<Expr>) {
     match expr {
         Expr::Array(items) => items.iter().for_each(|item| laid_out(item, into)),
-        Expr::Call(..) => into.extend(
-            (1..=WORDS)
-                .map(|at| Expr::Index(Box::new(expr.clone()), vec![Expr::Number(at as f64)])),
-        ),
+        Expr::Call(..) => into.extend((1..=WORDS).map(|at| {
+            Expr::Index(
+                std::sync::Arc::new(expr.clone()),
+                vec![Expr::Number(at as f64)],
+            )
+        })),
         other => into.push(other.clone()),
     }
 }
@@ -315,7 +317,7 @@ fn draws_taken(
             let state: Vec<Expr> = (0..WORDS).map(|word| Expr::Ref(state_name(word))).collect();
             let place = |at: usize| {
                 Expr::Index(
-                    Box::new(Expr::Call(GENERATOR.to_string(), state.clone())),
+                    std::sync::Arc::new(Expr::Call(GENERATOR.to_string(), state.clone())),
                     vec![Expr::Number(at as f64)],
                 )
             };

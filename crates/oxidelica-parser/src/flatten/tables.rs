@@ -299,9 +299,9 @@ fn settle(expr: &Expr, texts: &HashMap<String, String>, numbers: &HashMap<String
             Some(truth) if truth != 0.0 => recur(then),
             Some(_) => recur(otherwise),
             None => Expr::If(
-                Box::new(condition),
-                Box::new(recur(then)),
-                Box::new(recur(otherwise)),
+                std::sync::Arc::new(condition),
+                std::sync::Arc::new(recur(then)),
+                std::sync::Arc::new(recur(otherwise)),
             ),
         };
     }
@@ -369,22 +369,36 @@ fn written_out(expr: &Expr, tables: &HashMap<String, Table>) -> Result<Expr, Str
             name.clone(),
             args.iter().map(recur).collect::<Result<Vec<_>, _>>()?,
         ),
-        Expr::Neg(inner) => Expr::Neg(Box::new(recur(inner)?)),
-        Expr::Not(inner) => Expr::Not(Box::new(recur(inner)?)),
-        Expr::Bin(op, l, r) => Expr::Bin(*op, Box::new(recur(l)?), Box::new(recur(r)?)),
-        Expr::Rel(op, l, r) => Expr::Rel(*op, Box::new(recur(l)?), Box::new(recur(r)?)),
-        Expr::And(l, r) => Expr::And(Box::new(recur(l)?), Box::new(recur(r)?)),
-        Expr::Or(l, r) => Expr::Or(Box::new(recur(l)?), Box::new(recur(r)?)),
+        Expr::Neg(inner) => Expr::Neg(std::sync::Arc::new(recur(inner)?)),
+        Expr::Not(inner) => Expr::Not(std::sync::Arc::new(recur(inner)?)),
+        Expr::Bin(op, l, r) => Expr::Bin(
+            *op,
+            std::sync::Arc::new(recur(l)?),
+            std::sync::Arc::new(recur(r)?),
+        ),
+        Expr::Rel(op, l, r) => Expr::Rel(
+            *op,
+            std::sync::Arc::new(recur(l)?),
+            std::sync::Arc::new(recur(r)?),
+        ),
+        Expr::And(l, r) => Expr::And(
+            std::sync::Arc::new(recur(l)?),
+            std::sync::Arc::new(recur(r)?),
+        ),
+        Expr::Or(l, r) => Expr::Or(
+            std::sync::Arc::new(recur(l)?),
+            std::sync::Arc::new(recur(r)?),
+        ),
         Expr::If(c, a, b) => Expr::If(
-            Box::new(recur(c)?),
-            Box::new(recur(a)?),
-            Box::new(recur(b)?),
+            std::sync::Arc::new(recur(c)?),
+            std::sync::Arc::new(recur(a)?),
+            std::sync::Arc::new(recur(b)?),
         ),
         // A call the run walks carries its own rule for differentiating
         // it beside it, and both sides are expressions like any other.
         Expr::WithDerivative(value, rule, seeds) => Expr::WithDerivative(
-            Box::new(recur(value)?),
-            Box::new(recur(rule)?),
+            std::sync::Arc::new(recur(value)?),
+            std::sync::Arc::new(recur(rule)?),
             seeds
                 .iter()
                 .map(|(name, seed)| Ok((name.clone(), recur(seed)?)))
@@ -426,8 +440,8 @@ fn one_call(
             let slope = interpolate(table, &args[1], &args[2], true).map_err(named)?;
             Ok(Some(Expr::Bin(
                 BinOp::Mul,
-                Box::new(slope),
-                Box::new(args[3].clone()),
+                std::sync::Arc::new(slope),
+                std::sync::Arc::new(args[3].clone()),
             )))
         }
         // A two-dimensional table is read by where two abscissae fall
@@ -452,15 +466,19 @@ fn one_call(
         // because the run is what knows the two rates.
         "ModelicaStandardTables_CombiTable2D_getDerValue" if args.len() == 5 => {
             let times = |slope: Expr, rate: &Expr| {
-                Expr::Bin(BinOp::Mul, Box::new(slope), Box::new(rate.clone()))
+                Expr::Bin(
+                    BinOp::Mul,
+                    std::sync::Arc::new(slope),
+                    std::sync::Arc::new(rate.clone()),
+                )
             };
             Ok(Some(Expr::Bin(
                 BinOp::Add,
-                Box::new(times(
+                std::sync::Arc::new(times(
                     on_the_grid(table, &args[1], &args[2], Wanted::SlopeDown).map_err(named)?,
                     &args[3],
                 )),
-                Box::new(times(
+                std::sync::Arc::new(times(
                     on_the_grid(table, &args[1], &args[2], Wanted::SlopeAcross).map_err(named)?,
                     &args[4],
                 )),
@@ -485,8 +503,8 @@ fn one_call(
             let slope = interpolate(table, &args[1], &args[2], true).map_err(named)?;
             Ok(Some(Expr::Bin(
                 BinOp::Mul,
-                Box::new(slope),
-                Box::new(args[5].clone()),
+                std::sync::Arc::new(slope),
+                std::sync::Arc::new(args[5].clone()),
             )))
         }
         // When the table next turns a corner, which is what a run
@@ -497,13 +515,13 @@ fn one_call(
             for corner in abscissa.iter().rev() {
                 let corner = corner + table.shift;
                 written = Expr::If(
-                    Box::new(Expr::Rel(
+                    std::sync::Arc::new(Expr::Rel(
                         RelOp::Lt,
-                        Box::new(args[1].clone()),
-                        Box::new(Expr::Number(corner)),
+                        std::sync::Arc::new(args[1].clone()),
+                        std::sync::Arc::new(Expr::Number(corner)),
                     )),
-                    Box::new(Expr::Number(corner)),
-                    Box::new(written),
+                    std::sync::Arc::new(Expr::Number(corner)),
+                    std::sync::Arc::new(written),
                 );
             }
             Ok(Some(written))
@@ -791,14 +809,14 @@ fn interpolate(table: &Table, column: &Expr, u: &Expr, slope: bool) -> Result<Ex
         false => u.clone(),
         true => Expr::Bin(
             BinOp::Add,
-            Box::new(Expr::Number(at(0))),
-            Box::new(Expr::Call(
+            std::sync::Arc::new(Expr::Number(at(0))),
+            std::sync::Arc::new(Expr::Call(
                 "mod".to_string(),
                 vec![
                     Expr::Bin(
                         BinOp::Sub,
-                        Box::new(u.clone()),
-                        Box::new(Expr::Number(at(0))),
+                        std::sync::Arc::new(u.clone()),
+                        std::sync::Arc::new(Expr::Number(at(0))),
                     ),
                     Expr::Number(period),
                 ],
@@ -856,18 +874,33 @@ fn interpolate(table: &Table, column: &Expr, u: &Expr, slope: bool) -> Result<Ex
             let (a, b) = (3.0 * rise - 2.0 * m0 - m1, m0 + m1 - 2.0 * rise);
             let t = Expr::Bin(
                 BinOp::Div,
-                Box::new(Expr::Bin(
+                std::sync::Arc::new(Expr::Bin(
                     BinOp::Sub,
-                    Box::new(u.clone()),
-                    Box::new(Expr::Number(at(first))),
+                    std::sync::Arc::new(u.clone()),
+                    std::sync::Arc::new(Expr::Number(at(first))),
                 )),
-                Box::new(Expr::Number(run)),
+                std::sync::Arc::new(Expr::Number(run)),
             );
-            let times =
-                |k: f64, of: Expr| Expr::Bin(BinOp::Mul, Box::new(Expr::Number(k)), Box::new(of));
-            let plus = |l: Expr, r: Expr| Expr::Bin(BinOp::Add, Box::new(l), Box::new(r));
-            let squared = Expr::Bin(BinOp::Mul, Box::new(t.clone()), Box::new(t.clone()));
-            let cubed = Expr::Bin(BinOp::Mul, Box::new(squared.clone()), Box::new(t.clone()));
+            let times = |k: f64, of: Expr| {
+                Expr::Bin(
+                    BinOp::Mul,
+                    std::sync::Arc::new(Expr::Number(k)),
+                    std::sync::Arc::new(of),
+                )
+            };
+            let plus = |l: Expr, r: Expr| {
+                Expr::Bin(BinOp::Add, std::sync::Arc::new(l), std::sync::Arc::new(r))
+            };
+            let squared = Expr::Bin(
+                BinOp::Mul,
+                std::sync::Arc::new(t.clone()),
+                std::sync::Arc::new(t.clone()),
+            );
+            let cubed = Expr::Bin(
+                BinOp::Mul,
+                std::sync::Arc::new(squared.clone()),
+                std::sync::Arc::new(t.clone()),
+            );
             return match slope {
                 // `m0 + 2*a*t + 3*b*t^2`: the cubic differentiated by
                 // `u`, where the `run` of the chain rule cancels the
@@ -891,15 +924,15 @@ fn interpolate(table: &Table, column: &Expr, u: &Expr, slope: bool) -> Result<Ex
         // `y[k] + (u - u[k]) * rise`
         Expr::Bin(
             BinOp::Add,
-            Box::new(Expr::Number(value(first))),
-            Box::new(Expr::Bin(
+            std::sync::Arc::new(Expr::Number(value(first))),
+            std::sync::Arc::new(Expr::Bin(
                 BinOp::Mul,
-                Box::new(Expr::Bin(
+                std::sync::Arc::new(Expr::Bin(
                     BinOp::Sub,
-                    Box::new(u.clone()),
-                    Box::new(Expr::Number(at(first))),
+                    std::sync::Arc::new(u.clone()),
+                    std::sync::Arc::new(Expr::Number(at(first))),
                 )),
-                Box::new(Expr::Number(rise)),
+                std::sync::Arc::new(Expr::Number(rise)),
             )),
         )
     };
@@ -908,13 +941,13 @@ fn interpolate(table: &Table, column: &Expr, u: &Expr, slope: bool) -> Result<Ex
     let before_it_starts = |written: Expr| match table.starts.is_finite() {
         false => written,
         true => Expr::If(
-            Box::new(Expr::Rel(
+            std::sync::Arc::new(Expr::Rel(
                 RelOp::Lt,
-                Box::new(u.clone()),
-                Box::new(Expr::Number(table.starts)),
+                std::sync::Arc::new(u.clone()),
+                std::sync::Arc::new(Expr::Number(table.starts)),
             )),
-            Box::new(Expr::Number(0.0)),
-            Box::new(written),
+            std::sync::Arc::new(Expr::Number(0.0)),
+            std::sync::Arc::new(written),
         ),
     };
     // A table of one row has no interval to be in: what it says, it
@@ -946,15 +979,15 @@ fn interpolate(table: &Table, column: &Expr, u: &Expr, slope: bool) -> Result<Ex
         let (near, far) = (at(0), at(table.rows.len() - 1));
         super::algorithms::check_aside(
             Expr::And(
-                Box::new(Expr::Rel(
+                std::sync::Arc::new(Expr::Rel(
                     RelOp::Ge,
-                    Box::new(u.clone()),
-                    Box::new(Expr::Number(near)),
+                    std::sync::Arc::new(u.clone()),
+                    std::sync::Arc::new(Expr::Number(near)),
                 )),
-                Box::new(Expr::Rel(
+                std::sync::Arc::new(Expr::Rel(
                     RelOp::Le,
-                    Box::new(u.clone()),
-                    Box::new(Expr::Number(far)),
+                    std::sync::Arc::new(u.clone()),
+                    std::sync::Arc::new(Expr::Number(far)),
                 )),
             ),
             format!(
@@ -977,27 +1010,27 @@ fn interpolate(table: &Table, column: &Expr, u: &Expr, slope: bool) -> Result<Ex
             // Before the near end, the first point is held; the first
             // interval's own branch is what follows.
             true => Expr::If(
-                Box::new(Expr::Rel(
+                std::sync::Arc::new(Expr::Rel(
                     RelOp::Lt,
-                    Box::new(u.clone()),
-                    Box::new(Expr::Number(at(0))),
+                    std::sync::Arc::new(u.clone()),
+                    std::sync::Arc::new(Expr::Number(at(0))),
                 )),
-                Box::new(Expr::Number(match slope {
+                std::sync::Arc::new(Expr::Number(match slope {
                     true => 0.0,
                     false => value(0),
                 })),
-                Box::new(held),
+                std::sync::Arc::new(held),
             ),
             false => held,
         };
         written = Expr::If(
-            Box::new(Expr::Rel(
+            std::sync::Arc::new(Expr::Rel(
                 RelOp::Lt,
-                Box::new(u.clone()),
-                Box::new(Expr::Number(at(first + 1))),
+                std::sync::Arc::new(u.clone()),
+                std::sync::Arc::new(Expr::Number(at(first + 1))),
             )),
-            Box::new(held),
-            Box::new(written),
+            std::sync::Arc::new(held),
+            std::sync::Arc::new(written),
         );
     }
     Ok(before_it_starts(written))

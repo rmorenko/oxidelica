@@ -107,11 +107,13 @@ pub(super) fn shaped_by_a_builtin(
             let term = |i: usize, j: usize| -> Result<Expr, String> {
                 Ok(Expr::Bin(
                     BinOp::Mul,
-                    Box::new(a[i].clone().scalar()?),
-                    Box::new(b[j].clone().scalar()?),
+                    std::sync::Arc::new(a[i].clone().scalar()?),
+                    std::sync::Arc::new(b[j].clone().scalar()?),
                 ))
             };
-            let minus = |p: Expr, q: Expr| Expr::Bin(BinOp::Sub, Box::new(p), Box::new(q));
+            let minus = |p: Expr, q: Expr| {
+                Expr::Bin(BinOp::Sub, std::sync::Arc::new(p), std::sync::Arc::new(q))
+            };
             Ok(Value::Array(vec![
                 Value::Scalar(minus(term(1, 2)?, term(2, 1)?)),
                 Value::Scalar(minus(term(2, 0)?, term(0, 2)?)),
@@ -132,8 +134,8 @@ pub(super) fn shaped_by_a_builtin(
                         .map(|yj| {
                             Ok(Value::Scalar(Expr::Bin(
                                 BinOp::Mul,
-                                Box::new(xi.clone()),
-                                Box::new(yj.clone().scalar()?),
+                                std::sync::Arc::new(xi.clone()),
+                                std::sync::Arc::new(yj.clone().scalar()?),
                             )))
                         })
                         .collect::<Result<Vec<_>, String>>()?;
@@ -181,7 +183,7 @@ pub(super) fn shaped_by_a_builtin(
             }
             let e = |k: usize| x[k].clone().scalar();
             let zero = || Expr::Number(0.0);
-            let neg = |v: Expr| Expr::Neg(Box::new(v));
+            let neg = |v: Expr| Expr::Neg(std::sync::Arc::new(v));
             let s = |v: Expr| Value::Scalar(v);
             Ok(Value::Array(vec![
                 Value::Array(vec![s(zero()), s(neg(e(2)?)), s(e(1)?)]),
@@ -246,15 +248,15 @@ pub(super) fn shaped_by_a_builtin(
                         // from + (to - from) * fraction
                         Value::Scalar(Expr::Bin(
                             BinOp::Add,
-                            Box::new(from.clone()),
-                            Box::new(Expr::Bin(
+                            std::sync::Arc::new(from.clone()),
+                            std::sync::Arc::new(Expr::Bin(
                                 BinOp::Mul,
-                                Box::new(Expr::Bin(
+                                std::sync::Arc::new(Expr::Bin(
                                     BinOp::Sub,
-                                    Box::new(to.clone()),
-                                    Box::new(from.clone()),
+                                    std::sync::Arc::new(to.clone()),
+                                    std::sync::Arc::new(from.clone()),
                                 )),
-                                Box::new(Expr::Number(fraction)),
+                                std::sync::Arc::new(Expr::Number(fraction)),
                             )),
                         ))
                     })
@@ -415,7 +417,9 @@ pub(super) fn folded_over_an_array(
                 "sum" => sum_of(terms),
                 _ => terms
                     .into_iter()
-                    .reduce(|a, b| Expr::Bin(BinOp::Mul, Box::new(a), Box::new(b)))
+                    .reduce(|a, b| {
+                        Expr::Bin(BinOp::Mul, std::sync::Arc::new(a), std::sync::Arc::new(b))
+                    })
                     .unwrap_or(Expr::Number(1.0)),
             }))
         }

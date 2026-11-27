@@ -370,7 +370,7 @@ fn expand_at(
                         depth,
                     );
                 }
-                map_value(&recur(inner)?, &|e| Expr::Neg(Box::new(e)))
+                map_value(&recur(inner)?, &|e| Expr::Neg(std::sync::Arc::new(e)))
             }
             // A logical operator is worked out here rather than left for
             // the scalar path, because its sides may still be things only
@@ -383,8 +383,8 @@ fn expand_at(
             // says of the element-wise operators: `fire_n = not fire_p` of
             // the space vector modulation was refused for being an array.
             Expr::Not(inner) => match std::env::var_os("OXIDELICA_NO_ARRAY_NOT") {
-                None => map_value(&recur(inner)?, &|e| Expr::Not(Box::new(e))),
-                Some(_) => Value::Scalar(Expr::Not(Box::new(recur(inner)?.scalar()?))),
+                None => map_value(&recur(inner)?, &|e| Expr::Not(std::sync::Arc::new(e))),
+                Some(_) => Value::Scalar(Expr::Not(std::sync::Arc::new(recur(inner)?.scalar()?))),
             },
             // A left side that is already settled decides the operator,
             // and the right is not looked at: `size(b, 1) > 0 and min(b)`
@@ -396,14 +396,20 @@ fn expand_at(
                 if settled_truth(&left) == Some(false) {
                     return Ok(Value::Scalar(Expr::Bool(false)));
                 }
-                Value::Scalar(Expr::And(Box::new(left), Box::new(recur(r)?.scalar()?)))
+                Value::Scalar(Expr::And(
+                    std::sync::Arc::new(left),
+                    std::sync::Arc::new(recur(r)?.scalar()?),
+                ))
             }
             Expr::Or(l, r) => {
                 let left = recur(l)?.scalar()?;
                 if settled_truth(&left) == Some(true) {
                     return Ok(Value::Scalar(Expr::Bool(true)));
                 }
-                Value::Scalar(Expr::Or(Box::new(left), Box::new(recur(r)?.scalar()?)))
+                Value::Scalar(Expr::Or(
+                    std::sync::Arc::new(left),
+                    std::sync::Arc::new(recur(r)?.scalar()?),
+                ))
             }
             Expr::Bin(op, l, r) | Expr::Elementwise(op, l, r) => {
                 // An operator on records is whatever the record says it
@@ -442,8 +448,8 @@ fn expand_at(
                 }
                 Value::Scalar(Expr::Rel(
                     *op,
-                    Box::new(recur(l)?.scalar()?),
-                    Box::new(recur(r)?.scalar()?),
+                    std::sync::Arc::new(recur(l)?.scalar()?),
+                    std::sync::Arc::new(recur(r)?.scalar()?),
                 ))
             }
             Expr::If(condition, then, otherwise) => {
@@ -510,9 +516,9 @@ fn expand_at(
                     if taken.same_structure(&left) {
                         return zip_values(&taken, &left, &|a, b| {
                             Expr::If(
-                                Box::new(condition.clone()),
-                                Box::new(a.clone()),
-                                Box::new(b.clone()),
+                                std::sync::Arc::new(condition.clone()),
+                                std::sync::Arc::new(a.clone()),
+                                std::sync::Arc::new(b.clone()),
                             )
                         });
                     }
@@ -541,9 +547,9 @@ fn expand_at(
                 let (then, otherwise) = (recur(then)?, recur(otherwise)?);
                 zip_values(&then, &otherwise, &|a, b| {
                     Expr::If(
-                        Box::new(condition.clone()),
-                        Box::new(a.clone()),
-                        Box::new(b.clone()),
+                        std::sync::Arc::new(condition.clone()),
+                        std::sync::Arc::new(a.clone()),
+                        std::sync::Arc::new(b.clone()),
                     )
                 })?
             }
@@ -568,7 +574,7 @@ fn expand_at(
                             let elements = elements_of(array, &shapes.sizes[array]);
                             return try_map_names(&elements, &|each| {
                                 Some(recur(&Expr::Index(
-                                    Box::new(Expr::Ref(format!("{each}.{member}"))),
+                                    std::sync::Arc::new(Expr::Ref(format!("{each}.{member}"))),
                                     subscripts.clone(),
                                 )))
                             })
@@ -669,7 +675,7 @@ fn expand_at(
                 match value {
                     array @ Value::Array(_) => map_value(&array, &|element| match element {
                         Expr::Ref(name) => Expr::Ref(format!("{name}.{path}")),
-                        other => Expr::Member(Box::new(other), path.clone()),
+                        other => Expr::Member(std::sync::Arc::new(other), path.clone()),
                     }),
                     // One element of an array of components, and a
                     // member of it that is an array in its own right:
@@ -699,7 +705,7 @@ fn expand_at(
             // function element by element, which is what the language
             // says it means.
             Expr::NamedArg(name, value) => map_value(&recur(value)?, &|element| {
-                Expr::NamedArg(name.clone(), Box::new(element.clone()))
+                Expr::NamedArg(name.clone(), std::sync::Arc::new(element.clone()))
             }),
             other => scalar(other)?,
         })
@@ -934,13 +940,13 @@ fn index_into(
                                     false => Expr::Number(place as f64 + 1.0),
                                 };
                                 chosen = Expr::If(
-                                    Box::new(Expr::Rel(
+                                    std::sync::Arc::new(Expr::Rel(
                                         crate::ast::RelOp::Eq,
-                                        Box::new(index.clone()),
-                                        Box::new(names),
+                                        std::sync::Arc::new(index.clone()),
+                                        std::sync::Arc::new(names),
                                     )),
-                                    Box::new(candidate[at].clone()),
-                                    Box::new(chosen),
+                                    std::sync::Arc::new(candidate[at].clone()),
+                                    std::sync::Arc::new(chosen),
                                 );
                             }
                             chosen
@@ -963,13 +969,13 @@ fn index_into(
                         false => Expr::Number(place as f64 + 1.0),
                     };
                     chosen = Expr::If(
-                        Box::new(Expr::Rel(
+                        std::sync::Arc::new(Expr::Rel(
                             crate::ast::RelOp::Eq,
-                            Box::new(index.clone()),
-                            Box::new(names),
+                            std::sync::Arc::new(index.clone()),
+                            std::sync::Arc::new(names),
                         )),
-                        Box::new(candidate),
-                        Box::new(chosen),
+                        std::sync::Arc::new(candidate),
+                        std::sync::Arc::new(chosen),
                     );
                 }
                 return Ok(Value::Scalar(chosen));
@@ -1092,7 +1098,7 @@ fn standing_call(
             (1..=length)
                 .map(|index| {
                     Value::Scalar(Expr::Index(
-                        Box::new(call.clone()),
+                        std::sync::Arc::new(call.clone()),
                         vec![Expr::Number(index as f64)],
                     ))
                 })
@@ -1131,7 +1137,7 @@ fn nested_record_answer(
         (1..=laid.len())
             .map(|at| {
                 Value::Scalar(Expr::Index(
-                    Box::new(call.clone()),
+                    std::sync::Arc::new(call.clone()),
                     vec![Expr::Number(at as f64)],
                 ))
             })
@@ -1991,7 +1997,13 @@ pub(super) fn combine(
     right: &Value,
     elementwise: bool,
 ) -> Result<Value, String> {
-    let apply = |a: &Expr, b: &Expr| Expr::Bin(op, Box::new(a.clone()), Box::new(b.clone()));
+    let apply = |a: &Expr, b: &Expr| {
+        Expr::Bin(
+            op,
+            std::sync::Arc::new(a.clone()),
+            std::sync::Arc::new(b.clone()),
+        )
+    };
     if elementwise || matches!(op, BinOp::Add | BinOp::Sub) {
         return zip_values(left, right, &apply);
     }
@@ -2787,7 +2799,7 @@ pub(super) fn pick_column(rows: &[Value], column: usize) -> Result<Value, String
 pub(super) fn sum_of(terms: Vec<Expr>) -> Expr {
     terms
         .into_iter()
-        .reduce(|a, b| Expr::Bin(BinOp::Add, Box::new(a), Box::new(b)))
+        .reduce(|a, b| Expr::Bin(BinOp::Add, std::sync::Arc::new(a), std::sync::Arc::new(b)))
         .unwrap_or(Expr::Number(0.0))
 }
 
@@ -3410,7 +3422,10 @@ fn specialized_as(
                         Expr::Ref(format!("{replaced}.{}", held.name))
                     }
                 };
-                Some(Expr::NamedArg(held.name.clone(), Box::new(value)))
+                Some(Expr::NamedArg(
+                    held.name.clone(),
+                    std::sync::Arc::new(value),
+                ))
             })
             .collect();
         let partial = Expr::Call(

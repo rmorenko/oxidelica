@@ -294,8 +294,8 @@ impl EventRewrite<'_> {
     pub(crate) fn expr(&mut self, expr: &Expr) -> Result<Expr, SimError> {
         Ok(match expr {
             Expr::WithDerivative(value, rule, seeds) => Expr::WithDerivative(
-                Box::new(self.expr(value)?),
-                Box::new(self.expr(rule)?),
+                std::sync::Arc::new(self.expr(value)?),
+                std::sync::Arc::new(self.expr(rule)?),
                 seeds
                     .iter()
                     .map(|(name, argument)| Ok((name.clone(), self.expr(argument)?)))
@@ -307,21 +307,21 @@ impl EventRewrite<'_> {
                 // edge(b) is "b just became true", change(v) is "v just
                 // took a different value".
                 ("edge", 1) => Expr::And(
-                    Box::new(Expr::Rel(
+                    std::sync::Arc::new(Expr::Rel(
                         RelOp::Gt,
-                        Box::new(args[0].clone()),
-                        Box::new(Expr::Number(0.5)),
+                        std::sync::Arc::new(args[0].clone()),
+                        std::sync::Arc::new(Expr::Number(0.5)),
                     )),
-                    Box::new(Expr::Rel(
+                    std::sync::Arc::new(Expr::Rel(
                         RelOp::Lt,
-                        Box::new(self.pre_of(&args[0], "edge")?),
-                        Box::new(Expr::Number(0.5)),
+                        std::sync::Arc::new(self.pre_of(&args[0], "edge")?),
+                        std::sync::Arc::new(Expr::Number(0.5)),
                     )),
                 ),
                 ("change", 1) => Expr::Rel(
                     RelOp::Ne,
-                    Box::new(args[0].clone()),
-                    Box::new(self.pre_of(&args[0], "change")?),
+                    std::sync::Arc::new(args[0].clone()),
+                    std::sync::Arc::new(self.pre_of(&args[0], "change")?),
                 ),
                 ("initial", 0) => Expr::Ref("$initial".to_string()),
                 ("terminal", 0) => Expr::Ref("$terminal".to_string()),
@@ -390,19 +390,33 @@ impl EventRewrite<'_> {
                         .collect::<Result<Vec<_>, SimError>>()?,
                 ),
             },
-            Expr::Neg(inner) => Expr::Neg(Box::new(self.expr(inner)?)),
-            Expr::Not(inner) => Expr::Not(Box::new(self.expr(inner)?)),
-            Expr::Bin(op, l, r) => Expr::Bin(*op, Box::new(self.expr(l)?), Box::new(self.expr(r)?)),
+            Expr::Neg(inner) => Expr::Neg(std::sync::Arc::new(self.expr(inner)?)),
+            Expr::Not(inner) => Expr::Not(std::sync::Arc::new(self.expr(inner)?)),
+            Expr::Bin(op, l, r) => Expr::Bin(
+                *op,
+                std::sync::Arc::new(self.expr(l)?),
+                std::sync::Arc::new(self.expr(r)?),
+            ),
             Expr::Rel(op, l, r) => match self.clock_of(*op, l, r) {
                 Some(flag) => flag,
-                None => Expr::Rel(*op, Box::new(self.expr(l)?), Box::new(self.expr(r)?)),
+                None => Expr::Rel(
+                    *op,
+                    std::sync::Arc::new(self.expr(l)?),
+                    std::sync::Arc::new(self.expr(r)?),
+                ),
             },
-            Expr::And(l, r) => Expr::And(Box::new(self.expr(l)?), Box::new(self.expr(r)?)),
-            Expr::Or(l, r) => Expr::Or(Box::new(self.expr(l)?), Box::new(self.expr(r)?)),
+            Expr::And(l, r) => Expr::And(
+                std::sync::Arc::new(self.expr(l)?),
+                std::sync::Arc::new(self.expr(r)?),
+            ),
+            Expr::Or(l, r) => Expr::Or(
+                std::sync::Arc::new(self.expr(l)?),
+                std::sync::Arc::new(self.expr(r)?),
+            ),
             Expr::If(c, a, b) => Expr::If(
-                Box::new(self.expr(c)?),
-                Box::new(self.expr(a)?),
-                Box::new(self.expr(b)?),
+                std::sync::Arc::new(self.expr(c)?),
+                std::sync::Arc::new(self.expr(a)?),
+                std::sync::Arc::new(self.expr(b)?),
             ),
             // `{a, b, c}[2]`: a list written out and read at a number
             // is the element at that number, whatever the list is. A
@@ -415,14 +429,14 @@ impl EventRewrite<'_> {
             {
                 match picked(base, subscripts) {
                     Some(element) => self.expr(element)?,
-                    None => Expr::Index(Box::new(self.expr(base)?), subscripts.clone()),
+                    None => Expr::Index(std::sync::Arc::new(self.expr(base)?), subscripts.clone()),
                 }
             }
             // `f(x)[2]` of a body the run walks: the call is looked
             // through and the subscript kept, since it says which
             // number of the answer this is.
             Expr::Index(base, subscripts) => {
-                Expr::Index(Box::new(self.expr(base)?), subscripts.clone())
+                Expr::Index(std::sync::Arc::new(self.expr(base)?), subscripts.clone())
             }
             Expr::Member(_, _)
             | Expr::Array(_)

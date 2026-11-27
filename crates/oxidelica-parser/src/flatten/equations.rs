@@ -1040,9 +1040,9 @@ fn flatten_when_clauses(
                                 value = match condition {
                                     None => chosen.1.clone(),
                                     Some(condition) => Expr::If(
-                                        Box::new(condition.clone()),
-                                        Box::new(chosen.1.clone()),
-                                        Box::new(value),
+                                        std::sync::Arc::new(condition.clone()),
+                                        std::sync::Arc::new(chosen.1.clone()),
+                                        std::sync::Arc::new(value),
                                     ),
                                 };
                             }

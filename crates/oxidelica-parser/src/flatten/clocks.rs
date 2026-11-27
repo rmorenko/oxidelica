@@ -1029,11 +1029,19 @@ pub(super) fn pre_of(name: &str) -> Expr {
 }
 
 pub(super) fn add(left: Expr, right: Expr) -> Expr {
-    Expr::Bin(BinOp::Add, Box::new(left), Box::new(right))
+    Expr::Bin(
+        BinOp::Add,
+        std::sync::Arc::new(left),
+        std::sync::Arc::new(right),
+    )
 }
 
 pub(super) fn mul(left: Expr, right: Expr) -> Expr {
-    Expr::Bin(BinOp::Mul, Box::new(left), Box::new(right))
+    Expr::Bin(
+        BinOp::Mul,
+        std::sync::Arc::new(left),
+        std::sync::Arc::new(right),
+    )
 }
 
 /// Read a slope somewhere other than where the tick left the state:
@@ -1050,16 +1058,30 @@ pub(super) fn at_the_stage(expr: &Expr, guesses: &HashMap<String, Expr>) -> Expr
             None => expr.clone(),
         },
         Expr::Call(name, args) => Expr::Call(name.clone(), args.iter().map(recur).collect()),
-        Expr::Neg(inner) => Expr::Neg(Box::new(recur(inner))),
-        Expr::Not(inner) => Expr::Not(Box::new(recur(inner))),
-        Expr::Bin(op, l, r) => Expr::Bin(*op, Box::new(recur(l)), Box::new(recur(r))),
-        Expr::Elementwise(op, l, r) => {
-            Expr::Elementwise(*op, Box::new(recur(l)), Box::new(recur(r)))
-        }
-        Expr::Rel(op, l, r) => Expr::Rel(*op, Box::new(recur(l)), Box::new(recur(r))),
-        Expr::And(l, r) => Expr::And(Box::new(recur(l)), Box::new(recur(r))),
-        Expr::Or(l, r) => Expr::Or(Box::new(recur(l)), Box::new(recur(r))),
-        Expr::If(c, a, b) => Expr::If(Box::new(recur(c)), Box::new(recur(a)), Box::new(recur(b))),
+        Expr::Neg(inner) => Expr::Neg(std::sync::Arc::new(recur(inner))),
+        Expr::Not(inner) => Expr::Not(std::sync::Arc::new(recur(inner))),
+        Expr::Bin(op, l, r) => Expr::Bin(
+            *op,
+            std::sync::Arc::new(recur(l)),
+            std::sync::Arc::new(recur(r)),
+        ),
+        Expr::Elementwise(op, l, r) => Expr::Elementwise(
+            *op,
+            std::sync::Arc::new(recur(l)),
+            std::sync::Arc::new(recur(r)),
+        ),
+        Expr::Rel(op, l, r) => Expr::Rel(
+            *op,
+            std::sync::Arc::new(recur(l)),
+            std::sync::Arc::new(recur(r)),
+        ),
+        Expr::And(l, r) => Expr::And(std::sync::Arc::new(recur(l)), std::sync::Arc::new(recur(r))),
+        Expr::Or(l, r) => Expr::Or(std::sync::Arc::new(recur(l)), std::sync::Arc::new(recur(r))),
+        Expr::If(c, a, b) => Expr::If(
+            std::sync::Arc::new(recur(c)),
+            std::sync::Arc::new(recur(a)),
+            std::sync::Arc::new(recur(b)),
+        ),
         _ => expr.clone(),
     }
 }
@@ -1152,11 +1174,11 @@ pub(super) fn last_tick_name(clock: usize) -> String {
 pub(super) fn after(name: &str, step: Expr) -> Expr {
     Expr::Bin(
         BinOp::Add,
-        Box::new(Expr::Call(
+        std::sync::Arc::new(Expr::Call(
             "pre".to_string(),
             vec![Expr::Ref(name.to_string())],
         )),
-        Box::new(step),
+        std::sync::Arc::new(step),
     )
 }
 
@@ -1168,16 +1190,16 @@ pub(super) fn elapsed_since_last_tick(spec: &ClockSpec, clock: usize) -> Expr {
         unreachable!("a periodic clock answers with the interval it was declared with")
     };
     Expr::If(
-        Box::new(Expr::Rel(
+        std::sync::Arc::new(Expr::Rel(
             crate::ast::RelOp::Lt,
-            Box::new(Expr::Ref(counter_name(clock))),
-            Box::new(Expr::Number(1.5)),
+            std::sync::Arc::new(Expr::Ref(counter_name(clock))),
+            std::sync::Arc::new(Expr::Number(1.5)),
         )),
-        Box::new(Expr::Number(*start_interval)),
-        Box::new(Expr::Bin(
+        std::sync::Arc::new(Expr::Number(*start_interval)),
+        std::sync::Arc::new(Expr::Bin(
             BinOp::Sub,
-            Box::new(Expr::Time),
-            Box::new(Expr::Call(
+            std::sync::Arc::new(Expr::Time),
+            std::sync::Arc::new(Expr::Call(
                 "pre".to_string(),
                 vec![Expr::Ref(last_tick_name(clock))],
             )),
@@ -1210,20 +1232,34 @@ pub(super) fn answer_first_tick(expr: &Expr, counter: &str) -> Expr {
     match expr {
         Expr::Call(name, _) if name == "firstTick" => Expr::Rel(
             crate::ast::RelOp::Eq,
-            Box::new(Expr::Ref(counter.to_string())),
-            Box::new(Expr::Number(1.0)),
+            std::sync::Arc::new(Expr::Ref(counter.to_string())),
+            std::sync::Arc::new(Expr::Number(1.0)),
         ),
         Expr::Call(name, args) => Expr::Call(name.clone(), args.iter().map(recur).collect()),
-        Expr::Neg(inner) => Expr::Neg(Box::new(recur(inner))),
-        Expr::Not(inner) => Expr::Not(Box::new(recur(inner))),
-        Expr::Bin(op, l, r) => Expr::Bin(*op, Box::new(recur(l)), Box::new(recur(r))),
-        Expr::Elementwise(op, l, r) => {
-            Expr::Elementwise(*op, Box::new(recur(l)), Box::new(recur(r)))
-        }
-        Expr::Rel(op, l, r) => Expr::Rel(*op, Box::new(recur(l)), Box::new(recur(r))),
-        Expr::And(l, r) => Expr::And(Box::new(recur(l)), Box::new(recur(r))),
-        Expr::Or(l, r) => Expr::Or(Box::new(recur(l)), Box::new(recur(r))),
-        Expr::If(c, a, b) => Expr::If(Box::new(recur(c)), Box::new(recur(a)), Box::new(recur(b))),
+        Expr::Neg(inner) => Expr::Neg(std::sync::Arc::new(recur(inner))),
+        Expr::Not(inner) => Expr::Not(std::sync::Arc::new(recur(inner))),
+        Expr::Bin(op, l, r) => Expr::Bin(
+            *op,
+            std::sync::Arc::new(recur(l)),
+            std::sync::Arc::new(recur(r)),
+        ),
+        Expr::Elementwise(op, l, r) => Expr::Elementwise(
+            *op,
+            std::sync::Arc::new(recur(l)),
+            std::sync::Arc::new(recur(r)),
+        ),
+        Expr::Rel(op, l, r) => Expr::Rel(
+            *op,
+            std::sync::Arc::new(recur(l)),
+            std::sync::Arc::new(recur(r)),
+        ),
+        Expr::And(l, r) => Expr::And(std::sync::Arc::new(recur(l)), std::sync::Arc::new(recur(r))),
+        Expr::Or(l, r) => Expr::Or(std::sync::Arc::new(recur(l)), std::sync::Arc::new(recur(r))),
+        Expr::If(c, a, b) => Expr::If(
+            std::sync::Arc::new(recur(c)),
+            std::sync::Arc::new(recur(a)),
+            std::sync::Arc::new(recur(b)),
+        ),
         _ => expr.clone(),
     }
 }
@@ -1289,16 +1325,30 @@ pub(super) fn at_the_tick(
             recur(&args[0])
         }
         Expr::Call(name, args) => Expr::Call(name.clone(), args.iter().map(recur).collect()),
-        Expr::Neg(inner) => Expr::Neg(Box::new(recur(inner))),
-        Expr::Not(inner) => Expr::Not(Box::new(recur(inner))),
-        Expr::Bin(op, l, r) => Expr::Bin(*op, Box::new(recur(l)), Box::new(recur(r))),
-        Expr::Elementwise(op, l, r) => {
-            Expr::Elementwise(*op, Box::new(recur(l)), Box::new(recur(r)))
-        }
-        Expr::Rel(op, l, r) => Expr::Rel(*op, Box::new(recur(l)), Box::new(recur(r))),
-        Expr::And(l, r) => Expr::And(Box::new(recur(l)), Box::new(recur(r))),
-        Expr::Or(l, r) => Expr::Or(Box::new(recur(l)), Box::new(recur(r))),
-        Expr::If(c, a, b) => Expr::If(Box::new(recur(c)), Box::new(recur(a)), Box::new(recur(b))),
+        Expr::Neg(inner) => Expr::Neg(std::sync::Arc::new(recur(inner))),
+        Expr::Not(inner) => Expr::Not(std::sync::Arc::new(recur(inner))),
+        Expr::Bin(op, l, r) => Expr::Bin(
+            *op,
+            std::sync::Arc::new(recur(l)),
+            std::sync::Arc::new(recur(r)),
+        ),
+        Expr::Elementwise(op, l, r) => Expr::Elementwise(
+            *op,
+            std::sync::Arc::new(recur(l)),
+            std::sync::Arc::new(recur(r)),
+        ),
+        Expr::Rel(op, l, r) => Expr::Rel(
+            *op,
+            std::sync::Arc::new(recur(l)),
+            std::sync::Arc::new(recur(r)),
+        ),
+        Expr::And(l, r) => Expr::And(std::sync::Arc::new(recur(l)), std::sync::Arc::new(recur(r))),
+        Expr::Or(l, r) => Expr::Or(std::sync::Arc::new(recur(l)), std::sync::Arc::new(recur(r))),
+        Expr::If(c, a, b) => Expr::If(
+            std::sync::Arc::new(recur(c)),
+            std::sync::Arc::new(recur(a)),
+            std::sync::Arc::new(recur(b)),
+        ),
         // And the same, further down. The walk used to stop at every
         // node it did not name, and an array or an element of a call's
         // answer was one: `(r64, state64) = random(previous(state64))`

@@ -343,12 +343,12 @@ fn a_call_carrying_its_own_rule_is_worked_on_through_the_value() {
     // point of a rule - so the answers below can only come from it.
     let node = |argument: Expr| {
         Expr::WithDerivative(
-            Box::new(Expr::Bin(
+            std::sync::Arc::new(Expr::Bin(
                 oxidelica_parser::BinOp::Mul,
-                Box::new(argument.clone()),
-                Box::new(argument.clone()),
+                std::sync::Arc::new(argument.clone()),
+                std::sync::Arc::new(argument.clone()),
             )),
-            Box::new(expr_of(
+            std::sync::Arc::new(expr_of(
                 "(if a >= 0 and not (a < 0) or false then 1 else -1) * 2 * a * seed0",
             )),
             vec![("seed0".to_string(), argument)],
@@ -1070,16 +1070,16 @@ fn a_slope_is_folded_in_one_walk_rather_than_one_per_name() {
                 let (left, right) = names.split_at(names.len() / 2);
                 Expr::Bin(
                     oxidelica_parser::BinOp::Add,
-                    Box::new(balanced(left)),
-                    Box::new(balanced(right)),
+                    std::sync::Arc::new(balanced(left)),
+                    std::sync::Arc::new(balanced(right)),
                 )
             }
         }
     }
     let rhs = Expr::Bin(
         oxidelica_parser::BinOp::Mul,
-        Box::new(Expr::Ref("a".to_string())),
-        Box::new(balanced(&names)),
+        std::sync::Arc::new(Expr::Ref("a".to_string())),
+        std::sync::Arc::new(balanced(&names)),
     );
     let known: HashMap<String, f64> = names.iter().map(|n| (n.clone(), 1.0)).collect();
     let started = std::time::Instant::now();
@@ -1227,12 +1227,12 @@ fn a_call_on_a_still_value_with_its_own_rule_does_not_move() {
         holding: &[],
     };
     let ruled = Expr::WithDerivative(
-        Box::new(Expr::Number(2.0)),
-        Box::new(Expr::Ref("$seed0".to_string())),
+        std::sync::Arc::new(Expr::Number(2.0)),
+        std::sync::Arc::new(Expr::Ref("$seed0".to_string())),
         vec![("$seed0".to_string(), Expr::Number(101325.0))],
     );
     let expr = Expr::Index(
-        Box::new(Expr::Call(
+        std::sync::Arc::new(Expr::Call(
             "Lib.f".to_string(),
             vec![Expr::Number(101325.0), ruled],
         )),
@@ -1328,8 +1328,8 @@ fn rates_of_the_worked_pair() {
                 expr_of("3 * a - b"),
                 Expr::Bin(
                     oxidelica_parser::BinOp::Mul,
-                    Box::new(Expr::Number(2.0)),
-                    Box::new(Expr::Time),
+                    std::sync::Arc::new(Expr::Number(2.0)),
+                    std::sync::Arc::new(Expr::Time),
                 ),
             ),
         ),

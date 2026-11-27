@@ -1307,18 +1307,18 @@ mod tests {
     #[test]
     fn a_construction_that_is_not_a_scalar_says_what_it_is() {
         let name = |text: &str| Expr::Ref(text.to_string());
-        let one = || Box::new(Expr::Number(1.0));
+        let one = || std::sync::Arc::new(Expr::Number(1.0));
         for (expr, expected) in [
             (
-                Expr::Index(Box::new(name("v")), vec![Expr::Number(2.0)]),
+                Expr::Index(std::sync::Arc::new(name("v")), vec![Expr::Number(2.0)]),
                 "`v` subscripted by",
             ),
             (
-                Expr::Member(Box::new(name("r")), "field".to_string()),
+                Expr::Member(std::sync::Arc::new(name("r")), "field".to_string()),
                 "`r.field`, a field of a record",
             ),
             (
-                Expr::Member(Box::new(Expr::Number(1.0)), "field".to_string()),
+                Expr::Member(std::sync::Arc::new(Expr::Number(1.0)), "field".to_string()),
                 "`.field`, a field of a record",
             ),
             (Expr::Array(vec![Expr::Number(1.0)]), "an array of 1"),
@@ -1350,7 +1350,7 @@ mod tests {
         // A subscript that is itself a construction is named the same
         // way, one level down.
         let nested = shape_of(&Expr::Index(
-            Box::new(Expr::Array(vec![Expr::Number(1.0)])),
+            std::sync::Arc::new(Expr::Array(vec![Expr::Number(1.0)])),
             vec![Expr::ColonSubscript],
         ));
         assert!(nested.contains("a `:` subscript"), "{nested}");
@@ -1374,7 +1374,7 @@ mod outside_places {
         };
         let call = |place: f64| {
             Expr::Index(
-                Box::new(Expr::Call(
+                std::sync::Arc::new(Expr::Call(
                     "ModelicaRandom_xorshift64star".to_string(),
                     vec![Expr::Array(vec![Expr::Number(1.0), Expr::Number(0.0)])],
                 )),
@@ -1393,7 +1393,7 @@ mod outside_places {
         // An argument that is not settled leaves the refusal to the
         // layer that knows the name.
         let unsettled = Expr::Index(
-            Box::new(Expr::Call(
+            std::sync::Arc::new(Expr::Call(
                 "ModelicaRandom_xorshift64star".to_string(),
                 vec![Expr::Ref("nowhere".to_string())],
             )),
@@ -1402,11 +1402,14 @@ mod outside_places {
         assert!(eval(&unsettled, &ctx).is_err());
         // A member is not a place of an answer and keeps its own
         // refusal.
-        let member = Expr::Member(Box::new(Expr::Ref("r".to_string())), "x".to_string());
+        let member = Expr::Member(
+            std::sync::Arc::new(Expr::Ref("r".to_string())),
+            "x".to_string(),
+        );
         assert!(eval(&member, &ctx).is_err());
         // A name nobody here answers for keeps the old refusal.
         let elsewhere = Expr::Index(
-            Box::new(Expr::Call("nobody".to_string(), vec![])),
+            std::sync::Arc::new(Expr::Call("nobody".to_string(), vec![])),
             vec![Expr::Number(1.0)],
         );
         let why = eval(&elsewhere, &ctx).unwrap_err().0;
@@ -1431,7 +1434,7 @@ mod outside_places {
         };
         let draw = |place: f64| {
             Expr::Index(
-                Box::new(Expr::Call(
+                std::sync::Arc::new(Expr::Call(
                     "ModelicaRandom_xorshift64star".to_string(),
                     vec![Expr::Array(vec![
                         Expr::Number(427651634.0),
@@ -1443,7 +1446,7 @@ mod outside_places {
         };
         let list = |place: f64| {
             Expr::Index(
-                Box::new(Expr::Array(vec![draw(2.0), draw(3.0)])),
+                std::sync::Arc::new(Expr::Array(vec![draw(2.0), draw(3.0)])),
                 vec![Expr::Number(place)],
             )
         };

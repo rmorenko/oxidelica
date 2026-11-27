@@ -271,15 +271,15 @@ pub(super) fn build_state_machines(
     let is = |name: &str, index: usize| {
         Expr::Rel(
             crate::ast::RelOp::Eq,
-            Box::new(Expr::Ref(name.to_string())),
-            Box::new(Expr::Number(index as f64)),
+            std::sync::Arc::new(Expr::Ref(name.to_string())),
+            std::sync::Arc::new(Expr::Number(index as f64)),
         )
     };
     let was = |name: &str, index: usize| {
         Expr::Rel(
             crate::ast::RelOp::Eq,
-            Box::new(previous_of(name)),
-            Box::new(Expr::Number(index as f64)),
+            std::sync::Arc::new(previous_of(name)),
+            std::sync::Arc::new(Expr::Number(index as f64)),
         )
     };
 
@@ -291,14 +291,17 @@ pub(super) fn build_state_machines(
         let (outer, at) = machine.inside?;
         let alive = is(&state_var(outer), at);
         let arrived = Expr::And(
-            Box::new(Expr::Not(Box::new(was(&state_var(outer), at)))),
-            Box::new(Expr::Rel(
+            std::sync::Arc::new(Expr::Not(std::sync::Arc::new(was(&state_var(outer), at)))),
+            std::sync::Arc::new(Expr::Rel(
                 crate::ast::RelOp::Gt,
-                Box::new(Expr::Ref(reset_var(outer))),
-                Box::new(Expr::Number(0.5)),
+                std::sync::Arc::new(Expr::Ref(reset_var(outer))),
+                std::sync::Arc::new(Expr::Number(0.5)),
             )),
         );
-        Some((alive.clone(), Expr::And(Box::new(alive), Box::new(arrived))))
+        Some((
+            alive.clone(),
+            Expr::And(std::sync::Arc::new(alive), std::sync::Arc::new(arrived)),
+        ))
     };
 
     // The states a machine may stop in: those no arrow leaves. A
@@ -316,7 +319,7 @@ pub(super) fn build_state_machines(
             }
             let here = was(&state_var(tag), at);
             resting = Some(match resting {
-                Some(so_far) => Expr::Or(Box::new(so_far), Box::new(here)),
+                Some(so_far) => Expr::Or(std::sync::Arc::new(so_far), std::sync::Arc::new(here)),
                 None => here,
             });
         }
@@ -345,8 +348,8 @@ pub(super) fn build_state_machines(
         let mut guards: Vec<(Expr, &Transition)> = Vec::new();
         for (index, transition) in &arrows {
             let mut ready = Expr::And(
-                Box::new(was(&active, index_of(&transition.from) as usize)),
-                Box::new(look_back(&transition.condition, &in_a_state)),
+                std::sync::Arc::new(was(&active, index_of(&transition.from) as usize)),
+                std::sync::Arc::new(look_back(&transition.condition, &in_a_state)),
             );
             // A `synchronize` arrow waits for the machines inside the
             // state it leaves to have finished.
@@ -365,9 +368,9 @@ pub(super) fn build_state_machines(
                     ));
                 };
                 let finished = inside.fold(first, |so_far, one| {
-                    Expr::And(Box::new(so_far), Box::new(one))
+                    Expr::And(std::sync::Arc::new(so_far), std::sync::Arc::new(one))
                 });
-                ready = Expr::And(Box::new(ready), Box::new(finished));
+                ready = Expr::And(std::sync::Arc::new(ready), std::sync::Arc::new(finished));
             }
             let guard = if transition.immediate {
                 ready
@@ -382,76 +385,79 @@ pub(super) fn build_state_machines(
         let mut resets_now = Expr::Number(0.0);
         for (guard, transition) in guards.iter().rev() {
             next = Expr::If(
-                Box::new(guard.clone()),
-                Box::new(Expr::Number(index_of(&transition.to))),
-                Box::new(next),
+                std::sync::Arc::new(guard.clone()),
+                std::sync::Arc::new(Expr::Number(index_of(&transition.to))),
+                std::sync::Arc::new(next),
             );
             // Only the arrow taken decides whether what it arrives at is
             // put back to its start values.
             resets_now = Expr::If(
-                Box::new(guard.clone()),
-                Box::new(Expr::Number(if transition.reset { 1.0 } else { 0.0 })),
-                Box::new(resets_now),
+                std::sync::Arc::new(guard.clone()),
+                std::sync::Arc::new(Expr::Number(if transition.reset { 1.0 } else { 0.0 })),
+                std::sync::Arc::new(resets_now),
             );
         }
 
         let nowhere = -1.0;
         let first_tick = Expr::Rel(
             crate::ast::RelOp::Lt,
-            Box::new(previous_of(&active)),
-            Box::new(Expr::Number(0.0)),
+            std::sync::Arc::new(previous_of(&active)),
+            std::sync::Arc::new(Expr::Number(0.0)),
         );
         // Before the first tick the machine is nowhere, so the first
         // tick is an arrival at the state it starts in like any other -
         // which is what makes that state's variables start from their
         // start values.
         let mut next = Expr::If(
-            Box::new(first_tick.clone()),
-            Box::new(Expr::Number(0.0)),
-            Box::new(next),
+            std::sync::Arc::new(first_tick.clone()),
+            std::sync::Arc::new(Expr::Number(0.0)),
+            std::sync::Arc::new(next),
         );
         let mut resets_now = Expr::If(
-            Box::new(first_tick),
-            Box::new(Expr::Number(1.0)),
-            Box::new(resets_now),
+            std::sync::Arc::new(first_tick),
+            std::sync::Arc::new(Expr::Number(1.0)),
+            std::sync::Arc::new(resets_now),
         );
         let mut ticks_now = Expr::If(
-            Box::new(Expr::Rel(
+            std::sync::Arc::new(Expr::Rel(
                 crate::ast::RelOp::Eq,
-                Box::new(Expr::Ref(active.clone())),
-                Box::new(previous_of(&active)),
+                std::sync::Arc::new(Expr::Ref(active.clone())),
+                std::sync::Arc::new(previous_of(&active)),
             )),
-            Box::new(Expr::Bin(
+            std::sync::Arc::new(Expr::Bin(
                 BinOp::Add,
-                Box::new(previous_of(&ticks)),
-                Box::new(Expr::Number(1.0)),
+                std::sync::Arc::new(previous_of(&ticks)),
+                std::sync::Arc::new(Expr::Number(1.0)),
             )),
-            Box::new(Expr::Number(0.0)),
+            std::sync::Arc::new(Expr::Number(0.0)),
         );
         // A machine inside a state holds still while that state is not
         // the one in force, and starts over where it was entered afresh.
         if let Some((alive, restart)) = held_by(machine) {
             next = Expr::If(
-                Box::new(restart),
-                Box::new(Expr::Number(0.0)),
-                Box::new(Expr::If(
-                    Box::new(alive.clone()),
-                    Box::new(next),
-                    Box::new(previous_of(&active)),
+                std::sync::Arc::new(restart),
+                std::sync::Arc::new(Expr::Number(0.0)),
+                std::sync::Arc::new(Expr::If(
+                    std::sync::Arc::new(alive.clone()),
+                    std::sync::Arc::new(next),
+                    std::sync::Arc::new(previous_of(&active)),
                 )),
             );
             resets_now = Expr::If(
-                Box::new(alive.clone()),
-                Box::new(resets_now),
-                Box::new(Expr::Number(0.0)),
+                std::sync::Arc::new(alive.clone()),
+                std::sync::Arc::new(resets_now),
+                std::sync::Arc::new(Expr::Number(0.0)),
             );
             ticks_now = Expr::If(
-                Box::new(alive.clone()),
-                Box::new(ticks_now),
-                Box::new(previous_of(&ticks)),
+                std::sync::Arc::new(alive.clone()),
+                std::sync::Arc::new(ticks_now),
+                std::sync::Arc::new(previous_of(&ticks)),
             );
             for (_, value) in &mut armed {
-                *value = Expr::And(Box::new(alive.clone()), Box::new(value.clone()));
+                *value = Expr::And(
+                    std::sync::Arc::new(alive.clone()),
+                    std::sync::Arc::new(value.clone()),
+                );
             }
         }
 
@@ -531,27 +537,31 @@ pub(super) fn build_state_machines(
         let in_force = is(&active, state);
         let holding = previous_of(target);
         let mut value = Expr::If(
-            Box::new(in_force.clone()),
-            Box::new(equation.rhs),
-            Box::new(holding),
+            std::sync::Arc::new(in_force.clone()),
+            std::sync::Arc::new(equation.rhs),
+            std::sync::Arc::new(holding),
         );
         // Arriving here puts this state's variables back to their start
         // values where the arrow taken asked for it - the arrow, not
         // the state: one leading here may ask and another not.
         let entered = Expr::And(
-            Box::new(in_force),
-            Box::new(Expr::Not(Box::new(was(&active, state)))),
+            std::sync::Arc::new(in_force),
+            std::sync::Arc::new(Expr::Not(std::sync::Arc::new(was(&active, state)))),
         );
         let asked = Expr::And(
-            Box::new(entered),
-            Box::new(Expr::Rel(
+            std::sync::Arc::new(entered),
+            std::sync::Arc::new(Expr::Rel(
                 crate::ast::RelOp::Gt,
-                Box::new(Expr::Ref(resetting)),
-                Box::new(Expr::Number(0.5)),
+                std::sync::Arc::new(Expr::Ref(resetting)),
+                std::sync::Arc::new(Expr::Number(0.5)),
             )),
         );
         let back_to = starts.get(target).cloned().unwrap_or(Expr::Number(0.0));
-        value = Expr::If(Box::new(asked), Box::new(back_to), Box::new(value));
+        value = Expr::If(
+            std::sync::Arc::new(asked),
+            std::sync::Arc::new(back_to),
+            std::sync::Arc::new(value),
+        );
         clock_of.insert(target.clone(), clock);
         kept.push(EquationItem {
             lhs: equation.lhs,
@@ -578,9 +588,9 @@ pub(super) fn build_state_machines(
         let mut value = previous_of(&target);
         for (tag, at, rhs) in says.iter().rev() {
             value = Expr::If(
-                Box::new(is(&state_var(*tag), *at)),
-                Box::new(rhs.clone()),
-                Box::new(value),
+                std::sync::Arc::new(is(&state_var(*tag), *at)),
+                std::sync::Arc::new(rhs.clone()),
+                std::sync::Arc::new(value),
             );
         }
         clock_of.insert(target.clone(), clock);
@@ -653,13 +663,25 @@ pub(super) fn look_back(expr: &Expr, owner: &impl Fn(&str) -> Option<usize>) -> 
             Expr::Call("previous".to_string(), vec![expr.clone()])
         }
         Expr::Call(name, args) => Expr::Call(name.clone(), args.iter().map(recur).collect()),
-        Expr::Neg(inner) => Expr::Neg(Box::new(recur(inner))),
-        Expr::Not(inner) => Expr::Not(Box::new(recur(inner))),
-        Expr::Bin(op, l, r) => Expr::Bin(*op, Box::new(recur(l)), Box::new(recur(r))),
-        Expr::Rel(op, l, r) => Expr::Rel(*op, Box::new(recur(l)), Box::new(recur(r))),
-        Expr::And(l, r) => Expr::And(Box::new(recur(l)), Box::new(recur(r))),
-        Expr::Or(l, r) => Expr::Or(Box::new(recur(l)), Box::new(recur(r))),
-        Expr::If(c, a, b) => Expr::If(Box::new(recur(c)), Box::new(recur(a)), Box::new(recur(b))),
+        Expr::Neg(inner) => Expr::Neg(std::sync::Arc::new(recur(inner))),
+        Expr::Not(inner) => Expr::Not(std::sync::Arc::new(recur(inner))),
+        Expr::Bin(op, l, r) => Expr::Bin(
+            *op,
+            std::sync::Arc::new(recur(l)),
+            std::sync::Arc::new(recur(r)),
+        ),
+        Expr::Rel(op, l, r) => Expr::Rel(
+            *op,
+            std::sync::Arc::new(recur(l)),
+            std::sync::Arc::new(recur(r)),
+        ),
+        Expr::And(l, r) => Expr::And(std::sync::Arc::new(recur(l)), std::sync::Arc::new(recur(r))),
+        Expr::Or(l, r) => Expr::Or(std::sync::Arc::new(recur(l)), std::sync::Arc::new(recur(r))),
+        Expr::If(c, a, b) => Expr::If(
+            std::sync::Arc::new(recur(c)),
+            std::sync::Arc::new(recur(a)),
+            std::sync::Arc::new(recur(b)),
+        ),
         _ => expr.clone(),
     }
 }
@@ -682,8 +704,8 @@ pub(super) fn machine_queries(
             match wanted {
                 Some((tag, at)) => Expr::Rel(
                     crate::ast::RelOp::Eq,
-                    Box::new(Expr::Ref(state_var(*tag))),
-                    Box::new(Expr::Number(*at as f64)),
+                    std::sync::Arc::new(Expr::Ref(state_var(*tag))),
+                    std::sync::Arc::new(Expr::Number(*at as f64)),
                 ),
                 None => Expr::Call(name.clone(), args.iter().map(recur).collect()),
             }
@@ -693,17 +715,29 @@ pub(super) fn machine_queries(
         }
         Expr::Call(name, args) if name == "timeInState" && args.is_empty() => Expr::Bin(
             BinOp::Mul,
-            Box::new(Expr::Ref(ticks.to_string())),
-            Box::new(Expr::Number(period)),
+            std::sync::Arc::new(Expr::Ref(ticks.to_string())),
+            std::sync::Arc::new(Expr::Number(period)),
         ),
         Expr::Call(name, args) => Expr::Call(name.clone(), args.iter().map(recur).collect()),
-        Expr::Neg(inner) => Expr::Neg(Box::new(recur(inner))),
-        Expr::Not(inner) => Expr::Not(Box::new(recur(inner))),
-        Expr::Bin(op, l, r) => Expr::Bin(*op, Box::new(recur(l)), Box::new(recur(r))),
-        Expr::Rel(op, l, r) => Expr::Rel(*op, Box::new(recur(l)), Box::new(recur(r))),
-        Expr::And(l, r) => Expr::And(Box::new(recur(l)), Box::new(recur(r))),
-        Expr::Or(l, r) => Expr::Or(Box::new(recur(l)), Box::new(recur(r))),
-        Expr::If(c, a, b) => Expr::If(Box::new(recur(c)), Box::new(recur(a)), Box::new(recur(b))),
+        Expr::Neg(inner) => Expr::Neg(std::sync::Arc::new(recur(inner))),
+        Expr::Not(inner) => Expr::Not(std::sync::Arc::new(recur(inner))),
+        Expr::Bin(op, l, r) => Expr::Bin(
+            *op,
+            std::sync::Arc::new(recur(l)),
+            std::sync::Arc::new(recur(r)),
+        ),
+        Expr::Rel(op, l, r) => Expr::Rel(
+            *op,
+            std::sync::Arc::new(recur(l)),
+            std::sync::Arc::new(recur(r)),
+        ),
+        Expr::And(l, r) => Expr::And(std::sync::Arc::new(recur(l)), std::sync::Arc::new(recur(r))),
+        Expr::Or(l, r) => Expr::Or(std::sync::Arc::new(recur(l)), std::sync::Arc::new(recur(r))),
+        Expr::If(c, a, b) => Expr::If(
+            std::sync::Arc::new(recur(c)),
+            std::sync::Arc::new(recur(a)),
+            std::sync::Arc::new(recur(b)),
+        ),
         _ => expr.clone(),
     }
 }

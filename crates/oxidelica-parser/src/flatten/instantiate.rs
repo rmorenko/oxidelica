@@ -1689,16 +1689,18 @@ where
         }
         let mut guard: Option<Expr> = None;
         for earlier in conditions.iter().take(position) {
-            let denied = Expr::Not(Box::new(earlier.clone()));
+            let denied = Expr::Not(std::sync::Arc::new(earlier.clone()));
             guard = Some(match guard {
                 None => denied,
-                Some(built) => Expr::And(Box::new(built), Box::new(denied)),
+                Some(built) => Expr::And(std::sync::Arc::new(built), std::sync::Arc::new(denied)),
             });
         }
         if let Some(own) = conditions.get(position) {
             guard = Some(match guard {
                 None => own.clone(),
-                Some(built) => Expr::And(Box::new(built), Box::new(own.clone())),
+                Some(built) => {
+                    Expr::And(std::sync::Arc::new(built), std::sync::Arc::new(own.clone()))
+                }
             });
         }
         for (condition, message) in &branch.asserts {
@@ -1706,8 +1708,8 @@ where
             let held = match &guard {
                 None => condition,
                 Some(guard) => Expr::Or(
-                    Box::new(Expr::Not(Box::new(guard.clone()))),
-                    Box::new(condition),
+                    std::sync::Arc::new(Expr::Not(std::sync::Arc::new(guard.clone()))),
+                    std::sync::Arc::new(condition),
                 ),
             };
             acc.asserts.push((held, message.clone()));
@@ -1742,9 +1744,9 @@ where
                 }
                 for index in (0..last).rev() {
                     value = Expr::If(
-                        Box::new(conditions[index].clone()),
-                        Box::new(pick(&branches[index][position]).clone()),
-                        Box::new(value),
+                        std::sync::Arc::new(conditions[index].clone()),
+                        std::sync::Arc::new(pick(&branches[index][position]).clone()),
+                        std::sync::Arc::new(value),
                     );
                 }
                 value

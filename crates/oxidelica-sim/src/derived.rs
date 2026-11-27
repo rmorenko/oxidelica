@@ -457,7 +457,7 @@ fn derive(
     derived.derivative = None;
     derived.annotations = vec![Expr::NamedArg(
         "smoothOrder".to_string(),
-        Box::new(Expr::Number(order - 1.0)),
+        std::sync::Arc::new(Expr::Number(order - 1.0)),
     )];
     Ok((derived, mask))
 }

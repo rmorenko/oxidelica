@@ -942,40 +942,52 @@ pub enum Expr {
     /// differentiation reaches for instead of taking the body apart.
     /// Keeping both is what lets a body the differentiator cannot read -
     /// one with `abs` in it, say - still be differentiated.
-    WithDerivative(Box<Expr>, Box<Expr>, Vec<(String, Expr)>),
+    WithDerivative(
+        std::sync::Arc<Expr>,
+        std::sync::Arc<Expr>,
+        Vec<(String, Expr)>,
+    ),
     /// Function call, including `der(x)`.
     Call(String, Vec<Expr>),
     /// Unary minus.
-    Neg(Box<Expr>),
+    Neg(std::sync::Arc<Expr>),
     /// Binary arithmetic.
-    Bin(BinOp, Box<Expr>, Box<Expr>),
+    Bin(BinOp, std::sync::Arc<Expr>, std::sync::Arc<Expr>),
     /// Relational comparison.
-    Rel(RelOp, Box<Expr>, Box<Expr>),
+    Rel(RelOp, std::sync::Arc<Expr>, std::sync::Arc<Expr>),
     /// Logical `and`.
-    And(Box<Expr>, Box<Expr>),
+    And(std::sync::Arc<Expr>, std::sync::Arc<Expr>),
     /// Logical `or`.
-    Or(Box<Expr>, Box<Expr>),
+    Or(std::sync::Arc<Expr>, std::sync::Arc<Expr>),
     /// Logical `not`.
-    Not(Box<Expr>),
+    Not(std::sync::Arc<Expr>),
     /// `if c then a else b` (`elseif` chains become nested `If`s).
-    If(Box<Expr>, Box<Expr>, Box<Expr>),
+    If(
+        std::sync::Arc<Expr>,
+        std::sync::Arc<Expr>,
+        std::sync::Arc<Expr>,
+    ),
     /// Array subscript `name[i, j]`; resolved to a scalar reference
     /// while flattening.
-    Index(Box<Expr>, Vec<Expr>),
+    Index(std::sync::Arc<Expr>, Vec<Expr>),
     /// Member of a subscripted component: `points[i].x`.
-    Member(Box<Expr>, String),
+    Member(std::sync::Arc<Expr>, String),
     /// An array written out: `{1, 2, 3}`, or `{{1, 2}, {3, 4}}` for a
     /// matrix. Arrays are a compile-time shape here: flattening turns
     /// them into the scalars underneath.
     Array(Vec<Expr>),
     /// An operator written with a dot - `.*`, `./`, `.^` - which works
     /// element by element even where the plain one would not.
-    Elementwise(BinOp, Box<Expr>, Box<Expr>),
+    Elementwise(BinOp, std::sync::Arc<Expr>, std::sync::Arc<Expr>),
     /// A range `a:b` or `a:step:b`, a vector value whose bounds are
     /// compile-time constants.
-    Range(Box<Expr>, Option<Box<Expr>>, Box<Expr>),
+    Range(
+        std::sync::Arc<Expr>,
+        Option<std::sync::Arc<Expr>>,
+        std::sync::Arc<Expr>,
+    ),
     /// `{expr for i in range}` - an array built by iterating.
-    Comprehension(Box<Expr>, String, Box<Expr>),
+    Comprehension(std::sync::Arc<Expr>, String, std::sync::Arc<Expr>),
     /// A bare `:` as a subscript: the whole of that dimension.
     ColonSubscript,
     /// `end` inside a subscript: the length of that dimension.
@@ -985,7 +997,7 @@ pub enum Expr {
     MatrixRows(Vec<Vec<Expr>>),
     /// `gain = 2` inside a call's argument list; matched against the
     /// function's inputs by name when the call is inlined.
-    NamedArg(String, Box<Expr>),
+    NamedArg(String, std::sync::Arc<Expr>),
     /// `(a, , c)` on the left of an equation: targets for a function
     /// with several outputs, `None` where one is skipped.
     Tuple(Vec<Option<Expr>>),
@@ -1008,7 +1020,7 @@ impl Expr {
     /// still writes what it means by hand. This takes only the
     /// machinery.
     pub fn map_children(&self, f: &mut dyn FnMut(&Expr) -> Expr) -> Expr {
-        let one = |e: &Expr, f: &mut dyn FnMut(&Expr) -> Expr| Box::new(f(e));
+        let one = |e: &Expr, f: &mut dyn FnMut(&Expr) -> Expr| std::sync::Arc::new(f(e));
         match self {
             // Nothing below them to map.
             Expr::Number(_)
@@ -1078,43 +1090,43 @@ impl Expr {
             | Expr::Time
             | Expr::ColonSubscript
             | Expr::EndSubscript => {}
-            Expr::Neg(inner) | Expr::Not(inner) => f(inner),
-            Expr::Member(base, _) => f(base),
-            Expr::NamedArg(_, value) => f(value),
+            Expr::Neg(inner) | Expr::Not(inner) => f(std::sync::Arc::make_mut(inner)),
+            Expr::Member(base, _) => f(std::sync::Arc::make_mut(base)),
+            Expr::NamedArg(_, value) => f(std::sync::Arc::make_mut(value)),
             Expr::Bin(_, l, r)
             | Expr::Elementwise(_, l, r)
             | Expr::Rel(_, l, r)
             | Expr::And(l, r)
             | Expr::Or(l, r) => {
-                f(l);
-                f(r);
+                f(std::sync::Arc::make_mut(l));
+                f(std::sync::Arc::make_mut(r));
             }
             Expr::If(c, a, b) => {
-                f(c);
-                f(a);
-                f(b);
+                f(std::sync::Arc::make_mut(c));
+                f(std::sync::Arc::make_mut(a));
+                f(std::sync::Arc::make_mut(b));
             }
             Expr::Comprehension(body, _, over) => {
-                f(body);
-                f(over);
+                f(std::sync::Arc::make_mut(body));
+                f(std::sync::Arc::make_mut(over));
             }
             Expr::Range(from, step, to) => {
-                f(from);
+                f(std::sync::Arc::make_mut(from));
                 if let Some(step) = step {
-                    f(step);
+                    f(std::sync::Arc::make_mut(step));
                 }
-                f(to);
+                f(std::sync::Arc::make_mut(to));
             }
             Expr::Call(_, items) | Expr::Array(items) => items.iter_mut().for_each(f),
             Expr::Tuple(items) => items.iter_mut().flatten().for_each(f),
             Expr::Index(base, subscripts) => {
-                f(base);
+                f(std::sync::Arc::make_mut(base));
                 subscripts.iter_mut().for_each(f);
             }
             Expr::MatrixRows(rows) => rows.iter_mut().flatten().for_each(f),
             Expr::WithDerivative(value, rule, seeds) => {
-                f(value);
-                f(rule);
+                f(std::sync::Arc::make_mut(value));
+                f(std::sync::Arc::make_mut(rule));
                 seeds.iter_mut().for_each(|(_, arg)| f(arg));
             }
         }
@@ -1128,7 +1140,7 @@ impl Expr {
     ) -> Result<Expr, E> {
         macro_rules! one {
             ($e:expr) => {
-                Box::new(f($e)?)
+                std::sync::Arc::new(f($e)?)
             };
         }
         Ok(match self {
@@ -1464,8 +1476,8 @@ mod tests {
 
     #[test]
     fn every_shape_of_expression_can_be_spelled() {
-        let x = || Box::new(r("x"));
-        let one = || Box::new(Expr::Number(1.0));
+        let x = || std::sync::Arc::new(r("x"));
+        let one = || std::sync::Arc::new(Expr::Number(1.0));
 
         assert_eq!(Expr::Str("hi".into()).describe(), "\"hi\"");
         assert_eq!(Expr::Number(1.5).describe(), "1.5");
@@ -1496,29 +1508,34 @@ mod tests {
 
         assert_eq!(
             Expr::And(
-                Box::new(Expr::Bool(true)),
-                Box::new(Expr::Or(x(), Box::new(Expr::Not(x()))))
+                std::sync::Arc::new(Expr::Bool(true)),
+                std::sync::Arc::new(Expr::Or(x(), std::sync::Arc::new(Expr::Not(x()))))
             )
             .describe(),
             "true and (x or (not x))"
         );
         assert_eq!(
-            Expr::If(x(), Box::new(Expr::Time), Box::new(Expr::Neg(one()))).describe(),
+            Expr::If(
+                x(),
+                std::sync::Arc::new(Expr::Time),
+                std::sync::Arc::new(Expr::Neg(one()))
+            )
+            .describe(),
             "if x then time else -1"
         );
         assert_eq!(
-            Expr::Call("f".into(), vec![*x(), *one()]).describe(),
+            Expr::Call("f".into(), vec![(*x()).clone(), (*one()).clone()]).describe(),
             "f(x, 1)"
         );
         // The rule beside a call is not shown: nobody wrote it.
         assert_eq!(Expr::WithDerivative(x(), one(), Vec::new()).describe(), "x");
         // And it is grouped as what is shown: a sum carrying its rule,
         // multiplied, keeps its brackets.
-        let sum = Box::new(Expr::Bin(BinOp::Add, x(), one()));
+        let sum = std::sync::Arc::new(Expr::Bin(BinOp::Add, x(), one()));
         assert_eq!(
             Expr::Bin(
                 BinOp::Mul,
-                Box::new(Expr::WithDerivative(sum, one(), Vec::new())),
+                std::sync::Arc::new(Expr::WithDerivative(sum, one(), Vec::new())),
                 x()
             )
             .describe(),
@@ -1526,48 +1543,64 @@ mod tests {
         );
 
         assert_eq!(
-            Expr::Index(x(), vec![*one(), Expr::ColonSubscript]).describe(),
+            Expr::Index(x(), vec![(*one()).clone(), Expr::ColonSubscript]).describe(),
             "x[1, :]"
         );
         assert_eq!(Expr::Member(x(), "y".into()).describe(), "x.y");
-        assert_eq!(Expr::Array(vec![*x(), *one()]).describe(), "{x, 1}");
+        assert_eq!(
+            Expr::Array(vec![(*x()).clone(), (*one()).clone()]).describe(),
+            "{x, 1}"
+        );
         assert_eq!(Expr::Range(one(), None, x()).describe(), "1:x");
         assert_eq!(Expr::Range(one(), Some(one()), x()).describe(), "1:1:x");
         assert_eq!(
-            Expr::Comprehension(x(), "i".into(), Box::new(Expr::Range(one(), None, x())))
-                .describe(),
+            Expr::Comprehension(
+                x(),
+                "i".into(),
+                std::sync::Arc::new(Expr::Range(one(), None, x()))
+            )
+            .describe(),
             "x for i in 1:x"
         );
         assert_eq!(Expr::ColonSubscript.describe(), ":");
         assert_eq!(Expr::EndSubscript.describe(), "end");
         assert_eq!(
-            Expr::MatrixRows(vec![vec![*one(), *x()], vec![*x()]]).describe(),
+            Expr::MatrixRows(vec![
+                vec![(*one()).clone(), (*x()).clone()],
+                vec![(*x()).clone()]
+            ])
+            .describe(),
             "[1, x; x]"
         );
         assert_eq!(Expr::NamedArg("k".into(), one()).describe(), "k = 1");
         assert_eq!(
-            Expr::Tuple(vec![Some(*x()), None, Some(*one())]).describe(),
+            Expr::Tuple(vec![Some((*x()).clone()), None, Some((*one()).clone())]).describe(),
             "(x, , 1)"
         );
     }
 
     #[test]
     fn a_spelling_does_not_regroup_what_it_spells() {
-        let a = || Box::new(r("a"));
-        let b = || Box::new(r("b"));
-        let c = || Box::new(r("c"));
+        let a = || std::sync::Arc::new(r("a"));
+        let b = || std::sync::Arc::new(r("b"));
+        let c = || std::sync::Arc::new(r("c"));
         // The whole reason for the brackets: without them this reads
         // as `a - b - c`, which is a different number.
         assert_eq!(
-            Expr::Bin(BinOp::Sub, a(), Box::new(Expr::Bin(BinOp::Sub, b(), c()))).describe(),
+            Expr::Bin(
+                BinOp::Sub,
+                a(),
+                std::sync::Arc::new(Expr::Bin(BinOp::Sub, b(), c()))
+            )
+            .describe(),
             "a - (b - c)"
         );
         // A part that cannot be misread keeps its brackets off.
         assert_eq!(
             Expr::Bin(
                 BinOp::Mul,
-                Box::new(Expr::Member(a(), "x".into())),
-                Box::new(Expr::Call("f".into(), vec![*b()]))
+                std::sync::Arc::new(Expr::Member(a(), "x".into())),
+                std::sync::Arc::new(Expr::Call("f".into(), vec![(*b()).clone()]))
             )
             .describe(),
             "a.x * f(b)"
@@ -1593,18 +1626,18 @@ mod tests {
     #[test]
     fn contains_der_walks_every_variant() {
         let deep = Expr::If(
-            Box::new(Expr::Rel(
+            std::sync::Arc::new(Expr::Rel(
                 RelOp::Lt,
-                Box::new(r("a")),
-                Box::new(Expr::Number(0.0)),
+                std::sync::Arc::new(r("a")),
+                std::sync::Arc::new(Expr::Number(0.0)),
             )),
-            Box::new(Expr::And(
-                Box::new(Expr::Bool(true)),
-                Box::new(Expr::Not(Box::new(r("b")))),
+            std::sync::Arc::new(Expr::And(
+                std::sync::Arc::new(Expr::Bool(true)),
+                std::sync::Arc::new(Expr::Not(std::sync::Arc::new(r("b")))),
             )),
-            Box::new(Expr::Or(
-                Box::new(Expr::Neg(Box::new(der("x")))),
-                Box::new(Expr::Time),
+            std::sync::Arc::new(Expr::Or(
+                std::sync::Arc::new(Expr::Neg(std::sync::Arc::new(der("x")))),
+                std::sync::Arc::new(Expr::Time),
             )),
         );
         assert!(deep.contains_der());
@@ -1614,36 +1647,42 @@ mod tests {
         // The array forms carry it too, wherever it hides in them.
         let hides_in = |expr: Expr| expr.contains_der();
         assert!(hides_in(Expr::Index(
-            Box::new(r("v")),
+            std::sync::Arc::new(r("v")),
             vec![Expr::Number(1.0), der("i")]
         )));
-        assert!(hides_in(Expr::Member(Box::new(der("p")), "x".into())));
+        assert!(hides_in(Expr::Member(
+            std::sync::Arc::new(der("p")),
+            "x".into()
+        )));
         assert!(hides_in(Expr::Array(vec![Expr::Number(0.0), der("x")])));
         assert!(hides_in(Expr::Elementwise(
             BinOp::Mul,
-            Box::new(r("a")),
-            Box::new(der("x"))
+            std::sync::Arc::new(r("a")),
+            std::sync::Arc::new(der("x"))
         )));
         assert!(hides_in(Expr::Range(
-            Box::new(Expr::Number(1.0)),
-            Some(Box::new(der("s"))),
-            Box::new(Expr::Number(9.0))
+            std::sync::Arc::new(Expr::Number(1.0)),
+            Some(std::sync::Arc::new(der("s"))),
+            std::sync::Arc::new(Expr::Number(9.0))
         )));
         assert!(hides_in(Expr::Range(
-            Box::new(Expr::Number(1.0)),
+            std::sync::Arc::new(Expr::Number(1.0)),
             None,
-            Box::new(der("n"))
+            std::sync::Arc::new(der("n"))
         )));
         assert!(hides_in(Expr::Comprehension(
-            Box::new(der("x")),
+            std::sync::Arc::new(der("x")),
             "i".into(),
-            Box::new(Expr::Number(3.0))
+            std::sync::Arc::new(Expr::Number(3.0))
         )));
         assert!(hides_in(Expr::MatrixRows(vec![
             vec![Expr::Number(1.0)],
             vec![der("x")]
         ])));
-        assert!(hides_in(Expr::NamedArg("k".into(), Box::new(der("x")))));
+        assert!(hides_in(Expr::NamedArg(
+            "k".into(),
+            std::sync::Arc::new(der("x"))
+        )));
         assert!(hides_in(Expr::Tuple(vec![None, Some(der("x"))])));
         // And where it does not hide, they say so.
         assert!(!Expr::ColonSubscript.contains_der());
@@ -1655,17 +1694,17 @@ mod tests {
     #[test]
     fn collect_refs_walks_every_variant() {
         let deep = Expr::If(
-            Box::new(Expr::Rel(
+            std::sync::Arc::new(Expr::Rel(
                 RelOp::Ge,
-                Box::new(r("a")),
-                Box::new(Expr::Number(1.0)),
+                std::sync::Arc::new(r("a")),
+                std::sync::Arc::new(Expr::Number(1.0)),
             )),
-            Box::new(Expr::Bin(
+            std::sync::Arc::new(Expr::Bin(
                 BinOp::Add,
-                Box::new(Expr::Not(Box::new(r("b")))),
-                Box::new(Expr::Call("sin".into(), vec![r("c")])),
+                std::sync::Arc::new(Expr::Not(std::sync::Arc::new(r("b")))),
+                std::sync::Arc::new(Expr::Call("sin".into(), vec![r("c")])),
             )),
-            Box::new(Expr::Neg(Box::new(Expr::Bool(false)))),
+            std::sync::Arc::new(Expr::Neg(std::sync::Arc::new(Expr::Bool(false)))),
         );
         let mut refs = Vec::new();
         deep.collect_refs(&mut refs);
@@ -1679,38 +1718,45 @@ mod tests {
         };
         assert_eq!(
             named(Expr::Index(
-                Box::new(r("v")),
+                std::sync::Arc::new(r("v")),
                 vec![r("i"), Expr::ColonSubscript]
             )),
             "v,i"
         );
-        assert_eq!(named(Expr::Member(Box::new(r("p")), "x".into())), "p");
+        assert_eq!(
+            named(Expr::Member(std::sync::Arc::new(r("p")), "x".into())),
+            "p"
+        );
         assert_eq!(named(Expr::Array(vec![r("a"), r("b")])), "a,b");
         assert_eq!(
             named(Expr::Elementwise(
                 BinOp::Div,
-                Box::new(r("a")),
-                Box::new(r("b"))
+                std::sync::Arc::new(r("a")),
+                std::sync::Arc::new(r("b"))
             )),
             "a,b"
         );
         assert_eq!(
             named(Expr::Range(
-                Box::new(r("lo")),
-                Some(Box::new(r("step"))),
-                Box::new(r("hi"))
+                std::sync::Arc::new(r("lo")),
+                Some(std::sync::Arc::new(r("step"))),
+                std::sync::Arc::new(r("hi"))
             )),
             "lo,step,hi"
         );
         assert_eq!(
-            named(Expr::Range(Box::new(r("lo")), None, Box::new(r("hi")))),
+            named(Expr::Range(
+                std::sync::Arc::new(r("lo")),
+                None,
+                std::sync::Arc::new(r("hi"))
+            )),
             "lo,hi"
         );
         assert_eq!(
             named(Expr::Comprehension(
-                Box::new(r("body")),
+                std::sync::Arc::new(r("body")),
                 "i".into(),
-                Box::new(r("range"))
+                std::sync::Arc::new(r("range"))
             )),
             "body,range"
         );
@@ -1718,7 +1764,10 @@ mod tests {
             named(Expr::MatrixRows(vec![vec![r("a"), r("b")], vec![r("c")]])),
             "a,b,c"
         );
-        assert_eq!(named(Expr::NamedArg("k".into(), Box::new(r("v")))), "v");
+        assert_eq!(
+            named(Expr::NamedArg("k".into(), std::sync::Arc::new(r("v")))),
+            "v"
+        );
         assert_eq!(
             named(Expr::Tuple(vec![Some(r("p")), None, Some(r("q"))])),
             "p,q"

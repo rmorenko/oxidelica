@@ -1682,9 +1682,11 @@ fn join_the_connections(registry: &HashMap<&str, &ClassDef>, acc: &mut Flat) -> 
                         .iter()
                         .map(|(path, outside)| match outside {
                             false => Expr::Ref(var(path)),
-                            true => Expr::Neg(Box::new(Expr::Ref(var(path)))),
+                            true => Expr::Neg(std::sync::Arc::new(Expr::Ref(var(path)))),
                         })
-                        .reduce(|a, b| Expr::Bin(BinOp::Add, Box::new(a), Box::new(b)))
+                        .reduce(|a, b| {
+                            Expr::Bin(BinOp::Add, std::sync::Arc::new(a), std::sync::Arc::new(b))
+                        })
                         .expect("non-empty set");
                     acc.equations.push(EquationItem {
                         lhs: sum,
@@ -2261,7 +2263,9 @@ fn settle_member_slices(model: &mut Model, shapes: &[(String, Vec<i64>)]) {
                         return Expr::Array(
                             left.into_iter()
                                 .zip(right)
-                                .map(|(a, b)| Expr::Bin(*op, Box::new(a), Box::new(b)))
+                                .map(|(a, b)| {
+                                    Expr::Bin(*op, std::sync::Arc::new(a), std::sync::Arc::new(b))
+                                })
                                 .collect(),
                         );
                     }
@@ -2279,7 +2283,11 @@ fn settle_member_slices(model: &mut Model, shapes: &[(String, Vec<i64>)]) {
                     let mut over = items.into_iter();
                     if let Some(first) = over.next() {
                         return over.fold(first, |so_far, item| match name.as_str() {
-                            "sum" => Expr::Bin(BinOp::Add, Box::new(so_far), Box::new(item)),
+                            "sum" => Expr::Bin(
+                                BinOp::Add,
+                                std::sync::Arc::new(so_far),
+                                std::sync::Arc::new(item),
+                            ),
                             other => Expr::Call(other.to_string(), vec![so_far, item]),
                         });
                     }
@@ -2288,8 +2296,12 @@ fn settle_member_slices(model: &mut Model, shapes: &[(String, Vec<i64>)]) {
         }
         match expr {
             Expr::Call(name, args) => Expr::Call(name.clone(), args.iter().map(recur).collect()),
-            Expr::Neg(inner) => Expr::Neg(Box::new(recur(inner))),
-            Expr::Bin(op, l, r) => Expr::Bin(*op, Box::new(recur(l)), Box::new(recur(r))),
+            Expr::Neg(inner) => Expr::Neg(std::sync::Arc::new(recur(inner))),
+            Expr::Bin(op, l, r) => Expr::Bin(
+                *op,
+                std::sync::Arc::new(recur(l)),
+                std::sync::Arc::new(recur(r)),
+            ),
             other => other.clone(),
         }
     }
@@ -2446,8 +2458,12 @@ fn per_element(expr: &Expr, known: &HashMap<&str, &Vec<i64>>, at: &[i64]) -> Exp
     }
     match expr {
         Expr::Call(name, args) => Expr::Call(name.clone(), args.iter().map(recur).collect()),
-        Expr::Neg(inner) => Expr::Neg(Box::new(recur(inner))),
-        Expr::Bin(op, l, r) => Expr::Bin(*op, Box::new(recur(l)), Box::new(recur(r))),
+        Expr::Neg(inner) => Expr::Neg(std::sync::Arc::new(recur(inner))),
+        Expr::Bin(op, l, r) => Expr::Bin(
+            *op,
+            std::sync::Arc::new(recur(l)),
+            std::sync::Arc::new(recur(r)),
+        ),
         other => other.clone(),
     }
 }
@@ -2524,15 +2540,29 @@ fn settle_sizes(model: &mut Model, shapes: &[(String, Vec<i64>)]) {
                     .map(|row| row.iter().map(recur).collect())
                     .collect(),
             ),
-            Expr::Neg(inner) => Expr::Neg(Box::new(recur(inner))),
-            Expr::Not(inner) => Expr::Not(Box::new(recur(inner))),
-            Expr::Bin(op, l, r) => Expr::Bin(*op, Box::new(recur(l)), Box::new(recur(r))),
-            Expr::Rel(op, l, r) => Expr::Rel(*op, Box::new(recur(l)), Box::new(recur(r))),
-            Expr::And(l, r) => Expr::And(Box::new(recur(l)), Box::new(recur(r))),
-            Expr::Or(l, r) => Expr::Or(Box::new(recur(l)), Box::new(recur(r))),
-            Expr::If(c, a, b) => {
-                Expr::If(Box::new(recur(c)), Box::new(recur(a)), Box::new(recur(b)))
+            Expr::Neg(inner) => Expr::Neg(std::sync::Arc::new(recur(inner))),
+            Expr::Not(inner) => Expr::Not(std::sync::Arc::new(recur(inner))),
+            Expr::Bin(op, l, r) => Expr::Bin(
+                *op,
+                std::sync::Arc::new(recur(l)),
+                std::sync::Arc::new(recur(r)),
+            ),
+            Expr::Rel(op, l, r) => Expr::Rel(
+                *op,
+                std::sync::Arc::new(recur(l)),
+                std::sync::Arc::new(recur(r)),
+            ),
+            Expr::And(l, r) => {
+                Expr::And(std::sync::Arc::new(recur(l)), std::sync::Arc::new(recur(r)))
             }
+            Expr::Or(l, r) => {
+                Expr::Or(std::sync::Arc::new(recur(l)), std::sync::Arc::new(recur(r)))
+            }
+            Expr::If(c, a, b) => Expr::If(
+                std::sync::Arc::new(recur(c)),
+                std::sync::Arc::new(recur(a)),
+                std::sync::Arc::new(recur(b)),
+            ),
             other => other.clone(),
         }
     }
@@ -3022,9 +3052,9 @@ fn merged_on_a_tick(conditional: &ConditionalEquations) -> Option<Vec<EquationIt
         let mut value = written(&conditional.branches[last], name);
         for index in (0..last).rev() {
             value = Expr::If(
-                Box::new(conditional.conditions[index].clone()),
-                Box::new(written(&conditional.branches[index], name)),
-                Box::new(value),
+                std::sync::Arc::new(conditional.conditions[index].clone()),
+                std::sync::Arc::new(written(&conditional.branches[index], name)),
+                std::sync::Arc::new(value),
             );
         }
         let origin = conditional.branches[0]
@@ -3137,20 +3167,20 @@ fn semilinear_at_zero(equation: &EquationItem) -> Option<EquationItem> {
     Some(EquationItem {
         lhs: other.clone(),
         rhs: Expr::If(
-            Box::new(Expr::Rel(
+            std::sync::Arc::new(Expr::Rel(
                 RelOp::Eq,
-                Box::new(flow.clone()),
-                Box::new(Expr::Number(0.0)),
+                std::sync::Arc::new(flow.clone()),
+                std::sync::Arc::new(Expr::Number(0.0)),
             )),
             // At zero flow the transported quantity is zero, and what
             // the equation is worth is carried in its place: the
             // difference of the two enthalpies, which has to vanish.
-            Box::new(Expr::Bin(
+            std::sync::Arc::new(Expr::Bin(
                 BinOp::Sub,
-                Box::new(positive.clone()),
-                Box::new(negative.clone()),
+                std::sync::Arc::new(positive.clone()),
+                std::sync::Arc::new(negative.clone()),
             )),
-            Box::new(transport),
+            std::sync::Arc::new(transport),
         ),
         origin: equation.origin.clone(),
     })
@@ -3239,16 +3269,16 @@ fn semilinear_chains(equations: &mut [EquationItem]) -> HashSet<usize> {
             continue;
         }
         let flow = Expr::Ref(up.flow.clone());
-        let condition = Box::new(Expr::Rel(
+        let condition = std::sync::Arc::new(Expr::Rel(
             RelOp::Ge,
-            Box::new(flow.clone()),
-            Box::new(Expr::Number(0.0)),
+            std::sync::Arc::new(flow.clone()),
+            std::sync::Arc::new(Expr::Number(0.0)),
         ));
         let carry = |h: &str| {
-            Box::new(Expr::Bin(
+            std::sync::Arc::new(Expr::Bin(
                 BinOp::Mul,
-                Box::new(Expr::Ref(h.to_string())),
-                Box::new(flow.clone()),
+                std::sync::Arc::new(Expr::Ref(h.to_string())),
+                std::sync::Arc::new(flow.clone()),
             ))
         };
         let merged = Expr::If(
@@ -3267,8 +3297,8 @@ fn semilinear_chains(equations: &mut [EquationItem]) -> HashSet<usize> {
             lhs: Expr::Ref(up.negative.clone()),
             rhs: Expr::If(
                 condition,
-                Box::new(Expr::Ref(up.positive.clone())),
-                Box::new(Expr::Ref(down.negative.clone())),
+                std::sync::Arc::new(Expr::Ref(up.positive.clone())),
+                std::sync::Arc::new(Expr::Ref(down.negative.clone())),
             ),
             origin,
         };

@@ -997,7 +997,7 @@ impl Parser {
             Token::Assign => {
                 self.bump();
                 let value = self.expr()?;
-                Ok(Expr::NamedArg(name, Box::new(value)))
+                Ok(Expr::NamedArg(name, std::sync::Arc::new(value)))
             }
             Token::LParen => {
                 self.pos -= 1;
@@ -1019,7 +1019,7 @@ impl Parser {
                 {
                     self.bump();
                     let value = self.expr()?;
-                    return Ok(Expr::NamedArg(called, Box::new(value)));
+                    return Ok(Expr::NamedArg(called, std::sync::Arc::new(value)));
                 }
                 Ok(Expr::Call(called, args))
             }

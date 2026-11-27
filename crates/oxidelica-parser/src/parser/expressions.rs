@@ -17,14 +17,18 @@ impl Parser {
         self.bump();
         let second = self.logical_or()?;
         if self.peek() != &Token::Colon {
-            return Ok(Expr::Range(Box::new(first), None, Box::new(second)));
+            return Ok(Expr::Range(
+                std::sync::Arc::new(first),
+                None,
+                std::sync::Arc::new(second),
+            ));
         }
         self.bump();
         let third = self.logical_or()?;
         Ok(Expr::Range(
-            Box::new(first),
-            Some(Box::new(second)),
-            Box::new(third),
+            std::sync::Arc::new(first),
+            Some(std::sync::Arc::new(second)),
+            std::sync::Arc::new(third),
         ))
     }
 
@@ -48,9 +52,9 @@ impl Parser {
             }
         };
         Ok(Expr::If(
-            Box::new(condition),
-            Box::new(then_branch),
-            Box::new(else_branch),
+            std::sync::Arc::new(condition),
+            std::sync::Arc::new(then_branch),
+            std::sync::Arc::new(else_branch),
         ))
     }
 
@@ -59,7 +63,7 @@ impl Parser {
         while self.peek() == &Token::Or {
             self.bump();
             let rhs = self.logical_and()?;
-            lhs = Expr::Or(Box::new(lhs), Box::new(rhs));
+            lhs = Expr::Or(std::sync::Arc::new(lhs), std::sync::Arc::new(rhs));
         }
         Ok(lhs)
     }
@@ -69,7 +73,7 @@ impl Parser {
         while self.peek() == &Token::And {
             self.bump();
             let rhs = self.logical_not()?;
-            lhs = Expr::And(Box::new(lhs), Box::new(rhs));
+            lhs = Expr::And(std::sync::Arc::new(lhs), std::sync::Arc::new(rhs));
         }
         Ok(lhs)
     }
@@ -78,7 +82,7 @@ impl Parser {
         if self.peek() == &Token::Not {
             self.bump();
             let inner = self.logical_not()?;
-            return Ok(Expr::Not(Box::new(inner)));
+            return Ok(Expr::Not(std::sync::Arc::new(inner)));
         }
         self.relation()
     }
@@ -96,7 +100,11 @@ impl Parser {
         };
         self.bump();
         let rhs = self.arith()?;
-        Ok(Expr::Rel(op, Box::new(lhs), Box::new(rhs)))
+        Ok(Expr::Rel(
+            op,
+            std::sync::Arc::new(lhs),
+            std::sync::Arc::new(rhs),
+        ))
     }
 
     pub(super) fn arith(&mut self) -> Result<Expr, ParseError> {
@@ -114,7 +122,7 @@ impl Parser {
         };
         let mut lhs = self.term()?;
         if leading_neg {
-            lhs = Expr::Neg(Box::new(lhs));
+            lhs = Expr::Neg(std::sync::Arc::new(lhs));
         }
         loop {
             let (op, elementwise) = match self.peek() {
@@ -127,9 +135,9 @@ impl Parser {
             self.bump();
             let rhs = self.term()?;
             lhs = if elementwise {
-                Expr::Elementwise(op, Box::new(lhs), Box::new(rhs))
+                Expr::Elementwise(op, std::sync::Arc::new(lhs), std::sync::Arc::new(rhs))
             } else {
-                Expr::Bin(op, Box::new(lhs), Box::new(rhs))
+                Expr::Bin(op, std::sync::Arc::new(lhs), std::sync::Arc::new(rhs))
             };
         }
         Ok(lhs)
@@ -148,9 +156,9 @@ impl Parser {
             self.bump();
             let rhs = self.factor()?;
             lhs = if elementwise {
-                Expr::Elementwise(op, Box::new(lhs), Box::new(rhs))
+                Expr::Elementwise(op, std::sync::Arc::new(lhs), std::sync::Arc::new(rhs))
             } else {
-                Expr::Bin(op, Box::new(lhs), Box::new(rhs))
+                Expr::Bin(op, std::sync::Arc::new(lhs), std::sync::Arc::new(rhs))
             };
         }
         Ok(lhs)
@@ -162,15 +170,19 @@ impl Parser {
             Token::Caret => {
                 self.bump();
                 let exponent = self.primary()?;
-                Ok(Expr::Bin(BinOp::Pow, Box::new(base), Box::new(exponent)))
+                Ok(Expr::Bin(
+                    BinOp::Pow,
+                    std::sync::Arc::new(base),
+                    std::sync::Arc::new(exponent),
+                ))
             }
             Token::DotCaret => {
                 self.bump();
                 let exponent = self.primary()?;
                 Ok(Expr::Elementwise(
                     BinOp::Pow,
-                    Box::new(base),
-                    Box::new(exponent),
+                    std::sync::Arc::new(base),
+                    std::sync::Arc::new(exponent),
                 ))
             }
             _ => Ok(base),
@@ -200,7 +212,11 @@ impl Parser {
         }
         let mut built = body;
         for (variable, range) in iterators.into_iter().rev() {
-            built = Expr::Comprehension(Box::new(built), variable, Box::new(range));
+            built = Expr::Comprehension(
+                std::sync::Arc::new(built),
+                variable,
+                std::sync::Arc::new(range),
+            );
         }
         Ok(built)
     }
@@ -316,7 +332,7 @@ impl Parser {
                                 let keyword = keyword.clone();
                                 self.bump();
                                 self.bump();
-                                Expr::NamedArg(keyword, Box::new(self.expr()?))
+                                Expr::NamedArg(keyword, std::sync::Arc::new(self.expr()?))
                             } else {
                                 self.expr()?
                             }
@@ -364,7 +380,10 @@ impl Parser {
                 // call is one.
                 let called = Expr::Call(name, args);
                 match self.peek() == &Token::LBracket {
-                    true => Ok(Expr::Index(Box::new(called), self.subscript_list()?)),
+                    true => Ok(Expr::Index(
+                        std::sync::Arc::new(called),
+                        self.subscript_list()?,
+                    )),
                     false => Ok(called),
                 }
             }
@@ -381,7 +400,7 @@ impl Parser {
                 }
                 if self.peek() == &Token::LBracket {
                     let subscripts = self.subscript_list()?;
-                    let indexed = Expr::Index(Box::new(Expr::Ref(name)), subscripts);
+                    let indexed = Expr::Index(std::sync::Arc::new(Expr::Ref(name)), subscripts);
                     if self.peek() == &Token::Dot {
                         self.bump();
                         let mut path = self.ident("member after `.`")?;
@@ -390,7 +409,7 @@ impl Parser {
                             path.push('.');
                             path.push_str(&self.ident("member after `.`")?);
                         }
-                        let member = Expr::Member(Box::new(indexed), path);
+                        let member = Expr::Member(std::sync::Arc::new(indexed), path);
                         // The member may be an array of its own:
                         // `medium[i].Xi[1]` reads one mass fraction of
                         // one of several media.
@@ -415,7 +434,7 @@ impl Parser {
                         // `q[1].pin[1].v` is one signal of one pin of
                         // one of several plugs, which is how the
                         // polyphase library writes a subsystem.
-                        let mut reached = Expr::Index(Box::new(member), inner);
+                        let mut reached = Expr::Index(std::sync::Arc::new(member), inner);
                         loop {
                             if self.peek() == &Token::Dot {
                                 self.bump();
@@ -425,11 +444,14 @@ impl Parser {
                                     path.push('.');
                                     path.push_str(&self.ident("member after `.`")?);
                                 }
-                                reached = Expr::Member(Box::new(reached), path);
+                                reached = Expr::Member(std::sync::Arc::new(reached), path);
                                 continue;
                             }
                             if self.peek() == &Token::LBracket {
-                                reached = Expr::Index(Box::new(reached), self.subscript_list()?);
+                                reached = Expr::Index(
+                                    std::sync::Arc::new(reached),
+                                    self.subscript_list()?,
+                                );
                                 continue;
                             }
                             break;
@@ -453,7 +475,7 @@ impl Parser {
                                     let keyword = keyword.clone();
                                     self.bump();
                                     self.bump();
-                                    Expr::NamedArg(keyword, Box::new(self.expr()?))
+                                    Expr::NamedArg(keyword, std::sync::Arc::new(self.expr()?))
                                 } else {
                                     self.expr()?
                                 }
@@ -483,7 +505,10 @@ impl Parser {
                     // and a call is one.
                     let called = Expr::Call(name, args);
                     match self.peek() == &Token::LBracket {
-                        true => Ok(Expr::Index(Box::new(called), self.subscript_list()?)),
+                        true => Ok(Expr::Index(
+                            std::sync::Arc::new(called),
+                            self.subscript_list()?,
+                        )),
                         false => Ok(called),
                     }
                 } else {

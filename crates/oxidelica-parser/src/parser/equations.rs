@@ -329,7 +329,7 @@ impl Parser {
                 }
             }
         }
-        let mut reached = Expr::Index(Box::new(Expr::Ref(name)), subscripts);
+        let mut reached = Expr::Index(std::sync::Arc::new(Expr::Ref(name)), subscripts);
         // A port may be reached through as many members and subscripts
         // as the model wrote: `plugs_n[k].pin[j]` is one of the pins of
         // one of the plugs, which is how the polyphase library splits a
@@ -339,7 +339,7 @@ impl Parser {
             if self.peek() == &Token::Dot {
                 self.bump();
                 let path = self.component_ref()?;
-                reached = Expr::Member(Box::new(reached), path);
+                reached = Expr::Member(std::sync::Arc::new(reached), path);
                 continue;
             }
             if self.peek() == &Token::LBracket {
@@ -357,7 +357,7 @@ impl Parser {
                         }
                     }
                 }
-                reached = Expr::Index(Box::new(reached), deeper);
+                reached = Expr::Index(std::sync::Arc::new(reached), deeper);
                 continue;
             }
             break;
@@ -673,9 +673,10 @@ fn flatten_branch(condition: Option<Expr>, body: BranchBody) -> Vec<IfBranch> {
                 let condition = match (&outer.condition, &leaf.condition) {
                     (None, inner) => inner.clone(),
                     (outer, None) => outer.clone(),
-                    (Some(outer), Some(inner)) => {
-                        Some(Expr::And(Box::new(outer.clone()), Box::new(inner.clone())))
-                    }
+                    (Some(outer), Some(inner)) => Some(Expr::And(
+                        std::sync::Arc::new(outer.clone()),
+                        std::sync::Arc::new(inner.clone()),
+                    )),
                 };
                 let mut equations = outer.equations.clone();
                 equations.extend(leaf.equations.iter().cloned());

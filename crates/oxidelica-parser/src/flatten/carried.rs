@@ -1365,17 +1365,29 @@ fn qualified_in(
             qualified_call(name, args, registry, scope, imports)
         }
         Expr::Call(name, args) => qualified_call(name, args, registry, scope, imports),
-        Expr::Neg(inner) => Expr::Neg(Box::new(recur(inner))),
-        Expr::Not(inner) => Expr::Not(Box::new(recur(inner))),
-        Expr::Bin(op, l, r) => Expr::Bin(*op, Box::new(recur(l)), Box::new(recur(r))),
-        Expr::Rel(op, l, r) => Expr::Rel(*op, Box::new(recur(l)), Box::new(recur(r))),
-        Expr::And(l, r) => Expr::And(Box::new(recur(l)), Box::new(recur(r))),
-        Expr::Or(l, r) => Expr::Or(Box::new(recur(l)), Box::new(recur(r))),
-        Expr::If(c, a, b) => Expr::If(Box::new(recur(c)), Box::new(recur(a)), Box::new(recur(b))),
+        Expr::Neg(inner) => Expr::Neg(std::sync::Arc::new(recur(inner))),
+        Expr::Not(inner) => Expr::Not(std::sync::Arc::new(recur(inner))),
+        Expr::Bin(op, l, r) => Expr::Bin(
+            *op,
+            std::sync::Arc::new(recur(l)),
+            std::sync::Arc::new(recur(r)),
+        ),
+        Expr::Rel(op, l, r) => Expr::Rel(
+            *op,
+            std::sync::Arc::new(recur(l)),
+            std::sync::Arc::new(recur(r)),
+        ),
+        Expr::And(l, r) => Expr::And(std::sync::Arc::new(recur(l)), std::sync::Arc::new(recur(r))),
+        Expr::Or(l, r) => Expr::Or(std::sync::Arc::new(recur(l)), std::sync::Arc::new(recur(r))),
+        Expr::If(c, a, b) => Expr::If(
+            std::sync::Arc::new(recur(c)),
+            std::sync::Arc::new(recur(a)),
+            std::sync::Arc::new(recur(b)),
+        ),
         Expr::Range(a, step, b) => Expr::Range(
-            Box::new(recur(a)),
-            step.as_ref().map(|s| Box::new(recur(s))),
-            Box::new(recur(b)),
+            std::sync::Arc::new(recur(a)),
+            step.as_ref().map(|s| std::sync::Arc::new(recur(s))),
+            std::sync::Arc::new(recur(b)),
         ),
         Expr::Array(items) => Expr::Array(items.iter().map(recur).collect()),
         // A call written as a named argument is a call all the same:
@@ -1383,7 +1395,7 @@ fn qualified_in(
         // specificEnthalpy_dT(d, T), ...)`, and passed over here the
         // call reached the walk under the bare name it was written with.
         Expr::NamedArg(name, value) if named_values_open() => {
-            Expr::NamedArg(name.clone(), Box::new(recur(value)))
+            Expr::NamedArg(name.clone(), std::sync::Arc::new(recur(value)))
         }
         _ => expr.clone(),
     }
@@ -1567,8 +1579,9 @@ fn records_spelled_out(
         .map(|arg| match arg {
             Expr::NamedArg(name, value) => {
                 let input = inputs.iter().find(|input| input.name == name);
-                let value = spelled(input, &value).unwrap_or(*value);
-                Expr::NamedArg(name, Box::new(value))
+                let value = spelled(input, &value)
+                    .unwrap_or_else(|| std::sync::Arc::unwrap_or_clone(value));
+                Expr::NamedArg(name, std::sync::Arc::new(value))
             }
             positional => {
                 let input = inputs.get(seat);

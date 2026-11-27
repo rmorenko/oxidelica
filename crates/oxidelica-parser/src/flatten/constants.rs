@@ -811,7 +811,7 @@ fn written_by_modifiers(
         .modifiers
         .iter()
         .filter(|(name, _)| !name.contains('.'))
-        .map(|(name, value)| Expr::NamedArg(name.clone(), Box::new(value.clone())))
+        .map(|(name, value)| Expr::NamedArg(name.clone(), std::sync::Arc::new(value.clone())))
         .collect();
     if fields.is_empty() {
         return None;
@@ -1705,8 +1705,12 @@ fn constant_array_of_package(
             if chooses_an_array(&Expr::If(condition.clone(), then.clone(), other.clone())) =>
         {
             match const_eval(&condition, &HashMap::new()) {
-                Some(truth) if truth != 0.0 => as_list(&then).unwrap_or(*then),
-                Some(_) => as_list(&other).unwrap_or(*other),
+                Some(truth) if truth != 0.0 => {
+                    as_list(&then).unwrap_or_else(|| std::sync::Arc::unwrap_or_clone(then))
+                }
+                Some(_) => {
+                    as_list(&other).unwrap_or_else(|| std::sync::Arc::unwrap_or_clone(other))
+                }
                 None => return None,
             }
         }
@@ -2053,15 +2057,15 @@ fn as_list(expr: &Expr) -> Option<Expr> {
                 (Some(l), Some(r)) if l.len() == r.len() => l
                     .into_iter()
                     .zip(r)
-                    .map(|(a, b)| Expr::Bin(*op, Box::new(a), Box::new(b)))
+                    .map(|(a, b)| Expr::Bin(*op, std::sync::Arc::new(a), std::sync::Arc::new(b)))
                     .collect(),
                 (Some(l), None) => l
                     .into_iter()
-                    .map(|a| Expr::Bin(*op, Box::new(a), right.clone()))
+                    .map(|a| Expr::Bin(*op, std::sync::Arc::new(a), right.clone()))
                     .collect(),
                 (None, Some(r)) => r
                     .into_iter()
-                    .map(|b| Expr::Bin(*op, left.clone(), Box::new(b)))
+                    .map(|b| Expr::Bin(*op, left.clone(), std::sync::Arc::new(b)))
                     .collect(),
                 _ => return None,
             };
@@ -2416,7 +2420,7 @@ fn field_over_record_array_by_path(
 thread_local! {
     /// The constant arrays each package declares, its own and its
     /// bases', by package, for as long as one registry stands.
-    pub(super) static CONSTANT_ARRAYS: RefCell<HashMap<String, std::rc::Rc<Vec<String>>>> =
+    pub(super) static CONSTANT_ARRAYS: RefCell<HashMap<String, std::sync::Arc<Vec<String>>>> =
         RefCell::new(HashMap::new());
 }
 
@@ -2453,10 +2457,10 @@ fn constant_arrays_of<T>(
     let names = match known {
         Some(names) => names,
         None => {
-            let names = std::rc::Rc::new(work_out());
+            let names = std::sync::Arc::new(work_out());
             CONSTANT_ARRAYS.with(|held| {
                 held.borrow_mut()
-                    .insert(owner.name.clone(), std::rc::Rc::clone(&names))
+                    .insert(owner.name.clone(), std::sync::Arc::clone(&names))
             });
             names
         }
@@ -3053,7 +3057,10 @@ mod lists {
     }
 
     fn column(which: f64) -> Expr {
-        Expr::Index(Box::new(table()), vec![Expr::ColonSubscript, n(which)])
+        Expr::Index(
+            std::sync::Arc::new(table()),
+            vec![Expr::ColonSubscript, n(which)],
+        )
     }
 
     /// Every shape a medium's table constants are built of, and each
@@ -3067,16 +3074,21 @@ mod lists {
         assert_eq!(listed(&column(3.0)), None);
         assert_eq!(listed(&column(0.0)), None);
         let by_name = Expr::Index(
-            Box::new(table()),
+            std::sync::Arc::new(table()),
             vec![Expr::ColonSubscript, Expr::Ref("k".into())],
         );
         assert_eq!(listed(&by_name), None);
         // A row rather than a column is not one of these.
-        let row = Expr::Index(Box::new(table()), vec![n(1.0), Expr::ColonSubscript]);
+        let row = Expr::Index(
+            std::sync::Arc::new(table()),
+            vec![n(1.0), Expr::ColonSubscript],
+        );
         assert_eq!(listed(&row), None);
 
         // Element by element, the list on either side or both.
-        let over = |l: Expr, r: Expr| Expr::Elementwise(BinOp::Div, Box::new(l), Box::new(r));
+        let over = |l: Expr, r: Expr| {
+            Expr::Elementwise(BinOp::Div, std::sync::Arc::new(l), std::sync::Arc::new(r))
+        };
         assert!(listed(&over(n(1.0), column(1.0))).is_some());
         assert!(listed(&over(column(1.0), n(2.0))).is_some());
         assert!(listed(&over(column(1.0), column(2.0))).is_some());
@@ -3088,9 +3100,9 @@ mod lists {
         // one is no list.
         let pick = |c: Expr| {
             Expr::If(
-                Box::new(c),
-                Box::new(column(1.0)),
-                Box::new(Expr::Array(vec![n(9.0)])),
+                std::sync::Arc::new(c),
+                std::sync::Arc::new(column(1.0)),
+                std::sync::Arc::new(Expr::Array(vec![n(9.0)])),
             )
         };
         assert_eq!(listed(&pick(Expr::Bool(true))), Some("{1, 3}".to_string()));
@@ -3103,8 +3115,13 @@ mod lists {
     fn a_choice_is_an_array_only_where_one_side_is_built_as_one() {
         let zeros = Expr::Call("zeros".into(), vec![n(2.0)]);
         let call = Expr::Call("fitting".into(), vec![]);
-        let choice =
-            |a: Expr, b: Expr| Expr::If(Box::new(Expr::Bool(true)), Box::new(a), Box::new(b));
+        let choice = |a: Expr, b: Expr| {
+            Expr::If(
+                std::sync::Arc::new(Expr::Bool(true)),
+                std::sync::Arc::new(a),
+                std::sync::Arc::new(b),
+            )
+        };
         assert!(chooses_an_array(&choice(call.clone(), zeros.clone())));
         assert!(chooses_an_array(&choice(zeros, call.clone())));
         assert!(!chooses_an_array(&choice(call.clone(), n(1.0))));
